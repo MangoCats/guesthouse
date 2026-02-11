@@ -446,12 +446,14 @@ t_out = ((pts["Cf4"][0]-pts["O10"][0])*d_out_90[0] + (pts["Cf4"][1]-pts["O10"][1
         / (d_out_90[0]**2 + d_out_90[1]**2)
 pts["O11"] = (pts["O10"][0] + t_out*d_out_90[0], pts["O10"][1] + t_out*d_out_90[1])
 
-# --- C13-C14-C15 wall geometry (10" arcs, wall at -12" Northing) ---
-R_wall = 10.0 / 12.0          # 10" connecting arc radius
+# --- C13-C14-C15 wall geometry (wall at -12" Northing) ---
+R_wall = 28.0 / 12.0          # 28" connecting arc radius (Cw3)
+R_w1   = 28.0 / 12.0          # 28" arc radius (Cw1: C15->C14)
+R_w2   = 28.0 / 12.0          # 28" arc radius (Cw2: C14->C13b)
 wall_south_N = -12.0 / 12.0   # south face of wall at -12" Northing
 # Tangency distance between Cw1 and Cw2 arc centers
-dN_c = (wall_south_N + R_wall) - (pts["O15"][1] - R_wall)
-dE_c = math.sqrt((2.0 * R_wall)**2 - dN_c**2)
+dN_c = (wall_south_N + R_w2) - (pts["O15"][1] - R_w1)
+dE_c = math.sqrt((R_w1 + R_w2)**2 - dN_c**2)
 # Align C13b with east side of king bed
 # bed_e = inner_W1_E + 20.5' (dryer+counter+closet2+W1S+half_bedroom+half_bed)
 _bed_e_align = pts["O2"][0] + 8.0/12 + 20.5
@@ -464,11 +466,11 @@ pts["O13"] = (pts["PiX"][0] + s_13 * d_in_u[0], C13_N)
 pts["Cw3"] = (pts["O13"][0] + R_wall * (-d_in_u[1]), wall_south_N + R_wall)
 pts["O13a"] = (pts["Cw3"][0], wall_south_N)
 # C15->C14 arc center (Cw1): center south of O15
-pts["Cw1"] = (pts["O15"][0], pts["O15"][1] - R_wall)
-# C14->C13b arc center (Cw2): from external tangency |Cw1-Cw2| = 2*R_wall
+pts["Cw1"] = (pts["O15"][0], pts["O15"][1] - R_w1)
+# C14->C13b arc center (Cw2): from external tangency |Cw1-Cw2| = R_w1+R_w2
 C13b_E = pts["O15"][0] + dE_c
 pts["O13b"] = (C13b_E, wall_south_N)
-pts["Cw2"] = (C13b_E, wall_south_N + R_wall)
+pts["Cw2"] = (C13b_E, wall_south_N + R_w2)
 # C14 = midpoint of Cw1 and Cw2 (tangent point between the two arcs)
 pts["O14"] = ((pts["Cw1"][0] + pts["Cw2"][0]) / 2.0,
               (pts["Cw1"][1] + pts["Cw2"][1]) / 2.0)
@@ -477,8 +479,8 @@ outline_segs = [
     LineSeg("O2", "O1"),                                    # 0
     ArcSeg("O1", "O0", "Cf", R_fillet, "CCW", 20),         # 1
     LineSeg("O0", "O15"),                                    # 2
-    ArcSeg("O15", "O14", "Cw1", R_wall, "CW", 20),         # 3: C15->C14
-    ArcSeg("O14", "O13b", "Cw2", R_wall, "CCW", 20),       # 4: C14->C13b
+    ArcSeg("O15", "O14", "Cw1", R_w1, "CW", 60),            # 3: C15->C14
+    ArcSeg("O14", "O13b", "Cw2", R_w2, "CCW", 60),          # 4: C14->C13b
     LineSeg("O13b", "O13a"),                                 # 5: wall segment
     ArcSeg("O13a", "O13", "Cw3", R_wall, "CCW", 20),       # 6: C13a->C13
     LineSeg("O13", "O12"),                                   # 7
@@ -499,7 +501,7 @@ outline_area = poly_area(path_polygon(outline_segs, pts))
 print(f'=== INSET PATH (6" inside) ===')
 print(f"  delta={delta}' R1i={R1i}' R2i={R2i}' R3i={R3i}'")
 print(f"  Inset area: {inset_area:.2f} sq ft")
-print(f'=== OUTLINE PATH (wall arcs R=10", fillets R=9" & R=28") ===')
+print(f'=== OUTLINE PATH (wall arcs R=28", fillets R=9" & R=28") ===')
 print(f"  O2:   ({pts['O2'][0]:.4f}, {pts['O2'][1]:.4f})  (fillet2 tangent)")
 print(f"  O1:   ({pts['O1'][0]:.4f}, {pts['O1'][1]:.4f})  (fillet tangent)")
 print(f"  O0:   ({pts['O0'][0]:.4f}, {pts['O0'][1]:.4f})  (fillet tangent)")
@@ -550,8 +552,8 @@ for _i in range(18):
 
 _fp_inner_segs = [
     LineSeg("W2","W1"), ArcSeg("W1","W0","Cf",R_fillet-_wall_t,"CCW",20),
-    LineSeg("W0","W15"), ArcSeg("W15","W14","Cw1",R_wall+_wall_t,"CW",20),
-    ArcSeg("W14","W13b","Cw2",R_wall-_wall_t,"CCW",20), LineSeg("W13b","W13a"),
+    LineSeg("W0","W15"), ArcSeg("W15","W14","Cw1",R_w1+_wall_t,"CW",60),
+    ArcSeg("W14","W13b","Cw2",R_w2-_wall_t,"CCW",60), LineSeg("W13b","W13a"),
     ArcSeg("W13a","W13","Cw3",R_wall-_wall_t,"CCW",20), LineSeg("W13","W12"),
     ArcSeg("W12","W11","Cf4",R_f_po5-_wall_t,"CCW",20), LineSeg("W11","W10"),
     ArcSeg("W10","W9","C1",R1i+_wall_t,"CW",60), LineSeg("W9","W8"),
@@ -604,18 +606,18 @@ _ctr_nw_r = 9.0/12.0
 _iwt3 = 3.0/12; _iwt4 = 4.0/12; _cl2w = 30.0/12
 _w8 = [(_ctr_e,_ctr_s),(_ctr_e+_iwt3,_ctr_s),(_ctr_e+_iwt3,_ctr_n),
        (_ctr_e+_iwt3+_cl2w,_ctr_n),(_ctr_e+_iwt3+_cl2w,_ctr_n+_iwt3),(_ctr_e,_ctr_n+_iwt3)]
-_w1s_w = _ctr_e+_iwt3+_cl2w; _w1s_e = _w1s_w+_iwt4; _w1s_s = _ctr_s; _w1s_n = _iw1_s
-_w6_w = _w1s_e+140.0/12; _w6_e = _w6_w+_iwt4
+_iw3_w = _ctr_e+_iwt3+_cl2w; _iw3_e = _iw3_w+_iwt4; _iw3_s = _ctr_s; _iw3_n = _iw1_s
+_iw4_w = _iw3_e+140.0/12; _iw4_e = _iw4_w+_iwt4
 _wall_south_n = -4.0/12
-_w6_sw = _wall_south_n
-_w6_se = _wall_south_n
+_iw4_sw = _wall_south_n
+_iw4_se = _wall_south_n
 _cl1w = 30.0/12; _cl1_top = _ctr_n-1.0
-_w5_w = _w6_e+_cl1w; _w5_e = _w5_w+_iwt3
+_w5_w = _iw4_e+_cl1w; _w5_e = _w5_w+_iwt3
 _w5_sw = _wall_south_n
 _w5_se = _wall_south_n
 
 # Bed position
-_bed_cx = (_w1s_e+_w6_w)/2
+_bed_cx = (_iw3_e+_iw4_w)/2
 _bed_w = _bed_cx-76.0/24; _bed_e = _bed_cx+76.0/24
 _bed_s = _ctr_s+2.0/12; _bed_n = _bed_s+94.0/12
 
@@ -650,17 +652,17 @@ def render_floorplan(lines):
     # Wall 8 L-shape
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _w8)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # Wall 1 South
-    w1sp = [(_w1s_w,_w1s_s),(_w1s_e,_w1s_s),(_w1s_e,_w1s_n),(_w1s_w,_w1s_n)]
+    # IW3 (west bedroom wall)
+    w1sp = [(_iw3_w,_iw3_s),(_iw3_e,_iw3_s),(_iw3_e,_iw3_n),(_iw3_w,_iw3_n)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w1sp)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # Wall 6
-    w6p = [(_w6_w,_w6_sw),(_w6_e,_w6_se),(_w6_e,_iw1_s),(_w6_w,_iw1_s)]
+    # IW4 (east bedroom wall)
+    w6p = [(_iw4_w,_iw4_sw),(_iw4_e,_iw4_se),(_iw4_e,_iw1_s),(_iw4_w,_iw1_s)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w6p)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # Wall 5 L-shape
-    w5p = [(_w6_e,_cl1_top+_iwt3),(_w5_e,_cl1_top+_iwt3),(_w5_e,_w5_se),
-           (_w5_w,_w5_sw),(_w5_w,_cl1_top),(_w6_e,_cl1_top)]
+    w5p = [(_iw4_e,_cl1_top+_iwt3),(_w5_e,_cl1_top+_iwt3),(_w5_e,_w5_se),
+           (_w5_w,_w5_sw),(_w5_w,_cl1_top),(_iw4_e,_cl1_top)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w5p)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # Appliances
@@ -685,11 +687,11 @@ def render_floorplan(lines):
     bcx,bly = (bs[0]+be[0])/2,bs[1]+0.765*bh
     lines.append(f'<text x="{bcx:.1f}" y="{bly+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
     # Room labels
-    cx,cy = to_svg((_ctr_e+_iwt3+_w1s_w)/2,(_ctr_s+_ctr_n)/2)
+    cx,cy = to_svg((_ctr_e+_iwt3+_iw3_w)/2,(_ctr_s+_ctr_n)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
-    bx,by = to_svg((_w1s_e+_w6_w)/2,(_ctr_s+_iw1_s)/2)
+    bx,by = to_svg((_iw3_e+_iw4_w)/2,(_ctr_s+_iw1_s)/2)
     lines.append(f'<text x="{bx:.1f}" y="{by+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
-    cx,cy = to_svg((_w6_e+_w5_w)/2,(_ctr_s+_cl1_top)/2)
+    cx,cy = to_svg((_iw4_e+_w5_w)/2,(_ctr_s+_cl1_top)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     lines.append('</g>')
 
@@ -786,11 +788,11 @@ outline_cfg = LayerConfig(
         "O2":   VertexStyle("O2",   "end",   -8, -6,  "#d32f2f", 3.5, 10),
         "O1":   VertexStyle("O1",   "end",   -8, -4,  "#d32f2f", 3.5, 10),
         "O0":   VertexStyle("O0",   "end",   -8, 10,  "#d32f2f", 3.5, 10),
-        "O15":  VertexStyle("C15",  "middle", 0, -12, "#2E7D32", 3.5, 10),
-        "O14":  VertexStyle("C14",  "start",  8, -6,  "#2E7D32", 3.5, 10),
-        "O13b": VertexStyle("C13b", "start",  8, 12,  "#2E7D32", 3.5, 10),
-        "O13a": VertexStyle("C13a", "start",  8, 12,  "#2E7D32", 3.5, 10),
-        "O13":  VertexStyle("C13",  "start", 10, 10,  "#2E7D32", 3.5, 10),
+        "O15":  VertexStyle("O15",  "middle", 0, -12, "#2E7D32", 3.5, 10),
+        "O14":  VertexStyle("O14",  "start",  8, -6,  "#2E7D32", 3.5, 10),
+        "O13b": VertexStyle("O13b", "start",  8, 12,  "#2E7D32", 3.5, 10),
+        "O13a": VertexStyle("O13a", "start",  8, 12,  "#2E7D32", 3.5, 10),
+        "O13":  VertexStyle("O13",  "start", 10, 10,  "#2E7D32", 3.5, 10),
         "O12":  VertexStyle("O12",  "start",  8,  4,  "#d32f2f", 3.5, 10),
         "O11":  VertexStyle("O11",  "start",  8,  4,  "#d32f2f", 3.5, 10),
         "O10":  VertexStyle("O10",  "start", 10, -4,  "#0077B6", 3.5, 10),
@@ -817,11 +819,11 @@ outline_cfg = LayerConfig(
             f"{sweep1o:.1f}&#176; CW", "end", -20, 0, 11, "#0077B6"),
         ("O8","O7"): ArcLabel("Turn R=28\"",
             f"{sweep_t3:.1f}&#176;", "start", 12, 0, 11, "#333"),
-        ("O15","O14"): ArcLabel("Wall R=10\"",
+        ("O15","O14"): ArcLabel("Wall R=28\"",
             f"{sweep_w1:.1f}&#176; CW", "start", 12, 4, 11, "#2E7D32"),
-        ("O14","O13b"): ArcLabel("Wall R=10\"",
+        ("O14","O13b"): ArcLabel("Wall R=28\"",
             f"{sweep_w2:.1f}&#176;", "start", 12, -10, 11, "#2E7D32"),
-        ("O13a","O13"): ArcLabel("Wall R=10\"",
+        ("O13a","O13"): ArcLabel("Wall R=28\"",
             f"{sweep_w3:.1f}&#176;", "end", -10, -10, 11, "#2E7D32"),
         ("O12","O11"): ArcLabel("Fillet R=10\"",
             f"{sweep_f4:.1f}&#176;", "start", 10, -10, 11, "#333"),
@@ -857,7 +859,7 @@ lines.append('  <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="
 lines.append(f'  <clipPath id="page"><rect width="{W}" height="{H}"/></clipPath>')
 lines.append('</defs>')
 lines.append(f'<text x="{W/2}" y="30" text-anchor="middle" font-family="Arial" font-size="14"'
-             f' font-weight="bold">Site Path &#8212; Outline (wall arcs R=10&#8243;, fillets R=9&#8243; &amp; R=28&#8243;)</text>')
+             f' font-weight="bold">Site Path &#8212; Outline (wall arcs R=28&#8243;, fillets R=9&#8243; &amp; R=28&#8243;)</text>')
 
 render_layer(lines, outer_segs, pts, outer_cfg)
 render_layer(lines, inset_segs, pts, inset_cfg)
@@ -887,18 +889,18 @@ lines.append(f'<rect x="40" y="{ly}" width="14" height="8" fill="rgba(255,152,0,
 lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#999">Inset path at 20% ({inset_area:.2f} sq ft)</text>')
 ly += 12
 lines.append(f'<line x1="40" y1="{ly+4}" x2="54" y2="{ly+4}" stroke="#333" stroke-width="2.0"/>')
-lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Outline path ({outline_area:.2f} sq ft) &#8212; wall arcs R=10", fillets R=9" &amp; R=28"</text>')
+lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Outline path ({outline_area:.2f} sq ft) &#8212; wall arcs R=28", fillets R=9" &amp; R=28"</text>')
 ly += 12
 lines.append(f'<line x1="40" y1="{ly+4}" x2="54" y2="{ly+4}" stroke="#0077B6" stroke-width="2.5"/>')
 lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Outline Arc 1o (R=10\' 6")</text>')
 ly += 12
 lines.append(f'<line x1="40" y1="{ly+4}" x2="54" y2="{ly+4}" stroke="#2E7D32" stroke-width="2.5"/>')
-lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Wall arcs (R=10")</text>')
+lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Wall arcs (R=28")</text>')
 
 # Footer
 lines.append(f'<text x="{W/2}" y="{H-2}" text-anchor="middle" font-family="Arial" font-size="7.5"'
              f' fill="#999">Bearings as adjusted &#8226; Distances in feet and inches &#8226;'
-             f' Outline arcs: R1o=10\' 6", wall R=10"</text>')
+             f' Outline arcs: R1o=10\' 6", wall R=28"</text>')
 lines.append('</svg>')
 
 svg_content = "\n".join(lines)

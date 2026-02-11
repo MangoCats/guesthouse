@@ -32,7 +32,9 @@ W, H         = _ns["W"], _ns["H"]
 
 # Outline arc radii
 R_fillet  = _ns["R_fillet"]     # Cf   CCW (inside)
-R_wall    = _ns["R_wall"]       # Cw1/Cw2/Cw3 wall arcs
+R_wall    = _ns["R_wall"]       # Cw3 wall arc (10")
+R_w1      = _ns["R_w1"]        # Cw1 wall arc (28")
+R_w2      = _ns["R_w2"]        # Cw2 wall arc (28")
 R_f_po5   = _ns["R_f_po5"]     # Cf4  CCW (inside)
 R1i       = _ns["R1i"]          # C1   CW  (outside)
 R_turn3   = _ns["R_turn3"]     # Ct3  CCW (inside)
@@ -84,8 +86,8 @@ inner_segs = [
     LineSeg("W2",  "W1"),
     ArcSeg("W1",  "W0",  "Cf",  R_fillet  - wall_t, "CCW", 20),
     LineSeg("W0",  "W15"),
-    ArcSeg("W15", "W14", "Cw1", R_wall    + wall_t, "CW",  20),
-    ArcSeg("W14", "W13b","Cw2", R_wall    - wall_t, "CCW", 20),
+    ArcSeg("W15", "W14", "Cw1", R_w1      + wall_t, "CW",  60),
+    ArcSeg("W14", "W13b","Cw2", R_w2      - wall_t, "CCW", 60),
     LineSeg("W13b","W13a"),
     ArcSeg("W13a","W13", "Cw3", R_wall    - wall_t, "CCW", 20),
     LineSeg("W13", "W12"),
@@ -194,7 +196,7 @@ for a, b in [(iw_sw, iw_se), (iw_ne, iw_nw)]:
 iw_mid_e = (iw_sw[0] + iw_se[0]) / 2
 iw_mid_n = (int_wall_south + int_wall_north) / 2
 iw_lx, iw_ly = to_svg(iw_mid_e, iw_mid_n)
-out.append(f'<text x="{iw_lx:.1f}" y="{iw_ly+3.5:.1f}" text-anchor="middle" font-family="Arial"'
+out.append(f'<text x="{iw_lx:.1f}" y="{iw_ly+3.5-8:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#666">IW1</text>')
 
 # Interior wall IW2: 6" thick, N-S, west face 6'6" east of inner C1-C2 wall
@@ -215,8 +217,8 @@ for e_val in [iw2_w, iw2_e]:
 iw2_mid_e = (iw2_w + iw2_e) / 2
 iw2_mid_n = (iw2_s + iw2_n) / 2
 iw2_lx, iw2_ly = to_svg(iw2_mid_e, iw2_mid_n)
-out.append(f'<text x="{iw2_lx:.1f}" y="{iw2_ly+3.5:.1f}" text-anchor="middle" font-family="Arial"'
-           f' font-size="8" fill="#666" transform="rotate(-90,{iw2_lx:.1f},{iw2_ly+3.5:.1f})">IW2</text>')
+out.append(f'<text x="{iw2_lx-4:.1f}" y="{iw2_ly+3.5:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#666" transform="rotate(-90,{iw2_lx-4:.1f},{iw2_ly+3.5:.1f})">IW2</text>')
 
 # Dimension line: IW1 north face to C6-C7 south face (inner), mid-span
 dim_e = (pts["O6"][0] + pts["O7"][0]) / 2
@@ -236,8 +238,8 @@ out.append(f'<line x1="{dx1-tick:.1f}" y1="{dy1:.1f}" x2="{dx1+tick:.1f}" y2="{d
 out.append(f'<line x1="{dx2-tick:.1f}" y1="{dy2:.1f}" x2="{dx2+tick:.1f}" y2="{dy2:.1f}"'
            f' stroke="#999" stroke-width="0.8"/>')
 dm_x, dm_y = (dx1 + dx2) / 2, (dy1 + dy2) / 2
-out.append(f'<text x="{dm_x-6:.1f}" y="{dm_y+3:.1f}" text-anchor="middle" font-family="Arial"'
-           f' font-size="8" fill="#999" transform="rotate(-90,{dm_x-6:.1f},{dm_y+3:.1f})">{dim_label}</text>')
+out.append(f'<text x="{dm_x-3:.1f}" y="{dm_y+3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999" transform="rotate(-90,{dm_x-3:.1f},{dm_y+3:.1f})">{dim_label}</text>')
 
 # Dimension line: IW2 east face to inside C8-C9 wall, vertically centered in C8-C9 wall
 dim2_n = (pts["O8"][1] + pts["O9"][1]) / 2
@@ -260,7 +262,7 @@ out.append(f'<line x1="{d2x1:.1f}" y1="{d2y1-tick:.1f}" x2="{d2x1:.1f}" y2="{d2y
 out.append(f'<line x1="{d2x2:.1f}" y1="{d2y2-tick:.1f}" x2="{d2x2:.1f}" y2="{d2y2+tick:.1f}"'
            f' stroke="#999" stroke-width="0.8"/>')
 d2m_x, d2m_y = (d2x1 + d2x2) / 2, (d2y1 + d2y2) / 2
-out.append(f'<text x="{d2m_x:.1f}" y="{d2m_y-6:.1f}" text-anchor="middle" font-family="Arial"'
+out.append(f'<text x="{d2m_x:.1f}" y="{d2m_y-3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999">{dim2_label}</text>')
 
 # --- Appliances (dimensions from ../hut project) ---
@@ -328,12 +330,12 @@ out.append(f'<text x="{_ccx:.1f}" y="{_ccy:.1f}" text-anchor="middle" font-famil
 
 # Bedroom and closet walls from ../hut plan (placed relative to counter)
 iw_thick_3 = 3.0 / 12.0    # 3" Wall 8 thickness
-iw_thick_4 = 4.0 / 12.0    # 4" Wall 1 South thickness
+iw_thick_4 = 4.0 / 12.0    # 4" IW3 thickness
 closet2_width = 30.0 / 12.0 # 30" closet width
 
 # Wall 8 L-shape (west/north walls of closet, east of counter)
 #   Vertical section: ctr_e to ctr_e+3", from south wall to top of horizontal
-#   Horizontal section: at counter north, connecting vertical to Wall 1 South
+#   Horizontal section: at counter north, connecting vertical to IW3
 w8_poly = [
     (ctr_e, ctr_s),                                                  # SW
     (ctr_e + iw_thick_3, ctr_s),                                     # SE of vertical
@@ -345,57 +347,62 @@ w8_poly = [
 w8_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w8_poly)
 out.append(f'<polygon points="{w8_svg}" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>')
 
-# Wall 1 South (partition between closet 2 and bedroom, 4" thick)
-w1s_w = ctr_e + iw_thick_3 + closet2_width
-w1s_e = w1s_w + iw_thick_4
-w1s_s = ctr_s
-w1s_n = int_wall_south   # extends north to IW1 south face
-w1s_poly = [(w1s_w, w1s_s), (w1s_e, w1s_s), (w1s_e, w1s_n), (w1s_w, w1s_n)]
-w1s_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w1s_poly)
-out.append(f'<polygon points="{w1s_svg}" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>')
+# IW3 (west bedroom wall, 4" thick)
+iw3_w = ctr_e + iw_thick_3 + closet2_width
+iw3_e = iw3_w + iw_thick_4
+iw3_s = ctr_s
+iw3_n = int_wall_south   # extends north to IW1 south face
+iw3_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s), (iw3_e, iw3_n), (iw3_w, iw3_n)]
+iw3_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw3_poly)
+out.append(f'<polygon points="{iw3_svg}" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>')
+# IW3 label
+iw3_mid_e = (iw3_w + iw3_e) / 2
+iw3_mid_n = (iw3_s + iw3_n) / 2
+iw3_lx, iw3_ly = to_svg(iw3_mid_e, iw3_mid_n)
+out.append(f'<text x="{iw3_lx-4:.1f}" y="{iw3_ly+3.5:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#666" transform="rotate(-90,{iw3_lx-4:.1f},{iw3_ly+3.5:.1f})">IW3</text>')
 
-# Wall 6 (bedroom east wall, 4" thick) — 11'8" east of Wall 1 South east face
+# IW4 (bedroom east wall, 4" thick) — 11'8" east of IW3 east face
 bedroom_width = 140.0 / 12.0   # 11'8"
-w6_w = w1s_e + bedroom_width
-w6_e = w6_w + iw_thick_4
+iw4_w = iw3_e + bedroom_width
+iw4_e = iw4_w + iw_thick_4
 wall_south_n = -4.0 / 12.0  # south end of bedroom/closet walls: -4"
-w6_south_w = wall_south_n
-w6_south_e = wall_south_n
-w6_poly = [(w6_w, w6_south_w), (w6_e, w6_south_e), (w6_e, int_wall_south), (w6_w, int_wall_south)]
-w6_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w6_poly)
-out.append(f'<polygon points="{w6_svg}" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>')
+iw4_south_w = wall_south_n
+iw4_south_e = wall_south_n
+iw4_poly = [(iw4_w, iw4_south_w), (iw4_e, iw4_south_e), (iw4_e, int_wall_south), (iw4_w, int_wall_south)]
+iw4_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw4_poly)
+out.append(f'<polygon points="{iw4_svg}" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>')
+# IW4 label
+iw4_mid_e = (iw4_w + iw4_e) / 2
+iw4_mid_n = (iw4_south_w + int_wall_south) / 2
+iw4_lx, iw4_ly = to_svg(iw4_mid_e, iw4_mid_n)
+out.append(f'<text x="{iw4_lx-4:.1f}" y="{iw4_ly+3.5:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#666" transform="rotate(-90,{iw4_lx-4:.1f},{iw4_ly+3.5:.1f})">IW4</text>')
 
 # Wall 5 (L-shaped, 3" thick — east/north walls of closet 1)
 closet1_width = 30.0 / 12.0    # 30" closet
-closet1_top = ctr_n - 1.0      # 12" shorter than closet 2 (matching ../hut)
-w5_w = w6_e + closet1_width
+closet1_top = wall_south_n + 6.0  # 6'0" inside N-S
+w5_w = iw4_e + closet1_width
 w5_e = w5_w + iw_thick_3
 w5_south_w = wall_south_n
 w5_south_e = wall_south_n
 # L-shape: horizontal bar at closet1_top, vertical bar on the east
 w5_poly = [
-    (w6_e, closet1_top + iw_thick_3),   # NW (top-left of horizontal)
+    (iw4_e, closet1_top + iw_thick_3),   # NW (top-left of horizontal)
     (w5_e, closet1_top + iw_thick_3),   # NE (top-right of vertical)
     (w5_e, w5_south_e),                  # SE (bottom of east face)
     (w5_w, w5_south_w),                  # SW of vertical (bottom of west face)
     (w5_w, closet1_top),                 # inner corner
-    (w6_e, closet1_top),                 # SW of horizontal
+    (iw4_e, closet1_top),                 # SW of horizontal
 ]
 w5_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w5_poly)
 out.append(f'<polygon points="{w5_svg}" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>')
-
-# Room labels
-_cl_cx = (ctr_e + iw_thick_3 + w1s_w) / 2
-_cl_cy = (ctr_s + ctr_n) / 2
-_clx, _cly = to_svg(_cl_cx, _cl_cy)
-out.append(f'<text x="{_clx:.1f}" y="{_cly+3:.1f}" text-anchor="middle" font-family="Arial"'
-           f' font-size="7" fill="#666" transform="rotate(-90,{_clx:.1f},{_cly+3:.1f})">CLOSET</text>')
 
 # King Bed (from ../hut: 76" wide x 94" long incl. frame, 2" from south wall, centered E-W)
 bed_w_dim = 76.0 / 12.0    # E-W width
 bed_l_dim = 94.0 / 12.0    # N-S length (incl. headboard/frame)
 bed_offset_n = 2.0 / 12.0  # 2" from inner south wall
-bed_cx = (w1s_e + w6_w) / 2
+bed_cx = (iw3_e + iw4_w) / 2
 bed_w = bed_cx - bed_w_dim / 2
 bed_e = bed_cx + bed_w_dim / 2
 bed_s = ctr_s + bed_offset_n
@@ -414,21 +421,21 @@ _bed_label_y = _bed_sw_y + 0.765 * _bed_h
 out.append(f'<text x="{_bed_cx_svg:.1f}" y="{_bed_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="7" fill="#4682B4">KING BED</text>')
 
-_bd_cx = (w1s_e + w6_w) / 2   # centered in 11'8" bedroom width
+_bd_cx = (iw3_e + iw4_w) / 2   # centered in 11'8" bedroom width
 _bd_cy = (ctr_s + int_wall_south) / 2
 _bdx, _bdy = to_svg(_bd_cx, _bd_cy)
 out.append(f'<text x="{_bdx:.1f}" y="{_bdy+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#666">BEDROOM</text>')
 
 # Bedroom interior dimension lines
-# E-W dimension (horizontal): w1s_e to w6_w, placed at 25% from south wall
-bd_ew_dist = w6_w - w1s_e
+# E-W dimension (horizontal): iw3_e to iw4_w, placed at 25% from south wall
+bd_ew_dist = iw4_w - iw3_e
 bd_ew_ft = int(bd_ew_dist)
 bd_ew_in = (bd_ew_dist - bd_ew_ft) * 12
 bd_ew_label = f"{bd_ew_ft}' {bd_ew_in:.0f}\""
 bd_ew_n = ctr_s + 0.25 * (int_wall_south - ctr_s)
-bd_ew_x1, bd_ew_y1 = to_svg(w1s_e, bd_ew_n)
-bd_ew_x2, bd_ew_y2 = to_svg(w6_w, bd_ew_n)
+bd_ew_x1, bd_ew_y1 = to_svg(iw3_e, bd_ew_n)
+bd_ew_x2, bd_ew_y2 = to_svg(iw4_w, bd_ew_n)
 out.append(f'<line x1="{bd_ew_x1:.1f}" y1="{bd_ew_y1:.1f}" x2="{bd_ew_x2:.1f}" y2="{bd_ew_y2:.1f}"'
            f' stroke="#999" stroke-width="0.8"/>')
 out.append(f'<line x1="{bd_ew_x1:.1f}" y1="{bd_ew_y1-tick:.1f}" x2="{bd_ew_x1:.1f}" y2="{bd_ew_y1+tick:.1f}"'
@@ -436,15 +443,15 @@ out.append(f'<line x1="{bd_ew_x1:.1f}" y1="{bd_ew_y1-tick:.1f}" x2="{bd_ew_x1:.1
 out.append(f'<line x1="{bd_ew_x2:.1f}" y1="{bd_ew_y2-tick:.1f}" x2="{bd_ew_x2:.1f}" y2="{bd_ew_y2+tick:.1f}"'
            f' stroke="#999" stroke-width="0.8"/>')
 bd_ew_mx = (bd_ew_x1 + bd_ew_x2) / 2
-out.append(f'<text x="{bd_ew_mx:.1f}" y="{bd_ew_y1-6:.1f}" text-anchor="middle" font-family="Arial"'
+out.append(f'<text x="{bd_ew_mx:.1f}" y="{bd_ew_y1-3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999">{bd_ew_label}</text>')
 
-# N-S dimension (vertical): ctr_s to int_wall_south, centered between C15 and Wall 1 South west face
+# N-S dimension (vertical): ctr_s to int_wall_south, 2' east of IW3 east face
 bd_ns_dist = int_wall_south - ctr_s
 bd_ns_ft = int(bd_ns_dist)
 bd_ns_in = (bd_ns_dist - bd_ns_ft) * 12
 bd_ns_label = f"{bd_ns_ft}' {bd_ns_in:.0f}\""
-bd_ns_e = (pts["O15"][0] + w1s_w) / 2
+bd_ns_e = iw3_e + 2.0
 bd_ns_x1, bd_ns_y1 = to_svg(bd_ns_e, ctr_s)
 bd_ns_x2, bd_ns_y2 = to_svg(bd_ns_e, int_wall_south)
 out.append(f'<line x1="{bd_ns_x1:.1f}" y1="{bd_ns_y1:.1f}" x2="{bd_ns_x2:.1f}" y2="{bd_ns_y2:.1f}"'
@@ -454,15 +461,44 @@ out.append(f'<line x1="{bd_ns_x1-tick:.1f}" y1="{bd_ns_y1:.1f}" x2="{bd_ns_x1+ti
 out.append(f'<line x1="{bd_ns_x2-tick:.1f}" y1="{bd_ns_y2:.1f}" x2="{bd_ns_x2+tick:.1f}" y2="{bd_ns_y2:.1f}"'
            f' stroke="#999" stroke-width="0.8"/>')
 bd_ns_mx, bd_ns_my = bd_ns_x1, (bd_ns_y1 + bd_ns_y2) / 2
-out.append(f'<text x="{bd_ns_mx-6:.1f}" y="{bd_ns_my+3:.1f}" text-anchor="middle" font-family="Arial"'
-           f' font-size="8" fill="#999" transform="rotate(-90,{bd_ns_mx-6:.1f},{bd_ns_my+3:.1f})">{bd_ns_label}</text>')
+out.append(f'<text x="{bd_ns_mx-3:.1f}" y="{bd_ns_my+3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999" transform="rotate(-90,{bd_ns_mx-3:.1f},{bd_ns_my+3:.1f})">{bd_ns_label}</text>')
 
-# East closet label (closet 1, between Wall 6 and Wall 5)
-_cl1_cx = (w6_e + w5_w) / 2
-_cl1_cy = (ctr_s + closet1_top) / 2
-_cl1x, _cl1y = to_svg(_cl1_cx, _cl1_cy)
-out.append(f'<text x="{_cl1x:.1f}" y="{_cl1y+3:.1f}" text-anchor="middle" font-family="Arial"'
-           f' font-size="7" fill="#666" transform="rotate(-90,{_cl1x:.1f},{_cl1y+3:.1f})">CLOSET</text>')
+# N-S dimension line — west closet (closet 2): ctr_s to ctr_n
+cl2_ns_dist = ctr_n - ctr_s
+cl2_ns_ft = int(cl2_ns_dist)
+cl2_ns_in = (cl2_ns_dist - cl2_ns_ft) * 12
+cl2_ns_label = f"CLOSET {cl2_ns_ft}' {cl2_ns_in:.0f}\""
+cl2_ns_e = (ctr_e + iw_thick_3 + iw3_w) / 2
+cl2_x1, cl2_y1 = to_svg(cl2_ns_e, ctr_s)
+cl2_x2, cl2_y2 = to_svg(cl2_ns_e, ctr_n)
+out.append(f'<line x1="{cl2_x1:.1f}" y1="{cl2_y1:.1f}" x2="{cl2_x2:.1f}" y2="{cl2_y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{cl2_x1-tick:.1f}" y1="{cl2_y1:.1f}" x2="{cl2_x1+tick:.1f}" y2="{cl2_y1:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{cl2_x2-tick:.1f}" y1="{cl2_y2:.1f}" x2="{cl2_x2+tick:.1f}" y2="{cl2_y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+cl2_mx, cl2_my = cl2_x1, (cl2_y1 + cl2_y2) / 2
+out.append(f'<text x="{cl2_mx-3:.1f}" y="{cl2_my+3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999" transform="rotate(-90,{cl2_mx-3:.1f},{cl2_my+3:.1f})">{cl2_ns_label}</text>')
+
+# N-S dimension line — east closet (closet 1): wall_south_n to closet1_top
+cl1_ns_dist = closet1_top - wall_south_n
+cl1_ns_ft = int(cl1_ns_dist)
+cl1_ns_in = (cl1_ns_dist - cl1_ns_ft) * 12
+cl1_ns_label = f"CLOSET {cl1_ns_ft}' {cl1_ns_in:.0f}\""
+cl1_ns_e = (iw4_e + w5_w) / 2
+cl1_x1, cl1_y1 = to_svg(cl1_ns_e, wall_south_n)
+cl1_x2, cl1_y2 = to_svg(cl1_ns_e, closet1_top)
+out.append(f'<line x1="{cl1_x1:.1f}" y1="{cl1_y1:.1f}" x2="{cl1_x2:.1f}" y2="{cl1_y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{cl1_x1-tick:.1f}" y1="{cl1_y1:.1f}" x2="{cl1_x1+tick:.1f}" y2="{cl1_y1:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{cl1_x2-tick:.1f}" y1="{cl1_y2:.1f}" x2="{cl1_x2+tick:.1f}" y2="{cl1_y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+cl1_mx, cl1_my = cl1_x1, (cl1_y1 + cl1_y2) / 2
+out.append(f'<text x="{cl1_mx-3:.1f}" y="{cl1_my+3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999" transform="rotate(-90,{cl1_mx-3:.1f},{cl1_my+3:.1f})">{cl1_ns_label}</text>')
 
 # C-point labels (outer vertices displayed as C0-C15, C13a, C13b)
 vs_map = _ns["outline_cfg"].vertex_styles
@@ -475,9 +511,10 @@ for o_name in _o_names:
     out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="2.5" fill="#333"/>')
     if o_name in vs_map:
         vs = vs_map[o_name]
+        c_label = "C" + o_name[1:]  # O13b -> C13b
         out.append(f'<text x="{sx+vs.dx:.1f}" y="{sy+vs.dy:.1f}" text-anchor="{vs.anchor}"'
                    f' font-family="Arial" font-size="9" font-weight="bold"'
-                   f' fill="#333">{vs.display_name}</text>')
+                   f' fill="#333">{c_label}</text>')
 
 # North arrow
 out.append('<line x1="742" y1="560" x2="742" y2="524" stroke="#333" stroke-width="2"'
