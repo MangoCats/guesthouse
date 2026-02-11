@@ -1,7 +1,7 @@
 """Generate floorplan SVG with 8" wall inset from the outline path.
 
 Runs gen_path_svg.py to obtain outline geometry, then computes an 8" inset.
-Points C0-C15 correspond to outline points O0-O15.
+Points C0-C15 (plus C13a, C13b) correspond to outline points O0-O15 (plus O13a, O13b).
 
 Inset rules (CCW path, interior to left):
   - CW arcs  (center outside shape): increase radius by wall thickness
@@ -32,8 +32,7 @@ W, H         = _ns["W"], _ns["H"]
 
 # Outline arc radii
 R_fillet  = _ns["R_fillet"]     # Cf   CCW (inside)
-R3i       = _ns["R3i"]          # C3   CW  (outside)
-R_f_pox   = _ns["R_f_pox"]     # Cf3  CCW (inside)
+R_wall    = _ns["R_wall"]       # Cw1/Cw2/Cw3 wall arcs
 R_f_po5   = _ns["R_f_po5"]     # Cf4  CCW (inside)
 R1i       = _ns["R1i"]          # C1   CW  (outside)
 R_turn3   = _ns["R_turn3"]     # Ct3  CCW (inside)
@@ -74,19 +73,21 @@ def _inner_point(seg_before, seg_after):
     t = ((center[0]-P[0])*D[0] + (center[1]-P[1])*D[1]) / (D[0]**2 + D[1]**2)
     return (P[0]+t*D[0], P[1]+t*D[1])
 
-for i in range(16):
+for i in range(18):
     seg_b = outline_segs[i]
-    seg_a = outline_segs[(i+1) % 16]
-    n = int(seg_b.end[1:])   # "O7" -> 7
-    pts[f"W{n}"] = _inner_point(seg_b, seg_a)
+    seg_a = outline_segs[(i+1) % 18]
+    w_name = "W" + seg_b.end[1:]   # "O7" -> "W7", "O13b" -> "W13b"
+    pts[w_name] = _inner_point(seg_b, seg_a)
 
 # --- Inner wall segments (same topology, adjusted radii) ---
 inner_segs = [
     LineSeg("W2",  "W1"),
     ArcSeg("W1",  "W0",  "Cf",  R_fillet  - wall_t, "CCW", 20),
     LineSeg("W0",  "W15"),
-    ArcSeg("W15", "W14", "C3",  R3i       + wall_t, "CW",  60),
-    ArcSeg("W14", "W13", "Cf3", R_f_pox   - wall_t, "CCW", 20),
+    ArcSeg("W15", "W14", "Cw1", R_wall    + wall_t, "CW",  20),
+    ArcSeg("W14", "W13b","Cw2", R_wall    - wall_t, "CCW", 20),
+    LineSeg("W13b","W13a"),
+    ArcSeg("W13a","W13", "Cw3", R_wall    - wall_t, "CCW", 20),
     LineSeg("W13", "W12"),
     ArcSeg("W12", "W11", "Cf4", R_f_po5   - wall_t, "CCW", 20),
     LineSeg("W11", "W10"),
@@ -463,17 +464,20 @@ _cl1x, _cl1y = to_svg(_cl1_cx, _cl1_cy)
 out.append(f'<text x="{_cl1x:.1f}" y="{_cl1y+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="7" fill="#666" transform="rotate(-90,{_cl1x:.1f},{_cl1y+3:.1f})">CLOSET</text>')
 
-# C-point labels (outer vertices displayed as C0-C15)
+# C-point labels (outer vertices displayed as C0-C15, C13a, C13b)
 vs_map = _ns["outline_cfg"].vertex_styles
-for i in range(16):
-    o_name = f"O{i}"
+_o_names = []
+for seg in outline_segs:
+    if seg.start not in _o_names:
+        _o_names.append(seg.start)
+for o_name in _o_names:
     sx, sy = to_svg(*pts[o_name])
     out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="2.5" fill="#333"/>')
     if o_name in vs_map:
         vs = vs_map[o_name]
         out.append(f'<text x="{sx+vs.dx:.1f}" y="{sy+vs.dy:.1f}" text-anchor="{vs.anchor}"'
                    f' font-family="Arial" font-size="9" font-weight="bold"'
-                   f' fill="#333">C{i}</text>')
+                   f' fill="#333">{vs.display_name}</text>')
 
 # North arrow
 out.append('<line x1="742" y1="560" x2="742" y2="524" stroke="#333" stroke-width="2"'
@@ -519,6 +523,12 @@ print(f"Outer area:    {outer_area:.2f} sq ft")
 print(f"Interior area: {inner_area:.2f} sq ft")
 print(f"Wall area:     {outer_area - inner_area:.2f} sq ft")
 print()
-for i in range(16):
-    o = pts[f"O{i}"]; w = pts[f"W{i}"]
-    print(f"  C{i:<2d} ({o[0]:8.4f}, {o[1]:8.4f})  ->  inner ({w[0]:8.4f}, {w[1]:8.4f})")
+_print_names = []
+for seg in outline_segs:
+    if seg.start not in _print_names:
+        _print_names.append(seg.start)
+for o_name in _print_names:
+    w_name = "W" + o_name[1:]
+    c_name = o_name.replace("O", "C")
+    o = pts[o_name]; w = pts[w_name]
+    print(f"  {c_name:<5s} ({o[0]:8.4f}, {o[1]:8.4f})  ->  inner ({w[0]:8.4f}, {w[1]:8.4f})")
