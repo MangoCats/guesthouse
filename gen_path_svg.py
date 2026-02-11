@@ -254,34 +254,36 @@ def render_layer(lines: list, segments: list[Segment], pts: dict, cfg: LayerConf
 # ============================================================
 # Section 5: Base Geometry + Outer Path
 # ============================================================
+# All coordinates are P3-based: P3 = (0, 0).
 pts: dict[str, Point] = {}
 
-# Traverse
+# Traverse (raw survey data, instrument at POB)
 legs = [(257,53,45,19,1.0),(180,54,31,26,11.0),(93,36,7,31,10.5),
         (56,36,31,13,2.5),(317,11,44,34,11.5)]
-pts_in = [(0.0, 0.0)]
+_trav = [(0.0, 0.0)]
 for deg, mn, sec, ft, inch in legs:
     brg = deg + mn/60.0 + sec/3600.0
     dist_in = ft * 12 + inch
     brg_rad = math.radians(brg)
     dE = dist_in * math.sin(brg_rad); dN = dist_in * math.cos(brg_rad)
-    last = pts_in[-1]; pts_in.append((last[0]+dE, last[1]+dN))
-poly = [(e/12, n/12) for e, n in pts_in[:5]]
-P4_orig = poly[3]
-poly[2] = (-19.1177, P4_orig[1])
-poly[1] = (poly[2][0], poly[2][1] + 29.0)
-pts["POB"], pts["P2"], pts["P3"], pts["P4"], pts["P5"] = poly
+    last = _trav[-1]; _trav.append((last[0]+dE, last[1]+dN))
+_trav_ft = [(e/12, n/12) for e, n in _trav[:5]]
+_trav_ft[2] = (-19.1177, _trav_ft[3][1])
+_trav_ft[1] = (_trav_ft[2][0], _trav_ft[2][1] + 29.0)
 
-# Rebase origin to P4
-_p4_origin = pts["P4"]
-for _k in list(pts.keys()):
-    pts[_k] = (pts[_k][0] - _p4_origin[0], pts[_k][1] - _p4_origin[1])
+# Rebase to P3 = (0, 0)
+_p3_trav = _trav_ft[2]
+pts["P3"]  = (0.0, 0.0)
+pts["POB"] = (_trav_ft[0][0] - _p3_trav[0], _trav_ft[0][1] - _p3_trav[1])
+pts["P2"]  = (_trav_ft[1][0] - _p3_trav[0], _trav_ft[1][1] - _p3_trav[1])
+pts["P4"]  = (_trav_ft[3][0] - _p3_trav[0], _trav_ft[3][1] - _p3_trav[1])
+pts["P5"]  = (_trav_ft[4][0] - _p3_trav[0], _trav_ft[4][1] - _p3_trav[1])
 
-# Adjust SVG transform to preserve visual output
-_svg_ox = 368.79 + _p4_origin[0] * _s
-_svg_oy = 124.12 - _p4_origin[1] * _s
+# SVG transform (P3-based coordinates)
+_p3_svg_x = 368.79 + _p3_trav[0] * _s
+_p3_svg_y = 124.12 - _p3_trav[1] * _s
 def to_svg(e, n):
-    return (_svg_ox + e*_s, _svg_oy - n*_s)
+    return (_p3_svg_x + e*_s, _p3_svg_y - n*_s)
 
 # P5-POB line
 dE_l = pts["P5"][0]-pts["POB"][0]; dN_l = pts["P5"][1]-pts["POB"][1]

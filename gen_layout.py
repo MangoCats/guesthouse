@@ -1,5 +1,6 @@
 import math
 
+# All coordinates are P3-based: P3 = (0, 0).
 legs = [
     (257, 53, 45,  19,  1.0),
     (180, 54, 31,  26, 11.0),
@@ -7,21 +8,21 @@ legs = [
     ( 56, 36, 31,  13,  2.5),
     (317, 11, 44,  34, 11.5),
 ]
-pts_in = [(0.0, 0.0)]
+_trav = [(0.0, 0.0)]
 for deg, mn, sec, ft, inch in legs:
     brg = deg + mn/60.0 + sec/3600.0
     dist_in = ft * 12 + inch
     brg_rad = math.radians(brg)
     dE = dist_in * math.sin(brg_rad)
     dN = dist_in * math.cos(brg_rad)
-    last = pts_in[-1]
-    pts_in.append((last[0] + dE, last[1] + dN))
+    last = _trav[-1]
+    _trav.append((last[0] + dE, last[1] + dN))
 
-poly = [(e/12, n/12) for e, n in pts_in[:5]]
+_trav_ft = [(e/12, n/12) for e, n in _trav[:5]]
 
-# Rebase origin to P4
-_p4 = poly[3]
-poly = [(e - _p4[0], n - _p4[1]) for e, n in poly]
+# Rebase to P3 = (0, 0)
+_p3_trav = _trav_ft[2]
+poly = [(_trav_ft[i][0] - _p3_trav[0], _trav_ft[i][1] - _p3_trav[1]) for i in range(5)]
 
 def lerp_edge(a, b, n_val):
     if a[1] == b[1]:
@@ -48,13 +49,13 @@ def east_at(n):
         return e
     return None
 
-# Key layout lines (shifted to P4 origin)
-H_OFF = -7.0 - _p4[1]
-H_WET_SPLIT = -13.0 - _p4[1]
-H_MID = -17.5 - _p4[1]
-H_BOT = -27.5 - _p4[1]
-V_WET = -8.5 - _p4[0]
-H_CLOSET = -10.0 - _p4[1]
+# Key layout lines (P3-based, offsets from POB vertex)
+H_OFF = poly[0][1] - 7.0          # 7' south of POB
+H_WET_SPLIT = poly[0][1] - 13.0   # 13' south of POB
+H_MID = poly[0][1] - 17.5         # 17.5' south of POB
+H_BOT = poly[0][1] - 27.5         # 27.5' south of POB
+V_WET = poly[0][0] - 8.5          # 8.5' west of POB
+H_CLOSET = poly[0][1] - 10.0      # 10' south of POB
 
 # Room polygons
 office = [poly[0], poly[1], (west_at(H_OFF), H_OFF), (east_at(H_OFF), H_OFF)]

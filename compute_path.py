@@ -1,41 +1,38 @@
 import math
 
-# === Traverse ===
+# === Traverse (raw survey data, instrument at POB) ===
+# All coordinates below are P3-based: P3 = (0, 0).
 legs = [
     (257, 53, 45, 19, 1.0), (180, 54, 31, 26, 11.0),
     (93, 36, 7, 31, 10.5), (56, 36, 31, 13, 2.5),
     (317, 11, 44, 34, 11.5),
 ]
-pts_in = [(0.0, 0.0)]
+_trav = [(0.0, 0.0)]
 for deg, mn, sec, ft, inch in legs:
     brg = deg + mn/60.0 + sec/3600.0
     dist_in = ft * 12 + inch
     brg_rad = math.radians(brg)
     dE = dist_in * math.sin(brg_rad)
     dN = dist_in * math.cos(brg_rad)
-    last = pts_in[-1]
-    pts_in.append((last[0] + dE, last[1] + dN))
-poly = [(e/12, n/12) for e, n in pts_in[:5]]
+    last = _trav[-1]
+    _trav.append((last[0] + dE, last[1] + dN))
+_trav_ft = [(e/12, n/12) for e, n in _trav[:5]]
 
-P4_orig = poly[3]
-P3_new = (-19.1177, P4_orig[1])
-poly[2] = P3_new
-P2_new = (P3_new[0], P3_new[1] + 29.0)
-poly[1] = P2_new
+# Adjust P3 and P2 (horizontal baseline, vertical west face)
+_trav_ft[2] = (-19.1177, _trav_ft[3][1])
+_trav_ft[1] = (_trav_ft[2][0], _trav_ft[2][1] + 29.0)
 
-POB, P2, P3, P4, P5 = poly[0], poly[1], poly[2], poly[3], poly[4]
+# Rebase to P3 = (0, 0)
+_p3_trav = _trav_ft[2]
+P3  = (0.0, 0.0)
+POB = (_trav_ft[0][0] - _p3_trav[0], _trav_ft[0][1] - _p3_trav[1])
+P2  = (_trav_ft[1][0] - _p3_trav[0], _trav_ft[1][1] - _p3_trav[1])
+P4  = (_trav_ft[3][0] - _p3_trav[0], _trav_ft[3][1] - _p3_trav[1])
+P5  = (_trav_ft[4][0] - _p3_trav[0], _trav_ft[4][1] - _p3_trav[1])
 
-# Rebase origin to P4
-_p4e, _p4n = P4
-POB = (POB[0] - _p4e, POB[1] - _p4n)
-P2  = (P2[0] - _p4e, P2[1] - _p4n)
-P3  = (P3[0] - _p4e, P3[1] - _p4n)
-P4  = (0.0, 0.0)
-P5  = (P5[0] - _p4e, P5[1] - _p4n)
-
+print(f"P3:  ({P3[0]:.4f}, {P3[1]:.4f})")
 print(f"POB: ({POB[0]:.4f}, {POB[1]:.4f})")
 print(f"P2:  ({P2[0]:.4f}, {P2[1]:.4f})")
-print(f"P3:  ({P3[0]:.4f}, {P3[1]:.4f})")
 print(f"P4:  ({P4[0]:.4f}, {P4[1]:.4f})")
 print(f"P5:  ({P5[0]:.4f}, {P5[1]:.4f})")
 
@@ -244,12 +241,12 @@ print(f"  Arc 1 (T1->PA): R={R1}', sweep={math.degrees(sweep1):.1f} deg, length=
 print(f"  Arc 2 (PA->T2): R={R2}', sweep={math.degrees(sweep2):.1f} deg, length={arc_len2:.2f}'")
 print(f"  Arc 3 (T3->PX): R={R3}', sweep={math.degrees(sweep3):.1f} deg, length={arc_len3:.2f}'")
 
-# === SVG coordinates ===
+# === SVG coordinates (P3-based) ===
 s = (368.79 - 151.26) / 18.66
-_svg_ox = 368.79 + _p4e * s
-_svg_oy = 124.12 - _p4n * s
+_p3_svg_x = 368.79 + _p3_trav[0] * s
+_p3_svg_y = 124.12 - _p3_trav[1] * s
 def to_svg(e, n):
-    return (_svg_ox + e * s, _svg_oy - n * s)
+    return (_p3_svg_x + e * s, _p3_svg_y - n * s)
 
 print(f"\n=== SVG coordinates ===")
 for name, pt in [("POB", POB), ("P2", P2), ("P3", P3), ("P4", P4), ("P5", P5),
