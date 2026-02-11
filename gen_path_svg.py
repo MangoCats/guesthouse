@@ -403,7 +403,7 @@ pts["Cf2"] = (pts["Po2"][0] + R_fillet2, corner2_N - R_fillet2)
 pts["O2"] = (pts["Po2"][0], pts["Cf2"][1])
 pts["O3"] = (pts["Cf2"][0], corner2_N)
 # O4: 5.5' east of O3
-pts["O4"] = (pts["O3"][0] + 5.5, pts["O3"][1])
+pts["O4"] = (pts["O3"][0] + 5.5 + 2.0/12, pts["O3"][1])
 # Turn 1 at O4: 90° CW east->south, R=28"
 R_turn1 = 28.0 / 12.0
 pts["Ct1"] = (pts["O4"][0], pts["O4"][1] - R_turn1)
