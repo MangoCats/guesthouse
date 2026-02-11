@@ -20,6 +20,10 @@ for deg, mn, sec, ft, inch in legs:
 
 _trav_ft = [(e/12, n/12) for e, n in _trav[:5]]
 
+# Adjust P3 and P2 (horizontal baseline, vertical west face)
+_trav_ft[2] = (-19.1177, _trav_ft[3][1])
+_trav_ft[1] = (_trav_ft[2][0], _trav_ft[2][1] + 29.0)
+
 # Rebase to P3 = (0, 0)
 _p3_trav = _trav_ft[2]
 poly = [(_trav_ft[i][0] - _p3_trav[0], _trav_ft[i][1] - _p3_trav[1]) for i in range(5)]
@@ -127,77 +131,101 @@ for name, pts, fill, sc in rooms_data:
 # Closet overlay
 svg.append(f'<polygon points="{pts_str(closet)}" fill="#C8E6C9" stroke="#2E7D32" stroke-width="1" stroke-dasharray="3,2"/>')
 
-# --- Circular arc: R=12', tangent to P5->POB line, 26' from POB, 45 deg CW ---
+# --- Three-arc boundary system (matching gen_path_svg.py) ---
 P5 = poly[4]
 POB = poly[0]
+P3_pt = poly[2]
+P4_pt = poly[3]
 dE_line = P5[0] - POB[0]
 dN_line = P5[1] - POB[1]
 L_line = math.sqrt(dE_line**2 + dN_line**2)
-uE_line = dE_line / L_line  # unit POB -> P5
-uN_line = dN_line / L_line
+uE = dE_line / L_line
+uN = dN_line / L_line
+nE, nN = -uN, uE  # outward normal
 
-# Tangent point: 26' from POB toward P5
-arc_T = (POB[0] + 26 * uE_line, POB[1] + 26 * uN_line)
+R1, R2, R3 = 10.0, 12.5, 11.0
+T1 = (POB[0] + 26.5 * uE, POB[1] + 26.5 * uN)
+C1 = (T1[0] + R1 * nE, T1[1] + R1 * nN)
+T2 = (POB[0] + 5.75 * uE, POB[1] + 5.75 * uN)
+C2 = (T2[0] + R2 * nE, T2[1] + R2 * nN)
 
-# Outward normal (NE, away from polygon interior)
-arc_nE = -uN_line  # outward perpendicular
-arc_nN = uE_line
+# PA: circle-circle intersection of Arc 1 and Arc 2
+dx_cc = C2[0] - C1[0]; dy_cc = C2[1] - C1[1]
+d_cc = math.sqrt(dx_cc**2 + dy_cc**2)
+a_cc = (R1**2 - R2**2 + d_cc**2) / (2 * d_cc)
+h_cc = math.sqrt(R1**2 - a_cc**2)
+ux_cc, uy_cc = dx_cc / d_cc, dy_cc / d_cc
+Mx, My = C1[0] + a_cc * ux_cc, C1[1] + a_cc * uy_cc
+I1 = (Mx + h_cc * (-uy_cc), My + h_cc * ux_cc)
+I2 = (Mx - h_cc * (-uy_cc), My - h_cc * ux_cc)
+ang_T2_C2 = math.atan2(T2[1] - C2[1], T2[0] - C2[0])
+_ccw = lambda s, e: (e - s) % (2 * math.pi)
+s1 = _ccw(ang_T2_C2, math.atan2(I1[1] - C2[1], I1[0] - C2[0]))
+s2 = _ccw(ang_T2_C2, math.atan2(I2[1] - C2[1], I2[0] - C2[0]))
+PA = I1 if s1 < s2 else I2
 
-# Arc center: 12' outward from tangent point
-arc_R = 12.0
-arc_C = (arc_T[0] + arc_R * arc_nE, arc_T[1] + arc_R * arc_nN)
+T3 = (P3_pt[0] + 17.911244, P3_pt[1])
+C3 = (T3[0], T3[1] - R3)
 
-# Start angle (from center to tangent point)
-arc_start_ang = math.atan2(arc_T[1] - arc_C[1], arc_T[0] - arc_C[0])
+# PX: intersection of P5-P4 line (extended past P4) with Arc 3
+dxL = P4_pt[0] - P5[0]; dyL = P4_pt[1] - P5[1]
+ax_ = P5[0] - C3[0]; ay_ = P5[1] - C3[1]
+A_ = dxL**2 + dyL**2; B_ = 2 * (ax_ * dxL + ay_ * dyL)
+C_ = ax_**2 + ay_**2 - R3**2
+disc_ = B_**2 - 4 * A_ * C_
+t1_ = (-B_ + math.sqrt(disc_)) / (2 * A_)
+t2_ = (-B_ - math.sqrt(disc_)) / (2 * A_)
+t_ = min(t for t in [t1_, t2_] if t > 1.0)
+PX = (P5[0] + t_ * dxL, P5[1] + t_ * dyL)
 
-# End angle: 45 deg clockwise (decreasing math angle)
-arc_end_ang = arc_start_ang - math.radians(45)
-arc_end = (arc_C[0] + arc_R * math.cos(arc_end_ang),
-           arc_C[1] + arc_R * math.sin(arc_end_ang))
+# Draw arcs (CW in survey coords -> sweep-flag=0 in SVG)
+arc_color = "#0077B6"
+for start, end, R in [(T1, PA, R1), (PA, T2, R2), (T3, PX, R3)]:
+    sx_s, sy_s = to_svg(*start)
+    sx_e, sy_e = to_svg(*end)
+    svg_R = R * scale
+    svg.append(f'<path d="M {sx_s:.1f},{sy_s:.1f} A {svg_R:.1f},{svg_R:.1f} 0 0 0 '
+               f'{sx_e:.1f},{sy_e:.1f}" fill="none" stroke="{arc_color}" stroke-width="2.5"/>')
 
-# Convert to SVG coordinates
-sx_start, sy_start = to_svg(arc_T[0], arc_T[1])
-sx_end, sy_end = to_svg(arc_end[0], arc_end[1])
-svg_R = arc_R * scale  # radius in SVG pixels
+# Dots at arc junctions
+for pt in [T1, PA, T2, T3, PX]:
+    sx, sy = to_svg(*pt)
+    svg.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="3.5" fill="{arc_color}"/>')
 
-# SVG arc: CW in survey coords -> since Y is flipped in SVG, use sweep-flag=0
-# 45 deg < 180 deg -> large-arc-flag=0
-svg.append(f'<path d="M {sx_start:.1f},{sy_start:.1f} A {svg_R:.1f},{svg_R:.1f} 0 0 0 {sx_end:.1f},{sy_end:.1f}" '
-           f'fill="none" stroke="#0077B6" stroke-width="2.5"/>')
+# Center crosses and dashed radius lines
+for ctr, tan_pt in [(C1, T1), (C2, T2), (C3, T3)]:
+    sx_c, sy_c = to_svg(*ctr)
+    sx_t, sy_t = to_svg(*tan_pt)
+    svg.append(f'<line x1="{sx_c:.1f}" y1="{sy_c:.1f}" x2="{sx_t:.1f}" y2="{sy_t:.1f}" '
+               f'stroke="{arc_color}" stroke-width="0.6" stroke-dasharray="4,3"/>')
+    if 0 < sx_c < page_w and 0 < sy_c < page_h:
+        svg.append(f'<line x1="{sx_c-4:.1f}" y1="{sy_c:.1f}" x2="{sx_c+4:.1f}" y2="{sy_c:.1f}" '
+                   f'stroke="{arc_color}" stroke-width="0.8"/>')
+        svg.append(f'<line x1="{sx_c:.1f}" y1="{sy_c-4:.1f}" x2="{sx_c:.1f}" y2="{sy_c+4:.1f}" '
+                   f'stroke="{arc_color}" stroke-width="0.8"/>')
 
-# Dot at tangent point and end point
-svg.append(f'<circle cx="{sx_start:.1f}" cy="{sy_start:.1f}" r="3.5" fill="#0077B6"/>')
-svg.append(f'<circle cx="{sx_end:.1f}" cy="{sy_end:.1f}" r="3.5" fill="#0077B6"/>')
+# Radius labels
+for ctr, tan_pt, label in [(C1, T1, "R&#8321; = 10&#39;"),
+                            (C2, T2, "R&#8322; = 12.5&#39;"),
+                            (C3, T3, "R&#8323; = 11&#39;")]:
+    sx_c, sy_c = to_svg(*ctr)
+    sx_t, sy_t = to_svg(*tan_pt)
+    rx_mid = (sx_c + sx_t) / 2
+    ry_mid = (sy_c + sy_t) / 2
+    r_ang = math.degrees(math.atan2(sy_t - sy_c, sx_t - sx_c))
+    if r_ang > 90: r_ang -= 180
+    if r_ang < -90: r_ang += 180
+    svg.append(f'<text x="{rx_mid:.1f}" y="{ry_mid-4:.1f}" text-anchor="middle" font-family="Arial" '
+               f'font-size="8" fill="{arc_color}" '
+               f'transform="rotate({r_ang:.1f},{rx_mid:.1f},{ry_mid-4:.1f})">{label}</text>')
 
-# Center cross
-sx_c, sy_c = to_svg(arc_C[0], arc_C[1])
-svg.append(f'<line x1="{sx_c-4:.1f}" y1="{sy_c:.1f}" x2="{sx_c+4:.1f}" y2="{sy_c:.1f}" stroke="#0077B6" stroke-width="0.8"/>')
-svg.append(f'<line x1="{sx_c:.1f}" y1="{sy_c-4:.1f}" x2="{sx_c:.1f}" y2="{sy_c+4:.1f}" stroke="#0077B6" stroke-width="0.8"/>')
-
-# Radius line from center to tangent point (dashed)
-svg.append(f'<line x1="{sx_c:.1f}" y1="{sy_c:.1f}" x2="{sx_start:.1f}" y2="{sy_start:.1f}" '
-           f'stroke="#0077B6" stroke-width="0.6" stroke-dasharray="4,3"/>')
-
-# Labels
-# "R=12'" near midpoint of radius line
-rx_mid, ry_mid = (sx_c + sx_start) / 2, (sy_c + sy_start) / 2
-r_ang = math.degrees(math.atan2(sy_start - sy_c, sx_start - sx_c))
-if r_ang > 90: r_ang -= 180
-if r_ang < -90: r_ang += 180
-svg.append(f'<text x="{rx_mid+8:.1f}" y="{ry_mid-4:.1f}" text-anchor="middle" font-family="Arial" '
-           f'font-size="8" fill="#0077B6" transform="rotate({r_ang:.1f},{rx_mid+8:.1f},{ry_mid-4:.1f})">R = 12&#39;</text>')
-
-# "tangent pt" label
-svg.append(f'<text x="{sx_start+12:.1f}" y="{sy_start+12:.1f}" text-anchor="start" font-family="Arial" '
-           f'font-size="7.5" fill="#0077B6">tangent pt (26&#39; from POB)</text>')
-
-# "45 deg" arc angle label near the arc midpoint
-arc_mid_ang = arc_start_ang - math.radians(22.5)
-arc_mid_pt = (arc_C[0] + (arc_R + 1.5) * math.cos(arc_mid_ang),
-              arc_C[1] + (arc_R + 1.5) * math.sin(arc_mid_ang))
-sx_m, sy_m = to_svg(arc_mid_pt[0], arc_mid_pt[1])
-svg.append(f'<text x="{sx_m:.1f}" y="{sy_m:.1f}" text-anchor="middle" font-family="Arial" '
-           f'font-size="8" fill="#0077B6">45&#176;</text>')
+# Tangent point labels
+sx_t1, sy_t1 = to_svg(*T1)
+svg.append(f'<text x="{sx_t1+12:.1f}" y="{sy_t1+12:.1f}" text-anchor="start" font-family="Arial" '
+           f'font-size="7.5" fill="{arc_color}">T1 (26.5&#39; from POB)</text>')
+sx_pa, sy_pa = to_svg(*PA)
+svg.append(f'<text x="{sx_pa+8:.1f}" y="{sy_pa:.1f}" text-anchor="start" font-family="Arial" '
+           f'font-size="7.5" fill="{arc_color}">PA</text>')
 
 # Traverse outline bold on top
 svg.append(f'<polygon points="{pts_str(poly)}" fill="none" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>')
@@ -319,7 +347,7 @@ for idx, (name, fill, sc) in enumerate(legend):
     svg.append(f'<text x="{lx+16}" y="{ry+8.5}" font-family="Arial" font-size="8" fill="#333">{name}</text>')
 
 # Footer
-svg.append(f'<text x="{page_w/2}" y="{page_h-10}" text-anchor="middle" font-family="Arial" font-size="8" fill="#999">Traverse: 989 sq ft &#8226; Main room in wide south, wet rooms stacked on west plumbing wall, office in narrow north &#8226; Letter landscape</text>')
+svg.append(f'<text x="{page_w/2}" y="{page_h-10}" text-anchor="middle" font-family="Arial" font-size="8" fill="#999">Traverse: {poly_area(poly):.0f} sq ft &#8226; Main room in wide south, wet rooms stacked on west plumbing wall, office in narrow north &#8226; Letter landscape</text>')
 svg.append('</svg>')
 
 outpath = r"c:\Users\Mango Cat\Dev\hut2\option_a_layout.svg"

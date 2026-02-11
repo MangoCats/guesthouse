@@ -1,7 +1,7 @@
 """Generate floorplan SVG with 8" wall inset from the outline path.
 
 Runs gen_path_svg.py to obtain outline geometry, then computes an 8" inset.
-Points C0-C15 (plus C13a, C13b) correspond to outline points O0-O15 (plus O13a, O13b).
+Points C0-C15 (plus C10a, C13a, C13b) correspond to outline points O0-O15 (plus O10a, O13a, O13b).
 
 Inset rules (CCW path, interior to left):
   - CW arcs  (center outside shape): increase radius by wall thickness
@@ -41,6 +41,7 @@ R_turn3   = _ns["R_turn3"]     # Ct3  CCW (inside)
 R_turn2   = _ns["R_turn2"]     # Ct2  CW  (outside)
 R_turn1   = _ns["R_turn1"]     # Ct1  CCW (inside)
 R_fillet2 = _ns["R_fillet2"]   # Cf2  CCW (inside)
+R_t4      = _ns["R_t4"]        # Ct4  CCW (inside) 28" arc
 
 # --- Wall thickness ---
 wall_t = 8.0 / 12.0  # 8 inches in feet
@@ -75,9 +76,9 @@ def _inner_point(seg_before, seg_after):
     t = ((center[0]-P[0])*D[0] + (center[1]-P[1])*D[1]) / (D[0]**2 + D[1]**2)
     return (P[0]+t*D[0], P[1]+t*D[1])
 
-for i in range(18):
+for i in range(19):
     seg_b = outline_segs[i]
-    seg_a = outline_segs[(i+1) % 18]
+    seg_a = outline_segs[(i+1) % 19]
     w_name = "W" + seg_b.end[1:]   # "O7" -> "W7", "O13b" -> "W13b"
     pts[w_name] = _inner_point(seg_b, seg_a)
 
@@ -92,7 +93,8 @@ inner_segs = [
     ArcSeg("W13a","W13", "Cw3", R_wall    - wall_t, "CCW", 20),
     LineSeg("W13", "W12"),
     ArcSeg("W12", "W11", "Cf4", R_f_po5   - wall_t, "CCW", 20),
-    LineSeg("W11", "W10"),
+    LineSeg("W11", "W10a"),
+    ArcSeg("W10a","W10", "Ct4", R_t4      - wall_t, "CCW", 20),
     ArcSeg("W10", "W9",  "C1",  R1i       + wall_t, "CW",  60),
     LineSeg("W9",  "W8"),
     ArcSeg("W8",  "W7",  "Ct3", R_turn3   - wall_t, "CCW", 20),
@@ -398,6 +400,27 @@ w5_poly = [
 w5_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w5_poly)
 out.append(f'<polygon points="{w5_svg}" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>')
 
+# IW5: 3" thick, W-E in office, north face 30" south of IW1 south face
+iw5_thick = 3.0 / 12.0
+iw5_n = int_wall_south - 30.0 / 12.0   # north face
+iw5_s = iw5_n - iw5_thick               # south face
+iw5_w = iw4_e                            # west end at IW4 east face
+iw5_e = pts["W11"][0]                    # east end at inner C10a-C11 wall
+iw5_poly = [(iw5_w, iw5_s), (iw5_e, iw5_s), (iw5_e, iw5_n), (iw5_w, iw5_n)]
+iw5_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw5_poly)
+out.append(f'<polygon points="{iw5_svg}" fill="rgba(160,160,160,0.35)" stroke="none"/>')
+for n_val in [iw5_s, iw5_n]:
+    sx1, sy1 = to_svg(iw5_w, n_val)
+    sx2, sy2 = to_svg(iw5_e, n_val)
+    out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+               f' stroke="#666" stroke-width="1.0"/>')
+# IW5 label
+iw5_mid_e = (iw5_w + iw5_e) / 2
+iw5_mid_n = (iw5_s + iw5_n) / 2
+iw5_lx, iw5_ly = to_svg(iw5_mid_e, iw5_mid_n)
+out.append(f'<text x="{iw5_lx:.1f}" y="{iw5_ly+3.5-8:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#666">IW5</text>')
+
 # King Bed (from ../hut: 76" wide x 94" long incl. frame, 2" from south wall, centered E-W)
 bed_w_dim = 76.0 / 12.0    # E-W width
 bed_l_dim = 94.0 / 12.0    # N-S length (incl. headboard/frame)
@@ -426,6 +449,13 @@ _bd_cy = (ctr_s + int_wall_south) / 2
 _bdx, _bdy = to_svg(_bd_cx, _bd_cy)
 out.append(f'<text x="{_bdx:.1f}" y="{_bdy+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#666">BEDROOM</text>')
+
+# Office label (east of bedroom, above closet 1)
+_of_cx = (iw4_e + pts["W11"][0]) / 2
+_of_cy = (closet1_top + iw_thick_3 + int_wall_south) / 2 - 2.0
+_ofx, _ofy = to_svg(_of_cx, _of_cy)
+out.append(f'<text x="{_ofx:.1f}" y="{_ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#666">OFFICE</text>')
 
 # Bedroom interior dimension lines
 # E-W dimension (horizontal): iw3_e to iw4_w, placed at 25% from south wall
@@ -499,6 +529,66 @@ out.append(f'<line x1="{cl1_x2-tick:.1f}" y1="{cl1_y2:.1f}" x2="{cl1_x2+tick:.1f
 cl1_mx, cl1_my = cl1_x1, (cl1_y1 + cl1_y2) / 2
 out.append(f'<text x="{cl1_mx-3:.1f}" y="{cl1_my+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999" transform="rotate(-90,{cl1_mx-3:.1f},{cl1_my+3:.1f})">{cl1_ns_label}</text>')
+
+# Dimension line: w5_e to inside of C10a-C11 wall (horizontal)
+dim3_w_e = w5_e              # east face of Wall 5
+dim3_e_e = pts["W11"][0]     # inner face of C10a-C11 wall
+dim3_n = 5.0                 # N position (within both Wall 5 and C10a-C11 range)
+dim3_dist = dim3_e_e - dim3_w_e
+dim3_ft = int(dim3_dist)
+dim3_in = (dim3_dist - dim3_ft) * 12
+dim3_label = f"{dim3_ft}' {dim3_in:.2f}\""
+d3x1, d3y1 = to_svg(dim3_w_e, dim3_n)
+d3x2, d3y2 = to_svg(dim3_e_e, dim3_n)
+out.append(f'<line x1="{d3x1:.1f}" y1="{d3y1:.1f}" x2="{d3x2:.1f}" y2="{d3y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d3x1:.1f}" y1="{d3y1-tick:.1f}" x2="{d3x1:.1f}" y2="{d3y1+tick:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d3x2:.1f}" y1="{d3y2-tick:.1f}" x2="{d3x2:.1f}" y2="{d3y2+tick:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+d3m_x = (d3x1 + d3x2) / 2
+out.append(f'<text x="{d3m_x:.1f}" y="{d3y1-3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999">{dim3_label}</text>')
+
+# Dimension line: STORAGE space between IW5 and IW1 (horizontal)
+dim4_w_e = iw4_e             # east face of IW4
+dim4_e_e = pts["W11"][0]     # west (inner) face of C10a-C11 wall
+dim4_n = (iw5_n + int_wall_south) / 2   # vertically centered between IW5 and IW1
+dim4_dist = dim4_e_e - dim4_w_e
+dim4_ft = int(dim4_dist)
+dim4_in = (dim4_dist - dim4_ft) * 12
+dim4_label = f"STORAGE {dim4_ft}' {dim4_in:.2f}\""
+d4x1, d4y1 = to_svg(dim4_w_e, dim4_n)
+d4x2, d4y2 = to_svg(dim4_e_e, dim4_n)
+out.append(f'<line x1="{d4x1:.1f}" y1="{d4y1:.1f}" x2="{d4x2:.1f}" y2="{d4y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d4x1:.1f}" y1="{d4y1-tick:.1f}" x2="{d4x1:.1f}" y2="{d4y1+tick:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d4x2:.1f}" y1="{d4y2-tick:.1f}" x2="{d4x2:.1f}" y2="{d4y2+tick:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+d4m_x = (d4x1 + d4x2) / 2
+out.append(f'<text x="{d4m_x:.1f}" y="{d4y1-3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999">{dim4_label}</text>')
+
+# Dimension line: IW5 south face to C13a-C13b wall north face (vertical, at C13a easting)
+dim5_e = pts["O13a"][0]           # easting of C13a
+dim5_n_top = iw5_s                # south face of IW5
+dim5_n_bot = pts["W13a"][1]       # north (inner) face of C13a-C13b wall
+dim5_dist = dim5_n_top - dim5_n_bot
+dim5_ft = int(dim5_dist)
+dim5_in = (dim5_dist - dim5_ft) * 12
+dim5_label = f"{dim5_ft}' {dim5_in:.2f}\""
+d5x1, d5y1 = to_svg(dim5_e, dim5_n_top)
+d5x2, d5y2 = to_svg(dim5_e, dim5_n_bot)
+out.append(f'<line x1="{d5x1:.1f}" y1="{d5y1:.1f}" x2="{d5x2:.1f}" y2="{d5y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d5x1-tick:.1f}" y1="{d5y1:.1f}" x2="{d5x1+tick:.1f}" y2="{d5y1:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d5x2-tick:.1f}" y1="{d5y2:.1f}" x2="{d5x2+tick:.1f}" y2="{d5y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+d5_mx, d5_my = d5x1, (d5y1 + d5y2) / 2
+out.append(f'<text x="{d5_mx-3:.1f}" y="{d5_my+3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999" transform="rotate(-90,{d5_mx-3:.1f},{d5_my+3:.1f})">{dim5_label}</text>')
 
 # C-point labels (outer vertices displayed as C0-C15, C13a, C13b)
 vs_map = _ns["outline_cfg"].vertex_styles
