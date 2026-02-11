@@ -24,6 +24,15 @@ P2_new = (P3_new[0], P3_new[1] + 29.0)
 poly[1] = P2_new
 
 POB, P2, P3, P4, P5 = poly[0], poly[1], poly[2], poly[3], poly[4]
+
+# Rebase origin to P4
+_p4e, _p4n = P4
+POB = (POB[0] - _p4e, POB[1] - _p4n)
+P2  = (P2[0] - _p4e, P2[1] - _p4n)
+P3  = (P3[0] - _p4e, P3[1] - _p4n)
+P4  = (0.0, 0.0)
+P5  = (P5[0] - _p4e, P5[1] - _p4n)
+
 print(f"POB: ({POB[0]:.4f}, {POB[1]:.4f})")
 print(f"P2:  ({P2[0]:.4f}, {P2[1]:.4f})")
 print(f"P3:  ({P3[0]:.4f}, {P3[1]:.4f})")
@@ -39,9 +48,9 @@ nE, nN = -uN, uE  # left normal of POB->P5
 # === Arcs 1 & 2 (on P5-POB line) ===
 R1, R2 = 10.0, 12.5
 T1_dist, T2_dist = 26.5, 5.75
-T1 = (T1_dist*uE, T1_dist*uN)
+T1 = (POB[0]+T1_dist*uE, POB[1]+T1_dist*uN)
 C1 = (T1[0]+R1*nE, T1[1]+R1*nN)
-T2 = (T2_dist*uE, T2_dist*uN)
+T2 = (POB[0]+T2_dist*uE, POB[1]+T2_dist*uN)
 C2 = (T2[0]+R2*nE, T2[1]+R2*nN)
 
 # Arc intersection PA
@@ -237,8 +246,10 @@ print(f"  Arc 3 (T3->PX): R={R3}', sweep={math.degrees(sweep3):.1f} deg, length=
 
 # === SVG coordinates ===
 s = (368.79 - 151.26) / 18.66
+_svg_ox = 368.79 + _p4e * s
+_svg_oy = 124.12 - _p4n * s
 def to_svg(e, n):
-    return (368.79 + e * s, 124.12 - n * s)
+    return (_svg_ox + e * s, _svg_oy - n * s)
 
 print(f"\n=== SVG coordinates ===")
 for name, pt in [("POB", POB), ("P2", P2), ("P3", P3), ("P4", P4), ("P5", P5),

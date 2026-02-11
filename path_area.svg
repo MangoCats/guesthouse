@@ -160,9 +160,9 @@
 <circle cx="512.6" cy="503.9" r="3.5" fill="#d32f2f"/>
 <text x="522.6" y="513.9" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">O13</text>
 <circle cx="614.7" cy="436.5" r="3.5" fill="#d32f2f"/>
-<text x="622.7" y="428.5" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">O12</text>
+<text x="622.7" y="440.5" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">O12</text>
 <circle cx="617.5" cy="423.1" r="3.5" fill="#d32f2f"/>
-<text x="609.5" y="431.1" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">O11</text>
+<text x="625.5" y="427.1" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">O11</text>
 <circle cx="562.0" cy="338.9" r="3.5" fill="#0077B6"/>
 <text x="572.0" y="334.9" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#0077B6">O10</text>
 <circle cx="541.8" cy="271.6" r="3.5" fill="#0077B6"/>
@@ -215,8 +215,8 @@
 <text x="393.9" y="519.8" text-anchor="start" font-family="Arial" font-size="8.5" fill="#2E7D32">23.4&#176; CW</text>
 <text x="473.4" y="511.7" text-anchor="start" font-family="Arial" font-size="8.5" fill="#333">Fillet R=113.7"</text>
 <text x="473.4" y="522.7" text-anchor="start" font-family="Arial" font-size="8.5" fill="#333">56.8&#176;</text>
-<text x="608.9" y="420.4" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">Fillet R=10"</text>
-<text x="608.9" y="431.4" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">90.0&#176;</text>
+<text x="628.9" y="420.4" text-anchor="start" font-family="Arial" font-size="8.5" fill="#333">Fillet R=10"</text>
+<text x="628.9" y="431.4" text-anchor="start" font-family="Arial" font-size="8.5" fill="#333">90.0&#176;</text>
 <text x="144.6" y="513.2" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">Fillet R=10"</text>
 <text x="144.6" y="524.2" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">90.0&#176;</text>
 <text x="149.7" y="192.9" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">Fillet R=28"</text>

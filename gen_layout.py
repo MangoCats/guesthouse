@@ -19,6 +19,10 @@ for deg, mn, sec, ft, inch in legs:
 
 poly = [(e/12, n/12) for e, n in pts_in[:5]]
 
+# Rebase origin to P4
+_p4 = poly[3]
+poly = [(e - _p4[0], n - _p4[1]) for e, n in poly]
+
 def lerp_edge(a, b, n_val):
     if a[1] == b[1]:
         return None
@@ -44,13 +48,13 @@ def east_at(n):
         return e
     return None
 
-# Key layout lines (feet from POB)
-H_OFF = -7.0
-H_WET_SPLIT = -13.0
-H_MID = -17.5
-H_BOT = -27.5
-V_WET = -8.5
-H_CLOSET = -10.0
+# Key layout lines (shifted to P4 origin)
+H_OFF = -7.0 - _p4[1]
+H_WET_SPLIT = -13.0 - _p4[1]
+H_MID = -17.5 - _p4[1]
+H_BOT = -27.5 - _p4[1]
+V_WET = -8.5 - _p4[0]
+H_CLOSET = -10.0 - _p4[1]
 
 # Room polygons
 office = [poly[0], poly[1], (west_at(H_OFF), H_OFF), (east_at(H_OFF), H_OFF)]
@@ -223,23 +227,24 @@ x, y = to_svg(V_WET + 2.0, (H_OFF + H_CLOSET) / 2)
 svg.append(f'<text x="{x:.1f}" y="{y+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#2E7D32">CLOSET</text>')
 
 # Plumbing wall annotation
-wx, wy = to_svg(west_at(-12) - 1.8, -12)
+_plumb_n = H_WET_SPLIT + 1.0
+wx, wy = to_svg(west_at(_plumb_n) - 1.8, _plumb_n)
 svg.append(f'<text x="{wx:.1f}" y="{wy:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#7B1FA2" transform="rotate(-90,{wx:.1f},{wy:.1f})">plumbing wall</text>')
 
 # Kitchen counter annotation
-kce = (west_at(-26) + east_at(-26)) / 2
+kce = (west_at(H_BOT + 1.5) + east_at(H_BOT + 1.5)) / 2
 x, y = to_svg(kce, H_BOT + 1.5)
 svg.append(f'<text x="{x:.1f}" y="{y:.1f}" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#F57F17">kitchen counter along south wall</text>')
 
 # Entry annotation
-ex, ey = to_svg(0, 1.0)
+ex, ey = to_svg(poly[0][0], poly[0][1] + 1.0)
 svg.append(f'<text x="{ex:.1f}" y="{ey:.1f}" text-anchor="middle" font-family="Arial" font-size="9" fill="#333">&#9650; ENTRY</text>')
 
 # Fixture annotations
-x, y = to_svg((west_at(-10) + V_WET)/2, -10)
+x, y = to_svg((west_at(H_CLOSET) + V_WET)/2, H_CLOSET)
 svg.append(f'<text x="{x:.1f}" y="{y+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#7B1FA2">W/D</text>')
 
-x, y = to_svg((V_WET + east_at(-13))/2, -13.5)
+x, y = to_svg((V_WET + east_at(H_WET_SPLIT))/2, H_WET_SPLIT - 0.5)
 svg.append(f'<text x="{x:.1f}" y="{y+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#2E7D32">king bed</text>')
 
 x, y = to_svg((poly[2][0] + poly[3][0])/2, (poly[2][1] + poly[3][1])/2 + 1)
@@ -271,7 +276,8 @@ dim_label(V_WET, H_OFF, V_WET, H_MID, f"{h:.0f} ft", -1)
 
 # Main room depth
 h = abs(H_BOT - H_MID)
-dim_label(west_at(-22.5) - 0.5, H_MID, west_at(-22.5) - 0.5, H_BOT, f"{h:.0f} ft", -1)
+_mid_n = (H_MID + H_BOT) / 2
+dim_label(west_at(_mid_n) - 0.5, H_MID, west_at(_mid_n) - 0.5, H_BOT, f"{h:.0f} ft", -1)
 
 # Vertex dots and labels
 vlabels = ["POB", "P2", "P3", "P4", "P5"]

@@ -272,6 +272,17 @@ poly[2] = (-19.1177, P4_orig[1])
 poly[1] = (poly[2][0], poly[2][1] + 29.0)
 pts["POB"], pts["P2"], pts["P3"], pts["P4"], pts["P5"] = poly
 
+# Rebase origin to P4
+_p4_origin = pts["P4"]
+for _k in list(pts.keys()):
+    pts[_k] = (pts[_k][0] - _p4_origin[0], pts[_k][1] - _p4_origin[1])
+
+# Adjust SVG transform to preserve visual output
+_svg_ox = 368.79 + _p4_origin[0] * _s
+_svg_oy = 124.12 - _p4_origin[1] * _s
+def to_svg(e, n):
+    return (_svg_ox + e*_s, _svg_oy - n*_s)
+
 # P5-POB line
 dE_l = pts["P5"][0]-pts["POB"][0]; dN_l = pts["P5"][1]-pts["POB"][1]
 L = math.sqrt(dE_l**2+dN_l**2)
@@ -281,9 +292,9 @@ nE, nN = -uN, uE
 # Arcs 1 & 2
 R1, R2 = 10.0, 12.5
 T1_dist, T2_dist = 26.5, 5.75
-pts["T1"] = (T1_dist*uE, T1_dist*uN)
+pts["T1"] = (pts["POB"][0]+T1_dist*uE, pts["POB"][1]+T1_dist*uN)
 pts["C1"] = (pts["T1"][0]+R1*nE, pts["T1"][1]+R1*nN)
-pts["T2"] = (T2_dist*uE, T2_dist*uN)
+pts["T2"] = (pts["POB"][0]+T2_dist*uE, pts["POB"][1]+T2_dist*uN)
 pts["C2"] = (pts["T2"][0]+R2*nE, pts["T2"][1]+R2*nN)
 
 # PA: circle-circle intersection (pick one nearer to correct side)
@@ -611,8 +622,8 @@ outline_cfg = LayerConfig(
         "O15":  VertexStyle("O15",  "middle", 0, -12, "#2E7D32", 3.5, 10),
         "O14":  VertexStyle("O14",  "start",  8, -6,  "#2E7D32", 3.5, 10),
         "O13":  VertexStyle("O13",  "start", 10, 10,  "#d32f2f", 3.5, 10),
-        "O12":  VertexStyle("O12",  "start",  8, -8,  "#d32f2f", 3.5, 10),
-        "O11":  VertexStyle("O11",  "end",   -8,  8,  "#d32f2f", 3.5, 10),
+        "O12":  VertexStyle("O12",  "start",  8,  4,  "#d32f2f", 3.5, 10),
+        "O11":  VertexStyle("O11",  "start",  8,  4,  "#d32f2f", 3.5, 10),
         "O10":  VertexStyle("O10",  "start", 10, -4,  "#0077B6", 3.5, 10),
         "O9":   VertexStyle("O9",   "start",  8,  8,  "#0077B6", 3.5, 10),
         "O8":   VertexStyle("O8",   "start",  8, 12,  "#d32f2f", 3.5, 10),
@@ -641,7 +652,7 @@ outline_cfg = LayerConfig(
         ("O14","O13"): ArcLabel(f"Fillet R={R_f_pox*12:.1f}\"",
             f"{sweep_f3:.1f}&#176;", "start", 12, -10, 11, "#333"),
         ("O12","O11"): ArcLabel("Fillet R=10\"",
-            f"{sweep_f4:.1f}&#176;", "end", -10, -10, 11, "#333"),
+            f"{sweep_f4:.1f}&#176;", "start", 10, -10, 11, "#333"),
         ("O1","O0"): ArcLabel("Fillet R=10\"",
             f"{sweep_f:.1f}&#176;", "end", -10, 14, 11, "#333"),
         ("O3","O2"): ArcLabel("Fillet R=28\"",
