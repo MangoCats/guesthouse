@@ -403,7 +403,7 @@ pts["Cf2"] = (pts["Po2"][0] + R_fillet2, corner2_N - R_fillet2)
 pts["O2"] = (pts["Po2"][0], pts["Cf2"][1])
 pts["O3"] = (pts["Cf2"][0], corner2_N)
 # O4: 5.5' east of O3
-pts["O4"] = (pts["O3"][0] + 5.5 + 2.0/12, pts["O3"][1])
+pts["O4"] = (pts["O3"][0] + 5.5 + 6.0/12, pts["O3"][1])
 # Turn 1 at O4: 90° CW east->south, R=28"
 R_turn1 = 28.0 / 12.0
 pts["Ct1"] = (pts["O4"][0], pts["O4"][1] - R_turn1)
@@ -527,6 +527,172 @@ print(f"  Cf3:  ({pts['Cf3'][0]:.4f}, {pts['Cf3'][1]:.4f})  (fillet PoX center, 
 print(f"  PoX fillet: R={R_f_pox*12:.2f}\", arc(O14->O13) = {Lf_pox:.4f}', arc(O15->O14) = {L3_pox:.4f}', ratio = {Lf_pox/L3_pox:.4f}")
 print(f"  Cf4:  ({pts['Cf4'][0]:.4f}, {pts['Cf4'][1]:.4f})  (fillet Po5 center, R={R_f_po5:.4f}')")
 print(f"  Outline area: {outline_area:.2f} sq ft")
+
+# ============================================================
+# Section 7b: Floorplan Inner Walls + Interior Elements
+# ============================================================
+_wall_t = 8.0 / 12.0
+
+def _fp_inner_point(seg_b, seg_a):
+    if not isinstance(seg_b, LineSeg) and not isinstance(seg_a, LineSeg):
+        c1 = pts[seg_b.center]; c2 = pts[seg_a.center]
+        r1 = (seg_b.radius + _wall_t) if seg_b.direction == "CW" else (seg_b.radius - _wall_t)
+        dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.sqrt(dx*dx+dy*dy)
+        return (c1[0]+r1*dx/d, c1[1]+r1*dy/d)
+    ls = seg_b if isinstance(seg_b, LineSeg) else seg_a
+    arc = seg_a if isinstance(seg_b, LineSeg) else seg_b
+    c = pts[arc.center]; S = pts[ls.start]; E = pts[ls.end]
+    D = (E[0]-S[0], E[1]-S[1]); LN = left_norm(S, E); P = off_pt(S, LN, _wall_t)
+    t = ((c[0]-P[0])*D[0]+(c[1]-P[1])*D[1])/(D[0]**2+D[1]**2)
+    return (P[0]+t*D[0], P[1]+t*D[1])
+
+for _i in range(16):
+    pts[f"W{int(outline_segs[_i].end[1:])}"] = _fp_inner_point(
+        outline_segs[_i], outline_segs[(_i+1)%16])
+
+_fp_inner_segs = [
+    LineSeg("W2","W1"), ArcSeg("W1","W0","Cf",R_fillet-_wall_t,"CCW",20),
+    LineSeg("W0","W15"), ArcSeg("W15","W14","C3",R3i+_wall_t,"CW",60),
+    ArcSeg("W14","W13","Cf3",R_f_pox-_wall_t,"CCW",20), LineSeg("W13","W12"),
+    ArcSeg("W12","W11","Cf4",R_f_po5-_wall_t,"CCW",20), LineSeg("W11","W10"),
+    ArcSeg("W10","W9","C1",R1i+_wall_t,"CW",60), LineSeg("W9","W8"),
+    ArcSeg("W8","W7","Ct3",R_turn3-_wall_t,"CCW",20), LineSeg("W7","W6"),
+    ArcSeg("W6","W5","Ct2",R_turn2+_wall_t,"CW",20),
+    ArcSeg("W5","W4","Ct1",R_turn1-_wall_t,"CCW",20),
+    LineSeg("W4","W3"), ArcSeg("W3","W2","Cf2",R_fillet2-_wall_t,"CCW",20),
+]
+_fp_outer_poly = path_polygon(outline_segs, pts)
+_fp_inner_poly = path_polygon(_fp_inner_segs, pts)
+_fp_inner_area = poly_area(_fp_inner_poly)
+
+def _fp_horiz_isects(poly, n_val):
+    r = []
+    for i in range(len(poly)):
+        j = (i+1)%len(poly); n1, n2 = poly[i][1], poly[j][1]
+        if (n1 <= n_val < n2) or (n2 <= n_val < n1):
+            t = (n_val-n1)/(n2-n1); r.append(poly[i][0]+t*(poly[j][0]-poly[i][0]))
+    return r
+
+def _fp_vert_isects(poly, e_val):
+    r = []
+    for i in range(len(poly)):
+        j = (i+1)%len(poly); e1, e2 = poly[i][0], poly[j][0]
+        if (e1 <= e_val < e2) or (e2 <= e_val < e1):
+            t = (e_val-e1)/(e2-e1); r.append(poly[i][1]+t*(poly[j][1]-poly[i][1]))
+    return r
+
+# IW1: 6" thick, E-W, 11'6" north of inner C0-C15
+_iwt = 6.0/12.0
+_iw1_s = pts["W0"][1]+11.5; _iw1_n = _iw1_s+_iwt
+_si = _fp_horiz_isects(_fp_inner_poly, _iw1_s)
+_ni = _fp_horiz_isects(_fp_inner_poly, _iw1_n)
+_iw1 = [(min(_si),_iw1_s),(max(_si),_iw1_s),(max(_ni),_iw1_n),(min(_ni),_iw1_n)]
+
+# IW2: 6" thick, N-S, west face 6'6" east of inner C1-C2
+_iw2_w = pts["W1"][0]+6.5; _iw2_e = _iw2_w+_iwt; _iw2_s = _iw1_n; _iw2_n = pts["W3"][1]
+
+# Appliance positions
+_dryer_w = pts["W1"][0]+0.5; _dryer_s = pts["W0"][1]+4.0/12
+_dryer_e = _dryer_w+35.0/12; _dryer_n = _dryer_s+30.0/12
+_washer_w = _dryer_w; _washer_s = _dryer_n+1.0/12
+_washer_e = _dryer_e; _washer_n = _washer_s+30.0/12
+
+# Counter
+_ctr_w = _dryer_e+3.0; _ctr_e = _ctr_w+2.0; _ctr_s = pts["W0"][1]; _ctr_n = _ctr_s+6.0
+_ctr_nw_r = 9.0/12.0
+
+# Partition wall positions
+_iwt3 = 3.0/12; _iwt4 = 4.0/12; _cl2w = 30.0/12
+_w8 = [(_ctr_e,_ctr_s),(_ctr_e+_iwt3,_ctr_s),(_ctr_e+_iwt3,_ctr_n),
+       (_ctr_e+_iwt3+_cl2w,_ctr_n),(_ctr_e+_iwt3+_cl2w,_ctr_n+_iwt3),(_ctr_e,_ctr_n+_iwt3)]
+_w1s_w = _ctr_e+_iwt3+_cl2w; _w1s_e = _w1s_w+_iwt4; _w1s_s = _ctr_s; _w1s_n = _iw1_s
+_w6_w = _w1s_e+140.0/12; _w6_e = _w6_w+_iwt4
+_wall_south_n = -4.0/12
+_w6_sw = _wall_south_n
+_w6_se = _wall_south_n
+_cl1w = 30.0/12; _cl1_top = _ctr_n-1.0
+_w5_w = _w6_e+_cl1w; _w5_e = _w5_w+_iwt3
+_w5_sw = _wall_south_n
+_w5_se = _wall_south_n
+
+# Bed position
+_bed_cx = (_w1s_e+_w6_w)/2
+_bed_w = _bed_cx-76.0/24; _bed_e = _bed_cx+76.0/24
+_bed_s = _ctr_s+2.0/12; _bed_n = _bed_s+94.0/12
+
+def render_floorplan(lines):
+    lines.append('<g opacity="0.5">')
+    # Wall band (outer - inner hole, evenodd fill)
+    od = "M "+" L ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _fp_outer_poly)+" Z"
+    id_ = "M "+" L ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in reversed(_fp_inner_poly))+" Z"
+    lines.append(f'<path d="{od} {id_}" fill="rgba(160,160,160,0.5)" fill-rule="evenodd" stroke="none"/>')
+    # Inner wall strokes
+    for seg in _fp_inner_segs:
+        if isinstance(seg, LineSeg):
+            s1,s2 = to_svg(*pts[seg.start]),to_svg(*pts[seg.end])
+            lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
+        else:
+            pl = segment_polyline(seg, pts)
+            sp = " ".join(f"{to_svg(e,n)[0]:.1f},{to_svg(e,n)[1]:.1f}" for e,n in pl)
+            lines.append(f'<polyline points="{sp}" fill="none" stroke="#666" stroke-width="1.0" stroke-linecap="round"/>')
+    # IW1
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _iw1)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
+    for a,b in [(_iw1[0],_iw1[1]),(_iw1[3],_iw1[2])]:
+        s1,s2 = to_svg(*a),to_svg(*b)
+        lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
+    # IW2
+    iw2 = [(_iw2_w,_iw2_s),(_iw2_e,_iw2_s),(_iw2_e,_iw2_n),(_iw2_w,_iw2_n)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw2)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
+    for ev in [_iw2_w,_iw2_e]:
+        s1,s2 = to_svg(ev,_iw2_s),to_svg(ev,_iw2_n)
+        lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
+    # Wall 8 L-shape
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _w8)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # Wall 1 South
+    w1sp = [(_w1s_w,_w1s_s),(_w1s_e,_w1s_s),(_w1s_e,_w1s_n),(_w1s_w,_w1s_n)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w1sp)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # Wall 6
+    w6p = [(_w6_w,_w6_sw),(_w6_e,_w6_se),(_w6_e,_iw1_s),(_w6_w,_iw1_s)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w6p)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # Wall 5 L-shape
+    w5p = [(_w6_e,_cl1_top+_iwt3),(_w5_e,_cl1_top+_iwt3),(_w5_e,_w5_se),
+           (_w5_w,_w5_sw),(_w5_w,_cl1_top),(_w6_e,_cl1_top)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w5p)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # Appliances
+    for lbl,sw_e,sw_n,ne_e,ne_n in [("DRYER",_dryer_w,_dryer_s,_dryer_e,_dryer_n),
+                                      ("WASHER",_washer_w,_washer_s,_washer_e,_washer_n)]:
+        s1,s2 = to_svg(sw_e,ne_n),to_svg(ne_e,sw_n); w=s2[0]-s1[0]; h=s2[1]-s1[1]
+        lines.append(f'<rect x="{s1[0]:.1f}" y="{s1[1]:.1f}" width="{w:.1f}" height="{h:.1f}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
+        cx,cy = (s1[0]+s2[0])/2,(s1[1]+s2[1])/2
+        lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">{lbl}</text>')
+    # Counter with rounded NW corner
+    csw,cse,cne = to_svg(_ctr_w,_ctr_s),to_svg(_ctr_e,_ctr_s),to_svg(_ctr_e,_ctr_n)
+    cnas,cnae = to_svg(_ctr_w+_ctr_nw_r,_ctr_n),to_svg(_ctr_w,_ctr_n-_ctr_nw_r)
+    rsv = abs(cnas[0]-to_svg(_ctr_w,_ctr_n)[0])
+    cd = (f'M {csw[0]:.1f},{csw[1]:.1f} L {cse[0]:.1f},{cse[1]:.1f} L {cne[0]:.1f},{cne[1]:.1f} '
+          f'L {cnas[0]:.1f},{cnas[1]:.1f} A {rsv:.1f} {rsv:.1f} 0 0 0 {cnae[0]:.1f},{cnae[1]:.1f} Z')
+    lines.append(f'<path d="{cd}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
+    ccx,ccy = (csw[0]+cse[0])/2,(csw[1]+cne[1])/2
+    lines.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
+    # King Bed
+    bs,be = to_svg(_bed_w,_bed_n),to_svg(_bed_e,_bed_s); bw,bh = be[0]-bs[0],be[1]-bs[1]
+    lines.append(f'<rect x="{bs[0]:.1f}" y="{bs[1]:.1f}" width="{bw:.1f}" height="{bh:.1f}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
+    bcx,bly = (bs[0]+be[0])/2,bs[1]+0.765*bh
+    lines.append(f'<text x="{bcx:.1f}" y="{bly+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
+    # Room labels
+    cx,cy = to_svg((_ctr_e+_iwt3+_w1s_w)/2,(_ctr_s+_ctr_n)/2)
+    lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
+    bx,by = to_svg((_w1s_e+_w6_w)/2,(_ctr_s+_iw1_s)/2)
+    lines.append(f'<text x="{bx:.1f}" y="{by+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
+    cx,cy = to_svg((_w6_e+_w5_w)/2,(_ctr_s+_cl1_top)/2)
+    lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
+    lines.append('</g>')
 
 # ============================================================
 # Section 8: Style Configurations
@@ -690,6 +856,7 @@ lines.append(f'<text x="{W/2}" y="30" text-anchor="middle" font-family="Arial" f
 render_layer(lines, outer_segs, pts, outer_cfg)
 render_layer(lines, inset_segs, pts, inset_cfg)
 render_layer(lines, outline_segs, pts, outline_cfg)
+render_floorplan(lines)
 
 # Area label centered in outline
 centroid_names = ["O2","O1","O0","O15","O14","O13","O12","O11","O10","O9","O8","O7","O6","O5","O4","O3"]
