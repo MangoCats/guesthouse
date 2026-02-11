@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="792" height="612" viewBox="0 0 792 612">
+<rect width="792" height="612" fill="white"/>
+<text x="396.0" y="32" text-anchor="middle" font-family="Arial" font-size="15" font-weight="bold">Rough Field Survey &#8212; Traverse with Arcs and Inscribed Rectangle</text>
+<polygon points="368.79,124.12 145.91,169.79 145.91,507.87 517.15,507.87 645.72,423.13" fill="#e8edf5" stroke="#333" stroke-width="2.0" stroke-linejoin="round"/>
+<!-- Inscribed rectangle: NE corner at arc intersection, 32.49' x 25.18' = 818.23 sq ft -->
+<polygon points="562.9,213.9 187.8,161.2 146.9,451.9 522.0,504.6" fill="rgba(255,167,38,0.30)" stroke="#e65100" stroke-width="1.8" stroke-linejoin="round" stroke-dasharray="8,4"/>
+<!-- Rectangle dimension labels -->
+<g transform="translate(375.4,187.6) rotate(8.0)">
+  <text x="0" y="4" text-anchor="middle" font-family="Arial" font-size="9.5" fill="#e65100" font-weight="bold">32.49 ft</text>
+</g>
+<g transform="translate(334.5,478.3) rotate(8.0)">
+  <text x="0" y="4" text-anchor="middle" font-family="Arial" font-size="9.5" fill="#e65100" font-weight="bold">32.49 ft</text>
+</g>
+<g transform="translate(167.4,306.6) rotate(-82.0)">
+  <text x="0" y="4" text-anchor="middle" font-family="Arial" font-size="9.5" fill="#e65100" font-weight="bold">25.18 ft</text>
+</g>
+<g transform="translate(542.5,359.3) rotate(-82.0)">
+  <text x="0" y="4" text-anchor="middle" font-family="Arial" font-size="9.5" fill="#e65100" font-weight="bold">25.18 ft</text>
+</g>
+<!-- Bearing/distance labels on traverse legs -->
+<g transform="translate(257.4,147.0) rotate(-11.6)">
+  <text x="0" y="-4" text-anchor="middle" font-family="Arial" font-size="9" fill="#1a237e">Brg 258&#176; 25' 11.4"</text>
+  <text x="0" y="9" text-anchor="middle" font-family="Arial" font-size="9" fill="#555">Dist 19' 6.2"</text>
+</g>
+<g transform="translate(145.9,338.8) rotate(-90.0)">
+  <text x="0" y="-4" text-anchor="middle" font-family="Arial" font-size="9" fill="#1a237e">Brg 180&#176; 00' 00.0"</text>
+  <text x="0" y="9" text-anchor="middle" font-family="Arial" font-size="9" fill="#555">Dist 29' 0.0"</text>
+</g>
+<g transform="translate(331.5,521.9) rotate(0.0)">
+  <text x="0" y="-4" text-anchor="middle" font-family="Arial" font-size="9" fill="#1a237e">Brg 90&#176; 00' 00.0"</text>
+  <text x="0" y="9" text-anchor="middle" font-family="Arial" font-size="9" fill="#555">Dist 31' 10.1"</text>
+</g>
+<g transform="translate(590.2,478.9) rotate(-33.4)">
+  <text x="0" y="-4" text-anchor="middle" font-family="Arial" font-size="9" fill="#1a237e">Brg 56&#176; 36' 31.0"</text>
+  <text x="0" y="9" text-anchor="middle" font-family="Arial" font-size="9" fill="#555">Dist 13' 2.5"</text>
+</g>
+<g transform="translate(519.0,262.8) rotate(47.2)">
+  <text x="0" y="-4" text-anchor="middle" font-family="Arial" font-size="9" fill="#1a237e">Brg 317&#176; 11' 44.0"</text>
+  <text x="0" y="9" text-anchor="middle" font-family="Arial" font-size="9" fill="#555">Dist 34' 11.5"</text>
+</g>
+<!-- Vertex dots and labels -->
+<circle cx="368.79" cy="124.12" r="3.5" fill="#d32f2f"/>
+<text x="369.0" y="106.1" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">P.O.B.</text>
+<circle cx="145.91" cy="169.79" r="3.5" fill="#d32f2f"/>
+<text x="132.9" y="161.8" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">P2</text>
+<circle cx="145.91" cy="507.87" r="3.5" fill="#d32f2f"/>
+<text x="132.9" y="514.9" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">P3</text>
+<circle cx="517.15" cy="507.87" r="3.5" fill="#d32f2f"/>
+<text x="527.9" y="517.7" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">P4</text>
+<circle cx="645.72" cy="423.13" r="3.5" fill="#d32f2f"/>
+<text x="661.1" y="425.6" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">P5</text>
+<!-- Rectangle area label -->
+<text x="354.9" y="326.9" text-anchor="middle" font-family="Arial" font-size="11" fill="#bf360c" font-weight="bold">818.23 sq ft</text>
+<text x="354.9" y="341.9" text-anchor="middle" font-family="Arial" font-size="9" fill="#bf360c">(32.49' &#215; 25.18')</text>
+<!-- Arc 1: R=10', tangent to P5-POB at 26'6" from POB, CW ~72.4 deg trimmed to intersection -->
+<polyline points="578.7,350.8 576.2,348.0 573.9,345.2 571.6,342.3 569.4,339.4 567.3,336.3 565.3,333.2 563.4,330.1 561.6,326.9 559.9,323.6 558.3,320.3 556.8,316.9 555.5,313.5 554.2,310.0 553.0,306.5 552.0,303.0 551.0,299.4 550.2,295.8 549.5,292.2 548.9,288.6 548.4,284.9 548.1,281.3 547.8,277.6 547.7,273.9 547.7,270.2 547.8,266.5 548.0,262.9 548.3,259.2 548.8,255.5 549.3,251.9 550.0,248.3 550.8,244.7 551.7,241.1 552.7,237.6 553.9,234.1 555.1,230.6 556.4,227.2 557.9,223.8 559.5,220.4 561.1,217.2 562.9,213.9" fill="none" stroke="#0077B6" stroke-width="2.5" stroke-linecap="round"/>
+<!-- Arc 2: R=12'6", tangent to P5-POB at 5'9" from POB, CCW ~63.8 deg to intersection -->
+<polyline points="414.3,173.3 417.1,176.2 420.0,179.1 423.0,181.9 426.0,184.6 429.1,187.2 432.3,189.7 435.5,192.1 438.8,194.5 442.2,196.7 445.7,198.9 449.2,200.9 452.7,202.9 456.3,204.7 460.0,206.5 463.7,208.1 467.4,209.7 471.2,211.1 475.1,212.5 478.9,213.7 482.8,214.8 486.7,215.9 490.7,216.8 494.7,217.6 498.7,218.2 502.7,218.8 506.7,219.3 510.8,219.6 514.8,219.9 518.9,220.0 522.9,220.0 527.0,219.9 531.0,219.7 535.1,219.3 539.1,218.9 543.1,218.4 547.1,217.7 551.1,216.9 555.1,216.0 559.0,215.0 562.9,213.9" fill="none" stroke="#0077B6" stroke-width="2.5" stroke-linecap="round"/>
+<!-- Arc tangent point dots -->
+<circle cx="578.7" cy="350.8" r="3.5" fill="#0077B6"/>
+<circle cx="414.3" cy="173.3" r="3.5" fill="#0077B6"/>
+<!-- Intersection point dot -->
+<circle cx="562.9" cy="213.9" r="4" fill="#0077B6"/>
+<!-- Arc 1 center cross -->
+<line x1="660.2" y1="271.6" x2="668.2" y2="271.6" stroke="#0077B6" stroke-width="0.8"/>
+<line x1="664.2" y1="267.6" x2="664.2" y2="275.6" stroke="#0077B6" stroke-width="0.8"/>
+<!-- Arc 1 dashed radius line -->
+<line x1="664.2" y1="271.6" x2="578.7" y2="350.8" stroke="#0077B6" stroke-width="0.6" stroke-dasharray="4,3"/>
+<!-- Arc 1 R label -->
+<text x="626.0" y="305.0" text-anchor="middle" font-family="Arial" font-size="8.5" fill="#0077B6" transform="rotate(43.2,626.0,305.0)">R = 10'</text>
+<!-- Arc 1 tangent label -->
+<text x="582.7" y="364.0" text-anchor="start" font-family="Arial" font-size="8" fill="#0077B6">tangent pt (26' 6" from POB)</text>
+<!-- Arc 1 sweep label -->
+<text x="543.0" y="290.0" text-anchor="middle" font-family="Arial" font-size="9" fill="#0077B6">72.4&#176;</text>
+<!-- Arc 2 center cross -->
+<line x1="517.2" y1="74.3" x2="525.2" y2="74.3" stroke="#0077B6" stroke-width="0.8"/>
+<line x1="521.2" y1="70.3" x2="521.2" y2="78.3" stroke="#0077B6" stroke-width="0.8"/>
+<!-- Arc 2 dashed radius line -->
+<line x1="521.2" y1="74.3" x2="414.3" y2="173.3" stroke="#0077B6" stroke-width="0.6" stroke-dasharray="4,3"/>
+<!-- Arc 2 R label -->
+<text x="467.8" y="123.8" text-anchor="middle" font-family="Arial" font-size="8.5" fill="#0077B6" transform="rotate(-42.8,467.8,123.8)">R = 12' 6"</text>
+<!-- Arc 2 tangent label -->
+<text x="400.0" y="169.0" text-anchor="end" font-family="Arial" font-size="8" fill="#0077B6">tangent pt (5' 9" from POB)</text>
+<!-- Arc 2 sweep label -->
+<text x="475.0" y="225.0" text-anchor="middle" font-family="Arial" font-size="9" fill="#0077B6">63.8&#176;</text>
+<!-- Intersection label -->
+<text x="566.9" y="206.0" text-anchor="start" font-family="Arial" font-size="8" fill="#0077B6">intersection / NE corner</text>
+<!-- North arrow -->
+<line x1="742" y1="575" x2="742" y2="539" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
+<defs><marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#333"/></marker></defs>
+<text x="742" y="533" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">N</text>
+<!-- Legend -->
+<rect x="56" y="556" width="16" height="10" fill="#e8edf5" stroke="#333" stroke-width="1"/>
+<text x="78" y="565" font-family="Arial" font-size="9" fill="#333">Traverse (1029.08 sq ft)</text>
+<rect x="56" y="572" width="16" height="10" fill="rgba(255,167,38,0.30)" stroke="#e65100" stroke-width="1" stroke-dasharray="4,2"/>
+<text x="78" y="581" font-family="Arial" font-size="9" fill="#333">Inscribed rectangle, NE corner at intersection (818.23 sq ft)</text>
+<line x1="56" y1="593" x2="72" y2="593" stroke="#0077B6" stroke-width="2.5"/>
+<text x="78" y="596" font-family="Arial" font-size="9" fill="#333">Circular arcs (R=10' and R=12' 6")</text>
+<text x="396.0" y="608" text-anchor="middle" font-family="Arial" font-size="8.5" fill="#999">Bearings as adjusted &#8226; Distances in feet and inches &#8226; Letter landscape 11" &#215; 8.5"</text>
+</svg>
