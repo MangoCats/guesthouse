@@ -1,32 +1,9 @@
 import math
+from survey import compute_traverse, compute_three_arc, poly_area
 
 # All coordinates are P3-based: P3 = (0, 0).
-legs = [
-    (257, 53, 45,  19,  1.0),
-    (180, 54, 31,  26, 11.0),
-    ( 93, 36,  7,  31, 10.5),
-    ( 56, 36, 31,  13,  2.5),
-    (317, 11, 44,  34, 11.5),
-]
-_trav = [(0.0, 0.0)]
-for deg, mn, sec, ft, inch in legs:
-    brg = deg + mn/60.0 + sec/3600.0
-    dist_in = ft * 12 + inch
-    brg_rad = math.radians(brg)
-    dE = dist_in * math.sin(brg_rad)
-    dN = dist_in * math.cos(brg_rad)
-    last = _trav[-1]
-    _trav.append((last[0] + dE, last[1] + dN))
-
-_trav_ft = [(e/12, n/12) for e, n in _trav[:5]]
-
-# Adjust P3 and P2 (horizontal baseline, vertical west face)
-_trav_ft[2] = (-19.1177, _trav_ft[3][1])
-_trav_ft[1] = (_trav_ft[2][0], _trav_ft[2][1] + 29.0)
-
-# Rebase to P3 = (0, 0)
-_p3_trav = _trav_ft[2]
-poly = [(_trav_ft[i][0] - _p3_trav[0], _trav_ft[i][1] - _p3_trav[1]) for i in range(5)]
+_pts, _ = compute_traverse()
+poly = [_pts["POB"], _pts["P2"], _pts["P3"], _pts["P4"], _pts["P5"]]
 
 def lerp_edge(a, b, n_val):
     if a[1] == b[1]:
@@ -74,14 +51,6 @@ main_room = [(west_at(H_MID), H_MID), (west_at(H_BOT), H_BOT),
 storage = [(west_at(H_BOT), H_BOT), poly[2], poly[3], (east_at(H_BOT), H_BOT)]
 closet = [(V_WET, H_OFF), (V_WET, H_CLOSET),
           (V_WET + 4.0, H_CLOSET), (V_WET + 4.0, H_OFF)]
-
-def poly_area(pts):
-    n = len(pts)
-    a = 0
-    for i in range(n):
-        j = (i+1) % n
-        a += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1]
-    return abs(a) / 2.0
 
 # SVG setup - Letter landscape
 page_w, page_h = 792, 612
@@ -131,52 +100,15 @@ for name, pts, fill, sc in rooms_data:
 # Closet overlay
 svg.append(f'<polygon points="{pts_str(closet)}" fill="#C8E6C9" stroke="#2E7D32" stroke-width="1" stroke-dasharray="3,2"/>')
 
-# --- Three-arc boundary system (matching gen_path_svg.py) ---
-P5 = poly[4]
-POB = poly[0]
-P3_pt = poly[2]
-P4_pt = poly[3]
-dE_line = P5[0] - POB[0]
-dN_line = P5[1] - POB[1]
-L_line = math.sqrt(dE_line**2 + dN_line**2)
-uE = dE_line / L_line
-uN = dN_line / L_line
-nE, nN = -uN, uE  # outward normal
-
-R1, R2, R3 = 10.0, 12.5, 11.0
-T1 = (POB[0] + 26.5 * uE, POB[1] + 26.5 * uN)
-C1 = (T1[0] + R1 * nE, T1[1] + R1 * nN)
-T2 = (POB[0] + 5.75 * uE, POB[1] + 5.75 * uN)
-C2 = (T2[0] + R2 * nE, T2[1] + R2 * nN)
-
-# PA: circle-circle intersection of Arc 1 and Arc 2
-dx_cc = C2[0] - C1[0]; dy_cc = C2[1] - C1[1]
-d_cc = math.sqrt(dx_cc**2 + dy_cc**2)
-a_cc = (R1**2 - R2**2 + d_cc**2) / (2 * d_cc)
-h_cc = math.sqrt(R1**2 - a_cc**2)
-ux_cc, uy_cc = dx_cc / d_cc, dy_cc / d_cc
-Mx, My = C1[0] + a_cc * ux_cc, C1[1] + a_cc * uy_cc
-I1 = (Mx + h_cc * (-uy_cc), My + h_cc * ux_cc)
-I2 = (Mx - h_cc * (-uy_cc), My - h_cc * ux_cc)
-ang_T2_C2 = math.atan2(T2[1] - C2[1], T2[0] - C2[0])
-_ccw = lambda s, e: (e - s) % (2 * math.pi)
-s1 = _ccw(ang_T2_C2, math.atan2(I1[1] - C2[1], I1[0] - C2[0]))
-s2 = _ccw(ang_T2_C2, math.atan2(I2[1] - C2[1], I2[0] - C2[0]))
-PA = I1 if s1 < s2 else I2
-
-T3 = (P3_pt[0] + 17.911244, P3_pt[1])
-C3 = (T3[0], T3[1] - R3)
-
-# PX: intersection of P5-P4 line (extended past P4) with Arc 3
-dxL = P4_pt[0] - P5[0]; dyL = P4_pt[1] - P5[1]
-ax_ = P5[0] - C3[0]; ay_ = P5[1] - C3[1]
-A_ = dxL**2 + dyL**2; B_ = 2 * (ax_ * dxL + ay_ * dyL)
-C_ = ax_**2 + ay_**2 - R3**2
-disc_ = B_**2 - 4 * A_ * C_
-t1_ = (-B_ + math.sqrt(disc_)) / (2 * A_)
-t2_ = (-B_ - math.sqrt(disc_)) / (2 * A_)
-t_ = min(t for t in [t1_, t2_] if t > 1.0)
-PX = (P5[0] + t_ * dxL, P5[1] + t_ * dyL)
+# --- Three-arc boundary system (from survey.py) ---
+_arc_pts = dict(_pts)
+_arc = compute_three_arc(_arc_pts)
+R1, R2, R3 = _arc["R1"], _arc["R2"], _arc["R3"]
+T1, C1 = _arc_pts["T1"], _arc_pts["C1"]
+T2, C2 = _arc_pts["T2"], _arc_pts["C2"]
+T3, C3 = _arc_pts["T3"], _arc_pts["C3"]
+PA, PX = _arc_pts["PA"], _arc_pts["PX"]
+POB, P5 = poly[0], poly[4]
 
 # Draw arcs (CW in survey coords -> sweep-flag=0 in SVG)
 arc_color = "#0077B6"

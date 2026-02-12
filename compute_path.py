@@ -1,34 +1,17 @@
 import math
+from survey import (
+    compute_traverse, compute_three_arc,
+    poly_area, arc_poly, brg_dist, fmt_brg, fmt_dist,
+)
 
 # === Traverse (raw survey data, instrument at POB) ===
 # All coordinates below are P3-based: P3 = (0, 0).
-legs = [
-    (257, 53, 45, 19, 1.0), (180, 54, 31, 26, 11.0),
-    (93, 36, 7, 31, 10.5), (56, 36, 31, 13, 2.5),
-    (317, 11, 44, 34, 11.5),
-]
-_trav = [(0.0, 0.0)]
-for deg, mn, sec, ft, inch in legs:
-    brg = deg + mn/60.0 + sec/3600.0
-    dist_in = ft * 12 + inch
-    brg_rad = math.radians(brg)
-    dE = dist_in * math.sin(brg_rad)
-    dN = dist_in * math.cos(brg_rad)
-    last = _trav[-1]
-    _trav.append((last[0] + dE, last[1] + dN))
-_trav_ft = [(e/12, n/12) for e, n in _trav[:5]]
-
-# Adjust P3 and P2 (horizontal baseline, vertical west face)
-_trav_ft[2] = (-19.1177, _trav_ft[3][1])
-_trav_ft[1] = (_trav_ft[2][0], _trav_ft[2][1] + 29.0)
-
-# Rebase to P3 = (0, 0)
-_p3_trav = _trav_ft[2]
-P3  = (0.0, 0.0)
-POB = (_trav_ft[0][0] - _p3_trav[0], _trav_ft[0][1] - _p3_trav[1])
-P2  = (_trav_ft[1][0] - _p3_trav[0], _trav_ft[1][1] - _p3_trav[1])
-P4  = (_trav_ft[3][0] - _p3_trav[0], _trav_ft[3][1] - _p3_trav[1])
-P5  = (_trav_ft[4][0] - _p3_trav[0], _trav_ft[4][1] - _p3_trav[1])
+_pts, _p3_trav = compute_traverse()
+P3  = _pts["P3"]
+POB = _pts["POB"]
+P2  = _pts["P2"]
+P4  = _pts["P4"]
+P5  = _pts["P5"]
 
 print(f"P3:  ({P3[0]:.4f}, {P3[1]:.4f})")
 print(f"POB: ({POB[0]:.4f}, {POB[1]:.4f})")
@@ -36,35 +19,17 @@ print(f"P2:  ({P2[0]:.4f}, {P2[1]:.4f})")
 print(f"P4:  ({P4[0]:.4f}, {P4[1]:.4f})")
 print(f"P5:  ({P5[0]:.4f}, {P5[1]:.4f})")
 
-# === P5-POB line geometry ===
-dE_l = P5[0] - POB[0]; dN_l = P5[1] - POB[1]
-L = math.sqrt(dE_l**2 + dN_l**2)
-uE, uN = dE_l/L, dN_l/L
-nE, nN = -uN, uE  # left normal of POB->P5
-
-# === Arcs 1 & 2 (on P5-POB line) ===
-R1, R2 = 10.0, 12.5
+# === Three-arc system ===
+_arc = compute_three_arc(_pts)
+R1, R2, R3 = _arc["R1"], _arc["R2"], _arc["R3"]
+uE, uN = _arc["uE"], _arc["uN"]
+nE, nN = _arc["nE"], _arc["nN"]
+T1, C1 = _pts["T1"], _pts["C1"]
+T2, C2 = _pts["T2"], _pts["C2"]
+T3, C3 = _pts["T3"], _pts["C3"]
+PA = _pts["PA"]
+PX = _pts["PX"]
 T1_dist, T2_dist = 26.5, 5.75
-T1 = (POB[0]+T1_dist*uE, POB[1]+T1_dist*uN)
-C1 = (T1[0]+R1*nE, T1[1]+R1*nN)
-T2 = (POB[0]+T2_dist*uE, POB[1]+T2_dist*uN)
-C2 = (T2[0]+R2*nE, T2[1]+R2*nN)
-
-# Arc intersection PA
-dx = C2[0]-C1[0]; dy = C2[1]-C1[1]
-d_cc = math.sqrt(dx**2+dy**2)
-a = (R1**2 - R2**2 + d_cc**2)/(2*d_cc)
-h = math.sqrt(R1**2 - a**2)
-ux, uy = dx/d_cc, dy/d_cc
-Mx, My = C1[0]+a*ux, C1[1]+a*uy
-I1 = (Mx + h*(-uy), My + h*ux)
-I2 = (Mx - h*(-uy), My - h*ux)
-
-ang_T2_from_C2 = math.atan2(T2[1]-C2[1], T2[0]-C2[0])
-def ccw_angle(s,e): return (e-s)%(2*math.pi)
-s1 = ccw_angle(ang_T2_from_C2, math.atan2(I1[1]-C2[1], I1[0]-C2[0]))
-s2 = ccw_angle(ang_T2_from_C2, math.atan2(I2[1]-C2[1], I2[0]-C2[0]))
-PA = I1 if s1 < s2 else I2
 
 print(f"\nT1:  ({T1[0]:.4f}, {T1[1]:.4f})  [Arc 1 tangent, {T1_dist}' from POB]")
 print(f"T2:  ({T2[0]:.4f}, {T2[1]:.4f})  [Arc 2 tangent, {T2_dist}' from POB]")
@@ -72,23 +37,11 @@ print(f"C1:  ({C1[0]:.4f}, {C1[1]:.4f})  R1={R1}")
 print(f"C2:  ({C2[0]:.4f}, {C2[1]:.4f})  R2={R2}")
 print(f"PA:  ({PA[0]:.4f}, {PA[1]:.4f})  [Arc 1/2 intersection]")
 
-# === Arc 3 (on P3-P4 line) ===
-R3 = 11.0
-# T3: positioned east of P3 so that P5-PX = 20' exactly
-# Solved: T3 offset = 17.911244' from P3
-T3_dist_from_P3 = 17.911244
-T3 = (P3[0] + T3_dist_from_P3, P3[1])
-# C3: south of P3-P4 line by R3
-C3 = (T3[0], T3[1] - R3)
 print(f"\nT3:  ({T3[0]:.4f}, {T3[1]:.4f})  [Arc 3 tangent, 18' E of P3]")
 print(f"C3:  ({C3[0]:.4f}, {C3[1]:.4f})  R3={R3}")
 
-# === PX: intersection of extended P5-P4 line with Arc 3 ===
-# Line from P5 through P4, parametric: P(t) = P5 + t*(P4-P5), t=1 at P4
+# === PX diagnostics ===
 dxL = P4[0]-P5[0]; dyL = P4[1]-P5[1]
-# Substitute into circle equation: (x-C3x)^2 + (y-C3y)^2 = R3^2
-# x = P5x + t*dxL, y = P5y + t*dyL
-# (P5x + t*dxL - C3x)^2 + (P5y + t*dyL - C3y)^2 = R3^2
 ax_coef = P5[0] - C3[0]
 ay_coef = P5[1] - C3[1]
 A = dxL**2 + dyL**2
@@ -102,30 +55,19 @@ t1_sol = (-B + math.sqrt(disc))/(2*A)
 t2_sol = (-B - math.sqrt(disc))/(2*A)
 print(f"  t1={t1_sol:.4f}, t2={t2_sol:.4f}  (t=1 is P4)")
 
-# PX is the FIRST intersection past P4 (smallest t > 1)
-candidates = [t for t in [t1_sol, t2_sol] if t > 1]
-t_px = min(candidates)
-PX = (P5[0] + t_px*dxL, P5[1] + t_px*dyL)
+t_px = min(t for t in [t1_sol, t2_sol] if t > 1)
 print(f"  PX: ({PX[0]:.4f}, {PX[1]:.4f})  [t={t_px:.4f}]")
 
-# Verify PX is on circle
 dist_px_c3 = math.sqrt((PX[0]-C3[0])**2 + (PX[1]-C3[1])**2)
 print(f"  PX dist from C3: {dist_px_c3:.4f} (should be {R3})")
 
 # === Arc sweep angles ===
-def arc_polyline(cx, cy, r, start_ang, end_ang, n=60):
-    pts = []
-    for i in range(n+1):
-        t = start_ang + (end_ang - start_ang) * i / n
-        pts.append((cx + r*math.cos(t), cy + r*math.sin(t)))
-    return pts
-
 # Arc 1: CW from T1 to PA
 ang_T1_C1 = math.atan2(T1[1]-C1[1], T1[0]-C1[0])
 ang_PA_C1 = math.atan2(PA[1]-C1[1], PA[0]-C1[0])
 sweep1 = (ang_T1_C1 - ang_PA_C1) % (2*math.pi)  # CW sweep
 arc1_end = ang_T1_C1 - sweep1
-arc1_pts = arc_polyline(C1[0], C1[1], R1, ang_T1_C1, arc1_end, 60)
+arc1_pts = arc_poly(C1[0], C1[1], R1, ang_T1_C1, arc1_end, 60)
 print(f"\nArc 1: CW from T1 to PA, sweep={math.degrees(sweep1):.1f} deg")
 
 # Arc 2: CCW from T2 to PA (for path, we go PA to T2, which is CW)
@@ -133,7 +75,7 @@ ang_T2_C2 = math.atan2(T2[1]-C2[1], T2[0]-C2[0])
 ang_PA_C2 = math.atan2(PA[1]-C2[1], PA[0]-C2[0])
 sweep2 = (ang_PA_C2 - ang_T2_C2) % (2*math.pi)  # CCW sweep T2->PA
 # For path: PA to T2 (reverse of arc2), which is CW
-arc2_fwd_pts = arc_polyline(C2[0], C2[1], R2, ang_T2_C2, ang_T2_C2 + sweep2, 60)
+arc2_fwd_pts = arc_poly(C2[0], C2[1], R2, ang_T2_C2, ang_T2_C2 + sweep2, 60)
 arc2_rev_pts = list(reversed(arc2_fwd_pts))  # PA to T2
 print(f"Arc 2: CCW from T2 to PA, sweep={math.degrees(sweep2):.1f} deg")
 
@@ -143,7 +85,7 @@ ang_PX_C3 = math.atan2(PX[1]-C3[1], PX[0]-C3[0])
 # CW sweep from T3 to PX
 sweep3 = (ang_T3_C3 - ang_PX_C3) % (2*math.pi)
 arc3_end = ang_T3_C3 - sweep3
-arc3_pts = arc_polyline(C3[0], C3[1], R3, ang_T3_C3, arc3_end, 60)
+arc3_pts = arc_poly(C3[0], C3[1], R3, ang_T3_C3, arc3_end, 60)
 print(f"Arc 3: CW from T3 to PX, sweep={math.degrees(sweep3):.1f} deg")
 print(f"  T3 angle from C3: {math.degrees(ang_T3_C3):.1f} deg")
 print(f"  PX angle from C3: {math.degrees(ang_PX_C3):.1f} deg")
@@ -186,38 +128,11 @@ for pt in arc2_rev_pts[1:]:  # skip PA
 # Polygon closes back to POB
 
 # === Compute area (shoelace) ===
-def polygon_area(vertices):
-    n = len(vertices)
-    area = 0
-    for i in range(n):
-        j = (i+1) % n
-        area += vertices[i][0]*vertices[j][1]
-        area -= vertices[j][0]*vertices[i][1]
-    return abs(area) / 2
-
-area = polygon_area(path_pts)
+area = poly_area(path_pts)
 print(f"\nPath area: {area:.2f} sq ft")
 print(f"Path vertices: {len(path_pts)}")
 
 # === Straight segment bearings and distances ===
-def bearing_and_dist(p1, p2):
-    dE = p2[0]-p1[0]; dN = p2[1]-p1[1]
-    dist = math.sqrt(dE**2+dN**2)
-    brg_rad = math.atan2(dE, dN)
-    brg_deg = math.degrees(brg_rad) % 360
-    return brg_deg, dist
-
-def fmt_brg(brg_deg):
-    d = int(brg_deg)
-    m = int((brg_deg - d) * 60)
-    s = (brg_deg - d - m/60) * 3600
-    return f"{d:03d}\u00b0 {m:02d}' {s:04.1f}\""
-
-def fmt_dist(ft):
-    feet = int(ft)
-    inches = (ft - feet) * 12
-    return f"{feet}' {inches:.1f}\""
-
 print(f"\n=== Straight segments ===")
 straight_segs = [
     ("POB", "P2", POB, P2),
@@ -229,7 +144,7 @@ straight_segs = [
     ("T2", "POB", T2, POB),
 ]
 for name1, name2, p1, p2 in straight_segs:
-    brg, dist = bearing_and_dist(p1, p2)
+    brg, dist = brg_dist(p1, p2)
     print(f"  {name1} -> {name2}: brg {fmt_brg(brg)}, dist {fmt_dist(dist)} ({dist:.4f}')")
 
 # === Arc segment info ===
@@ -281,7 +196,7 @@ print(f"\n=== Label positions (SVG midpoints) ===")
 for name1, name2, p1, p2 in straight_segs:
     mid = ((p1[0]+p2[0])/2, (p1[1]+p2[1])/2)
     sx, sy = to_svg(*mid)
-    brg, dist = bearing_and_dist(p1, p2)
+    brg, dist = brg_dist(p1, p2)
     ang_svg = math.degrees(math.atan2(-(to_svg(*p2)[1]-to_svg(*p1)[1]), to_svg(*p2)[0]-to_svg(*p1)[0]))
     if ang_svg > 90: ang_svg -= 180
     if ang_svg < -90: ang_svg += 180

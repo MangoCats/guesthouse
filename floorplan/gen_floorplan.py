@@ -1,109 +1,37 @@
 """Generate floorplan SVG with 8" wall inset from the outline path.
 
-Runs gen_path_svg.py to obtain outline geometry, then computes an 8" inset.
+Imports outline geometry from gen_path_svg and computes an 8" inset
+using shared functions from survey.py.
 Points C0-C15 (plus C10a, C13a, C13b) correspond to outline points O0-O15 (plus O10a, O13a, O13b).
-
-Inset rules (CCW path, interior to left):
-  - CW arcs  (center outside shape): increase radius by wall thickness
-  - CCW arcs (center inside shape):  decrease radius by wall thickness
-  - Line segments: offset inward along left normal
 """
-import math, sys, os, io
+import sys, os
 
-# --- Load outline geometry by executing gen_path_svg.py ---
+# Add parent dir so we can import gen_path_svg and survey
 _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_old_stdout = sys.stdout
-sys.stdout = io.StringIO()
-_ns = {}
-exec(open(os.path.join(_parent, "gen_path_svg.py")).read(), _ns)
-sys.stdout = _old_stdout
+if _parent not in sys.path:
+    sys.path.insert(0, _parent)
 
-pts          = _ns["pts"]
-outline_segs = _ns["outline_segs"]
-LineSeg      = _ns["LineSeg"]
-ArcSeg       = _ns["ArcSeg"]
-left_norm    = _ns["left_norm"]
-off_pt       = _ns["off_pt"]
-to_svg       = _ns["to_svg"]
-segment_polyline = _ns["segment_polyline"]
-path_polygon     = _ns["path_polygon"]
-poly_area        = _ns["poly_area"]
-W, H         = _ns["W"], _ns["H"]
-
-# Outline arc radii
-R_fillet  = _ns["R_fillet"]     # Cf   CCW (inside)
-R_wall    = _ns["R_wall"]       # Cw3 wall arc (10")
-R_w1      = _ns["R_w1"]        # Cw1 wall arc (28")
-R_w2      = _ns["R_w2"]        # Cw2 wall arc (28")
-R_f_po5   = _ns["R_f_po5"]     # Cf4  CCW (inside)
-R1i       = _ns["R1i"]          # C1   CW  (outside)
-R_turn3   = _ns["R_turn3"]     # Ct3  CCW (inside)
-R_turn2   = _ns["R_turn2"]     # Ct2  CW  (outside)
-R_turn1   = _ns["R_turn1"]     # Ct1  CCW (inside)
-R_fillet2 = _ns["R_fillet2"]   # Cf2  CCW (inside)
-R_t4      = _ns["R_t4"]        # Ct4  CCW (inside) 28" arc
+from survey import (
+    LineSeg, ArcSeg,
+    segment_polyline, path_polygon, poly_area,
+    compute_inner_walls, horiz_isects,
+)
+from gen_path_svg import (
+    pts, outline_segs, to_svg, W, H, outline_cfg,
+    R_fillet, R_wall, R_w1, R_w2, R_f_po5, R1i,
+    R_turn3, R_turn2, R_turn1, R_fillet2, R_t4,
+)
 
 # --- Wall thickness ---
 wall_t = 8.0 / 12.0  # 8 inches in feet
 
-# --- Compute inner wall points ---
-# At each junction, tangency is preserved by the inset:
-#   - Line offset and arc radius adjustment keep center-to-line distance = adjusted radius
-#   - Arc-arc external tangency is preserved since +wall_t and -wall_t cancel
-
-def _inner_point(seg_before, seg_after):
-    """Inner wall point at junction of seg_before and seg_after."""
-    b_line = isinstance(seg_before, LineSeg)
-    a_line = isinstance(seg_after, LineSeg)
-
-    if not b_line and not a_line:
-        # Arc-Arc: new tangent point on the line between centers
-        c1 = pts[seg_before.center]; c2 = pts[seg_after.center]
-        r1 = (seg_before.radius + wall_t) if seg_before.direction == "CW" \
-             else (seg_before.radius - wall_t)
-        dx = c2[0] - c1[0]; dy = c2[1] - c1[1]
-        d = math.sqrt(dx*dx + dy*dy)
-        return (c1[0] + r1*dx/d, c1[1] + r1*dy/d)
-
-    # Line-Arc or Arc-Line: perpendicular foot from arc center onto offset line
-    line_seg = seg_before if b_line else seg_after
-    arc_seg  = seg_after  if b_line else seg_before
-    center = pts[arc_seg.center]
-    S = pts[line_seg.start]; E = pts[line_seg.end]
-    D = (E[0]-S[0], E[1]-S[1])
-    LN = left_norm(S, E)
-    P = off_pt(S, LN, wall_t)
-    t = ((center[0]-P[0])*D[0] + (center[1]-P[1])*D[1]) / (D[0]**2 + D[1]**2)
-    return (P[0]+t*D[0], P[1]+t*D[1])
-
-for i in range(19):
-    seg_b = outline_segs[i]
-    seg_a = outline_segs[(i+1) % 19]
-    w_name = "W" + seg_b.end[1:]   # "O7" -> "W7", "O13b" -> "W13b"
-    pts[w_name] = _inner_point(seg_b, seg_a)
-
-# --- Inner wall segments (same topology, adjusted radii) ---
-inner_segs = [
-    LineSeg("W2",  "W1"),
-    ArcSeg("W1",  "W0",  "Cf",  R_fillet  - wall_t, "CCW", 20),
-    LineSeg("W0",  "W15"),
-    ArcSeg("W15", "W14", "Cw1", R_w1      + wall_t, "CW",  60),
-    ArcSeg("W14", "W13b","Cw2", R_w2      - wall_t, "CCW", 60),
-    LineSeg("W13b","W13a"),
-    ArcSeg("W13a","W13", "Cw3", R_wall    - wall_t, "CCW", 20),
-    LineSeg("W13", "W12"),
-    ArcSeg("W12", "W11", "Cf4", R_f_po5   - wall_t, "CCW", 20),
-    LineSeg("W11", "W10a"),
-    ArcSeg("W10a","W10", "Ct4", R_t4      - wall_t, "CCW", 20),
-    ArcSeg("W10", "W9",  "C1",  R1i       + wall_t, "CW",  60),
-    LineSeg("W9",  "W8"),
-    ArcSeg("W8",  "W7",  "Ct3", R_turn3   - wall_t, "CCW", 20),
-    LineSeg("W7",  "W6"),
-    ArcSeg("W6",  "W5",  "Ct2", R_turn2   + wall_t, "CW",  20),
-    ArcSeg("W5",  "W4",  "Ct1", R_turn1   - wall_t, "CCW", 20),
-    LineSeg("W4",  "W3"),
-    ArcSeg("W3",  "W2",  "Cf2", R_fillet2 - wall_t, "CCW", 20),
-]
+# --- Compute inner wall points and segments ---
+_radii = {
+    "R_fillet": R_fillet, "R_w1": R_w1, "R_w2": R_w2, "R_wall": R_wall,
+    "R_f_po5": R_f_po5, "R1i": R1i, "R_turn3": R_turn3, "R_turn2": R_turn2,
+    "R_turn1": R_turn1, "R_fillet2": R_fillet2, "R_t4": R_t4,
+}
+inner_segs = compute_inner_walls(outline_segs, pts, wall_t, _radii)
 
 outer_poly = path_polygon(outline_segs, pts)
 inner_poly = path_polygon(inner_segs, pts)
@@ -126,30 +54,8 @@ int_wall_t = 6.0 / 12.0   # 6 inches
 int_wall_south = pts["W0"][1] + 11.5   # 11'6" north of inner face of C0-C15
 int_wall_north = int_wall_south + int_wall_t
 
-def _horiz_isects(polygon, n_val):
-    """Easting values where polygon boundary crosses a given northing."""
-    ints = []
-    for i in range(len(polygon)):
-        j = (i + 1) % len(polygon)
-        n1, n2 = polygon[i][1], polygon[j][1]
-        if (n1 <= n_val < n2) or (n2 <= n_val < n1):
-            t = (n_val - n1) / (n2 - n1)
-            ints.append(polygon[i][0] + t * (polygon[j][0] - polygon[i][0]))
-    return ints
-
-def _vert_isects(polygon, e_val):
-    """Northing values where polygon boundary crosses a given easting."""
-    ints = []
-    for i in range(len(polygon)):
-        j = (i + 1) % len(polygon)
-        e1, e2 = polygon[i][0], polygon[j][0]
-        if (e1 <= e_val < e2) or (e2 <= e_val < e1):
-            t = (e_val - e1) / (e2 - e1)
-            ints.append(polygon[i][1] + t * (polygon[j][1] - polygon[i][1]))
-    return ints
-
-_s_ints = _horiz_isects(inner_poly, int_wall_south)
-_n_ints = _horiz_isects(inner_poly, int_wall_north)
+_s_ints = horiz_isects(inner_poly, int_wall_south)
+_n_ints = horiz_isects(inner_poly, int_wall_north)
 iw_sw = (min(_s_ints), int_wall_south)
 iw_se = (max(_s_ints), int_wall_south)
 iw_nw = (min(_n_ints), int_wall_north)
@@ -368,7 +274,7 @@ out.append(f'<text x="{iw3_lx-4:.1f}" y="{iw3_ly+3.5:.1f}" text-anchor="middle" 
 bedroom_width = 140.0 / 12.0   # 11'8"
 iw4_w = iw3_e + bedroom_width
 iw4_e = iw4_w + iw_thick_4
-wall_south_n = -4.0 / 12.0  # south end of bedroom/closet walls: -4"
+wall_south_n = 2.0 / 12.0   # south end of bedroom/closet walls: +2"
 iw4_south_w = wall_south_n
 iw4_south_e = wall_south_n
 iw4_poly = [(iw4_w, iw4_south_w), (iw4_e, iw4_south_e), (iw4_e, int_wall_south), (iw4_w, int_wall_south)]
@@ -591,7 +497,7 @@ out.append(f'<text x="{d5_mx-3:.1f}" y="{d5_my+3:.1f}" text-anchor="middle" font
            f' font-size="8" fill="#999" transform="rotate(-90,{d5_mx-3:.1f},{d5_my+3:.1f})">{dim5_label}</text>')
 
 # C-point labels (outer vertices displayed as C0-C15, C13a, C13b)
-vs_map = _ns["outline_cfg"].vertex_styles
+vs_map = outline_cfg.vertex_styles
 _o_names = []
 for seg in outline_segs:
     if seg.start not in _o_names:
