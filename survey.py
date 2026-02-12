@@ -122,8 +122,11 @@ def fmt_brg(b):
     return f"{d:d}\u00b0 {m:02d}' {sc:04.1f}\""
 
 def fmt_dist(ft):
-    f = int(ft); i = (ft-f)*12
-    return f"{f}' {i:.1f}\""
+    total_in = round(ft * 12, 2)
+    whole_ft = int(total_in // 12)
+    remaining_in = total_in - whole_ft * 12
+    in_str = f"{remaining_in:.2f}".rstrip('0').rstrip('.')
+    return f"{whole_ft}' {in_str}\""
 
 # ============================================================
 # Traverse Computation

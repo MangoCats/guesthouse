@@ -4,7 +4,7 @@ Imports outline geometry from gen_path_svg and computes an 8" inset
 using shared functions from survey.py.
 Outline points U0-U21, inner wall points W0-W21, display labels F0-F21.
 """
-import sys, os
+import sys, os, math
 
 # Add parent dir so we can import gen_path_svg and survey
 _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,7 +14,7 @@ if _parent not in sys.path:
 from survey import (
     LineSeg, ArcSeg,
     segment_polyline, path_polygon, poly_area,
-    compute_inner_walls, horiz_isects,
+    compute_inner_walls, horiz_isects, fmt_dist,
 )
 from gen_path_svg import (
     pts, outline_segs, to_svg, W, H, outline_cfg,
@@ -135,9 +135,7 @@ dim_e = (pts["U9"][0] + pts["U11"][0]) / 2
 dim_top_n = pts["W9"][1]       # south face of F9-F11 wall (inner)
 dim_bot_n = int_wall_north     # north face of IW1
 dim_dist = dim_top_n - dim_bot_n
-dim_ft = int(dim_dist)
-dim_in = (dim_dist - dim_ft) * 12
-dim_label = f"{dim_ft}' {dim_in:.1f}\""
+dim_label = fmt_dist(dim_dist)
 dx1, dy1 = to_svg(dim_e, dim_bot_n)
 dx2, dy2 = to_svg(dim_e, dim_top_n)
 tick = 4  # half-width of tick marks in SVG px
@@ -160,9 +158,7 @@ _w9, _w8 = pts["W13"], pts["W12"]
 _t_e = (dim2_n - _w9[1]) / (_w8[1] - _w9[1]) if _w8[1] != _w9[1] else 0.5
 dim2_east_e = _w9[0] + _t_e * (_w8[0] - _w9[0])
 dim2_dist = dim2_east_e - dim2_west_e
-dim2_ft = int(dim2_dist)
-dim2_in = (dim2_dist - dim2_ft) * 12
-dim2_label = f"{dim2_ft}' {dim2_in:.1f}\""
+dim2_label = fmt_dist(dim2_dist)
 d2x1, d2y1 = to_svg(dim2_west_e, dim2_n)
 d2x2, d2y2 = to_svg(dim2_east_e, dim2_n)
 out.append(f'<line x1="{d2x1:.1f}" y1="{d2y1:.1f}" x2="{d2x2:.1f}" y2="{d2y2:.1f}"'
@@ -237,6 +233,21 @@ _ccx = (_csw[0] + _cse[0]) / 2
 _ccy = (_csw[1] + _cne[1]) / 2
 out.append(f'<text x="{_ccx:.1f}" y="{_ccy:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="7" fill="#4682B4" letter-spacing="0.5" transform="rotate(-90,{_ccx:.1f},{_ccy:.1f})">COUNTER</text>')
+
+# Water heater: 32" diameter circle, east of IW2, touching inner F7-F8 arc wall
+wh_r = 14.0 / 12.0  # 14" radius in feet (28" diameter)
+wh_e = iw2_e + wh_r  # center E: west side touches IW2 east face
+# Inner arc W7-W8: center C7, inner radius R_a7 - wall_t
+# Internal tangency: dist(C7, WH_center) = (R_a7 - wall_t) - wh_r
+_wh_tangent_r = (R_a7 - wall_t) - wh_r
+_wh_dE = wh_e - pts["C7"][0]
+wh_n = pts["C7"][1] + math.sqrt(_wh_tangent_r**2 - _wh_dE**2)
+wh_sx, wh_sy = to_svg(wh_e, wh_n)
+_wh_r_svg = (to_svg(wh_r, 0)[0] - to_svg(0, 0)[0])
+out.append(f'<circle cx="{wh_sx:.1f}" cy="{wh_sy:.1f}" r="{_wh_r_svg:.1f}"'
+           f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+out.append(f'<text x="{wh_sx:.1f}" y="{wh_sy+3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="7" fill="#4682B4">WH</text>')
 
 # Bedroom and closet walls from ../hut plan (placed relative to counter)
 iw_thick_3 = 3.0 / 12.0    # 3" Wall 8 thickness
@@ -368,9 +379,7 @@ out.append(f'<text x="{_ofx:.1f}" y="{_ofy+3:.1f}" text-anchor="middle" font-fam
 # Bedroom interior dimension lines
 # E-W dimension (horizontal): iw3_e to iw4_w, placed at 25% from south wall
 bd_ew_dist = iw4_w - iw3_e
-bd_ew_ft = int(bd_ew_dist)
-bd_ew_in = (bd_ew_dist - bd_ew_ft) * 12
-bd_ew_label = f"{bd_ew_ft}' {bd_ew_in:.0f}\""
+bd_ew_label = fmt_dist(bd_ew_dist)
 bd_ew_n = ctr_s + 0.25 * (int_wall_south - ctr_s)
 bd_ew_x1, bd_ew_y1 = to_svg(iw3_e, bd_ew_n)
 bd_ew_x2, bd_ew_y2 = to_svg(iw4_w, bd_ew_n)
@@ -386,9 +395,7 @@ out.append(f'<text x="{bd_ew_mx:.1f}" y="{bd_ew_y1-3:.1f}" text-anchor="middle" 
 
 # N-S dimension (vertical): ctr_s to int_wall_south, 2' east of IW3 east face
 bd_ns_dist = int_wall_south - ctr_s
-bd_ns_ft = int(bd_ns_dist)
-bd_ns_in = (bd_ns_dist - bd_ns_ft) * 12
-bd_ns_label = f"{bd_ns_ft}' {bd_ns_in:.0f}\""
+bd_ns_label = fmt_dist(bd_ns_dist)
 bd_ns_e = iw3_e + 2.0
 bd_ns_x1, bd_ns_y1 = to_svg(bd_ns_e, ctr_s)
 bd_ns_x2, bd_ns_y2 = to_svg(bd_ns_e, int_wall_south)
@@ -404,9 +411,7 @@ out.append(f'<text x="{bd_ns_mx-3:.1f}" y="{bd_ns_my+3:.1f}" text-anchor="middle
 
 # N-S dimension line — west closet (closet 2): ctr_s to ctr_n
 cl2_ns_dist = ctr_n - ctr_s
-cl2_ns_ft = int(cl2_ns_dist)
-cl2_ns_in = (cl2_ns_dist - cl2_ns_ft) * 12
-cl2_ns_label = f"CLOSET {cl2_ns_ft}' {cl2_ns_in:.0f}\""
+cl2_ns_label = f"CLOSET {fmt_dist(cl2_ns_dist)}"
 cl2_ns_e = (ctr_e + iw_thick_3 + iw3_w) / 2
 cl2_x1, cl2_y1 = to_svg(cl2_ns_e, ctr_s)
 cl2_x2, cl2_y2 = to_svg(cl2_ns_e, ctr_n)
@@ -422,9 +427,7 @@ out.append(f'<text x="{cl2_mx-3:.1f}" y="{cl2_my+3:.1f}" text-anchor="middle" fo
 
 # N-S dimension line — east closet (closet 1): wall_south_n to closet1_top
 cl1_ns_dist = closet1_top - wall_south_n
-cl1_ns_ft = int(cl1_ns_dist)
-cl1_ns_in = (cl1_ns_dist - cl1_ns_ft) * 12
-cl1_ns_label = f"CLOSET {cl1_ns_ft}' {cl1_ns_in:.0f}\""
+cl1_ns_label = f"CLOSET {fmt_dist(cl1_ns_dist)}"
 cl1_ns_e = (iw4_e + w5_w) / 2
 cl1_x1, cl1_y1 = to_svg(cl1_ns_e, wall_south_n)
 cl1_x2, cl1_y2 = to_svg(cl1_ns_e, closet1_top)
@@ -443,9 +446,7 @@ dim7_w_e = pts["W1"][0]          # inner (east) face of C1-C2 wall
 dim7_e_e = ctr_e                 # west face of Wall 8
 dim7_n = (ctr_s + ctr_n) / 2    # vertically centered in counter area
 dim7_dist = dim7_e_e - dim7_w_e
-dim7_ft = int(dim7_dist)
-dim7_in = (dim7_dist - dim7_ft) * 12
-dim7_label = f"{dim7_ft}' {dim7_in:.1f}\""
+dim7_label = fmt_dist(dim7_dist)
 d7x1, d7y1 = to_svg(dim7_w_e, dim7_n)
 d7x2, d7y2 = to_svg(dim7_e_e, dim7_n)
 out.append(f'<line x1="{d7x1:.1f}" y1="{d7y1:.1f}" x2="{d7x2:.1f}" y2="{d7y2:.1f}"'
@@ -463,9 +464,7 @@ dim3_w_e = w5_e              # east face of Wall 5
 dim3_e_e = pts["W15"][0]     # inner face of F14-F15 wall
 dim3_n = 5.0                 # N position (within both Wall 5 and F14-F15 range)
 dim3_dist = dim3_e_e - dim3_w_e
-dim3_ft = int(dim3_dist)
-dim3_in = (dim3_dist - dim3_ft) * 12
-dim3_label = f"{dim3_ft}' {dim3_in:.2f}\""
+dim3_label = fmt_dist(dim3_dist)
 d3x1, d3y1 = to_svg(dim3_w_e, dim3_n)
 d3x2, d3y2 = to_svg(dim3_e_e, dim3_n)
 out.append(f'<line x1="{d3x1:.1f}" y1="{d3y1:.1f}" x2="{d3x2:.1f}" y2="{d3y2:.1f}"'
@@ -483,9 +482,7 @@ dim4_w_e = iw4_e             # east face of IW4
 dim4_e_e = pts["W15"][0]     # west (inner) face of F14-F15 wall
 dim4_n = (iw5_n + int_wall_south) / 2   # vertically centered between IW5 and IW1
 dim4_dist = dim4_e_e - dim4_w_e
-dim4_ft = int(dim4_dist)
-dim4_in = (dim4_dist - dim4_ft) * 12
-dim4_label = f"STORAGE {dim4_ft}' {dim4_in:.2f}\""
+dim4_label = f"STORAGE {fmt_dist(dim4_dist)}"
 d4x1, d4y1 = to_svg(dim4_w_e, dim4_n)
 d4x2, d4y2 = to_svg(dim4_e_e, dim4_n)
 out.append(f'<line x1="{d4x1:.1f}" y1="{d4y1:.1f}" x2="{d4x2:.1f}" y2="{d4y2:.1f}"'
@@ -503,9 +500,7 @@ dim5_e = pts["U18"][0]           # easting of F18
 dim5_n_top = iw5_s                # south face of IW5
 dim5_n_bot = pts["W18"][1]       # north (inner) face of F18-F19 wall
 dim5_dist = dim5_n_top - dim5_n_bot
-dim5_ft = int(dim5_dist)
-dim5_in = (dim5_dist - dim5_ft) * 12
-dim5_label = f"{dim5_ft}' {dim5_in:.2f}\""
+dim5_label = fmt_dist(dim5_dist)
 d5x1, d5y1 = to_svg(dim5_e, dim5_n_top)
 d5x2, d5y2 = to_svg(dim5_e, dim5_n_bot)
 out.append(f'<line x1="{d5x1:.1f}" y1="{d5y1:.1f}" x2="{d5x2:.1f}" y2="{d5y2:.1f}"'
@@ -523,9 +518,7 @@ dim6_e = pts["U6"][0] + 1.0
 dim6_n_top = pts["W6"][1]        # south (inner) face of C3-F7 wall
 dim6_n_bot = int_wall_north      # north face of IW1
 dim6_dist = dim6_n_top - dim6_n_bot
-dim6_ft = int(dim6_dist)
-dim6_in = (dim6_dist - dim6_ft) * 12
-dim6_label = f"{dim6_ft}' {dim6_in:.1f}\""
+dim6_label = fmt_dist(dim6_dist)
 d6x1, d6y1 = to_svg(dim6_e, dim6_n_bot)
 d6x2, d6y2 = to_svg(dim6_e, dim6_n_top)
 out.append(f'<line x1="{d6x1:.1f}" y1="{d6y1:.1f}" x2="{d6x2:.1f}" y2="{d6y2:.1f}"'

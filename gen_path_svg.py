@@ -302,8 +302,8 @@ pts["C2"] = (_cc2_E, pts["U2"][1])
 _f1b = R_a3 / (R_a3 + R_a2)
 pts["U3"] = (pts["C3"][0] + _f1b * (pts["C2"][0] - pts["C3"][0]),
               pts["C3"][1] + _f1b * (pts["C2"][1] - pts["C3"][1]))
-# U7: 6.0' east of U6, adjusted 1' west to undo C5/C3 shift
-pts["U7"] = (pts["U6"][0] + 5.5 + 6.0/12 - _nw_shift, pts["U6"][1])
+# U7: 5'4" east of U6 (6.0' base, -1' C5/C3 shift, +4" east shift)
+pts["U7"] = (pts["U6"][0] + 5.5 + 6.0/12 - _nw_shift + 4.0/12, pts["U6"][1])
 # Arc at U7: 90° CW east->south, R=28"
 R_a7 = 28.0 / 12.0
 pts["C7"] = (pts["U7"][0], pts["U7"][1] - R_a7)
