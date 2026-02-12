@@ -282,11 +282,16 @@ pts["U5"] = (pts["Po2"][0] + _nw_shift, pts["C5"][1])
 pts["U6"] = (pts["C5"][0], corner2_N)
 # U4: 5'8" south of C5, same easting
 pts["U4"] = (pts["U5"][0], pts["U5"][1] - (5.0 + 8.0/12) + 28.0/12)
-# Arc U3->U4: R=20", center due West of U4 (CCW)
-R_a3 = 20.0 / 12.0
+# Arc U3->U4 and U2->U3: radii from constraints
+# Constraint: R_a2 = R_a3 + 8/12 (8" larger), U1-U2 segment = 16'8"
+_dR_23 = 8.0 / 12.0
+_tgt_12 = 16.0 + 8.0 / 12.0  # target U1-U2 distance
+_a23 = pts["U1"][0] - pts["U4"][0]
+_K23 = (pts["U4"][1] - pts["U1"][1]) - _tgt_12
+_S23 = -(_K23**2 + _a23**2) / (2 * _a23)
+R_a3 = (_S23 - _dR_23) / 2
+R_a2 = R_a3 + _dR_23
 pts["C3"] = (pts["U4"][0] - R_a3, pts["U4"][1])
-# Arc U2->U3: R=28", center due East of U2 (CW), tangent to U3-U4 arc
-R_a2 = 28.0 / 12.0
 # External tangency: |C3 - C2| = R_a3 + R_a2, C2 = (U1_E + R_a2, U2_N)
 _cc2_E = pts["U1"][0] + R_a2
 _dE_cc = _cc2_E - pts["C3"][0]
@@ -367,8 +372,8 @@ pts["U13"] = (pts["C13"][0] + R_a13 * _nx_t, pts["C13"][1] + R_a13 * _ny_t)
 pts["U12"] = (pts["C11"][0] + R_a11 * _nx_t, pts["C11"][1] + R_a11 * _ny_t)
 
 # --- F17-F20-F21 wall geometry (wall at -6" Northing) ---
-R_a20   = 20.0 / 12.0          # 20" arc radius (C20: U20->U21)
-R_a19   = 28.0 / 12.0          # 28" arc radius (C19: U19->U20)
+R_a20   = R_a3                  # arc C20 radius = arc C3 radius
+R_a19   = R_a2                  # arc C19 radius = arc C2 radius
 wall_south_N = -6.0 / 12.0    # south face of wall at -6" Northing
 # Tangency distance between C20 and C19 arc centers
 dN_c = (wall_south_N + R_a19) - (pts["U21"][1] - R_a20)
@@ -404,8 +409,8 @@ pts["U20"] = (pts["C20"][0] + _f_w * (pts["C19"][0] - pts["C20"][0]),
 outline_segs = [
     ArcSeg("U0", "U1", "C0", R_a0, "CW", 20),           # 0: arc C0
     LineSeg("U1", "U2"),                                      # 1
-    ArcSeg("U2", "U3", "C2", R_a2, "CW", 20),             # 2: 28" arc
-    ArcSeg("U3", "U4", "C3", R_a3, "CCW", 20),            # 3: 20" arc
+    ArcSeg("U2", "U3", "C2", R_a2, "CW", 20),             # 2: arc C2
+    ArcSeg("U3", "U4", "C3", R_a3, "CCW", 20),            # 3: arc C3
     LineSeg("U4", "U5"),                                      # 4
     ArcSeg("U5", "U6", "C5", R_a5, "CW", 20),        # 5: arc C5
     LineSeg("U6", "U7"),                                      # 6
@@ -677,9 +682,9 @@ outline_cfg = LayerConfig(
     arc_labels={
         ("U0","U1"): ArcLabel("Arc R=10\"",
             f"{sweep_a0:.1f}\u00b0", "end", -10, 14, 11, "#333"),
-        ("U2","U3"): ArcLabel("Arc R=28\"",
+        ("U2","U3"): ArcLabel(f"Arc R={R_a2*12:.1f}\"",
             f"{sweep_a2:.1f}\u00b0 CCW", "start", 12, 0, 11, "#333"),
-        ("U3","U4"): ArcLabel("Arc R=20\"",
+        ("U3","U4"): ArcLabel(f"Arc R={R_a3*12:.1f}\"",
             f"{sweep_a3:.1f}\u00b0 CW", "end", -10, -10, 11, "#333"),
         ("U5","U6"): ArcLabel("Arc R=28\"",
             f"{sweep_a5:.1f}\u00b0", "end", -10, -14, 11, "#333"),
@@ -697,9 +702,9 @@ outline_cfg = LayerConfig(
             f"{sweep_a15:.1f}\u00b0", "start", 10, -10, 11, "#333"),
         ("U17","U18"): ArcLabel(f"Arc R={R_a17*12:.0f}\"",
             f"{sweep_a17:.1f}\u00b0", "end", -10, -10, 11, "#333"),
-        ("U19","U20"): ArcLabel("Arc R=28\"",
+        ("U19","U20"): ArcLabel(f"Arc R={R_a19*12:.1f}\"",
             f"{sweep_a19:.1f}\u00b0", "start", 12, -10, 11, "#333"),
-        ("U20","U21"): ArcLabel("Arc R=20\"",
+        ("U20","U21"): ArcLabel(f"Arc R={R_a20*12:.1f}\"",
             f"{sweep_a20:.1f}\u00b0 CW", "start", 12, 4, 11, "#333"),
     },
     center_marks=[
