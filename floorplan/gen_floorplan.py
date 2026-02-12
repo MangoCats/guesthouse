@@ -18,9 +18,9 @@ from survey import (
 )
 from gen_path_svg import (
     pts, outline_segs, to_svg, W, H, outline_cfg,
-    R_cf, R_wall, R_w1, R_w2, R_cf4,
-    R_ct3, R_ct2, R_ct1, R_cf2, R_ct4, R_6a,
-    R_1c, R_1a,
+    R_a0, R_a17, R_a20, R_a19, R_a15,
+    R_a11, R_a8, R_a7, R_a5, R_a13, R_a10,
+    R_a3, R_a2,
 )
 
 # --- Wall thickness ---
@@ -28,10 +28,10 @@ wall_t = 8.0 / 12.0  # 8 inches in feet
 
 # --- Compute inner wall points and segments ---
 _radii = {
-    "R_cf": R_cf, "R_w1": R_w1, "R_w2": R_w2, "R_wall": R_wall,
-    "R_cf4": R_cf4, "R_ct3": R_ct3, "R_ct2": R_ct2,
-    "R_ct1": R_ct1, "R_cf2": R_cf2, "R_ct4": R_ct4, "R_6a": R_6a,
-    "R_1c": R_1c, "R_1a": R_1a,
+    "R_a0": R_a0, "R_a20": R_a20, "R_a19": R_a19, "R_a17": R_a17,
+    "R_a15": R_a15, "R_a11": R_a11, "R_a8": R_a8,
+    "R_a7": R_a7, "R_a5": R_a5, "R_a13": R_a13, "R_a10": R_a10,
+    "R_a3": R_a3, "R_a2": R_a2,
 }
 inner_segs = compute_inner_walls(outline_segs, pts, wall_t, _radii)
 
@@ -109,11 +109,11 @@ iw_lx, iw_ly = to_svg(iw_mid_e, iw_mid_n)
 out.append(f'<text x="{iw_lx:.1f}" y="{iw_ly+3.5-8:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#666">IW1</text>')
 
-# Interior wall IW2: 6" thick, N-S, west face 6'6" east of inner C1-C2 wall
-iw2_w = pts["W1"][0] + 6.5      # west face: 6'6" east of inner C1-C2
+# Interior wall IW2: 6" thick, N-S, west face 6'6" east of inner W1-W2 wall
+iw2_w = pts["W1"][0] + 6.5      # west face: 6'6" east of inner W1-W2
 iw2_e = iw2_w + int_wall_t      # east face: +6"
 iw2_s = int_wall_north           # south end: IW1 north face
-iw2_n = pts["W6"][1]             # north end: inner C3-F7 wall
+iw2_n = pts["W6"][1]             # north end: inner W6-W7 wall
 iw2_pts = [(iw2_w, iw2_s), (iw2_e, iw2_s), (iw2_e, iw2_n), (iw2_w, iw2_n)]
 iw2_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw2_pts)
 out.append(f'<polygon points="{iw2_svg}" fill="rgba(160,160,160,0.35)" stroke="none"/>')
@@ -183,7 +183,7 @@ app_offset_e = 6.0 / 12.0   # 6" from interior west wall
 app_offset_n = 4.0 / 12.0   # 4" from interior south wall
 app_gap = 1.0 / 12.0        # 1" gap between appliances
 
-# Dryer in F0-C1 corner: offset from inner west wall (W1) and inner south wall (W0)
+# Dryer in F0-F1 corner: offset from inner west wall (W1) and inner south wall (W0)
 dryer_w = pts["W1"][0] + app_offset_e
 dryer_s = pts["W0"][1] + app_offset_n
 dryer_e = dryer_w + app_w

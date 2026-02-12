@@ -15,7 +15,8 @@ Curved-wall building outline geometry and floorplan SVG generation.
 ## Key Patterns
 - Outline points: U-series (`U0`..`U21`), sequential; display labels F-series (`F0`..`F21`)
 - Inner wall points: W-series (`W0`..`W21`), 8" inset from outline, matching U-series numbering
-- Arc centers: C-series (`Cf`, `Cf2`, `Cf4`, `Cc1`, `Cc2`, `Ct1`..`Ct4`, `Ct6a`, `Cw1`..`Cw3`) — unchanged
+- Arc centers: C-series by lower point number (`C0`, `C2`, `C3`, `C5`, `C7`, `C8`, `C10`, `C11`, `C13`, `C15`, `C17`, `C19`, `C20`); radii: R_a-series (`R_a0`, `R_a2`, ..., `R_a20`)
+- Traverse arc centers: `TC1`, `TC2`, `TC3` (outer/inset path)
 - `outline_segs`: list of `LineSeg`/`ArcSeg` defining the closed outline path (CCW traversal: U0→U1→...→U21→U0)
 - Radii exported from `gen_path_svg` and passed via `_radii` dict to `compute_inner_walls`
 - Arc tangency: `|center1 - center2| = R1 + R2` (external); inner wall radii: CW arcs get `-wall_t`, CCW get `+wall_t` (CCW traversal convention)

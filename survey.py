@@ -174,30 +174,30 @@ def compute_three_arc(pts):
     R1, R2 = 10.0, 12.5
     T1_dist, T2_dist = 26.5, 5.75
     pts["T1"] = (pts["POB"][0]+T1_dist*uE, pts["POB"][1]+T1_dist*uN)
-    pts["C1"] = (pts["T1"][0]+R1*nE, pts["T1"][1]+R1*nN)
+    pts["TC1"] = (pts["T1"][0]+R1*nE, pts["T1"][1]+R1*nN)
     pts["T2"] = (pts["POB"][0]+T2_dist*uE, pts["POB"][1]+T2_dist*uN)
-    pts["C2"] = (pts["T2"][0]+R2*nE, pts["T2"][1]+R2*nN)
+    pts["TC2"] = (pts["T2"][0]+R2*nE, pts["T2"][1]+R2*nN)
 
     # PA: circle-circle intersection
-    dx_cc = pts["C2"][0]-pts["C1"][0]; dy_cc = pts["C2"][1]-pts["C1"][1]
+    dx_cc = pts["TC2"][0]-pts["TC1"][0]; dy_cc = pts["TC2"][1]-pts["TC1"][1]
     d_cc = math.sqrt(dx_cc**2+dy_cc**2)
     a_cc = (R1**2-R2**2+d_cc**2)/(2*d_cc); h_cc = math.sqrt(R1**2-a_cc**2)
     ux_cc, uy_cc = dx_cc/d_cc, dy_cc/d_cc
-    Mx, My = pts["C1"][0]+a_cc*ux_cc, pts["C1"][1]+a_cc*uy_cc
+    Mx, My = pts["TC1"][0]+a_cc*ux_cc, pts["TC1"][1]+a_cc*uy_cc
     I1 = (Mx+h_cc*(-uy_cc), My+h_cc*ux_cc); I2 = (Mx-h_cc*(-uy_cc), My-h_cc*ux_cc)
-    ang_T2_C2 = math.atan2(pts["T2"][1]-pts["C2"][1], pts["T2"][0]-pts["C2"][0])
+    ang_T2_C2 = math.atan2(pts["T2"][1]-pts["TC2"][1], pts["T2"][0]-pts["TC2"][0])
     def ccw_a(s, e): return (e-s)%(2*math.pi)
-    s1 = ccw_a(ang_T2_C2, math.atan2(I1[1]-pts["C2"][1], I1[0]-pts["C2"][0]))
-    s2 = ccw_a(ang_T2_C2, math.atan2(I2[1]-pts["C2"][1], I2[0]-pts["C2"][0]))
+    s1 = ccw_a(ang_T2_C2, math.atan2(I1[1]-pts["TC2"][1], I1[0]-pts["TC2"][0]))
+    s2 = ccw_a(ang_T2_C2, math.atan2(I2[1]-pts["TC2"][1], I2[0]-pts["TC2"][0]))
     pts["PA"] = I1 if s1 < s2 else I2
 
     R3 = 11.0
     T3_dist_from_P3 = 17.911244
     pts["T3"] = (pts["P3"][0]+T3_dist_from_P3, pts["P3"][1])
-    pts["C3"] = (pts["T3"][0], pts["T3"][1]-R3)
+    pts["TC3"] = (pts["T3"][0], pts["T3"][1]-R3)
 
     dxL = pts["P4"][0]-pts["P5"][0]; dyL = pts["P4"][1]-pts["P5"][1]
-    pts["PX"] = line_circle_isect_min_t_gt(pts["P5"], (dxL, dyL), pts["C3"], R3, 1.0)
+    pts["PX"] = line_circle_isect_min_t_gt(pts["P5"], (dxL, dyL), pts["TC3"], R3, 1.0)
 
     return {"R1": R1, "R2": R2, "R3": R3, "uE": uE, "uN": uN, "nE": nE, "nN": nN}
 
@@ -210,8 +210,8 @@ def compute_inner_walls(outline_segs, pts, wall_t, radii):
     Mutates pts adding W-series points.
     Returns inner_segs list.
 
-    radii keys: R_cf, R_w1, R_w2, R_wall, R_cf4,
-                R_ct3, R_ct2, R_ct1, R_cf2, R_ct4, R_6a
+    radii keys: R_a0, R_a20, R_a19, R_a17, R_a15,
+                R_a11, R_a8, R_a7, R_a5, R_a13, R_a10
     """
     def _inner_point(seg_b, seg_a):
         _wt = -wall_t  # negated: outline traverses CCW, interior on left
@@ -234,27 +234,27 @@ def compute_inner_walls(outline_segs, pts, wall_t, radii):
 
     R = radii
     inner_segs = [
-        ArcSeg("W0","W1","Cf",R["R_cf"]-wall_t,"CW",20),
+        ArcSeg("W0","W1","C0",R["R_a0"]-wall_t,"CW",20),
         LineSeg("W1","W2"),
-        ArcSeg("W2","W3","Cc2",R["R_1a"]-wall_t,"CW",20),
-        ArcSeg("W3","W4","Cc1",R["R_1c"]+wall_t,"CCW",20),
+        ArcSeg("W2","W3","C2",R["R_a2"]-wall_t,"CW",20),
+        ArcSeg("W3","W4","C3",R["R_a3"]+wall_t,"CCW",20),
         LineSeg("W4","W5"),
-        ArcSeg("W5","W6","Cf2",R["R_cf2"]-wall_t,"CW",20),
+        ArcSeg("W5","W6","C5",R["R_a5"]-wall_t,"CW",20),
         LineSeg("W6","W7"),
-        ArcSeg("W7","W8","Ct1",R["R_ct1"]-wall_t,"CW",20),
-        ArcSeg("W8","W9","Ct2",R["R_ct2"]+wall_t,"CCW",20),
+        ArcSeg("W7","W8","C7",R["R_a7"]-wall_t,"CW",20),
+        ArcSeg("W8","W9","C8",R["R_a8"]+wall_t,"CCW",20),
         LineSeg("W9","W10"),
-        ArcSeg("W10","W11","Ct6a",R["R_6a"]+wall_t,"CCW",20),
-        ArcSeg("W11","W12","Ct3",R["R_ct3"]-wall_t,"CW",60),
+        ArcSeg("W10","W11","C10",R["R_a10"]+wall_t,"CCW",20),
+        ArcSeg("W11","W12","C11",R["R_a11"]-wall_t,"CW",60),
         LineSeg("W12","W13"),
-        ArcSeg("W13","W14","Ct4",R["R_ct4"]-wall_t,"CW",60),
+        ArcSeg("W13","W14","C13",R["R_a13"]-wall_t,"CW",60),
         LineSeg("W14","W15"),
-        ArcSeg("W15","W16","Cf4",R["R_cf4"]-wall_t,"CW",20),
+        ArcSeg("W15","W16","C15",R["R_a15"]-wall_t,"CW",20),
         LineSeg("W16","W17"),
-        ArcSeg("W17","W18","Cw3",R["R_wall"]-wall_t,"CW",20),
+        ArcSeg("W17","W18","C17",R["R_a17"]-wall_t,"CW",20),
         LineSeg("W18","W19"),
-        ArcSeg("W19","W20","Cw2",R["R_w2"]-wall_t,"CW",60),
-        ArcSeg("W20","W21","Cw1",R["R_w1"]+wall_t,"CCW",60),
+        ArcSeg("W19","W20","C19",R["R_a19"]-wall_t,"CW",60),
+        ArcSeg("W20","W21","C20",R["R_a20"]+wall_t,"CCW",60),
         LineSeg("W21","W0"),
     ]
     return inner_segs
