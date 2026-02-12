@@ -230,19 +230,19 @@ inset_segs = [
 ]
 inset_area = poly_area(path_polygon(inset_segs, pts))
 
-# --- Rotate outer/inset points about O12 so PiX-Pi5 bearing = 60° ---
-# Pre-compute O12 position as pivot (perpendicular foot from Cf4 onto PiX-Pi5)
+# --- Rotate outer/inset points about U16 so PiX-Pi5 bearing = 60° ---
+# Pre-compute U16 position as pivot (perpendicular foot from Cf4 onto PiX-Pi5)
 _R_fp = 28.0 / 12.0
 _d_pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
 _L_pip = math.sqrt(_d_pip[0]**2 + _d_pip[1]**2)
 _d_pip_u = (_d_pip[0]/_L_pip, _d_pip[1]/_L_pip)
 _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
 _o_pip = off_pt(pts["PiX"], _ln_pip, _R_fp)
-_pre_O1_E = pts["Pi3"][0]
-_pre_w5_e = _pre_O1_E + 8.0/12 + 0.5 + 35.0/12 + 3.0 + 2.0 + (3+30+4+140+4+30+3)/12.0
-_pre_C11_E = _pre_w5_e + 9.0 + 1.0/12
-_t_cf4 = (_pre_C11_E - _R_fp - _o_pip[0]) / _d_pip_u[0]
-_cf4 = (_pre_C11_E - _R_fp, _o_pip[1] + _t_cf4 * _d_pip_u[1])
+_pre_U1_E = pts["Pi3"][0]
+_pre_w5_e = _pre_U1_E + 8.0/12 + 0.5 + 35.0/12 + 3.0 + 2.0 + (3+30+4+140+4+30+3)/12.0
+_pre_F15_E = _pre_w5_e + 9.0 + 1.0/12
+_t_cf4 = (_pre_F15_E - _R_fp - _o_pip[0]) / _d_pip_u[0]
+_cf4 = (_pre_F15_E - _R_fp, _o_pip[1] + _t_cf4 * _d_pip_u[1])
 _t_o12 = ((_cf4[0]-pts["PiX"][0])*_d_pip[0] + (_cf4[1]-pts["PiX"][1])*_d_pip[1]) \
          / (_d_pip[0]**2 + _d_pip[1]**2)
 _pivot = (pts["PiX"][0] + _t_o12*_d_pip[0], pts["PiX"][1] + _t_o12*_d_pip[1])
@@ -261,160 +261,160 @@ for _n in ["POB","P2","P3","P4","P5","T1","T2","T3","PA","PX","C1","C2","C3",
     pts_rot[_n] = _rot_cw(pts[_n])
 
 # ============================================================
-# Section 7: Outline Path (inset + fillets at Po3 and Po2)
+# Section 7: Outline Path (inset + arcs at Po3 and Po2)
 # ============================================================
 pts["Po2"]  = pts["Pi2"]
-pts["O15"]  = pts["Ti3"]   # was To3
+pts["U21"]  = pts["Ti3"]   # was To3
 pts["To2"]  = pts["Ti2"]
 
-R_fillet = 10.0 / 12.0
-pts["Cf"] = (pts["Pi3"][0] + R_fillet, pts["Pi3"][1] + R_fillet)
-pts["O1"] = (pts["Pi3"][0], pts["Cf"][1])
-pts["O0"] = (pts["Cf"][0], pts["Pi3"][1])
+R_cf = 10.0 / 12.0
+pts["Cf"] = (pts["Pi3"][0] + R_cf, pts["Pi3"][1] + R_cf)
+pts["U1"] = (pts["Pi3"][0], pts["Cf"][1])
+pts["U0"] = (pts["Cf"][0], pts["Pi3"][1])
 
-# --- Fillet at Po2 corner (R = 28", exact 90°) ---
-R_fillet2 = 28.0 / 12.0
-corner2_N = pts["O0"][1] + 26 - 2.0/12  # O3-O4 line is 25'10" north of O0
+# --- Arc at Po2 corner (R = 28", exact 90°) ---
+R_cf2 = 28.0 / 12.0
+corner2_N = pts["U0"][1] + 26 - 2.0/12  # U6-U7 line is 25'10" north of U0
 # C2 and C3 shift 1' east
 _nw_shift = 1.0
-pts["Cf2"] = (pts["Po2"][0] + _nw_shift + R_fillet2, corner2_N - R_fillet2)
-pts["O2"] = (pts["Po2"][0] + _nw_shift, pts["Cf2"][1])
-pts["O3"] = (pts["Cf2"][0], corner2_N)
-# C1c: 5'8" south of C2, same easting
-pts["O1c"] = (pts["O2"][0], pts["O2"][1] - (5.0 + 8.0/12) + 28.0/12)
-# Arc C1c->C1b: R=20", center due West of C1c (CW)
+pts["Cf2"] = (pts["Po2"][0] + _nw_shift + R_cf2, corner2_N - R_cf2)
+pts["U5"] = (pts["Po2"][0] + _nw_shift, pts["Cf2"][1])
+pts["U6"] = (pts["Cf2"][0], corner2_N)
+# F4: 5'8" south of C2, same easting
+pts["U4"] = (pts["U5"][0], pts["U5"][1] - (5.0 + 8.0/12) + 28.0/12)
+# Arc F4->F3: R=20", center due West of F4 (CW)
 R_1c = 20.0 / 12.0
-pts["Cc1"] = (pts["O1c"][0] - R_1c, pts["O1c"][1])
-# Arc C1b->C1a: R=28", center due East of C1a (CCW), tangent to C1c-C1b arc
+pts["Cc1"] = (pts["U4"][0] - R_1c, pts["U4"][1])
+# Arc F3->F2: R=28", center due East of F2 (CCW), tangent to F4-F3 arc
 R_1a = 28.0 / 12.0
-# External tangency: |Cc1 - Cc2| = R_1c + R_1a, Cc2 = (O1_E + R_1a, O1a_N)
-_cc2_E = pts["O1"][0] + R_1a
+# External tangency: |Cc1 - Cc2| = R_1c + R_1a, Cc2 = (U1_E + R_1a, U2_N)
+_cc2_E = pts["U1"][0] + R_1a
 _dE_cc = _cc2_E - pts["Cc1"][0]
 _dN_cc = -math.sqrt((R_1c + R_1a)**2 - _dE_cc**2)  # south
-pts["O1a"] = (pts["O1"][0], pts["Cc1"][1] + _dN_cc)
-pts["Cc2"] = (_cc2_E, pts["O1a"][1])
-# O1b: tangent point on Cc1->Cc2 line
+pts["U2"] = (pts["U1"][0], pts["Cc1"][1] + _dN_cc)
+pts["Cc2"] = (_cc2_E, pts["U2"][1])
+# U3: tangent point on Cc1->Cc2 line
 _f1b = R_1c / (R_1c + R_1a)
-pts["O1b"] = (pts["Cc1"][0] + _f1b * (pts["Cc2"][0] - pts["Cc1"][0]),
+pts["U3"] = (pts["Cc1"][0] + _f1b * (pts["Cc2"][0] - pts["Cc1"][0]),
               pts["Cc1"][1] + _f1b * (pts["Cc2"][1] - pts["Cc1"][1]))
-# O4: 6.0' east of O3, adjusted 1' west to undo C2/C3 shift
-pts["O4"] = (pts["O3"][0] + 5.5 + 6.0/12 - _nw_shift, pts["O3"][1])
-# Turn 1 at O4: 90° CW east->south, R=28"
-R_turn1 = 28.0 / 12.0
-pts["Ct1"] = (pts["O4"][0], pts["O4"][1] - R_turn1)
-pts["O5"] = (pts["Ct1"][0] + R_turn1, pts["Ct1"][1])
-# Turn 2 at O5: 90° CCW south->east, R=2"
-R_turn2 = 2.0 / 12.0
-pts["Ct2"] = (pts["O5"][0] + R_turn2, pts["O5"][1])
-pts["O6"] = (pts["Ct2"][0], pts["Ct2"][1] - R_turn2)
-# Turn 3: 180° CCW arc + 90° CW fillet at C6a (R=2")
-R_turn3 = 28.0 / 12.0
-R_6a = 2.0 / 12.0  # 90° fillet at C6a
+# U7: 6.0' east of U6, adjusted 1' west to undo C2/C3 shift
+pts["U7"] = (pts["U6"][0] + 5.5 + 6.0/12 - _nw_shift, pts["U6"][1])
+# Arc at U7: 90° CW east->south, R=28"
+R_ct1 = 28.0 / 12.0
+pts["Ct1"] = (pts["U7"][0], pts["U7"][1] - R_ct1)
+pts["U8"] = (pts["Ct1"][0] + R_ct1, pts["Ct1"][1])
+# Arc at U8: 90° CCW south->east, R=2"
+R_ct2 = 2.0 / 12.0
+pts["Ct2"] = (pts["U8"][0] + R_ct2, pts["U8"][1])
+pts["U9"] = (pts["Ct2"][0], pts["Ct2"][1] - R_ct2)
+# Arc 3: 180° CCW arc + 90° CW arc at F10 (R=2")
+R_ct3 = 28.0 / 12.0
+R_6a = 2.0 / 12.0  # 90° arc at F10
 west_E = pts["C1"][0] - R1i  # westernmost E on Arc 1o
-# O6a, Ct6a, O7, Ct3 eastings determined below from bearing constraint
+# U10, Ct6a, U11, Ct3 eastings determined below from bearing constraint
 
-# --- Fillet at Po5 corner (R = 10", exits North) ---
-R_f_po5 = 28.0 / 12.0
+# --- Arc at Po5 corner (R = 28", exits North) ---
+R_cf4 = 28.0 / 12.0
 d_in_po5 = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
 L_in = math.sqrt(d_in_po5[0]**2 + d_in_po5[1]**2)
 d_in_u = (d_in_po5[0]/L_in, d_in_po5[1]/L_in)
-# C11 E-coordinate: 9' 2" east of east closet wall (w5_e)
-_w5_e = pts["O1"][0] + 8.0/12 + 0.5 + 35.0/12 + 3.0 + 2.0 + (3+30+4+140+4+30+3)/12.0
-C11_E = _w5_e + 9.0 + 1.0/12
-# Outgoing direction is North; Cf4 is R_f_po5 west of C11
+# F15 E-coordinate: 9' 2" east of east closet wall (w5_e)
+_w5_e = pts["U1"][0] + 8.0/12 + 0.5 + 35.0/12 + 3.0 + 2.0 + (3+30+4+140+4+30+3)/12.0
+F15_E = _w5_e + 9.0 + 1.0/12
+# Outgoing direction is North; Cf4 is R_cf4 west of F15
 ln_in_po5 = left_norm(pts["PiX"], pts["Pi5"])
-o_in_po5 = off_pt(pts["PiX"], ln_in_po5, R_f_po5)
-t_cf4 = (C11_E - R_f_po5 - o_in_po5[0]) / d_in_u[0]
-pts["Cf4"] = (C11_E - R_f_po5, o_in_po5[1] + t_cf4 * d_in_u[1])
-pts["O11"] = (C11_E, pts["Cf4"][1])  # directly east of Cf4
-# O12: tangent point on fillet circle for 60° incoming bearing (O13->O12)
+o_in_po5 = off_pt(pts["PiX"], ln_in_po5, R_cf4)
+t_cf4 = (F15_E - R_cf4 - o_in_po5[0]) / d_in_u[0]
+pts["Cf4"] = (F15_E - R_cf4, o_in_po5[1] + t_cf4 * d_in_u[1])
+pts["U15"] = (F15_E, pts["Cf4"][1])  # directly east of Cf4
+# U16: tangent point on arc circle for 60° incoming bearing (U17->U16)
 _brg_f4 = math.radians(60.0)
-pts["O12"] = (pts["Cf4"][0] + R_f_po5 * math.cos(_brg_f4),
-              pts["Cf4"][1] - R_f_po5 * math.sin(_brg_f4))
+pts["U16"] = (pts["Cf4"][0] + R_cf4 * math.cos(_brg_f4),
+              pts["Cf4"][1] - R_cf4 * math.sin(_brg_f4))
 
-# --- Arc O10a-O9: bearing O9->O8 = 345°, O9_N = IW1_north + 24" ---
-# C10a: centered 2" north of IW1 north face
-# IW1 north = inner south wall (O0 + 8" wall) + 11'6" + 6" IW1 thickness
-_iw1_n_face = pts["O0"][1] + 8.0/12 + 11.5 + 6.0/12
-_O10a_N = _iw1_n_face + 2.0/12
-_target_O9_N = _iw1_n_face + 24.0/12
-_dN_t4 = _target_O9_N - _O10a_N
+# --- Arc U14-U13: bearing U13->U12 = 345°, U13_N = IW1_north + 24" ---
+# F14: centered 2" north of IW1 north face
+# IW1 north = inner south wall (U0 + 8" wall) + 11'6" + 6" IW1 thickness
+_iw1_n_face = pts["U0"][1] + 8.0/12 + 11.5 + 6.0/12
+_U14_N = _iw1_n_face + 2.0/12
+_target_U13_N = _iw1_n_face + 24.0/12
+_dN_t4 = _target_U13_N - _U14_N
 # Bearing 345° => tangent direction (-sin15°, cos15°), normal n = (cos15°, sin15°)
 _brg_off = math.radians(360.0 - 345.0)  # 15°
 _nx_t = math.cos(_brg_off)
 _ny_t = math.sin(_brg_off)
-# R_t4 from O9_N constraint: O9_N = _O10a_N + R_t4 * ny
-R_t4 = _dN_t4 / _ny_t
-pts["Ct4"] = (C11_E - R_t4, _O10a_N)
-pts["O10a"] = (C11_E, _O10a_N)
-# Ct3 easting from tangent constraint: (Ct3 - Ct4) · n = R_t4 - R_turn3
-_Ct3_N = pts["O6"][1] + R_6a  # O7_N = Ct3_N (independent of _corner_E)
+# R_ct4 from U13_N constraint: U13_N = _U14_N + R_ct4 * ny
+R_ct4 = _dN_t4 / _ny_t
+pts["Ct4"] = (F15_E - R_ct4, _U14_N)
+pts["U14"] = (F15_E, _U14_N)
+# Ct3 easting from tangent constraint: (Ct3 - Ct4) · n = R_ct4 - R_ct3
+_Ct3_N = pts["U9"][1] + R_6a  # U11_N = Ct3_N (independent of _corner_E)
 _Ct4_E, _Ct4_N = pts["Ct4"]
-_Ct3_E = _Ct4_E + (R_t4 - R_turn3 - (_Ct3_N - _Ct4_N) * _ny_t) / _nx_t
-# Derive corner easting and dependent points (C6a, C7, Ct3)
-_corner_E = _Ct3_E - R_turn3
-pts["O6a"] = (_corner_E - R_6a, pts["O6"][1])
-pts["Ct6a"] = (_corner_E - R_6a, pts["O6"][1] + R_6a)
-pts["O7"] = (_corner_E, pts["O6"][1] + R_6a)
+_Ct3_E = _Ct4_E + (R_ct4 - R_ct3 - (_Ct3_N - _Ct4_N) * _ny_t) / _nx_t
+# Derive corner easting and dependent points (F10, F11, Ct3)
+_corner_E = _Ct3_E - R_ct3
+pts["U10"] = (_corner_E - R_6a, pts["U9"][1])
+pts["Ct6a"] = (_corner_E - R_6a, pts["U9"][1] + R_6a)
+pts["U11"] = (_corner_E, pts["U9"][1] + R_6a)
 pts["Ct3"] = (_Ct3_E, _Ct3_N)
-# O9, O8: tangent points (shared outward normal for external tangent)
-pts["O9"] = (pts["Ct4"][0] + R_t4 * _nx_t, pts["Ct4"][1] + R_t4 * _ny_t)
-pts["O8"] = (pts["Ct3"][0] + R_turn3 * _nx_t, pts["Ct3"][1] + R_turn3 * _ny_t)
+# U13, U12: tangent points (shared outward normal for external tangent)
+pts["U13"] = (pts["Ct4"][0] + R_ct4 * _nx_t, pts["Ct4"][1] + R_ct4 * _ny_t)
+pts["U12"] = (pts["Ct3"][0] + R_ct3 * _nx_t, pts["Ct3"][1] + R_ct3 * _ny_t)
 
-# --- C13-C14-C15 wall geometry (wall at -6" Northing) ---
+# --- F17-F20-F21 wall geometry (wall at -6" Northing) ---
 R_wall = 28.0 / 12.0          # 28" connecting arc radius (Cw3)
-R_w1   = 20.0 / 12.0          # 20" arc radius (Cw1: C15->C14)
-R_w2   = 28.0 / 12.0          # 28" arc radius (Cw2: C14->C13b)
+R_w1   = 20.0 / 12.0          # 20" arc radius (Cw1: F21->F20)
+R_w2   = 28.0 / 12.0          # 28" arc radius (Cw2: F20->F19)
 wall_south_N = -6.0 / 12.0    # south face of wall at -6" Northing
 # Tangency distance between Cw1 and Cw2 arc centers
-dN_c = (wall_south_N + R_w2) - (pts["O15"][1] - R_w1)
+dN_c = (wall_south_N + R_w2) - (pts["U21"][1] - R_w1)
 dE_c = math.sqrt((R_w1 + R_w2)**2 - dN_c**2)
-# Align C13b with east side of king bed
+# Align F19 with east side of king bed
 # bed_e = inner_W1_E + 20.5' (dryer+counter+closet2+W1S+half_bedroom+half_bed)
-_bed_e_align = pts["O1"][0] + 8.0/12 + 20.5
-pts["O15"] = (_bed_e_align - dE_c - 2.0/12, pts["O15"][1])
-# O13 on line from O12 at bearing 60° (O13->O12), tangent to Cw3 arc
+_bed_e_align = pts["U1"][0] + 8.0/12 + 20.5
+pts["U21"] = (_bed_e_align - dE_c - 2.0/12, pts["U21"][1])
+# U17 on line from U16 at bearing 60° (U17->U16), tangent to Cw3 arc
 _brg_13 = math.radians(60.0)
-C13_N = wall_south_N + R_wall * (1.0 - math.sin(_brg_13))
-_t_13 = (pts["O12"][1] - C13_N) / math.cos(_brg_13)
-pts["O13"] = (pts["O12"][0] - _t_13 * math.sin(_brg_13), C13_N)
-# C13a->C13 arc center (Cw3) and tangent point C13a
-pts["Cw3"] = (pts["O13"][0] - R_wall * math.cos(_brg_13), wall_south_N + R_wall)
-pts["O13a"] = (pts["Cw3"][0], wall_south_N)
-# C15->C14 arc center (Cw1): center south of O15
-pts["Cw1"] = (pts["O15"][0], pts["O15"][1] - R_w1)
-# C14->C13b arc center (Cw2): from external tangency |Cw1-Cw2| = R_w1+R_w2
-C13b_E = pts["O15"][0] + dE_c
-pts["O13b"] = (C13b_E, wall_south_N)
-pts["Cw2"] = (C13b_E, wall_south_N + R_w2)
-# C14 = tangent point between the two arcs (R_w1 from Cw1 along Cw1->Cw2)
+F17_N = wall_south_N + R_wall * (1.0 - math.sin(_brg_13))
+_t_13 = (pts["U16"][1] - F17_N) / math.cos(_brg_13)
+pts["U17"] = (pts["U16"][0] - _t_13 * math.sin(_brg_13), F17_N)
+# F18->F17 arc center (Cw3) and tangent point F18
+pts["Cw3"] = (pts["U17"][0] - R_wall * math.cos(_brg_13), wall_south_N + R_wall)
+pts["U18"] = (pts["Cw3"][0], wall_south_N)
+# F21->F20 arc center (Cw1): center south of U21
+pts["Cw1"] = (pts["U21"][0], pts["U21"][1] - R_w1)
+# F20->F19 arc center (Cw2): from external tangency |Cw1-Cw2| = R_w1+R_w2
+F19_E = pts["U21"][0] + dE_c
+pts["U19"] = (F19_E, wall_south_N)
+pts["Cw2"] = (F19_E, wall_south_N + R_w2)
+# F20 = tangent point between the two arcs (R_w1 from Cw1 along Cw1->Cw2)
 _f_w = R_w1 / (R_w1 + R_w2)
-pts["O14"] = (pts["Cw1"][0] + _f_w * (pts["Cw2"][0] - pts["Cw1"][0]),
+pts["U20"] = (pts["Cw1"][0] + _f_w * (pts["Cw2"][0] - pts["Cw1"][0]),
               pts["Cw1"][1] + _f_w * (pts["Cw2"][1] - pts["Cw1"][1]))
 
 outline_segs = [
-    LineSeg("O2", "O1c"),                                    # 0
-    ArcSeg("O1c", "O1b", "Cc1", R_1c, "CW", 20),          # 1: 20" arc
-    ArcSeg("O1b", "O1a", "Cc2", R_1a, "CCW", 20),         # 2: 28" arc
-    LineSeg("O1a", "O1"),                                    # 3
-    ArcSeg("O1", "O0", "Cf", R_fillet, "CCW", 20),         # 4
-    LineSeg("O0", "O15"),                                    # 5
-    ArcSeg("O15", "O14", "Cw1", R_w1, "CW", 60),           # 6: C15->C14
-    ArcSeg("O14", "O13b", "Cw2", R_w2, "CCW", 60),         # 7: C14->C13b
-    LineSeg("O13b", "O13a"),                                 # 8: wall segment
-    ArcSeg("O13a", "O13", "Cw3", R_wall, "CCW", 20),       # 9: C13a->C13
-    LineSeg("O13", "O12"),                                   # 10
-    ArcSeg("O12", "O11", "Cf4", R_f_po5, "CCW", 20),       # 11
-    LineSeg("O11", "O10a"),                                  # 12
-    ArcSeg("O10a", "O9", "Ct4", R_t4, "CCW", 60),          # 13: 28" arc
-    LineSeg("O9", "O8"),                                     # 14
-    ArcSeg("O8", "O7", "Ct3", R_turn3, "CCW", 60),         # 15: 180° arc
-    ArcSeg("O7", "O6a", "Ct6a", R_6a, "CW", 20),          # 16: 90° fillet at C6a
-    LineSeg("O6a", "O6"),                                    # 17
-    ArcSeg("O6", "O5", "Ct2", R_turn2, "CW", 20),          # 18
-    ArcSeg("O5", "O4", "Ct1", R_turn1, "CCW", 20),         # 19
-    LineSeg("O4", "O3"),                                     # 20
-    ArcSeg("O3", "O2", "Cf2", R_fillet2, "CCW", 20),       # 21
+    ArcSeg("U0", "U1", "Cf", R_cf, "CW", 20),           # 0: arc Cf
+    LineSeg("U1", "U2"),                                      # 1
+    ArcSeg("U2", "U3", "Cc2", R_1a, "CW", 20),             # 2: 28" arc
+    ArcSeg("U3", "U4", "Cc1", R_1c, "CCW", 20),            # 3: 20" arc
+    LineSeg("U4", "U5"),                                      # 4
+    ArcSeg("U5", "U6", "Cf2", R_cf2, "CW", 20),        # 5: arc Cf2
+    LineSeg("U6", "U7"),                                      # 6
+    ArcSeg("U7", "U8", "Ct1", R_ct1, "CW", 20),          # 7: arc Ct1
+    ArcSeg("U8", "U9", "Ct2", R_ct2, "CCW", 20),         # 8: arc Ct2
+    LineSeg("U9", "U10"),                                     # 9
+    ArcSeg("U10", "U11", "Ct6a", R_6a, "CCW", 20),         # 10: arc Ct6a
+    ArcSeg("U11", "U12", "Ct3", R_ct3, "CW", 60),        # 11: 180° arc
+    LineSeg("U12", "U13"),                                    # 12
+    ArcSeg("U13", "U14", "Ct4", R_ct4, "CW", 60),           # 13: 28" arc
+    LineSeg("U14", "U15"),                                    # 14
+    ArcSeg("U15", "U16", "Cf4", R_cf4, "CW", 20),        # 15: arc Cf4
+    LineSeg("U16", "U17"),                                    # 16
+    ArcSeg("U17", "U18", "Cw3", R_wall, "CW", 20),         # 17: F17->F18
+    LineSeg("U18", "U19"),                                    # 18: wall segment
+    ArcSeg("U19", "U20", "Cw2", R_w2, "CW", 60),           # 19: F19->F20
+    ArcSeg("U20", "U21", "Cw1", R_w1, "CCW", 60),          # 20: F20->F21
+    LineSeg("U21", "U0"),                                     # 21
 ]
 outline_area = poly_area(path_polygon(outline_segs, pts))
 
@@ -423,9 +423,9 @@ outline_area = poly_area(path_polygon(outline_segs, pts))
 # ============================================================
 _wall_t = 8.0 / 12.0
 _radii = {
-    "R_fillet": R_fillet, "R_w1": R_w1, "R_w2": R_w2, "R_wall": R_wall,
-    "R_f_po5": R_f_po5, "R_turn3": R_turn3, "R_turn2": R_turn2,
-    "R_turn1": R_turn1, "R_fillet2": R_fillet2, "R_t4": R_t4, "R_6a": R_6a,
+    "R_cf": R_cf, "R_w1": R_w1, "R_w2": R_w2, "R_wall": R_wall,
+    "R_cf4": R_cf4, "R_ct3": R_ct3, "R_ct2": R_ct2,
+    "R_ct1": R_ct1, "R_cf2": R_cf2, "R_ct4": R_ct4, "R_6a": R_6a,
     "R_1c": R_1c, "R_1a": R_1a,
 }
 _fp_inner_segs = compute_inner_walls(outline_segs, pts, _wall_t, _radii)
@@ -537,19 +537,19 @@ def render_floorplan(lines):
 # ============================================================
 
 # Compute sweep angles for outline arc labels
-sweep_1c = arc_sweep_deg(outline_segs[1], pts)   # O1c->O1b (Cc1)
-sweep_1a = arc_sweep_deg(outline_segs[2], pts)   # O1b->O1a (Cc2)
-sweep_f = arc_sweep_deg(outline_segs[4], pts)    # O1->O0
-sweep_w1 = arc_sweep_deg(outline_segs[6], pts)   # O15->O14 (Cw1)
-sweep_w2 = arc_sweep_deg(outline_segs[7], pts)   # O14->O13b (Cw2)
-sweep_w3 = arc_sweep_deg(outline_segs[9], pts)   # O13a->O13 (Cw3)
-sweep_f4 = arc_sweep_deg(outline_segs[11], pts)  # O12->O11 (fillet Po5)
-sweep_t4 = arc_sweep_deg(outline_segs[13], pts)  # O10a->O9 (28" arc)
-sweep_t3 = arc_sweep_deg(outline_segs[15], pts)  # O8->O7
-sweep_6a = arc_sweep_deg(outline_segs[16], pts)  # O7->O6a (fillet)
-sweep_t2 = arc_sweep_deg(outline_segs[18], pts)  # O6->O5
-sweep_t1 = arc_sweep_deg(outline_segs[19], pts)  # O5->O4
-sweep_f2 = arc_sweep_deg(outline_segs[21], pts)  # O3->O2
+sweep_cf = arc_sweep_deg(outline_segs[0], pts)    # U0->U1 (Cf arc)
+sweep_1a = arc_sweep_deg(outline_segs[2], pts)   # U2->U3 (Cc2)
+sweep_1c = arc_sweep_deg(outline_segs[3], pts)   # U3->U4 (Cc1)
+sweep_cf2 = arc_sweep_deg(outline_segs[5], pts)   # U5->U6 (Cf2 arc)
+sweep_ct1 = arc_sweep_deg(outline_segs[7], pts)   # U7->U8 (Ct1 arc)
+sweep_ct2 = arc_sweep_deg(outline_segs[8], pts)   # U8->U9 (Ct2 arc)
+sweep_6a = arc_sweep_deg(outline_segs[10], pts)  # U10->U11 (Ct6a arc)
+sweep_ct3 = arc_sweep_deg(outline_segs[11], pts)  # U11->U12 (180° arc)
+sweep_ct4 = arc_sweep_deg(outline_segs[13], pts)  # U13->U14 (28" arc)
+sweep_cf4 = arc_sweep_deg(outline_segs[15], pts)  # U15->U16 (Cf4 arc)
+sweep_w3 = arc_sweep_deg(outline_segs[17], pts)  # U17->U18 (Cw3)
+sweep_w2 = arc_sweep_deg(outline_segs[19], pts)  # U19->U20 (Cw2)
+sweep_w1 = arc_sweep_deg(outline_segs[20], pts)  # U20->U21 (Cw1)
 
 outer_cfg = LayerConfig(
     opacity=0.2, fill_color="#e8edf5",
@@ -613,91 +613,91 @@ outline_cfg = LayerConfig(
     opacity=1.0, fill_color="rgba(200,230,255,0.25)",
     line_stroke="#333", line_width=2.0,
     arc_styles={
-        ("O1c","O1b"):  ("#333", 2.0),
-        ("O1b","O1a"):  ("#333", 2.0),
-        ("O10a","O9"):  ("#333", 2.0),
-        ("O15","O14"):  ("#2E7D32", 2.5),
-        ("O14","O13b"): ("#2E7D32", 2.5),
-        ("O13a","O13"): ("#2E7D32", 2.5),
-        ("O12","O11"):  ("#333", 2.0),
-        ("O1","O0"):    ("#333", 2.0),
-        ("O3","O2"):    ("#333", 2.0),
-        ("O6","O5"):    ("#333", 2.0),
-        ("O5","O4"):    ("#333", 2.0),
-        ("O8","O7"):    ("#333", 2.0),
-        ("O7","O6a"):   ("#333", 2.0),
+        ("U0","U1"):    ("#333", 2.0),
+        ("U2","U3"):    ("#333", 2.0),
+        ("U3","U4"):    ("#333", 2.0),
+        ("U5","U6"):    ("#333", 2.0),
+        ("U7","U8"):    ("#333", 2.0),
+        ("U8","U9"):    ("#333", 2.0),
+        ("U10","U11"):  ("#333", 2.0),
+        ("U11","U12"):  ("#333", 2.0),
+        ("U13","U14"):  ("#333", 2.0),
+        ("U15","U16"):  ("#333", 2.0),
+        ("U17","U18"):  ("#2E7D32", 2.5),
+        ("U19","U20"):  ("#2E7D32", 2.5),
+        ("U20","U21"):  ("#2E7D32", 2.5),
     },
     vertex_styles={
-        "O2":   VertexStyle("O2",   "end",   -8, -6,  "#d32f2f", 3.5, 10),
-        "O1c":  VertexStyle("O1c",  "end",   -8, -4,  "#d32f2f", 3.5, 10),
-        "O1b":  VertexStyle("O1b",  "end",  -10, 10,  "#d32f2f", 3.5, 10),
-        "O1a":  VertexStyle("O1a",  "end",   -8, -4,  "#d32f2f", 3.5, 10),
-        "O1":   VertexStyle("O1",   "end",   -8, -4,  "#d32f2f", 3.5, 10),
-        "O0":   VertexStyle("O0",   "end",   -8, 10,  "#d32f2f", 3.5, 10),
-        "O15":  VertexStyle("O15",  "middle", 0, -12, "#2E7D32", 3.5, 10),
-        "O14":  VertexStyle("O14",  "start",  8, -6,  "#2E7D32", 3.5, 10),
-        "O13b": VertexStyle("O13b", "start",  8, 12,  "#2E7D32", 3.5, 10),
-        "O13a": VertexStyle("O13a", "start",  8, 12,  "#2E7D32", 3.5, 10),
-        "O13":  VertexStyle("O13",  "start", 10, 10,  "#2E7D32", 3.5, 10),
-        "O12":  VertexStyle("O12",  "start",  8,  4,  "#d32f2f", 3.5, 10),
-        "O11":  VertexStyle("O11",  "start",  8,  4,  "#d32f2f", 3.5, 10),
-        "O10a": VertexStyle("O10a", "start", 10, -4,  "#d32f2f", 3.5, 10),
-        "O9":   VertexStyle("O9",   "start",  8,  8,  "#d32f2f", 3.5, 10),
-        "O8":   VertexStyle("O8",   "start",  8, 12,  "#d32f2f", 3.5, 10),
-        "O7":   VertexStyle("O7",   "start",  8, 12,  "#d32f2f", 3.5, 10),
-        "O6a":  VertexStyle("O6a",  "end",   -8, -6,  "#d32f2f", 3.5, 10),
-        "O6":   VertexStyle("O6",   "middle", 0, 14,  "#d32f2f", 3.5, 10),
-        "O5":   VertexStyle("O5",   "end",   -8, -4,  "#d32f2f", 3.5, 10),
-        "O4":   VertexStyle("O4",   "middle", 0, -12, "#d32f2f", 3.5, 10),
-        "O3":   VertexStyle("O3",   "end",  -10, -6,  "#d32f2f", 3.5, 10),
+        "U5":   VertexStyle("U5",   "end",   -8, -6,  "#d32f2f", 3.5, 10),
+        "U4":  VertexStyle("U4",  "end",   -8, -4,  "#d32f2f", 3.5, 10),
+        "U3":  VertexStyle("U3",  "end",  -10, 10,  "#d32f2f", 3.5, 10),
+        "U2":  VertexStyle("U2",  "end",   -8, -4,  "#d32f2f", 3.5, 10),
+        "U1":   VertexStyle("U1",   "end",   -8, -4,  "#d32f2f", 3.5, 10),
+        "U0":   VertexStyle("U0",   "end",   -8, 10,  "#d32f2f", 3.5, 10),
+        "U21":  VertexStyle("U21",  "middle", 0, -12, "#2E7D32", 3.5, 10),
+        "U20":  VertexStyle("U20",  "start",  8, -6,  "#2E7D32", 3.5, 10),
+        "U19": VertexStyle("U19", "start",  8, 12,  "#2E7D32", 3.5, 10),
+        "U18": VertexStyle("U18", "start",  8, 12,  "#2E7D32", 3.5, 10),
+        "U17":  VertexStyle("U17",  "start", 10, 10,  "#2E7D32", 3.5, 10),
+        "U16":  VertexStyle("U16",  "start",  8,  4,  "#d32f2f", 3.5, 10),
+        "U15":  VertexStyle("U15",  "start",  8,  4,  "#d32f2f", 3.5, 10),
+        "U14": VertexStyle("U14", "start", 10, -4,  "#d32f2f", 3.5, 10),
+        "U13":   VertexStyle("U13",   "start",  8,  8,  "#d32f2f", 3.5, 10),
+        "U12":   VertexStyle("U12",   "start",  8, 12,  "#d32f2f", 3.5, 10),
+        "U11":   VertexStyle("U11",   "start",  8, 12,  "#d32f2f", 3.5, 10),
+        "U10":  VertexStyle("U10",  "end",   -8, -6,  "#d32f2f", 3.5, 10),
+        "U9":   VertexStyle("U9",   "middle", 0, 14,  "#d32f2f", 3.5, 10),
+        "U8":   VertexStyle("U8",   "end",   -8, -4,  "#d32f2f", 3.5, 10),
+        "U7":   VertexStyle("U7",   "middle", 0, -12, "#d32f2f", 3.5, 10),
+        "U6":   VertexStyle("U6",   "end",  -10, -6,  "#d32f2f", 3.5, 10),
     },
     brg_dist_labels={
-        ("O2","O1c"): BrgDistLabel(-18),
-        ("O1a","O1"): BrgDistLabel(-18),
-        ("O0","O15"): BrgDistLabel(18),
-        ("O13b","O13a"): BrgDistLabel(16),
-        ("O13","O12"): BrgDistLabel(-16),
-        ("O11","O10a"): BrgDistLabel(16),
-        ("O9","O8"): BrgDistLabel(16),
-        ("O6a","O6"): BrgDistLabel(16),
-        ("O4","O3"): BrgDistLabel(16),
+        ("U1","U2"): BrgDistLabel(18),
+        ("U4","U5"): BrgDistLabel(18),
+        ("U6","U7"): BrgDistLabel(-16),
+        ("U9","U10"): BrgDistLabel(-16),
+        ("U12","U13"): BrgDistLabel(-16),
+        ("U14","U15"): BrgDistLabel(-16),
+        ("U16","U17"): BrgDistLabel(16),
+        ("U18","U19"): BrgDistLabel(-16),
+        ("U21","U0"): BrgDistLabel(-18),
     },
     arc_labels={
-        ("O8","O7"): ArcLabel("Turn R=28\"",
-            f"{sweep_t3:.1f}\u00b0 CCW", "start", 12, 0, 11, "#333"),
-        ("O7","O6a"): ArcLabel("Fillet R=2\"",
-            f"{sweep_6a:.1f}\u00b0", "end", -10, -10, 11, "#333"),
-        ("O15","O14"): ArcLabel("Wall R=20\"",
-            f"{sweep_w1:.1f}\u00b0 CW", "start", 12, 4, 11, "#2E7D32"),
-        ("O14","O13b"): ArcLabel("Wall R=28\"",
-            f"{sweep_w2:.1f}\u00b0", "start", 12, -10, 11, "#2E7D32"),
-        ("O13a","O13"): ArcLabel("Wall R=28\"",
-            f"{sweep_w3:.1f}\u00b0", "end", -10, -10, 11, "#2E7D32"),
-        ("O10a","O9"): ArcLabel(f"Turn R={R_t4*12:.0f}\"",
-            f"{sweep_t4:.1f}\u00b0", "start", 12, 0, 11, "#333"),
-        ("O12","O11"): ArcLabel("Fillet R=28\"",
-            f"{sweep_f4:.1f}\u00b0", "start", 10, -10, 11, "#333"),
-        ("O1c","O1b"): ArcLabel("Arc R=20\"",
-            f"{sweep_1c:.1f}\u00b0 CW", "end", -10, -10, 11, "#333"),
-        ("O1b","O1a"): ArcLabel("Arc R=28\"",
+        ("U0","U1"): ArcLabel("Arc R=10\"",
+            f"{sweep_cf:.1f}\u00b0", "end", -10, 14, 11, "#333"),
+        ("U2","U3"): ArcLabel("Arc R=28\"",
             f"{sweep_1a:.1f}\u00b0 CCW", "start", 12, 0, 11, "#333"),
-        ("O1","O0"): ArcLabel("Fillet R=10\"",
-            f"{sweep_f:.1f}\u00b0", "end", -10, 14, 11, "#333"),
-        ("O3","O2"): ArcLabel("Fillet R=28\"",
-            f"{sweep_f2:.1f}\u00b0", "end", -10, -14, 11, "#333"),
-        ("O6","O5"): ArcLabel("Turn R=2\"",
-            f"{sweep_t2:.1f}\u00b0", "end", -10, 14, 11, "#333"),
-        ("O5","O4"): ArcLabel("Turn R=28\"",
-            f"{sweep_t1:.1f}\u00b0", "start", 12, 0, 11, "#333"),
+        ("U3","U4"): ArcLabel("Arc R=20\"",
+            f"{sweep_1c:.1f}\u00b0 CW", "end", -10, -10, 11, "#333"),
+        ("U5","U6"): ArcLabel("Arc R=28\"",
+            f"{sweep_cf2:.1f}\u00b0", "end", -10, -14, 11, "#333"),
+        ("U7","U8"): ArcLabel("Arc R=28\"",
+            f"{sweep_ct1:.1f}\u00b0", "start", 12, 0, 11, "#333"),
+        ("U8","U9"): ArcLabel("Arc R=2\"",
+            f"{sweep_ct2:.1f}\u00b0", "end", -10, 14, 11, "#333"),
+        ("U10","U11"): ArcLabel("Arc R=2\"",
+            f"{sweep_6a:.1f}\u00b0", "end", -10, -10, 11, "#333"),
+        ("U11","U12"): ArcLabel("Arc R=28\"",
+            f"{sweep_ct3:.1f}\u00b0 CCW", "start", 12, 0, 11, "#333"),
+        ("U13","U14"): ArcLabel(f"Arc R={R_ct4*12:.0f}\"",
+            f"{sweep_ct4:.1f}\u00b0", "start", 12, 0, 11, "#333"),
+        ("U15","U16"): ArcLabel("Arc R=28\"",
+            f"{sweep_cf4:.1f}\u00b0", "start", 10, -10, 11, "#333"),
+        ("U17","U18"): ArcLabel("Wall R=28\"",
+            f"{sweep_w3:.1f}\u00b0", "end", -10, -10, 11, "#2E7D32"),
+        ("U19","U20"): ArcLabel("Wall R=28\"",
+            f"{sweep_w2:.1f}\u00b0", "start", 12, -10, 11, "#2E7D32"),
+        ("U20","U21"): ArcLabel("Wall R=20\"",
+            f"{sweep_w1:.1f}\u00b0 CW", "start", 12, 4, 11, "#2E7D32"),
     },
     center_marks=[
-        CenterMark("Cc1", "O1c", "#333"), CenterMark("Cc2", "O1a", "#333"),
-        CenterMark("Cw1", "O15", "#2E7D32"), CenterMark("Cf", "O1", "#333"),
-        CenterMark("Cf2", "O3", "#333"), CenterMark("Cw2", "O14", "#2E7D32"),
-        CenterMark("Cw3", "O13a", "#2E7D32"), CenterMark("Cf4", "O12", "#333"),
-        CenterMark("Ct1", "O4", "#333"), CenterMark("Ct2", "O5", "#333"),
-        CenterMark("Ct3", "O7", "#333"), CenterMark("Ct6a", "O6a", "#333"),
-        CenterMark("Ct4", "O10a", "#333"),
+        CenterMark("Cc1", "U4", "#333"), CenterMark("Cc2", "U2", "#333"),
+        CenterMark("Cw1", "U21", "#2E7D32"), CenterMark("Cf", "U1", "#333"),
+        CenterMark("Cf2", "U6", "#333"), CenterMark("Cw2", "U20", "#2E7D32"),
+        CenterMark("Cw3", "U18", "#2E7D32"), CenterMark("Cf4", "U16", "#333"),
+        CenterMark("Ct1", "U7", "#333"), CenterMark("Ct2", "U8", "#333"),
+        CenterMark("Ct3", "U11", "#333"), CenterMark("Ct6a", "U10", "#333"),
+        CenterMark("Ct4", "U14", "#333"),
     ],
     traverse_pts=None, traverse_stroke=None,
     brg_decimal=True,
@@ -710,35 +710,35 @@ if __name__ == "__main__":
     print(f'=== INSET PATH (6" inside) ===')
     print(f"  delta={delta}' R1i={R1i}' R2i={R2i}' R3i={R3i}'")
     print(f"  Inset area: {inset_area:.2f} sq ft")
-    print(f'=== OUTLINE PATH (wall arcs R=28", fillets R=10" & R=28") ===')
-    print(f"  O2:   ({pts['O2'][0]:.4f}, {pts['O2'][1]:.4f})  (fillet2 tangent)")
-    print(f"  O1c:  ({pts['O1c'][0]:.4f}, {pts['O1c'][1]:.4f})  (5'8\" south of O2)")
-    print(f"  O1b:  ({pts['O1b'][0]:.4f}, {pts['O1b'][1]:.4f})  (arc tangent point)")
-    print(f"  O1a:  ({pts['O1a'][0]:.4f}, {pts['O1a'][1]:.4f})  (same E as O1)")
-    print(f"  O1:   ({pts['O1'][0]:.4f}, {pts['O1'][1]:.4f})  (fillet tangent)")
-    print(f"  O0:   ({pts['O0'][0]:.4f}, {pts['O0'][1]:.4f})  (fillet tangent)")
-    print(f"  O15:  ({pts['O15'][0]:.4f}, {pts['O15'][1]:.4f})  (C15, was To3)")
-    print(f"  O14:  ({pts['O14'][0]:.4f}, {pts['O14'][1]:.4f})  (C14, arc junction)")
-    print(f"  O13b: ({pts['O13b'][0]:.4f}, {pts['O13b'][1]:.4f})  (C13b, wall west end)")
-    print(f"  O13a: ({pts['O13a'][0]:.4f}, {pts['O13a'][1]:.4f})  (C13a, wall east end)")
-    print(f"  O13:  ({pts['O13'][0]:.4f}, {pts['O13'][1]:.4f})  (C13, on PiX-Pi5 line)")
-    print(f"  O12:  ({pts['O12'][0]:.4f}, {pts['O12'][1]:.4f})  (fillet Po5, incoming tangent)")
-    print(f"  O11:  ({pts['O11'][0]:.4f}, {pts['O11'][1]:.4f})  (fillet Po5, exits North)")
-    print(f"  O10a: ({pts['O10a'][0]:.4f}, {pts['O10a'][1]:.4f})  ({R_t4*12:.1f}\" arc tangent to N-S line)")
-    print(f"  O9:   ({pts['O9'][0]:.4f}, {pts['O9'][1]:.4f})  ({R_t4*12:.1f}\" arc / line tangent)")
-    print(f"  O8:   ({pts['O8'][0]:.4f}, {pts['O8'][1]:.4f})  (line / 180° arc tangent)")
-    print(f"  O7:   ({pts['O7'][0]:.4f}, {pts['O7'][1]:.4f})  (180° arc west end / fillet N-S tangent)")
-    print(f"  O6a:  ({pts['O6a'][0]:.4f}, {pts['O6a'][1]:.4f})  (fillet E-W tangent)")
-    print(f"  O6:   ({pts['O6'][0]:.4f}, {pts['O6'][1]:.4f})  (turn2 tangent)")
-    print(f"  O5:   ({pts['O5'][0]:.4f}, {pts['O5'][1]:.4f})  (turn1/turn2 junction)")
-    print(f"  O4:   ({pts['O4'][0]:.4f}, {pts['O4'][1]:.4f})  (6.0' east of O3)")
-    print(f"  O3:   ({pts['O3'][0]:.4f}, {pts['O3'][1]:.4f})  (fillet2 tangent)")
-    print(f"  Cw1:  ({pts['Cw1'][0]:.4f}, {pts['Cw1'][1]:.4f})  (C15->C14 arc center)")
-    print(f"  Cw2:  ({pts['Cw2'][0]:.4f}, {pts['Cw2'][1]:.4f})  (C14->C13b arc center)")
-    print(f"  Cw3:  ({pts['Cw3'][0]:.4f}, {pts['Cw3'][1]:.4f})  (C13a->C13 arc center)")
-    print(f"  Wall segment: O13b to O13a, length = {abs(pts['O13a'][0]-pts['O13b'][0])*12:.1f}\"")
-    print(f"  Cf4:  ({pts['Cf4'][0]:.4f}, {pts['Cf4'][1]:.4f})  (fillet Po5 center, R={R_f_po5:.4f}')")
-    print(f"  Ct4:  ({pts['Ct4'][0]:.4f}, {pts['Ct4'][1]:.4f})  ({R_t4*12:.1f}\" arc center, R={R_t4:.4f}')")
+    print(f'=== OUTLINE PATH (wall arcs R=28", arcs R=10" & R=28") ===')
+    print(f"  U0:   ({pts['U0'][0]:.4f}, {pts['U0'][1]:.4f})  (arc tangent)")
+    print(f"  U1:   ({pts['U1'][0]:.4f}, {pts['U1'][1]:.4f})  (arc tangent)")
+    print(f"  U2:   ({pts['U2'][0]:.4f}, {pts['U2'][1]:.4f})  (same E as U1)")
+    print(f"  U3:   ({pts['U3'][0]:.4f}, {pts['U3'][1]:.4f})  (arc tangent point)")
+    print(f"  U4:   ({pts['U4'][0]:.4f}, {pts['U4'][1]:.4f})  (5'8\" south of U5)")
+    print(f"  U5:   ({pts['U5'][0]:.4f}, {pts['U5'][1]:.4f})  (arc tangent)")
+    print(f"  U6:   ({pts['U6'][0]:.4f}, {pts['U6'][1]:.4f})  (arc tangent)")
+    print(f"  U7:   ({pts['U7'][0]:.4f}, {pts['U7'][1]:.4f})  (6.0' east of U6)")
+    print(f"  U8:   ({pts['U8'][0]:.4f}, {pts['U8'][1]:.4f})  (Ct1/Ct2 arc junction)")
+    print(f"  U9:   ({pts['U9'][0]:.4f}, {pts['U9'][1]:.4f})  (arc tangent)")
+    print(f"  U10:  ({pts['U10'][0]:.4f}, {pts['U10'][1]:.4f})  (arc E-W tangent)")
+    print(f"  U11:  ({pts['U11'][0]:.4f}, {pts['U11'][1]:.4f})  (180° arc west end / arc N-S tangent)")
+    print(f"  U12:  ({pts['U12'][0]:.4f}, {pts['U12'][1]:.4f})  (line / 180° arc tangent)")
+    print(f"  U13:  ({pts['U13'][0]:.4f}, {pts['U13'][1]:.4f})  ({R_ct4*12:.1f}\" arc / line tangent)")
+    print(f"  U14:  ({pts['U14'][0]:.4f}, {pts['U14'][1]:.4f})  ({R_ct4*12:.1f}\" arc tangent to N-S line)")
+    print(f"  U15:  ({pts['U15'][0]:.4f}, {pts['U15'][1]:.4f})  (arc Cf4, exits North)")
+    print(f"  U16:  ({pts['U16'][0]:.4f}, {pts['U16'][1]:.4f})  (arc Cf4, incoming tangent)")
+    print(f"  U17:  ({pts['U17'][0]:.4f}, {pts['U17'][1]:.4f})  (F17, on PiX-Pi5 line)")
+    print(f"  U18:  ({pts['U18'][0]:.4f}, {pts['U18'][1]:.4f})  (F18, wall east end)")
+    print(f"  U19:  ({pts['U19'][0]:.4f}, {pts['U19'][1]:.4f})  (F19, wall west end)")
+    print(f"  U20:  ({pts['U20'][0]:.4f}, {pts['U20'][1]:.4f})  (F20, arc junction)")
+    print(f"  U21:  ({pts['U21'][0]:.4f}, {pts['U21'][1]:.4f})  (F21, was To3)")
+    print(f"  Cw1:  ({pts['Cw1'][0]:.4f}, {pts['Cw1'][1]:.4f})  (F20->F21 arc center)")
+    print(f"  Cw2:  ({pts['Cw2'][0]:.4f}, {pts['Cw2'][1]:.4f})  (F19->F20 arc center)")
+    print(f"  Cw3:  ({pts['Cw3'][0]:.4f}, {pts['Cw3'][1]:.4f})  (F17->F18 arc center)")
+    print(f"  Wall segment: U19 to U18, length = {abs(pts['U18'][0]-pts['U19'][0])*12:.1f}\"")
+    print(f"  Cf4:  ({pts['Cf4'][0]:.4f}, {pts['Cf4'][1]:.4f})  (arc Cf4 center, R={R_cf4:.4f}')")
+    print(f"  Ct4:  ({pts['Ct4'][0]:.4f}, {pts['Ct4'][1]:.4f})  ({R_ct4*12:.1f}\" arc center, R={R_ct4:.4f}')")
     print(f"  Outline area: {outline_area:.2f} sq ft")
 
     lines = []
@@ -749,7 +749,7 @@ if __name__ == "__main__":
     lines.append(f'  <clipPath id="page"><rect width="{W}" height="{H}"/></clipPath>')
     lines.append('</defs>')
     lines.append(f'<text x="{W/2}" y="30" text-anchor="middle" font-family="Arial" font-size="14"'
-                 f' font-weight="bold">Site Path \u2014 Outline (wall arcs R=28\u2033, fillets R=10\u2033 &amp; R=28\u2033)</text>')
+                 f' font-weight="bold">Site Path \u2014 Outline (wall arcs R=28\u2033, arcs R=10\u2033 &amp; R=28\u2033)</text>')
 
     render_layer(lines, outer_segs, pts_rot, outer_cfg)
     render_layer(lines, inset_segs, pts_rot, inset_cfg)
@@ -757,7 +757,7 @@ if __name__ == "__main__":
     render_floorplan(lines)
 
     # Area label centered in outline
-    centroid_names = ["O2","O1c","O1b","O1a","O1","O0","O15","O14","O13b","O13a","O13","O12","O11","O10a","O9","O8","O7","O6a","O6","O5","O4","O3"]
+    centroid_names = ["U0","U1","U2","U3","U4","U5","U6","U7","U8","U9","U10","U11","U12","U13","U14","U15","U16","U17","U18","U19","U20","U21"]
     cx_o = sum(pts[n][0] for n in centroid_names) / len(centroid_names)
     cy_o = sum(pts[n][1] for n in centroid_names) / len(centroid_names)
     sx, sy = to_svg(cx_o, cy_o)
@@ -779,7 +779,7 @@ if __name__ == "__main__":
     lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#999">Inset path at 20% ({inset_area:.2f} sq ft)</text>')
     ly += 12
     lines.append(f'<line x1="40" y1="{ly+4}" x2="54" y2="{ly+4}" stroke="#333" stroke-width="2.0"/>')
-    lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Outline path ({outline_area:.2f} sq ft) \u2014 wall arcs R=28", fillets R=10" &amp; R=28"</text>')
+    lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Outline path ({outline_area:.2f} sq ft) \u2014 wall arcs R=28", arcs R=10" &amp; R=28"</text>')
     ly += 12
     lines.append(f'<line x1="40" y1="{ly+4}" x2="54" y2="{ly+4}" stroke="#2E7D32" stroke-width="2.5"/>')
     lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Wall arcs (R=28")</text>')
@@ -787,7 +787,7 @@ if __name__ == "__main__":
     # Footer
     lines.append(f'<text x="{W/2}" y="{H-2}" text-anchor="middle" font-family="Arial" font-size="7.5"'
                  f' fill="#999">Bearings as adjusted \u2022 Distances in feet and inches \u2022'
-                 f' Outline arcs: wall R=28", fillets R=10" &amp; R=28"</text>')
+                 f' Outline arcs: wall R=28", arcs R=10" &amp; R=28"</text>')
     lines.append('</svg>')
 
     svg_content = "\n".join(lines)
@@ -798,4 +798,4 @@ if __name__ == "__main__":
     print(f"Outer path area: {outer_area:.2f} sq ft (rendered at 20%)")
     print(f"Inset path area: {inset_area:.2f} sq ft (rendered at 20%)")
     print(f"Outline path area: {outline_area:.2f} sq ft (rendered at 100%)")
-    print(f"Outline: O2->O1c->Arc20->O1b->Arc28->O1a->O1->Fillet->O0->O15->Cw1->O14->Cw2->O13b->Wall->O13a->Cw3->O13->O12->FilletPo5->O11->O10a->Turn4->O9->O8->Turn3_180->O7->Fillet6a->O6a->O6->Turn2->O5->Turn1->O4->O3->Fillet2->O2")
+    print(f"Outline: U0->ArcCf->U1->U2->ArcCc2->U3->ArcCc1->U4->U5->ArcCf2->U6->U7->ArcCt1->U8->ArcCt2->U9->U10->ArcCt6a->U11->ArcCt3_180->U12->U13->ArcCt4->U14->U15->ArcCf4->U16->U17->ArcCw3->U18->Wall->U19->ArcCw2->U20->ArcCw1->U21->U0")

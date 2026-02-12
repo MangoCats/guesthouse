@@ -2,7 +2,7 @@
 
 Imports outline geometry from gen_path_svg and computes an 8" inset
 using shared functions from survey.py.
-Points C0-C9, C10a-C15 (plus C13a, C13b) correspond to outline points O0-O9, O10a-O15 (plus O13a, O13b).
+Outline points U0-U21, inner wall points W0-W21, display labels F0-F21.
 """
 import sys, os
 
@@ -18,8 +18,8 @@ from survey import (
 )
 from gen_path_svg import (
     pts, outline_segs, to_svg, W, H, outline_cfg,
-    R_fillet, R_wall, R_w1, R_w2, R_f_po5,
-    R_turn3, R_turn2, R_turn1, R_fillet2, R_t4, R_6a,
+    R_cf, R_wall, R_w1, R_w2, R_cf4,
+    R_ct3, R_ct2, R_ct1, R_cf2, R_ct4, R_6a,
     R_1c, R_1a,
 )
 
@@ -28,9 +28,9 @@ wall_t = 8.0 / 12.0  # 8 inches in feet
 
 # --- Compute inner wall points and segments ---
 _radii = {
-    "R_fillet": R_fillet, "R_w1": R_w1, "R_w2": R_w2, "R_wall": R_wall,
-    "R_f_po5": R_f_po5, "R_turn3": R_turn3, "R_turn2": R_turn2,
-    "R_turn1": R_turn1, "R_fillet2": R_fillet2, "R_t4": R_t4, "R_6a": R_6a,
+    "R_cf": R_cf, "R_w1": R_w1, "R_w2": R_w2, "R_wall": R_wall,
+    "R_cf4": R_cf4, "R_ct3": R_ct3, "R_ct2": R_ct2,
+    "R_ct1": R_ct1, "R_cf2": R_cf2, "R_ct4": R_ct4, "R_6a": R_6a,
     "R_1c": R_1c, "R_1a": R_1a,
 }
 inner_segs = compute_inner_walls(outline_segs, pts, wall_t, _radii)
@@ -51,9 +51,9 @@ out.append('</defs>')
 out.append(f'<text x="{W/2}" y="30" text-anchor="middle" font-family="Arial" font-size="14"'
            f' font-weight="bold">Floorplan &#8212; 8&#8243; Walls</text>')
 
-# --- Interior wall: 6" thick, south face 11'6" north of inner C0-C15 wall ---
+# --- Interior wall: 6" thick, south face 11'6" north of inner F0-F21 wall ---
 int_wall_t = 6.0 / 12.0   # 6 inches
-int_wall_south = pts["W0"][1] + 11.5   # 11'6" north of inner face of C0-C15
+int_wall_south = pts["W0"][1] + 11.5   # 11'6" north of inner face of F0-F21
 int_wall_north = int_wall_south + int_wall_t
 
 _s_ints = horiz_isects(inner_poly, int_wall_south)
@@ -113,7 +113,7 @@ out.append(f'<text x="{iw_lx:.1f}" y="{iw_ly+3.5-8:.1f}" text-anchor="middle" fo
 iw2_w = pts["W1"][0] + 6.5      # west face: 6'6" east of inner C1-C2
 iw2_e = iw2_w + int_wall_t      # east face: +6"
 iw2_s = int_wall_north           # south end: IW1 north face
-iw2_n = pts["W3"][1]             # north end: inner C3-C4 wall
+iw2_n = pts["W6"][1]             # north end: inner C3-F7 wall
 iw2_pts = [(iw2_w, iw2_s), (iw2_e, iw2_s), (iw2_e, iw2_n), (iw2_w, iw2_n)]
 iw2_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw2_pts)
 out.append(f'<polygon points="{iw2_svg}" fill="rgba(160,160,160,0.35)" stroke="none"/>')
@@ -130,9 +130,9 @@ iw2_lx, iw2_ly = to_svg(iw2_mid_e, iw2_mid_n)
 out.append(f'<text x="{iw2_lx-4:.1f}" y="{iw2_ly+3.5:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#666" transform="rotate(-90,{iw2_lx-4:.1f},{iw2_ly+3.5:.1f})">IW2</text>')
 
-# Dimension line: IW1 north face to C6-C7 south face (inner), mid-span
-dim_e = (pts["O6"][0] + pts["O7"][0]) / 2
-dim_top_n = pts["W6"][1]       # south face of C6-C7 wall (inner)
+# Dimension line: IW1 north face to F9-F11 south face (inner), mid-span
+dim_e = (pts["U9"][0] + pts["U11"][0]) / 2
+dim_top_n = pts["W9"][1]       # south face of F9-F11 wall (inner)
 dim_bot_n = int_wall_north     # north face of IW1
 dim_dist = dim_top_n - dim_bot_n
 dim_ft = int(dim_dist)
@@ -151,12 +151,12 @@ dm_x, dm_y = (dx1 + dx2) / 2, (dy1 + dy2) / 2
 out.append(f'<text x="{dm_x-3:.1f}" y="{dm_y+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999" transform="rotate(-90,{dm_x-3:.1f},{dm_y+3:.1f})">{dim_label}</text>')
 
-# Dimension line: IW2 east face to inside C8-C9 wall, vertically centered in C8-C9 wall
-dim2_n = (pts["O8"][1] + pts["O9"][1]) / 2
+# Dimension line: IW2 east face to inside F12-F13 wall, vertically centered in F12-F13 wall
+dim2_n = (pts["U12"][1] + pts["U13"][1]) / 2
 # West end: IW2 east face
 dim2_west_e = iw2_e
-# East end: interpolate along inner wall W9-W8 at dim2_n
-_w9, _w8 = pts["W9"], pts["W8"]
+# East end: interpolate along inner wall W13-W12 at dim2_n
+_w9, _w8 = pts["W13"], pts["W12"]
 _t_e = (dim2_n - _w9[1]) / (_w8[1] - _w9[1]) if _w8[1] != _w9[1] else 0.5
 dim2_east_e = _w9[0] + _t_e * (_w8[0] - _w9[0])
 dim2_dist = dim2_east_e - dim2_west_e
@@ -183,7 +183,7 @@ app_offset_e = 6.0 / 12.0   # 6" from interior west wall
 app_offset_n = 4.0 / 12.0   # 4" from interior south wall
 app_gap = 1.0 / 12.0        # 1" gap between appliances
 
-# Dryer in C0-C1 corner: offset from inner west wall (W1) and inner south wall (W0)
+# Dryer in F0-C1 corner: offset from inner west wall (W1) and inner south wall (W0)
 dryer_w = pts["W1"][0] + app_offset_e
 dryer_s = pts["W0"][1] + app_offset_n
 dryer_e = dryer_w + app_w
@@ -313,7 +313,7 @@ iw5_thick = 3.0 / 12.0
 iw5_n = int_wall_south - 30.0 / 12.0   # north face
 iw5_s = iw5_n - iw5_thick               # south face
 iw5_w = iw4_e                            # west end at IW4 east face
-iw5_e = pts["W11"][0]                    # east end at inner C10a-C11 wall
+iw5_e = pts["W15"][0]                    # east end at inner F14-F15 wall
 iw5_poly = [(iw5_w, iw5_s), (iw5_e, iw5_s), (iw5_e, iw5_n), (iw5_w, iw5_n)]
 iw5_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw5_poly)
 out.append(f'<polygon points="{iw5_svg}" fill="rgba(160,160,160,0.35)" stroke="none"/>')
@@ -359,7 +359,7 @@ out.append(f'<text x="{_bdx:.1f}" y="{_bdy+3:.1f}" text-anchor="middle" font-fam
            f' font-size="8" fill="#666">BEDROOM</text>')
 
 # Office label (east of bedroom, above closet 1)
-_of_cx = (iw4_e + pts["W11"][0]) / 2
+_of_cx = (iw4_e + pts["W15"][0]) / 2
 _of_cy = (closet1_top + iw_thick_3 + int_wall_south) / 2 - 2.0
 _ofx, _ofy = to_svg(_of_cx, _of_cy)
 out.append(f'<text x="{_ofx:.1f}" y="{_ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
@@ -458,10 +458,10 @@ d7m_x = (d7x1 + d7x2) / 2
 out.append(f'<text x="{d7m_x:.1f}" y="{d7y1-3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999">{dim7_label}</text>')
 
-# Dimension line: w5_e to inside of C10a-C11 wall (horizontal)
+# Dimension line: w5_e to inside of F14-F15 wall (horizontal)
 dim3_w_e = w5_e              # east face of Wall 5
-dim3_e_e = pts["W11"][0]     # inner face of C10a-C11 wall
-dim3_n = 5.0                 # N position (within both Wall 5 and C10a-C11 range)
+dim3_e_e = pts["W15"][0]     # inner face of F14-F15 wall
+dim3_n = 5.0                 # N position (within both Wall 5 and F14-F15 range)
 dim3_dist = dim3_e_e - dim3_w_e
 dim3_ft = int(dim3_dist)
 dim3_in = (dim3_dist - dim3_ft) * 12
@@ -480,7 +480,7 @@ out.append(f'<text x="{d3m_x:.1f}" y="{d3y1-3:.1f}" text-anchor="middle" font-fa
 
 # Dimension line: STORAGE space between IW5 and IW1 (horizontal)
 dim4_w_e = iw4_e             # east face of IW4
-dim4_e_e = pts["W11"][0]     # west (inner) face of C10a-C11 wall
+dim4_e_e = pts["W15"][0]     # west (inner) face of F14-F15 wall
 dim4_n = (iw5_n + int_wall_south) / 2   # vertically centered between IW5 and IW1
 dim4_dist = dim4_e_e - dim4_w_e
 dim4_ft = int(dim4_dist)
@@ -498,10 +498,10 @@ d4m_x = (d4x1 + d4x2) / 2
 out.append(f'<text x="{d4m_x:.1f}" y="{d4y1-3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999">{dim4_label}</text>')
 
-# Dimension line: IW5 south face to C13a-C13b wall north face (vertical, at C13a easting)
-dim5_e = pts["O13a"][0]           # easting of C13a
+# Dimension line: IW5 south face to F18-F19 wall north face (vertical, at F18 easting)
+dim5_e = pts["U18"][0]           # easting of F18
 dim5_n_top = iw5_s                # south face of IW5
-dim5_n_bot = pts["W13a"][1]       # north (inner) face of C13a-C13b wall
+dim5_n_bot = pts["W18"][1]       # north (inner) face of F18-F19 wall
 dim5_dist = dim5_n_top - dim5_n_bot
 dim5_ft = int(dim5_dist)
 dim5_in = (dim5_dist - dim5_ft) * 12
@@ -518,9 +518,9 @@ d5_mx, d5_my = d5x1, (d5y1 + d5y2) / 2
 out.append(f'<text x="{d5_mx-3:.1f}" y="{d5_my+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999" transform="rotate(-90,{d5_mx-3:.1f},{d5_my+3:.1f})">{dim5_label}</text>')
 
-# N-S dimension line: south face of C3-C4 wall to north face of IW1, 1' east of C3
-dim6_e = pts["O3"][0] + 1.0
-dim6_n_top = pts["W3"][1]        # south (inner) face of C3-C4 wall
+# N-S dimension line: south face of C3-F7 wall to north face of IW1, 1' east of C3
+dim6_e = pts["U6"][0] + 1.0
+dim6_n_top = pts["W6"][1]        # south (inner) face of C3-F7 wall
 dim6_n_bot = int_wall_north      # north face of IW1
 dim6_dist = dim6_n_top - dim6_n_bot
 dim6_ft = int(dim6_dist)
@@ -538,7 +538,7 @@ d6_mx, d6_my = d6x1, (d6y1 + d6y2) / 2
 out.append(f'<text x="{d6_mx-3:.1f}" y="{d6_my+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999" transform="rotate(-90,{d6_mx-3:.1f},{d6_my+3:.1f})">{dim6_label}</text>')
 
-# C-point labels (outer vertices displayed as C0-C15, C13a, C13b)
+# C-point labels (outer vertices displayed as F0-F21, F18, F19)
 vs_map = outline_cfg.vertex_styles
 _o_names = []
 for seg in outline_segs:
@@ -549,7 +549,7 @@ for o_name in _o_names:
     out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="2.5" fill="#333"/>')
     if o_name in vs_map:
         vs = vs_map[o_name]
-        c_label = "C" + o_name[1:]  # O13b -> C13b
+        c_label = "F" + o_name[1:]  # U19 -> F19
         out.append(f'<text x="{sx+vs.dx:.1f}" y="{sy+vs.dy:.1f}" text-anchor="{vs.anchor}"'
                    f' font-family="Arial" font-size="9" font-weight="bold"'
                    f' fill="#333">{c_label}</text>')
@@ -560,11 +560,11 @@ out.append('<line x1="742" y1="560" x2="742" y2="524" stroke="#333" stroke-width
 out.append('<text x="742" y="518" text-anchor="middle" font-family="Arial"'
            ' font-size="13" font-weight="bold">N</text>')
 
-# Title block (right edge aligned with N arrow, bottom with C4 label)
-_c4_sx, _c4_sy = to_svg(*pts["O4"])
-_c4_vs = vs_map["O4"]
+# Title block (right edge aligned with N arrow, bottom with F7 label)
+_c4_sx, _c4_sy = to_svg(*pts["U7"])
+_c4_vs = vs_map["U7"]
 tb_right = 752      # right edge, aligned with N arrow center + margin
-tb_bottom = _c4_sy + _c4_vs.dy + 4  # bottom aligned with C4 label
+tb_bottom = _c4_sy + _c4_vs.dy + 4  # bottom aligned with F7 label
 tb_w = 130
 tb_h = 58
 tb_left = tb_right - tb_w
@@ -604,6 +604,6 @@ for seg in outline_segs:
         _print_names.append(seg.start)
 for o_name in _print_names:
     w_name = "W" + o_name[1:]
-    c_name = o_name.replace("O", "C")
+    c_name = "F" + o_name[1:]
     o = pts[o_name]; w = pts[w_name]
     print(f"  {c_name:<5s} ({o[0]:8.4f}, {o[1]:8.4f})  ->  inner ({w[0]:8.4f}, {w[1]:8.4f})")

@@ -210,19 +210,20 @@ def compute_inner_walls(outline_segs, pts, wall_t, radii):
     Mutates pts adding W-series points.
     Returns inner_segs list.
 
-    radii keys: R_fillet, R_w1, R_w2, R_wall, R_f_po5,
-                R_turn3, R_turn2, R_turn1, R_fillet2, R_t4, R_6a
+    radii keys: R_cf, R_w1, R_w2, R_wall, R_cf4,
+                R_ct3, R_ct2, R_ct1, R_cf2, R_ct4, R_6a
     """
     def _inner_point(seg_b, seg_a):
+        _wt = -wall_t  # negated: outline traverses CCW, interior on left
         if not isinstance(seg_b, LineSeg) and not isinstance(seg_a, LineSeg):
             c1 = pts[seg_b.center]; c2 = pts[seg_a.center]
-            r1 = (seg_b.radius + wall_t) if seg_b.direction == "CW" else (seg_b.radius - wall_t)
+            r1 = (seg_b.radius + _wt) if seg_b.direction == "CW" else (seg_b.radius - _wt)
             dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.sqrt(dx*dx+dy*dy)
             return (c1[0]+r1*dx/d, c1[1]+r1*dy/d)
         ls = seg_b if isinstance(seg_b, LineSeg) else seg_a
         arc = seg_a if isinstance(seg_b, LineSeg) else seg_b
         c = pts[arc.center]; S = pts[ls.start]; E = pts[ls.end]
-        D = (E[0]-S[0], E[1]-S[1]); LN = left_norm(S, E); P = off_pt(S, LN, wall_t)
+        D = (E[0]-S[0], E[1]-S[1]); LN = left_norm(S, E); P = off_pt(S, LN, _wt)
         t = ((c[0]-P[0])*D[0]+(c[1]-P[1])*D[1])/(D[0]**2+D[1]**2)
         return (P[0]+t*D[0], P[1]+t*D[1])
 
@@ -233,20 +234,28 @@ def compute_inner_walls(outline_segs, pts, wall_t, radii):
 
     R = radii
     inner_segs = [
-        LineSeg("W2","W1c"),
-        ArcSeg("W1c","W1b","Cc1",R["R_1c"]+wall_t,"CW",20),
-        ArcSeg("W1b","W1a","Cc2",R["R_1a"]-wall_t,"CCW",20),
-        LineSeg("W1a","W1"), ArcSeg("W1","W0","Cf",R["R_fillet"]-wall_t,"CCW",20),
-        LineSeg("W0","W15"), ArcSeg("W15","W14","Cw1",R["R_w1"]+wall_t,"CW",60),
-        ArcSeg("W14","W13b","Cw2",R["R_w2"]-wall_t,"CCW",60), LineSeg("W13b","W13a"),
-        ArcSeg("W13a","W13","Cw3",R["R_wall"]-wall_t,"CCW",20), LineSeg("W13","W12"),
-        ArcSeg("W12","W11","Cf4",R["R_f_po5"]-wall_t,"CCW",20), LineSeg("W11","W10a"),
-        ArcSeg("W10a","W9","Ct4",R["R_t4"]-wall_t,"CCW",60), LineSeg("W9","W8"),
-        ArcSeg("W8","W7","Ct3",R["R_turn3"]-wall_t,"CCW",60),
-        ArcSeg("W7","W6a","Ct6a",R["R_6a"]+wall_t,"CW",20), LineSeg("W6a","W6"),
-        ArcSeg("W6","W5","Ct2",R["R_turn2"]+wall_t,"CW",20),
-        ArcSeg("W5","W4","Ct1",R["R_turn1"]-wall_t,"CCW",20),
-        LineSeg("W4","W3"), ArcSeg("W3","W2","Cf2",R["R_fillet2"]-wall_t,"CCW",20),
+        ArcSeg("W0","W1","Cf",R["R_cf"]-wall_t,"CW",20),
+        LineSeg("W1","W2"),
+        ArcSeg("W2","W3","Cc2",R["R_1a"]-wall_t,"CW",20),
+        ArcSeg("W3","W4","Cc1",R["R_1c"]+wall_t,"CCW",20),
+        LineSeg("W4","W5"),
+        ArcSeg("W5","W6","Cf2",R["R_cf2"]-wall_t,"CW",20),
+        LineSeg("W6","W7"),
+        ArcSeg("W7","W8","Ct1",R["R_ct1"]-wall_t,"CW",20),
+        ArcSeg("W8","W9","Ct2",R["R_ct2"]+wall_t,"CCW",20),
+        LineSeg("W9","W10"),
+        ArcSeg("W10","W11","Ct6a",R["R_6a"]+wall_t,"CCW",20),
+        ArcSeg("W11","W12","Ct3",R["R_ct3"]-wall_t,"CW",60),
+        LineSeg("W12","W13"),
+        ArcSeg("W13","W14","Ct4",R["R_ct4"]-wall_t,"CW",60),
+        LineSeg("W14","W15"),
+        ArcSeg("W15","W16","Cf4",R["R_cf4"]-wall_t,"CW",20),
+        LineSeg("W16","W17"),
+        ArcSeg("W17","W18","Cw3",R["R_wall"]-wall_t,"CW",20),
+        LineSeg("W18","W19"),
+        ArcSeg("W19","W20","Cw2",R["R_w2"]-wall_t,"CW",60),
+        ArcSeg("W20","W21","Cw1",R["R_w1"]+wall_t,"CCW",60),
+        LineSeg("W21","W0"),
     ]
     return inner_segs
 
@@ -283,7 +292,7 @@ def compute_interior_layout(pts, inner_poly):
     ni = horiz_isects(inner_poly, iw1_n)
     iw1 = [(min(si),iw1_s),(max(si),iw1_s),(max(ni),iw1_n),(min(ni),iw1_n)]
 
-    iw2_w = pts["W1"][0]+6.5; iw2_e = iw2_w+iwt; iw2_s = iw1_n; iw2_n = pts["W3"][1]
+    iw2_w = pts["W1"][0]+6.5; iw2_e = iw2_w+iwt; iw2_s = iw1_n; iw2_n = pts["W6"][1]
 
     dryer_w = pts["W1"][0]+0.5; dryer_s = pts["W0"][1]+4.0/12
     dryer_e = dryer_w+35.0/12; dryer_n = dryer_s+30.0/12
