@@ -20,6 +20,7 @@ from gen_path_svg import (
     pts, outline_segs, to_svg, W, H, outline_cfg,
     R_fillet, R_wall, R_w1, R_w2, R_f_po5,
     R_turn3, R_turn2, R_turn1, R_fillet2, R_t4, R_6a,
+    R_1c, R_1a,
 )
 
 # --- Wall thickness ---
@@ -30,6 +31,7 @@ _radii = {
     "R_fillet": R_fillet, "R_w1": R_w1, "R_w2": R_w2, "R_wall": R_wall,
     "R_f_po5": R_f_po5, "R_turn3": R_turn3, "R_turn2": R_turn2,
     "R_turn1": R_turn1, "R_fillet2": R_fillet2, "R_t4": R_t4, "R_6a": R_6a,
+    "R_1c": R_1c, "R_1a": R_1a,
 }
 inner_segs = compute_inner_walls(outline_segs, pts, wall_t, _radii)
 
