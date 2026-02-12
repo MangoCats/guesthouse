@@ -267,8 +267,8 @@ pts["Cc2"] = (_cc2_E, pts["O1a"][1])
 _f1b = R_1c / (R_1c + R_1a)
 pts["O1b"] = (pts["Cc1"][0] + _f1b * (pts["Cc2"][0] - pts["Cc1"][0]),
               pts["Cc1"][1] + _f1b * (pts["Cc2"][1] - pts["Cc1"][1]))
-# O4: 6.0' east of O3 (5.5' + 6")
-pts["O4"] = (pts["O3"][0] + 5.5 + 6.0/12, pts["O3"][1])
+# O4: 6.0' east of O3, adjusted 1' west to undo C2/C3 shift
+pts["O4"] = (pts["O3"][0] + 5.5 + 6.0/12 - _nw_shift, pts["O3"][1])
 # Turn 1 at O4: 90° CW east->south, R=28"
 R_turn1 = 28.0 / 12.0
 pts["Ct1"] = (pts["O4"][0], pts["O4"][1] - R_turn1)
@@ -289,7 +289,7 @@ d_in_po5 = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
 L_in = math.sqrt(d_in_po5[0]**2 + d_in_po5[1]**2)
 d_in_u = (d_in_po5[0]/L_in, d_in_po5[1]/L_in)
 # C11 E-coordinate: 9' 2" east of east closet wall (w5_e)
-_w5_e = pts["O2"][0] + 8.0/12 + 0.5 + 35.0/12 + 3.0 + 2.0 + (3+30+4+140+4+30+3)/12.0
+_w5_e = pts["O1"][0] + 8.0/12 + 0.5 + 35.0/12 + 3.0 + 2.0 + (3+30+4+140+4+30+3)/12.0
 C11_E = _w5_e + 9.0 + 1.0/12
 # Outgoing direction is North; Cf4 is R_f_po5 west of C11
 ln_in_po5 = left_norm(pts["PiX"], pts["Pi5"])
@@ -341,7 +341,7 @@ dN_c = (wall_south_N + R_w2) - (pts["O15"][1] - R_w1)
 dE_c = math.sqrt((R_w1 + R_w2)**2 - dN_c**2)
 # Align C13b with east side of king bed
 # bed_e = inner_W1_E + 20.5' (dryer+counter+closet2+W1S+half_bedroom+half_bed)
-_bed_e_align = pts["O2"][0] + 8.0/12 + 20.5
+_bed_e_align = pts["O1"][0] + 8.0/12 + 20.5
 pts["O15"] = (_bed_e_align - dE_c, pts["O15"][1])
 # O13 on line from O12 at bearing 60° (O13->O12), tangent to Cw3 arc
 _brg_13 = math.radians(60.0)
