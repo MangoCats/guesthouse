@@ -261,11 +261,10 @@ for _n in ["POB","P2","P3","P4","P5","T1","T2","T3","PA","PX","TC1","TC2","TC3",
     pts_rot[_n] = _rot_cw(pts[_n])
 
 # ============================================================
-# Section 7: Outline Path (inset + arcs at Po3 and Po2)
+# Section 7: Outline Path (inset + arc at Po2)
 # ============================================================
 pts["Po2"]  = pts["Pi2"]
-pts["U21"]  = pts["Ti3"]   # was To3
-pts["To2"]  = pts["Ti2"]
+pts["U21"]  = pts["Ti3"]
 
 R_a0 = 10.0 / 12.0
 pts["C0"] = (pts["Pi3"][0] + R_a0, pts["Pi3"][1] + R_a0)
@@ -728,28 +727,25 @@ if __name__ == "__main__":
     print(f"  delta={delta}' R1i={R1i}' R2i={R2i}' R3i={R3i}'")
     print(f"  Inset area: {inset_area:.2f} sq ft")
     print(f'=== OUTLINE PATH ===')
-    print(f"  U0:   ({pts['U0'][0]:.4f}, {pts['U0'][1]:.4f})  (arc tangent)")
-    print(f"  U1:   ({pts['U1'][0]:.4f}, {pts['U1'][1]:.4f})  (arc tangent)")
-    print(f"  U2:   ({pts['U2'][0]:.4f}, {pts['U2'][1]:.4f})  (same E as U1)")
-    print(f"  U3:   ({pts['U3'][0]:.4f}, {pts['U3'][1]:.4f})  (arc tangent point)")
-    print(f"  U4:   ({pts['U4'][0]:.4f}, {pts['U4'][1]:.4f})  (5'8\" south of U5)")
-    print(f"  U5:   ({pts['U5'][0]:.4f}, {pts['U5'][1]:.4f})  (arc tangent)")
-    print(f"  U6:   ({pts['U6'][0]:.4f}, {pts['U6'][1]:.4f})  (arc tangent)")
-    print(f"  U7:   ({pts['U7'][0]:.4f}, {pts['U7'][1]:.4f})  (6.0' east of U6)")
-    print(f"  U8:   ({pts['U8'][0]:.4f}, {pts['U8'][1]:.4f})  (C7/C8 arc junction)")
-    print(f"  U9:   ({pts['U9'][0]:.4f}, {pts['U9'][1]:.4f})  (arc tangent)")
-    print(f"  U10:  ({pts['U10'][0]:.4f}, {pts['U10'][1]:.4f})  (arc E-W tangent)")
-    print(f"  U11:  ({pts['U11'][0]:.4f}, {pts['U11'][1]:.4f})  (180° arc west end / arc N-S tangent)")
-    print(f"  U12:  ({pts['U12'][0]:.4f}, {pts['U12'][1]:.4f})  (line / 180° arc tangent)")
-    print(f"  U13:  ({pts['U13'][0]:.4f}, {pts['U13'][1]:.4f})  ({R_a13*12:.1f}\" arc / line tangent)")
-    print(f"  U14:  ({pts['U14'][0]:.4f}, {pts['U14'][1]:.4f})  ({R_a13*12:.1f}\" arc tangent to N-S line)")
-    print(f"  U15:  ({pts['U15'][0]:.4f}, {pts['U15'][1]:.4f})  (arc C15, exits North)")
-    print(f"  U16:  ({pts['U16'][0]:.4f}, {pts['U16'][1]:.4f})  (arc C15, incoming tangent)")
-    print(f"  U17:  ({pts['U17'][0]:.4f}, {pts['U17'][1]:.4f})  (F17, on PiX-Pi5 line)")
-    print(f"  U18:  ({pts['U18'][0]:.4f}, {pts['U18'][1]:.4f})  (arc C17 tangent)")
-    print(f"  U19:  ({pts['U19'][0]:.4f}, {pts['U19'][1]:.4f})  (arc C19 tangent)")
-    print(f"  U20:  ({pts['U20'][0]:.4f}, {pts['U20'][1]:.4f})  (F20, arc junction)")
-    print(f"  U21:  ({pts['U21'][0]:.4f}, {pts['U21'][1]:.4f})  (F21, was To3)")
+    _pt_notes = [
+        ("U0", "arc tangent"), ("U1", "arc tangent"),
+        ("U2", "same E as U1"), ("U3", "arc tangent point"),
+        ("U4", "5'8\" south of U5"), ("U5", "arc tangent"),
+        ("U6", "arc tangent"), ("U7", "6.0' east of U6"),
+        ("U8", "C7/C8 arc junction"), ("U9", "arc tangent"),
+        ("U10", "arc E-W tangent"),
+        ("U11", "180° arc west end / arc N-S tangent"),
+        ("U12", "line / 180° arc tangent"),
+        ("U13", f"{R_a13*12:.1f}\" arc / line tangent"),
+        ("U14", f"{R_a13*12:.1f}\" arc tangent to N-S line"),
+        ("U15", "arc C15, exits North"),
+        ("U16", "arc C15, incoming tangent"),
+        ("U17", "F17, on PiX-Pi5 line"), ("U18", "arc C17 tangent"),
+        ("U19", "arc C19 tangent"), ("U20", "F20, arc junction"),
+        ("U21", "F21"),
+    ]
+    for name, note in _pt_notes:
+        print(f"  {name:<5s} ({pts[name][0]:.4f}, {pts[name][1]:.4f})  ({note})")
     print(f"  C20:  ({pts['C20'][0]:.4f}, {pts['C20'][1]:.4f})  (U20->U21 arc center)")
     print(f"  C19:  ({pts['C19'][0]:.4f}, {pts['C19'][1]:.4f})  (U19->U20 arc center)")
     print(f"  C17:  ({pts['C17'][0]:.4f}, {pts['C17'][1]:.4f})  (U17->U18 arc center)")
