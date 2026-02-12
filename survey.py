@@ -211,7 +211,7 @@ def compute_inner_walls(outline_segs, pts, wall_t, radii):
     Returns inner_segs list.
 
     radii keys: R_fillet, R_w1, R_w2, R_wall, R_f_po5, R1i,
-                R_turn3, R_turn2, R_turn1, R_fillet2, R_t4
+                R_turn3, R_turn2, R_turn1, R_fillet2, R_t4, R_6a
     """
     def _inner_point(seg_b, seg_a):
         if not isinstance(seg_b, LineSeg) and not isinstance(seg_a, LineSeg):
@@ -240,7 +240,8 @@ def compute_inner_walls(outline_segs, pts, wall_t, radii):
         ArcSeg("W12","W11","Cf4",R["R_f_po5"]-wall_t,"CCW",20), LineSeg("W11","W10a"),
         ArcSeg("W10a","W10","Ct4",R["R_t4"]-wall_t,"CCW",20),
         ArcSeg("W10","W9","C1",R["R1i"]+wall_t,"CW",60), LineSeg("W9","W8"),
-        ArcSeg("W8","W7","Ct3",R["R_turn3"]-wall_t,"CCW",20), LineSeg("W7","W6"),
+        ArcSeg("W8","W7","Ct3",R["R_turn3"]-wall_t,"CCW",60),
+        ArcSeg("W7","W6a","Ct6a",R["R_6a"]+wall_t,"CW",20), LineSeg("W6a","W6"),
         ArcSeg("W6","W5","Ct2",R["R_turn2"]+wall_t,"CW",20),
         ArcSeg("W5","W4","Ct1",R["R_turn1"]-wall_t,"CCW",20),
         LineSeg("W4","W3"), ArcSeg("W3","W2","Cf2",R["R_fillet2"]-wall_t,"CCW",20),

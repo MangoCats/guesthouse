@@ -19,7 +19,7 @@ from survey import (
 from gen_path_svg import (
     pts, outline_segs, to_svg, W, H, outline_cfg,
     R_fillet, R_wall, R_w1, R_w2, R_f_po5, R1i,
-    R_turn3, R_turn2, R_turn1, R_fillet2, R_t4,
+    R_turn3, R_turn2, R_turn1, R_fillet2, R_t4, R_6a,
 )
 
 # --- Wall thickness ---
@@ -29,7 +29,7 @@ wall_t = 8.0 / 12.0  # 8 inches in feet
 _radii = {
     "R_fillet": R_fillet, "R_w1": R_w1, "R_w2": R_w2, "R_wall": R_wall,
     "R_f_po5": R_f_po5, "R1i": R1i, "R_turn3": R_turn3, "R_turn2": R_turn2,
-    "R_turn1": R_turn1, "R_fillet2": R_fillet2, "R_t4": R_t4,
+    "R_turn1": R_turn1, "R_fillet2": R_fillet2, "R_t4": R_t4, "R_6a": R_6a,
 }
 inner_segs = compute_inner_walls(outline_segs, pts, wall_t, _radii)
 
@@ -495,6 +495,26 @@ out.append(f'<line x1="{d5x2-tick:.1f}" y1="{d5y2:.1f}" x2="{d5x2+tick:.1f}" y2=
 d5_mx, d5_my = d5x1, (d5y1 + d5y2) / 2
 out.append(f'<text x="{d5_mx-3:.1f}" y="{d5_my+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999" transform="rotate(-90,{d5_mx-3:.1f},{d5_my+3:.1f})">{dim5_label}</text>')
+
+# N-S dimension line: south face of C3-C4 wall to north face of IW1, 1' east of C3
+dim6_e = pts["O3"][0] + 1.0
+dim6_n_top = pts["W3"][1]        # south (inner) face of C3-C4 wall
+dim6_n_bot = int_wall_north      # north face of IW1
+dim6_dist = dim6_n_top - dim6_n_bot
+dim6_ft = int(dim6_dist)
+dim6_in = (dim6_dist - dim6_ft) * 12
+dim6_label = f"{dim6_ft}' {dim6_in:.1f}\""
+d6x1, d6y1 = to_svg(dim6_e, dim6_n_bot)
+d6x2, d6y2 = to_svg(dim6_e, dim6_n_top)
+out.append(f'<line x1="{d6x1:.1f}" y1="{d6y1:.1f}" x2="{d6x2:.1f}" y2="{d6y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d6x1-tick:.1f}" y1="{d6y1:.1f}" x2="{d6x1+tick:.1f}" y2="{d6y1:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d6x2-tick:.1f}" y1="{d6y2:.1f}" x2="{d6x2+tick:.1f}" y2="{d6y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+d6_mx, d6_my = d6x1, (d6y1 + d6y2) / 2
+out.append(f'<text x="{d6_mx-3:.1f}" y="{d6_my+3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999" transform="rotate(-90,{d6_mx-3:.1f},{d6_my+3:.1f})">{dim6_label}</text>')
 
 # C-point labels (outer vertices displayed as C0-C15, C13a, C13b)
 vs_map = outline_cfg.vertex_styles
