@@ -436,6 +436,26 @@ cl1_mx, cl1_my = cl1_x1, (cl1_y1 + cl1_y2) / 2
 out.append(f'<text x="{cl1_mx-3:.1f}" y="{cl1_my+3:.1f}" text-anchor="middle" font-family="Arial"'
            f' font-size="8" fill="#999" transform="rotate(-90,{cl1_mx-3:.1f},{cl1_my+3:.1f})">{cl1_ns_label}</text>')
 
+# E-W dimension line: east face of C1-C2 wall to west face of west closet wall (Wall 8)
+dim7_w_e = pts["W1"][0]          # inner (east) face of C1-C2 wall
+dim7_e_e = ctr_e                 # west face of Wall 8
+dim7_n = (ctr_s + ctr_n) / 2    # vertically centered in counter area
+dim7_dist = dim7_e_e - dim7_w_e
+dim7_ft = int(dim7_dist)
+dim7_in = (dim7_dist - dim7_ft) * 12
+dim7_label = f"{dim7_ft}' {dim7_in:.1f}\""
+d7x1, d7y1 = to_svg(dim7_w_e, dim7_n)
+d7x2, d7y2 = to_svg(dim7_e_e, dim7_n)
+out.append(f'<line x1="{d7x1:.1f}" y1="{d7y1:.1f}" x2="{d7x2:.1f}" y2="{d7y2:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d7x1:.1f}" y1="{d7y1-tick:.1f}" x2="{d7x1:.1f}" y2="{d7y1+tick:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+out.append(f'<line x1="{d7x2:.1f}" y1="{d7y2-tick:.1f}" x2="{d7x2:.1f}" y2="{d7y2+tick:.1f}"'
+           f' stroke="#999" stroke-width="0.8"/>')
+d7m_x = (d7x1 + d7x2) / 2
+out.append(f'<text x="{d7m_x:.1f}" y="{d7y1-3:.1f}" text-anchor="middle" font-family="Arial"'
+           f' font-size="8" fill="#999">{dim7_label}</text>')
+
 # Dimension line: w5_e to inside of C10a-C11 wall (horizontal)
 dim3_w_e = w5_e              # east face of Wall 5
 dim3_e_e = pts["W11"][0]     # inner face of C10a-C11 wall

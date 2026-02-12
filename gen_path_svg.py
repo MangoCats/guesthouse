@@ -262,12 +262,7 @@ pts["O6"] = (pts["Ct2"][0], pts["Ct2"][1] - R_turn2)
 R_turn3 = 28.0 / 12.0
 R_6a = 2.0 / 12.0  # 90° fillet at C6a
 west_E = pts["C1"][0] - R1i  # westernmost E on Arc 1o
-_corner_E = west_E - 2 * R_turn3  # N-S / E-W corner easting
-pts["O6a"] = (_corner_E - R_6a, pts["O6"][1])
-pts["Ct6a"] = (_corner_E - R_6a, pts["O6"][1] + R_6a)
-pts["O7"] = (_corner_E, pts["O6"][1] + R_6a)  # fillet tangent / 180° arc west end
-pts["Ct3"] = (west_E - R_turn3, pts["O7"][1])  # 180° arc center
-# O8 and O9 computed below via tangent line (after Ct4)
+# O6a, Ct6a, O7, Ct3 eastings determined below from bearing constraint
 
 # --- Fillet at Po5 corner (R = 10", exits North) ---
 R_f_po5 = 28.0 / 12.0
@@ -288,34 +283,32 @@ t_in = ((pts["Cf4"][0]-pts["PiX"][0])*d_in_po5[0] + (pts["Cf4"][1]-pts["PiX"][1]
        / (d_in_po5[0]**2 + d_in_po5[1]**2)
 pts["O12"] = (pts["PiX"][0] + t_in*d_in_po5[0], pts["PiX"][1] + t_in*d_in_po5[1])
 
-# --- Arc O10a-O9: R sized so O9_N = IW1_north + 24" ---
+# --- Arc O10a-O9: bearing O9->O8 = 345°, O9_N = IW1_north + 24" ---
 # C10a: centered 2" north of IW1 north face
 # IW1 north = inner south wall (O0 + 8" wall) + 11'6" + 6" IW1 thickness
 _iw1_n_face = pts["O0"][1] + 8.0/12 + 11.5 + 6.0/12
 _O10a_N = _iw1_n_face + 2.0/12
 _target_O9_N = _iw1_n_face + 24.0/12
 _dN_t4 = _target_O9_N - _O10a_N
-# Solve for R_t4: external tangent between Ct4(R_t4) and Ct3(R_turn3)
-# Constraint: O9_N = _target_O9_N (tangent normal n has n_y = _dN_t4/R_t4)
-_cx3, _cy3 = pts["Ct3"]
-_dE_t4 = C11_E - _cx3
-_dcy_t4 = _O10a_N - _cy3
-_R_lo, _R_hi = _dN_t4 + 0.01, 50.0
-for _ in range(100):
-    _Rm = (_R_lo + _R_hi) / 2
-    _ny = _dN_t4 / _Rm
-    _nx = math.sqrt(max(0, 1 - _ny**2))
-    _dot = (_dE_t4 - _Rm) * _nx + _dcy_t4 * _ny
-    if _dot < R_turn3 - _Rm:
-        _R_lo = _Rm
-    else:
-        _R_hi = _Rm
-R_t4 = (_R_lo + _R_hi) / 2
+# Bearing 345° => tangent direction (-sin15°, cos15°), normal n = (cos15°, sin15°)
+_brg_off = math.radians(360.0 - 345.0)  # 15°
+_nx_t = math.cos(_brg_off)
+_ny_t = math.sin(_brg_off)
+# R_t4 from O9_N constraint: O9_N = _O10a_N + R_t4 * ny
+R_t4 = _dN_t4 / _ny_t
 pts["Ct4"] = (C11_E - R_t4, _O10a_N)
 pts["O10a"] = (C11_E, _O10a_N)
+# Ct3 easting from tangent constraint: (Ct3 - Ct4) · n = R_t4 - R_turn3
+_Ct3_N = pts["O6"][1] + R_6a  # O7_N = Ct3_N (independent of _corner_E)
+_Ct4_E, _Ct4_N = pts["Ct4"]
+_Ct3_E = _Ct4_E + (R_t4 - R_turn3 - (_Ct3_N - _Ct4_N) * _ny_t) / _nx_t
+# Derive corner easting and dependent points (C6a, C7, Ct3)
+_corner_E = _Ct3_E - R_turn3
+pts["O6a"] = (_corner_E - R_6a, pts["O6"][1])
+pts["Ct6a"] = (_corner_E - R_6a, pts["O6"][1] + R_6a)
+pts["O7"] = (_corner_E, pts["O6"][1] + R_6a)
+pts["Ct3"] = (_Ct3_E, _Ct3_N)
 # O9, O8: tangent points (shared outward normal for external tangent)
-_ny_t = _dN_t4 / R_t4
-_nx_t = math.sqrt(1 - _ny_t**2)
 pts["O9"] = (pts["Ct4"][0] + R_t4 * _nx_t, pts["Ct4"][1] + R_t4 * _ny_t)
 pts["O8"] = (pts["Ct3"][0] + R_turn3 * _nx_t, pts["Ct3"][1] + R_turn3 * _ny_t)
 
