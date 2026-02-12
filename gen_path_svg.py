@@ -230,6 +230,36 @@ inset_segs = [
 ]
 inset_area = poly_area(path_polygon(inset_segs, pts))
 
+# --- Rotate outer/inset points about O12 so PiX-Pi5 bearing = 60° ---
+# Pre-compute O12 position as pivot (perpendicular foot from Cf4 onto PiX-Pi5)
+_R_fp = 28.0 / 12.0
+_d_pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
+_L_pip = math.sqrt(_d_pip[0]**2 + _d_pip[1]**2)
+_d_pip_u = (_d_pip[0]/_L_pip, _d_pip[1]/_L_pip)
+_ln_pip = left_norm(pts["PiX"], pts["Pi5"])
+_o_pip = off_pt(pts["PiX"], _ln_pip, _R_fp)
+_pre_O1_E = pts["Pi3"][0]
+_pre_w5_e = _pre_O1_E + 8.0/12 + 0.5 + 35.0/12 + 3.0 + 2.0 + (3+30+4+140+4+30+3)/12.0
+_pre_C11_E = _pre_w5_e + 9.0 + 1.0/12
+_t_cf4 = (_pre_C11_E - _R_fp - _o_pip[0]) / _d_pip_u[0]
+_cf4 = (_pre_C11_E - _R_fp, _o_pip[1] + _t_cf4 * _d_pip_u[1])
+_t_o12 = ((_cf4[0]-pts["PiX"][0])*_d_pip[0] + (_cf4[1]-pts["PiX"][1])*_d_pip[1]) \
+         / (_d_pip[0]**2 + _d_pip[1]**2)
+_pivot = (pts["PiX"][0] + _t_o12*_d_pip[0], pts["PiX"][1] + _t_o12*_d_pip[1])
+# CW rotation angle: target bearing (60°) minus current PiX->Pi5 bearing
+_brg_pip = math.degrees(math.atan2(_d_pip[0], _d_pip[1])) % 360
+_rot_deg = 60.0 - _brg_pip
+_rot_rad = math.radians(_rot_deg)
+_cos_r = math.cos(_rot_rad)
+_sin_r = math.sin(_rot_rad)
+def _rot_cw(p):
+    dE, dN = p[0] - _pivot[0], p[1] - _pivot[1]
+    return (_pivot[0] + dE*_cos_r + dN*_sin_r, _pivot[1] - dE*_sin_r + dN*_cos_r)
+pts_rot = dict(pts)
+for _n in ["POB","P2","P3","P4","P5","T1","T2","T3","PA","PX","C1","C2","C3",
+           "PiOB","Pi2","Pi3","Pi4","Pi5","Ti1","Ti2","Ti3","Ai2","PiX"]:
+    pts_rot[_n] = _rot_cw(pts[_n])
+
 # ============================================================
 # Section 7: Outline Path (inset + fillets at Po3 and Po2)
 # ============================================================
@@ -297,10 +327,10 @@ o_in_po5 = off_pt(pts["PiX"], ln_in_po5, R_f_po5)
 t_cf4 = (C11_E - R_f_po5 - o_in_po5[0]) / d_in_u[0]
 pts["Cf4"] = (C11_E - R_f_po5, o_in_po5[1] + t_cf4 * d_in_u[1])
 pts["O11"] = (C11_E, pts["Cf4"][1])  # directly east of Cf4
-# O12: perpendicular foot from Cf4 onto incoming line
-t_in = ((pts["Cf4"][0]-pts["PiX"][0])*d_in_po5[0] + (pts["Cf4"][1]-pts["PiX"][1])*d_in_po5[1]) \
-       / (d_in_po5[0]**2 + d_in_po5[1]**2)
-pts["O12"] = (pts["PiX"][0] + t_in*d_in_po5[0], pts["PiX"][1] + t_in*d_in_po5[1])
+# O12: tangent point on fillet circle for 60° incoming bearing (O13->O12)
+_brg_f4 = math.radians(60.0)
+pts["O12"] = (pts["Cf4"][0] + R_f_po5 * math.cos(_brg_f4),
+              pts["Cf4"][1] - R_f_po5 * math.sin(_brg_f4))
 
 # --- Arc O10a-O9: bearing O9->O8 = 345°, O9_N = IW1_north + 24" ---
 # C10a: centered 2" north of IW1 north face
@@ -342,7 +372,7 @@ dE_c = math.sqrt((R_w1 + R_w2)**2 - dN_c**2)
 # Align C13b with east side of king bed
 # bed_e = inner_W1_E + 20.5' (dryer+counter+closet2+W1S+half_bedroom+half_bed)
 _bed_e_align = pts["O1"][0] + 8.0/12 + 20.5
-pts["O15"] = (_bed_e_align - dE_c, pts["O15"][1])
+pts["O15"] = (_bed_e_align - dE_c - 2.0/12, pts["O15"][1])
 # O13 on line from O12 at bearing 60° (O13->O12), tangent to Cw3 arc
 _brg_13 = math.radians(60.0)
 C13_N = wall_south_N + R_wall * (1.0 - math.sin(_brg_13))
@@ -721,8 +751,8 @@ if __name__ == "__main__":
     lines.append(f'<text x="{W/2}" y="30" text-anchor="middle" font-family="Arial" font-size="14"'
                  f' font-weight="bold">Site Path \u2014 Outline (wall arcs R=28\u2033, fillets R=10\u2033 &amp; R=28\u2033)</text>')
 
-    render_layer(lines, outer_segs, pts, outer_cfg)
-    render_layer(lines, inset_segs, pts, inset_cfg)
+    render_layer(lines, outer_segs, pts_rot, outer_cfg)
+    render_layer(lines, inset_segs, pts_rot, inset_cfg)
     render_layer(lines, outline_segs, pts, outline_cfg)
     render_floorplan(lines)
 
