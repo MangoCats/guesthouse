@@ -167,50 +167,50 @@
 <line x1="361.7" y1="521.5" x2="369.7" y2="521.5" stroke="#333" stroke-width="0.7"/>
 <line x1="365.7" y1="517.5" x2="365.7" y2="525.5" stroke="#333" stroke-width="0.7"/>
 </g>
-<circle cx="161.5" cy="502.0" r="3.5" fill="#d32f2f"/>
-<text x="153.5" y="512.0" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U0</text>
-<circle cx="151.8" cy="492.3" r="3.5" fill="#d32f2f"/>
-<text x="143.8" y="488.3" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U1</text>
-<circle cx="151.8" cy="297.8" r="3.5" fill="#d32f2f"/>
-<text x="143.8" y="293.8" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U2</text>
-<circle cx="158.6" cy="279.8" r="3.5" fill="#d32f2f"/>
-<text x="148.6" y="289.8" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U3</text>
-<circle cx="163.4" cy="266.9" r="3.5" fill="#d32f2f"/>
-<text x="155.4" y="262.9" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U4</text>
-<circle cx="163.4" cy="228.1" r="3.5" fill="#d32f2f"/>
-<text x="155.4" y="222.1" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U5</text>
-<circle cx="190.6" cy="200.9" r="3.5" fill="#d32f2f"/>
-<text x="180.6" y="194.9" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U6</text>
-<circle cx="248.9" cy="200.9" r="3.5" fill="#d32f2f"/>
-<text x="248.9" y="188.9" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U7</text>
-<circle cx="276.1" cy="228.1" r="3.5" fill="#d32f2f"/>
-<text x="268.1" y="224.1" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U8</text>
-<circle cx="278.0" cy="230.0" r="3.5" fill="#d32f2f"/>
-<text x="278.0" y="244.0" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U9</text>
-<circle cx="483.9" cy="230.0" r="3.5" fill="#d32f2f"/>
-<text x="475.9" y="224.0" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U10</text>
-<circle cx="485.8" cy="228.1" r="3.5" fill="#d32f2f"/>
-<text x="493.8" y="240.1" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U11</text>
-<circle cx="539.3" cy="221.0" r="3.5" fill="#d32f2f"/>
-<text x="547.3" y="233.0" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U12</text>
-<circle cx="568.5" cy="329.9" r="3.5" fill="#d32f2f"/>
-<text x="576.5" y="337.9" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U13</text>
-<circle cx="571.4" cy="352.4" r="3.5" fill="#d32f2f"/>
-<text x="581.4" y="348.4" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U14</text>
-<circle cx="571.4" cy="449.6" r="3.5" fill="#d32f2f"/>
+<circle cx="161.5" cy="502.0" r="1.75" fill="#d32f2f"/>
+<text x="161.5" y="512.0" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U0</text>
+<circle cx="151.8" cy="492.3" r="1.75" fill="#d32f2f"/>
+<text x="143.8" y="496.3" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U1</text>
+<circle cx="151.8" cy="297.8" r="1.75" fill="#d32f2f"/>
+<text x="143.8" y="301.8" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U2</text>
+<circle cx="158.6" cy="279.8" r="1.75" fill="#d32f2f"/>
+<text x="148.6" y="283.8" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U3</text>
+<circle cx="163.4" cy="266.9" r="1.75" fill="#d32f2f"/>
+<text x="155.4" y="270.9" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U4</text>
+<circle cx="163.4" cy="228.1" r="1.75" fill="#d32f2f"/>
+<text x="155.4" y="232.1" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U5</text>
+<circle cx="190.6" cy="200.9" r="1.75" fill="#d32f2f"/>
+<text x="190.6" y="194.9" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U6</text>
+<circle cx="248.9" cy="200.9" r="1.75" fill="#d32f2f"/>
+<text x="248.9" y="194.9" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U7</text>
+<circle cx="276.1" cy="228.1" r="1.75" fill="#d32f2f"/>
+<text x="268.1" y="232.1" text-anchor="end" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U8</text>
+<circle cx="278.0" cy="230.0" r="1.75" fill="#d32f2f"/>
+<text x="278.0" y="247.0" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U9</text>
+<circle cx="483.9" cy="230.0" r="1.75" fill="#d32f2f"/>
+<text x="483.9" y="247.0" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U10</text>
+<circle cx="485.8" cy="228.1" r="1.75" fill="#d32f2f"/>
+<text x="493.8" y="232.1" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U11</text>
+<circle cx="539.3" cy="221.0" r="1.75" fill="#d32f2f"/>
+<text x="547.3" y="225.0" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U12</text>
+<circle cx="568.5" cy="329.9" r="1.75" fill="#d32f2f"/>
+<text x="576.5" y="333.9" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U13</text>
+<circle cx="571.4" cy="352.4" r="1.75" fill="#d32f2f"/>
+<text x="581.4" y="356.4" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U14</text>
+<circle cx="571.4" cy="449.6" r="1.75" fill="#d32f2f"/>
 <text x="579.4" y="453.6" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U15</text>
-<circle cx="557.0" cy="474.5" r="3.5" fill="#d32f2f"/>
+<circle cx="557.0" cy="474.5" r="1.75" fill="#d32f2f"/>
 <text x="565.0" y="478.5" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U16</text>
-<circle cx="506.5" cy="503.7" r="3.5" fill="#d32f2f"/>
-<text x="516.5" y="513.7" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U17</text>
-<circle cx="469.2" cy="513.7" r="3.5" fill="#d32f2f"/>
-<text x="477.2" y="525.7" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U18</text>
-<circle cx="396.6" cy="513.7" r="3.5" fill="#d32f2f"/>
-<text x="404.6" y="525.7" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U19</text>
-<circle cx="378.6" cy="506.9" r="3.5" fill="#d32f2f"/>
-<text x="386.6" y="500.9" text-anchor="start" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U20</text>
-<circle cx="365.7" cy="502.0" r="3.5" fill="#d32f2f"/>
-<text x="365.7" y="490.0" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U21</text>
+<circle cx="506.5" cy="503.7" r="1.75" fill="#d32f2f"/>
+<text x="506.5" y="516.7" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U17</text>
+<circle cx="469.2" cy="513.7" r="1.75" fill="#d32f2f"/>
+<text x="469.2" y="525.7" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U18</text>
+<circle cx="396.6" cy="513.7" r="1.75" fill="#d32f2f"/>
+<text x="396.6" y="525.7" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U19</text>
+<circle cx="378.6" cy="506.9" r="1.75" fill="#d32f2f"/>
+<text x="378.6" y="519.9" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U20</text>
+<circle cx="365.7" cy="502.0" r="1.75" fill="#d32f2f"/>
+<text x="365.7" y="512.0" text-anchor="middle" font-family="Arial" font-size="10" font-weight="bold" fill="#d32f2f">U21</text>
 <g transform="translate(169.8,395.0) rotate(90.0)">
   <text x="0" y="-3" text-anchor="middle" font-family="Arial" font-size="8.5" fill="#1a237e">0.00°</text>
   <text x="0" y="8" text-anchor="middle" font-family="Arial" font-size="8.5" fill="#555">16' 8.3"</text>

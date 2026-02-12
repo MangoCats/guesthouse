@@ -546,13 +546,28 @@ for seg in outline_segs:
         _o_names.append(seg.start)
 for o_name in _o_names:
     sx, sy = to_svg(*pts[o_name])
-    out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="2.5" fill="#333"/>')
+    out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="1.25" fill="#333"/>')
     if o_name in vs_map:
         vs = vs_map[o_name]
         c_label = "F" + o_name[1:]  # U19 -> F19
-        out.append(f'<text x="{sx+vs.dx:.1f}" y="{sy+vs.dy:.1f}" text-anchor="{vs.anchor}"'
-                   f' font-family="Arial" font-size="9" font-weight="bold"'
-                   f' fill="#333">{c_label}</text>')
+        # Vertically centered: label at point Northing, offset East/West
+        if o_name in ("U1", "U2", "U3", "U4", "U5",
+                         "U8", "U11", "U12", "U13", "U14", "U15"):
+            out.append(f'<text x="{sx+vs.dx:.1f}" y="{sy:.1f}" text-anchor="{vs.anchor}"'
+                       f' dominant-baseline="central"'
+                       f' font-family="Arial" font-size="9" font-weight="bold"'
+                       f' fill="#333">{c_label}</text>')
+        # Horizontally centered: label at point Easting, offset North/South
+        elif o_name in ("U0", "U6", "U7", "U9", "U10",
+                            "U17", "U18", "U19", "U20", "U21"):
+            _dy = {"U9": 17, "U10": 17, "U17": 13, "U20": 13, "U21": 10}.get(o_name, vs.dy)
+            out.append(f'<text x="{sx:.1f}" y="{sy+_dy:.1f}" text-anchor="middle"'
+                       f' font-family="Arial" font-size="9" font-weight="bold"'
+                       f' fill="#333">{c_label}</text>')
+        else:
+            out.append(f'<text x="{sx+vs.dx:.1f}" y="{sy+vs.dy:.1f}" text-anchor="{vs.anchor}"'
+                       f' font-family="Arial" font-size="9" font-weight="bold"'
+                       f' fill="#333">{c_label}</text>')
 
 # North arrow
 out.append('<line x1="742" y1="560" x2="742" y2="524" stroke="#333" stroke-width="2"'
