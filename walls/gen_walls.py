@@ -138,17 +138,18 @@ def _compute_openings(pts, outline_segs, layout):
     t2 = _seg_param(pts, outline_segs[idx], (o4_e, pts["F6"][1]))
     openings.append(WallOpening("O4", idx, min(t1, t2), max(t1, t2)))
 
-    # --- O5: F9-F10, horizontal, big 6' opening ---
+    # --- O5 & O6: F9-F10, horizontal ---
     idx = seg_map[("F9", "F10")]
-    o5_w = pts["F9"][0] + 8.0 / 12.0
-    o5_e = o5_w + 6.0
+    # O6 edges (computed first so O5 can reference the 78" gap)
+    o6_e = pts["F10"][0] - 4.0 / 12.0
+    o6_w = pts["F10"][0] - 48.0 / 12.0
+    # O5: 6' opening, 78" west of O6
+    o5_e = o6_w - 78.0 / 12.0
+    o5_w = o5_e - 6.0
     t1 = _seg_param(pts, outline_segs[idx], (o5_w, pts["F9"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o5_e, pts["F9"][1]))
     openings.append(WallOpening("O5", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O6: F9-F10, horizontal, small opening ---
-    o6_e = pts["F10"][0] - 4.0 / 12.0
-    o6_w = pts["F10"][0] - 48.0 / 12.0
+    # O6
     t1 = _seg_param(pts, outline_segs[idx], (o6_w, pts["F9"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o6_e, pts["F9"][1]))
     openings.append(WallOpening("O6", idx, min(t1, t2), max(t1, t2)))

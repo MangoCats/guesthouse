@@ -476,17 +476,18 @@ def render_floorplan_svg(data):
         (_o4_e, pts["F6"][1]), (_o4_w, pts["F6"][1]),
     ]
 
-    # O5: F9-F10, horizontal, big 6' opening
-    _o5_w = pts["F9"][0] + 8.0 / 12.0
-    _o5_e = _o5_w + 6.0
+    # O5 & O6: F9-F10, horizontal
+    # O6 edges (computed first so O5 can reference the 78" gap)
+    _o6_e = pts["F10"][0] - 4.0 / 12.0
+    _o6_w = pts["F10"][0] - 48.0 / 12.0
+    # O5: 6' opening, 78" west of O6
+    _o5_e = _o6_w - 78.0 / 12.0
+    _o5_w = _o5_e - 6.0
     _o5_poly = [
         (_o5_w, pts["W9"][1]), (_o5_e, pts["W9"][1]),
         (_o5_e, pts["F9"][1]), (_o5_w, pts["F9"][1]),
     ]
-
-    # O6: F9-F10, horizontal, small opening
-    _o6_e = pts["F10"][0] - 4.0 / 12.0
-    _o6_w = pts["F10"][0] - 48.0 / 12.0
+    # O6
     _o6_poly = [
         (_o6_w, pts["W10"][1]), (_o6_e, pts["W10"][1]),
         (_o6_e, pts["F10"][1]), (_o6_w, pts["F10"][1]),
