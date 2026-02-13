@@ -1,8 +1,4 @@
-import sys, os, math
-
-_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _root not in sys.path:
-    sys.path.insert(0, _root)
+import math
 
 from shared.geometry import poly_area, arc_poly, brg_dist, fmt_brg, fmt_dist
 from shared.survey import compute_traverse, compute_three_arc

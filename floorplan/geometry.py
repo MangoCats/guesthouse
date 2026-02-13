@@ -2,10 +2,6 @@
 import math
 from typing import NamedTuple
 
-import sys, os
-_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _root not in sys.path:
-    sys.path.insert(0, _root)
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area

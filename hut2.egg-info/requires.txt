@@ -1,0 +1,7 @@
+
+[adjust]
+numpy
+scipy
+
+[test]
+pytest

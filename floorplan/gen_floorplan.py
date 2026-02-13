@@ -3,12 +3,7 @@
 Computes geometry from shared/ and floorplan/ packages.
 Outline points F0-F21, inner wall points W0-W21.
 """
-import sys, os, math
-
-# Add project root so we can import shared/ and floorplan/ packages
-_parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _parent not in sys.path:
-    sys.path.insert(0, _parent)
+import os, math
 
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import (
@@ -18,7 +13,6 @@ from shared.geometry import (
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
-from floorplan.layout import compute_interior_layout
 from floorplan.constants import WALL_OUTER
 
 # --- Compute all geometry ---

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for func in dim_line_h dim_line_v wall_poly wall_label stroke_segs)",
+      "Bash(do echo \"=== $func ===\")"
+    ]
+  }
+}

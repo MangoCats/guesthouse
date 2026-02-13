@@ -1,9 +1,7 @@
 """Interior layout computation — rooms, walls, appliances, furniture."""
-import sys, os
-_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _root not in sys.path:
-    sys.path.insert(0, _root)
+from typing import NamedTuple
 
+from shared.types import Point
 from shared.geometry import horiz_isects
 from floorplan.constants import (
     WALL_6IN, WALL_4IN, WALL_3IN,
@@ -16,12 +14,66 @@ from floorplan.constants import (
 )
 
 
-def compute_interior_layout(pts, inner_poly):
+class InteriorLayout(NamedTuple):
+    """Interior layout positions for walls, appliances, and furniture."""
+    # Interior wall 1 (IW1) — horizontal wall separating utility/bedroom zones
+    iw1: list[Point]
+    iw1_s: float
+    iw1_n: float
+    iwt: float
+    # Interior wall 2 (IW2) — vertical wall west of utility area
+    iw2_w: float
+    iw2_e: float
+    iw2_s: float
+    iw2_n: float
+    # Dryer
+    dryer_w: float
+    dryer_s: float
+    dryer_e: float
+    dryer_n: float
+    # Washer
+    washer_w: float
+    washer_s: float
+    washer_e: float
+    washer_n: float
+    # Counter
+    ctr_w: float
+    ctr_e: float
+    ctr_s: float
+    ctr_n: float
+    ctr_nw_r: float
+    # Wall thicknesses
+    iwt3: float
+    iwt4: float
+    # Wall 8 (L-shaped, west/north walls of closet)
+    wall8: list[Point]
+    # Interior wall 3 (IW3) — west bedroom wall
+    iw3_w: float
+    iw3_e: float
+    iw3_s: float
+    iw3_n: float
+    # Interior wall 4 (IW4) — east bedroom wall
+    iw4_w: float
+    iw4_e: float
+    wall_south_n: float
+    # Wall 5 (L-shaped, east closet wall)
+    wall5: list[Point]
+    w5_w: float
+    w5_e: float
+    # Closet 1
+    cl1_top: float
+    # Bed
+    bed_w: float
+    bed_e: float
+    bed_s: float
+    bed_n: float
+    bed_cx: float
+
+
+def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     """Compute interior layout positions.
 
     pts must contain W-series (W0-W21) and F-series (F0-F21).
-    Returns dict with iw1, iw2_w/e/s/n, dryer, washer, counter,
-    wall8, iw3, iw4, wall5, bed, and intermediate values.
     """
     iw1_s = pts["W0"][1] + IW1_OFFSET_N
     iw1_n = iw1_s + WALL_6IN
@@ -72,17 +124,17 @@ def compute_interior_layout(pts, inner_poly):
     bed_s = ctr_s + BED_OFFSET_N
     bed_n = bed_s + BED_LENGTH
 
-    return {
-        "iw1": iw1, "iw1_s": iw1_s, "iw1_n": iw1_n, "iwt": WALL_6IN,
-        "iw2_w": iw2_w, "iw2_e": iw2_e, "iw2_s": iw2_s, "iw2_n": iw2_n,
-        "dryer_w": dryer_w, "dryer_s": dryer_s, "dryer_e": dryer_e, "dryer_n": dryer_n,
-        "washer_w": washer_w, "washer_s": washer_s, "washer_e": washer_e, "washer_n": washer_n,
-        "ctr_w": ctr_w, "ctr_e": ctr_e, "ctr_s": ctr_s, "ctr_n": ctr_n, "ctr_nw_r": ctr_nw_r,
-        "iwt3": WALL_3IN, "iwt4": WALL_4IN,
-        "wall8": w8,
-        "iw3_w": iw3_w, "iw3_e": iw3_e, "iw3_s": iw3_s, "iw3_n": iw3_n,
-        "iw4_w": iw4_w, "iw4_e": iw4_e, "wall_south_n": wall_south_n,
-        "wall5": w5, "w5_w": w5_w, "w5_e": w5_e,
-        "cl1_top": cl1_top,
-        "bed_w": bed_w, "bed_e": bed_e, "bed_s": bed_s, "bed_n": bed_n, "bed_cx": bed_cx,
-    }
+    return InteriorLayout(
+        iw1=iw1, iw1_s=iw1_s, iw1_n=iw1_n, iwt=WALL_6IN,
+        iw2_w=iw2_w, iw2_e=iw2_e, iw2_s=iw2_s, iw2_n=iw2_n,
+        dryer_w=dryer_w, dryer_s=dryer_s, dryer_e=dryer_e, dryer_n=dryer_n,
+        washer_w=washer_w, washer_s=washer_s, washer_e=washer_e, washer_n=washer_n,
+        ctr_w=ctr_w, ctr_e=ctr_e, ctr_s=ctr_s, ctr_n=ctr_n, ctr_nw_r=ctr_nw_r,
+        iwt3=WALL_3IN, iwt4=WALL_4IN,
+        wall8=w8,
+        iw3_w=iw3_w, iw3_e=iw3_e, iw3_s=iw3_s, iw3_n=iw3_n,
+        iw4_w=iw4_w, iw4_e=iw4_e, wall_south_n=wall_south_n,
+        wall5=w5, w5_w=w5_w, w5_e=w5_e,
+        cl1_top=cl1_top,
+        bed_w=bed_w, bed_e=bed_e, bed_s=bed_s, bed_n=bed_n, bed_cx=bed_cx,
+    )

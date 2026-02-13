@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hut2"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+adjust = ["numpy", "scipy"]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["shared", "shared.*", "floorplan", "floorplan.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
