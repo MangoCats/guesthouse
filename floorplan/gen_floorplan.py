@@ -3,7 +3,7 @@
 Computes geometry from shared/ and floorplan/ packages.
 Outline points F0-F21, inner wall points W0-W21.
 """
-import os, math
+import os, math, subprocess, datetime
 
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import (
@@ -118,7 +118,7 @@ def build_floorplan_data():
     _title_x = _bldg_cx
     _title_y = _bldg_ymin - 15
 
-    _tb_w, _tb_h = 130, 58
+    _tb_w, _tb_h = 130, 80
     _tb_left = _bldg_xmax + 10
     _tb_right = _tb_left + _tb_w
     _tb_top = _title_y - 14 * 0.35
@@ -617,6 +617,12 @@ def render_floorplan_svg(data):
                f'{outer_area:.2f} sq ft</text>')
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+52:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">Exterior area</text>')
+    _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _git_desc = subprocess.check_output(["git", "describe", "--always"], text=True).strip()
+    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+64:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="7.5" fill="#999">Generated {_now}</text>')
+    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+74:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="7.5" fill="#999">from {_git_desc}</text>')
 
     out.append('</svg>')
 

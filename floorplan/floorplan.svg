@@ -210,11 +210,13 @@
 <text x="378.5" y="519.9" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F20</text>
 <circle cx="365.5" cy="502.0" r="1.25" fill="#333"/>
 <text x="365.5" y="512.0" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F21</text>
-<line x1="646.4" y1="296.0" x2="646.4" y2="260.0" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
-<text x="646.4" y="254.0" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">N</text>
-<rect x="581.4" y="181.0" width="130" height="58" fill="white" stroke="#333" stroke-width="1"/>
+<line x1="646.4" y1="318.0" x2="646.4" y2="282.0" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
+<text x="646.4" y="276.0" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">N</text>
+<rect x="581.4" y="181.0" width="130" height="80" fill="white" stroke="#333" stroke-width="1"/>
 <text x="646.4" y="195.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">739.24 sq ft</text>
 <text x="646.4" y="207.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Interior area</text>
 <text x="646.4" y="221.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
+<text x="646.4" y="245.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 08:37:44</text>
+<text x="646.4" y="255.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-1-g468a337</text>
 </svg>

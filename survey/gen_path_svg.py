@@ -1,4 +1,4 @@
-import os, math
+import os, math, subprocess, datetime
 from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
@@ -576,8 +576,10 @@ if __name__ == "__main__":
     lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Outline path ({outline_area:.2f} sq ft)</text>')
 
     # Footer
+    _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _git_desc = subprocess.check_output(["git", "describe", "--always"], text=True).strip()
     lines.append(f'<text x="{W/2}" y="{H-2}" text-anchor="middle" font-family="Arial" font-size="7.5"'
-                 f' fill="#999">Bearings as adjusted \u2022 Distances in feet and inches</text>')
+                 f' fill="#999">Generated {_now} from {_git_desc}</text>')
     lines.append('</svg>')
 
     svg_content = "\n".join(lines)
