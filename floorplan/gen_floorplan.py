@@ -106,8 +106,9 @@ def build_floorplan_data():
     outer_area = poly_area(outer_poly)
     inner_area = poly_area(inner_poly)
 
-    # --- Center content within 1" margins on letter landscape (792x612) page ---
-    _margin = 72
+    # --- Fit content on letter landscape (792x612) page ---
+    _margin_top = 36   # 0.5" top margin
+    _margin = 72       # 1" margins on left, right, bottom
     _f_svg = [to_svg(*pts[f"F{i}"]) for i in range(22)]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -116,9 +117,9 @@ def build_floorplan_data():
     _bldg_cx = (_bldg_xmin + _bldg_xmax) / 2
 
     _title_x = _bldg_cx
-    _title_y = _bldg_ymin - 15
+    _title_y = _bldg_ymin - 49
 
-    _tb_w, _tb_h = 130, 80
+    _tb_w, _tb_h = 130, 92
     _tb_left = _bldg_xmax + 10
     _tb_right = _tb_left + _tb_w
     _tb_top = _title_y - 14 * 0.35
@@ -137,17 +138,17 @@ def build_floorplan_data():
     _cb_ymin = _title_y - 14 - 5
     _cb_ymax = max(_bldg_ymax + 30, _ext_s_y + 10, _na_base_y + 5)
 
-    _cb_w = _cb_xmax - _cb_xmin
-    _cb_h = _cb_ymax - _cb_ymin
-    _avail_w = W - 2 * _margin
-    _avail_h = H - 2 * _margin
-    _fit_scale = min(_avail_w / _cb_w, _avail_h / _cb_h)
+    # Drawing scale: 1:72 → 1 paper inch = 6 real feet
+    _scale_ratio = 72
+    _ft_per_inch = _scale_ratio / 12.0  # 6 feet per printed inch
+    _svg_per_ft = to_svg(1, 0)[0] - to_svg(0, 0)[0]  # SVG units per survey foot
+    _fit_scale = 72.0 / (_ft_per_inch * _svg_per_ft)   # CSS px per SVG unit
+
     _vb_w = W / _fit_scale
     _vb_h = H / _fit_scale
     _cb_cx = (_cb_xmin + _cb_xmax) / 2
-    _cb_cy = (_cb_ymin + _cb_ymax) / 2
     _vb_x = _cb_cx - _vb_w / 2
-    _vb_y = _cb_cy - _vb_h / 2
+    _vb_y = _cb_ymin - _margin_top / _fit_scale
 
     return {
         "pts": pts, "to_svg": to_svg,
@@ -160,6 +161,7 @@ def build_floorplan_data():
         "tb_left": _tb_left, "tb_right": _tb_right, "tb_top": _tb_top,
         "tb_bottom": _tb_bottom, "tb_w": _tb_w, "tb_h": _tb_h, "tb_cx": _tb_cx,
         "na_x": _na_x, "na_text_y": _na_text_y, "na_tip_y": _na_tip_y, "na_base_y": _na_base_y,
+        "ft_per_inch": _ft_per_inch,
     }
 
 # ============================================================
@@ -187,7 +189,7 @@ def render_floorplan_svg(data):
                '<polygon points="0 0, 8 3, 0 6" fill="#333"/></marker>')
     out.append('</defs>')
     out.append(f'<text x="{data["title_x"]:.1f}" y="{data["title_y"]:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
-               f' font-weight="bold">Floorplan &#8212; 8&#8243; Walls</text>')
+               f' font-weight="bold">Parent Suite</text>')
 
     # --- Interior wall IW1: 6" thick, south face 11'6" north of inner F0-F21 ---
     int_wall_south = pts["W0"][1] + IW1_OFFSET_N
@@ -430,15 +432,22 @@ def render_floorplan_svg(data):
 
     _dim_f1f2_n = ctr_n + WALL_3IN + 1.0
     dim_line_h(out, pts["W2"][0], _dim_f1f2_n, iw3_w, fmt_dist(iw3_w - pts["W2"][0]), to_svg)
+    dim_line_h(out, pts["W2"][0], pts["F2"][1], iw2_w, fmt_dist(iw2_w - pts["W2"][0]), to_svg)
+    dim_line_h(out, pts["W5"][0], pts["F5"][1], iw2_w, fmt_dist(iw2_w - pts["W5"][0]), to_svg)
 
     dim_line_v(out, pts["F18"][0], iw5_s, pts["W18"][1], fmt_dist(iw5_s - pts["W18"][1]), to_svg)
-    dim_line_v(out, pts["F6"][0] + 1.0, int_wall_north, pts["W6"][1],
-               fmt_dist(pts["W6"][1] - int_wall_north), to_svg)
+    dim_line_v(out, pts["F6"][0] + 1.0, iw6_n, pts["W6"][1],
+               fmt_dist(pts["W6"][1] - iw6_n), to_svg)
+    dim_line_v(out, pts["F6"][0] + 1.0, int_wall_north, iw6_s,
+               fmt_dist(iw6_s - int_wall_north), to_svg)
 
     # External dimensions
     _dim_ext_e = pts["F2"][0] - 2.7
     dim_line_v(out, _dim_ext_e, pts["F0"][1], pts["F6"][1],
                fmt_dist(pts["F6"][1] - pts["F0"][1]), to_svg)
+
+    dim_line_h(out, pts["F8"][0], pts["F6"][1] + 1.0, pts["F11"][0],
+               fmt_dist(pts["F11"][0] - pts["F8"][0]), to_svg)
 
     _dim_ext_n = pts["F19"][1] - 3.0
     dim_line_h(out, pts["F1"][0], _dim_ext_n, pts["F15"][0],
@@ -617,11 +626,15 @@ def render_floorplan_svg(data):
                f'{outer_area:.2f} sq ft</text>')
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+52:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">Exterior area</text>')
+    _ratio = data["ft_per_inch"] * 12  # paper inches to real inches
+    _scale_label = f'Scale 1:{_ratio:.1f} 1&#8243; = {fmt_dist(data["ft_per_inch"])}'
+    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+64:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="8" fill="#666">{_scale_label}</text>')
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     _git_desc = subprocess.check_output(["git", "describe", "--always"], text=True).strip()
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+64:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+76:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="7.5" fill="#999">Generated {_now}</text>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+74:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+86:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="7.5" fill="#999">from {_git_desc}</text>')
 
     out.append('</svg>')
