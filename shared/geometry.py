@@ -12,24 +12,32 @@ class GeometryError(ValueError):
 # Geometry Utilities
 # ============================================================
 def left_norm(p1: Point, p2: Point) -> Point:
+    """Unit normal vector to the left of the direction p1 → p2 (CCW perpendicular)."""
     dx = p2[0]-p1[0]; dy = p2[1]-p1[1]; Ln = math.sqrt(dx**2+dy**2)
     return (-dy/Ln, dx/Ln)
 
 def off_pt(p: Point, n: Point, d: float) -> Point:
+    """Offset point p by distance d along unit direction n."""
     return (p[0]+d*n[0], p[1]+d*n[1])
 
 def line_isect(p1: Point, d1: Point, p2: Point, d2: Point) -> Point:
+    """Intersection of two lines (p1+t*d1) and (p2+s*d2). Raises GeometryError if parallel."""
     det = d1[0]*d2[1]-d1[1]*d2[0]
     if abs(det) < 1e-12:
         raise GeometryError(f"Parallel lines: det={det:.2e}")
     t = ((p2[0]-p1[0])*d2[1]-(p2[1]-p1[1])*d2[0])/det
     return (p1[0]+t*d1[0], p1[1]+t*d1[1])
 
-def arc_poly(cx, cy, r, sa, ea, n=60):
+def arc_poly(cx: float, cy: float, r: float, sa: float, ea: float, n: int = 60) -> list[Point]:
+    """Generate n+1 points along a circular arc from angle sa to ea (radians)."""
     return [(cx+r*math.cos(sa+(ea-sa)*i/n), cy+r*math.sin(sa+(ea-sa)*i/n))
             for i in range(n+1)]
 
 def circle_circle_isect(c1: Point, r1: float, c2: Point, r2: float, near: Point) -> Point:
+    """Intersection of two circles, returning the point nearest to *near*.
+
+    Raises GeometryError if the circles don't intersect.
+    """
     dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.sqrt(dx**2+dy**2)
     if d > r1 + r2 + 1e-9:
         raise GeometryError(f"Circles too far apart: d={d:.6f}, r1+r2={r1+r2:.6f}")
@@ -47,6 +55,10 @@ def circle_circle_isect(c1: Point, r1: float, c2: Point, r2: float, near: Point)
     return I1 if d1 < d2 else I2
 
 def line_circle_isect_min_t_gt(p: Point, d: Point, c: Point, r: float, t_min: float) -> Point:
+    """Line-circle intersection with smallest parameter t > t_min.
+
+    Line parametrised as p + t*d; circle centered at c with radius r.
+    """
     ax = p[0]-c[0]; ay = p[1]-c[1]
     A = d[0]**2+d[1]**2; B = 2*(ax*d[0]+ay*d[1]); C = ax**2+ay**2-r**2
     disc = B**2-4*A*C
@@ -61,6 +73,10 @@ def line_circle_isect_min_t_gt(p: Point, d: Point, c: Point, r: float, t_min: fl
     return (p[0]+t*d[0], p[1]+t*d[1])
 
 def line_circle_isect_min_abs_t(p: Point, d: Point, c: Point, r: float) -> Point:
+    """Line-circle intersection with smallest |t|.
+
+    Line parametrised as p + t*d; circle centered at c with radius r.
+    """
     ax = p[0]-c[0]; ay = p[1]-c[1]
     A = d[0]**2+d[1]**2; B = 2*(ax*d[0]+ay*d[1]); C = ax**2+ay**2-r**2
     disc = B**2-4*A*C
@@ -71,7 +87,8 @@ def line_circle_isect_min_abs_t(p: Point, d: Point, c: Point, r: float) -> Point
     t = min(t1, t2, key=lambda t: abs(t))
     return (p[0]+t*d[0], p[1]+t*d[1])
 
-def poly_area(verts):
+def poly_area(verts: list[Point]) -> float:
+    """Polygon area via the shoelace formula. Works for either winding order."""
     n = len(verts); a = 0
     for i in range(n):
         j = (i+1)%n; a += verts[i][0]*verts[j][1]-verts[j][0]*verts[i][1]
@@ -80,7 +97,8 @@ def poly_area(verts):
 # ============================================================
 # Path Operations
 # ============================================================
-def segment_polyline(seg: Segment, pts: dict) -> list[Point]:
+def segment_polyline(seg: Segment, pts: dict[str, Point]) -> list[Point]:
+    """Convert a LineSeg or ArcSeg to a polyline of coordinate points."""
     if isinstance(seg, LineSeg):
         return [pts[seg.start], pts[seg.end]]
     c = pts[seg.center]
@@ -93,7 +111,8 @@ def segment_polyline(seg: Segment, pts: dict) -> list[Point]:
         sweep = (ang_e - ang_s) % (2*math.pi)
         return arc_poly(c[0], c[1], seg.radius, ang_s, ang_s + sweep, seg.n_pts)
 
-def path_polygon(segments: list[Segment], pts: dict) -> list[Point]:
+def path_polygon(segments: list[Segment], pts: dict[str, Point]) -> list[Point]:
+    """Convert a closed segment path into a polygon vertex list."""
     polygon = []
     for i, seg in enumerate(segments):
         poly = segment_polyline(seg, pts)
@@ -103,7 +122,8 @@ def path_polygon(segments: list[Segment], pts: dict) -> list[Point]:
     polygon.pop()  # remove closing point (= polygon[0])
     return polygon
 
-def arc_sweep_deg(seg: ArcSeg, pts: dict) -> float:
+def arc_sweep_deg(seg: ArcSeg, pts: dict[str, Point]) -> float:
+    """Sweep angle of an arc segment in degrees (always positive)."""
     c = pts[seg.center]
     ang_s = math.atan2(pts[seg.start][1]-c[1], pts[seg.start][0]-c[0])
     ang_e = math.atan2(pts[seg.end][1]-c[1], pts[seg.end][0]-c[0])
@@ -115,17 +135,20 @@ def arc_sweep_deg(seg: ArcSeg, pts: dict) -> float:
 # ============================================================
 # Formatting Helpers
 # ============================================================
-def brg_dist(p1, p2):
+def brg_dist(p1: Point, p2: Point) -> tuple[float, float]:
+    """Bearing (degrees clockwise from North) and distance between two E/N points."""
     dE = p2[0]-p1[0]; dN = p2[1]-p1[1]
     d = math.sqrt(dE**2+dN**2)
     b = math.degrees(math.atan2(dE, dN)) % 360
     return b, d
 
-def fmt_brg(b):
+def fmt_brg(b: float) -> str:
+    """Format bearing in degrees to DMS string, e.g. '257\u00b0 53' 45.0\"'."""
     d = int(b); m = int((b-d)*60); sc = (b-d-m/60)*3600
     return f"{d:d}\u00b0 {m:02d}' {sc:04.1f}\""
 
-def fmt_dist(ft):
+def fmt_dist(ft: float) -> str:
+    """Format distance in feet to feet-inches string, e.g. \"2' 6\\\"\"."""
     total_in = round(ft * 12, 2)
     whole_ft = int(total_in // 12)
     remaining_in = total_in - whole_ft * 12
@@ -135,7 +158,7 @@ def fmt_dist(ft):
 # ============================================================
 # Polygon Utilities
 # ============================================================
-def horiz_isects(poly, n_val):
+def horiz_isects(poly: list[Point], n_val: float) -> list[float]:
     """Easting values where polygon boundary crosses a given northing."""
     r = []
     for i in range(len(poly)):
@@ -144,7 +167,7 @@ def horiz_isects(poly, n_val):
             t = (n_val-n1)/(n2-n1); r.append(poly[i][0]+t*(poly[j][0]-poly[i][0]))
     return r
 
-def vert_isects(poly, e_val):
+def vert_isects(poly: list[Point], e_val: float) -> list[float]:
     """Northing values where polygon boundary crosses a given easting."""
     r = []
     for i in range(len(poly)):
@@ -156,7 +179,12 @@ def vert_isects(poly, e_val):
 # ============================================================
 # Inner Wall Computation
 # ============================================================
-def compute_inner_walls(outline_segs, pts, wall_t, radii):
+def compute_inner_walls(
+    outline_segs: list[Segment],
+    pts: dict[str, Point],
+    wall_t: float,
+    radii: dict[str, float],
+) -> list[Segment]:
     """Compute inner wall points and segments from outline.
 
     Mutates pts adding W-series points.

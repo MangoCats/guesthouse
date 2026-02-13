@@ -35,26 +35,36 @@ class OutlineGeometry(NamedTuple):
     radii: dict[str, float]      # R_a0 through R_a20
 
 
-def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
-    """Compute F-series outline from inset anchor points + design constants."""
-    fp_pts: dict[str, Point] = {}
+# ============================================================
+# Per-section helpers (mutate fp_pts, return computed radii)
+# ============================================================
 
-    # --- F0/F1: NE corner arc (R_a0) ---
+def _compute_ne_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> float:
+    """NE corner arc: F0, F1, C0. Returns R_a0."""
     R_a0 = CORNER_NE_R
     fp_pts["C0"] = (anchors.Pi3[0] + R_a0, anchors.Pi3[1] + R_a0)
     fp_pts["F1"] = (anchors.Pi3[0], fp_pts["C0"][1])
     fp_pts["F0"] = (fp_pts["C0"][0], anchors.Pi3[1])
+    return R_a0
 
-    # --- NW corner arc (R_a5 = 28") ---
+
+def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> float:
+    """NW corner arc: F4, F5, F6, C5. Returns R_a5."""
     R_a5 = CORNER_NW_R
     corner2_N = fp_pts["F0"][1] + F6_HEIGHT
     fp_pts["C5"] = (anchors.Pi2[0] + NW_SHIFT + R_a5, corner2_N - R_a5)
     fp_pts["F5"] = (anchors.Pi2[0] + NW_SHIFT, fp_pts["C5"][1])
     fp_pts["F6"] = (fp_pts["C5"][0], corner2_N)
-    # F4: south of C5
     fp_pts["F4"] = (fp_pts["F5"][0], fp_pts["F5"][1] - F4_F5_DROP + CORNER_NW_R)
+    return R_a5
 
-    # --- Arcs F2-F3-F4: R_a2 = R_a3 + 8/12, F1-F2 = 16'8" ---
+
+def _compute_east_wall_arcs(fp_pts: dict[str, Point]) -> tuple[float, float, float, float]:
+    """East wall arcs: F2, F3, C2, C3, F7, F8, C7, F9, C8. Returns (R_a2, R_a3, R_a7, R_a8).
+
+    Depends on F1, F4, F6 already in fp_pts.
+    """
+    # Arcs F2-F3-F4: R_a2 = R_a3 + 8/12, F1-F2 = 16'8"
     _a23 = fp_pts["F1"][0] - fp_pts["F4"][0]
     _K23 = (fp_pts["F4"][1] - fp_pts["F1"][1]) - F1_F2_TARGET
     _S23 = -(_K23**2 + _a23**2) / (2 * _a23)
@@ -71,27 +81,35 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     fp_pts["F3"] = (fp_pts["C3"][0] + _f1b * (fp_pts["C2"][0] - fp_pts["C3"][0]),
                     fp_pts["C3"][1] + _f1b * (fp_pts["C2"][1] - fp_pts["C3"][1]))
 
-    # --- F7: east of F6, arc C7 (R=28") ---
+    # F7: east of F6, arc C7 (R=28")
     fp_pts["F7"] = (fp_pts["F6"][0] + 5.5 + 6.0/12 - NW_SHIFT + 4.0/12, fp_pts["F6"][1])
     R_a7 = UPPER_E_R
     fp_pts["C7"] = (fp_pts["F7"][0], fp_pts["F7"][1] - R_a7)
     fp_pts["F8"] = (fp_pts["C7"][0] + R_a7, fp_pts["C7"][1])
 
-    # --- F8-F9: small arc (R=2") ---
+    # F8-F9: small arc (R=2")
     R_a8 = SMALL_ARC_R
     fp_pts["C8"] = (fp_pts["F8"][0] + R_a8, fp_pts["F8"][1])
     fp_pts["F9"] = (fp_pts["C8"][0], fp_pts["C8"][1] - R_a8)
 
-    # --- 180° arc + F10 transition ---
+    return R_a2, R_a3, R_a7, R_a8
+
+
+def _compute_central_region(
+    fp_pts: dict[str, Point], anchors: OutlineAnchors,
+) -> tuple[float, float, float, float]:
+    """Central region: F10-F16, C10, C11, C13, C15. Returns (R_a10, R_a11, R_a13, R_a15).
+
+    Depends on F0, F1, F9, F16 already in fp_pts.
+    """
     R_a11 = ARC_180_R
     R_a10 = SMALL_ARC_R
-    west_E = anchors.TC1[0] - anchors.R1i  # westernmost E on Arc 1o
 
-    # --- F14 Northing (needed for R_a15 constraint) ---
+    # F14 Northing from IW1 constraint
     _iw1_n_face = fp_pts["F0"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN
     _F14_N = _iw1_n_face + WALL_SOUTH_N
 
-    # --- Arc at Po5 corner (exits North) ---
+    # Arc at Po5 corner (exits North)
     d_in_po5 = (anchors.Pi5[0] - anchors.PiX[0], anchors.Pi5[1] - anchors.PiX[1])
     L_in = math.sqrt(d_in_po5[0]**2 + d_in_po5[1]**2)
     d_in_u = (d_in_po5[0]/L_in, d_in_po5[1]/L_in)
@@ -115,7 +133,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     fp_pts["F16"] = (fp_pts["C15"][0] + R_a15 * math.cos(_brg_f4),
                      fp_pts["C15"][1] - R_a15 * math.sin(_brg_f4))
 
-    # --- F13-F14 arc: bearing F13->F12 = 345°, F12-F13 = 9'8" ---
+    # F13-F14 arc: bearing F13->F12 = 345°, F12-F13 = 10'
     _brg_off = math.radians(360.0 - F13_EXIT_BRG)
     _nx_t = math.cos(_brg_off)
     _ny_t = math.sin(_brg_off)
@@ -136,7 +154,16 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     fp_pts["F13"] = (fp_pts["C13"][0] + R_a13 * _nx_t, fp_pts["C13"][1] + R_a13 * _ny_t)
     fp_pts["F12"] = (fp_pts["C11"][0] + R_a11 * _nx_t, fp_pts["C11"][1] + R_a11 * _ny_t)
 
-    # --- F17-F21 south wall geometry ---
+    return R_a10, R_a11, R_a13, R_a15
+
+
+def _compute_south_wall(
+    fp_pts: dict[str, Point], anchors: OutlineAnchors, R_a2: float, R_a3: float,
+) -> tuple[float, float, float]:
+    """South wall: F17-F21, C17, C19, C20. Returns (R_a17, R_a19, R_a20).
+
+    Depends on F1, F16 already in fp_pts.
+    """
     R_a20 = R_a3
     R_a19 = R_a2
     dN_c = (SOUTH_WALL_N + R_a19) - (anchors.Ti3[1] - R_a20)
@@ -164,8 +191,25 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     fp_pts["F20"] = (fp_pts["C20"][0] + _f_w * (fp_pts["C19"][0] - fp_pts["C20"][0]),
                      fp_pts["C20"][1] + _f_w * (fp_pts["C19"][1] - fp_pts["C20"][1]))
 
+    return R_a17, R_a19, R_a20
+
+
+# ============================================================
+# Main entry point
+# ============================================================
+
+def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
+    """Compute F-series outline from inset anchor points + design constants."""
+    fp_pts: dict[str, Point] = {}
+
+    R_a0 = _compute_ne_corner(fp_pts, anchors)
+    R_a5 = _compute_nw_corner(fp_pts, anchors)
+    R_a2, R_a3, R_a7, R_a8 = _compute_east_wall_arcs(fp_pts)
+    R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
+    R_a17, R_a19, R_a20 = _compute_south_wall(fp_pts, anchors, R_a2, R_a3)
+
     # --- Build outline segments (F-series) ---
-    outline_segs = [
+    outline_segs: list[Segment] = [
         ArcSeg("F0", "F1", "C0", R_a0, "CW", 20),
         LineSeg("F1", "F2"),
         ArcSeg("F2", "F3", "C2", R_a2, "CW", 20),

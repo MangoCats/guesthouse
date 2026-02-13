@@ -57,3 +57,6 @@ No circular dependencies. floorplan/ never imports from survey/.
 - Outline geometry lives in `floorplan/geometry.py`; dimension constants in `floorplan/constants.py`
 - Interior layout (rooms, furniture) lives in `floorplan/layout.py`
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
+
+## HOWTO Reference
+See `HOWTO.md` for step-by-step instructions on common tasks (adding dimension lines, walls, openings, appliances, identifying wall faces). Consult it before researching the codebase from scratch. If you complete a complex task not covered there, add a section to it.

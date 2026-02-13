@@ -12,7 +12,7 @@ from .geometry import (
 # ============================================================
 # Traverse Computation
 # ============================================================
-def compute_traverse():
+def compute_traverse() -> tuple[dict[str, Point], Point]:
     """Compute traverse from raw survey legs.
 
     Returns (pts, p3_trav) where pts is a dict with keys
@@ -44,7 +44,7 @@ def compute_traverse():
 # ============================================================
 # Three-Arc System
 # ============================================================
-def compute_three_arc(pts):
+def compute_three_arc(pts: dict[str, Point]) -> dict[str, float]:
     """Compute three-arc boundary system.
 
     Mutates pts adding T1/TC1/T2/TC2/PA/T3/TC3/PX.
@@ -93,7 +93,10 @@ class InsetResult(NamedTuple):
     inset_segs: list[Segment]
     R1i: float; R2i: float; R3i: float
 
-def compute_inset(pts, R1, R2, R3, nE, nN, delta=0.5):
+def compute_inset(
+    pts: dict[str, Point], R1: float, R2: float, R3: float,
+    nE: float, nN: float, delta: float = 0.5,
+) -> InsetResult:
     """Compute inset path (6" inside outer path).
 
     Pure function — does not mutate pts. Returns InsetResult with

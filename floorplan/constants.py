@@ -38,6 +38,13 @@ BED_OFFSET_N = 2.0 / 12.0         # 2" from south wall
 # Water heater
 WH_RADIUS = 14.0 / 12.0           # 14" radius (28" diameter)
 
+# IW6 partition
+IW6_THICKNESS = 1.0 / 12.0        # 1" partition
+IW6_OFFSET_N = 5.5                 # 5'6" south of F6-F7 south face
+
+# IW5 partition
+IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face
+
 # Outline geometry constraints
 CORNER_NE_R = 10.0 / 12.0         # R_a0: 10" corner arc
 CORNER_NW_R = 28.0 / 12.0         # R_a5: 28" NW corner

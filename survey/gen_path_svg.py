@@ -13,7 +13,13 @@ from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
-from floorplan.constants import WALL_OUTER
+from floorplan.constants import (
+    WALL_OUTER, WALL_3IN, WALL_4IN,
+    APPLIANCE_OFFSET_E, APPLIANCE_WIDTH,
+    COUNTER_GAP, COUNTER_DEPTH,
+    CLOSET_WIDTH, BEDROOM_WIDTH,
+    ARC_180_R, F15_OFFSET_E, PIX_PI5_TARGET_BRG,
+)
 
 # ============================================================
 # Section 1: Rendering Types
@@ -177,23 +183,30 @@ def compute_all():
     inset_segs = inset.inset_segs
     inset_area = poly_area(path_polygon(inset_segs, pts))
 
-    # Rotate outer/inset points about pivot so PiX-Pi5 bearing = 60°
-    _R_fp = 28.0 / 12.0
+    # Rotate outer/inset points about pivot so PiX-Pi5 bearing = 60°.
+    # The pivot is chosen so that F15 (after outline geometry) lands at the
+    # correct easting — computed here from the pre-rotation dimension chain.
+    _R_fp = ARC_180_R
     _d_pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
     _L_pip = math.sqrt(_d_pip[0]**2 + _d_pip[1]**2)
     _d_pip_u = (_d_pip[0]/_L_pip, _d_pip[1]/_L_pip)
     _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
     _o_pip = off_pt(pts["PiX"], _ln_pip, _R_fp)
     _pre_U1_E = pts["Pi3"][0]
-    _pre_w5_e = _pre_U1_E + 8.0/12 + 0.5 + 35.0/12 + 3.0 + 2.0 + (3+30+4+140+4+30+3)/12.0
-    _pre_F15_E = _pre_w5_e + 9.0 + 1.0/12
+    # Dimension chain west→east: outer wall + appliance offset + appliance width
+    # + counter gap + counter depth + closet/bedroom/closet walls
+    _pre_w5_e = (_pre_U1_E + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH
+                 + COUNTER_GAP + COUNTER_DEPTH
+                 + WALL_3IN + CLOSET_WIDTH + WALL_4IN + BEDROOM_WIDTH
+                 + WALL_4IN + CLOSET_WIDTH + WALL_3IN)
+    _pre_F15_E = _pre_w5_e + F15_OFFSET_E
     _t_cf4 = (_pre_F15_E - _R_fp - _o_pip[0]) / _d_pip_u[0]
     _cf4 = (_pre_F15_E - _R_fp, _o_pip[1] + _t_cf4 * _d_pip_u[1])
     _t_o12 = ((_cf4[0]-pts["PiX"][0])*_d_pip[0] + (_cf4[1]-pts["PiX"][1])*_d_pip[1]) \
              / (_d_pip[0]**2 + _d_pip[1]**2)
     _pivot = (pts["PiX"][0] + _t_o12*_d_pip[0], pts["PiX"][1] + _t_o12*_d_pip[1])
     _brg_pip = math.degrees(math.atan2(_d_pip[0], _d_pip[1])) % 360
-    _rot_deg = 60.0 - _brg_pip
+    _rot_deg = PIX_PI5_TARGET_BRG - _brg_pip
     _rot_rad = math.radians(_rot_deg)
     _cos_r = math.cos(_rot_rad)
     _sin_r = math.sin(_rot_rad)
