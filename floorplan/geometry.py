@@ -114,10 +114,10 @@ def _compute_central_region(
     L_in = math.sqrt(d_in_po5[0]**2 + d_in_po5[1]**2)
     d_in_u = (d_in_po5[0]/L_in, d_in_po5[1]/L_in)
     # F15 E-coordinate
-    _w5_e = (fp_pts["F1"][0] + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP
-             + COUNTER_DEPTH + (WALL_3IN + CLOSET_WIDTH + WALL_4IN
-             + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH + WALL_3IN))
-    F15_E = _w5_e + F15_OFFSET_E
+    _iw8_e = (fp_pts["F1"][0] + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP
+              + COUNTER_DEPTH + (WALL_3IN + CLOSET_WIDTH + WALL_4IN
+              + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH + WALL_3IN))
+    F15_E = _iw8_e + F15_OFFSET_E
     ln_in_po5 = left_norm(anchors.PiX, anchors.Pi5)
 
     # R_a15 from constraint: F14-F15 segment length

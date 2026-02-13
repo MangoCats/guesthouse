@@ -30,7 +30,7 @@ class TestInteriorLayout:
     def test_wall_ordering_east(self, layout):
         """IW3 west of IW4 west of IW8."""
         assert layout.iw3_w < layout.iw4_w
-        assert layout.iw4_e < layout.w5_w
+        assert layout.iw4_e < layout.iw8_w
 
     def test_iw7_polygon(self, layout):
         assert len(layout.iw7) == 6  # L-shape

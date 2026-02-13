@@ -58,8 +58,8 @@ class InteriorLayout(NamedTuple):
     wall_south_n: float
     # IW8 (L-shaped, east closet wall)
     iw8: list[Point]
-    w5_w: float
-    w5_e: float
+    iw8_w: float
+    iw8_e: float
     # Closet 1
     cl1_top: float
     # Bed
@@ -101,10 +101,10 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_n = ctr_s + COUNTER_LENGTH
     ctr_nw_r = COUNTER_NW_RADIUS
 
-    w8 = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s), (ctr_e + WALL_3IN, ctr_n),
-          (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n),
-          (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n + WALL_3IN),
-          (ctr_e, ctr_n + WALL_3IN)]
+    iw7_poly = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s), (ctr_e + WALL_3IN, ctr_n),
+                (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n),
+                (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n + WALL_3IN),
+                (ctr_e, ctr_n + WALL_3IN)]
     iw3_w = ctr_e + WALL_3IN + CLOSET_WIDTH
     iw3_e = iw3_w + WALL_4IN
     iw3_s = ctr_s
@@ -113,10 +113,10 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw4_e = iw4_w + WALL_4IN
     wall_south_n = WALL_SOUTH_N
     cl1_top = ctr_n - 1.0
-    w5_w = iw4_e + CLOSET_WIDTH
-    w5_e = w5_w + WALL_3IN
-    w5 = [(iw4_e, cl1_top + WALL_3IN), (w5_e, cl1_top + WALL_3IN), (w5_e, wall_south_n),
-          (w5_w, wall_south_n), (w5_w, cl1_top), (iw4_e, cl1_top)]
+    iw8_w = iw4_e + CLOSET_WIDTH
+    iw8_e = iw8_w + WALL_3IN
+    iw8_poly = [(iw4_e, cl1_top + WALL_3IN), (iw8_e, cl1_top + WALL_3IN), (iw8_e, wall_south_n),
+                (iw8_w, wall_south_n), (iw8_w, cl1_top), (iw4_e, cl1_top)]
 
     bed_cx = (iw3_e + iw4_w) / 2
     bed_w = bed_cx - BED_WIDTH / 2
@@ -131,10 +131,10 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         washer_w=washer_w, washer_s=washer_s, washer_e=washer_e, washer_n=washer_n,
         ctr_w=ctr_w, ctr_e=ctr_e, ctr_s=ctr_s, ctr_n=ctr_n, ctr_nw_r=ctr_nw_r,
         iwt3=WALL_3IN, iwt4=WALL_4IN,
-        iw7=w8,
+        iw7=iw7_poly,
         iw3_w=iw3_w, iw3_e=iw3_e, iw3_s=iw3_s, iw3_n=iw3_n,
         iw4_w=iw4_w, iw4_e=iw4_e, wall_south_n=wall_south_n,
-        iw8=w5, w5_w=w5_w, w5_e=w5_e,
+        iw8=iw8_poly, iw8_w=iw8_w, iw8_e=iw8_e,
         cl1_top=cl1_top,
         bed_w=bed_w, bed_e=bed_e, bed_s=bed_s, bed_n=bed_n, bed_cx=bed_cx,
     )

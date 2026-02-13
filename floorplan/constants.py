@@ -62,4 +62,4 @@ F12_F13_SEG = 10.0                 # 10' segment
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
-F15_OFFSET_E = 9.0 + 1.0/12.0     # 9'1" F15 east of w5_e
+F15_OFFSET_E = 9.0 + 1.0/12.0     # 9'1" F15 east of iw8_e

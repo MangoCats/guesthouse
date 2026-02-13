@@ -195,11 +195,11 @@ def compute_all():
     _pre_U1_E = pts["Pi3"][0]
     # Dimension chain west→east: outer wall + appliance offset + appliance width
     # + counter gap + counter depth + closet/bedroom/closet walls
-    _pre_w5_e = (_pre_U1_E + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH
+    _pre_iw8_e = (_pre_U1_E + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH
                  + COUNTER_GAP + COUNTER_DEPTH
                  + WALL_3IN + CLOSET_WIDTH + WALL_4IN + BEDROOM_WIDTH
                  + WALL_4IN + CLOSET_WIDTH + WALL_3IN)
-    _pre_F15_E = _pre_w5_e + F15_OFFSET_E
+    _pre_F15_E = _pre_iw8_e + F15_OFFSET_E
     _t_cf4 = (_pre_F15_E - _R_fp - _o_pip[0]) / _d_pip_u[0]
     _cf4 = (_pre_F15_E - _R_fp, _o_pip[1] + _t_cf4 * _d_pip_u[1])
     _t_o12 = ((_cf4[0]-pts["PiX"][0])*_d_pip[0] + (_cf4[1]-pts["PiX"][1])*_d_pip[1]) \
@@ -283,19 +283,19 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw7)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW3 (west bedroom wall)
-    w1sp = [(L.iw3_w,L.iw3_s),(L.iw3_e,L.iw3_s),(L.iw3_e,L.iw3_n),(L.iw3_w,L.iw3_n)]
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w1sp)
+    iw3_poly = [(L.iw3_w,L.iw3_s),(L.iw3_e,L.iw3_s),(L.iw3_e,L.iw3_n),(L.iw3_w,L.iw3_n)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw3_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW4 (east bedroom wall)
     wsn = L.wall_south_n
-    w6p = [(L.iw4_w,wsn),(L.iw4_e,wsn),(L.iw4_e,L.iw1_s),(L.iw4_w,L.iw1_s)]
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w6p)
+    iw4_poly = [(L.iw4_w,wsn),(L.iw4_e,wsn),(L.iw4_e,L.iw1_s),(L.iw4_w,L.iw1_s)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw4_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW8 L-shape
-    cl1_top = L.cl1_top; iwt3 = L.iwt3; w5_w = L.w5_w; w5_e = L.w5_e
-    w5p = [(L.iw4_e,cl1_top+iwt3),(w5_e,cl1_top+iwt3),(w5_e,wsn),
-           (w5_w,wsn),(w5_w,cl1_top),(L.iw4_e,cl1_top)]
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w5p)
+    cl1_top = L.cl1_top; iwt3 = L.iwt3; iw8_w = L.iw8_w; iw8_e = L.iw8_e
+    iw8_poly = [(L.iw4_e,cl1_top+iwt3),(iw8_e,cl1_top+iwt3),(iw8_e,wsn),
+                (iw8_w,wsn),(iw8_w,cl1_top),(L.iw4_e,cl1_top)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw8_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # Appliances
     for lbl,sw_e,sw_n,ne_e,ne_n in [("DRYER",L.dryer_w,L.dryer_s,L.dryer_e,L.dryer_n),
@@ -325,7 +325,7 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     bx,by = to_svg((L.iw3_e+L.iw4_w)/2,(ctr_s+L.iw1_s)/2)
     lines.append(f'<text x="{bx:.1f}" y="{by+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
-    cx,cy = to_svg((L.iw4_e+w5_w)/2,(ctr_s+cl1_top)/2)
+    cx,cy = to_svg((L.iw4_e+iw8_w)/2,(ctr_s+cl1_top)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     lines.append('</g>')
 

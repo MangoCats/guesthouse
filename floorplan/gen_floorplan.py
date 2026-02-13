@@ -182,15 +182,15 @@ def render_floorplan_svg(data):
                f' font-weight="bold">Parent Suite</text>')
 
     # --- Interior wall IW1: 6" thick, south face 11'6" north of inner F0-F21 ---
-    int_wall_south = pts["W0"][1] + IW1_OFFSET_N
-    int_wall_north = int_wall_south + WALL_6IN
+    iw1_s = pts["W0"][1] + IW1_OFFSET_N
+    iw1_n = iw1_s + WALL_6IN
 
-    _s_ints = horiz_isects(inner_poly, int_wall_south)
-    _n_ints = horiz_isects(inner_poly, int_wall_north)
-    iw_sw = (min(_s_ints), int_wall_south)
-    iw_se = (max(_s_ints), int_wall_south)
-    iw_nw = (min(_n_ints), int_wall_north)
-    iw_ne = (max(_n_ints), int_wall_north)
+    _s_ints = horiz_isects(inner_poly, iw1_s)
+    _n_ints = horiz_isects(inner_poly, iw1_n)
+    iw_sw = (min(_s_ints), iw1_s)
+    iw_se = (max(_s_ints), iw1_s)
+    iw_nw = (min(_n_ints), iw1_n)
+    iw_ne = (max(_n_ints), iw1_n)
 
     # Wall fill: outer gray, inner white cutout
     outer_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in outer_poly)
@@ -214,7 +214,7 @@ def render_floorplan_svg(data):
     # Interior wall IW2: 6" thick, N-S, west face 6'6" east of inner W1-W2 wall
     iw2_w = pts["W1"][0] + IW2_OFFSET_E
     iw2_e = iw2_w + WALL_6IN
-    iw2_s = int_wall_north
+    iw2_s = iw1_n
     iw2_n = pts["W6"][1]
     iw2_pts = [(iw2_w, iw2_s), (iw2_e, iw2_s), (iw2_e, iw2_n), (iw2_w, iw2_n)]
     wall_poly(out, iw2_pts, to_svg, stroke=False)
@@ -242,7 +242,7 @@ def render_floorplan_svg(data):
 
     # Dimension line: IW1 north face to F9-F11 south face (inner), mid-span
     dim_e = (pts["F9"][0] + pts["F11"][0]) / 2
-    dim_line_v(out, dim_e, int_wall_north, pts["W9"][1], fmt_dist(pts["W9"][1] - int_wall_north), to_svg)
+    dim_line_v(out, dim_e, iw1_n, pts["W9"][1], fmt_dist(pts["W9"][1] - iw1_n), to_svg)
 
     # Dimension line: IW2 east face to inside F12-F13 wall
     dim2_n = (pts["F12"][1] + pts["F13"][1]) / 2
@@ -327,40 +327,40 @@ def render_floorplan_svg(data):
     iw3_w = ctr_e + WALL_3IN + CLOSET_WIDTH
     iw3_e = iw3_w + WALL_4IN
     iw3_s = ctr_s
-    iw3_n = int_wall_south
+    iw3_n = iw1_s
     iw3_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s), (iw3_e, iw3_n), (iw3_w, iw3_n)]
     wall_poly(out, iw3_poly, to_svg)
 
     # IW4 (bedroom east wall, 4" thick) — 11'8" east of IW3 east face
     iw4_w = iw3_e + BEDROOM_WIDTH
     iw4_e = iw4_w + WALL_4IN
-    iw4_poly = [(iw4_w, WALL_SOUTH_N), (iw4_e, WALL_SOUTH_N), (iw4_e, int_wall_south), (iw4_w, int_wall_south)]
+    iw4_poly = [(iw4_w, WALL_SOUTH_N), (iw4_e, WALL_SOUTH_N), (iw4_e, iw1_s), (iw4_w, iw1_s)]
     wall_poly(out, iw4_poly, to_svg)
 
     # IW8 (L-shaped, 3" thick — east/north walls of closet 1)
     closet1_top = WALL_SOUTH_N + CLOSET1_HEIGHT
-    w5_w = iw4_e + CLOSET_WIDTH
-    w5_e = w5_w + WALL_3IN
+    iw8_w = iw4_e + CLOSET_WIDTH
+    iw8_e = iw8_w + WALL_3IN
     iw8_poly = [
         (iw4_e, closet1_top + WALL_3IN),
-        (w5_e, closet1_top + WALL_3IN),
-        (w5_e, WALL_SOUTH_N),
-        (w5_w, WALL_SOUTH_N),
-        (w5_w, closet1_top),
+        (iw8_e, closet1_top + WALL_3IN),
+        (iw8_e, WALL_SOUTH_N),
+        (iw8_w, WALL_SOUTH_N),
+        (iw8_w, closet1_top),
         (iw4_e, closet1_top),
     ]
     wall_poly(out, iw8_poly, to_svg)
 
     # IW5: 3" thick, W-E in office, north face 30" south of IW1 south face
-    iw5_n = int_wall_south - IW5_OFFSET_N
+    iw5_n = iw1_s - IW5_OFFSET_N
     iw5_s = iw5_n - WALL_3IN
-    iw5_w = iw4_e
-    iw5_e = pts["W15"][0]
-    iw5_poly = [(iw5_w, iw5_s), (iw5_e, iw5_s), (iw5_e, iw5_n), (iw5_w, iw5_n)]
+    iiw8_w = iw4_e
+    iiw8_e = pts["W15"][0]
+    iw5_poly = [(iiw8_w, iw5_s), (iiw8_e, iw5_s), (iiw8_e, iw5_n), (iiw8_w, iw5_n)]
     wall_poly(out, iw5_poly, to_svg, stroke=False)
     for n_val in [iw5_s, iw5_n]:
-        sx1, sy1 = to_svg(iw5_w, n_val)
-        sx2, sy2 = to_svg(iw5_e, n_val)
+        sx1, sy1 = to_svg(iiw8_w, n_val)
+        sx2, sy2 = to_svg(iiw8_e, n_val)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
 
@@ -389,29 +389,29 @@ def render_floorplan_svg(data):
 
     # Room labels
     _bd_cx = (iw3_e + iw4_w) / 2
-    _bd_cy = (ctr_s + int_wall_south) / 2
+    _bd_cy = (ctr_s + iw1_s) / 2
     _bdx, _bdy = to_svg(_bd_cx, _bd_cy)
     out.append(f'<text x="{_bdx:.1f}" y="{_bdy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">BEDROOM</text>')
 
     _of_cx = (iw4_e + pts["W15"][0]) / 2
-    _of_cy = (closet1_top + WALL_3IN + int_wall_south) / 2 - 2.0
+    _of_cy = (closet1_top + WALL_3IN + iw1_s) / 2 - 2.0
     _ofx, _ofy = to_svg(_of_cx, _of_cy)
     out.append(f'<text x="{_ofx:.1f}" y="{_ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">OFFICE</text>')
 
     # --- Interior dimension lines ---
-    bd_ew_n = ctr_s + 0.25 * (int_wall_south - ctr_s)
+    bd_ew_n = ctr_s + 0.25 * (iw1_s - ctr_s)
     dim_line_h(out, iw3_e, bd_ew_n, iw4_w, fmt_dist(iw4_w - iw3_e), to_svg)
-    dim_line_v(out, iw3_e + 2.0, ctr_s, int_wall_south, fmt_dist(int_wall_south - ctr_s), to_svg)
+    dim_line_v(out, iw3_e + 2.0, ctr_s, iw1_s, fmt_dist(iw1_s - ctr_s), to_svg)
 
     dim_line_v(out, (ctr_e + WALL_3IN + iw3_w) / 2, ctr_s, ctr_n, f"CLOSET {fmt_dist(ctr_n - ctr_s)}", to_svg)
-    dim_line_v(out, (iw4_e + w5_w) / 2, WALL_SOUTH_N, closet1_top, f"CLOSET {fmt_dist(closet1_top - WALL_SOUTH_N)}", to_svg)
+    dim_line_v(out, (iw4_e + iw8_w) / 2, WALL_SOUTH_N, closet1_top, f"CLOSET {fmt_dist(closet1_top - WALL_SOUTH_N)}", to_svg)
 
     dim_line_h(out, pts["W1"][0], (ctr_s + ctr_n) / 2, ctr_e, fmt_dist(ctr_e - pts["W1"][0]), to_svg)
-    dim_line_h(out, w5_e, 5.0, pts["W15"][0], fmt_dist(pts["W15"][0] - w5_e), to_svg)
+    dim_line_h(out, iw8_e, 5.0, pts["W15"][0], fmt_dist(pts["W15"][0] - iw8_e), to_svg)
 
-    dim_line_h(out, iw4_e, (iw5_n + int_wall_south) / 2, pts["W15"][0],
+    dim_line_h(out, iw4_e, (iw5_n + iw1_s) / 2, pts["W15"][0],
                f"STORAGE {fmt_dist(pts['W15'][0] - iw4_e)}", to_svg)
 
     _dim_f1f2_n = ctr_n + WALL_3IN + 1.0
@@ -422,8 +422,8 @@ def render_floorplan_svg(data):
     dim_line_v(out, pts["F18"][0], iw5_s, pts["W18"][1], fmt_dist(iw5_s - pts["W18"][1]), to_svg)
     dim_line_v(out, pts["F6"][0] + 1.0, iw6_n, pts["W6"][1],
                fmt_dist(pts["W6"][1] - iw6_n), to_svg)
-    dim_line_v(out, pts["F6"][0] + 1.0, int_wall_north, iw6_s,
-               fmt_dist(iw6_s - int_wall_north), to_svg)
+    dim_line_v(out, pts["F6"][0] + 1.0, iw1_n, iw6_s,
+               fmt_dist(iw6_s - iw1_n), to_svg)
 
     # External dimensions
     _dim_ext_e = pts["F2"][0] - 2.7
@@ -438,8 +438,8 @@ def render_floorplan_svg(data):
                fmt_dist(pts["F15"][0] - pts["F1"][0]), to_svg)
 
     _o9_dim_e = (bed_e + iw4_w) / 2
-    dim_line_v(out, _o9_dim_e, pts["W18"][1], int_wall_south,
-               fmt_dist(int_wall_south - pts["W18"][1]), to_svg)
+    dim_line_v(out, _o9_dim_e, pts["W18"][1], iw1_s,
+               fmt_dist(iw1_s - pts["W18"][1]), to_svg)
 
     # --- Openings (numbered CW around the building outline) ---
 

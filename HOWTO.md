@@ -39,7 +39,7 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
 1. **Identify the two endpoints** in survey coordinates:
    - Perimeter wall outer face: `pts["F<n>"][0]` (easting) or `pts["F<n>"][1]` (northing)
    - Perimeter wall inner face: `pts["W<n>"][0]` or `pts["W<n>"][1]`
-   - Interior wall faces: use the named variables (e.g., `iw3_w`, `iw3_e`, `iw4_w`, `int_wall_south`, `int_wall_north`)
+   - Interior wall faces: use the named variables (e.g., `iw3_w`, `iw3_e`, `iw4_w`, `iw1_s`, `iw1_n`)
 
 2. **Determine the offset position** (where the line is placed, perpendicular to the measurement):
    - For `dim_line_h`: choose a northing `n` (e.g., `ctr_n + iw_thick_3 + 1.0` for "1' north of IW7 north face")
@@ -89,12 +89,12 @@ Interior walls use named variables computed in `gen_floorplan.py`:
 
 | Wall | West face | East face | South face | North face |
 |-|-|-|-|-|
-| **IW1** (horizontal, 6") | — | — | `int_wall_south` | `int_wall_north` |
+| **IW1** (horizontal, 6") | — | — | `iw1_s` | `iw1_n` |
 | **IW2** (vertical, 6") | `iw2_w` | `iw2_e` | `iw2_s` | `iw2_n` |
-| **IW3** (vertical, 4") | `iw3_w` | `iw3_e` | `iw3_s` (`ctr_s`) | `iw3_n` (`int_wall_south`) |
-| **IW4** (vertical, 4") | `iw4_w` | `iw4_e` | `wall_south_n` | `int_wall_south` |
+| **IW3** (vertical, 4") | `iw3_w` | `iw3_e` | `iw3_s` (`ctr_s`) | `iw3_n` (`iw1_s`) |
+| **IW4** (vertical, 4") | `iw4_w` | `iw4_e` | `wall_south_n` | `iw1_s` |
 | **IW7** (L-shape, 3") | `ctr_e` | varies | `ctr_s` | `ctr_n + iw_thick_3` |
-| **IW8** (L-shape, 3") | `w5_w` | `w5_e` | `wall_south_n` | `closet1_top + iw_thick_3` |
+| **IW8** (L-shape, 3") | `iw8_w` | `iw8_e` | `wall_south_n` | `closet1_top + iw_thick_3` |
 | **IW5** (horizontal, 3") | `iw5_w` (`iw4_e`) | `iw5_e` (`pts["W15"][0]`) | `iw5_s` | `iw5_n` |
 
 ### Room-relative references
@@ -145,7 +145,7 @@ See IW7 or IW8 for examples. Define 6 vertices tracing the L-shape, then pass to
 Use constants from the top of the interior walls section:
 - `iw_thick_3` = 3" (0.25')
 - `iw_thick_4` = 4" (0.333')
-- `int_wall_t` = 6" (0.5')
+- `iwt` = 6" (0.5')
 
 ---
 
