@@ -695,7 +695,7 @@ def _render_interior_walls(out, data):
     IW_FILL = "rgba(160,160,160,0.35)"
     IW_STROKE = "#666"
     IW_SW = "0.5"
-    LABEL_SIZE = "6.4"
+    LABEL_SIZE = "6"
     LABEL_GAP = 3.0  # SVG px from wall face to label center
 
     def iw_poly(poly):
