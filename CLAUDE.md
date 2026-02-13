@@ -24,7 +24,6 @@ floorplan/           — Building design: single source of truth for geometry an
 survey/              — Survey scripts and data (not a Python package)
   gen_path_svg.py    — Outline + inset path SVG with labels. Outputs survey/path_area.svg
   compute_path.py    — Diagnostic/computation script
-  gen_layout.py      — Layout option visualization
   rough_survey.txt   — Raw field measurements
   distances.md       — Theoretical distances
   adjust_pentagon.py — Least-squares survey adjustment
@@ -38,7 +37,6 @@ survey/gen_path_svg.py ──→ floorplan/ ──→ shared/
 floorplan/gen_floorplan.py ──→ floorplan/ ──→ shared/
                            └──→ shared/
 survey/compute_path.py ──→ shared/
-survey/gen_layout.py ──→ shared/
 ```
 
 No circular dependencies. floorplan/ never imports from survey/.
