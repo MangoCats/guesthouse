@@ -695,7 +695,8 @@ def _render_interior_walls(out, data):
     IW_FILL = "rgba(160,160,160,0.35)"
     IW_STROKE = "#666"
     IW_SW = "0.5"
-    LABEL_SIZE = "4"
+    LABEL_SIZE = "6.4"
+    LABEL_GAP = 3.0  # SVG px from wall face to label center
 
     def iw_poly(poly):
         svg = " ".join(f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in poly)
@@ -705,10 +706,23 @@ def _render_interior_walls(out, data):
     def iw_rect(w, e, s, n):
         iw_poly([(w, s), (e, s), (e, n), (w, n)])
 
-    def iw_label(name, w, e, s, n, vertical=True):
-        cx, cy = to_svg((w + e) / 2, (s + n) / 2)
-        rot = f' transform="rotate(-90 {cx:.1f} {cy:.1f})"' if vertical else ""
-        out.append(f'<text x="{cx:.1f}" y="{cy:.1f}" text-anchor="middle"'
+    def iw_label(name, w, e, s, n, vertical=True, n_shift=0.0):
+        """Label just outside the wall: north for horizontal, west for vertical.
+
+        n_shift: survey-feet offset applied to the label's northing
+        (negative = south).
+        """
+        if vertical:
+            # N-S wall: label west of wall, centered vertically
+            lx, ly = to_svg(w, (s + n) / 2 + n_shift)
+            lx -= LABEL_GAP
+            rot = f' transform="rotate(-90 {lx:.1f} {ly:.1f})"'
+        else:
+            # W-E wall: label north of wall, centered horizontally
+            lx, ly = to_svg((w + e) / 2, n + n_shift)
+            ly -= LABEL_GAP
+            rot = ""
+        out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
                    f' dominant-baseline="central" font-family="Arial"'
                    f' font-size="{LABEL_SIZE}" fill="#666"{rot}>{name}</text>')
 
@@ -738,9 +752,10 @@ def _render_interior_walls(out, data):
     iw_label("IW7", layout.iw7[0][0], layout.iw7[1][0],
              layout.iw7[0][1], layout.iw7[5][1])
 
-    # IW3 (vertical, 4")
+    # IW3 (vertical, 4") — label shifted 6" south to clear IW7 horizontal leg
     iw_rect(layout.iw3_w, layout.iw3_e, layout.iw3_s, layout.iw3_n)
-    iw_label("IW3", layout.iw3_w, layout.iw3_e, layout.iw3_s, layout.iw3_n)
+    iw_label("IW3", layout.iw3_w, layout.iw3_e, layout.iw3_s, layout.iw3_n,
+             n_shift=-6.0 / 12.0)
 
     # IW4 (vertical, 4")
     iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3_n)
