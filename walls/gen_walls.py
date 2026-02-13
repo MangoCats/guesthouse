@@ -107,8 +107,8 @@ def _compute_openings(pts, outline_segs, layout):
 
     # --- O2: F1-F2, vertical, upper (near F2) — computed first, O1 depends on it ---
     idx = seg_map[("F1", "F2")]
-    o2_n = pts["F2"][1] - 8.0 / 12.0
-    o2_s = pts["F2"][1] - 33.0 / 12.0
+    o2_n = pts["F2"][1] - 4.0 / 12.0
+    o2_s = pts["F2"][1] - 29.0 / 12.0
     t1 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o2_s))
     t2 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o2_n))
     openings.append(WallOpening("O2", idx, min(t1, t2), max(t1, t2)))

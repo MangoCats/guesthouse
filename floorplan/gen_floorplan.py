@@ -444,8 +444,8 @@ def render_floorplan_svg(data):
     # --- Openings (numbered CW around the building outline) ---
 
     # O2: F1-F2, vertical, upper (near F2) — computed first, O1 depends on it
-    _o2_n = pts["F2"][1] - 8.0 / 12.0
-    _o2_s = pts["F2"][1] - 33.0 / 12.0
+    _o2_n = pts["F2"][1] - 4.0 / 12.0
+    _o2_s = pts["F2"][1] - 29.0 / 12.0
     _o2_poly = [
         (pts["F2"][0], _o2_s), (pts["F2"][0], _o2_n),
         (pts["W2"][0], _o2_n), (pts["W2"][0], _o2_s),
