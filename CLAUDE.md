@@ -65,7 +65,7 @@ No circular dependencies. floorplan/ never imports from survey/ or walls/.
 - Physical constants defined once in `floorplan/constants.py` — no magic numbers in geometry/layout code
 
 ## Workflow
-- After geometry changes, verify by running: `python survey/gen_path_svg.py` then `python floorplan/gen_floorplan.py` then `python walls/gen_walls.py`
+- After each completed request, always: `git commit -a -m "<summary>"` then `python gen_all.py` to regenerate all SVGs
 - Outline geometry lives in `floorplan/geometry.py`; dimension constants in `floorplan/constants.py`
 - Interior layout (rooms, furniture) lives in `floorplan/layout.py`
 - Wall construction constants (shell thickness, air gap, opening radius) live in `walls/constants.py`
