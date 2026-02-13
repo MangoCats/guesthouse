@@ -129,11 +129,11 @@ def _compute_openings(pts, outline_segs, layout):
     t2 = _seg_param(pts, outline_segs[idx], (pts["F4"][0], o3_cn + o3_half))
     openings.append(WallOpening("O3", idx, min(t1, t2), max(t1, t2)))
 
-    # --- O4: F6-F7, horizontal ---
+    # --- O4: F6-F7, horizontal, centered on midpoint ---
     idx = seg_map[("F6", "F7")]
-    iw2_w = layout.iw2_w
-    o4_e = iw2_w - 9.0 / 12.0
-    o4_w = o4_e - 9.0 / 12.0
+    o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
+    o4_w = o4_mid - 4.5 / 12.0
+    o4_e = o4_mid + 4.5 / 12.0
     t1 = _seg_param(pts, outline_segs[idx], (o4_w, pts["F6"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o4_e, pts["F6"][1]))
     openings.append(WallOpening("O4", idx, min(t1, t2), max(t1, t2)))

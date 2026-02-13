@@ -468,9 +468,10 @@ def render_floorplan_svg(data):
         (pts["W4"][0], _o3_cn + _o3_half), (pts["W4"][0], _o3_cn - _o3_half),
     ]
 
-    # O4: F6-F7, horizontal
-    _o4_e = iw2_w - 9.0 / 12.0
-    _o4_w = _o4_e - 9.0 / 12.0
+    # O4: F6-F7, horizontal, centered on midpoint
+    _o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
+    _o4_w = _o4_mid - 4.5 / 12.0
+    _o4_e = _o4_mid + 4.5 / 12.0
     _o4_poly = [
         (_o4_w, pts["W6"][1]), (_o4_e, pts["W6"][1]),
         (_o4_e, pts["F6"][1]), (_o4_w, pts["F6"][1]),

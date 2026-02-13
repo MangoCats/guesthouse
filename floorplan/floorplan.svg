@@ -160,8 +160,8 @@
 <text x="155.6" y="317.9" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="7" fill="#4682B4" transform="rotate(-90,155.6,317.9)">O2</text>
 <polygon points="163.4,263.0 163.4,232.0 171.2,232.0 171.2,263.0" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
 <text x="167.3" y="247.5" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="7" fill="#4682B4" transform="rotate(-90,167.3,247.5)">O3</text>
-<polygon points="209.1,208.6 217.8,208.6 217.8,200.9 209.1,200.9" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
-<text x="213.4" y="207.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">O4</text>
+<polygon points="217.8,208.6 226.6,208.6 226.6,200.9 217.8,200.9" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
+<text x="222.2" y="207.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">O4</text>
 <polygon points="291.0,237.8 361.0,237.8 361.0,230.0 291.0,230.0" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
 <text x="326.0" y="236.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">O5</text>
 <polygon points="436.7,237.8 479.5,237.8 479.5,230.0 436.7,230.0" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
@@ -228,6 +228,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 16:45:45</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-11-gba12122</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 16:50:36</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-12-g8f80b58</text>
 </svg>
