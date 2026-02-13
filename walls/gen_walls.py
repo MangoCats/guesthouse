@@ -784,8 +784,6 @@ def _render_opening_dims(out, data):
 
     DIM_OFFSET = 0.75       # feet outside F-face
     TICK = 3.0              # SVG pts, tick half-length
-    EXT_LEN = 8.0           # SVG pts, arrow leader length for narrow style
-    NARROW_THRESHOLD = 15.0 # SVG pts width; below → outside-arrows style
     EXT_OVERSHOOT = 1.5     # SVG pts, extension line past dim line
     LABEL_OFFSET = 4.0      # SVG pts, label offset from dim line toward exterior
     DIM_COLOR = "#4682B4"
@@ -853,23 +851,10 @@ def _render_opening_dims(out, data):
         inches = width_ft * 12
         label = f"{inches:.2f}".rstrip('0').rstrip('.') + '&#8243;'
 
-        if dim_len >= NARROW_THRESHOLD:
-            # Normal style: connecting line between endpoints
-            out.append(f'<line x1="{sx1:.2f}" y1="{sy1:.2f}"'
-                       f' x2="{sx2:.2f}" y2="{sy2:.2f}"'
-                       f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"/>')
-        else:
-            # Narrow style: arrows pointing inward from outside
-            out.append(f'<line x1="{sx1 - udx * EXT_LEN:.2f}"'
-                       f' y1="{sy1 - udy * EXT_LEN:.2f}"'
-                       f' x2="{sx1:.2f}" y2="{sy1:.2f}"'
-                       f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"'
-                       f' marker-end="url(#dim-arrow)"/>')
-            out.append(f'<line x1="{sx2 + udx * EXT_LEN:.2f}"'
-                       f' y1="{sy2 + udy * EXT_LEN:.2f}"'
-                       f' x2="{sx2:.2f}" y2="{sy2:.2f}"'
-                       f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"'
-                       f' marker-end="url(#dim-arrow)"/>')
+        # Connecting line between endpoints
+        out.append(f'<line x1="{sx1:.2f}" y1="{sy1:.2f}"'
+                   f' x2="{sx2:.2f}" y2="{sy2:.2f}"'
+                   f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"/>')
 
         # Label: centered, offset toward exterior
         mx = (sx1 + sx2) / 2 + enx * LABEL_OFFSET
@@ -910,14 +895,6 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                f' {data["vb_w"]:.2f} {data["vb_h"]:.2f}">')
     out.append(f'<rect x="{data["vb_x"]:.2f}" y="{data["vb_y"]:.2f}"'
                f' width="{data["vb_w"]:.2f}" height="{data["vb_h"]:.2f}" fill="white"/>')
-
-    if include_interior:
-        out.append('<defs>')
-        out.append('  <marker id="dim-arrow" viewBox="0 0 4 3" refX="4" refY="1.5"'
-                   ' markerWidth="4" markerHeight="3" orient="auto">')
-        out.append('    <path d="M0,0 L4,1.5 L0,3 Z" fill="#4682B4"/>')
-        out.append('  </marker>')
-        out.append('</defs>')
 
     # Title
     out.append(f'<text x="{data["title_x"]:.1f}" y="{data["title_y"]:.1f}"'
