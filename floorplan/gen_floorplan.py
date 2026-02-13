@@ -469,7 +469,7 @@ def render_floorplan_svg(data):
     ]
 
     # O4: F6-F7, horizontal
-    _o4_e = iw2_w - 18.0 / 12.0
+    _o4_e = iw2_w - 9.0 / 12.0
     _o4_w = _o4_e - 9.0 / 12.0
     _o4_poly = [
         (_o4_w, pts["W6"][1]), (_o4_e, pts["W6"][1]),

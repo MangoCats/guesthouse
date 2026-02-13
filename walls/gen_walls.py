@@ -132,7 +132,7 @@ def _compute_openings(pts, outline_segs, layout):
     # --- O4: F6-F7, horizontal ---
     idx = seg_map[("F6", "F7")]
     iw2_w = layout.iw2_w
-    o4_e = iw2_w - 18.0 / 12.0
+    o4_e = iw2_w - 9.0 / 12.0
     o4_w = o4_e - 9.0 / 12.0
     t1 = _seg_param(pts, outline_segs[idx], (o4_w, pts["F6"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o4_e, pts["F6"][1]))
