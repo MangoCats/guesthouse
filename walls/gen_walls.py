@@ -531,6 +531,72 @@ def _build_section_outlines(pts, outline_segs, inner_segs, s_segs, g_segs,
 
 
 # ============================================================
+# Length computation
+# ============================================================
+
+def _seg_arc_sweep(seg, pts):
+    """Compute sweep angle (radians) of an arc segment."""
+    c = pts[seg.center]
+    s = pts[seg.start]
+    e = pts[seg.end]
+    ang_s = math.atan2(s[1] - c[1], s[0] - c[0])
+    ang_e = math.atan2(e[1] - c[1], e[0] - c[0])
+    if seg.direction == "CW":
+        return (ang_s - ang_e) % (2 * math.pi)
+    else:
+        return (ang_e - ang_s) % (2 * math.pi)
+
+
+def _path_length_between(pts, outline_segs, start_seg_idx, start_t,
+                         end_seg_idx, end_t, inset):
+    """Compute path length between two parametric positions at a given inset.
+
+    For line segments, inset does not change length (perpendicular offset).
+    For arc segments, length = (R ± inset) * sweep_angle.
+      CW arcs (convex): R_adj = R - inset
+      CCW arcs (concave): R_adj = R + inset
+    Returns length in feet.
+    """
+    n_segs = len(outline_segs)
+    total = 0.0
+
+    if start_seg_idx == end_seg_idx:
+        # Same segment (must be a LineSeg — openings only on lines)
+        seg = outline_segs[start_seg_idx]
+        A, B = pts[seg.start], pts[seg.end]
+        seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
+        return seg_len * (end_t - start_t)
+
+    # Start segment: partial from start_t to 1.0
+    seg = outline_segs[start_seg_idx]
+    A, B = pts[seg.start], pts[seg.end]
+    seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
+    total += seg_len * (1.0 - start_t)
+
+    # Intermediate full segments
+    idx = (start_seg_idx + 1) % n_segs
+    while idx != end_seg_idx:
+        seg = outline_segs[idx]
+        if isinstance(seg, ArcSeg):
+            sweep = _seg_arc_sweep(seg, pts)
+            R = seg.radius
+            R_adj = (R - inset) if seg.direction == "CW" else (R + inset)
+            total += R_adj * sweep
+        else:
+            A, B = pts[seg.start], pts[seg.end]
+            total += math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
+        idx = (idx + 1) % n_segs
+
+    # End segment: partial from 0.0 to end_t
+    seg = outline_segs[end_seg_idx]
+    A, B = pts[seg.start], pts[seg.end]
+    seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
+    total += seg_len * end_t
+
+    return total
+
+
+# ============================================================
 # Data computation
 # ============================================================
 
@@ -805,6 +871,106 @@ def render_walls_svg(data):
                f' text-anchor="middle" font-family="Arial" font-size="7"'
                f' fill="#999">2&#8243; shell / 4&#8243; gap / 2&#8243; shell</text>')
 
+    # --- Wall segment table ---
+    sections = _enumerate_wall_sections(openings, outline_segs)
+    # Rotate so O11-O1 (last section) comes first
+    sections = sections[-1:] + sections[:-1]
+
+    tbl_left = data["tb_left"]
+    tbl_top = data["tb_bottom"] + 12
+    row_h = 7.5
+    # Column right-edges (From-To is left-aligned, others right-aligned)
+    col_r = [tbl_left + 32, tbl_left + 62, tbl_left + 92, tbl_left + 128]
+
+    # U-turn centerline length (same for every section)
+    R_mid = R_in + shell_t / 2          # centerline radius through shell
+    uturn_straight = WALL_OUTER - 2 * (shell_t + R_in)
+    uturn_cl = 2 * (math.pi / 2) * R_mid + uturn_straight  # feet
+
+    # Compute row data
+    table_rows = []
+    for start_op, end_op in sections:
+        label = f"{start_op.name}&#8211;{end_op.name}"
+        s_seg = start_op.seg_idx
+        s_t = start_op.t_end
+        e_seg = end_op.seg_idx
+        e_t = end_op.t_start
+
+        outer_ft = _path_length_between(
+            pts, outline_segs, s_seg, s_t, e_seg, e_t, 0.0)
+        inner_ft = _path_length_between(
+            pts, outline_segs, s_seg, s_t, e_seg, e_t, WALL_OUTER)
+        outer_cl_ft = _path_length_between(
+            pts, outline_segs, s_seg, s_t, e_seg, e_t, shell_t / 2)
+        inner_cl_ft = _path_length_between(
+            pts, outline_segs, s_seg, s_t, e_seg, e_t,
+            WALL_OUTER - shell_t / 2)
+        shell_ft = (outer_cl_ft - 2 * R_out) + (inner_cl_ft - 2 * R_out) + 2 * uturn_cl
+
+        table_rows.append((label,
+                           outer_ft * 12, inner_ft * 12, shell_ft * 12))
+
+    # Table title
+    out.append(f'<text x="{(tbl_left + col_r[-1]) / 2:.1f}" y="{tbl_top:.1f}"'
+               f' text-anchor="middle" font-family="Arial" font-size="7"'
+               f' font-weight="bold" fill="#333">Wall Segments</text>')
+
+    # Column headers
+    hdr_y = tbl_top + 10
+    hdrs = ["From&#8211;To", "Outer (in)", "Inner (in)", "Shell (in)"]
+    hdr_x = [tbl_left + 2, col_r[1] - 2, col_r[2] - 2, col_r[3] - 2]
+    hdr_anchor = ["start", "end", "end", "end"]
+    for hx, ha, hd in zip(hdr_x, hdr_anchor, hdrs):
+        out.append(f'<text x="{hx:.1f}" y="{hdr_y:.1f}"'
+                   f' text-anchor="{ha}" font-family="Arial" font-size="6"'
+                   f' font-weight="bold" fill="#333">{hd}</text>')
+
+    # Header underline
+    line_y = hdr_y + 2.5
+    out.append(f'<line x1="{tbl_left:.1f}" y1="{line_y:.1f}"'
+               f' x2="{col_r[-1]:.1f}" y2="{line_y:.1f}"'
+               f' stroke="#999" stroke-width="0.5"/>')
+
+    # Data rows
+    for ri, (label, o_in, i_in, s_in) in enumerate(table_rows):
+        y = line_y + (ri + 1) * row_h
+        vals = [label, f"{o_in:.2f}", f"{i_in:.2f}", f"{s_in:.2f}"]
+        for vx, va, vv in zip(hdr_x, hdr_anchor, vals):
+            out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
+                       f' text-anchor="{va}" font-family="Arial"'
+                       f' font-size="6" fill="#333">{vv}</text>')
+
+    # Total row (separated by a line)
+    total_line_y = line_y + len(table_rows) * row_h + 2
+    out.append(f'<line x1="{tbl_left:.1f}" y1="{total_line_y:.1f}"'
+               f' x2="{col_r[-1]:.1f}" y2="{total_line_y:.1f}"'
+               f' stroke="#999" stroke-width="0.5"/>')
+    tot_o = sum(r[1] for r in table_rows)
+    tot_i = sum(r[2] for r in table_rows)
+    tot_s = sum(r[3] for r in table_rows)
+    tot_y = total_line_y + row_h
+    tot_vals = ["Total", f"{tot_o:.1f}", f"{tot_i:.1f}", f"{tot_s:.1f}"]
+    for vx, va, vv in zip(hdr_x, hdr_anchor, tot_vals):
+        out.append(f'<text x="{vx:.1f}" y="{tot_y:.1f}"'
+                   f' text-anchor="{va}" font-family="Arial"'
+                   f' font-size="6" font-weight="bold" fill="#333">{vv}</text>')
+
+    # "in feet" row
+    ft_y = tot_y + row_h
+    ft_vals = ["in feet", f"{tot_o / 12:.1f}", f"{tot_i / 12:.1f}", f"{tot_s / 12:.1f}"]
+    for vx, va, vv in zip(hdr_x, hdr_anchor, ft_vals):
+        out.append(f'<text x="{vx:.1f}" y="{ft_y:.1f}"'
+                   f' text-anchor="{va}" font-family="Arial"'
+                   f' font-size="6" fill="#333">{vv}</text>')
+
+    # Table border
+    tbl_border_top = tbl_top - 8.5
+    tbl_border_bottom = ft_y + 3
+    out.append(f'<rect x="{tbl_left:.1f}" y="{tbl_border_top:.1f}"'
+               f' width="{col_r[-1] - tbl_left:.1f}"'
+               f' height="{tbl_border_bottom - tbl_border_top:.1f}"'
+               f' fill="none" stroke="#999" stroke-width="0.5"/>')
+
     out.append('</svg>')
     return "\n".join(out)
 
@@ -831,7 +997,7 @@ if __name__ == "__main__":
     svg_content = render_walls_svg(data)
 
     svg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "walls.svg")
-    with open(svg_path, "w") as f:
+    with open(svg_path, "w", encoding="utf-8") as f:
         f.write(svg_content)
 
     print(f"Wall detail written to {svg_path}")

@@ -137,7 +137,67 @@
 <text x="646.4" y="161.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="173.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 12:57:43</text>
-<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-4-gdf1aae7</text>
+<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 13:33:51</text>
+<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-5-g024ac24</text>
 <text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7" fill="#999">2&#8243; shell / 4&#8243; gap / 2&#8243; shell</text>
+<text x="645.4" y="239.0" text-anchor="middle" font-family="Arial" font-size="7" font-weight="bold" fill="#333">Wall Segments</text>
+<text x="583.4" y="249.0" text-anchor="start" font-family="Arial" font-size="6" font-weight="bold" fill="#333">From&#8211;To</text>
+<text x="641.4" y="249.0" text-anchor="end" font-family="Arial" font-size="6" font-weight="bold" fill="#333">Outer (in)</text>
+<text x="671.4" y="249.0" text-anchor="end" font-family="Arial" font-size="6" font-weight="bold" fill="#333">Inner (in)</text>
+<text x="707.4" y="249.0" text-anchor="end" font-family="Arial" font-size="6" font-weight="bold" fill="#333">Shell (in)</text>
+<line x1="581.4" y1="251.5" x2="709.4" y2="251.5" stroke="#999" stroke-width="0.5"/>
+<text x="583.4" y="259.0" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O11&#8211;O1</text>
+<text x="641.4" y="259.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">146.21</text>
+<text x="671.4" y="259.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">133.64</text>
+<text x="707.4" y="259.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">285.46</text>
+<text x="583.4" y="266.5" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O1&#8211;O2</text>
+<text x="641.4" y="266.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">56.00</text>
+<text x="671.4" y="266.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">56.00</text>
+<text x="707.4" y="266.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">117.61</text>
+<text x="583.4" y="274.0" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O2&#8211;O3</text>
+<text x="641.4" y="274.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">46.92</text>
+<text x="671.4" y="274.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">46.92</text>
+<text x="707.4" y="274.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">99.45</text>
+<text x="583.4" y="281.5" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O3&#8211;O4</text>
+<text x="641.4" y="281.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">66.98</text>
+<text x="671.4" y="281.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">54.42</text>
+<text x="707.4" y="281.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">127.01</text>
+<text x="583.4" y="289.0" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O4&#8211;O5</text>
+<text x="641.4" y="289.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">91.12</text>
+<text x="671.4" y="289.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">91.12</text>
+<text x="707.4" y="289.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">187.86</text>
+<text x="583.4" y="296.5" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O5&#8211;O6</text>
+<text x="641.4" y="296.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">79.35</text>
+<text x="671.4" y="296.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">79.35</text>
+<text x="707.4" y="296.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">164.31</text>
+<text x="583.4" y="304.0" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O6&#8211;O7</text>
+<text x="641.4" y="304.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">111.78</text>
+<text x="671.4" y="304.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">101.30</text>
+<text x="707.4" y="304.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">218.69</text>
+<text x="583.4" y="311.5" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O7&#8211;O8</text>
+<text x="641.4" y="311.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">103.06</text>
+<text x="671.4" y="311.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">100.96</text>
+<text x="707.4" y="311.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">209.63</text>
+<text x="583.4" y="319.0" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O8&#8211;O9</text>
+<text x="641.4" y="319.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">191.09</text>
+<text x="671.4" y="319.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">178.53</text>
+<text x="707.4" y="319.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">375.23</text>
+<text x="583.4" y="326.5" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O9&#8211;O10</text>
+<text x="641.4" y="326.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">85.92</text>
+<text x="671.4" y="326.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">85.92</text>
+<text x="707.4" y="326.5" text-anchor="end" font-family="Arial" font-size="6" fill="#333">177.45</text>
+<text x="583.4" y="334.0" text-anchor="start" font-family="Arial" font-size="6" fill="#333">O10&#8211;O11</text>
+<text x="641.4" y="334.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">70.00</text>
+<text x="671.4" y="334.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">70.00</text>
+<text x="707.4" y="334.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">145.61</text>
+<line x1="581.4" y1="336.0" x2="709.4" y2="336.0" stroke="#999" stroke-width="0.5"/>
+<text x="583.4" y="343.5" text-anchor="start" font-family="Arial" font-size="6" font-weight="bold" fill="#333">Total</text>
+<text x="641.4" y="343.5" text-anchor="end" font-family="Arial" font-size="6" font-weight="bold" fill="#333">1048.4</text>
+<text x="671.4" y="343.5" text-anchor="end" font-family="Arial" font-size="6" font-weight="bold" fill="#333">998.2</text>
+<text x="707.4" y="343.5" text-anchor="end" font-family="Arial" font-size="6" font-weight="bold" fill="#333">2108.3</text>
+<text x="583.4" y="351.0" text-anchor="start" font-family="Arial" font-size="6" fill="#333">in feet</text>
+<text x="641.4" y="351.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">87.4</text>
+<text x="671.4" y="351.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">83.2</text>
+<text x="707.4" y="351.0" text-anchor="end" font-family="Arial" font-size="6" fill="#333">175.7</text>
+<rect x="581.4" y="230.5" width="128.0" height="123.5" fill="none" stroke="#999" stroke-width="0.5"/>
 </svg>
