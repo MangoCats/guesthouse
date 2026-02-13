@@ -194,7 +194,7 @@ def compute_inner_walls(
                 R_a11, R_a8, R_a7, R_a5, R_a13, R_a10
     """
     def _inner_point(seg_b, seg_a):
-        _wt = -wall_t  # negated: outline traverses CCW, interior on left
+        _wt = -wall_t  # negated: left_norm points exterior for CW traversal; negate to offset inward
         if not isinstance(seg_b, LineSeg) and not isinstance(seg_a, LineSeg):
             c1 = pts[seg_b.center]; c2 = pts[seg_a.center]
             r1 = (seg_b.radius + _wt) if seg_b.direction == "CW" else (seg_b.radius - _wt)

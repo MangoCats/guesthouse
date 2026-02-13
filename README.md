@@ -42,6 +42,14 @@ python floorplan/gen_floorplan.py
 
 Output: `floorplan/floorplan.svg`
 
+Generate the outer wall construction detail SVG (double-shell concrete walls):
+
+```
+python walls/gen_walls.py
+```
+
+Output: `walls/walls.svg`
+
 ## Tests
 
 ```
@@ -53,6 +61,7 @@ pytest
 ```
 shared/              Common types, geometry, survey computation, SVG utilities
 floorplan/           Building design: geometry, layout, constants, SVG renderer
+walls/               Outer wall construction detail drawing
 survey/              Survey scripts and data
 tests/               Unit tests
 ```

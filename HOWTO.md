@@ -9,8 +9,9 @@ Step-by-step instructions for common but complex tasks in the Hut2 project. Cons
 3. [Adding an Interior Wall](#3-adding-an-interior-wall)
 4. [Adding an Opening](#4-adding-an-opening)
 5. [Adding an Appliance or Furniture Item](#5-adding-an-appliance-or-furniture-item)
-6. [Verifying Changes](#6-verifying-changes)
-7. [Contributing to This Document](#7-contributing-to-this-document)
+6. [Wall Construction Detail Drawing](#6-wall-construction-detail-drawing)
+7. [Verifying Changes](#7-verifying-changes)
+8. [Contributing to This Document](#8-contributing-to-this-document)
 
 ---
 
@@ -71,7 +72,7 @@ Understanding which coordinate to use for "east face of X wall" is the most comm
 
 ### Perimeter walls (8" thick, F-series outer / W-series inner)
 
-The outline traverses CCW: F0 → F1 → ... → F21 → F0. The interior is on the **left** side.
+The outline traverses CW (as viewed from above): F0 → F1 → ... → F21 → F0. The interior is on the **right** side.
 
 | Wall side of building | Outer (exterior) face | Inner (interior) face |
 |-|-|-|
@@ -214,24 +215,80 @@ Use `<circle>` with `cx`, `cy` from `to_svg()` and radius converted via the scal
 
 ---
 
-## 6. Verifying Changes
+## 6. Wall Construction Detail Drawing
 
-After any geometry or layout change, regenerate and inspect both SVGs:
+**Files:** `walls/gen_walls.py`, `walls/constants.py`
+
+The wall detail drawing (`walls/walls.svg`) shows the double-shell 3D-printed concrete outer wall construction at 1:72 scale.
+
+### Wall construction model
+
+- **Outer shell**: 2" thick concrete (F-series to S-series boundary)
+- **Air gap**: 4" between shells
+- **Inner shell**: 2" thick concrete (G-series to W-series boundary)
+- **Total**: 8" (`WALL_OUTER`)
+
+Four concentric boundary paths trace the building perimeter:
+
+| Path | Point series | Inset from F | Description |
+|-|-|-|-|
+| Outer face of outer shell | F-series | 0" | Existing `outline_segs` |
+| Inner face of outer shell | S-series | 2" | `_compute_inset_path(..., SHELL_THICKNESS, "S")` |
+| Outer face of inner shell | G-series | 6" | `_compute_inset_path(..., SHELL_THICKNESS + AIR_GAP, "G")` |
+| Inner face of inner shell | W-series | 8" | Existing `inner_segs` |
+
+### Construction constants
+
+Defined in `walls/constants.py`:
+
+- `SHELL_THICKNESS` = 2/12 ft (2")
+- `AIR_GAP` = 4/12 ft (4")
+- `OPENING_INSIDE_RADIUS` = 1/12 ft (1")
+
+### Opening U-turn corners
+
+At each opening boundary, the shells connect via 90-degree corner turns:
+
+- **Inside radius** (`R_in`): `OPENING_INSIDE_RADIUS` (1")
+- **Outside radius** (`R_out`): `R_in + SHELL_THICKNESS` (3")
+- The turned outside face is flush with the opening boundary
+- `_uturn_polygon()` builds the U-turn as a single closed polygon using quarter-circle arcs
+
+### Modifying wall constants
+
+1. Edit values in `walls/constants.py`
+2. Run `python walls/gen_walls.py` to regenerate
+3. Run `python -m pytest tests/test_gen_walls.py` to verify
+
+### Adding/modifying openings
+
+Opening positions are defined in `_compute_openings()` in `walls/gen_walls.py`, mirroring the opening logic in `floorplan/gen_floorplan.py`. Each opening maps to a parametric range `(t_start, t_end)` along its outline segment. If you add or move an opening in the floorplan, update `_compute_openings()` to match.
+
+---
+
+## 7. Verifying Changes
+
+After any geometry or layout change, regenerate and inspect all SVGs:
 
 ```bash
 python survey/gen_path_svg.py
 python floorplan/gen_floorplan.py
+python walls/gen_walls.py
 ```
 
 The floorplan script prints:
 - Outer/inner/wall areas (sanity check for area subtraction)
 - All F-series and W-series point coordinates (verify geometry)
 
-Open `floorplan/floorplan.svg` and `survey/path_area.svg` to visually inspect.
+The walls script prints:
+- Shell and gap dimensions
+- Opening corner radius
+
+Open `floorplan/floorplan.svg`, `survey/path_area.svg`, and `walls/walls.svg` to visually inspect.
 
 ---
 
-## 7. Contributing to This Document
+## 8. Contributing to This Document
 
 **For future agents:** If you encounter a complex task that required significant codebase research and is not already covered here, please add a new section documenting the procedure. Follow the existing format:
 

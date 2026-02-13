@@ -453,103 +453,115 @@ def render_floorplan_svg(data):
     dim_line_h(out, pts["F1"][0], _dim_ext_n, pts["F15"][0],
                fmt_dist(pts["F15"][0] - pts["F1"][0]), to_svg)
 
-    _o5_dim_e = (bed_e + iw4_w) / 2
-    dim_line_v(out, _o5_dim_e, pts["W18"][1], int_wall_south,
+    _o9_dim_e = (bed_e + iw4_w) / 2
+    dim_line_v(out, _o9_dim_e, pts["W18"][1], int_wall_south,
                fmt_dist(int_wall_south - pts["W18"][1]), to_svg)
 
-    # --- Openings ---
-    _o1_e = pts["F10"][0] - 4.0 / 12.0
-    _o1_w = pts["F10"][0] - 48.0 / 12.0
-    _o1_poly = [
-        (_o1_w, pts["W10"][1]), (_o1_e, pts["W10"][1]),
-        (_o1_e, pts["F10"][1]), (_o1_w, pts["F10"][1]),
-    ]
+    # --- Openings (numbered CW around the building outline) ---
 
-    _o2_cn = (pts["F4"][1] + pts["F5"][1]) / 2
-    _o2_half = 16.0 / 12.0
+    # O2: F1-F2, vertical, upper (near F2) — computed first, O1 depends on it
+    _o2_n = pts["F2"][1] - 8.0 / 12.0
+    _o2_s = pts["F2"][1] - 33.0 / 12.0
     _o2_poly = [
-        (pts["F4"][0], _o2_cn - _o2_half), (pts["F4"][0], _o2_cn + _o2_half),
-        (pts["W4"][0], _o2_cn + _o2_half), (pts["W4"][0], _o2_cn - _o2_half),
+        (pts["F2"][0], _o2_s), (pts["F2"][0], _o2_n),
+        (pts["W2"][0], _o2_n), (pts["W2"][0], _o2_s),
     ]
 
-    _o3_e = iw2_w - 18.0 / 12.0
-    _o3_w = _o3_e - 9.0 / 12.0
+    # O1: F1-F2, vertical, lower (south of IW1)
+    _o1_gap = _o2_s - int_wall_north
+    _o1_n = int_wall_south - _o1_gap
+    _o1_s = _o1_n - 25.0 / 12.0
+    _o1_poly = [
+        (pts["F2"][0], _o1_s), (pts["F2"][0], _o1_n),
+        (pts["W2"][0], _o1_n), (pts["W2"][0], _o1_s),
+    ]
+
+    # O3: F4-F5, vertical
+    _o3_cn = (pts["F4"][1] + pts["F5"][1]) / 2
+    _o3_half = 16.0 / 12.0
     _o3_poly = [
-        (_o3_w, pts["W6"][1]), (_o3_e, pts["W6"][1]),
-        (_o3_e, pts["F6"][1]), (_o3_w, pts["F6"][1]),
+        (pts["F4"][0], _o3_cn - _o3_half), (pts["F4"][0], _o3_cn + _o3_half),
+        (pts["W4"][0], _o3_cn + _o3_half), (pts["W4"][0], _o3_cn - _o3_half),
     ]
 
-    _o4_cn = (iw5_s + pts["F15"][1]) / 2
-    _o4_half = 12.5 / 12.0
+    # O4: F6-F7, horizontal
+    _o4_e = iw2_w - 18.0 / 12.0
+    _o4_w = _o4_e - 9.0 / 12.0
     _o4_poly = [
-        (pts["F15"][0], _o4_cn - _o4_half), (pts["F15"][0], _o4_cn + _o4_half),
-        (pts["W15"][0], _o4_cn + _o4_half), (pts["W15"][0], _o4_cn - _o4_half),
+        (_o4_w, pts["W6"][1]), (_o4_e, pts["W6"][1]),
+        (_o4_e, pts["F6"][1]), (_o4_w, pts["F6"][1]),
     ]
 
-    _o5_cn = (bed_e + iw4_w) / 2
-    _o5_half = 12.5 / 12.0
+    # O5: F9-F10, horizontal, big 6' opening
+    _o5_w = pts["F9"][0] + 8.0 / 12.0
+    _o5_e = _o5_w + 6.0
     _o5_poly = [
-        (_o5_cn - _o5_half, pts["F18"][1]), (_o5_cn + _o5_half, pts["F18"][1]),
-        (_o5_cn + _o5_half, pts["W18"][1]), (_o5_cn - _o5_half, pts["W18"][1]),
+        (_o5_w, pts["W9"][1]), (_o5_e, pts["W9"][1]),
+        (_o5_e, pts["F9"][1]), (_o5_w, pts["F9"][1]),
     ]
 
-    _o6_cn = (bed_w + iw3_e) / 2
-    _o6_half = 12.5 / 12.0
+    # O6: F9-F10, horizontal, small opening
+    _o6_e = pts["F10"][0] - 4.0 / 12.0
+    _o6_w = pts["F10"][0] - 48.0 / 12.0
     _o6_poly = [
-        (_o6_cn - _o6_half, pts["F0"][1]), (_o6_cn + _o6_half, pts["F0"][1]),
-        (_o6_cn + _o6_half, pts["W0"][1]), (_o6_cn - _o6_half, pts["W0"][1]),
+        (_o6_w, pts["W10"][1]), (_o6_e, pts["W10"][1]),
+        (_o6_e, pts["F10"][1]), (_o6_w, pts["F10"][1]),
     ]
 
-    _o7_cn = (dryer_e + ctr_w) / 2
-    _o7_half = 12.5 / 12.0
+    # O7: F12-F13, diagonal
+    _o7_dE = pts["F13"][0] - pts["F12"][0]
+    _o7_dN = pts["F13"][1] - pts["F12"][1]
+    _o7_len = math.sqrt(_o7_dE**2 + _o7_dN**2)
+    _o7_half = 36.0 / 12.0
+    _o7_ts = 0.5 - _o7_half / _o7_len
+    _o7_te = 0.5 + _o7_half / _o7_len
     _o7_poly = [
-        (_o7_cn - _o7_half, pts["F0"][1]), (_o7_cn + _o7_half, pts["F0"][1]),
-        (_o7_cn + _o7_half, pts["W0"][1]), (_o7_cn - _o7_half, pts["W0"][1]),
+        (pts["F12"][0] + _o7_ts * _o7_dE, pts["F12"][1] + _o7_ts * _o7_dN),
+        (pts["F12"][0] + _o7_te * _o7_dE, pts["F12"][1] + _o7_te * _o7_dN),
+        (pts["W12"][0] + _o7_te * (pts["W13"][0] - pts["W12"][0]),
+         pts["W12"][1] + _o7_te * (pts["W13"][1] - pts["W12"][1])),
+        (pts["W12"][0] + _o7_ts * (pts["W13"][0] - pts["W12"][0]),
+         pts["W12"][1] + _o7_ts * (pts["W13"][1] - pts["W12"][1])),
     ]
 
-    _o8_n = pts["F2"][1] - 8.0 / 12.0
-    _o8_s = pts["F2"][1] - 33.0 / 12.0
+    # O8: F14-F15, vertical
+    _o8_cn = (iw5_s + pts["F15"][1]) / 2
+    _o8_half = 12.5 / 12.0
     _o8_poly = [
-        (pts["F2"][0], _o8_s), (pts["F2"][0], _o8_n),
-        (pts["W2"][0], _o8_n), (pts["W2"][0], _o8_s),
+        (pts["F15"][0], _o8_cn - _o8_half), (pts["F15"][0], _o8_cn + _o8_half),
+        (pts["W15"][0], _o8_cn + _o8_half), (pts["W15"][0], _o8_cn - _o8_half),
     ]
 
-    _o9_gap = _o8_s - int_wall_north
-    _o9_n = int_wall_south - _o9_gap
-    _o9_s = _o9_n - 25.0 / 12.0
+    # O9: F18-F19, horizontal
+    _o9_cn = (bed_e + iw4_w) / 2
+    _o9_half = 12.5 / 12.0
     _o9_poly = [
-        (pts["F2"][0], _o9_s), (pts["F2"][0], _o9_n),
-        (pts["W2"][0], _o9_n), (pts["W2"][0], _o9_s),
+        (_o9_cn - _o9_half, pts["F18"][1]), (_o9_cn + _o9_half, pts["F18"][1]),
+        (_o9_cn + _o9_half, pts["W18"][1]), (_o9_cn - _o9_half, pts["W18"][1]),
     ]
 
-    _o10_dE = pts["F13"][0] - pts["F12"][0]
-    _o10_dN = pts["F13"][1] - pts["F12"][1]
-    _o10_len = math.sqrt(_o10_dE**2 + _o10_dN**2)
-    _o10_half = 36.0 / 12.0
-    _o10_ts = 0.5 - _o10_half / _o10_len
-    _o10_te = 0.5 + _o10_half / _o10_len
+    # O10: F21-F0, horizontal (bed area)
+    _o10_cn = (bed_w + iw3_e) / 2
+    _o10_half = 12.5 / 12.0
     _o10_poly = [
-        (pts["F12"][0] + _o10_ts * _o10_dE, pts["F12"][1] + _o10_ts * _o10_dN),
-        (pts["F12"][0] + _o10_te * _o10_dE, pts["F12"][1] + _o10_te * _o10_dN),
-        (pts["W12"][0] + _o10_te * (pts["W13"][0] - pts["W12"][0]),
-         pts["W12"][1] + _o10_te * (pts["W13"][1] - pts["W12"][1])),
-        (pts["W12"][0] + _o10_ts * (pts["W13"][0] - pts["W12"][0]),
-         pts["W12"][1] + _o10_ts * (pts["W13"][1] - pts["W12"][1])),
+        (_o10_cn - _o10_half, pts["F0"][1]), (_o10_cn + _o10_half, pts["F0"][1]),
+        (_o10_cn + _o10_half, pts["W0"][1]), (_o10_cn - _o10_half, pts["W0"][1]),
     ]
 
-    _o11_w = pts["F9"][0] + 8.0 / 12.0
-    _o11_e = _o11_w + 6.0
+    # O11: F21-F0, horizontal (utility area)
+    _o11_cn = (dryer_e + ctr_w) / 2
+    _o11_half = 12.5 / 12.0
     _o11_poly = [
-        (_o11_w, pts["W9"][1]), (_o11_e, pts["W9"][1]),
-        (_o11_e, pts["F9"][1]), (_o11_w, pts["F9"][1]),
+        (_o11_cn - _o11_half, pts["F0"][1]), (_o11_cn + _o11_half, pts["F0"][1]),
+        (_o11_cn + _o11_half, pts["W0"][1]), (_o11_cn - _o11_half, pts["W0"][1]),
     ]
 
     _openings = [("O1", _o1_poly), ("O2", _o2_poly), ("O3", _o3_poly),
                  ("O4", _o4_poly), ("O5", _o5_poly), ("O6", _o6_poly),
-                 ("O7", _o7_poly), ("O8", _o9_poly), ("O9", _o8_poly),
-                 ("O10", _o11_poly), ("O11", _o10_poly)]
-    _ns_openings = {"O2", "O4", "O8", "O9"}
-    _o11_angle = math.degrees(math.atan2(-_o10_dN, _o10_dE))
+                 ("O7", _o7_poly), ("O8", _o8_poly), ("O9", _o9_poly),
+                 ("O10", _o10_poly), ("O11", _o11_poly)]
+    _ns_openings = {"O1", "O2", "O3", "O8"}
+    _o7_angle = math.degrees(math.atan2(-_o7_dN, _o7_dE))
     for _name, _poly in _openings:
         _svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _poly)
         out.append(f'<polygon points="{_svg}" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>')
@@ -560,10 +572,10 @@ def render_floorplan_svg(data):
             out.append(f'<text x="{_sx:.1f}" y="{_sy:.1f}" text-anchor="middle" dominant-baseline="central"'
                        f' font-family="Arial" font-size="7" fill="#4682B4"'
                        f' transform="rotate(-90,{_sx:.1f},{_sy:.1f})">{_name}</text>')
-        elif _name == "O11":
+        elif _name == "O7":
             out.append(f'<text x="{_sx:.1f}" y="{_sy:.1f}" text-anchor="middle" dominant-baseline="central"'
                        f' font-family="Arial" font-size="7" fill="#4682B4"'
-                       f' transform="rotate({_o11_angle:.1f},{_sx:.1f},{_sy:.1f})">{_name}</text>')
+                       f' transform="rotate({_o7_angle:.1f},{_sx:.1f},{_sy:.1f})">{_name}</text>')
         else:
             out.append(f'<text x="{_sx:.1f}" y="{_sy+3:.1f}" text-anchor="middle" font-family="Arial"'
                        f' font-size="7" fill="#4682B4">{_name}</text>')
