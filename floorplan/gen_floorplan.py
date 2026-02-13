@@ -150,6 +150,24 @@ for e_val in [iw2_w, iw2_e]:
                f' stroke="#666" stroke-width="1.0"/>')
 wall_label(out, "IW2", iw2_w, iw2_e, iw2_s, iw2_n)
 
+# IW6: 1" thick, W-E, from inside of F4-F5 to IW2 west face
+iw6_thick = 1.0 / 12.0   # 1 inch
+iw6_n = pts["W6"][1] - 5.5   # north face: 5'6" south of south face of F6-F7
+iw6_s = iw6_n - iw6_thick
+_iw6_n_ints = horiz_isects(inner_poly, iw6_n)
+_iw6_s_ints = horiz_isects(inner_poly, iw6_s)
+iw6_w_n = min(_iw6_n_ints)   # west end at north face
+iw6_w_s = min(_iw6_s_ints)   # west end at south face
+iw6_e = iw2_w                # east end at IW2 west face
+iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
+wall_poly(out, iw6_poly, stroke=False)
+for w_e, n_val in [(iw6_w_s, iw6_s), (iw6_w_n, iw6_n)]:
+    sx1, sy1 = to_svg(w_e, n_val)
+    sx2, sy2 = to_svg(iw6_e, n_val)
+    out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+               f' stroke="#666" stroke-width="1.0"/>')
+wall_label(out, "IW6", min(iw6_w_s, iw6_w_n), iw6_e, iw6_s, iw6_n, vertical=False)
+
 # Dimension line: IW1 north face to F9-F11 south face (inner), mid-span
 dim_e = (pts["F9"][0] + pts["F11"][0]) / 2
 dim_line_v(out, dim_e, int_wall_north, pts["W9"][1], fmt_dist(pts["W9"][1] - int_wall_north))
@@ -309,6 +327,10 @@ for n_val in [iw5_s, iw5_n]:
     out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                f' stroke="#666" stroke-width="1.0"/>')
 wall_label(out, "IW5", iw5_w, iw5_e, iw5_s, iw5_n, vertical=False)
+
+# Subtract interior wall areas from interior area
+_iw_polys = [iw_pts, iw2_pts, iw6_poly, w8_poly, iw3_poly, iw4_poly, w5_poly, iw5_poly]
+inner_area -= sum(poly_area(p) for p in _iw_polys)
 
 # King Bed (from ../hut: 76" wide x 94" long incl. frame, 2" from south wall, centered E-W)
 bed_w_dim = 76.0 / 12.0    # E-W width
