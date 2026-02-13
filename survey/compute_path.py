@@ -1,8 +1,11 @@
-import math
-from survey import (
-    compute_traverse, compute_three_arc,
-    poly_area, arc_poly, brg_dist, fmt_brg, fmt_dist,
-)
+import sys, os, math
+
+_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
+
+from shared.geometry import poly_area, arc_poly, brg_dist, fmt_brg, fmt_dist
+from shared.survey import compute_traverse, compute_three_arc
 
 # === Traverse (raw survey data, instrument at POB) ===
 # All coordinates below are P3-based: P3 = (0, 0).
@@ -24,26 +27,26 @@ _arc = compute_three_arc(_pts)
 R1, R2, R3 = _arc["R1"], _arc["R2"], _arc["R3"]
 uE, uN = _arc["uE"], _arc["uN"]
 nE, nN = _arc["nE"], _arc["nN"]
-T1, C1 = _pts["T1"], _pts["C1"]
-T2, C2 = _pts["T2"], _pts["C2"]
-T3, C3 = _pts["T3"], _pts["C3"]
+T1, TC1 =_pts["T1"], _pts["TC1"]
+T2, TC2 =_pts["T2"], _pts["TC2"]
+T3, TC3 =_pts["T3"], _pts["TC3"]
 PA = _pts["PA"]
 PX = _pts["PX"]
 T1_dist, T2_dist = 26.5, 5.75
 
 print(f"\nT1:  ({T1[0]:.4f}, {T1[1]:.4f})  [Arc 1 tangent, {T1_dist}' from POB]")
 print(f"T2:  ({T2[0]:.4f}, {T2[1]:.4f})  [Arc 2 tangent, {T2_dist}' from POB]")
-print(f"C1:  ({C1[0]:.4f}, {C1[1]:.4f})  R1={R1}")
-print(f"C2:  ({C2[0]:.4f}, {C2[1]:.4f})  R2={R2}")
+print(f"C1:  ({TC1[0]:.4f}, {TC1[1]:.4f})  R1={R1}")
+print(f"C2:  ({TC2[0]:.4f}, {TC2[1]:.4f})  R2={R2}")
 print(f"PA:  ({PA[0]:.4f}, {PA[1]:.4f})  [Arc 1/2 intersection]")
 
 print(f"\nT3:  ({T3[0]:.4f}, {T3[1]:.4f})  [Arc 3 tangent, 18' E of P3]")
-print(f"C3:  ({C3[0]:.4f}, {C3[1]:.4f})  R3={R3}")
+print(f"C3:  ({TC3[0]:.4f}, {TC3[1]:.4f})  R3={R3}")
 
 # === PX diagnostics ===
 dxL = P4[0]-P5[0]; dyL = P4[1]-P5[1]
-ax_coef = P5[0] - C3[0]
-ay_coef = P5[1] - C3[1]
+ax_coef = P5[0] - TC3[0]
+ay_coef = P5[1] - TC3[1]
 A = dxL**2 + dyL**2
 B = 2*(ax_coef*dxL + ay_coef*dyL)
 C = ax_coef**2 + ay_coef**2 - R3**2
@@ -58,34 +61,34 @@ print(f"  t1={t1_sol:.4f}, t2={t2_sol:.4f}  (t=1 is P4)")
 t_px = min(t for t in [t1_sol, t2_sol] if t > 1)
 print(f"  PX: ({PX[0]:.4f}, {PX[1]:.4f})  [t={t_px:.4f}]")
 
-dist_px_c3 = math.sqrt((PX[0]-C3[0])**2 + (PX[1]-C3[1])**2)
+dist_px_c3 = math.sqrt((PX[0]-TC3[0])**2 + (PX[1]-TC3[1])**2)
 print(f"  PX dist from C3: {dist_px_c3:.4f} (should be {R3})")
 
 # === Arc sweep angles ===
 # Arc 1: CW from T1 to PA
-ang_T1_C1 = math.atan2(T1[1]-C1[1], T1[0]-C1[0])
-ang_PA_C1 = math.atan2(PA[1]-C1[1], PA[0]-C1[0])
+ang_T1_C1 = math.atan2(T1[1]-TC1[1], T1[0]-TC1[0])
+ang_PA_C1 = math.atan2(PA[1]-TC1[1], PA[0]-TC1[0])
 sweep1 = (ang_T1_C1 - ang_PA_C1) % (2*math.pi)  # CW sweep
 arc1_end = ang_T1_C1 - sweep1
-arc1_pts = arc_poly(C1[0], C1[1], R1, ang_T1_C1, arc1_end, 60)
+arc1_pts = arc_poly(TC1[0], TC1[1], R1, ang_T1_C1, arc1_end, 60)
 print(f"\nArc 1: CW from T1 to PA, sweep={math.degrees(sweep1):.1f} deg")
 
 # Arc 2: CCW from T2 to PA (for path, we go PA to T2, which is CW)
-ang_T2_C2 = math.atan2(T2[1]-C2[1], T2[0]-C2[0])
-ang_PA_C2 = math.atan2(PA[1]-C2[1], PA[0]-C2[0])
+ang_T2_C2 = math.atan2(T2[1]-TC2[1], T2[0]-TC2[0])
+ang_PA_C2 = math.atan2(PA[1]-TC2[1], PA[0]-TC2[0])
 sweep2 = (ang_PA_C2 - ang_T2_C2) % (2*math.pi)  # CCW sweep T2->PA
 # For path: PA to T2 (reverse of arc2), which is CW
-arc2_fwd_pts = arc_poly(C2[0], C2[1], R2, ang_T2_C2, ang_T2_C2 + sweep2, 60)
+arc2_fwd_pts = arc_poly(TC2[0], TC2[1], R2, ang_T2_C2, ang_T2_C2 + sweep2, 60)
 arc2_rev_pts = list(reversed(arc2_fwd_pts))  # PA to T2
 print(f"Arc 2: CCW from T2 to PA, sweep={math.degrees(sweep2):.1f} deg")
 
 # Arc 3: from T3 to PX, center south, going CW (east then south)
-ang_T3_C3 = math.atan2(T3[1]-C3[1], T3[0]-C3[0])  # should be pi/2 (north)
-ang_PX_C3 = math.atan2(PX[1]-C3[1], PX[0]-C3[0])
+ang_T3_C3 = math.atan2(T3[1]-TC3[1], T3[0]-TC3[0])  # should be pi/2 (north)
+ang_PX_C3 = math.atan2(PX[1]-TC3[1], PX[0]-TC3[0])
 # CW sweep from T3 to PX
 sweep3 = (ang_T3_C3 - ang_PX_C3) % (2*math.pi)
 arc3_end = ang_T3_C3 - sweep3
-arc3_pts = arc_poly(C3[0], C3[1], R3, ang_T3_C3, arc3_end, 60)
+arc3_pts = arc_poly(TC3[0], TC3[1], R3, ang_T3_C3, arc3_end, 60)
 print(f"Arc 3: CW from T3 to PX, sweep={math.degrees(sweep3):.1f} deg")
 print(f"  T3 angle from C3: {math.degrees(ang_T3_C3):.1f} deg")
 print(f"  PX angle from C3: {math.degrees(ang_PX_C3):.1f} deg")
@@ -166,7 +169,7 @@ def to_svg(e, n):
 print(f"\n=== SVG coordinates ===")
 for name, pt in [("POB", POB), ("P2", P2), ("P3", P3), ("P4", P4), ("P5", P5),
                   ("T1", T1), ("T2", T2), ("T3", T3), ("PA", PA), ("PX", PX),
-                  ("C1", C1), ("C2", C2), ("C3", C3)]:
+                  ("TC1", TC1), ("TC2", TC2), ("TC3", TC3)]:
     sx, sy = to_svg(*pt)
     print(f"  {name}: ({sx:.1f}, {sy:.1f})")
 
@@ -210,7 +213,7 @@ for name, pts_list in [("Arc1", arc1_pts), ("Arc2_rev", arc2_rev_pts), ("Arc3", 
     print(f"  {name} mid: ({sx:.1f},{sy:.1f})")
 
 # Check the SVG bounds needed
-all_pts = [POB, P2, P3, P4, P5, T1, T2, T3, PA, PX, C3]
+all_pts = [POB, P2, P3, P4, P5, T1, T2, T3, PA, PX, TC3]
 for pt in arc3_pts:
     all_pts.append(pt)
 min_e = min(p[0] for p in all_pts)

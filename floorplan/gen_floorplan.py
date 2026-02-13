@@ -1,27 +1,42 @@
 """Generate floorplan SVG with 8" wall inset from the outline path.
 
-Imports outline geometry from gen_path_svg and computes an 8" inset
-using shared functions from survey.py.
-Outline points U0-U21, inner wall points W0-W21, display labels F0-F21.
+Computes geometry from shared/ and floorplan/ packages.
+Outline points F0-F21, inner wall points W0-W21.
 """
 import sys, os, math
 
-# Add parent dir so we can import gen_path_svg and survey
+# Add project root so we can import shared/ and floorplan/ packages
 _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _parent not in sys.path:
     sys.path.insert(0, _parent)
 
-from survey import (
-    LineSeg, ArcSeg,
+from shared.types import LineSeg, ArcSeg
+from shared.geometry import (
     segment_polyline, path_polygon, poly_area,
     compute_inner_walls, horiz_isects, fmt_dist,
 )
-from gen_path_svg import (
-    pts, outline_segs, to_svg, W, H, outline_cfg, _radii,
-    R_a0, R_a17, R_a20, R_a19, R_a15,
-    R_a11, R_a8, R_a7, R_a5, R_a13, R_a10,
-    R_a3, R_a2,
+from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.svg import make_svg_transform, W, H
+from floorplan.geometry import compute_outline_geometry, OutlineAnchors
+from floorplan.layout import compute_interior_layout
+from floorplan.constants import WALL_OUTER
+
+# --- Compute all geometry ---
+pts, _p3_trav = compute_traverse()
+to_svg = make_svg_transform(_p3_trav)
+_arc_info = compute_three_arc(pts)
+_inset = compute_inset(pts, _arc_info["R1"], _arc_info["R2"], _arc_info["R3"],
+                       _arc_info["nE"], _arc_info["nN"])
+pts.update(_inset.pts_update)
+_anchors = OutlineAnchors(
+    Pi2=pts["Pi2"], Pi3=pts["Pi3"], Ti3=pts["Ti3"],
+    PiX=pts["PiX"], Pi5=pts["Pi5"],
+    TC1=pts["TC1"], R1i=_inset.R1i,
 )
+_outline_geo = compute_outline_geometry(_anchors)
+pts.update(_outline_geo.fp_pts)
+outline_segs = _outline_geo.outline_segs
+_radii = _outline_geo.radii
 
 # --- SVG Helpers ---
 def dim_line_h(out, e1, n, e2, label):
@@ -74,7 +89,7 @@ def stroke_segs(out, segs, color, width):
                        f' stroke-width="{width}" stroke-linecap="round"/>')
 
 # --- Wall thickness ---
-wall_t = 8.0 / 12.0  # 8 inches in feet
+wall_t = WALL_OUTER
 
 # --- Compute inner wall points and segments ---
 inner_segs = compute_inner_walls(outline_segs, pts, wall_t, _radii)
@@ -142,11 +157,11 @@ for e_val in [iw2_w, iw2_e]:
 wall_label(out, "IW2", iw2_w, iw2_e, iw2_s, iw2_n)
 
 # Dimension line: IW1 north face to F9-F11 south face (inner), mid-span
-dim_e = (pts["U9"][0] + pts["U11"][0]) / 2
+dim_e = (pts["F9"][0] + pts["F11"][0]) / 2
 dim_line_v(out, dim_e, int_wall_north, pts["W9"][1], fmt_dist(pts["W9"][1] - int_wall_north))
 
 # Dimension line: IW2 east face to inside F12-F13 wall, vertically centered in F12-F13 wall
-dim2_n = (pts["U12"][1] + pts["U13"][1]) / 2
+dim2_n = (pts["F12"][1] + pts["F13"][1]) / 2
 _w9, _w8 = pts["W13"], pts["W12"]
 _t_e = (dim2_n - _w9[1]) / (_w8[1] - _w9[1]) if _w8[1] != _w9[1] else 0.5
 dim2_east_e = _w9[0] + _t_e * (_w8[0] - _w9[0])
@@ -220,7 +235,7 @@ wh_r = 14.0 / 12.0  # 14" radius in feet (28" diameter)
 wh_e = iw2_e + wh_r  # center E: west side touches IW2 east face
 # Inner arc W7-W8: center C7, inner radius R_a7 - wall_t
 # Internal tangency: dist(C7, WH_center) = (R_a7 - wall_t) - wh_r
-_wh_tangent_r = (R_a7 - wall_t) - wh_r
+_wh_tangent_r = (_radii["R_a7"] - wall_t) - wh_r
 _wh_dE = wh_e - pts["C7"][0]
 wh_n = pts["C7"][1] + math.sqrt(_wh_tangent_r**2 - _wh_dE**2)
 wh_sx, wh_sy = to_svg(wh_e, wh_n)
@@ -357,44 +372,51 @@ dim_line_h(out, iw4_e, (iw5_n + int_wall_south) / 2, pts["W15"][0],
            f"STORAGE {fmt_dist(pts['W15'][0] - iw4_e)}")
 
 # IW5 south face to F18-F19 wall north face
-dim_line_v(out, pts["U18"][0], iw5_s, pts["W18"][1], fmt_dist(iw5_s - pts["W18"][1]))
+dim_line_v(out, pts["F18"][0], iw5_s, pts["W18"][1], fmt_dist(iw5_s - pts["W18"][1]))
 
 # C3-F7 wall to IW1 north face
-dim_line_v(out, pts["U6"][0] + 1.0, int_wall_north, pts["W6"][1],
+dim_line_v(out, pts["F6"][0] + 1.0, int_wall_north, pts["W6"][1],
            fmt_dist(pts["W6"][1] - int_wall_north))
 
-# Unique ordered vertex names from outline segments (U-series)
+# Unique ordered vertex names from outline segments (F-series)
 _vert_names = []
 for seg in outline_segs:
     if seg.start not in _vert_names:
         _vert_names.append(seg.start)
 
-# Vertex labels (displayed as F0-F21)
-vs_map = outline_cfg.vertex_styles
-for o_name in _vert_names:
-    sx, sy = to_svg(*pts[o_name])
+# Vertex label offsets (anchor, dx, dy) — local lookup, no gen_path_svg import needed
+_vs_offsets = {
+    "F1": ("end", -8, 0), "F2": ("end", -8, 0), "F3": ("end", -10, 0),
+    "F4": ("end", -8, 0), "F5": ("end", -8, 0), "F8": ("end", -8, 0),
+    "F11": ("start", 8, 0), "F12": ("start", 8, 0), "F13": ("start", 8, 0),
+    "F14": ("start", 10, 0), "F15": ("start", 8, 0),
+    "F0": ("middle", 0, 10), "F6": ("middle", 0, -6), "F7": ("middle", 0, -6),
+    "F9": ("middle", 0, 17), "F10": ("middle", 0, 17),
+    "F17": ("middle", 0, 13), "F18": ("middle", 0, 12), "F19": ("middle", 0, 12),
+    "F20": ("middle", 0, 13), "F21": ("middle", 0, 10),
+    "F16": ("start", 8, 4),
+}
+_vert_centered = {"F1","F2","F3","F4","F5","F8","F11","F12","F13","F14","F15"}
+_horiz_centered = {"F0","F6","F7","F9","F10","F17","F18","F19","F20","F21"}
+
+for f_name in _vert_names:
+    sx, sy = to_svg(*pts[f_name])
     out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="1.25" fill="#333"/>')
-    if o_name in vs_map:
-        vs = vs_map[o_name]
-        c_label = "F" + o_name[1:]  # U19 -> F19
-        # Vertically centered: label at point Northing, offset East/West
-        if o_name in ("U1", "U2", "U3", "U4", "U5",
-                         "U8", "U11", "U12", "U13", "U14", "U15"):
-            out.append(f'<text x="{sx+vs.dx:.1f}" y="{sy:.1f}" text-anchor="{vs.anchor}"'
+    if f_name in _vs_offsets:
+        anchor, dx, dy = _vs_offsets[f_name]
+        if f_name in _vert_centered:
+            out.append(f'<text x="{sx+dx:.1f}" y="{sy:.1f}" text-anchor="{anchor}"'
                        f' dominant-baseline="central"'
                        f' font-family="Arial" font-size="9" font-weight="bold"'
-                       f' fill="#333">{c_label}</text>')
-        # Horizontally centered: label at point Easting, offset North/South
-        elif o_name in ("U0", "U6", "U7", "U9", "U10",
-                            "U17", "U18", "U19", "U20", "U21"):
-            _dy = {"U9": 17, "U10": 17, "U17": 13, "U20": 13, "U21": 10}.get(o_name, vs.dy)
-            out.append(f'<text x="{sx:.1f}" y="{sy+_dy:.1f}" text-anchor="middle"'
+                       f' fill="#333">{f_name}</text>')
+        elif f_name in _horiz_centered:
+            out.append(f'<text x="{sx:.1f}" y="{sy+dy:.1f}" text-anchor="middle"'
                        f' font-family="Arial" font-size="9" font-weight="bold"'
-                       f' fill="#333">{c_label}</text>')
+                       f' fill="#333">{f_name}</text>')
         else:
-            out.append(f'<text x="{sx+vs.dx:.1f}" y="{sy+vs.dy:.1f}" text-anchor="{vs.anchor}"'
+            out.append(f'<text x="{sx+dx:.1f}" y="{sy+dy:.1f}" text-anchor="{anchor}"'
                        f' font-family="Arial" font-size="9" font-weight="bold"'
-                       f' fill="#333">{c_label}</text>')
+                       f' fill="#333">{f_name}</text>')
 
 # North arrow
 out.append('<line x1="742" y1="560" x2="742" y2="524" stroke="#333" stroke-width="2"'
@@ -403,10 +425,10 @@ out.append('<text x="742" y="518" text-anchor="middle" font-family="Arial"'
            ' font-size="13" font-weight="bold">N</text>')
 
 # Title block (right edge aligned with N arrow, bottom with F7 label)
-_c4_sx, _c4_sy = to_svg(*pts["U7"])
-_c4_vs = vs_map["U7"]
+_c4_sx, _c4_sy = to_svg(*pts["F7"])
+_c4_dy = _vs_offsets["F7"][2]
 tb_right = 752      # right edge, aligned with N arrow center + margin
-tb_bottom = _c4_sy + _c4_vs.dy + 4  # bottom aligned with F7 label
+tb_bottom = _c4_sy + _c4_dy + 4  # bottom aligned with F7 label
 tb_w = 130
 tb_h = 58
 tb_left = tb_right - tb_w
@@ -440,8 +462,7 @@ print(f"Outer area:    {outer_area:.2f} sq ft")
 print(f"Interior area: {inner_area:.2f} sq ft")
 print(f"Wall area:     {outer_area - inner_area:.2f} sq ft")
 print()
-for o_name in _vert_names:
-    w_name = "W" + o_name[1:]
-    c_name = "F" + o_name[1:]
-    o = pts[o_name]; w = pts[w_name]
-    print(f"  {c_name:<5s} ({o[0]:8.4f}, {o[1]:8.4f})  ->  inner ({w[0]:8.4f}, {w[1]:8.4f})")
+for f_name in _vert_names:
+    w_name = "W" + f_name[1:]
+    o = pts[f_name]; w = pts[w_name]
+    print(f"  {f_name:<5s} ({o[0]:8.4f}, {o[1]:8.4f})  ->  inner ({w[0]:8.4f}, {w[1]:8.4f})")

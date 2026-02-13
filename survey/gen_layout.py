@@ -1,5 +1,11 @@
-import math
-from survey import compute_traverse, compute_three_arc, poly_area
+import sys, os, math
+
+_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
+
+from shared.geometry import poly_area
+from shared.survey import compute_traverse, compute_three_arc
 
 # All coordinates are P3-based: P3 = (0, 0).
 _pts, _ = compute_traverse()
@@ -104,9 +110,9 @@ svg.append(f'<polygon points="{pts_str(closet)}" fill="#C8E6C9" stroke="#2E7D32"
 _arc_pts = dict(_pts)
 _arc = compute_three_arc(_arc_pts)
 R1, R2, R3 = _arc["R1"], _arc["R2"], _arc["R3"]
-T1, C1 = _arc_pts["T1"], _arc_pts["C1"]
-T2, C2 = _arc_pts["T2"], _arc_pts["C2"]
-T3, C3 = _arc_pts["T3"], _arc_pts["C3"]
+T1, TC1 = _arc_pts["T1"], _arc_pts["TC1"]
+T2, TC2 = _arc_pts["T2"], _arc_pts["TC2"]
+T3, TC3 = _arc_pts["T3"], _arc_pts["TC3"]
 PA, PX = _arc_pts["PA"], _arc_pts["PX"]
 POB, P5 = poly[0], poly[4]
 
@@ -125,7 +131,7 @@ for pt in [T1, PA, T2, T3, PX]:
     svg.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="3.5" fill="{arc_color}"/>')
 
 # Center crosses and dashed radius lines
-for ctr, tan_pt in [(C1, T1), (C2, T2), (C3, T3)]:
+for ctr, tan_pt in [(TC1, T1), (TC2, T2), (TC3, T3)]:
     sx_c, sy_c = to_svg(*ctr)
     sx_t, sy_t = to_svg(*tan_pt)
     svg.append(f'<line x1="{sx_c:.1f}" y1="{sy_c:.1f}" x2="{sx_t:.1f}" y2="{sy_t:.1f}" '
@@ -137,9 +143,9 @@ for ctr, tan_pt in [(C1, T1), (C2, T2), (C3, T3)]:
                    f'stroke="{arc_color}" stroke-width="0.8"/>')
 
 # Radius labels
-for ctr, tan_pt, label in [(C1, T1, "R&#8321; = 10&#39;"),
-                            (C2, T2, "R&#8322; = 12.5&#39;"),
-                            (C3, T3, "R&#8323; = 11&#39;")]:
+for ctr, tan_pt, label in [(TC1, T1, "R&#8321; = 10&#39;"),
+                            (TC2, T2, "R&#8322; = 12.5&#39;"),
+                            (TC3, T3, "R&#8323; = 11&#39;")]:
     sx_c, sy_c = to_svg(*ctr)
     sx_t, sy_t = to_svg(*tan_pt)
     rx_mid = (sx_c + sx_t) / 2
@@ -282,7 +288,7 @@ for idx, (name, fill, sc) in enumerate(legend):
 svg.append(f'<text x="{page_w/2}" y="{page_h-10}" text-anchor="middle" font-family="Arial" font-size="8" fill="#999">Traverse: {poly_area(poly):.0f} sq ft &#8226; Main room in wide south, wet rooms stacked on west plumbing wall, office in narrow north &#8226; Letter landscape</text>')
 svg.append('</svg>')
 
-outpath = r"c:\Users\Mango Cat\Dev\hut2\option_a_layout.svg"
+outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "option_a_layout.svg")
 with open(outpath, "w") as f:
     f.write("\n".join(svg))
 
