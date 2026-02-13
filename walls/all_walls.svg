@@ -1,5 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="792" height="612" viewBox="36.89 97.90 769.40 594.54">
 <rect x="36.89" y="97.90" width="769.40" height="594.54" fill="white"/>
+<defs>
+  <marker id="dim-arrow" viewBox="0 0 4 3" refX="4" refY="1.5" markerWidth="4" markerHeight="3" orient="auto">
+    <path d="M0,0 L4,1.5 L0,3 Z" fill="#4682B4"/>
+  </marker>
+</defs>
 <text x="361.6" y="151.9" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold">Walls</text>
 <polygon points="161.47,502.03 160.71,502.00 159.95,501.91 159.20,501.76 158.47,501.55 157.75,501.29 157.06,500.97 156.39,500.60 155.76,500.17 155.16,499.70 154.60,499.18 154.08,498.62 153.61,498.02 153.18,497.39 152.81,496.72 152.49,496.03 152.23,495.31 152.02,494.58 151.87,493.83 151.78,493.08 151.75,492.31 153.70,492.31 153.72,492.92 153.79,493.53 153.91,494.13 154.08,494.71 154.29,495.29 154.54,495.84 154.84,496.37 155.18,496.88 155.56,497.36 155.97,497.81 156.42,498.22 156.90,498.60 157.41,498.94 157.94,499.24 158.49,499.49 159.07,499.70 159.65,499.87 160.25,499.99 160.86,500.06 161.47,500.08" fill="rgba(180,180,180,0.5)" stroke="none" stroke-width="0.5"/>
 <polygon points="161.47,496.20 161.16,496.19 160.86,496.15 160.56,496.09 160.27,496.01 159.98,495.90 159.70,495.78 159.44,495.63 159.18,495.46 158.94,495.27 158.72,495.06 158.51,494.84 158.32,494.60 158.15,494.34 158.01,494.08 157.88,493.80 157.77,493.51 157.69,493.22 157.63,492.92 157.59,492.62 157.58,492.31 159.52,492.31 159.53,492.47 159.55,492.62 159.58,492.77 159.62,492.91 159.67,493.06 159.74,493.19 159.81,493.33 159.90,493.45 159.99,493.57 160.09,493.69 160.21,493.79 160.33,493.88 160.45,493.97 160.59,494.04 160.72,494.11 160.87,494.16 161.01,494.20 161.16,494.23 161.32,494.25 161.47,494.26" fill="rgba(180,180,180,0.5)" stroke="none" stroke-width="0.5"/>
@@ -138,6 +143,73 @@
 <text x="464.1" y="469.5" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#666" transform="rotate(-90 464.1 469.5)">IW8</text>
 <polygon points="433.48,392.25 563.65,392.25 563.65,389.34 433.48,389.34" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.5"/>
 <text x="498.6" y="390.8" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#666">IW5</text>
+<line x1="151.75" y1="330.08" x2="141.51" y2="330.08" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="151.75" y1="305.79" x2="141.51" y2="305.79" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="140.01" y1="330.08" x2="146.01" y2="330.08" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="140.01" y1="305.79" x2="146.01" y2="305.79" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="143.01" y1="330.08" x2="143.01" y2="305.79" stroke="#4682B4" stroke-width="0.4"/>
+<text x="139.0" y="317.9" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4" transform="rotate(-90.0,139.0,317.9)">25&#8243;</text>
+<line x1="151.75" y1="408.77" x2="141.51" y2="408.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="151.75" y1="384.48" x2="141.51" y2="384.48" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="140.01" y1="408.77" x2="146.01" y2="408.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="140.01" y1="384.48" x2="146.01" y2="384.48" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="143.01" y1="408.77" x2="143.01" y2="384.48" stroke="#4682B4" stroke-width="0.4"/>
+<text x="139.0" y="396.6" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4" transform="rotate(-90.0,139.0,396.6)">25&#8243;</text>
+<line x1="163.41" y1="263.05" x2="153.17" y2="263.05" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="163.41" y1="231.96" x2="153.17" y2="231.96" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="151.67" y1="263.05" x2="157.67" y2="263.05" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="151.67" y1="231.96" x2="157.67" y2="231.96" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="154.67" y1="263.05" x2="154.67" y2="231.96" stroke="#4682B4" stroke-width="0.4"/>
+<text x="150.7" y="247.5" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4" transform="rotate(-90.0,150.7,247.5)">32&#8243;</text>
+<line x1="209.07" y1="200.87" x2="209.07" y2="190.63" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="217.81" y1="200.87" x2="217.81" y2="190.63" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="209.07" y1="189.13" x2="209.07" y2="195.13" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="217.81" y1="189.13" x2="217.81" y2="195.13" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="201.07" y1="192.13" x2="209.07" y2="192.13" stroke="#4682B4" stroke-width="0.4" marker-end="url(#dim-arrow)"/>
+<line x1="225.81" y1="192.13" x2="217.81" y2="192.13" stroke="#4682B4" stroke-width="0.4" marker-end="url(#dim-arrow)"/>
+<text x="213.4" y="188.1" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4">9&#8243;</text>
+<line x1="289.70" y1="230.02" x2="289.70" y2="219.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="359.65" y1="230.02" x2="359.65" y2="219.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="289.70" y1="218.27" x2="289.70" y2="224.27" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="359.65" y1="218.27" x2="359.65" y2="224.27" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="289.70" y1="221.27" x2="359.65" y2="221.27" stroke="#4682B4" stroke-width="0.4"/>
+<text x="324.7" y="217.3" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4">72&#8243;</text>
+<line x1="436.73" y1="230.02" x2="436.73" y2="219.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="479.48" y1="230.02" x2="479.48" y2="219.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="436.73" y1="218.27" x2="436.73" y2="224.27" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="479.48" y1="218.27" x2="479.48" y2="224.27" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="436.73" y1="221.27" x2="479.48" y2="221.27" stroke="#4682B4" stroke-width="0.4"/>
+<text x="458.1" y="217.3" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4">44&#8243;</text>
+<line x1="544.81" y1="243.56" x2="554.71" y2="240.90" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="562.92" y1="311.12" x2="572.81" y2="308.47" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="556.16" y1="240.52" x2="550.36" y2="242.07" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="574.26" y1="308.08" x2="568.47" y2="309.63" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="553.26" y1="241.29" x2="571.36" y2="308.85" stroke="#4682B4" stroke-width="0.4"/>
+<text x="566.2" y="274.0" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4" transform="rotate(75.0,566.2,274.0)">72&#8243;</text>
+<line x1="571.43" y1="410.22" x2="581.67" y2="410.22" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="571.43" y1="434.51" x2="581.67" y2="434.51" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="583.17" y1="410.22" x2="577.17" y2="410.22" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="583.17" y1="434.51" x2="577.17" y2="434.51" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="580.17" y1="410.22" x2="580.17" y2="434.51" stroke="#4682B4" stroke-width="0.4"/>
+<text x="584.2" y="422.4" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4" transform="rotate(90.0,584.2,422.4)">25&#8243;</text>
+<line x1="426.19" y1="513.69" x2="426.19" y2="523.93" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="401.90" y1="513.69" x2="401.90" y2="523.93" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="426.19" y1="525.43" x2="426.19" y2="519.43" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="401.90" y1="525.43" x2="401.90" y2="519.43" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="426.19" y1="522.43" x2="401.90" y2="522.43" stroke="#4682B4" stroke-width="0.4"/>
+<text x="414.0" y="526.4" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4">25&#8243;</text>
+<line x1="321.27" y1="502.03" x2="321.27" y2="512.27" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="296.99" y1="502.03" x2="296.99" y2="512.27" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="321.27" y1="513.77" x2="321.27" y2="507.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="296.99" y1="513.77" x2="296.99" y2="507.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="321.27" y1="510.77" x2="296.99" y2="510.77" stroke="#4682B4" stroke-width="0.4"/>
+<text x="309.1" y="514.8" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4">25&#8243;</text>
+<line x1="228.98" y1="502.03" x2="228.98" y2="512.27" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="204.70" y1="502.03" x2="204.70" y2="512.27" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="228.98" y1="513.77" x2="228.98" y2="507.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="204.70" y1="513.77" x2="204.70" y2="507.77" stroke="#4682B4" stroke-width="0.4"/>
+<line x1="228.98" y1="510.77" x2="204.70" y2="510.77" stroke="#4682B4" stroke-width="0.4"/>
+<text x="216.8" y="514.8" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4">25&#8243;</text>
 <text x="155.6" y="317.9" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="5" fill="#4682B4" font-weight="bold" transform="rotate(-90.0,155.6,317.9)">O2</text>
 <text x="155.6" y="396.6" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="5" fill="#4682B4" font-weight="bold" transform="rotate(-90.0,155.6,396.6)">O1</text>
 <text x="167.3" y="247.5" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="5" fill="#4682B4" font-weight="bold" transform="rotate(-90.0,167.3,247.5)">O3</text>
@@ -153,8 +225,8 @@
 <text x="646.4" y="161.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="173.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 15:40:25</text>
-<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-7-g84ff025-DEV</text>
+<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 16:14:02</text>
+<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-8-g5f02f90-DEV</text>
 <text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7" fill="#999">2&#8243; shell / 4&#8243; gap / 2&#8243; shell</text>
 <text x="645.4" y="239.0" text-anchor="middle" font-family="Arial" font-size="7" font-weight="bold" fill="#333">Wall Segments</text>
 <text x="583.4" y="249.0" text-anchor="start" font-family="Arial" font-size="6" font-weight="bold" fill="#333">From&#8211;To</text>

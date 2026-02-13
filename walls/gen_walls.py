@@ -760,6 +760,121 @@ def _render_interior_walls(out, data):
     iw_label("IW5", iw5_w, iw5_e, iw5_s, iw5_n, vertical=False)
 
 
+def _render_opening_dims(out, data):
+    """Render opening width dimension lines on the exterior face."""
+    pts = data["pts"]
+    to_svg = data["to_svg"]
+    outline_segs = data["outline_segs"]
+    openings = data["openings"]
+
+    DIM_OFFSET = 0.75       # feet outside F-face
+    TICK = 3.0              # SVG pts, tick half-length
+    EXT_LEN = 8.0           # SVG pts, arrow leader length for narrow style
+    NARROW_THRESHOLD = 15.0 # SVG pts width; below → outside-arrows style
+    EXT_OVERSHOOT = 1.5     # SVG pts, extension line past dim line
+    LABEL_OFFSET = 4.0      # SVG pts, label offset from dim line toward exterior
+    DIM_COLOR = "#4682B4"
+    DIM_SW = "0.4"
+    FONT_SIZE = "4"
+
+    for op in openings:
+        seg = outline_segs[op.seg_idx]
+        F_A, F_B = pts[seg.start], pts[seg.end]
+
+        # Boundary points on F-face
+        p1 = _lerp(F_A, F_B, op.t_start)
+        p2 = _lerp(F_A, F_B, op.t_end)
+
+        # Exterior normal (left of CW traversal)
+        n = left_norm(F_A, F_B)
+
+        # Dim line position (offset outward from F-face)
+        q1 = (p1[0] + n[0] * DIM_OFFSET, p1[1] + n[1] * DIM_OFFSET)
+        q2 = (p2[0] + n[0] * DIM_OFFSET, p2[1] + n[1] * DIM_OFFSET)
+
+        # SVG coords
+        sx1, sy1 = to_svg(*q1)
+        sx2, sy2 = to_svg(*q2)
+        fx1, fy1 = to_svg(*p1)
+        fx2, fy2 = to_svg(*p2)
+
+        # Dim line direction in SVG (unit vector)
+        ddx, ddy = sx2 - sx1, sy2 - sy1
+        dim_len = math.sqrt(ddx**2 + ddy**2)
+        if dim_len < 1e-6:
+            continue
+        udx, udy = ddx / dim_len, ddy / dim_len
+
+        # Tick direction (perpendicular to dim line in SVG)
+        tx, ty = -udy, udx
+
+        # Extension line normal in SVG (from F-face toward dim line)
+        enx, eny = sx1 - fx1, sy1 - fy1
+        en_len = math.sqrt(enx**2 + eny**2)
+        if en_len > 1e-6:
+            enx, eny = enx / en_len, eny / en_len
+
+        # Extension lines (from F-face to dim line + overshoot)
+        out.append(f'<line x1="{fx1:.2f}" y1="{fy1:.2f}"'
+                   f' x2="{sx1 + enx * EXT_OVERSHOOT:.2f}"'
+                   f' y2="{sy1 + eny * EXT_OVERSHOOT:.2f}"'
+                   f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"/>')
+        out.append(f'<line x1="{fx2:.2f}" y1="{fy2:.2f}"'
+                   f' x2="{sx2 + enx * EXT_OVERSHOOT:.2f}"'
+                   f' y2="{sy2 + eny * EXT_OVERSHOOT:.2f}"'
+                   f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"/>')
+
+        # Tick marks at dim line endpoints
+        out.append(f'<line x1="{sx1 - tx * TICK:.2f}" y1="{sy1 - ty * TICK:.2f}"'
+                   f' x2="{sx1 + tx * TICK:.2f}" y2="{sy1 + ty * TICK:.2f}"'
+                   f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"/>')
+        out.append(f'<line x1="{sx2 - tx * TICK:.2f}" y1="{sy2 - ty * TICK:.2f}"'
+                   f' x2="{sx2 + tx * TICK:.2f}" y2="{sy2 + ty * TICK:.2f}"'
+                   f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"/>')
+
+        # Opening width in inches
+        seg_len = math.sqrt((F_B[0] - F_A[0])**2 + (F_B[1] - F_A[1])**2)
+        width_ft = seg_len * (op.t_end - op.t_start)
+        inches = width_ft * 12
+        label = f"{inches:.2f}".rstrip('0').rstrip('.') + '&#8243;'
+
+        if dim_len >= NARROW_THRESHOLD:
+            # Normal style: connecting line between endpoints
+            out.append(f'<line x1="{sx1:.2f}" y1="{sy1:.2f}"'
+                       f' x2="{sx2:.2f}" y2="{sy2:.2f}"'
+                       f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"/>')
+        else:
+            # Narrow style: arrows pointing inward from outside
+            out.append(f'<line x1="{sx1 - udx * EXT_LEN:.2f}"'
+                       f' y1="{sy1 - udy * EXT_LEN:.2f}"'
+                       f' x2="{sx1:.2f}" y2="{sy1:.2f}"'
+                       f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"'
+                       f' marker-end="url(#dim-arrow)"/>')
+            out.append(f'<line x1="{sx2 + udx * EXT_LEN:.2f}"'
+                       f' y1="{sy2 + udy * EXT_LEN:.2f}"'
+                       f' x2="{sx2:.2f}" y2="{sy2:.2f}"'
+                       f' stroke="{DIM_COLOR}" stroke-width="{DIM_SW}"'
+                       f' marker-end="url(#dim-arrow)"/>')
+
+        # Label: centered, offset toward exterior
+        mx = (sx1 + sx2) / 2 + enx * LABEL_OFFSET
+        my = (sy1 + sy2) / 2 + eny * LABEL_OFFSET
+
+        # Rotation: text parallel to dim line, kept readable
+        svg_angle = math.degrees(math.atan2(udy, udx))
+        if svg_angle > 90:
+            svg_angle -= 180
+        elif svg_angle < -90:
+            svg_angle += 180
+        rot = (f' transform="rotate({svg_angle:.1f},{mx:.1f},{my:.1f})"'
+               if abs(svg_angle) > 0.1 else "")
+
+        out.append(f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle"'
+                   f' dominant-baseline="central" font-family="Arial"'
+                   f' font-size="{FONT_SIZE}" fill="{DIM_COLOR}"{rot}>'
+                   f'{label}</text>')
+
+
 def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     """Render the wall detail SVG. Returns SVG string."""
     pts = data["pts"]
@@ -780,6 +895,14 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                f' {data["vb_w"]:.2f} {data["vb_h"]:.2f}">')
     out.append(f'<rect x="{data["vb_x"]:.2f}" y="{data["vb_y"]:.2f}"'
                f' width="{data["vb_w"]:.2f}" height="{data["vb_h"]:.2f}" fill="white"/>')
+
+    if include_interior:
+        out.append('<defs>')
+        out.append('  <marker id="dim-arrow" viewBox="0 0 4 3" refX="4" refY="1.5"'
+                   ' markerWidth="4" markerHeight="3" orient="auto">')
+        out.append('    <path d="M0,0 L4,1.5 L0,3 Z" fill="#4682B4"/>')
+        out.append('  </marker>')
+        out.append('</defs>')
 
     # Title
     out.append(f'<text x="{data["title_x"]:.1f}" y="{data["title_y"]:.1f}"'
@@ -893,6 +1016,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     # --- Interior walls (optional) ---
     if include_interior:
         _render_interior_walls(out, data)
+        _render_opening_dims(out, data)
 
     # --- Opening labels ---
     for op in openings:
