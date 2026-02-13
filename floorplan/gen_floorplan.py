@@ -452,8 +452,7 @@ def render_floorplan_svg(data):
     ]
 
     # O1: F1-F2, vertical, lower (south of IW1)
-    _o1_gap = _o2_s - int_wall_north
-    _o1_n = int_wall_south - _o1_gap
+    _o1_n = pts["F2"][1] - 99.0 / 12.0
     _o1_s = _o1_n - 25.0 / 12.0
     _o1_poly = [
         (pts["F2"][0], _o1_s), (pts["F2"][0], _o1_n),

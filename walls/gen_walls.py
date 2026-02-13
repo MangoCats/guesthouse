@@ -114,8 +114,7 @@ def _compute_openings(pts, outline_segs, layout):
     openings.append(WallOpening("O2", idx, min(t1, t2), max(t1, t2)))
 
     # --- O1: F1-F2, vertical, lower (south of IW1) ---
-    o1_gap = o2_s - iw1_n
-    o1_n = iw1_s - o1_gap
+    o1_n = pts["F2"][1] - 99.0 / 12.0
     o1_s = o1_n - 25.0 / 12.0
     t1 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o1_s))
     t2 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o1_n))
