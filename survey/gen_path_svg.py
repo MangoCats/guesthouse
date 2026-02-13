@@ -279,8 +279,8 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     for ev in [L.iw2_w,L.iw2_e]:
         s1,s2 = to_svg(ev,L.iw2_s),to_svg(ev,L.iw2_n)
         lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
-    # Wall 8 L-shape
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.wall8)
+    # IW7 L-shape
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw7)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW3 (west bedroom wall)
     w1sp = [(L.iw3_w,L.iw3_s),(L.iw3_e,L.iw3_s),(L.iw3_e,L.iw3_n),(L.iw3_w,L.iw3_n)]
@@ -291,7 +291,7 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     w6p = [(L.iw4_w,wsn),(L.iw4_e,wsn),(L.iw4_e,L.iw1_s),(L.iw4_w,L.iw1_s)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in w6p)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # Wall 5 L-shape
+    # IW8 L-shape
     cl1_top = L.cl1_top; iwt3 = L.iwt3; w5_w = L.w5_w; w5_e = L.w5_e
     w5p = [(L.iw4_e,cl1_top+iwt3),(w5_e,cl1_top+iwt3),(w5_e,wsn),
            (w5_w,wsn),(w5_w,cl1_top),(L.iw4_e,cl1_top)]
@@ -577,7 +577,7 @@ if __name__ == "__main__":
 
     # Footer
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _git_desc = subprocess.check_output(["git", "describe", "--always"], text=True).strip()
+    _git_desc = subprocess.check_output(["git", "describe", "--always", "--dirty=-DEV"], text=True).strip()
     lines.append(f'<text x="{W/2}" y="{H-2}" text-anchor="middle" font-family="Arial" font-size="7.5"'
                  f' fill="#999">Generated {_now} from {_git_desc}</text>')
     lines.append('</svg>')

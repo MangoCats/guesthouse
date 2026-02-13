@@ -42,7 +42,7 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
    - Interior wall faces: use the named variables (e.g., `iw3_w`, `iw3_e`, `iw4_w`, `int_wall_south`, `int_wall_north`)
 
 2. **Determine the offset position** (where the line is placed, perpendicular to the measurement):
-   - For `dim_line_h`: choose a northing `n` (e.g., `ctr_n + iw_thick_3 + 1.0` for "1' north of Wall 8 north face")
+   - For `dim_line_h`: choose a northing `n` (e.g., `ctr_n + iw_thick_3 + 1.0` for "1' north of IW7 north face")
    - For `dim_line_v`: choose an easting `e` (e.g., `iw3_e + 2.0` for "2' east of IW3 east face")
 
 3. **Add the call** in the dimension lines section (between wall rendering and openings):
@@ -59,7 +59,7 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
 ### Example (real code)
 
 ```python
-# F1-F2 east face to IW3 west face, 1' north of Wall 8 north face
+# F1-F2 east face to IW3 west face, 1' north of IW7 north face
 _dim_f1f2_n = ctr_n + iw_thick_3 + 1.0
 dim_line_h(out, pts["W2"][0], _dim_f1f2_n, iw3_w, fmt_dist(iw3_w - pts["W2"][0]))
 ```
@@ -93,8 +93,8 @@ Interior walls use named variables computed in `gen_floorplan.py`:
 | **IW2** (vertical, 6") | `iw2_w` | `iw2_e` | `iw2_s` | `iw2_n` |
 | **IW3** (vertical, 4") | `iw3_w` | `iw3_e` | `iw3_s` (`ctr_s`) | `iw3_n` (`int_wall_south`) |
 | **IW4** (vertical, 4") | `iw4_w` | `iw4_e` | `wall_south_n` | `int_wall_south` |
-| **Wall 8** (L-shape, 3") | `ctr_e` | varies | `ctr_s` | `ctr_n + iw_thick_3` |
-| **Wall 5** (L-shape, 3") | `w5_w` | `w5_e` | `wall_south_n` | `closet1_top + iw_thick_3` |
+| **IW7** (L-shape, 3") | `ctr_e` | varies | `ctr_s` | `ctr_n + iw_thick_3` |
+| **IW8** (L-shape, 3") | `w5_w` | `w5_e` | `wall_south_n` | `closet1_top + iw_thick_3` |
 | **IW5** (horizontal, 3") | `iw5_w` (`iw4_e`) | `iw5_e` (`pts["W15"][0]`) | `iw5_s` | `iw5_n` |
 
 ### Room-relative references
@@ -138,7 +138,7 @@ Interior walls use named variables computed in `gen_floorplan.py`:
 
 ### L-shaped wall
 
-See Wall 8 or Wall 5 for examples. Define 6 vertices tracing the L-shape, then pass to `wall_poly()`.
+See IW7 or IW8 for examples. Define 6 vertices tracing the L-shape, then pass to `wall_poly()`.
 
 ### Wall thickness constants
 

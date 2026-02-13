@@ -53,16 +53,6 @@ def wall_poly(out, points, to_svg, stroke=True):
     s = ' stroke="#666" stroke-width="0.8"' if stroke else ' stroke="none"'
     out.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.35)"{s}/>')
 
-def wall_label(out, name, w, e, s, n, to_svg, vertical=True):
-    """Wall label text centered in bounding box."""
-    mx, my = to_svg((w + e) / 2, (s + n) / 2)
-    if vertical:
-        lx, ly = mx - 4, my + 3.5
-        out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" font-family="Arial"'
-                   f' font-size="8" fill="#666" transform="rotate(-90,{lx:.1f},{ly:.1f})">{name}</text>')
-    else:
-        out.append(f'<text x="{mx:.1f}" y="{my-4.5:.1f}" text-anchor="middle" font-family="Arial"'
-                   f' font-size="8" fill="#666">{name}</text>')
 
 def stroke_segs(out, segs, color, width, pts, to_svg):
     """Render segment strokes (lines and arc polylines)."""
@@ -220,7 +210,6 @@ def render_floorplan_svg(data):
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
-    wall_label(out, "IW1", iw_sw[0], iw_se[0], int_wall_south, int_wall_north, to_svg, vertical=False)
 
     # Interior wall IW2: 6" thick, N-S, west face 6'6" east of inner W1-W2 wall
     iw2_w = pts["W1"][0] + IW2_OFFSET_E
@@ -234,7 +223,6 @@ def render_floorplan_svg(data):
         sx2, sy2 = to_svg(e_val, iw2_n)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
-    wall_label(out, "IW2", iw2_w, iw2_e, iw2_s, iw2_n, to_svg)
 
     # IW6: 1" thick, W-E, from inside of F4-F5 to IW2 west face
     iw6_n = pts["W6"][1] - IW6_OFFSET_N
@@ -251,7 +239,6 @@ def render_floorplan_svg(data):
         sx2, sy2 = to_svg(iw6_e, n_val)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
-    wall_label(out, "IW6", min(iw6_w_s, iw6_w_n), iw6_e, iw6_s, iw6_n, to_svg, vertical=False)
 
     # Dimension line: IW1 north face to F9-F11 south face (inner), mid-span
     dim_e = (pts["F9"][0] + pts["F11"][0]) / 2
@@ -325,8 +312,8 @@ def render_floorplan_svg(data):
                f' font-size="7" fill="#4682B4">WH</text>')
 
     # --- Bedroom and closet walls ---
-    # Wall 8 L-shape (west/north walls of closet, east of counter)
-    w8_poly = [
+    # IW7 L-shape (west/north walls of closet, east of counter)
+    iw7_poly = [
         (ctr_e, ctr_s),
         (ctr_e + WALL_3IN, ctr_s),
         (ctr_e + WALL_3IN, ctr_n),
@@ -334,7 +321,7 @@ def render_floorplan_svg(data):
         (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n + WALL_3IN),
         (ctr_e, ctr_n + WALL_3IN),
     ]
-    wall_poly(out, w8_poly, to_svg)
+    wall_poly(out, iw7_poly, to_svg)
 
     # IW3 (west bedroom wall, 4" thick)
     iw3_w = ctr_e + WALL_3IN + CLOSET_WIDTH
@@ -343,20 +330,18 @@ def render_floorplan_svg(data):
     iw3_n = int_wall_south
     iw3_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s), (iw3_e, iw3_n), (iw3_w, iw3_n)]
     wall_poly(out, iw3_poly, to_svg)
-    wall_label(out, "IW3", iw3_w, iw3_e, iw3_s, iw3_n, to_svg)
 
     # IW4 (bedroom east wall, 4" thick) — 11'8" east of IW3 east face
     iw4_w = iw3_e + BEDROOM_WIDTH
     iw4_e = iw4_w + WALL_4IN
     iw4_poly = [(iw4_w, WALL_SOUTH_N), (iw4_e, WALL_SOUTH_N), (iw4_e, int_wall_south), (iw4_w, int_wall_south)]
     wall_poly(out, iw4_poly, to_svg)
-    wall_label(out, "IW4", iw4_w, iw4_e, WALL_SOUTH_N, int_wall_south, to_svg)
 
-    # Wall 5 (L-shaped, 3" thick — east/north walls of closet 1)
+    # IW8 (L-shaped, 3" thick — east/north walls of closet 1)
     closet1_top = WALL_SOUTH_N + CLOSET1_HEIGHT
     w5_w = iw4_e + CLOSET_WIDTH
     w5_e = w5_w + WALL_3IN
-    w5_poly = [
+    iw8_poly = [
         (iw4_e, closet1_top + WALL_3IN),
         (w5_e, closet1_top + WALL_3IN),
         (w5_e, WALL_SOUTH_N),
@@ -364,7 +349,7 @@ def render_floorplan_svg(data):
         (w5_w, closet1_top),
         (iw4_e, closet1_top),
     ]
-    wall_poly(out, w5_poly, to_svg)
+    wall_poly(out, iw8_poly, to_svg)
 
     # IW5: 3" thick, W-E in office, north face 30" south of IW1 south face
     iw5_n = int_wall_south - IW5_OFFSET_N
@@ -378,10 +363,9 @@ def render_floorplan_svg(data):
         sx2, sy2 = to_svg(iw5_e, n_val)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
-    wall_label(out, "IW5", iw5_w, iw5_e, iw5_s, iw5_n, to_svg, vertical=False)
 
     # Subtract interior wall areas from interior area
-    _iw_polys = [iw_pts, iw2_pts, iw6_poly, w8_poly, iw3_poly, iw4_poly, w5_poly, iw5_poly]
+    _iw_polys = [iw_pts, iw2_pts, iw6_poly, iw7_poly, iw3_poly, iw4_poly, iw8_poly, iw5_poly]
     inner_area -= sum(poly_area(p) for p in _iw_polys)
 
     # --- King Bed ---
@@ -643,7 +627,7 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+64:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">{_scale_label}</text>')
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _git_desc = subprocess.check_output(["git", "describe", "--always"], text=True).strip()
+    _git_desc = subprocess.check_output(["git", "describe", "--always", "--dirty=-DEV"], text=True).strip()
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+76:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="7.5" fill="#999">Generated {_now}</text>')
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+86:.1f}" text-anchor="middle"'

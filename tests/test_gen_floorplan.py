@@ -4,7 +4,7 @@ from shared.types import LineSeg, ArcSeg
 from floorplan.gen_floorplan import (
     build_floorplan_data,
     render_floorplan_svg,
-    dim_line_h, dim_line_v, wall_poly, wall_label, stroke_segs,
+    dim_line_h, dim_line_v, wall_poly, stroke_segs,
 )
 
 
@@ -66,21 +66,6 @@ class TestWallPoly:
         wall_poly(out_no_stroke, [(0, 0), (1, 0), (1, 1)], _mock_to_svg, stroke=False)
         assert 'stroke="none"' in out_no_stroke[0]
 
-
-class TestWallLabel:
-    def test_vertical_label(self):
-        out = []
-        wall_label(out, "IW1", 0, 1, 0, 10, _mock_to_svg, vertical=True)
-        assert len(out) == 1
-        assert "IW1" in out[0]
-        assert "rotate(-90" in out[0]
-
-    def test_horizontal_label(self):
-        out = []
-        wall_label(out, "IW5", 0, 10, 0, 1, _mock_to_svg, vertical=False)
-        assert len(out) == 1
-        assert "IW5" in out[0]
-        assert "rotate" not in out[0]
 
 
 class TestStrokeSegs:
@@ -150,10 +135,6 @@ class TestRenderFloorplanSvg:
         for name in vert_names:
             assert name in svg, f"Missing vertex label {name}"
 
-    def test_contains_interior_wall_labels(self, rendered):
-        svg, _, _, _ = rendered
-        for name in ["IW1", "IW2", "IW3", "IW4", "IW5", "IW6"]:
-            assert name in svg, f"Missing wall label {name}"
 
     def test_contains_appliance_labels(self, rendered):
         svg, _, _, _ = rendered

@@ -45,8 +45,8 @@ class InteriorLayout(NamedTuple):
     # Wall thicknesses
     iwt3: float
     iwt4: float
-    # Wall 8 (L-shaped, west/north walls of closet)
-    wall8: list[Point]
+    # IW7 (L-shaped, west/north walls of closet)
+    iw7: list[Point]
     # Interior wall 3 (IW3) — west bedroom wall
     iw3_w: float
     iw3_e: float
@@ -56,8 +56,8 @@ class InteriorLayout(NamedTuple):
     iw4_w: float
     iw4_e: float
     wall_south_n: float
-    # Wall 5 (L-shaped, east closet wall)
-    wall5: list[Point]
+    # IW8 (L-shaped, east closet wall)
+    iw8: list[Point]
     w5_w: float
     w5_e: float
     # Closet 1
@@ -131,10 +131,10 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         washer_w=washer_w, washer_s=washer_s, washer_e=washer_e, washer_n=washer_n,
         ctr_w=ctr_w, ctr_e=ctr_e, ctr_s=ctr_s, ctr_n=ctr_n, ctr_nw_r=ctr_nw_r,
         iwt3=WALL_3IN, iwt4=WALL_4IN,
-        wall8=w8,
+        iw7=w8,
         iw3_w=iw3_w, iw3_e=iw3_e, iw3_s=iw3_s, iw3_n=iw3_n,
         iw4_w=iw4_w, iw4_e=iw4_e, wall_south_n=wall_south_n,
-        wall5=w5, w5_w=w5_w, w5_e=w5_e,
+        iw8=w5, w5_w=w5_w, w5_e=w5_e,
         cl1_top=cl1_top,
         bed_w=bed_w, bed_e=bed_e, bed_s=bed_s, bed_n=bed_n, bed_cx=bed_cx,
     )

@@ -7,7 +7,7 @@ All values in feet unless noted. Inches converted via / 12.0.
 WALL_OUTER = 8.0 / 12.0           # 8" outer wall
 WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2)
 WALL_4IN = 4.0 / 12.0             # 4" interior wall (IW3, IW4)
-WALL_3IN = 3.0 / 12.0             # 3" interior wall (Wall 8, Wall 5)
+WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW7, IW8)
 
 # Appliance dimensions (feet)
 APPLIANCE_WIDTH = 35.0 / 12.0     # 35" washer/dryer width

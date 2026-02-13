@@ -15,14 +15,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area, arc_poly,
-    compute_inner_walls, fmt_dist, left_norm,
+    compute_inner_walls, fmt_dist, left_norm, horiz_isects,
 )
 from shared.svg import make_svg_transform, W, H
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import (
-    WALL_OUTER, IW1_OFFSET_N, WALL_6IN, IW2_OFFSET_E,
-    IW5_OFFSET_N,
+    WALL_OUTER, WALL_3IN, IW1_OFFSET_N, WALL_6IN, IW2_OFFSET_E,
+    IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
 )
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 
@@ -663,6 +663,7 @@ def build_wall_data():
         "outline_segs": outline_segs, "inner_segs": inner_segs,
         "s_segs": s_segs, "g_segs": g_segs,
         "radii": radii, "openings": openings,
+        "layout": layout, "inner_poly": inner_poly,
         "outer_area": fp_data["outer_area"],
         "inner_area": fp_data["inner_area"],
         "vb_x": _vb_x, "vb_y": _vb_y, "vb_w": _vb_w, "vb_h": _vb_h,
@@ -684,7 +685,82 @@ def _svg_polygon(out, poly, to_svg, fill, stroke="#666", stroke_width="0.5"):
                f'stroke="{stroke}" stroke-width="{stroke_width}"/>')
 
 
-def render_walls_svg(data):
+def _render_interior_walls(out, data):
+    """Render interior wall polygons and labels into the SVG output list."""
+    pts = data["pts"]
+    to_svg = data["to_svg"]
+    layout = data["layout"]
+    inner_poly = data["inner_poly"]
+
+    IW_FILL = "rgba(160,160,160,0.35)"
+    IW_STROKE = "#666"
+    IW_SW = "0.5"
+    LABEL_SIZE = "4"
+
+    def iw_poly(poly):
+        svg = " ".join(f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in poly)
+        out.append(f'<polygon points="{svg}" fill="{IW_FILL}" '
+                   f'stroke="{IW_STROKE}" stroke-width="{IW_SW}"/>')
+
+    def iw_rect(w, e, s, n):
+        iw_poly([(w, s), (e, s), (e, n), (w, n)])
+
+    def iw_label(name, w, e, s, n, vertical=True):
+        cx, cy = to_svg((w + e) / 2, (s + n) / 2)
+        rot = f' transform="rotate(-90 {cx:.1f} {cy:.1f})"' if vertical else ""
+        out.append(f'<text x="{cx:.1f}" y="{cy:.1f}" text-anchor="middle"'
+                   f' dominant-baseline="central" font-family="Arial"'
+                   f' font-size="{LABEL_SIZE}" fill="#666"{rot}>{name}</text>')
+
+    # IW1 (horizontal, 6")
+    iw_poly(layout.iw1)
+    iw_label("IW1", layout.iw1[0][0], layout.iw1[1][0],
+             layout.iw1_s, layout.iw1_n, vertical=False)
+
+    # IW2 (vertical, 6")
+    iw_rect(layout.iw2_w, layout.iw2_e, layout.iw2_s, layout.iw2_n)
+    iw_label("IW2", layout.iw2_w, layout.iw2_e, layout.iw2_s, layout.iw2_n)
+
+    # IW6 (horizontal, 1" partition)
+    iw6_n = pts["W6"][1] - IW6_OFFSET_N
+    iw6_s = iw6_n - IW6_THICKNESS
+    _iw6_n_ints = horiz_isects(inner_poly, iw6_n)
+    _iw6_s_ints = horiz_isects(inner_poly, iw6_s)
+    iw6_w_n = min(_iw6_n_ints)
+    iw6_w_s = min(_iw6_s_ints)
+    iw6_e = layout.iw2_w
+    iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
+    iw_poly(iw6_poly)
+    iw_label("IW6", min(iw6_w_s, iw6_w_n), iw6_e, iw6_s, iw6_n, vertical=False)
+
+    # IW7 (L-shaped, 3") — label on vertical arm
+    iw_poly(layout.iw7)
+    iw_label("IW7", layout.iw7[0][0], layout.iw7[1][0],
+             layout.iw7[0][1], layout.iw7[5][1])
+
+    # IW3 (vertical, 4")
+    iw_rect(layout.iw3_w, layout.iw3_e, layout.iw3_s, layout.iw3_n)
+    iw_label("IW3", layout.iw3_w, layout.iw3_e, layout.iw3_s, layout.iw3_n)
+
+    # IW4 (vertical, 4")
+    iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3_n)
+    iw_label("IW4", layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3_n)
+
+    # IW8 (L-shaped, 3") — label on vertical arm
+    iw_poly(layout.iw8)
+    iw_label("IW8", layout.iw8[3][0], layout.iw8[2][0],
+             layout.iw8[2][1], layout.iw8[1][1])
+
+    # IW5 (horizontal, 3")
+    iw5_n = layout.iw1_s - IW5_OFFSET_N
+    iw5_s = iw5_n - WALL_3IN
+    iw5_w = layout.iw4_e
+    iw5_e = pts["W15"][0]
+    iw_rect(iw5_w, iw5_e, iw5_s, iw5_n)
+    iw_label("IW5", iw5_w, iw5_e, iw5_s, iw5_n, vertical=False)
+
+
+def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     """Render the wall detail SVG. Returns SVG string."""
     pts = data["pts"]
     to_svg = data["to_svg"]
@@ -708,7 +784,7 @@ def render_walls_svg(data):
     # Title
     out.append(f'<text x="{data["title_x"]:.1f}" y="{data["title_y"]:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="14"'
-               f' font-weight="bold">Outer Walls</text>')
+               f' font-weight="bold">{title}</text>')
 
     WALL_FILL = "rgba(180,180,180,0.5)"
     OPENING_FILL = "rgb(220,235,255)"
@@ -814,6 +890,10 @@ def render_walls_svg(data):
             out.append(f'<polygon points="{svg_pts}" fill="none" '
                        f'stroke="#999" stroke-width="0.3"/>')
 
+    # --- Interior walls (optional) ---
+    if include_interior:
+        _render_interior_walls(out, data)
+
     # --- Opening labels ---
     for op in openings:
         seg = outline_segs[op.seg_idx]
@@ -858,7 +938,7 @@ def render_walls_svg(data):
 
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     _git_desc = subprocess.check_output(
-        ["git", "describe", "--always"], text=True).strip()
+        ["git", "describe", "--always", "--dirty=-DEV"], text=True).strip()
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+54:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7.5"'
                f' fill="#999">Generated {_now}</text>')
@@ -994,13 +1074,20 @@ def _partial_line_strip_2(pts, g_seg, inner_seg, t_start, t_end):
 
 if __name__ == "__main__":
     data = build_wall_data()
-    svg_content = render_walls_svg(data)
+    _dir = os.path.dirname(os.path.abspath(__file__))
 
-    svg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "walls.svg")
+    svg_content = render_walls_svg(data)
+    svg_path = os.path.join(_dir, "walls.svg")
     with open(svg_path, "w", encoding="utf-8") as f:
         f.write(svg_content)
-
     print(f"Wall detail written to {svg_path}")
+
+    all_svg = render_walls_svg(data, title="Walls", include_interior=True)
+    all_path = os.path.join(_dir, "all_walls.svg")
+    with open(all_path, "w", encoding="utf-8") as f:
+        f.write(all_svg)
+    print(f"All walls written to {all_path}")
+
     print(f"Shell: {SHELL_THICKNESS * 12:.0f}\" / "
           f"Gap: {AIR_GAP * 12:.0f}\" / "
           f"Shell: {SHELL_THICKNESS * 12:.0f}\"")
