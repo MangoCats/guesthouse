@@ -271,6 +271,14 @@ Opening positions are defined in `_compute_openings()` in `walls/gen_walls.py`, 
 After any geometry or layout change, regenerate and inspect all SVGs:
 
 ```bash
+python gen_all.py
+```
+
+This captures `git describe --always --dirty=-DEV` once into `.git_describe`, runs all three generators using that cached value, then deletes the cache. This ensures all title blocks embed the same version string even though writing the first SVG dirties the working tree.
+
+Individual scripts can also be run standalone — they fall back to a live `git describe` if the cache file is absent:
+
+```bash
 python survey/gen_path_svg.py
 python floorplan/gen_floorplan.py
 python walls/gen_walls.py

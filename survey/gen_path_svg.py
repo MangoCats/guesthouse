@@ -1,4 +1,4 @@
-import os, math, subprocess, datetime
+import os, math, datetime
 from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
@@ -10,7 +10,7 @@ from shared.geometry import (
     compute_inner_walls,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
-from shared.svg import make_svg_transform, W, H
+from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import (
@@ -577,7 +577,7 @@ if __name__ == "__main__":
 
     # Footer
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _git_desc = subprocess.check_output(["git", "describe", "--always", "--dirty=-DEV"], text=True).strip()
+    _git_desc = git_describe()
     lines.append(f'<text x="{W/2}" y="{H-2}" text-anchor="middle" font-family="Arial" font-size="7.5"'
                  f' fill="#999">Generated {_now} from {_git_desc}</text>')
     lines.append('</svg>')

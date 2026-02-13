@@ -1,6 +1,21 @@
 """SVG transform factory and page constants."""
+import os, subprocess
 from typing import Callable
 from .types import Point
+
+# Cache file written by gen_all.py so all SVGs embed the same git describe.
+_GIT_DESCRIBE_CACHE = os.path.join(os.path.dirname(__file__), os.pardir, ".git_describe")
+
+
+def git_describe() -> str:
+    """Return git describe string, preferring a cached value from gen_all.py."""
+    try:
+        with open(_GIT_DESCRIBE_CACHE) as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return subprocess.check_output(
+            ["git", "describe", "--always", "--dirty=-DEV"], text=True
+        ).strip()
 
 # US Letter landscape at 72 dpi (11" x 8.5")
 W, H = 792, 612

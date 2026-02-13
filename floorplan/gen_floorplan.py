@@ -3,7 +3,7 @@
 Computes geometry from shared/ and floorplan/ packages.
 Outline points F0-F21, inner wall points W0-W21.
 """
-import os, math, subprocess, datetime
+import os, math, datetime
 
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import (
@@ -11,7 +11,7 @@ from shared.geometry import (
     compute_inner_walls, horiz_isects, vert_isects, fmt_dist,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
-from shared.svg import make_svg_transform, W, H
+from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import (
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
@@ -627,7 +627,7 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+64:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">{_scale_label}</text>')
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _git_desc = subprocess.check_output(["git", "describe", "--always", "--dirty=-DEV"], text=True).strip()
+    _git_desc = git_describe()
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+76:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="7.5" fill="#999">Generated {_now}</text>')
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+86:.1f}" text-anchor="middle"'

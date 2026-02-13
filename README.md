@@ -26,29 +26,21 @@ pip install -e ".[adjust]"
 
 ## Usage
 
-Generate the survey path SVG (outline + inset path with labels):
+Regenerate all SVG files:
 
 ```
-python survey/gen_path_svg.py
+python gen_all.py
 ```
 
-Output: `survey/path_area.svg`
+This captures `git describe` once before generating, so all title blocks show the same version even though writing the first SVG dirties the working tree.
 
-Generate the detailed floorplan SVG (walls, rooms, appliances, dimensions):
-
-```
-python floorplan/gen_floorplan.py
-```
-
-Output: `floorplan/floorplan.svg`
-
-Generate the outer wall construction detail SVG (double-shell concrete walls):
+Individual scripts can also be run standalone (they fall back to a live `git describe`):
 
 ```
-python walls/gen_walls.py
+python survey/gen_path_svg.py        # → survey/path_area.svg
+python floorplan/gen_floorplan.py    # → floorplan/floorplan.svg
+python walls/gen_walls.py            # → walls/walls.svg, walls/all_walls.svg
 ```
-
-Output: `walls/walls.svg`
 
 ## Tests
 

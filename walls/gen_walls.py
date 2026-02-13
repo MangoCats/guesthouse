@@ -6,7 +6,7 @@ by a 4" air gap (8" total = WALL_OUTER). At openings, shells connect via
 
 Outputs walls/walls.svg at 1:72 scale.
 """
-import os, sys, math, subprocess, datetime
+import os, sys, math, datetime
 from typing import NamedTuple
 
 # Ensure project root is on sys.path for package imports
@@ -17,7 +17,7 @@ from shared.geometry import (
     segment_polyline, path_polygon, poly_area, arc_poly,
     compute_inner_walls, fmt_dist, left_norm, horiz_isects,
 )
-from shared.svg import make_svg_transform, W, H
+from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import (
@@ -937,8 +937,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                f' fill="#666">{_scale_label}</text>')
 
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _git_desc = subprocess.check_output(
-        ["git", "describe", "--always", "--dirty=-DEV"], text=True).strip()
+    _git_desc = git_describe()
     out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+54:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7.5"'
                f' fill="#999">Generated {_now}</text>')
