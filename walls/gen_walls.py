@@ -788,7 +788,7 @@ def _render_opening_dims(out, data):
     LABEL_OFFSET = 4.0      # SVG pts, label offset from dim line toward exterior
     DIM_COLOR = "#4682B4"
     DIM_SW = "0.4"
-    FONT_SIZE = "4"
+    FONT_SIZE = "5"
 
     for op in openings:
         seg = outline_segs[op.seg_idx]

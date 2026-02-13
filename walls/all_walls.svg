@@ -1,10 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="792" height="612" viewBox="36.89 97.90 769.40 594.54">
 <rect x="36.89" y="97.90" width="769.40" height="594.54" fill="white"/>
-<defs>
-  <marker id="dim-arrow" viewBox="0 0 4 3" refX="4" refY="1.5" markerWidth="4" markerHeight="3" orient="auto">
-    <path d="M0,0 L4,1.5 L0,3 Z" fill="#4682B4"/>
-  </marker>
-</defs>
 <text x="361.6" y="151.9" text-anchor="middle" font-family="Arial" font-size="14" font-weight="bold">Walls</text>
 <polygon points="161.47,502.03 160.71,502.00 159.95,501.91 159.20,501.76 158.47,501.55 157.75,501.29 157.06,500.97 156.39,500.60 155.76,500.17 155.16,499.70 154.60,499.18 154.08,498.62 153.61,498.02 153.18,497.39 152.81,496.72 152.49,496.03 152.23,495.31 152.02,494.58 151.87,493.83 151.78,493.08 151.75,492.31 153.70,492.31 153.72,492.92 153.79,493.53 153.91,494.13 154.08,494.71 154.29,495.29 154.54,495.84 154.84,496.37 155.18,496.88 155.56,497.36 155.97,497.81 156.42,498.22 156.90,498.60 157.41,498.94 157.94,499.24 158.49,499.49 159.07,499.70 159.65,499.87 160.25,499.99 160.86,500.06 161.47,500.08" fill="rgba(180,180,180,0.5)" stroke="none" stroke-width="0.5"/>
 <polygon points="161.47,496.20 161.16,496.19 160.86,496.15 160.56,496.09 160.27,496.01 159.98,495.90 159.70,495.78 159.44,495.63 159.18,495.46 158.94,495.27 158.72,495.06 158.51,494.84 158.32,494.60 158.15,494.34 158.01,494.08 157.88,493.80 157.77,493.51 157.69,493.22 157.63,492.92 157.59,492.62 157.58,492.31 159.52,492.31 159.53,492.47 159.55,492.62 159.58,492.77 159.62,492.91 159.67,493.06 159.74,493.19 159.81,493.33 159.90,493.45 159.99,493.57 160.09,493.69 160.21,493.79 160.33,493.88 160.45,493.97 160.59,494.04 160.72,494.11 160.87,494.16 161.01,494.20 161.16,494.23 161.32,494.25 161.47,494.26" fill="rgba(180,180,180,0.5)" stroke="none" stroke-width="0.5"/>
@@ -165,8 +160,7 @@
 <line x1="226.07" y1="200.87" x2="226.07" y2="190.63" stroke="#4682B4" stroke-width="0.4"/>
 <line x1="217.33" y1="189.13" x2="217.33" y2="195.13" stroke="#4682B4" stroke-width="0.4"/>
 <line x1="226.07" y1="189.13" x2="226.07" y2="195.13" stroke="#4682B4" stroke-width="0.4"/>
-<line x1="209.33" y1="192.13" x2="217.33" y2="192.13" stroke="#4682B4" stroke-width="0.4" marker-end="url(#dim-arrow)"/>
-<line x1="234.07" y1="192.13" x2="226.07" y2="192.13" stroke="#4682B4" stroke-width="0.4" marker-end="url(#dim-arrow)"/>
+<line x1="217.33" y1="192.13" x2="226.07" y2="192.13" stroke="#4682B4" stroke-width="0.4"/>
 <text x="221.7" y="188.1" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="4" fill="#4682B4">9&#8243;</text>
 <line x1="291.01" y1="230.02" x2="291.01" y2="219.77" stroke="#4682B4" stroke-width="0.4"/>
 <line x1="360.96" y1="230.02" x2="360.96" y2="219.77" stroke="#4682B4" stroke-width="0.4"/>
@@ -225,8 +219,8 @@
 <text x="646.4" y="161.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="173.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 17:27:12</text>
-<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-18-g97b8263</text>
+<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 17:31:06</text>
+<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-19-g1baafeb</text>
 <text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7" fill="#999">2&#8243; shell / 4&#8243; gap / 2&#8243; shell</text>
 <text x="645.4" y="239.0" text-anchor="middle" font-family="Arial" font-size="7" font-weight="bold" fill="#333">Wall Segments</text>
 <text x="583.4" y="249.0" text-anchor="start" font-family="Arial" font-size="6" font-weight="bold" fill="#333">From&#8211;To</text>
