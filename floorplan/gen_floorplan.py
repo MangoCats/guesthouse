@@ -519,6 +519,17 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{_sh_cx:.1f}" y="{_sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4">SHELVES</text>')
 
+    # WW3: 30" radius circle centered on SE corner of SHELVES
+    _ww3_cx = _sh_e
+    _ww3_cy = _sh_s
+    _ww3_r = 30.0 / 12.0
+    _ww3_sx, _ww3_sy = to_svg(_ww3_cx, _ww3_cy)
+    _ww3_r_svg = abs(to_svg(_ww3_r, 0)[0] - to_svg(0, 0)[0])
+    out.append(f'<circle cx="{_ww3_sx:.1f}" cy="{_ww3_sy:.1f}" r="{_ww3_r_svg:.1f}"'
+               f' fill="none" stroke="#4682B4" stroke-width="0.5" stroke-dasharray="2,2"/>')
+    out.append(f'<text x="{_ww3_sx:.1f}" y="{_ww3_sy - _ww3_r_svg - 2:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="6" fill="#4682B4">WW3</text>')
+
     # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
     _fr_w = iw2_e + KITCHEN_CTR_LENGTH + 2.0 / 12.0
     _fr_e = _fr_w + FRIDGE_SIZE
