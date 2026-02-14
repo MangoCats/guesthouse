@@ -780,6 +780,23 @@ def render_floorplan_svg(data):
                f' font-family="Arial" font-size="6" fill="#4682B4">ET</text>')
     out.append('</a>')
 
+    # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
+    _lv2_w = _et_cx + _et_r + 2.0 / 12.0
+    _lv2_s = iw1_n + 2.0 / 12.0
+    _lv2_e = _lv2_w + _lv_height  # 65" E-W
+    _lv2_n = _lv2_s + _lv_width   # 35" N-S
+    _lv2_sx1, _lv2_sy1 = to_svg(_lv2_w, _lv2_n)
+    _lv2_sx2, _lv2_sy2 = to_svg(_lv2_e, _lv2_s)
+    _lv2_sw = _lv2_sx2 - _lv2_sx1; _lv2_sh = _lv2_sy2 - _lv2_sy1
+    out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
+    out.append(f'<rect x="{_lv2_sx1:.1f}" y="{_lv2_sy1:.1f}" width="{_lv2_sw:.1f}" height="{_lv2_sh:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _lv2_cx = (_lv2_sx1 + _lv2_sx2) / 2
+    _lv2_cy = (_lv2_sy1 + _lv2_sy2) / 2
+    out.append(f'<text x="{_lv2_cx:.1f}" y="{_lv2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="#4682B4">LOVESEAT</text>')
+    out.append('</a>')
+
     # Room labels
     _bd_cx = (iw3_e + iw4_w) / 2
     _bd_cy = (ctr_s + iw1_s) / 2
