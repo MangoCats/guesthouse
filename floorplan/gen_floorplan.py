@@ -34,7 +34,7 @@ from floorplan.constants import (
     IW6_RO_OFFSET_W, IW6_RO_WIDTH,
     O1_OFFSET_S, O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
     O3_HALF_WIDTH, O4_HALF_WIDTH,
-    O5_GAP, O5_WIDTH, O6_E_GAP, O6_WIDTH,
+    O5_E_GAP, O5_WIDTH, O6_E_GAP, O6_WIDTH,
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
 )
@@ -917,12 +917,12 @@ def render_floorplan_svg(data):
     ]
 
     # O5 & O6: F9-F10, horizontal
-    # O6 edges (computed first so O5 can reference the gap)
+    # O5
+    _o5_e = pts["F10"][0] - O5_E_GAP
+    _o5_w = _o5_e - O5_WIDTH
+    # O6
     _o6_e = pts["F10"][0] - O6_E_GAP
     _o6_w = _o6_e - O6_WIDTH
-    # O5
-    _o5_e = _o6_w - O5_GAP
-    _o5_w = _o5_e - O5_WIDTH
     _o5_poly = [
         (_o5_w, pts["W9"][1]), (_o5_e, pts["W9"][1]),
         (_o5_e, pts["F9"][1]), (_o5_w, pts["F9"][1]),

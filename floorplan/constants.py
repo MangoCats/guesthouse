@@ -97,11 +97,12 @@ O2_WIDTH = 25.0 / 12.0             # 25" opening height
 O3_HALF_WIDTH = 16.0 / 12.0        # 16" half-width
 # O4 (F6-F7, centered chimney opening)
 O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
-# O5 & O6 (F9-F10)
+# O5 (F9-F10)
+O5_E_GAP = 126.0 / 12.0            # 126" from F10 to O5 east edge
+O5_WIDTH = 6.0                     # 6' opening width
+# O6 (F9-F10)
 O6_E_GAP = 10.0 / 12.0             # 10" from F10 to O6 east edge
 O6_WIDTH = 44.0 / 12.0             # 44" opening width
-O5_GAP = 78.0 / 12.0               # 78" gap between O5 east and O6 west
-O5_WIDTH = 6.0                     # 6' opening width
 # O7 (F12-F13 diagonal wall)
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
