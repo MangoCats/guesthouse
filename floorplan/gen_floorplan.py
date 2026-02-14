@@ -714,18 +714,18 @@ def render_floorplan_svg(data):
                f' font-size="7" fill="#4682B4">KING BED</text>')
 
     # --- Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner ---
-    # Constraints: NW corner on WW1, NNW (west) side tangent to WW3
+    # Constraints: NW corner on WW1, NNW (north) side tangent to WW3
     _lv_width = 35.0 / 12.0
     _lv_height = 65.0 / 12.0
     _lv_angle = math.radians(15)
     _ww2_r = 30.0 / 12.0
     # NW on WW1: NW = (ww1_cx + R*cos θ, ww1_cy + R*sin θ)
-    # West face inward normal (cos15, sin15); tangency to WW3 (interior side):
-    #   ww1_r * cos(θ - 15°) = K
-    _K = (math.cos(_lv_angle) * (_ww3_cx - _ww1_cx)
-          + math.sin(_lv_angle) * (_ww3_cy - _ww1_cy)
+    # North face outward normal (-sin15, cos15); tangency to WW3 gives:
+    #   ww1_r * sin(θ - 15°) = K
+    _K = (math.cos(_lv_angle) * (_ww3_cy - _ww1_cy)
+          - math.sin(_lv_angle) * (_ww3_cx - _ww1_cx)
           - _ww3_r)
-    _theta = _lv_angle + math.acos(_K / _ww1_r)
+    _theta = _lv_angle + math.asin(_K / _ww1_r)
     _lv_nw_e = _ww1_cx + _ww1_r * math.cos(_theta)
     _lv_nw_n = _ww1_cy + _ww1_r * math.sin(_theta)
     # Derive SW from NW: SW = NW + (h*sin15, -h*cos15)
