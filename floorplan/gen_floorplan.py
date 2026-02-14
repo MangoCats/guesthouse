@@ -56,10 +56,15 @@ def dim_line_v(out, e, n1, n2, label, to_svg):
     out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#999" transform="rotate(-90,{lx:.1f},{ly:.1f})">{label}</text>')
 
 def wall_poly(out, points, to_svg, stroke=True):
-    """Wall polygon with standard gray fill."""
+    """Wall polygon with standard gray fill.  Stroke is inside-only via clip-path."""
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in points)
-    s = ' stroke="#666" stroke-width="0.8"' if stroke else ' stroke="none"'
-    out.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.35)"{s}/>')
+    if stroke:
+        cid = f"wc{len(out)}"
+        out.append(f'<defs><clipPath id="{cid}"><polygon points="{svg}"/></clipPath></defs>')
+        out.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.35)"'
+                   f' stroke="#666" stroke-width="1.6" clip-path="url(#{cid})"/>')
+    else:
+        out.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.35)" stroke="none"/>')
 
 
 # Toilet plan-view shape: (dx, dy) offsets in source SVG units from center of
@@ -265,6 +270,10 @@ def render_floorplan_svg(data):
     stroke_segs(out, outline_segs, "#333", "1.5", pts, to_svg)
     stroke_segs(out, inner_segs, "#666", "1.0", pts, to_svg)
 
+    # Half stroke width in survey feet (for inside-only edge lines)
+    _svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
+    _half_sw = 0.5 / _svg_per_ft  # half of 1.0px stroke
+
     # Compute IW2 easting early (needed for RO1 position in IW1)
     iw2_w = pts["W1"][0] + IW2_OFFSET_E
     iw2_e = iw2_w + WALL_6IN
@@ -280,9 +289,13 @@ def render_floorplan_svg(data):
     _iw1_e_poly = [(_ro1_e, iw1_s), iw_se, iw_ne, (_ro1_e, iw1_n)]
     wall_poly(out, _iw1_w_poly, to_svg, stroke=False)
     wall_poly(out, _iw1_e_poly, to_svg, stroke=False)
-    # South and north edge lines, split around opening
-    for a, b in [(iw_sw, (_ro1_w, iw1_s)), ((_ro1_e, iw1_s), iw_se),
-                 (iw_nw, (_ro1_w, iw1_n)), ((_ro1_e, iw1_n), iw_ne)]:
+    # South and north edge lines, split around opening (inset by half stroke width)
+    _s_in = iw1_s + _half_sw  # south face, shifted north (inward)
+    _n_in = iw1_n - _half_sw  # north face, shifted south (inward)
+    for a, b in [((iw_sw[0], _s_in), (_ro1_w, _s_in)),
+                 ((_ro1_e, _s_in), (iw_se[0], _s_in)),
+                 ((iw_nw[0], _n_in), (_ro1_w, _n_in)),
+                 ((_ro1_e, _n_in), (iw_ne[0], _n_in))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
@@ -299,7 +312,7 @@ def render_floorplan_svg(data):
     iw2_n = pts["W6"][1]
     iw2_pts = [(iw2_w, iw2_s), (iw2_e, iw2_s), (iw2_e, iw2_n), (iw2_w, iw2_n)]
     wall_poly(out, iw2_pts, to_svg, stroke=False)
-    for e_val in [iw2_w, iw2_e]:
+    for e_val in [iw2_w + _half_sw, iw2_e - _half_sw]:
         sx1, sy1 = to_svg(e_val, iw2_s)
         sx2, sy2 = to_svg(e_val, iw2_n)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
@@ -315,7 +328,7 @@ def render_floorplan_svg(data):
     iw6_e = iw2_w
     iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
     wall_poly(out, iw6_poly, to_svg, stroke=False)
-    for w_e, n_val in [(iw6_w_s, iw6_s), (iw6_w_n, iw6_n)]:
+    for w_e, n_val in [(iw6_w_s, iw6_s + _half_sw), (iw6_w_n, iw6_n - _half_sw)]:
         sx1, sy1 = to_svg(w_e, n_val)
         sx2, sy2 = to_svg(iw6_e, n_val)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
@@ -544,7 +557,7 @@ def render_floorplan_svg(data):
     iiw8_e = pts["W15"][0]
     iw5_poly = [(iiw8_w, iw5_s), (iiw8_e, iw5_s), (iiw8_e, iw5_n), (iiw8_w, iw5_n)]
     wall_poly(out, iw5_poly, to_svg, stroke=False)
-    for n_val in [iw5_s, iw5_n]:
+    for n_val in [iw5_s + _half_sw, iw5_n - _half_sw]:
         sx1, sy1 = to_svg(iiw8_w, n_val)
         sx2, sy2 = to_svg(iiw8_e, n_val)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'

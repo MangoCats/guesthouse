@@ -53,14 +53,15 @@ class TestWallPoly:
     def test_produces_polygon(self):
         out = []
         wall_poly(out, [(0, 0), (1, 0), (1, 1), (0, 1)], _mock_to_svg)
-        assert len(out) == 1
-        assert "<polygon" in out[0]
-        assert "fill=" in out[0]
+        assert len(out) == 2  # clipPath defs + polygon
+        assert "<polygon" in out[1]
+        assert "fill=" in out[1]
 
     def test_stroke_option(self):
         out_stroke = []
         wall_poly(out_stroke, [(0, 0), (1, 0), (1, 1)], _mock_to_svg, stroke=True)
-        assert 'stroke="#666"' in out_stroke[0]
+        assert 'stroke="#666"' in out_stroke[1]
+        assert 'clip-path=' in out_stroke[1]
 
         out_no_stroke = []
         wall_poly(out_no_stroke, [(0, 0), (1, 0), (1, 1)], _mock_to_svg, stroke=False)
