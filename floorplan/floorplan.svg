@@ -161,6 +161,10 @@
 <circle cx="466.1" cy="342.9" r="9.6" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="466.1" y="345.9" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">ET</text>
 </a>
+<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">
+<rect x="477.6" y="318.4" width="63.1" height="34.0" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="509.2" y="338.4" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">LOVESEAT</text>
+</a>
 <text x="361.6" y="430.2" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>
 <text x="498.6" y="422.9" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">OFFICE</text>
 <line x1="293.6" y1="460.7" x2="429.6" y2="460.7" stroke="#999" stroke-width="0.8"/>
@@ -250,6 +254,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.85 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 14:24:39</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-83-g21ede53</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 14:25:55</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-84-g4a5127a</text>
 </svg>
