@@ -198,6 +198,8 @@
 <text x="309.1" y="501.1" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">O10</text>
 <polygon points="204.7,502.0 229.0,502.0 229.0,494.3 204.7,494.3" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
 <text x="216.8" y="501.1" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">O11</text>
+<polygon points="356.7,360.2 393.6,360.2 393.6,354.4 356.7,354.4" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
+<text x="375.2" y="360.3" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">O12</text>
 <circle cx="161.5" cy="502.0" r="1.25" fill="#333"/>
 <text x="161.5" y="512.0" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F0</text>
 <circle cx="151.8" cy="492.3" r="1.25" fill="#333"/>
@@ -250,6 +252,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 23:28:19</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-34-gaa51559</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 23:30:57</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-35-g15c89a0</text>
 </svg>

@@ -420,6 +420,26 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{_fr_cx:.1f}" y="{_fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="#4682B4">FRIDGE</text>')
 
+    # IW1 rough opening: 1" dark-red jambs with white gap between
+    _ro1_w = _fr_e + IW1_RO_OFFSET_E
+    _ro1_e = _ro1_w + IW1_RO_WIDTH
+    _ro1_jamb = 1.0 / 12.0  # 1" jamb width
+    # White mask over wall
+    _rw1, _rn1 = to_svg(_ro1_w, iw1_n)
+    _rw2, _rn2 = to_svg(_ro1_e, iw1_s)
+    out.append(f'<rect x="{_rw1:.1f}" y="{_rn1:.1f}" width="{_rw2 - _rw1:.1f}" height="{_rn2 - _rn1:.1f}"'
+               f' fill="white" stroke="none"/>')
+    # West jamb
+    _jw1, _jn1 = to_svg(_ro1_w, iw1_n)
+    _jw2, _jn2 = to_svg(_ro1_w + _ro1_jamb, iw1_s)
+    out.append(f'<rect x="{_jw1:.1f}" y="{_jn1:.1f}" width="{_jw2 - _jw1:.1f}" height="{_jn2 - _jn1:.1f}"'
+               f' fill="darkred" stroke="none"/>')
+    # East jamb
+    _jw3, _jn3 = to_svg(_ro1_e - _ro1_jamb, iw1_n)
+    _jw4, _jn4 = to_svg(_ro1_e, iw1_s)
+    out.append(f'<rect x="{_jw3:.1f}" y="{_jn3:.1f}" width="{_jw4 - _jw3:.1f}" height="{_jn4 - _jn3:.1f}"'
+               f' fill="darkred" stroke="none"/>')
+
     # Kitchen counter: 24" deep x 72" long, along IW1 north face starting at IW2 east face
     _kc_w = iw2_e
     _kc_e = _kc_w + KITCHEN_CTR_LENGTH
@@ -708,18 +728,10 @@ def render_floorplan_svg(data):
         (_o11_cn + _o11_half, pts["W0"][1]), (_o11_cn - _o11_half, pts["W0"][1]),
     ]
 
-    # O12: IW1, horizontal, rough opening 9" east of fridge east side, 38" wide
-    _o12_w = _fr_e + IW1_RO_OFFSET_E
-    _o12_e = _o12_w + IW1_RO_WIDTH
-    _o12_poly = [
-        (_o12_w, iw1_s), (_o12_e, iw1_s),
-        (_o12_e, iw1_n), (_o12_w, iw1_n),
-    ]
-
     _openings = [("O1", _o1_poly), ("O2", _o2_poly), ("O3", _o3_poly),
                  ("O4", _o4_poly), ("O5", _o5_poly), ("O6", _o6_poly),
                  ("O7", _o7_poly), ("O8", _o8_poly), ("O9", _o9_poly),
-                 ("O10", _o10_poly), ("O11", _o11_poly), ("O12", _o12_poly)]
+                 ("O10", _o10_poly), ("O11", _o11_poly)]
     _ns_openings = {"O1", "O2", "O3", "O8"}
     _o7_angle = math.degrees(math.atan2(-_o7_dN, _o7_dE))
     for _name, _poly in _openings:
