@@ -29,7 +29,7 @@ from floorplan.constants import (
     IW6_RO_OFFSET_W, IW6_RO_WIDTH,
     O1_OFFSET_S, O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
     O3_HALF_WIDTH, O4_HALF_WIDTH,
-    O5_E_GAP, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
+    O5_E_FROM_F7, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
 )
@@ -147,8 +147,8 @@ def _compute_openings(pts, outline_segs, layout):
 
     # --- O5 & O6: F9-F10, horizontal ---
     idx = seg_map[("F9", "F10")]
-    # O5
-    o5_e = pts["F10"][0] - O5_E_GAP
+    # O5 (positioned relative to F7 easting)
+    o5_e = pts["F7"][0] + O5_E_FROM_F7
     o5_w = o5_e - O5_WIDTH
     # O6 (positioned relative to F9)
     o6_e = pts["F9"][0] + O6_E_FROM_F9
