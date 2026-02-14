@@ -687,11 +687,22 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{_bed_cx_svg:.1f}" y="{_bed_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="#4682B4">KING BED</text>')
 
-    # --- Loveseat: 35" E-W x 65" N-S, 6" east of RO1, 3" north of IW1 ---
-    _lv_w = _ro1_e + 6.0 / 12.0
-    _lv_e = _lv_w + 35.0 / 12.0
+    # --- Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner ---
+    # Positioned so rotated NW corner lies on WW1 circle, 3" north of IW1
+    _lv_width = 35.0 / 12.0
+    _lv_height = 65.0 / 12.0
     _lv_s = iw1_n + 3.0 / 12.0
-    _lv_n = _lv_s + 65.0 / 12.0
+    _lv_angle = math.radians(15)
+    # Rotated NW corner relative to SW: (-h*sin(15°), h*cos(15°))
+    _lv_nw_rel_e = -_lv_height * math.sin(_lv_angle)
+    _lv_nw_rel_n = _lv_height * math.cos(_lv_angle)
+    _lv_nw_n = _lv_s + _lv_nw_rel_n
+    # Solve for _lv_w so NW corner is on WW1 circle (western intersection)
+    _dy = _lv_nw_n - _ww1_cy
+    _lv_nw_e = _ww1_cx - math.sqrt(_ww1_r**2 - _dy**2)
+    _lv_w = _lv_nw_e - _lv_nw_rel_e
+    _lv_e = _lv_w + _lv_width
+    _lv_n = _lv_s + _lv_height
     _lv_sx1, _lv_sy1 = to_svg(_lv_w, _lv_n)
     _lv_sx2, _lv_sy2 = to_svg(_lv_e, _lv_s)
     _lv_sw = _lv_sx2 - _lv_sx1; _lv_sh = _lv_sy2 - _lv_sy1
