@@ -381,15 +381,13 @@ def render_floorplan_svg(data):
     draw_toilet(out, _toilet_e, iw1_n, face_north=True, to_svg=to_svg)
     draw_sink(out, _sink_e, iw1_n + SINK_RY, to_svg=to_svg)
 
-    # --- Kitchen appliances (against W9-W10 south face, centered) ---
+    # --- Kitchen appliances (against W9-W10 south face) ---
     _back_n = pts["W9"][1]  # south face of inner north wall
-    _kitchen_total = KITCHEN_SINK_WIDTH + KITCHEN_GAP + DW_WIDTH + KITCHEN_GAP + STOVE_WIDTH
-    _kitchen_cx = (pts["W9"][0] + pts["W10"][0]) / 2
-    _ks_w = _kitchen_cx - _kitchen_total / 2  # kitchen sink west edge
-    _ks_e = _ks_w + KITCHEN_SINK_WIDTH
-    _dw_w = iw2_e + NORTH_CTR_LENGTH + 2.0 / 12.0  # 2" east of north counter
+    _dw_w = iw2_e + NORTH_CTR_LENGTH + 3.0 / 12.0  # 3" east of north counter
     _dw_e = _dw_w + DW_WIDTH
-    _st_w = _dw_e + KITCHEN_GAP
+    _ks_w = _dw_w + 3.0 / 12.0  # sink west 3" east of D/W west
+    _ks_e = _ks_w + KITCHEN_SINK_WIDTH
+    _st_w = _ks_e + 3.0 / 12.0  # stove 3" east of sink
     _st_e = _st_w + STOVE_WIDTH
     for label, sw_e, sw_n, ne_e, ne_n in [
         ("SINK",  _ks_w, _back_n - KITCHEN_SINK_DEPTH, _ks_e, _back_n),
