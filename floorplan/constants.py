@@ -47,8 +47,8 @@ SINK_RX = 12.0 / 12.0             # 12" E-W half-width (24" total)
 SINK_RY = 9.0 / 12.0              # 9" N-S half-depth (18" total)
 
 # Kitchen appliances (feet)
-KITCHEN_SINK_WIDTH = 48.0 / 12.0   # 48" E-W
-KITCHEN_SINK_DEPTH = 24.0 / 12.0   # 24" N-S
+KITCHEN_SINK_WIDTH = 47.5 / 12.0   # 47.5" E-W
+KITCHEN_SINK_DEPTH = 27.0 / 12.0   # 27" N-S
 DW_WIDTH = 28.0 / 12.0             # 28" dishwasher E-W
 DW_DEPTH = 27.0 / 12.0             # 27" dishwasher N-S
 STOVE_WIDTH = 30.0 / 12.0          # 30" stove E-W
