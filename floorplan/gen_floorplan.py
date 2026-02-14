@@ -860,38 +860,7 @@ def render_floorplan_svg(data):
         if seg.start not in _vert_names:
             _vert_names.append(seg.start)
 
-    _vs_offsets = {
-        "F1": ("end", -8, 0), "F2": ("end", -8, 0), "F3": ("end", -10, 0),
-        "F4": ("end", -8, 0), "F5": ("end", -8, 0), "F8": ("end", -8, 0),
-        "F11": ("start", 8, 0), "F12": ("start", 8, 0), "F13": ("start", 8, 0),
-        "F14": ("start", 10, 0), "F15": ("start", 8, 0),
-        "F0": ("middle", 0, 10), "F6": ("middle", 0, -6), "F7": ("middle", 0, -6),
-        "F9": ("middle", 0, 17), "F10": ("middle", 0, 17),
-        "F17": ("middle", 0, 13), "F18": ("middle", 0, 12), "F19": ("middle", 0, 12),
-        "F20": ("middle", 0, 13), "F21": ("middle", 0, 10),
-        "F16": ("start", 8, 4),
-    }
-    _vert_centered = {"F1","F2","F3","F4","F5","F8","F11","F12","F13","F14","F15"}
-    _horiz_centered = {"F0","F6","F7","F9","F10","F17","F18","F19","F20","F21"}
-
-    for f_name in _vert_names:
-        sx, sy = to_svg(*pts[f_name])
-        out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="1.25" fill="#333"/>')
-        if f_name in _vs_offsets:
-            anchor, dx, dy = _vs_offsets[f_name]
-            if f_name in _vert_centered:
-                out.append(f'<text x="{sx+dx:.1f}" y="{sy:.1f}" text-anchor="{anchor}"'
-                           f' dominant-baseline="central"'
-                           f' font-family="Arial" font-size="9" font-weight="bold"'
-                           f' fill="#333">{f_name}</text>')
-            elif f_name in _horiz_centered:
-                out.append(f'<text x="{sx:.1f}" y="{sy+dy:.1f}" text-anchor="middle"'
-                           f' font-family="Arial" font-size="9" font-weight="bold"'
-                           f' fill="#333">{f_name}</text>')
-            else:
-                out.append(f'<text x="{sx+dx:.1f}" y="{sy+dy:.1f}" text-anchor="{anchor}"'
-                           f' font-family="Arial" font-size="9" font-weight="bold"'
-                           f' fill="#333">{f_name}</text>')
+    # (F-series vertex labels removed)
 
     # North arrow
     out.append(f'<line x1="{data["na_x"]:.1f}" y1="{data["na_base_y"]:.1f}" x2="{data["na_x"]:.1f}" y2="{data["na_tip_y"]:.1f}" stroke="#333" stroke-width="2"'
