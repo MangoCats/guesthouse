@@ -519,12 +519,14 @@ def render_floorplan_svg(data):
     _kc_sx1, _kc_sy1 = to_svg(_kc_w, _kc_n)
     _kc_sx2, _kc_sy2 = to_svg(_kc_e, _kc_s)
     _kc_sw = _kc_sx2 - _kc_sx1; _kc_sh = _kc_sy2 - _kc_sy1
+    out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html" target="_blank">')
     out.append(f'<rect x="{_kc_sx1:.1f}" y="{_kc_sy1:.1f}" width="{_kc_sw:.1f}" height="{_kc_sh:.1f}"'
                f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
     _kc_cx = (_kc_sx1 + _kc_sx2) / 2
     _kc_cy = (_kc_sy1 + _kc_sy2) / 2
     out.append(f'<text x="{_kc_cx:.1f}" y="{_kc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="#4682B4">COUNTER</text>')
+    out.append('</a>')
 
     # North wall counter: 24" deep x 38" long, south side against W9-W10, starting at IW2 east face
     _nc_w = iw2_e

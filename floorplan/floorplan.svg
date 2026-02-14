@@ -108,8 +108,8 @@
 <text x="372.8" y="256.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">STOVE</text>
 <rect x="313.0" y="317.4" width="35.0" height="35.0" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="330.5" y="337.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">FRIDGE</text>
-<rect x="241.1" y="331.1" width="69.9" height="23.3" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="276.1" y="345.7" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">COUNTER</text>
+<rect x="241.1" y="325.2" width="69.9" height="29.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="276.1" y="342.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">COUNTER</text>
 <a href="https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html" target="_blank">
 <rect x="241.1" y="237.8" width="35.0" height="29.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="258.6" y="255.4" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">COUNTER</text>
@@ -230,6 +230,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.85 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 13:05:20</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-55-gef98848</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 13:09:02</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-56-gce78f1e</text>
 </svg>
