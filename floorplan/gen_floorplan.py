@@ -731,12 +731,12 @@ def render_floorplan_svg(data):
     # Derive SW from NW: SW = NW + (h*sin15, -h*cos15)
     _lv_w = _lv_nw_e + _lv_height * math.sin(_lv_angle)
     _lv_s = _lv_nw_n - _lv_height * math.cos(_lv_angle)
-    # ET position: on extended east side of loveseat, 2" N of IW1
+    # ET position: 2" east of loveseat's SE corner
     _et_r = (25.0 / 2.54) / 12.0  # 25cm radius in feet
     _lv_se_e = _lv_w + _lv_width * math.cos(_lv_angle)
     _lv_se_n = _lv_s + _lv_width * math.sin(_lv_angle)
-    _et_cy = iw1_n + 2.0 / 12.0 + _et_r
-    _et_cx = _lv_se_e - (_et_cy - _lv_se_n) * math.tan(_lv_angle)
+    _et_cx = _lv_se_e + _et_r + 2.0 / 12.0
+    _et_cy = _lv_se_n
     _lv_e = _lv_w + _lv_width
     _lv_n = _lv_s + _lv_height
     _lv_sx1, _lv_sy1 = to_svg(_lv_w, _lv_n)
