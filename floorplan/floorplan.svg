@@ -75,6 +75,14 @@
 <text x="246.0" y="459.3" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4" letter-spacing="0.5" transform="rotate(-90,246.0,459.3)">COUNTER</text>
 <circle cx="254.7" cy="222.6" r="13.6" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="254.7" y="225.6" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">WH</text>
+<polygon points="175.1,360.2 175.1,368.0 179.1,368.0 178.2,368.7 177.5,369.6 177.0,370.6 176.6,371.7 176.5,372.8 175.7,381.1 175.9,382.4 176.2,383.6 176.8,384.8 177.7,385.8 178.7,386.6 179.8,387.2 181.1,387.6 182.4,387.7 183.6,387.6 184.9,387.2 186.0,386.6 187.0,385.8 187.9,384.8 188.5,383.6 188.9,382.4 189.0,381.1 188.2,372.8 188.1,371.7 187.7,370.6 187.2,369.6 186.5,368.7 185.6,368.0 185.6,368.0 189.6,368.0 189.6,360.2" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="182.4" y="379.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">TOILET</text>
+<ellipse cx="216.8" cy="368.9" rx="11.7" ry="8.7" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="216.8" y="371.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
+<polygon points="175.1,354.4 175.1,346.6 179.1,346.6 178.2,345.9 177.5,345.0 177.0,344.0 176.6,342.9 176.5,341.7 175.7,333.5 175.9,332.2 176.2,330.9 176.8,329.8 177.7,328.8 178.7,328.0 179.8,327.4 181.1,327.0 182.4,326.9 183.6,327.0 184.9,327.4 186.0,328.0 187.0,328.8 187.9,329.8 188.5,330.9 188.9,332.2 189.0,333.5 188.2,341.7 188.1,342.9 187.7,344.0 187.2,345.0 186.5,345.9 185.6,346.6 185.6,346.6 189.6,346.6 189.6,354.4" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="182.4" y="340.7" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">TOILET</text>
+<ellipse cx="216.8" cy="345.6" rx="11.7" ry="8.7" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="216.8" y="348.6" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
 <polygon points="257.6,494.3 260.6,494.3 260.6,424.3 289.7,424.3 289.7,421.4 257.6,421.4" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
 <polygon points="289.7,494.3 293.6,494.3 293.6,360.2 289.7,360.2" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
 <polygon points="429.6,505.9 433.5,505.9 433.5,360.2 429.6,360.2" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
@@ -228,6 +236,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 17:31:06</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-19-g1baafeb</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 22:56:49</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-20-geb3edf8-DEV</text>
 </svg>

@@ -38,6 +38,14 @@ BED_OFFSET_N = 2.0 / 12.0         # 2" from south wall
 # Water heater
 WH_RADIUS = 14.0 / 12.0           # 14" radius (28" diameter)
 
+# Toilet (plan view)
+TOILET_WIDTH = 15.0 / 12.0        # 15"
+TOILET_TANK_DEPTH = 8.0 / 12.0    # 8" tank
+
+# Sink (plan view, ellipse semi-axes)
+SINK_RX = 12.0 / 12.0             # 12" E-W half-width (24" total)
+SINK_RY = 9.0 / 12.0              # 9" N-S half-depth (18" total)
+
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition
 IW6_OFFSET_N = 5.5                 # 5'6" south of F6-F7 south face

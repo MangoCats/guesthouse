@@ -22,6 +22,7 @@ from floorplan.constants import (
     BED_WIDTH, BED_LENGTH, BED_OFFSET_N,
     IW1_OFFSET_N, IW2_OFFSET_E, WALL_SOUTH_N,
     WH_RADIUS, IW6_THICKNESS, IW6_OFFSET_N, IW5_OFFSET_N,
+    SINK_RX, SINK_RY,
 )
 
 # ============================================================
@@ -52,6 +53,60 @@ def wall_poly(out, points, to_svg, stroke=True):
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in points)
     s = ' stroke="#666" stroke-width="0.8"' if stroke else ' stroke="none"'
     out.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.35)"{s}/>')
+
+
+# Toilet plan-view shape: (dx, dy) offsets in source SVG units from center of
+# back edge, +dy = toward bowl.  Extracted from hut/floor_plan_2d.svg lines 264-269.
+# 1 SVG unit = 10 cm; _SVG_TO_FT converts to feet.
+_TOILET_SVG = [
+    (-1.905, 0), (-1.905, 2.032), (-0.841, 2.032),
+    (-1.078, 2.224), (-1.267, 2.455), (-1.408, 2.719),
+    (-1.495, 3.005), (-1.524, 3.302),
+    (-1.732, 5.461), (-1.699, 5.799), (-1.600, 6.124),
+    (-1.440, 6.423), (-1.225, 6.686), (-0.962, 6.901),
+    (-0.663, 7.061), (-0.338, 7.160), (0, 7.193),
+    (0.338, 7.160), (0.663, 7.061), (0.962, 6.901),
+    (1.225, 6.686), (1.440, 6.423), (1.600, 6.124),
+    (1.699, 5.799), (1.732, 5.461),
+    (1.524, 3.302), (1.495, 3.005), (1.408, 2.719),
+    (1.267, 2.455), (1.078, 2.224), (0.847, 2.035),
+    (0.841, 2.032), (1.905, 2.032), (1.905, 0),
+]
+_SVG_TO_FT = 10.0 / 30.48
+
+
+def draw_toilet(out, center_e, back_n, face_north, to_svg):
+    """Draw a toilet plan view against a wall.
+
+    center_e: easting of toilet center
+    back_n: northing of the wall face the tank sits against
+    face_north: True = bowl faces north (+N), False = bowl faces south (-N)
+    """
+    sign = 1 if face_north else -1
+    pts_survey = [(center_e + dx * _SVG_TO_FT, back_n + sign * dy * _SVG_TO_FT)
+                  for dx, dy in _TOILET_SVG]
+    svg_pts = " ".join(f"{to_svg(e, n)[0]:.1f},{to_svg(e, n)[1]:.1f}"
+                       for e, n in pts_survey)
+    out.append(f'<polygon points="{svg_pts}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    # Label at centroid
+    cx = sum(p[0] for p in pts_survey) / len(pts_survey)
+    cy = sum(p[1] for p in pts_survey) / len(pts_survey)
+    sx, sy = to_svg(cx, cy)
+    out.append(f'<text x="{sx:.1f}" y="{sy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="#4682B4">TOILET</text>')
+
+
+def draw_sink(out, center_e, center_n, to_svg):
+    """Draw a sink plan view as an ellipse."""
+    sx, sy = to_svg(center_e, center_n)
+    # Convert radii from feet to SVG pixel units
+    rx_svg = abs(to_svg(SINK_RX, 0)[0] - to_svg(0, 0)[0])
+    ry_svg = abs(to_svg(0, SINK_RY)[1] - to_svg(0, 0)[1])
+    out.append(f'<ellipse cx="{sx:.1f}" cy="{sy:.1f}" rx="{rx_svg:.1f}" ry="{ry_svg:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    out.append(f'<text x="{sx:.1f}" y="{sy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="#4682B4">SINK</text>')
 
 
 def stroke_segs(out, segs, color, width, pts, to_svg):
@@ -310,6 +365,16 @@ def render_floorplan_svg(data):
                f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
     out.append(f'<text x="{wh_sx:.1f}" y="{wh_sy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="#4682B4">WH</text>')
+
+    # --- Toilets and sinks (against IW1, mirrored on both sides) ---
+    _toilet_e = (dryer_w + dryer_e) / 2
+    _sink_e = (dryer_e + ctr_w) / 2
+    # South side (utility room): fixtures face south, back against IW1 south face
+    draw_toilet(out, _toilet_e, iw1_s, face_north=False, to_svg=to_svg)
+    draw_sink(out, _sink_e, iw1_s - SINK_RY, to_svg=to_svg)
+    # North side (bath area): fixtures face north, back against IW1 north face
+    draw_toilet(out, _toilet_e, iw1_n, face_north=True, to_svg=to_svg)
+    draw_sink(out, _sink_e, iw1_n + SINK_RY, to_svg=to_svg)
 
     # --- Bedroom and closet walls ---
     # IW7 L-shape (west/north walls of closet, east of counter)
