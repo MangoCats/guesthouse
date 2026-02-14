@@ -26,6 +26,7 @@ from floorplan.constants import (
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
     FRIDGE_SIZE, KITCHEN_GAP,
+    KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
 )
 
 # ============================================================
@@ -417,6 +418,23 @@ def render_floorplan_svg(data):
     _fr_cy = (sy1 + sy2) / 2
     out.append(f'<text x="{_fr_cx:.1f}" y="{_fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="#4682B4">FRIDGE</text>')
+
+    # Kitchen counter: 24" deep x 72" long, along IW1 north face starting at IW2 east face
+    _kc_w = iw2_e
+    _kc_e = _kc_w + KITCHEN_CTR_LENGTH
+    _kc_s = iw1_n
+    _kc_n = _kc_s + KITCHEN_CTR_DEPTH
+    _kcsw = to_svg(_kc_w, _kc_s)
+    _kcne = to_svg(_kc_e, _kc_n)
+    _kc_sx1, _kc_sy1 = to_svg(_kc_w, _kc_n)
+    _kc_sx2, _kc_sy2 = to_svg(_kc_e, _kc_s)
+    _kc_sw = _kc_sx2 - _kc_sx1; _kc_sh = _kc_sy2 - _kc_sy1
+    out.append(f'<rect x="{_kc_sx1:.1f}" y="{_kc_sy1:.1f}" width="{_kc_sw:.1f}" height="{_kc_sh:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _kc_cx = (_kc_sx1 + _kc_sx2) / 2
+    _kc_cy = (_kc_sy1 + _kc_sy2) / 2
+    out.append(f'<text x="{_kc_cx:.1f}" y="{_kc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="#4682B4">COUNTER</text>')
 
     # --- Bedroom and closet walls ---
     # IW7 L-shape (west/north walls of closet, east of counter)

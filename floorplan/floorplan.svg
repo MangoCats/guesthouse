@@ -83,6 +83,14 @@
 <text x="182.4" y="340.7" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">TOILET</text>
 <ellipse cx="216.8" cy="345.6" rx="11.7" ry="8.7" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="216.8" y="348.6" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
+<rect x="330.4" y="237.8" width="46.6" height="23.3" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="353.7" y="252.4" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
+<rect x="377.8" y="237.8" width="27.2" height="26.2" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="391.4" y="253.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">D/W</text>
+<rect x="405.7" y="237.8" width="29.1" height="26.2" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="420.3" y="253.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">STOVE</text>
+<rect x="365.2" y="319.4" width="35.0" height="35.0" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="382.6" y="339.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">FRIDGE</text>
 <polygon points="257.6,494.3 260.6,494.3 260.6,424.3 289.7,424.3 289.7,421.4 257.6,421.4" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
 <polygon points="289.7,494.3 293.6,494.3 293.6,360.2 289.7,360.2" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
 <polygon points="429.6,505.9 433.5,505.9 433.5,360.2 429.6,360.2" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
@@ -236,6 +244,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 22:57:06</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-21-g0625e0f</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 23:07:36</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-22-g50708b6</text>
 </svg>

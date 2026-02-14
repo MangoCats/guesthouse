@@ -55,6 +55,8 @@ STOVE_WIDTH = 30.0 / 12.0          # 30" stove E-W
 STOVE_DEPTH = 27.0 / 12.0          # 27" stove N-S
 FRIDGE_SIZE = 36.0 / 12.0          # 36" fridge (square)
 KITCHEN_GAP = 0.75 / 12.0          # 3/4" gap between kitchen appliances
+KITCHEN_CTR_LENGTH = 72.0 / 12.0   # 72" kitchen counter E-W along IW1 north
+KITCHEN_CTR_DEPTH = 24.0 / 12.0    # 24" kitchen counter depth N-S
 
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition
