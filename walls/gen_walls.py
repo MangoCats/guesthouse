@@ -21,31 +21,13 @@ from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import (
-    WALL_OUTER, WALL_3IN, IW1_OFFSET_N, WALL_6IN, IW2_OFFSET_E,
-    IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
-    KITCHEN_CTR_LENGTH, FRIDGE_SIZE, IW1_RO_OFFSET_E, IW1_RO_WIDTH,
-    IW2_RO_OFFSET_S, IW2_RO_WIDTH,
-    IW3_RO_OFFSET_N, IW3_RO_WIDTH, IW4_RO_WIDTH, CLOSET1_HEIGHT, WALL_SOUTH_N,
-    IW6_RO_OFFSET_W, IW6_RO_WIDTH,
-    O1_OFFSET_S, O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
-    O3_HALF_WIDTH, O4_HALF_WIDTH,
-    O5_E_FROM_F7, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
-    O7_NW_GAP, O7_HALF_WIDTH,
-    O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
+    WALL_OUTER, WALL_3IN, IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
+)
+from floorplan.openings import (
+    WallOpening, compute_outer_openings, compute_rough_openings,
+    outer_to_wall_openings,
 )
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
-
-
-# ============================================================
-# Data types
-# ============================================================
-
-class WallOpening(NamedTuple):
-    """Opening on an outline segment, parameterized along the segment."""
-    name: str
-    seg_idx: int    # index in outline_segs (0-based)
-    t_start: float  # parametric position [0, 1] along the segment
-    t_end: float    # parametric position [0, 1] along the segment
 
 
 # ============================================================
@@ -77,127 +59,6 @@ def _compute_inset_path(outline_segs, pts, radii, inset, prefix):
             result_segs.append(ArcSeg(s, e, seg.center, seg.radius,
                                        seg.direction, seg.n_pts))
     return result_pts, result_segs
-
-
-# ============================================================
-# Opening computation
-# ============================================================
-
-def _seg_param(pts, seg, point):
-    """Compute parametric position t of a point along a LineSeg."""
-    A = pts[seg.start]
-    B = pts[seg.end]
-    dx = B[0] - A[0]
-    dy = B[1] - A[1]
-    if abs(dx) > abs(dy):
-        return (point[0] - A[0]) / dx
-    else:
-        return (point[1] - A[1]) / dy
-
-
-def _compute_openings(pts, outline_segs, layout):
-    """Compute opening boundaries as WallOpening tuples.
-
-    Each opening maps to a specific outline segment index and parametric range.
-    """
-    openings = []
-
-    # Segment index lookup: outline_segs[i] has start = F{i}, end = F{(i+1)%22}
-    # Build a map from (start, end) pair to index
-    seg_map = {}
-    for i, seg in enumerate(outline_segs):
-        seg_map[(seg.start, seg.end)] = i
-
-    # Openings numbered CW around the building outline (F1→F2→...→F21→F0)
-    iw1_s = pts["W0"][1] + IW1_OFFSET_N
-    iw1_n = iw1_s + WALL_6IN
-    iw5_n = iw1_s - IW5_OFFSET_N
-    iw5_s = iw5_n - WALL_6IN
-
-    # --- O2: F1-F2, vertical, upper (near F2) — computed first, O1 depends on it ---
-    idx = seg_map[("F1", "F2")]
-    o2_n = pts["F2"][1] - O2_OFFSET_S
-    o2_s = o2_n - O2_WIDTH
-    t1 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o2_s))
-    t2 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o2_n))
-    openings.append(WallOpening("O2", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O1: F1-F2, vertical, lower (south of IW1) ---
-    o1_n = pts["F2"][1] - O1_OFFSET_S
-    o1_s = o1_n - O1_WIDTH
-    t1 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o1_s))
-    t2 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o1_n))
-    openings.append(WallOpening("O1", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O3: F4-F5, vertical ---
-    idx = seg_map[("F4", "F5")]
-    o3_cn = (pts["F4"][1] + pts["F5"][1]) / 2
-    t1 = _seg_param(pts, outline_segs[idx], (pts["F4"][0], o3_cn - O3_HALF_WIDTH))
-    t2 = _seg_param(pts, outline_segs[idx], (pts["F4"][0], o3_cn + O3_HALF_WIDTH))
-    openings.append(WallOpening("O3", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O4: F6-F7, horizontal, centered on midpoint ---
-    idx = seg_map[("F6", "F7")]
-    o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
-    o4_w = o4_mid - O4_HALF_WIDTH
-    o4_e = o4_mid + O4_HALF_WIDTH
-    t1 = _seg_param(pts, outline_segs[idx], (o4_w, pts["F6"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o4_e, pts["F6"][1]))
-    openings.append(WallOpening("O4", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O5 & O6: F9-F10, horizontal ---
-    idx = seg_map[("F9", "F10")]
-    # O5 (positioned relative to F7 easting)
-    o5_e = pts["F7"][0] + O5_E_FROM_F7
-    o5_w = o5_e - O5_WIDTH
-    # O6 (positioned relative to F9)
-    o6_e = pts["F9"][0] + O6_E_FROM_F9
-    o6_w = o6_e - O6_WIDTH
-    t1 = _seg_param(pts, outline_segs[idx], (o5_w, pts["F9"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o5_e, pts["F9"][1]))
-    openings.append(WallOpening("O5", idx, min(t1, t2), max(t1, t2)))
-    # O6
-    t1 = _seg_param(pts, outline_segs[idx], (o6_w, pts["F9"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o6_e, pts["F9"][1]))
-    openings.append(WallOpening("O6", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O7: F12-F13, diagonal — NW end 2' from F12, 6' opening ---
-    idx = seg_map[("F12", "F13")]
-    dE = pts["F13"][0] - pts["F12"][0]
-    dN = pts["F13"][1] - pts["F12"][1]
-    seg_len = math.sqrt(dE**2 + dN**2)
-    t1 = O7_NW_GAP / seg_len
-    t2 = t1 + 2 * O7_HALF_WIDTH / seg_len
-    openings.append(WallOpening("O7", idx, t1, t2))
-
-    # --- O8: F14-F15, vertical ---
-    idx = seg_map[("F14", "F15")]
-    o8_cn = (iw5_s + pts["F15"][1]) / 2
-    t1 = _seg_param(pts, outline_segs[idx], (pts["F15"][0], o8_cn - O8_HALF_WIDTH))
-    t2 = _seg_param(pts, outline_segs[idx], (pts["F15"][0], o8_cn + O8_HALF_WIDTH))
-    openings.append(WallOpening("O8", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O9: F18-F19, horizontal ---
-    idx = seg_map[("F18", "F19")]
-    o9_cn = (layout.bed.e + layout.iw4_w) / 2
-    t1 = _seg_param(pts, outline_segs[idx], (o9_cn - O9_HALF_WIDTH, pts["F18"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o9_cn + O9_HALF_WIDTH, pts["F18"][1]))
-    openings.append(WallOpening("O9", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O10: F21-F0, horizontal (bed area) ---
-    idx = seg_map[("F21", "F0")]
-    o10_cn = (layout.bed.w + layout.iw3.e) / 2
-    t1 = _seg_param(pts, outline_segs[idx], (o10_cn - O10_HALF_WIDTH, pts["F0"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o10_cn + O10_HALF_WIDTH, pts["F0"][1]))
-    openings.append(WallOpening("O10", idx, min(t1, t2), max(t1, t2)))
-
-    # --- O11: F21-F0, horizontal (utility area) ---
-    o11_cn = (layout.dryer.e + layout.ctr.w) / 2
-    t1 = _seg_param(pts, outline_segs[idx], (o11_cn - O11_HALF_WIDTH, pts["F0"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o11_cn + O11_HALF_WIDTH, pts["F0"][1]))
-    openings.append(WallOpening("O11", idx, min(t1, t2), max(t1, t2)))
-
-    return openings
 
 
 def _openings_on_seg(openings, seg_idx):
@@ -657,7 +518,8 @@ def build_wall_data():
     layout = compute_interior_layout(pts, inner_poly)
 
     # Compute openings
-    openings = _compute_openings(pts, outline_segs, layout)
+    outer_openings = compute_outer_openings(pts, layout)
+    openings = outer_to_wall_openings(outer_openings, outline_segs, pts)
 
     # --- Page layout: 1:72 scale ---
     _f_svg = [to_svg(*pts[f"F{i}"]) for i in range(22)]
@@ -807,80 +669,20 @@ def _render_interior_walls(out, data):
     iw_rect(iw5_w, iw5_e, iw5_s, iw5_n)
     iw_label("IW5", iw5_w, iw5_e, iw5_s, iw5_n, vertical=False)
 
-    # RO1 rough opening in IW1 — dark red outline box with X
-    ro1_w = layout.iw2.e + KITCHEN_CTR_LENGTH + 2.0 / 12.0 + FRIDGE_SIZE + IW1_RO_OFFSET_E
-    ro1_e = ro1_w + IW1_RO_WIDTH
-    ro1_s = layout.iw1_s
-    ro1_n = layout.iw1_n
+    # Rough openings (RO1-RO5) — dark red outline box with X
+    rough_openings = compute_rough_openings(pts, layout)
     _RO_COLOR = "darkred"
     _RO_SW = "0.5"
-    x1, y1 = to_svg(ro1_w, ro1_n)  # NW corner (SVG top-left)
-    x2, y2 = to_svg(ro1_e, ro1_s)  # SE corner (SVG bottom-right)
-    out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
-               f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-
-    # RO2 rough opening in IW4 — dark red outline box with X
-    _iw8_n_face = WALL_SOUTH_N + CLOSET1_HEIGHT + WALL_3IN
-    ro2_center = (iw5_s + _iw8_n_face) / 2
-    ro2_s = ro2_center - IW4_RO_WIDTH / 2
-    ro2_n = ro2_center + IW4_RO_WIDTH / 2
-    ro2_w = layout.iw4_w
-    ro2_e = layout.iw4_e
-    x1, y1 = to_svg(ro2_w, ro2_n)  # NW corner (SVG top-left)
-    x2, y2 = to_svg(ro2_e, ro2_s)  # SE corner (SVG bottom-right)
-    out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
-               f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-
-    # RO3 rough opening in IW3 — dark red outline box with X
-    ro3_s = layout.ctr.n + layout.iwt3 + IW3_RO_OFFSET_N
-    ro3_n = ro3_s + IW3_RO_WIDTH
-    ro3_w = layout.iw3.w
-    ro3_e = layout.iw3.e
-    x1, y1 = to_svg(ro3_w, ro3_n)  # NW corner (SVG top-left)
-    x2, y2 = to_svg(ro3_e, ro3_s)  # SE corner (SVG bottom-right)
-    out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
-               f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-
-    # RO4 rough opening in IW2 — dark red outline box with X
-    _iw6_s = pts["W6"][1] - IW6_OFFSET_N - IW6_THICKNESS
-    ro4_n = _iw6_s - IW2_RO_OFFSET_S
-    ro4_s = ro4_n - IW2_RO_WIDTH
-    ro4_w = layout.iw2.w
-    ro4_e = layout.iw2.e
-    x1, y1 = to_svg(ro4_w, ro4_n)  # NW corner (SVG top-left)
-    x2, y2 = to_svg(ro4_e, ro4_s)  # SE corner (SVG bottom-right)
-    out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
-               f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-
-    # RO5 rough opening in IW6 — dark red outline box with X
-    ro5_e = layout.iw2.w - IW6_RO_OFFSET_W
-    ro5_w = ro5_e - IW6_RO_WIDTH
-    ro5_n = pts["W6"][1] - IW6_OFFSET_N
-    ro5_s = ro5_n - IW6_THICKNESS
-    x1, y1 = to_svg(ro5_w, ro5_n)  # NW corner (SVG top-left)
-    x2, y2 = to_svg(ro5_e, ro5_s)  # SE corner (SVG bottom-right)
-    out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
-               f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-    out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
-               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+    for ro in rough_openings:
+        b = ro.bbox
+        x1, y1 = to_svg(b.w, b.n)  # NW corner (SVG top-left)
+        x2, y2 = to_svg(b.e, b.s)  # SE corner (SVG bottom-right)
+        out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
+                   f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
+                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
+                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
 
 
 def _render_opening_dims(out, data):

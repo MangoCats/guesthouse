@@ -7,14 +7,13 @@ from walls.gen_walls import (
     build_wall_data,
     render_walls_svg,
     _compute_inset_path,
-    _compute_openings,
     _solid_ranges,
     _openings_on_seg,
     _lerp,
     _line_strip_poly,
     _partial_line_strip,
-    WallOpening,
 )
+from floorplan.openings import WallOpening
 
 
 # ============================================================

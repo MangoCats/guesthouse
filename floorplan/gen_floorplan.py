@@ -29,15 +29,6 @@ from floorplan.constants import (
     FRIDGE_SIZE, KITCHEN_GAP,
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
-    IW1_RO_OFFSET_E, IW1_RO_WIDTH,
-    IW2_RO_OFFSET_S, IW2_RO_WIDTH,
-    IW3_RO_OFFSET_N, IW3_RO_WIDTH, IW4_RO_WIDTH,
-    IW6_RO_OFFSET_W, IW6_RO_WIDTH,
-    O1_OFFSET_S, O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
-    O3_HALF_WIDTH, O4_HALF_WIDTH,
-    O5_E_FROM_F7, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
-    O7_NW_GAP, O7_HALF_WIDTH,
-    O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
     JAMB_WIDTH, STD_GAP, KITCHEN_APPL_GAP,
     WW_RADIUS,
     LOVESEAT_WIDTH, LOVESEAT_LENGTH, LOVESEAT_ANGLE_DEG,
@@ -45,6 +36,8 @@ from floorplan.constants import (
     OTTOMAN_SIZE, ET_RADIUS_CM,
     SHELVES_WIDTH, SHELVES_DEPTH,
 )
+from floorplan.layout import compute_interior_layout
+from floorplan.openings import compute_outer_openings, compute_rough_openings
 
 # ============================================================
 # SVG Style Constants
@@ -313,6 +306,10 @@ def render_floorplan_svg(data):
     # SECTION: Interior Walls (IW1-IW8) with Rough Openings
     # ================================================================
 
+    layout = compute_interior_layout(pts, inner_poly)
+    _rough_openings = compute_rough_openings(pts, layout)
+    _ro = {ro.name: ro.bbox for ro in _rough_openings}
+
     # IW1: 6" thick, south face 11'6" north of inner F0-F21
     iw1_s = pts["W0"][1] + IW1_OFFSET_N
     iw1_n = iw1_s + WALL_6IN
@@ -344,8 +341,8 @@ def render_floorplan_svg(data):
     iw2_e = iw2_w + WALL_6IN
 
     # RO1 rough opening bounds in IW1
-    _ro1_w = iw2_e + KITCHEN_CTR_LENGTH + STD_GAP + FRIDGE_SIZE + IW1_RO_OFFSET_E
-    _ro1_e = _ro1_w + IW1_RO_WIDTH
+    _ro1_w = _ro["RO1"].w
+    _ro1_e = _ro["RO1"].e
     _ro1_jamb = JAMB_WIDTH
 
     # Interior wall IW1 — full polygon for area calc, split rendering around RO1
@@ -381,9 +378,9 @@ def render_floorplan_svg(data):
     iw2_n = pts["W6"][1]
     iw2_pts = [(iw2_w, iw2_s), (iw2_e, iw2_s), (iw2_e, iw2_n), (iw2_w, iw2_n)]
 
-    # RO4 rough opening in IW2 — 6" south of IW6 south face, 38" long
-    _ro4_n = iw6_s - IW2_RO_OFFSET_S
-    _ro4_s = _ro4_n - IW2_RO_WIDTH
+    # RO4 rough opening in IW2
+    _ro4_n = _ro["RO4"].n
+    _ro4_s = _ro["RO4"].s
     _ro4_jamb = JAMB_WIDTH
     # Split IW2 into south and north segments around opening
     _iw2_s_poly = [(iw2_w, iw2_s), (iw2_e, iw2_s),
@@ -418,9 +415,9 @@ def render_floorplan_svg(data):
     iw6_e = iw2_w
     iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
 
-    # RO5 rough opening in IW6 — 3" west of IW2 west face, 38" wide E-W
-    _ro5_e = iw6_e - IW6_RO_OFFSET_W
-    _ro5_w = _ro5_e - IW6_RO_WIDTH
+    # RO5 rough opening in IW6
+    _ro5_e = _ro["RO5"].e
+    _ro5_w = _ro["RO5"].w
     _ro5_jamb = JAMB_WIDTH
     # Split IW6 into west (trapezoid) and east (rectangle) segments
     _iw6_w_poly = [(iw6_w_s, iw6_s), (_ro5_w, iw6_s), (_ro5_w, iw6_n), (iw6_w_n, iw6_n)]
@@ -659,9 +656,9 @@ def render_floorplan_svg(data):
     iw3_n = iw1_s
     iw3_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s), (iw3_e, iw3_n), (iw3_w, iw3_n)]
 
-    # RO3 rough opening in IW3 — 2" north of IW7 north face, 38" long
-    _ro3_s = ctr_n + WALL_3IN + IW3_RO_OFFSET_N
-    _ro3_n = _ro3_s + IW3_RO_WIDTH
+    # RO3 rough opening in IW3
+    _ro3_s = _ro["RO3"].s
+    _ro3_n = _ro["RO3"].n
     _ro3_jamb = JAMB_WIDTH
     # Split IW3 into south and north segments around opening
     _iw3_s_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s),
@@ -719,11 +716,9 @@ def render_floorplan_svg(data):
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # RO2 rough opening in IW4 — centered between IW5 south face and IW8 north face
-    _iw8_n_face = closet1_top + WALL_3IN
-    _ro2_center = (iw5_s + _iw8_n_face) / 2
-    _ro2_s = _ro2_center - IW4_RO_WIDTH / 2
-    _ro2_n = _ro2_center + IW4_RO_WIDTH / 2
+    # RO2 rough opening in IW4
+    _ro2_s = _ro["RO2"].s
+    _ro2_n = _ro["RO2"].n
     _ro2_jamb = JAMB_WIDTH
     # Split IW4 into south and north segments around opening
     _iw4_s_poly = [(iw4_w, WALL_SOUTH_N), (iw4_e, WALL_SOUTH_N),
@@ -959,104 +954,9 @@ def render_floorplan_svg(data):
     # SECTION: Openings (O1-O11, numbered CW around outline)
     # ================================================================
 
-    # O2: F1-F2, vertical, upper (near F2) — computed first, O1 depends on it
-    _o2_n = pts["F2"][1] - O2_OFFSET_S
-    _o2_s = _o2_n - O2_WIDTH
-    _o2_poly = [
-        (pts["F2"][0], _o2_s), (pts["F2"][0], _o2_n),
-        (pts["W2"][0], _o2_n), (pts["W2"][0], _o2_s),
-    ]
-
-    # O1: F1-F2, vertical, lower (south of IW1)
-    _o1_n = pts["F2"][1] - O1_OFFSET_S
-    _o1_s = _o1_n - O1_WIDTH
-    _o1_poly = [
-        (pts["F2"][0], _o1_s), (pts["F2"][0], _o1_n),
-        (pts["W2"][0], _o1_n), (pts["W2"][0], _o1_s),
-    ]
-
-    # O3: F4-F5, vertical
-    _o3_cn = (pts["F4"][1] + pts["F5"][1]) / 2
-    _o3_poly = [
-        (pts["F4"][0], _o3_cn - O3_HALF_WIDTH), (pts["F4"][0], _o3_cn + O3_HALF_WIDTH),
-        (pts["W4"][0], _o3_cn + O3_HALF_WIDTH), (pts["W4"][0], _o3_cn - O3_HALF_WIDTH),
-    ]
-
-    # O4: F6-F7, horizontal, centered on midpoint
-    _o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
-    _o4_w = _o4_mid - O4_HALF_WIDTH
-    _o4_e = _o4_mid + O4_HALF_WIDTH
-    _o4_poly = [
-        (_o4_w, pts["W6"][1]), (_o4_e, pts["W6"][1]),
-        (_o4_e, pts["F6"][1]), (_o4_w, pts["F6"][1]),
-    ]
-
-    # O5 & O6: F9-F10, horizontal
-    # O5 (positioned relative to F7 easting)
-    _o5_e = pts["F7"][0] + O5_E_FROM_F7
-    _o5_w = _o5_e - O5_WIDTH
-    # O6 (positioned relative to F9)
-    _o6_e = pts["F9"][0] + O6_E_FROM_F9
-    _o6_w = _o6_e - O6_WIDTH
-    _o5_poly = [
-        (_o5_w, pts["W9"][1]), (_o5_e, pts["W9"][1]),
-        (_o5_e, pts["F9"][1]), (_o5_w, pts["F9"][1]),
-    ]
-    # O6
-    _o6_poly = [
-        (_o6_w, pts["W9"][1]), (_o6_e, pts["W9"][1]),
-        (_o6_e, pts["F9"][1]), (_o6_w, pts["F9"][1]),
-    ]
-
-    # O7: F12-F13, diagonal — NW end 2' from F12, 6' opening
-    _o7_dE = pts["F13"][0] - pts["F12"][0]
-    _o7_dN = pts["F13"][1] - pts["F12"][1]
-    _o7_len = math.sqrt(_o7_dE**2 + _o7_dN**2)
-    _o7_ts = O7_NW_GAP / _o7_len
-    _o7_te = _o7_ts + 2 * O7_HALF_WIDTH / _o7_len
-    _o7_poly = [
-        (pts["F12"][0] + _o7_ts * _o7_dE, pts["F12"][1] + _o7_ts * _o7_dN),
-        (pts["F12"][0] + _o7_te * _o7_dE, pts["F12"][1] + _o7_te * _o7_dN),
-        (pts["W12"][0] + _o7_te * (pts["W13"][0] - pts["W12"][0]),
-         pts["W12"][1] + _o7_te * (pts["W13"][1] - pts["W12"][1])),
-        (pts["W12"][0] + _o7_ts * (pts["W13"][0] - pts["W12"][0]),
-         pts["W12"][1] + _o7_ts * (pts["W13"][1] - pts["W12"][1])),
-    ]
-
-    # O8: F14-F15, vertical
-    _o8_cn = (iw5_s + pts["F15"][1]) / 2
-    _o8_poly = [
-        (pts["F15"][0], _o8_cn - O8_HALF_WIDTH), (pts["F15"][0], _o8_cn + O8_HALF_WIDTH),
-        (pts["W15"][0], _o8_cn + O8_HALF_WIDTH), (pts["W15"][0], _o8_cn - O8_HALF_WIDTH),
-    ]
-
-    # O9: F18-F19, horizontal
-    _o9_cn = (bed_e + iw4_w) / 2
-    _o9_poly = [
-        (_o9_cn - O9_HALF_WIDTH, pts["F18"][1]), (_o9_cn + O9_HALF_WIDTH, pts["F18"][1]),
-        (_o9_cn + O9_HALF_WIDTH, pts["W18"][1]), (_o9_cn - O9_HALF_WIDTH, pts["W18"][1]),
-    ]
-
-    # O10: F21-F0, horizontal (bed area)
-    _o10_cn = (bed_w + iw3_e) / 2
-    _o10_poly = [
-        (_o10_cn - O10_HALF_WIDTH, pts["F0"][1]), (_o10_cn + O10_HALF_WIDTH, pts["F0"][1]),
-        (_o10_cn + O10_HALF_WIDTH, pts["W0"][1]), (_o10_cn - O10_HALF_WIDTH, pts["W0"][1]),
-    ]
-
-    # O11: F21-F0, horizontal (utility area)
-    _o11_cn = (dryer_e + ctr_w) / 2
-    _o11_poly = [
-        (_o11_cn - O11_HALF_WIDTH, pts["F0"][1]), (_o11_cn + O11_HALF_WIDTH, pts["F0"][1]),
-        (_o11_cn + O11_HALF_WIDTH, pts["W0"][1]), (_o11_cn - O11_HALF_WIDTH, pts["W0"][1]),
-    ]
-
-    _openings = [("O1", _o1_poly), ("O2", _o2_poly), ("O3", _o3_poly),
-                 ("O4", _o4_poly), ("O5", _o5_poly), ("O6", _o6_poly),
-                 ("O7", _o7_poly), ("O8", _o8_poly), ("O9", _o9_poly),
-                 ("O10", _o10_poly), ("O11", _o11_poly)]
-    for _name, _poly in _openings:
-        _svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _poly)
+    _outer_openings = compute_outer_openings(pts, layout)
+    for _o in _outer_openings:
+        _svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _o.poly)
         out.append(f'<polygon points="{_svg}" fill="{OPENING_FILL}" stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ================================================================
