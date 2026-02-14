@@ -46,6 +46,16 @@ TOILET_TANK_DEPTH = 8.0 / 12.0    # 8" tank
 SINK_RX = 12.0 / 12.0             # 12" E-W half-width (24" total)
 SINK_RY = 9.0 / 12.0              # 9" N-S half-depth (18" total)
 
+# Kitchen appliances (feet)
+KITCHEN_SINK_WIDTH = 48.0 / 12.0   # 48" E-W
+KITCHEN_SINK_DEPTH = 24.0 / 12.0   # 24" N-S
+DW_WIDTH = 28.0 / 12.0             # 28" dishwasher E-W
+DW_DEPTH = 27.0 / 12.0             # 27" dishwasher N-S
+STOVE_WIDTH = 30.0 / 12.0          # 30" stove E-W
+STOVE_DEPTH = 27.0 / 12.0          # 27" stove N-S
+FRIDGE_SIZE = 36.0 / 12.0          # 36" fridge (square)
+KITCHEN_GAP = 0.75 / 12.0          # 3/4" gap between kitchen appliances
+
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition
 IW6_OFFSET_N = 5.5                 # 5'6" south of F6-F7 south face

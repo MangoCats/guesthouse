@@ -23,6 +23,9 @@ from floorplan.constants import (
     IW1_OFFSET_N, IW2_OFFSET_E, WALL_SOUTH_N,
     WH_RADIUS, IW6_THICKNESS, IW6_OFFSET_N, IW5_OFFSET_N,
     SINK_RX, SINK_RY,
+    KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
+    DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
+    FRIDGE_SIZE, KITCHEN_GAP,
 )
 
 # ============================================================
@@ -375,6 +378,45 @@ def render_floorplan_svg(data):
     # North side (bath area): fixtures face north, back against IW1 north face
     draw_toilet(out, _toilet_e, iw1_n, face_north=True, to_svg=to_svg)
     draw_sink(out, _sink_e, iw1_n + SINK_RY, to_svg=to_svg)
+
+    # --- Kitchen appliances (against W9-W10 south face, centered) ---
+    _back_n = pts["W9"][1]  # south face of inner north wall
+    _kitchen_total = KITCHEN_SINK_WIDTH + KITCHEN_GAP + DW_WIDTH + KITCHEN_GAP + STOVE_WIDTH
+    _kitchen_cx = (pts["W9"][0] + pts["W10"][0]) / 2
+    _ks_w = _kitchen_cx - _kitchen_total / 2  # kitchen sink west edge
+    _ks_e = _ks_w + KITCHEN_SINK_WIDTH
+    _dw_w = _ks_e + KITCHEN_GAP
+    _dw_e = _dw_w + DW_WIDTH
+    _st_w = _dw_e + KITCHEN_GAP
+    _st_e = _st_w + STOVE_WIDTH
+    for label, sw_e, sw_n, ne_e, ne_n in [
+        ("SINK",  _ks_w, _back_n - KITCHEN_SINK_DEPTH, _ks_e, _back_n),
+        ("D/W",   _dw_w, _back_n - DW_DEPTH,           _dw_e, _back_n),
+        ("STOVE", _st_w, _back_n - STOVE_DEPTH,         _st_e, _back_n),
+    ]:
+        sx1, sy1 = to_svg(sw_e, ne_n)
+        sx2, sy2 = to_svg(ne_e, sw_n)
+        sw = sx2 - sx1; sh = sy2 - sy1
+        out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
+                   f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+        cx, cy = (sx1 + sx2) / 2, (sy1 + sy2) / 2
+        out.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="7" fill="#4682B4">{label}</text>')
+
+    # Fridge: against IW1 north face, centered under kitchen run
+    _fr_w = _kitchen_cx - FRIDGE_SIZE / 2
+    _fr_e = _fr_w + FRIDGE_SIZE
+    _fr_s = iw1_n
+    _fr_n = _fr_s + FRIDGE_SIZE
+    sx1, sy1 = to_svg(_fr_w, _fr_n)
+    sx2, sy2 = to_svg(_fr_e, _fr_s)
+    sw = sx2 - sx1; sh = sy2 - sy1
+    out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _fr_cx = (sx1 + sx2) / 2
+    _fr_cy = (sy1 + sy2) / 2
+    out.append(f'<text x="{_fr_cx:.1f}" y="{_fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="#4682B4">FRIDGE</text>')
 
     # --- Bedroom and closet walls ---
     # IW7 L-shape (west/north walls of closet, east of counter)
