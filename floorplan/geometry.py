@@ -8,7 +8,7 @@ from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
-    F16_F17_SEG, F14_F15_SEG, F12_F13_SEG, F13_EXIT_BRG,
+    F16_F17_SEG, F14_F15_SEG, F13_F14_ARC_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
@@ -133,12 +133,11 @@ def _compute_central_region(
     fp_pts["F16"] = (fp_pts["C15"][0] + R_a15 * math.cos(_brg_f4),
                      fp_pts["C15"][1] - R_a15 * math.sin(_brg_f4))
 
-    # F13-F14 arc: bearing F13->F12 = 345°, F12-F13 = 10'
+    # F13-F14 arc: bearing F13->F12 = 345°, radius fixed
     _brg_off = math.radians(360.0 - F13_EXIT_BRG)
     _nx_t = math.cos(_brg_off)
     _ny_t = math.sin(_brg_off)
-    _dN_centers = (fp_pts["F9"][1] + R_a10) - _F14_N
-    R_a13 = (_dN_centers - F12_F13_SEG * _nx_t) / _ny_t + R_a11
+    R_a13 = F13_F14_ARC_R
     fp_pts["C13"] = (F15_E - R_a13, _F14_N)
     fp_pts["F14"] = (F15_E, _F14_N)
     # C11 easting from tangent constraint
