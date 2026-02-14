@@ -732,6 +732,22 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{_ww2_sx:.1f}" y="{_ww2_sy - _ww2_r_svg - 2:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="6" fill="#4682B4">WW2</text>')
 
+    # ET: 50cm diameter endtable, 2" N of IW1, 2" E of loveseat's rotated SE corner
+    _et_r = (25.0 / 2.54) / 12.0  # 25cm radius in feet
+    _lv_se_rel_e = _lv_width * math.cos(_lv_angle)
+    _lv_se_rel_n = _lv_width * math.sin(_lv_angle)
+    _lv_se_e = _lv_w + _lv_se_rel_e
+    _et_cx = _lv_se_e + 2.0 / 12.0 + _et_r
+    _et_cy = iw1_n + 2.0 / 12.0 + _et_r
+    _et_sx, _et_sy = to_svg(_et_cx, _et_cy)
+    _et_r_svg = abs(to_svg(_et_r, 0)[0] - to_svg(0, 0)[0])
+    out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
+    out.append(f'<circle cx="{_et_sx:.1f}" cy="{_et_sy:.1f}" r="{_et_r_svg:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    out.append(f'<text x="{_et_sx:.1f}" y="{_et_sy+3:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="6" fill="#4682B4">ET</text>')
+    out.append('</a>')
+
     # Room labels
     _bd_cx = (iw3_e + iw4_w) / 2
     _bd_cy = (ctr_s + iw1_s) / 2
