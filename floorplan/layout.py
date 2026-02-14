@@ -1,7 +1,7 @@
 """Interior layout computation — rooms, walls, appliances, furniture."""
 from typing import NamedTuple
 
-from shared.types import Point
+from shared.types import Point, BBox
 from shared.geometry import horiz_isects
 from floorplan.constants import (
     WALL_6IN, WALL_4IN, WALL_3IN,
@@ -22,25 +22,13 @@ class InteriorLayout(NamedTuple):
     iw1_n: float
     iwt: float
     # Interior wall 2 (IW2) — vertical wall west of utility area
-    iw2_w: float
-    iw2_e: float
-    iw2_s: float
-    iw2_n: float
+    iw2: BBox
     # Dryer
-    dryer_w: float
-    dryer_s: float
-    dryer_e: float
-    dryer_n: float
+    dryer: BBox
     # Washer
-    washer_w: float
-    washer_s: float
-    washer_e: float
-    washer_n: float
+    washer: BBox
     # Counter
-    ctr_w: float
-    ctr_e: float
-    ctr_s: float
-    ctr_n: float
+    ctr: BBox
     ctr_nw_r: float
     # Wall thicknesses
     iwt3: float
@@ -48,10 +36,7 @@ class InteriorLayout(NamedTuple):
     # IW7 (L-shaped, west/north walls of closet)
     iw7: list[Point]
     # Interior wall 3 (IW3) — west bedroom wall
-    iw3_w: float
-    iw3_e: float
-    iw3_s: float
-    iw3_n: float
+    iw3: BBox
     # Interior wall 4 (IW4) — east bedroom wall
     iw4_w: float
     iw4_e: float
@@ -63,10 +48,7 @@ class InteriorLayout(NamedTuple):
     # Closet 1
     cl1_top: float
     # Bed
-    bed_w: float
-    bed_e: float
-    bed_s: float
-    bed_n: float
+    bed: BBox
     bed_cx: float
 
 
@@ -126,15 +108,15 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     return InteriorLayout(
         iw1=iw1, iw1_s=iw1_s, iw1_n=iw1_n, iwt=WALL_6IN,
-        iw2_w=iw2_w, iw2_e=iw2_e, iw2_s=iw2_s, iw2_n=iw2_n,
-        dryer_w=dryer_w, dryer_s=dryer_s, dryer_e=dryer_e, dryer_n=dryer_n,
-        washer_w=washer_w, washer_s=washer_s, washer_e=washer_e, washer_n=washer_n,
-        ctr_w=ctr_w, ctr_e=ctr_e, ctr_s=ctr_s, ctr_n=ctr_n, ctr_nw_r=ctr_nw_r,
+        iw2=BBox(w=iw2_w, s=iw2_s, e=iw2_e, n=iw2_n),
+        dryer=BBox(w=dryer_w, s=dryer_s, e=dryer_e, n=dryer_n),
+        washer=BBox(w=washer_w, s=washer_s, e=washer_e, n=washer_n),
+        ctr=BBox(w=ctr_w, s=ctr_s, e=ctr_e, n=ctr_n), ctr_nw_r=ctr_nw_r,
         iwt3=WALL_3IN, iwt4=WALL_4IN,
         iw7=iw7_poly,
-        iw3_w=iw3_w, iw3_e=iw3_e, iw3_s=iw3_s, iw3_n=iw3_n,
+        iw3=BBox(w=iw3_w, s=iw3_s, e=iw3_e, n=iw3_n),
         iw4_w=iw4_w, iw4_e=iw4_e, wall_south_n=wall_south_n,
         iw8=iw8_poly, iw8_w=iw8_w, iw8_e=iw8_e,
         cl1_top=cl1_top,
-        bed_w=bed_w, bed_e=bed_e, bed_s=bed_s, bed_n=bed_n, bed_cx=bed_cx,
+        bed=BBox(w=bed_w, s=bed_s, e=bed_e, n=bed_n), bed_cx=bed_cx,
     )

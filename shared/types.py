@@ -12,3 +12,7 @@ class ArcSeg(NamedTuple):
     n_pts: int
 
 Segment = LineSeg | ArcSeg
+
+class BBox(NamedTuple):
+    """Axis-aligned bounding box: west, south, east, north edges."""
+    w: float; s: float; e: float; n: float

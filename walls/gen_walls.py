@@ -179,20 +179,20 @@ def _compute_openings(pts, outline_segs, layout):
 
     # --- O9: F18-F19, horizontal ---
     idx = seg_map[("F18", "F19")]
-    o9_cn = (layout.bed_e + layout.iw4_w) / 2
+    o9_cn = (layout.bed.e + layout.iw4_w) / 2
     t1 = _seg_param(pts, outline_segs[idx], (o9_cn - O9_HALF_WIDTH, pts["F18"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o9_cn + O9_HALF_WIDTH, pts["F18"][1]))
     openings.append(WallOpening("O9", idx, min(t1, t2), max(t1, t2)))
 
     # --- O10: F21-F0, horizontal (bed area) ---
     idx = seg_map[("F21", "F0")]
-    o10_cn = (layout.bed_w + layout.iw3_e) / 2
+    o10_cn = (layout.bed.w + layout.iw3.e) / 2
     t1 = _seg_param(pts, outline_segs[idx], (o10_cn - O10_HALF_WIDTH, pts["F0"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o10_cn + O10_HALF_WIDTH, pts["F0"][1]))
     openings.append(WallOpening("O10", idx, min(t1, t2), max(t1, t2)))
 
     # --- O11: F21-F0, horizontal (utility area) ---
-    o11_cn = (layout.dryer_e + layout.ctr_w) / 2
+    o11_cn = (layout.dryer.e + layout.ctr.w) / 2
     t1 = _seg_param(pts, outline_segs[idx], (o11_cn - O11_HALF_WIDTH, pts["F0"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o11_cn + O11_HALF_WIDTH, pts["F0"][1]))
     openings.append(WallOpening("O11", idx, min(t1, t2), max(t1, t2)))
@@ -765,8 +765,8 @@ def _render_interior_walls(out, data):
              layout.iw1_s, layout.iw1_n, vertical=False)
 
     # IW2 (vertical, 6")
-    iw_rect(layout.iw2_w, layout.iw2_e, layout.iw2_s, layout.iw2_n)
-    iw_label("IW2", layout.iw2_w, layout.iw2_e, layout.iw2_s, layout.iw2_n)
+    iw_rect(layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
+    iw_label("IW2", layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
 
     # IW6 (horizontal, 1" partition)
     iw6_n = pts["W6"][1] - IW6_OFFSET_N
@@ -775,7 +775,7 @@ def _render_interior_walls(out, data):
     _iw6_s_ints = horiz_isects(inner_poly, iw6_s)
     iw6_w_n = min(_iw6_n_ints)
     iw6_w_s = min(_iw6_s_ints)
-    iw6_e = layout.iw2_w
+    iw6_e = layout.iw2.w
     iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
     iw_poly(iw6_poly)
     iw_label("IW6", min(iw6_w_s, iw6_w_n), iw6_e, iw6_s, iw6_n, vertical=False)
@@ -786,13 +786,13 @@ def _render_interior_walls(out, data):
              layout.iw7[0][1], layout.iw7[5][1])
 
     # IW3 (vertical, 4") — label shifted 6" south to clear IW7 horizontal leg
-    iw_rect(layout.iw3_w, layout.iw3_e, layout.iw3_s, layout.iw3_n)
-    iw_label("IW3", layout.iw3_w, layout.iw3_e, layout.iw3_s, layout.iw3_n,
+    iw_rect(layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
+    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n,
              n_shift=-6.0 / 12.0)
 
     # IW4 (vertical, 4")
-    iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3_n)
-    iw_label("IW4", layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3_n)
+    iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)
+    iw_label("IW4", layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)
 
     # IW8 (L-shaped, 3") — label on vertical arm
     iw_poly(layout.iw8)
@@ -808,7 +808,7 @@ def _render_interior_walls(out, data):
     iw_label("IW5", iw5_w, iw5_e, iw5_s, iw5_n, vertical=False)
 
     # RO1 rough opening in IW1 — dark red outline box with X
-    ro1_w = layout.iw2_e + KITCHEN_CTR_LENGTH + 2.0 / 12.0 + FRIDGE_SIZE + IW1_RO_OFFSET_E
+    ro1_w = layout.iw2.e + KITCHEN_CTR_LENGTH + 2.0 / 12.0 + FRIDGE_SIZE + IW1_RO_OFFSET_E
     ro1_e = ro1_w + IW1_RO_WIDTH
     ro1_s = layout.iw1_s
     ro1_n = layout.iw1_n
@@ -840,10 +840,10 @@ def _render_interior_walls(out, data):
                f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
 
     # RO3 rough opening in IW3 — dark red outline box with X
-    ro3_s = layout.ctr_n + layout.iwt3 + IW3_RO_OFFSET_N
+    ro3_s = layout.ctr.n + layout.iwt3 + IW3_RO_OFFSET_N
     ro3_n = ro3_s + IW3_RO_WIDTH
-    ro3_w = layout.iw3_w
-    ro3_e = layout.iw3_e
+    ro3_w = layout.iw3.w
+    ro3_e = layout.iw3.e
     x1, y1 = to_svg(ro3_w, ro3_n)  # NW corner (SVG top-left)
     x2, y2 = to_svg(ro3_e, ro3_s)  # SE corner (SVG bottom-right)
     out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
@@ -857,8 +857,8 @@ def _render_interior_walls(out, data):
     _iw6_s = pts["W6"][1] - IW6_OFFSET_N - IW6_THICKNESS
     ro4_n = _iw6_s - IW2_RO_OFFSET_S
     ro4_s = ro4_n - IW2_RO_WIDTH
-    ro4_w = layout.iw2_w
-    ro4_e = layout.iw2_e
+    ro4_w = layout.iw2.w
+    ro4_e = layout.iw2.e
     x1, y1 = to_svg(ro4_w, ro4_n)  # NW corner (SVG top-left)
     x2, y2 = to_svg(ro4_e, ro4_s)  # SE corner (SVG bottom-right)
     out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
@@ -869,7 +869,7 @@ def _render_interior_walls(out, data):
                f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
 
     # RO5 rough opening in IW6 — dark red outline box with X
-    ro5_e = layout.iw2_w - IW6_RO_OFFSET_W
+    ro5_e = layout.iw2.w - IW6_RO_OFFSET_W
     ro5_w = ro5_e - IW6_RO_WIDTH
     ro5_n = pts["W6"][1] - IW6_OFFSET_N
     ro5_s = ro5_n - IW6_THICKNESS
