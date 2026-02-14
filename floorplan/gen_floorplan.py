@@ -730,23 +730,25 @@ def render_floorplan_svg(data):
     # Derive SW from NW: SW = NW - (-h*sin15, h*cos15)
     _lv_w = _lv_nw_e + _lv_height * math.sin(_lv_angle)
     _lv_s = _lv_nw_n - _lv_height * math.cos(_lv_angle)
-    # Slide SE along long axis until SE corner is 2" from ET edge
+    # Slide SE along long axis until NW face just touches WW3
+    _nw_e0 = _lv_w - _lv_height * math.sin(_lv_angle)
+    _nw_n0 = _lv_s + _lv_height * math.cos(_lv_angle)
+    _u = _nw_e0 - _ww3_cx
+    _v = _nw_n0 - _ww3_cy
+    _a = math.sin(_lv_angle)
+    _b = -math.cos(_lv_angle)
+    # Quadratic: s² + 2s(ua+vb) + (u²+v²-R²) = 0
+    _q_half_b = _u * _a + _v * _b
+    _q_c = _u**2 + _v**2 - _ww3_r**2
+    _lv_slide3 = -_q_half_b + math.sqrt(_q_half_b**2 - _q_c)
+    _lv_w += _lv_slide3 * math.sin(_lv_angle)
+    _lv_s -= _lv_slide3 * math.cos(_lv_angle)
+    # Recompute ET position: on extended east side of loveseat, 2" N of IW1
     _et_r = (25.0 / 2.54) / 12.0  # 25cm radius in feet
-    _lv_se_e0 = _lv_w + _lv_width * math.cos(_lv_angle)
-    _lv_se_n0 = _lv_s + _lv_width * math.sin(_lv_angle)
+    _lv_se_e = _lv_w + _lv_width * math.cos(_lv_angle)
+    _lv_se_n = _lv_s + _lv_width * math.sin(_lv_angle)
     _et_cy = iw1_n + 2.0 / 12.0 + _et_r
-    _et_cx = _lv_se_e0 - (_et_cy - _lv_se_n0) * math.tan(_lv_angle)
-    _se_et_dist = math.hypot(_lv_se_e0 - _et_cx, _lv_se_n0 - _et_cy)
-    _lv_slide = _se_et_dist - (_et_r + 2.0 / 12.0)
-    _lv_w += _lv_slide * math.sin(_lv_angle)
-    _lv_s -= _lv_slide * math.cos(_lv_angle)
-    # Shift loveseat and ET west until NW corner touches WW1
-    _lv_nw_e_post = _lv_w - _lv_height * math.sin(_lv_angle)
-    _lv_nw_n_post = _lv_s + _lv_height * math.cos(_lv_angle)
-    _dy_post = _lv_nw_n_post - _ww1_cy
-    _west_shift = _lv_nw_e_post - _ww1_cx - math.sqrt(_ww1_r**2 - _dy_post**2)
-    _lv_w -= _west_shift
-    _et_cx -= _west_shift
+    _et_cx = _lv_se_e - (_et_cy - _lv_se_n) * math.tan(_lv_angle)
     _lv_e = _lv_w + _lv_width
     _lv_n = _lv_s + _lv_height
     _lv_sx1, _lv_sy1 = to_svg(_lv_w, _lv_n)
