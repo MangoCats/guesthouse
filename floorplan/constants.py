@@ -135,3 +135,24 @@ F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
 F15_OFFSET_E = 9.0 + 1.0/12.0     # 9'1" F15 east of iw8_e
+
+# Jamb and gap constants
+JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)
+STD_GAP = 2.0 / 12.0              # 2" standard gap (furniture/appliance spacing)
+KITCHEN_APPL_GAP = 3.0 / 12.0     # 3" gap (kitchen appliance spacing/setback)
+
+# Work zone
+WW_RADIUS = 30.0 / 12.0           # 30" work-zone radius
+
+# Furniture dimensions
+LOVESEAT_WIDTH = 35.0 / 12.0      # 35" loveseat short side
+LOVESEAT_LENGTH = 65.0 / 12.0     # 65" loveseat long side
+LOVESEAT_ANGLE_DEG = 15.0         # 15° CCW rotation
+CHAIR_WIDTH = 32.0 / 12.0         # 32" chair E-W
+CHAIR_DEPTH = 37.0 / 12.0         # 37" chair N-S
+CHAIR_CORNER_R = 3.0 / 12.0       # 3" rounded corner radius
+CHAIR_ANGLE_DEG = 30.0            # 30° CW rotation
+OTTOMAN_SIZE = 29.0 / 12.0        # 29" square ottoman
+ET_RADIUS_CM = 25.0               # 25 cm endtable radius
+SHELVES_WIDTH = 36.0 / 12.0       # 36" shelves E-W
+SHELVES_DEPTH = 15.0 / 12.0       # 15" shelves N-S
