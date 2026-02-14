@@ -850,25 +850,9 @@ def render_floorplan_svg(data):
                  ("O4", _o4_poly), ("O5", _o5_poly), ("O6", _o6_poly),
                  ("O7", _o7_poly), ("O8", _o8_poly), ("O9", _o9_poly),
                  ("O10", _o10_poly), ("O11", _o11_poly)]
-    _ns_openings = {"O1", "O2", "O3", "O8"}
-    _o7_angle = math.degrees(math.atan2(-_o7_dN, _o7_dE))
     for _name, _poly in _openings:
         _svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _poly)
         out.append(f'<polygon points="{_svg}" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>')
-        _cx = sum(p[0] for p in _poly) / len(_poly)
-        _cy = sum(p[1] for p in _poly) / len(_poly)
-        _sx, _sy = to_svg(_cx, _cy)
-        if _name in _ns_openings:
-            out.append(f'<text x="{_sx:.1f}" y="{_sy:.1f}" text-anchor="middle" dominant-baseline="central"'
-                       f' font-family="Arial" font-size="7" fill="#4682B4"'
-                       f' transform="rotate(-90,{_sx:.1f},{_sy:.1f})">{_name}</text>')
-        elif _name == "O7":
-            out.append(f'<text x="{_sx:.1f}" y="{_sy:.1f}" text-anchor="middle" dominant-baseline="central"'
-                       f' font-family="Arial" font-size="7" fill="#4682B4"'
-                       f' transform="rotate({_o7_angle:.1f},{_sx:.1f},{_sy:.1f})">{_name}</text>')
-        else:
-            out.append(f'<text x="{_sx:.1f}" y="{_sy+3:.1f}" text-anchor="middle" font-family="Arial"'
-                       f' font-size="7" fill="#4682B4">{_name}</text>')
 
     # --- Vertex labels ---
     _vert_names = []

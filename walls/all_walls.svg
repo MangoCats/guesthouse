@@ -150,6 +150,9 @@
 <rect x="235.3" y="279.6" width="5.8" height="36.9" fill="none" stroke="darkred" stroke-width="0.5"/>
 <line x1="235.3" y1="279.6" x2="241.1" y2="316.5" stroke="darkred" stroke-width="0.5"/>
 <line x1="241.1" y1="279.6" x2="235.3" y2="316.5" stroke="darkred" stroke-width="0.5"/>
+<rect x="195.5" y="272.8" width="36.9" height="1.0" fill="none" stroke="darkred" stroke-width="0.5"/>
+<line x1="195.5" y1="272.8" x2="232.4" y2="273.7" stroke="darkred" stroke-width="0.5"/>
+<line x1="232.4" y1="272.8" x2="195.5" y2="273.7" stroke="darkred" stroke-width="0.5"/>
 <line x1="151.75" y1="326.19" x2="141.51" y2="326.19" stroke="#4682B4" stroke-width="0.4"/>
 <line x1="151.75" y1="301.91" x2="141.51" y2="301.91" stroke="#4682B4" stroke-width="0.4"/>
 <line x1="140.01" y1="326.19" x2="146.01" y2="326.19" stroke="#4682B4" stroke-width="0.4"/>
@@ -231,8 +234,8 @@
 <text x="646.4" y="161.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="173.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 00:10:21</text>
-<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-43-gff8b7bf</text>
+<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 00:16:43</text>
+<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-44-g25cc74a</text>
 <text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7" fill="#999">2&#8243; shell / 4&#8243; gap / 2&#8243; shell</text>
 <text x="645.4" y="239.0" text-anchor="middle" font-family="Arial" font-size="7" font-weight="bold" fill="#333">Wall Segments</text>
 <text x="583.4" y="249.0" text-anchor="start" font-family="Arial" font-size="6" font-weight="bold" fill="#333">From&#8211;To</text>

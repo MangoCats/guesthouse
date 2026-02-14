@@ -148,8 +148,7 @@ class TestRenderFloorplanSvg:
 
     def test_contains_openings(self, rendered):
         svg, _, _, _ = rendered
-        for i in range(1, 12):
-            assert f"O{i}" in svg, f"Missing opening label O{i}"
+        assert svg.count('fill="rgb(220,235,255)"') == 11, "Expected 11 opening polygons"
 
     def test_rendered_inner_area_less_than_data(self, rendered, floorplan_data):
         """Rendered inner area subtracts interior walls, so it's less than the raw polygon area."""
