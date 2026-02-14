@@ -152,8 +152,8 @@
 <circle cx="445.5" cy="266.9" r="29.1" fill="none" stroke="#4682B4" stroke-width="0.5" stroke-dasharray="2,2"/>
 <text x="445.5" y="235.8" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">WW2</text>
 <a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">
-<circle cx="473.4" cy="342.9" r="9.6" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="473.4" y="345.9" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">ET</text>
+<circle cx="465.9" cy="342.9" r="9.6" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="465.9" y="345.9" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">ET</text>
 </a>
 <text x="361.6" y="430.2" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>
 <text x="498.6" y="422.9" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">OFFICE</text>
@@ -244,6 +244,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.85 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 13:48:35</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-72-g4026d4d</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 13:51:02</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-73-gb3447e8</text>
 </svg>
