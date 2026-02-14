@@ -714,36 +714,24 @@ def render_floorplan_svg(data):
                f' font-size="7" fill="#4682B4">KING BED</text>')
 
     # --- Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner ---
-    # NW corner on WW1, moved CCW until WW2 touches south face of F9-F10
+    # Constraints: NW corner on WW1, NNW (west) side tangent to WW3
     _lv_width = 35.0 / 12.0
     _lv_height = 65.0 / 12.0
     _lv_angle = math.radians(15)
     _ww2_r = 30.0 / 12.0
-    # Vector NW→NE (fixed by rotation): (w*cos15, w*sin15)
-    _nw_to_ne_n = _lv_width * math.sin(_lv_angle)
-    # Constraint: NE_n + ww2_r = pts["W9"][1] (WW2 touches south face of F9-F10)
-    _target_nw_n = pts["W9"][1] - _ww2_r - _nw_to_ne_n
-    # NW on WW1: eastern intersection (CCW from previous eastern position)
-    _dy = _target_nw_n - _ww1_cy
-    _lv_nw_e = _ww1_cx + math.sqrt(_ww1_r**2 - _dy**2)
-    _lv_nw_n = _target_nw_n
-    # Derive SW from NW: SW = NW - (-h*sin15, h*cos15)
+    # NW on WW1: NW = (ww1_cx + R*cos θ, ww1_cy + R*sin θ)
+    # West face inward normal (cos15, sin15); tangency to WW3 (interior side):
+    #   ww1_r * cos(θ - 15°) = K
+    _K = (math.cos(_lv_angle) * (_ww3_cx - _ww1_cx)
+          + math.sin(_lv_angle) * (_ww3_cy - _ww1_cy)
+          - _ww3_r)
+    _theta = _lv_angle + math.acos(_K / _ww1_r)
+    _lv_nw_e = _ww1_cx + _ww1_r * math.cos(_theta)
+    _lv_nw_n = _ww1_cy + _ww1_r * math.sin(_theta)
+    # Derive SW from NW: SW = NW + (h*sin15, -h*cos15)
     _lv_w = _lv_nw_e + _lv_height * math.sin(_lv_angle)
     _lv_s = _lv_nw_n - _lv_height * math.cos(_lv_angle)
-    # Slide SE along long axis until NW face just touches WW3
-    _nw_e0 = _lv_w - _lv_height * math.sin(_lv_angle)
-    _nw_n0 = _lv_s + _lv_height * math.cos(_lv_angle)
-    _u = _nw_e0 - _ww3_cx
-    _v = _nw_n0 - _ww3_cy
-    _a = math.sin(_lv_angle)
-    _b = -math.cos(_lv_angle)
-    # Quadratic: s² + 2s(ua+vb) + (u²+v²-R²) = 0
-    _q_half_b = _u * _a + _v * _b
-    _q_c = _u**2 + _v**2 - _ww3_r**2
-    _lv_slide3 = -_q_half_b + math.sqrt(_q_half_b**2 - _q_c)
-    _lv_w += _lv_slide3 * math.sin(_lv_angle)
-    _lv_s -= _lv_slide3 * math.cos(_lv_angle)
-    # Recompute ET position: on extended east side of loveseat, 2" N of IW1
+    # ET position: on extended east side of loveseat, 2" N of IW1
     _et_r = (25.0 / 2.54) / 12.0  # 25cm radius in feet
     _lv_se_e = _lv_w + _lv_width * math.cos(_lv_angle)
     _lv_se_n = _lv_s + _lv_width * math.sin(_lv_angle)
