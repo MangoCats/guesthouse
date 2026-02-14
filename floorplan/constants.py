@@ -86,9 +86,31 @@ IW6_OFFSET_N = 5.5                 # 5'6" south of F6-F7 south face
 IW6_RO_OFFSET_W = 3.0 / 12.0      # 3" west of IW2 west face
 IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
-# O7 opening (F12-F13 diagonal wall)
+# Outer-wall openings (numbered CW around outline)
+# O1 (F1-F2, lower)
+O1_OFFSET_S = 99.0 / 12.0          # 99" south of F2 to north edge
+O1_WIDTH = 25.0 / 12.0             # 25" opening height
+# O2 (F1-F2, upper)
+O2_OFFSET_S = 4.0 / 12.0           # 4" south of F2 to north edge
+O2_WIDTH = 25.0 / 12.0             # 25" opening height
+# O3 (F4-F5, centered)
+O3_HALF_WIDTH = 16.0 / 12.0        # 16" half-width
+# O4 (F6-F7, centered chimney opening)
+O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
+# O5 & O6 (F9-F10)
+O6_E_GAP = 10.0 / 12.0             # 10" from F10 to O6 east edge
+O6_WIDTH = 44.0 / 12.0             # 44" opening width
+O5_GAP = 78.0 / 12.0               # 78" gap between O5 east and O6 west
+O5_WIDTH = 6.0                     # 6' opening width
+# O7 (F12-F13 diagonal wall)
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
+# O8 (F14-F15)
+O8_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
+# O9, O10, O11
+O9_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
+O10_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
+O11_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
 
 # IW5 partition
 IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face

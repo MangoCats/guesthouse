@@ -27,7 +27,11 @@ from floorplan.constants import (
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH, IW4_RO_WIDTH, CLOSET1_HEIGHT, WALL_SOUTH_N,
     IW6_RO_OFFSET_W, IW6_RO_WIDTH,
+    O1_OFFSET_S, O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
+    O3_HALF_WIDTH, O4_HALF_WIDTH,
+    O5_GAP, O5_WIDTH, O6_E_GAP, O6_WIDTH,
     O7_NW_GAP, O7_HALF_WIDTH,
+    O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
 )
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 
@@ -112,15 +116,15 @@ def _compute_openings(pts, outline_segs, layout):
 
     # --- O2: F1-F2, vertical, upper (near F2) — computed first, O1 depends on it ---
     idx = seg_map[("F1", "F2")]
-    o2_n = pts["F2"][1] - 4.0 / 12.0
-    o2_s = pts["F2"][1] - 29.0 / 12.0
+    o2_n = pts["F2"][1] - O2_OFFSET_S
+    o2_s = o2_n - O2_WIDTH
     t1 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o2_s))
     t2 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o2_n))
     openings.append(WallOpening("O2", idx, min(t1, t2), max(t1, t2)))
 
     # --- O1: F1-F2, vertical, lower (south of IW1) ---
-    o1_n = pts["F2"][1] - 99.0 / 12.0
-    o1_s = o1_n - 25.0 / 12.0
+    o1_n = pts["F2"][1] - O1_OFFSET_S
+    o1_s = o1_n - O1_WIDTH
     t1 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o1_s))
     t2 = _seg_param(pts, outline_segs[idx], (pts["F2"][0], o1_n))
     openings.append(WallOpening("O1", idx, min(t1, t2), max(t1, t2)))
@@ -128,28 +132,26 @@ def _compute_openings(pts, outline_segs, layout):
     # --- O3: F4-F5, vertical ---
     idx = seg_map[("F4", "F5")]
     o3_cn = (pts["F4"][1] + pts["F5"][1]) / 2
-    o3_half = 16.0 / 12.0
-    t1 = _seg_param(pts, outline_segs[idx], (pts["F4"][0], o3_cn - o3_half))
-    t2 = _seg_param(pts, outline_segs[idx], (pts["F4"][0], o3_cn + o3_half))
+    t1 = _seg_param(pts, outline_segs[idx], (pts["F4"][0], o3_cn - O3_HALF_WIDTH))
+    t2 = _seg_param(pts, outline_segs[idx], (pts["F4"][0], o3_cn + O3_HALF_WIDTH))
     openings.append(WallOpening("O3", idx, min(t1, t2), max(t1, t2)))
 
     # --- O4: F6-F7, horizontal, centered on midpoint ---
     idx = seg_map[("F6", "F7")]
     o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
-    o4_w = o4_mid - 4.5 / 12.0
-    o4_e = o4_mid + 4.5 / 12.0
+    o4_w = o4_mid - O4_HALF_WIDTH
+    o4_e = o4_mid + O4_HALF_WIDTH
     t1 = _seg_param(pts, outline_segs[idx], (o4_w, pts["F6"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o4_e, pts["F6"][1]))
     openings.append(WallOpening("O4", idx, min(t1, t2), max(t1, t2)))
 
     # --- O5 & O6: F9-F10, horizontal ---
     idx = seg_map[("F9", "F10")]
-    # O6 edges (computed first so O5 can reference the 78" gap)
-    o6_e = pts["F10"][0] - 10.0 / 12.0
-    o6_w = pts["F10"][0] - 54.0 / 12.0
-    # O5: 6' opening, 78" west of O6
-    o5_e = o6_w - 78.0 / 12.0
-    o5_w = o5_e - 6.0
+    o6_e = pts["F10"][0] - O6_E_GAP
+    o6_w = o6_e - O6_WIDTH
+    # O5
+    o5_e = o6_w - O5_GAP
+    o5_w = o5_e - O5_WIDTH
     t1 = _seg_param(pts, outline_segs[idx], (o5_w, pts["F9"][1]))
     t2 = _seg_param(pts, outline_segs[idx], (o5_e, pts["F9"][1]))
     openings.append(WallOpening("O5", idx, min(t1, t2), max(t1, t2)))
@@ -170,32 +172,28 @@ def _compute_openings(pts, outline_segs, layout):
     # --- O8: F14-F15, vertical ---
     idx = seg_map[("F14", "F15")]
     o8_cn = (iw5_s + pts["F15"][1]) / 2
-    o8_half = 12.5 / 12.0
-    t1 = _seg_param(pts, outline_segs[idx], (pts["F15"][0], o8_cn - o8_half))
-    t2 = _seg_param(pts, outline_segs[idx], (pts["F15"][0], o8_cn + o8_half))
+    t1 = _seg_param(pts, outline_segs[idx], (pts["F15"][0], o8_cn - O8_HALF_WIDTH))
+    t2 = _seg_param(pts, outline_segs[idx], (pts["F15"][0], o8_cn + O8_HALF_WIDTH))
     openings.append(WallOpening("O8", idx, min(t1, t2), max(t1, t2)))
 
     # --- O9: F18-F19, horizontal ---
     idx = seg_map[("F18", "F19")]
     o9_cn = (layout.bed_e + layout.iw4_w) / 2
-    o9_half = 12.5 / 12.0
-    t1 = _seg_param(pts, outline_segs[idx], (o9_cn - o9_half, pts["F18"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o9_cn + o9_half, pts["F18"][1]))
+    t1 = _seg_param(pts, outline_segs[idx], (o9_cn - O9_HALF_WIDTH, pts["F18"][1]))
+    t2 = _seg_param(pts, outline_segs[idx], (o9_cn + O9_HALF_WIDTH, pts["F18"][1]))
     openings.append(WallOpening("O9", idx, min(t1, t2), max(t1, t2)))
 
     # --- O10: F21-F0, horizontal (bed area) ---
     idx = seg_map[("F21", "F0")]
     o10_cn = (layout.bed_w + layout.iw3_e) / 2
-    o10_half = 12.5 / 12.0
-    t1 = _seg_param(pts, outline_segs[idx], (o10_cn - o10_half, pts["F0"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o10_cn + o10_half, pts["F0"][1]))
+    t1 = _seg_param(pts, outline_segs[idx], (o10_cn - O10_HALF_WIDTH, pts["F0"][1]))
+    t2 = _seg_param(pts, outline_segs[idx], (o10_cn + O10_HALF_WIDTH, pts["F0"][1]))
     openings.append(WallOpening("O10", idx, min(t1, t2), max(t1, t2)))
 
     # --- O11: F21-F0, horizontal (utility area) ---
     o11_cn = (layout.dryer_e + layout.ctr_w) / 2
-    o11_half = 12.5 / 12.0
-    t1 = _seg_param(pts, outline_segs[idx], (o11_cn - o11_half, pts["F0"][1]))
-    t2 = _seg_param(pts, outline_segs[idx], (o11_cn + o11_half, pts["F0"][1]))
+    t1 = _seg_param(pts, outline_segs[idx], (o11_cn - O11_HALF_WIDTH, pts["F0"][1]))
+    t2 = _seg_param(pts, outline_segs[idx], (o11_cn + O11_HALF_WIDTH, pts["F0"][1]))
     openings.append(WallOpening("O11", idx, min(t1, t2), max(t1, t2)))
 
     return openings
