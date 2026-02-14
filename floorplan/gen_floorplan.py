@@ -504,6 +504,21 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{_ww1_sx:.1f}" y="{_ww1_sy - _ww1_r_svg - 2:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="6" fill="#4682B4">WW1</text>')
 
+    # SHELVES: 36" E-W x 15" N-S, against F9-F10 south face, 3" east of stove
+    _sh_w = _st_e + 3.0 / 12.0
+    _sh_e = _sh_w + 36.0 / 12.0
+    _sh_n = _back_n
+    _sh_s = _sh_n - 15.0 / 12.0
+    _sh_sx1, _sh_sy1 = to_svg(_sh_w, _sh_n)
+    _sh_sx2, _sh_sy2 = to_svg(_sh_e, _sh_s)
+    _sh_sw = _sh_sx2 - _sh_sx1; _sh_sh = _sh_sy2 - _sh_sy1
+    out.append(f'<rect x="{_sh_sx1:.1f}" y="{_sh_sy1:.1f}" width="{_sh_sw:.1f}" height="{_sh_sh:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _sh_cx = (_sh_sx1 + _sh_sx2) / 2
+    _sh_cy = (_sh_sy1 + _sh_sy2) / 2
+    out.append(f'<text x="{_sh_cx:.1f}" y="{_sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="#4682B4">SHELVES</text>')
+
     # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
     _fr_w = iw2_e + KITCHEN_CTR_LENGTH + 2.0 / 12.0
     _fr_e = _fr_w + FRIDGE_SIZE
