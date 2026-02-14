@@ -29,6 +29,7 @@ from floorplan.constants import (
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     EAST_CTR_LENGTH, EAST_CTR_DEPTH, EAST_CTR_RADIUS,
+    IW1_RO_OFFSET_E, IW1_RO_WIDTH,
 )
 
 # ============================================================
@@ -707,10 +708,18 @@ def render_floorplan_svg(data):
         (_o11_cn + _o11_half, pts["W0"][1]), (_o11_cn - _o11_half, pts["W0"][1]),
     ]
 
+    # O12: IW1, horizontal, rough opening 9" east of fridge east side, 38" wide
+    _o12_w = _fr_e + IW1_RO_OFFSET_E
+    _o12_e = _o12_w + IW1_RO_WIDTH
+    _o12_poly = [
+        (_o12_w, iw1_s), (_o12_e, iw1_s),
+        (_o12_e, iw1_n), (_o12_w, iw1_n),
+    ]
+
     _openings = [("O1", _o1_poly), ("O2", _o2_poly), ("O3", _o3_poly),
                  ("O4", _o4_poly), ("O5", _o5_poly), ("O6", _o6_poly),
                  ("O7", _o7_poly), ("O8", _o8_poly), ("O9", _o9_poly),
-                 ("O10", _o10_poly), ("O11", _o11_poly)]
+                 ("O10", _o10_poly), ("O11", _o11_poly), ("O12", _o12_poly)]
     _ns_openings = {"O1", "O2", "O3", "O8"}
     _o7_angle = math.degrees(math.atan2(-_o7_dN, _o7_dE))
     for _name, _poly in _openings:

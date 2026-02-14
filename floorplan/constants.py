@@ -63,6 +63,10 @@ EAST_CTR_LENGTH = 30.0 / 12.0      # 30" east counter E-W along W9-W10
 EAST_CTR_DEPTH = 42.0 / 12.0       # 42" east counter depth N-S
 EAST_CTR_RADIUS = 12.0 / 12.0      # 12" south corner radius
 
+# IW1 rough opening
+IW1_RO_OFFSET_E = 9.0 / 12.0      # 9" east of fridge east side
+IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
+
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition
 IW6_OFFSET_N = 5.5                 # 5'6" south of F6-F7 south face

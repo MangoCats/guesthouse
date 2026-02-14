@@ -95,8 +95,8 @@
 <text x="276.1" y="345.7" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">COUNTER</text>
 <rect x="241.1" y="237.8" width="36.9" height="23.3" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="259.6" y="252.4" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">COUNTER</text>
-<path d="M 392.7,237.8 L 421.8,237.8 L 421.8,296.1 A 11.7 11.7 0 0 1 410.2,307.7 L 404.3,307.7 A 11.7 11.7 0 0 1 392.7,296.1 Z" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="407.2" y="275.8" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4" transform="rotate(-90,407.2,275.8)">COUNTER</text>
+<path d="M 392.7,237.8 L 421.8,237.8 L 421.8,266.9 A 11.7 11.7 0 0 1 410.2,278.6 L 404.3,278.6 A 11.7 11.7 0 0 1 392.7,266.9 Z" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="407.2" y="261.2" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4" transform="rotate(-90,407.2,261.2)">COUNTER</text>
 <polygon points="257.6,494.3 260.6,494.3 260.6,424.3 289.7,424.3 289.7,421.4 257.6,421.4" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
 <polygon points="289.7,494.3 293.6,494.3 293.6,360.2 289.7,360.2" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
 <polygon points="429.6,505.9 433.5,505.9 433.5,360.2 429.6,360.2" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.8"/>
@@ -250,6 +250,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 23:25:41</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-33-gcb19926</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 23:28:19</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-34-gaa51559</text>
 </svg>
