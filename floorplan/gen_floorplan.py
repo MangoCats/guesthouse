@@ -450,7 +450,7 @@ def render_floorplan_svg(data):
     _nc_cx = (_nc_sx1 + _nc_sx2) / 2
     _nc_cy = (_nc_sy1 + _nc_sy2) / 2
     out.append(f'<text x="{_nc_cx:.1f}" y="{_nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="7" fill="#4682B4" transform="rotate(-90,{_nc_cx:.1f},{_nc_cy:.1f})">COUNTER</text>')
+               f' font-size="6" fill="#4682B4" transform="rotate(90,{_nc_cx:.1f},{_nc_cy+3:.1f})">COUNTER</text>')
 
     # --- Bedroom and closet walls ---
     # IW7 L-shape (west/north walls of closet, east of counter)
