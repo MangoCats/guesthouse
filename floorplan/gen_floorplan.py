@@ -714,6 +714,13 @@ def render_floorplan_svg(data):
     _lv_slide = _se_et_dist - (_et_r + 2.0 / 12.0)
     _lv_w += _lv_slide * math.sin(_lv_angle)
     _lv_s -= _lv_slide * math.cos(_lv_angle)
+    # Shift loveseat and ET west until NW corner touches WW1
+    _lv_nw_e_post = _lv_w - _lv_height * math.sin(_lv_angle)
+    _lv_nw_n_post = _lv_s + _lv_height * math.cos(_lv_angle)
+    _dy_post = _lv_nw_n_post - _ww1_cy
+    _west_shift = _lv_nw_e_post - _ww1_cx - math.sqrt(_ww1_r**2 - _dy_post**2)
+    _lv_w -= _west_shift
+    _et_cx -= _west_shift
     _lv_e = _lv_w + _lv_width
     _lv_n = _lv_s + _lv_height
     _lv_sx1, _lv_sy1 = to_svg(_lv_w, _lv_n)
