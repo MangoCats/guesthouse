@@ -165,10 +165,10 @@
 <rect x="477.6" y="318.4" width="63.1" height="34.0" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="509.2" y="338.4" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">LOVESEAT</text>
 </a>
-<g transform="rotate(30,509.1,234.9)">
+<g transform="rotate(30,510.1,234.9)">
 <a href="https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/" target="_blank">
-<rect x="493.5" y="217.0" width="31.1" height="35.9" rx="2.9" ry="2.9" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="509.1" y="237.9" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">CHAIR</text>
+<rect x="494.5" y="217.0" width="31.1" height="35.9" rx="2.9" ry="2.9" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="510.1" y="237.9" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">CHAIR</text>
 </a>
 </g>
 <text x="361.6" y="430.2" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>
@@ -260,6 +260,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.93 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 15:29:49</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-95-geee0b84</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 15:31:21</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-96-g7498bf6</text>
 </svg>

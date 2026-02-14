@@ -831,6 +831,32 @@ def render_floorplan_svg(data):
     out.append('</a>')
     out.append('</g>')
 
+    # OTTO: 29" x 29", rounded corners 3", 30° CW, 6" SSW of CHAIR
+    _ot_dim = 29.0 / 12.0
+    _ot_dist = 39.0 / 12.0  # ch half-h 18.5" + 6" gap + ot half 14.5"
+    _ot_cx = _ch_cx - _ot_dist * math.sin(_ch_angle)
+    _ot_cy = _ch_cy - _ot_dist * math.cos(_ch_angle)
+    _ot_w = _ot_cx - _ot_dim / 2
+    _ot_e = _ot_cx + _ot_dim / 2
+    _ot_s = _ot_cy - _ot_dim / 2
+    _ot_n = _ot_cy + _ot_dim / 2
+    _ot_sx1, _ot_sy1 = to_svg(_ot_w, _ot_n)
+    _ot_sx2, _ot_sy2 = to_svg(_ot_e, _ot_s)
+    _ot_sw = _ot_sx2 - _ot_sx1; _ot_sh = _ot_sy2 - _ot_sy1
+    _ot_r_svg = _ch_r_svg  # same 3" corner radius
+    _ot_rot_x, _ot_rot_y = to_svg(_ot_cx, _ot_cy)
+    out.append(f'<g transform="rotate(30,{_ot_rot_x:.1f},{_ot_rot_y:.1f})">')
+    out.append('<a href="https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/" target="_blank">')
+    out.append(f'<rect x="{_ot_sx1:.1f}" y="{_ot_sy1:.1f}" width="{_ot_sw:.1f}" height="{_ot_sh:.1f}"'
+               f' rx="{_ot_r_svg:.1f}" ry="{_ot_r_svg:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _ot_label_x = (_ot_sx1 + _ot_sx2) / 2
+    _ot_label_y = (_ot_sy1 + _ot_sy2) / 2
+    out.append(f'<text x="{_ot_label_x:.1f}" y="{_ot_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="#4682B4">OTTO</text>')
+    out.append('</a>')
+    out.append('</g>')
+
     # Room labels
     _bd_cx = (iw3_e + iw4_w) / 2
     _bd_cy = (ctr_s + iw1_s) / 2
