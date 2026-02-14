@@ -819,6 +819,7 @@ def render_floorplan_svg(data):
     _ch_r_svg = abs(to_svg(3.0 / 12.0, 0)[0] - to_svg(0, 0)[0])
     _ch_rot_x, _ch_rot_y = to_svg(_ch_cx, _ch_cy)
     out.append(f'<g transform="rotate(30,{_ch_rot_x:.1f},{_ch_rot_y:.1f})">')
+    out.append('<a href="https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/" target="_blank">')
     out.append(f'<rect x="{_ch_sx1:.1f}" y="{_ch_sy1:.1f}" width="{_ch_sw:.1f}" height="{_ch_sh:.1f}"'
                f' rx="{_ch_r_svg:.1f}" ry="{_ch_r_svg:.1f}"'
                f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
@@ -826,6 +827,7 @@ def render_floorplan_svg(data):
     _ch_label_y = (_ch_sy1 + _ch_sy2) / 2
     out.append(f'<text x="{_ch_label_x:.1f}" y="{_ch_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4">CHAIR</text>')
+    out.append('</a>')
     out.append('</g>')
 
     # Room labels
