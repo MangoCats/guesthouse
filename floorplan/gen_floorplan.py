@@ -474,19 +474,25 @@ def render_floorplan_svg(data):
     _ks_e = _ks_w + KITCHEN_SINK_WIDTH
     _st_w = _ks_e + 3.0 / 12.0  # stove 3" east of sink
     _st_e = _st_w + STOVE_WIDTH
-    for label, sw_e, sw_n, ne_e, ne_n in [
-        ("SINK",  _ks_w, _back_n - KITCHEN_SINK_DEPTH, _ks_e, _back_n),
-        ("D/W",   _dw_w, _back_n - DW_DEPTH,           _dw_e, _back_n),
-        ("STOVE", _st_w, _back_n - 3.0 / 12.0 - STOVE_DEPTH, _st_e, _back_n - 3.0 / 12.0),
-    ]:
+    _appliances = [
+        ("SINK",  _ks_w, _back_n - KITCHEN_SINK_DEPTH, _ks_e, _back_n,
+         "https://www.webstaurantstore.com/eagle-group-fn2020-1-24-14-3-one-20-x-20-bowl-stainless-steel-spec-master-commercial-compartment-sink-with-24-drainboard/575FN202024LFT.html"),
+        ("D/W",   _dw_w, _back_n - DW_DEPTH,           _dw_e, _back_n, None),
+        ("STOVE", _st_w, _back_n - 3.0 / 12.0 - STOVE_DEPTH, _st_e, _back_n - 3.0 / 12.0, None),
+    ]
+    for label, sw_e, sw_n, ne_e, ne_n, href in _appliances:
         sx1, sy1 = to_svg(sw_e, ne_n)
         sx2, sy2 = to_svg(ne_e, sw_n)
         sw = sx2 - sx1; sh = sy2 - sy1
+        if href:
+            out.append(f'<a href="{href}" target="_blank">')
         out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
                    f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
         cx, cy = (sx1 + sx2) / 2, (sy1 + sy2) / 2
         out.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="7" fill="#4682B4">{label}</text>')
+        if href:
+            out.append('</a>')
 
     # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
     _fr_w = iw2_e + KITCHEN_CTR_LENGTH + 2.0 / 12.0
