@@ -697,9 +697,9 @@ def render_floorplan_svg(data):
     _lv_nw_rel_e = -_lv_height * math.sin(_lv_angle)
     _lv_nw_rel_n = _lv_height * math.cos(_lv_angle)
     _lv_nw_n = _lv_s + _lv_nw_rel_n
-    # Solve for _lv_w so NW corner is on WW1 circle (western intersection)
+    # Solve for _lv_w so NW corner is on WW1 circle (eastern intersection)
     _dy = _lv_nw_n - _ww1_cy
-    _lv_nw_e = _ww1_cx - math.sqrt(_ww1_r**2 - _dy**2)
+    _lv_nw_e = _ww1_cx + math.sqrt(_ww1_r**2 - _dy**2)
     _lv_w = _lv_nw_e - _lv_nw_rel_e
     _lv_e = _lv_w + _lv_width
     _lv_n = _lv_s + _lv_height

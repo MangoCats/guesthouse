@@ -144,9 +144,9 @@
 <rect x="324.7" y="401.0" width="73.8" height="91.3" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="361.6" y="473.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>
 <a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">
-<g transform="rotate(-15,399.5,351.5)">
-<rect x="399.5" y="288.3" width="34.0" height="63.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="416.5" y="322.9" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">LOVESEAT</text>
+<g transform="rotate(-15,384.0,351.5)">
+<rect x="384.0" y="288.3" width="34.0" height="63.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="401.0" y="322.9" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">LOVESEAT</text>
 </g>
 </a>
 <text x="361.6" y="430.2" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>
@@ -238,6 +238,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.85 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 13:32:25</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-65-g05229f7</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 13:34:36</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-66-g2ccbeae</text>
 </svg>
