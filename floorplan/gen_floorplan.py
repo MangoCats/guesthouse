@@ -28,6 +28,7 @@ from floorplan.constants import (
     FRIDGE_SIZE, KITCHEN_GAP,
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
+    EAST_CTR_LENGTH, EAST_CTR_DEPTH,
 )
 
 # ============================================================
@@ -449,6 +450,21 @@ def render_floorplan_svg(data):
     _nc_cy = (_nc_sy1 + _nc_sy2) / 2
     out.append(f'<text x="{_nc_cx:.1f}" y="{_nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4">COUNTER</text>')
+
+    # East counter: 30" E-W x 48" N-S, against W9-W10, 3" east of stove
+    _ec_w = _st_e + 3.0 / 12.0
+    _ec_e = _ec_w + EAST_CTR_LENGTH
+    _ec_n = pts["W9"][1]
+    _ec_s = _ec_n - EAST_CTR_DEPTH
+    _ec_sx1, _ec_sy1 = to_svg(_ec_w, _ec_n)
+    _ec_sx2, _ec_sy2 = to_svg(_ec_e, _ec_s)
+    _ec_sw = _ec_sx2 - _ec_sx1; _ec_sh = _ec_sy2 - _ec_sy1
+    out.append(f'<rect x="{_ec_sx1:.1f}" y="{_ec_sy1:.1f}" width="{_ec_sw:.1f}" height="{_ec_sh:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _ec_cx = (_ec_sx1 + _ec_sx2) / 2
+    _ec_cy = (_ec_sy1 + _ec_sy2) / 2
+    out.append(f'<text x="{_ec_cx:.1f}" y="{_ec_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="#4682B4" transform="rotate(-90,{_ec_cx:.1f},{_ec_cy+3:.1f})">COUNTER</text>')
 
     # --- Bedroom and closet walls ---
     # IW7 L-shape (west/north walls of closet, east of counter)
