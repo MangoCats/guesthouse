@@ -98,7 +98,7 @@
 <text x="182.4" y="340.7" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">TOILET</text>
 <ellipse cx="216.8" cy="345.6" rx="11.7" ry="8.7" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="216.8" y="348.6" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
-<a href="https://www.webstaurantstore.com/eagle-group-fn2020-1-24-14-3-one-20-x-20-bowl-stainless-steel-spec-master-commercial-compartment-sink-with-24-drainboard/575FN202024LFT.html" target="_blank">
+<a href="https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html" target="_blank">
 <rect x="309.1" y="237.8" width="43.7" height="23.3" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="331.0" y="252.4" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
 </a>
@@ -232,6 +232,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.85 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 13:17:19</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-59-g61404fd</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 13:17:45</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-60-g0b6eed5</text>
 </svg>

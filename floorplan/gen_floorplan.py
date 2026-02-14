@@ -703,6 +703,21 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{_bed_cx_svg:.1f}" y="{_bed_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="#4682B4">KING BED</text>')
 
+    # --- Loveseat: 35" E-W x 65" N-S, 6" east of RO1, 3" north of IW1 ---
+    _lv_w = _ro1_e + 6.0 / 12.0
+    _lv_e = _lv_w + 35.0 / 12.0
+    _lv_s = iw1_n + 3.0 / 12.0
+    _lv_n = _lv_s + 65.0 / 12.0
+    _lv_sx1, _lv_sy1 = to_svg(_lv_w, _lv_n)
+    _lv_sx2, _lv_sy2 = to_svg(_lv_e, _lv_s)
+    _lv_sw = _lv_sx2 - _lv_sx1; _lv_sh = _lv_sy2 - _lv_sy1
+    out.append(f'<rect x="{_lv_sx1:.1f}" y="{_lv_sy1:.1f}" width="{_lv_sw:.1f}" height="{_lv_sh:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _lv_cx = (_lv_sx1 + _lv_sx2) / 2
+    _lv_cy = (_lv_sy1 + _lv_sy2) / 2
+    out.append(f'<text x="{_lv_cx:.1f}" y="{_lv_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="#4682B4">LOVESEAT</text>')
+
     # Room labels
     _bd_cx = (iw3_e + iw4_w) / 2
     _bd_cy = (ctr_s + iw1_s) / 2
