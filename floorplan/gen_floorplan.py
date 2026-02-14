@@ -801,7 +801,7 @@ def render_floorplan_svg(data):
     _ch_w_dim = 32.0 / 12.0
     _ch_h_dim = 37.0 / 12.0
     _ch_cx = (pts["W11"][0] + pts["W12"][0]) / 2
-    _ch_cy = (pts["W11"][1] + pts["W12"][1]) / 2
+    _ch_cy = (pts["W11"][1] + pts["W12"][1]) / 2 - 8.0 / 12.0
     _ch_w = _ch_cx - _ch_w_dim / 2
     _ch_e = _ch_cx + _ch_w_dim / 2
     _ch_s = _ch_cy - _ch_h_dim / 2
@@ -810,6 +810,8 @@ def render_floorplan_svg(data):
     _ch_sx2, _ch_sy2 = to_svg(_ch_e, _ch_s)
     _ch_sw = _ch_sx2 - _ch_sx1; _ch_sh = _ch_sy2 - _ch_sy1
     _ch_r_svg = abs(to_svg(3.0 / 12.0, 0)[0] - to_svg(0, 0)[0])
+    _ch_rot_x, _ch_rot_y = to_svg(_ch_cx, _ch_cy)
+    out.append(f'<g transform="rotate(30,{_ch_rot_x:.1f},{_ch_rot_y:.1f})">')
     out.append(f'<rect x="{_ch_sx1:.1f}" y="{_ch_sy1:.1f}" width="{_ch_sw:.1f}" height="{_ch_sh:.1f}"'
                f' rx="{_ch_r_svg:.1f}" ry="{_ch_r_svg:.1f}"'
                f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
@@ -817,6 +819,7 @@ def render_floorplan_svg(data):
     _ch_label_y = (_ch_sy1 + _ch_sy2) / 2
     out.append(f'<text x="{_ch_label_x:.1f}" y="{_ch_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4">CHAIR</text>')
+    out.append('</g>')
 
     # Room labels
     _bd_cx = (iw3_e + iw4_w) / 2
