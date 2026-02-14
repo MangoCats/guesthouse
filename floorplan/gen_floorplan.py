@@ -688,19 +688,24 @@ def render_floorplan_svg(data):
                f' font-size="7" fill="#4682B4">KING BED</text>')
 
     # --- Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner ---
-    # Positioned so rotated NW corner lies on WW1 circle, 3" north of IW1
+    # NW corner on WW1, moved CCW until WW2 touches south face of F9-F10
     _lv_width = 35.0 / 12.0
     _lv_height = 65.0 / 12.0
-    _lv_s = iw1_n + 3.0 / 12.0
     _lv_angle = math.radians(15)
-    # Rotated NW corner relative to SW: (-h*sin(15°), h*cos(15°))
-    _lv_nw_rel_e = -_lv_height * math.sin(_lv_angle)
-    _lv_nw_rel_n = _lv_height * math.cos(_lv_angle)
-    _lv_nw_n = _lv_s + _lv_nw_rel_n
-    # Solve for _lv_w so NW corner is on WW1 circle (eastern intersection)
-    _dy = _lv_nw_n - _ww1_cy
-    _lv_nw_e = _ww1_cx + math.sqrt(_ww1_r**2 - _dy**2)
-    _lv_w = _lv_nw_e - _lv_nw_rel_e
+    _ww2_r = 30.0 / 12.0
+    # Vector NW→NE (fixed by rotation): (w*cos15, w*sin15)
+    _nw_to_ne_e = _lv_width * math.cos(_lv_angle)
+    _nw_to_ne_n = _lv_width * math.sin(_lv_angle)
+    # Constraint: NE_n + ww2_r = pts["W9"][1] (WW2 touches south face of F9-F10)
+    _target_ne_n = pts["W9"][1] - _ww2_r
+    _target_nw_n = _target_ne_n - _nw_to_ne_n
+    # NW on WW1: solve for easting (western intersection = CCW from eastern)
+    _dy = _target_nw_n - _ww1_cy
+    _lv_nw_e = _ww1_cx - math.sqrt(_ww1_r**2 - _dy**2)
+    _lv_nw_n = _target_nw_n
+    # Derive SW corner from NW: SW = NW - (-h*sin15, h*cos15)
+    _lv_w = _lv_nw_e + _lv_height * math.sin(_lv_angle)
+    _lv_s = _lv_nw_n - _lv_height * math.cos(_lv_angle)
     _lv_e = _lv_w + _lv_width
     _lv_n = _lv_s + _lv_height
     _lv_sx1, _lv_sy1 = to_svg(_lv_w, _lv_n)
@@ -724,7 +729,6 @@ def render_floorplan_svg(data):
     _lv_ne_rel_n = _lv_width * math.sin(_lv_angle) + _lv_height * math.cos(_lv_angle)
     _ww2_cx = _lv_w + _lv_ne_rel_e
     _ww2_cy = _lv_s + _lv_ne_rel_n
-    _ww2_r = 30.0 / 12.0
     _ww2_sx, _ww2_sy = to_svg(_ww2_cx, _ww2_cy)
     _ww2_r_svg = abs(to_svg(_ww2_r, 0)[0] - to_svg(0, 0)[0])
     out.append(f'<circle cx="{_ww2_sx:.1f}" cy="{_ww2_sy:.1f}" r="{_ww2_r_svg:.1f}"'
