@@ -4,6 +4,7 @@ Computes geometry from shared/ and floorplan/ packages.
 Outline points F0-F21, inner wall points W0-W21.
 """
 import os, math, datetime
+from typing import NamedTuple, Any
 
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import (
@@ -166,6 +167,38 @@ def stroke_segs(out, segs, color, width, pts, to_svg):
 # Geometry computation
 # ============================================================
 
+class FloorplanData(NamedTuple):
+    """Typed container for all floorplan geometry and page layout."""
+    pts: dict
+    to_svg: Any  # Callable[[float, float], tuple[float, float]]
+    outline_segs: list
+    inner_segs: list
+    outer_poly: list
+    inner_poly: list
+    outer_area: float
+    inner_area: float
+    radii: dict
+    wall_t: float
+    vb_x: float
+    vb_y: float
+    vb_w: float
+    vb_h: float
+    title_x: float
+    title_y: float
+    tb_left: float
+    tb_right: float
+    tb_top: float
+    tb_bottom: float
+    tb_w: float
+    tb_h: float
+    tb_cx: float
+    na_x: float
+    na_text_y: float
+    na_tip_y: float
+    na_base_y: float
+    ft_per_inch: float
+
+
 def build_floorplan_data():
     """Compute all geometry needed for the floorplan SVG."""
     pts, _p3_trav = compute_traverse()
@@ -235,19 +268,19 @@ def build_floorplan_data():
     _vb_x = _cb_cx - _vb_w / 2
     _vb_y = _cb_ymin - _margin_top / _fit_scale
 
-    return {
-        "pts": pts, "to_svg": to_svg,
-        "outline_segs": outline_segs, "inner_segs": inner_segs,
-        "outer_poly": outer_poly, "inner_poly": inner_poly,
-        "outer_area": outer_area, "inner_area": inner_area,
-        "radii": _radii, "wall_t": wall_t,
-        "vb_x": _vb_x, "vb_y": _vb_y, "vb_w": _vb_w, "vb_h": _vb_h,
-        "title_x": _title_x, "title_y": _title_y,
-        "tb_left": _tb_left, "tb_right": _tb_right, "tb_top": _tb_top,
-        "tb_bottom": _tb_bottom, "tb_w": _tb_w, "tb_h": _tb_h, "tb_cx": _tb_cx,
-        "na_x": _na_x, "na_text_y": _na_text_y, "na_tip_y": _na_tip_y, "na_base_y": _na_base_y,
-        "ft_per_inch": _ft_per_inch,
-    }
+    return FloorplanData(
+        pts=pts, to_svg=to_svg,
+        outline_segs=outline_segs, inner_segs=inner_segs,
+        outer_poly=outer_poly, inner_poly=inner_poly,
+        outer_area=outer_area, inner_area=inner_area,
+        radii=_radii, wall_t=wall_t,
+        vb_x=_vb_x, vb_y=_vb_y, vb_w=_vb_w, vb_h=_vb_h,
+        title_x=_title_x, title_y=_title_y,
+        tb_left=_tb_left, tb_right=_tb_right, tb_top=_tb_top,
+        tb_bottom=_tb_bottom, tb_w=_tb_w, tb_h=_tb_h, tb_cx=_tb_cx,
+        na_x=_na_x, na_text_y=_na_text_y, na_tip_y=_na_tip_y, na_base_y=_na_base_y,
+        ft_per_inch=_ft_per_inch,
+    )
 
 # ============================================================
 # SVG rendering
@@ -255,25 +288,25 @@ def build_floorplan_data():
 
 def render_floorplan_svg(data):
     """Render the complete floorplan SVG. Returns SVG string."""
-    pts = data["pts"]
-    to_svg = data["to_svg"]
-    outline_segs = data["outline_segs"]
-    inner_segs = data["inner_segs"]
-    outer_poly = data["outer_poly"]
-    inner_poly = data["inner_poly"]
-    outer_area = data["outer_area"]
-    inner_area = data["inner_area"]
-    wall_t = data["wall_t"]
+    pts = data.pts
+    to_svg = data.to_svg
+    outline_segs = data.outline_segs
+    inner_segs = data.inner_segs
+    outer_poly = data.outer_poly
+    inner_poly = data.inner_poly
+    outer_area = data.outer_area
+    inner_area = data.inner_area
+    wall_t = data.wall_t
 
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}"'
-               f' viewBox="{data["vb_x"]:.2f} {data["vb_y"]:.2f} {data["vb_w"]:.2f} {data["vb_h"]:.2f}">')
-    out.append(f'<rect x="{data["vb_x"]:.2f}" y="{data["vb_y"]:.2f}" width="{data["vb_w"]:.2f}" height="{data["vb_h"]:.2f}" fill="white"/>')
+               f' viewBox="{data.vb_x:.2f} {data.vb_y:.2f} {data.vb_w:.2f} {data.vb_h:.2f}">')
+    out.append(f'<rect x="{data.vb_x:.2f}" y="{data.vb_y:.2f}" width="{data.vb_w:.2f}" height="{data.vb_h:.2f}" fill="white"/>')
     out.append('<defs>')
     out.append('  <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">'
                '<polygon points="0 0, 8 3, 0 6" fill="#333"/></marker>')
     out.append('</defs>')
-    out.append(f'<text x="{data["title_x"]:.1f}" y="{data["title_y"]:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
+    out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
                f' font-weight="bold">Parent Suite</text>')
 
     # ================================================================
@@ -475,7 +508,7 @@ def render_floorplan_svg(data):
 
     # Water heater: 28" diameter circle, east of IW2, touching inner F7-F8 arc wall
     wh_e = iw2_e + WH_RADIUS
-    _wh_tangent_r = (data["radii"]["R_a7"] - wall_t) - WH_RADIUS
+    _wh_tangent_r = (data.radii["R_a7"] - wall_t) - WH_RADIUS
     _wh_dE = wh_e - pts["C7"][0]
     wh_n = pts["C7"][1] + math.sqrt(_wh_tangent_r**2 - _wh_dE**2)
     wh_sx, wh_sy = to_svg(wh_e, wh_n)
@@ -1037,33 +1070,33 @@ def render_floorplan_svg(data):
     # (F-series vertex labels removed)
 
     # North arrow
-    out.append(f'<line x1="{data["na_x"]:.1f}" y1="{data["na_base_y"]:.1f}" x2="{data["na_x"]:.1f}" y2="{data["na_tip_y"]:.1f}" stroke="#333" stroke-width="2"'
+    out.append(f'<line x1="{data.na_x:.1f}" y1="{data.na_base_y:.1f}" x2="{data.na_x:.1f}" y2="{data.na_tip_y:.1f}" stroke="#333" stroke-width="2"'
                f' marker-end="url(#ah)"/>')
-    out.append(f'<text x="{data["na_x"]:.1f}" y="{data["na_text_y"]:.1f}" text-anchor="middle" font-family="Arial"'
+    out.append(f'<text x="{data.na_x:.1f}" y="{data.na_text_y:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="13" font-weight="bold">N</text>')
 
     # Title block
-    out.append(f'<rect x="{data["tb_left"]:.1f}" y="{data["tb_top"]:.1f}" width="{data["tb_w"]}" height="{data["tb_h"]}"'
+    out.append(f'<rect x="{data.tb_left:.1f}" y="{data.tb_top:.1f}" width="{data.tb_w}" height="{data.tb_h}"'
                f' fill="white" stroke="#333" stroke-width="1"/>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+14:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+14:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="11" font-weight="bold" fill="#333">'
                f'{inner_area:.2f} sq ft</text>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+26:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+26:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">Interior area</text>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+40:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+40:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="11" font-weight="bold" fill="#333">'
                f'{outer_area:.2f} sq ft</text>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+52:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+52:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">Exterior area</text>')
-    _ratio = data["ft_per_inch"] * 12  # paper inches to real inches
-    _scale_label = f'Scale 1:{_ratio:.1f} 1&#8243; = {fmt_dist(data["ft_per_inch"])}'
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+64:.1f}" text-anchor="middle"'
+    _ratio = data.ft_per_inch * 12  # paper inches to real inches
+    _scale_label = f'Scale 1:{_ratio:.1f} 1&#8243; = {fmt_dist(data.ft_per_inch)}'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+64:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">{_scale_label}</text>')
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     _git_desc = git_describe()
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+76:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+76:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="7.5" fill="#999">Generated {_now}</text>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+86:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+86:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="7.5" fill="#999">from {_git_desc}</text>')
 
     out.append('</svg>')
@@ -1078,7 +1111,7 @@ def render_floorplan_svg(data):
 if __name__ == "__main__":
     data = build_floorplan_data()
     svg_content, inner_area, outer_area, _vert_names = render_floorplan_svg(data)
-    pts = data["pts"]
+    pts = data.pts
 
     svg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "floorplan.svg")
     with open(svg_path, "w") as f:

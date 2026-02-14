@@ -105,21 +105,21 @@ def rendered(floorplan_data):
 
 
 class TestBuildFloorplanData:
-    def test_returns_dict_with_expected_keys(self, floorplan_data):
+    def test_returns_namedtuple_with_expected_fields(self, floorplan_data):
         expected = {"pts", "to_svg", "inner_area", "outer_area",
                     "outline_segs", "inner_segs", "outer_poly", "inner_poly",
                     "radii", "wall_t", "vb_x", "vb_y", "vb_w", "vb_h"}
-        assert expected.issubset(floorplan_data.keys())
+        assert expected.issubset(set(floorplan_data._fields))
 
     def test_areas_positive(self, floorplan_data):
-        assert floorplan_data["inner_area"] > 0
-        assert floorplan_data["outer_area"] > 0
+        assert floorplan_data.inner_area > 0
+        assert floorplan_data.outer_area > 0
 
     def test_outer_area_greater_than_inner(self, floorplan_data):
-        assert floorplan_data["outer_area"] > floorplan_data["inner_area"]
+        assert floorplan_data.outer_area > floorplan_data.inner_area
 
     def test_pts_contain_f_and_w_series(self, floorplan_data):
-        pts = floorplan_data["pts"]
+        pts = floorplan_data.pts
         for i in range(22):
             assert f"F{i}" in pts, f"Missing F{i}"
             assert f"W{i}" in pts, f"Missing W{i}"
@@ -152,9 +152,9 @@ class TestRenderFloorplanSvg:
     def test_rendered_inner_area_less_than_data(self, rendered, floorplan_data):
         """Rendered inner area subtracts interior walls, so it's less than the raw polygon area."""
         _, inner_area, outer_area, _ = rendered
-        assert inner_area < floorplan_data["inner_area"]
+        assert inner_area < floorplan_data.inner_area
         assert inner_area > 0
 
     def test_outer_area_matches_data(self, rendered, floorplan_data):
         _, _, outer_area, _ = rendered
-        assert outer_area == pytest.approx(floorplan_data["outer_area"])
+        assert outer_area == pytest.approx(floorplan_data.outer_area)

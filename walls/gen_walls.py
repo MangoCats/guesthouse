@@ -603,15 +603,45 @@ def _path_length_between(pts, outline_segs, start_seg_idx, start_t,
 # Data computation
 # ============================================================
 
+class WallData(NamedTuple):
+    """Typed container for all wall detail geometry and page layout."""
+    pts: dict
+    to_svg: object  # Callable[[float, float], tuple[float, float]]
+    outline_segs: list
+    inner_segs: list
+    s_segs: list
+    g_segs: list
+    radii: dict
+    openings: list
+    layout: object  # InteriorLayout
+    inner_poly: list
+    outer_area: float
+    inner_area: float
+    vb_x: float
+    vb_y: float
+    vb_w: float
+    vb_h: float
+    title_x: float
+    title_y: float
+    tb_left: float
+    tb_right: float
+    tb_top: float
+    tb_bottom: float
+    tb_w: float
+    tb_h: float
+    tb_cx: float
+    ft_per_inch: float
+
+
 def build_wall_data():
     """Compute all geometry needed for the wall detail SVG."""
     fp_data = build_floorplan_data()
-    pts = fp_data["pts"]
-    to_svg = fp_data["to_svg"]
-    outline_segs = fp_data["outline_segs"]
-    inner_segs = fp_data["inner_segs"]
-    radii = fp_data["radii"]
-    inner_poly = fp_data["inner_poly"]
+    pts = fp_data.pts
+    to_svg = fp_data.to_svg
+    outline_segs = fp_data.outline_segs
+    inner_segs = fp_data.inner_segs
+    radii = fp_data.radii
+    inner_poly = fp_data.inner_poly
 
     # Compute S-series (2" inset = inner face of outer shell)
     s_pts, s_segs = _compute_inset_path(outline_segs, pts, radii,
@@ -661,20 +691,20 @@ def build_wall_data():
     _vb_x = _cb_cx - _vb_w / 2
     _vb_y = _cb_ymin - _margin_top / _fit_scale
 
-    return {
-        "pts": pts, "to_svg": to_svg,
-        "outline_segs": outline_segs, "inner_segs": inner_segs,
-        "s_segs": s_segs, "g_segs": g_segs,
-        "radii": radii, "openings": openings,
-        "layout": layout, "inner_poly": inner_poly,
-        "outer_area": fp_data["outer_area"],
-        "inner_area": fp_data["inner_area"],
-        "vb_x": _vb_x, "vb_y": _vb_y, "vb_w": _vb_w, "vb_h": _vb_h,
-        "title_x": _bldg_cx, "title_y": _title_y,
-        "tb_left": _tb_left, "tb_right": _tb_right, "tb_top": _tb_top,
-        "tb_bottom": _tb_bottom, "tb_w": _tb_w, "tb_h": _tb_h, "tb_cx": _tb_cx,
-        "ft_per_inch": _ft_per_inch,
-    }
+    return WallData(
+        pts=pts, to_svg=to_svg,
+        outline_segs=outline_segs, inner_segs=inner_segs,
+        s_segs=s_segs, g_segs=g_segs,
+        radii=radii, openings=openings,
+        layout=layout, inner_poly=inner_poly,
+        outer_area=fp_data.outer_area,
+        inner_area=fp_data.inner_area,
+        vb_x=_vb_x, vb_y=_vb_y, vb_w=_vb_w, vb_h=_vb_h,
+        title_x=_bldg_cx, title_y=_title_y,
+        tb_left=_tb_left, tb_right=_tb_right, tb_top=_tb_top,
+        tb_bottom=_tb_bottom, tb_w=_tb_w, tb_h=_tb_h, tb_cx=_tb_cx,
+        ft_per_inch=_ft_per_inch,
+    )
 
 
 # ============================================================
@@ -690,10 +720,10 @@ def _svg_polygon(out, poly, to_svg, fill, stroke="#666", stroke_width="0.5"):
 
 def _render_interior_walls(out, data):
     """Render interior wall polygons and labels into the SVG output list."""
-    pts = data["pts"]
-    to_svg = data["to_svg"]
-    layout = data["layout"]
-    inner_poly = data["inner_poly"]
+    pts = data.pts
+    to_svg = data.to_svg
+    layout = data.layout
+    inner_poly = data.inner_poly
 
     IW_FILL = "rgba(160,160,160,0.35)"
     IW_STROKE = "#666"
@@ -855,10 +885,10 @@ def _render_interior_walls(out, data):
 
 def _render_opening_dims(out, data):
     """Render opening width dimension lines on the exterior face."""
-    pts = data["pts"]
-    to_svg = data["to_svg"]
-    outline_segs = data["outline_segs"]
-    openings = data["openings"]
+    pts = data.pts
+    to_svg = data.to_svg
+    outline_segs = data.outline_segs
+    openings = data.openings
 
     DIM_OFFSET = 0.75       # feet outside F-face
     TICK = 3.0              # SVG pts, tick half-length
@@ -955,13 +985,13 @@ def _render_opening_dims(out, data):
 
 def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     """Render the wall detail SVG. Returns SVG string."""
-    pts = data["pts"]
-    to_svg = data["to_svg"]
-    outline_segs = data["outline_segs"]
-    inner_segs = data["inner_segs"]
-    s_segs = data["s_segs"]
-    g_segs = data["g_segs"]
-    openings = data["openings"]
+    pts = data.pts
+    to_svg = data.to_svg
+    outline_segs = data.outline_segs
+    inner_segs = data.inner_segs
+    s_segs = data.s_segs
+    g_segs = data.g_segs
+    openings = data.openings
 
     shell_t = SHELL_THICKNESS
     R_in = OPENING_INSIDE_RADIUS
@@ -969,13 +999,13 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
 
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}"'
-               f' viewBox="{data["vb_x"]:.2f} {data["vb_y"]:.2f}'
-               f' {data["vb_w"]:.2f} {data["vb_h"]:.2f}">')
-    out.append(f'<rect x="{data["vb_x"]:.2f}" y="{data["vb_y"]:.2f}"'
-               f' width="{data["vb_w"]:.2f}" height="{data["vb_h"]:.2f}" fill="white"/>')
+               f' viewBox="{data.vb_x:.2f} {data.vb_y:.2f}'
+               f' {data.vb_w:.2f} {data.vb_h:.2f}">')
+    out.append(f'<rect x="{data.vb_x:.2f}" y="{data.vb_y:.2f}"'
+               f' width="{data.vb_w:.2f}" height="{data.vb_h:.2f}" fill="white"/>')
 
     # Title
-    out.append(f'<text x="{data["title_x"]:.1f}" y="{data["title_y"]:.1f}"'
+    out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="14"'
                f' font-weight="bold">{title}</text>')
 
@@ -1113,34 +1143,34 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                    f'{rot}>{op.name}</text>')
 
     # --- Title block ---
-    out.append(f'<rect x="{data["tb_left"]:.1f}" y="{data["tb_top"]:.1f}"'
-               f' width="{data["tb_w"]}" height="{data["tb_h"]}"'
+    out.append(f'<rect x="{data.tb_left:.1f}" y="{data.tb_top:.1f}"'
+               f' width="{data.tb_w}" height="{data.tb_h}"'
                f' fill="white" stroke="#333" stroke-width="1"/>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+14:.1f}"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+14:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="11"'
                f' font-weight="bold" fill="#333">'
-               f'{data["outer_area"]:.2f} sq ft</text>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+26:.1f}"'
+               f'{data.outer_area:.2f} sq ft</text>')
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+26:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="8"'
                f' fill="#666">Exterior area</text>')
 
-    _ratio = data["ft_per_inch"] * 12
-    _scale_label = f'Scale 1:{_ratio:.1f} 1&#8243; = {fmt_dist(data["ft_per_inch"])}'
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+40:.1f}"'
+    _ratio = data.ft_per_inch * 12
+    _scale_label = f'Scale 1:{_ratio:.1f} 1&#8243; = {fmt_dist(data.ft_per_inch)}'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+40:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="8"'
                f' fill="#666">{_scale_label}</text>')
 
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     _git_desc = git_describe()
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+54:.1f}"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+54:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7.5"'
                f' fill="#999">Generated {_now}</text>')
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+64:.1f}"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+64:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7.5"'
                f' fill="#999">from {_git_desc}</text>')
 
     # Wall construction note
-    out.append(f'<text x="{data["tb_cx"]:.1f}" y="{data["tb_top"]+76:.1f}"'
+    out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+76:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7"'
                f' fill="#999">2&#8243; shell / 4&#8243; gap / 2&#8243; shell</text>')
 
@@ -1149,8 +1179,8 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     # Rotate so O11-O1 (last section) comes first
     sections = sections[-1:] + sections[:-1]
 
-    tbl_left = data["tb_left"]
-    tbl_top = data["tb_bottom"] + 12
+    tbl_left = data.tb_left
+    tbl_top = data.tb_bottom + 12
     row_h = 7.5
     # Column right-edges (From-To is left-aligned, others right-aligned)
     col_r = [tbl_left + 32, tbl_left + 62, tbl_left + 92, tbl_left + 128]

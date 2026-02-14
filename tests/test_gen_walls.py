@@ -110,27 +110,27 @@ def rendered(wall_data):
 
 
 class TestBuildWallData:
-    def test_returns_dict_with_expected_keys(self, wall_data):
+    def test_returns_namedtuple_with_expected_fields(self, wall_data):
         expected = {
             "pts", "to_svg", "outline_segs", "inner_segs",
             "s_segs", "g_segs", "radii", "openings",
             "vb_x", "vb_y", "vb_w", "vb_h",
         }
-        assert expected.issubset(wall_data.keys())
+        assert expected.issubset(set(wall_data._fields))
 
     def test_s_series_points_exist(self, wall_data):
-        pts = wall_data["pts"]
+        pts = wall_data.pts
         for i in range(22):
             assert f"S{i}" in pts, f"Missing S{i}"
 
     def test_g_series_points_exist(self, wall_data):
-        pts = wall_data["pts"]
+        pts = wall_data.pts
         for i in range(22):
             assert f"G{i}" in pts, f"Missing G{i}"
 
     def test_shell_distances(self, wall_data):
         """Shell boundary distances from F-series should match expected insets."""
-        pts = wall_data["pts"]
+        pts = wall_data.pts
         for i in range(22):
             f_pt = pts[f"F{i}"]
             s_pt = pts[f"S{i}"]
@@ -149,33 +149,33 @@ class TestBuildWallData:
                 f"F{i}-W{i} distance {fw_dist} != {SHELL_THICKNESS * 2 + AIR_GAP}"
 
     def test_22_outline_segments(self, wall_data):
-        assert len(wall_data["outline_segs"]) == 22
+        assert len(wall_data.outline_segs) == 22
 
     def test_22_s_segments(self, wall_data):
-        assert len(wall_data["s_segs"]) == 22
+        assert len(wall_data.s_segs) == 22
 
     def test_22_g_segments(self, wall_data):
-        assert len(wall_data["g_segs"]) == 22
+        assert len(wall_data.g_segs) == 22
 
     def test_11_openings(self, wall_data):
-        assert len(wall_data["openings"]) == 11
+        assert len(wall_data.openings) == 11
 
     def test_opening_names(self, wall_data):
-        names = {o.name for o in wall_data["openings"]}
+        names = {o.name for o in wall_data.openings}
         expected = {f"O{i}" for i in range(1, 12)}
         assert names == expected
 
     def test_openings_on_line_segs(self, wall_data):
         """All openings should be on LineSeg segments."""
-        outline_segs = wall_data["outline_segs"]
-        for o in wall_data["openings"]:
+        outline_segs = wall_data.outline_segs
+        for o in wall_data.openings:
             seg = outline_segs[o.seg_idx]
             assert isinstance(seg, LineSeg), \
                 f"Opening {o.name} on non-line segment {type(seg)}"
 
     def test_opening_params_valid(self, wall_data):
         """Opening parametric ranges should be within [0, 1]."""
-        for o in wall_data["openings"]:
+        for o in wall_data.openings:
             assert 0.0 <= o.t_start < o.t_end <= 1.0, \
                 f"Opening {o.name}: t_start={o.t_start}, t_end={o.t_end}"
 
