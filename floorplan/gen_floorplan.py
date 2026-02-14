@@ -29,7 +29,8 @@ from floorplan.constants import (
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     EAST_CTR_LENGTH, EAST_CTR_DEPTH, EAST_CTR_RADIUS,
-    IW1_RO_OFFSET_E, IW1_RO_WIDTH, IW4_RO_WIDTH,
+    IW1_RO_OFFSET_E, IW1_RO_WIDTH,
+    IW3_RO_OFFSET_N, IW3_RO_WIDTH, IW4_RO_WIDTH,
 )
 
 # ============================================================
@@ -528,7 +529,34 @@ def render_floorplan_svg(data):
     iw3_s = ctr_s
     iw3_n = iw1_s
     iw3_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s), (iw3_e, iw3_n), (iw3_w, iw3_n)]
-    wall_poly(out, iw3_poly, to_svg)
+
+    # RO3 rough opening in IW3 — 2" north of IW7 north face, 38" long
+    _ro3_s = ctr_n + WALL_3IN + IW3_RO_OFFSET_N
+    _ro3_n = _ro3_s + IW3_RO_WIDTH
+    _ro3_jamb = 1.0 / 12.0  # 1" jamb depth
+    # Split IW3 into south and north segments around opening
+    _iw3_s_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s),
+                   (iw3_e, _ro3_s), (iw3_w, _ro3_s)]
+    _iw3_n_poly = [(iw3_w, _ro3_n), (iw3_e, _ro3_n),
+                   (iw3_e, iw3_n), (iw3_w, iw3_n)]
+    wall_poly(out, _iw3_s_poly, to_svg, stroke=False)
+    wall_poly(out, _iw3_n_poly, to_svg, stroke=False)
+    # West and east edge lines, split around opening (inset by half stroke width)
+    _iw3_w_in = iw3_w + _half_sw
+    _iw3_e_in = iw3_e - _half_sw
+    for a, b in [((_iw3_w_in, iw3_s), (_iw3_w_in, _ro3_s)),
+                 ((_iw3_w_in, _ro3_n), (_iw3_w_in, iw3_n)),
+                 ((_iw3_e_in, iw3_s), (_iw3_e_in, _ro3_s)),
+                 ((_iw3_e_in, _ro3_n), (_iw3_e_in, iw3_n))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="#666" stroke-width="1.0"/>')
+    # RO3 jambs (1" dark-red rectangles at opening edges)
+    for jamb_n in [_ro3_s, _ro3_n - _ro3_jamb]:
+        _jx1, _jy1 = to_svg(iw3_w, jamb_n + _ro3_jamb)
+        _jx2, _jy2 = to_svg(iw3_e, jamb_n)
+        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
+                   f' fill="darkred" stroke="none"/>')
 
     # IW4 (bedroom east wall, 4" thick) — 11'8" east of IW3 east face
     iw4_w = iw3_e + BEDROOM_WIDTH

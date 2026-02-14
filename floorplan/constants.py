@@ -67,6 +67,10 @@ EAST_CTR_RADIUS = 12.0 / 12.0      # 12" south corner radius
 IW1_RO_OFFSET_E = 9.0 / 12.0      # 9" east of fridge east side
 IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
+# IW3 rough opening
+IW3_RO_OFFSET_N = 2.0 / 12.0      # 2" north of IW7 north face
+IW3_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
+
 # IW4 rough opening
 IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
