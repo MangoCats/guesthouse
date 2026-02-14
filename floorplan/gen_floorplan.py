@@ -38,14 +38,15 @@ from floorplan.constants import (
 # SVG Helpers
 # ============================================================
 
-def dim_line_h(out, e1, n, e2, label, to_svg):
+def dim_line_h(out, e1, n, e2, label, to_svg, label_offset_e=0.0):
     """Horizontal (E-W) dimension line with vertical tick marks."""
     x1, y1 = to_svg(e1, n); x2, y2 = to_svg(e2, n)
     _t = 4
     out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#999" stroke-width="0.8"/>')
     out.append(f'<line x1="{x1:.1f}" y1="{y1-_t:.1f}" x2="{x1:.1f}" y2="{y1+_t:.1f}" stroke="#999" stroke-width="0.8"/>')
     out.append(f'<line x1="{x2:.1f}" y1="{y2-_t:.1f}" x2="{x2:.1f}" y2="{y2+_t:.1f}" stroke="#999" stroke-width="0.8"/>')
-    out.append(f'<text x="{(x1+x2)/2:.1f}" y="{y1-3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#999">{label}</text>')
+    lx, _ = to_svg((e1 + e2) / 2 + label_offset_e, n)
+    out.append(f'<text x="{lx:.1f}" y="{y1-3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#999">{label}</text>')
 
 def dim_line_v(out, e, n1, n2, label, to_svg):
     """Vertical (N-S) dimension line with horizontal tick marks."""
@@ -370,7 +371,8 @@ def render_floorplan_svg(data):
     _w9, _w8 = pts["W13"], pts["W12"]
     _t_e = (dim2_n - _w9[1]) / (_w8[1] - _w9[1]) if _w8[1] != _w9[1] else 0.5
     dim2_east_e = _w9[0] + _t_e * (_w8[0] - _w9[0])
-    dim_line_h(out, iw2_e, dim2_n, dim2_east_e, fmt_dist(dim2_east_e - iw2_e), to_svg)
+    dim_line_h(out, iw2_e, dim2_n, dim2_east_e, fmt_dist(dim2_east_e - iw2_e), to_svg,
+               label_offset_e=-4.0)
 
     # --- Appliances ---
     dryer_w = pts["W1"][0] + APPLIANCE_OFFSET_E
