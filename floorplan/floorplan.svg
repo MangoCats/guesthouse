@@ -165,9 +165,9 @@
 <rect x="477.6" y="318.4" width="63.1" height="34.0" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="509.2" y="338.4" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">LOVESEAT</text>
 </a>
-<g transform="rotate(30,512.8,233.3)">
-<rect x="497.3" y="215.4" width="31.1" height="35.9" rx="2.9" ry="2.9" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="512.8" y="236.3" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">CHAIR</text>
+<g transform="rotate(30,510.9,236.7)">
+<rect x="495.3" y="218.7" width="31.1" height="35.9" rx="2.9" ry="2.9" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="510.9" y="239.7" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">CHAIR</text>
 </g>
 <text x="361.6" y="430.2" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>
 <text x="498.6" y="422.9" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">OFFICE</text>
@@ -258,6 +258,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.85 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 14:39:04</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-86-g45ad392</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 14:41:01</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-87-g0f04ff8</text>
 </svg>
