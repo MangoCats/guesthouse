@@ -32,6 +32,7 @@ from floorplan.constants import (
     IW1_RO_OFFSET_E, IW1_RO_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH, IW4_RO_WIDTH,
+    IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
 # ============================================================
@@ -355,12 +356,32 @@ def render_floorplan_svg(data):
     iw6_w_s = min(_iw6_s_ints)
     iw6_e = iw2_w
     iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
-    wall_poly(out, iw6_poly, to_svg, stroke=False)
-    for w_e, n_val in [(iw6_w_s, iw6_s + _half_sw), (iw6_w_n, iw6_n - _half_sw)]:
-        sx1, sy1 = to_svg(w_e, n_val)
-        sx2, sy2 = to_svg(iw6_e, n_val)
+
+    # RO5 rough opening in IW6 — 3" west of IW2 west face, 38" wide E-W
+    _ro5_e = iw6_e - IW6_RO_OFFSET_W
+    _ro5_w = _ro5_e - IW6_RO_WIDTH
+    _ro5_jamb = 1.0 / 12.0  # 1" jamb depth
+    # Split IW6 into west (trapezoid) and east (rectangle) segments
+    _iw6_w_poly = [(iw6_w_s, iw6_s), (_ro5_w, iw6_s), (_ro5_w, iw6_n), (iw6_w_n, iw6_n)]
+    _iw6_e_poly = [(_ro5_e, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (_ro5_e, iw6_n)]
+    wall_poly(out, _iw6_w_poly, to_svg, stroke=False)
+    wall_poly(out, _iw6_e_poly, to_svg, stroke=False)
+    # South and north edge lines, split around opening (inset by half stroke width)
+    _iw6_s_in = iw6_s + _half_sw
+    _iw6_n_in = iw6_n - _half_sw
+    for a, b in [((iw6_w_s, _iw6_s_in), (_ro5_w, _iw6_s_in)),
+                 ((_ro5_e, _iw6_s_in), (iw6_e, _iw6_s_in)),
+                 ((iw6_w_n, _iw6_n_in), (_ro5_w, _iw6_n_in)),
+                 ((_ro5_e, _iw6_n_in), (iw6_e, _iw6_n_in))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
+    # RO5 jambs (1" dark-red rectangles at opening edges)
+    for jamb_e in [_ro5_w, _ro5_e - _ro5_jamb]:
+        _jx1, _jy1 = to_svg(jamb_e, iw6_n)
+        _jx2, _jy2 = to_svg(jamb_e + _ro5_jamb, iw6_s)
+        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
+                   f' fill="darkred" stroke="none"/>')
 
     # Dimension line: IW1 north face to F9-F11 south face (inner), mid-span
     dim_e = (pts["F9"][0] + pts["F11"][0]) / 2

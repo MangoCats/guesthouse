@@ -76,7 +76,7 @@
 <line x1="241.1" y1="277.3" x2="545.8" y2="277.3" stroke="#999" stroke-width="0.8"/>
 <line x1="241.1" y1="273.3" x2="241.1" y2="281.3" stroke="#999" stroke-width="0.8"/>
 <line x1="545.8" y1="273.3" x2="545.8" y2="281.3" stroke="#999" stroke-width="0.8"/>
-<text x="393.5" y="274.3" text-anchor="middle" font-family="Arial" font-size="8" fill="#999">26' 1.64"</text>
+<text x="346.8" y="274.3" text-anchor="middle" font-family="Arial" font-size="8" fill="#999">26' 1.64"</text>
 <rect x="165.4" y="461.2" width="34.0" height="29.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="182.4" y="478.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">DRYER</text>
 <rect x="165.4" y="431.1" width="34.0" height="29.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
@@ -276,6 +276,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 00:05:08</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-42-g284011a</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 00:10:21</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-43-gff8b7bf</text>
 </svg>
