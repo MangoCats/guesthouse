@@ -477,7 +477,7 @@ def render_floorplan_svg(data):
     for label, sw_e, sw_n, ne_e, ne_n in [
         ("SINK",  _ks_w, _back_n - KITCHEN_SINK_DEPTH, _ks_e, _back_n),
         ("D/W",   _dw_w, _back_n - DW_DEPTH,           _dw_e, _back_n),
-        ("STOVE", _st_w, _back_n - STOVE_DEPTH,         _st_e, _back_n),
+        ("STOVE", _st_w, _back_n - 3.0 / 12.0 - STOVE_DEPTH, _st_e, _back_n - 3.0 / 12.0),
     ]:
         sx1, sy1 = to_svg(sw_e, ne_n)
         sx2, sy2 = to_svg(ne_e, sw_n)
