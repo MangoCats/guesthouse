@@ -385,7 +385,7 @@ def render_floorplan_svg(data):
     _back_n = pts["W9"][1]  # south face of inner north wall
     _dw_w = iw2_e + NORTH_CTR_LENGTH + 3.0 / 12.0  # 3" east of north counter
     _dw_e = _dw_w + DW_WIDTH
-    _ks_w = _dw_w + 3.0 / 12.0  # sink west 3" east of D/W west
+    _ks_w = _dw_e + 3.0 / 12.0  # sink west 3" east of D/W east
     _ks_e = _ks_w + KITCHEN_SINK_WIDTH
     _st_w = _ks_e + 3.0 / 12.0  # stove 3" east of sink
     _st_e = _st_w + STOVE_WIDTH
