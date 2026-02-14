@@ -711,12 +711,14 @@ def render_floorplan_svg(data):
     _lv_sx1, _lv_sy1 = to_svg(_lv_w, _lv_n)
     _lv_sx2, _lv_sy2 = to_svg(_lv_e, _lv_s)
     _lv_sw = _lv_sx2 - _lv_sx1; _lv_sh = _lv_sy2 - _lv_sy1
+    out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
     out.append(f'<rect x="{_lv_sx1:.1f}" y="{_lv_sy1:.1f}" width="{_lv_sw:.1f}" height="{_lv_sh:.1f}"'
                f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
     _lv_cx = (_lv_sx1 + _lv_sx2) / 2
     _lv_cy = (_lv_sy1 + _lv_sy2) / 2
     out.append(f'<text x="{_lv_cx:.1f}" y="{_lv_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4">LOVESEAT</text>')
+    out.append('</a>')
 
     # Room labels
     _bd_cx = (iw3_e + iw4_w) / 2
