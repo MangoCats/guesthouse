@@ -534,12 +534,14 @@ def render_floorplan_svg(data):
     _nc_sx1, _nc_sy1 = to_svg(_nc_w, _nc_n)
     _nc_sx2, _nc_sy2 = to_svg(_nc_e, _nc_s)
     _nc_sw = _nc_sx2 - _nc_sx1; _nc_sh = _nc_sy2 - _nc_sy1
+    out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html" target="_blank">')
     out.append(f'<rect x="{_nc_sx1:.1f}" y="{_nc_sy1:.1f}" width="{_nc_sw:.1f}" height="{_nc_sh:.1f}"'
                f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
     _nc_cx = (_nc_sx1 + _nc_sx2) / 2
     _nc_cy = (_nc_sy1 + _nc_sy2) / 2
     out.append(f'<text x="{_nc_cx:.1f}" y="{_nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4">COUNTER</text>')
+    out.append('</a>')
 
     # East counter: 30" E-W x 72" N-S, against W9-W10, 3" east of stove, 12" south corner radii
     _ec_w = _st_e + 3.0 / 12.0
