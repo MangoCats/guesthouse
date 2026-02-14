@@ -61,6 +61,7 @@ NORTH_CTR_LENGTH = 38.0 / 12.0     # 38" north wall counter E-W
 NORTH_CTR_DEPTH = 24.0 / 12.0      # 24" north wall counter depth N-S
 EAST_CTR_LENGTH = 30.0 / 12.0      # 30" east counter E-W along W9-W10
 EAST_CTR_DEPTH = 72.0 / 12.0       # 72" east counter depth N-S
+EAST_CTR_RADIUS = 12.0 / 12.0      # 12" south corner radius
 
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition

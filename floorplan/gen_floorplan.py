@@ -28,7 +28,7 @@ from floorplan.constants import (
     FRIDGE_SIZE, KITCHEN_GAP,
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
-    EAST_CTR_LENGTH, EAST_CTR_DEPTH,
+    EAST_CTR_LENGTH, EAST_CTR_DEPTH, EAST_CTR_RADIUS,
 )
 
 # ============================================================
@@ -451,18 +451,29 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{_nc_cx:.1f}" y="{_nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4">COUNTER</text>')
 
-    # East counter: 30" E-W x 48" N-S, against W9-W10, 3" east of stove
+    # East counter: 30" E-W x 72" N-S, against W9-W10, 3" east of stove, 12" south corner radii
     _ec_w = _st_e + 3.0 / 12.0
     _ec_e = _ec_w + EAST_CTR_LENGTH
     _ec_n = pts["W9"][1]
     _ec_s = _ec_n - EAST_CTR_DEPTH
-    _ec_sx1, _ec_sy1 = to_svg(_ec_w, _ec_n)
-    _ec_sx2, _ec_sy2 = to_svg(_ec_e, _ec_s)
-    _ec_sw = _ec_sx2 - _ec_sx1; _ec_sh = _ec_sy2 - _ec_sy1
-    out.append(f'<rect x="{_ec_sx1:.1f}" y="{_ec_sy1:.1f}" width="{_ec_sw:.1f}" height="{_ec_sh:.1f}"'
-               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
-    _ec_cx = (_ec_sx1 + _ec_sx2) / 2
-    _ec_cy = (_ec_sy1 + _ec_sy2) / 2
+    _ec_r = EAST_CTR_RADIUS
+    _ec_nw = to_svg(_ec_w, _ec_n)
+    _ec_ne = to_svg(_ec_e, _ec_n)
+    _ec_se_arc_start = to_svg(_ec_e, _ec_s + _ec_r)
+    _ec_se_arc_end = to_svg(_ec_e - _ec_r, _ec_s)
+    _ec_sw_arc_start = to_svg(_ec_w + _ec_r, _ec_s)
+    _ec_sw_arc_end = to_svg(_ec_w, _ec_s + _ec_r)
+    _ec_r_svg = abs(to_svg(_ec_r, 0)[0] - to_svg(0, 0)[0])
+    _ec_path = (f'M {_ec_nw[0]:.1f},{_ec_nw[1]:.1f} '
+                f'L {_ec_ne[0]:.1f},{_ec_ne[1]:.1f} '
+                f'L {_ec_se_arc_start[0]:.1f},{_ec_se_arc_start[1]:.1f} '
+                f'A {_ec_r_svg:.1f} {_ec_r_svg:.1f} 0 0 1 {_ec_se_arc_end[0]:.1f},{_ec_se_arc_end[1]:.1f} '
+                f'L {_ec_sw_arc_start[0]:.1f},{_ec_sw_arc_start[1]:.1f} '
+                f'A {_ec_r_svg:.1f} {_ec_r_svg:.1f} 0 0 1 {_ec_sw_arc_end[0]:.1f},{_ec_sw_arc_end[1]:.1f} '
+                f'Z')
+    out.append(f'<path d="{_ec_path}" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _ec_cx = (_ec_nw[0] + _ec_ne[0]) / 2
+    _ec_cy = (_ec_nw[1] + _ec_se_arc_end[1]) / 2
     out.append(f'<text x="{_ec_cx:.1f}" y="{_ec_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4" transform="rotate(-90,{_ec_cx:.1f},{_ec_cy+3:.1f})">COUNTER</text>')
 
