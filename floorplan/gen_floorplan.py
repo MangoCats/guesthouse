@@ -719,6 +719,19 @@ def render_floorplan_svg(data):
     out.append('</g>')
     out.append('</a>')
 
+    # WW2: 30" radius circle centered on loveseat's rotated NE corner
+    _lv_ne_rel_e = _lv_width * math.cos(_lv_angle) - _lv_height * math.sin(_lv_angle)
+    _lv_ne_rel_n = _lv_width * math.sin(_lv_angle) + _lv_height * math.cos(_lv_angle)
+    _ww2_cx = _lv_w + _lv_ne_rel_e
+    _ww2_cy = _lv_s + _lv_ne_rel_n
+    _ww2_r = 30.0 / 12.0
+    _ww2_sx, _ww2_sy = to_svg(_ww2_cx, _ww2_cy)
+    _ww2_r_svg = abs(to_svg(_ww2_r, 0)[0] - to_svg(0, 0)[0])
+    out.append(f'<circle cx="{_ww2_sx:.1f}" cy="{_ww2_sy:.1f}" r="{_ww2_r_svg:.1f}"'
+               f' fill="none" stroke="#4682B4" stroke-width="0.5" stroke-dasharray="2,2"/>')
+    out.append(f'<text x="{_ww2_sx:.1f}" y="{_ww2_sy - _ww2_r_svg - 2:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="6" fill="#4682B4">WW2</text>')
+
     # Room labels
     _bd_cx = (iw3_e + iw4_w) / 2
     _bd_cy = (ctr_s + iw1_s) / 2
