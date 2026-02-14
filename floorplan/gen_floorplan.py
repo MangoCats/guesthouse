@@ -800,8 +800,11 @@ def render_floorplan_svg(data):
     # CHAIR: 32" E-W x 37" N-S, rounded corners 3", centered between W11 and W12
     _ch_w_dim = 32.0 / 12.0
     _ch_h_dim = 37.0 / 12.0
-    _ch_cx = (pts["W11"][0] + pts["W12"][0]) / 2
-    _ch_cy = (pts["W11"][1] + pts["W12"][1]) / 2 - 8.0 / 12.0
+    _ch_angle = math.radians(30)
+    _ch_cx = ((pts["W11"][0] + pts["W12"][0]) / 2
+              - 4.0 / 12.0 * math.sin(_ch_angle))
+    _ch_cy = ((pts["W11"][1] + pts["W12"][1]) / 2 - 8.0 / 12.0
+              - 4.0 / 12.0 * math.cos(_ch_angle))
     _ch_w = _ch_cx - _ch_w_dim / 2
     _ch_e = _ch_cx + _ch_w_dim / 2
     _ch_s = _ch_cy - _ch_h_dim / 2
