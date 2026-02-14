@@ -30,6 +30,7 @@ from floorplan.constants import (
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     EAST_CTR_LENGTH, EAST_CTR_DEPTH, EAST_CTR_RADIUS,
     IW1_RO_OFFSET_E, IW1_RO_WIDTH,
+    IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH, IW4_RO_WIDTH,
 )
 
@@ -307,21 +308,46 @@ def render_floorplan_svg(data):
         out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
                    f' fill="darkred" stroke="none"/>')
 
+    # Compute IW6 northing early (needed for RO4 position in IW2)
+    iw6_n = pts["W6"][1] - IW6_OFFSET_N
+    iw6_s = iw6_n - IW6_THICKNESS
+
     # Interior wall IW2: 6" thick, N-S, west face 6'6" east of inner W1-W2 wall
     # iw2_w and iw2_e computed above
     iw2_s = iw1_n
     iw2_n = pts["W6"][1]
     iw2_pts = [(iw2_w, iw2_s), (iw2_e, iw2_s), (iw2_e, iw2_n), (iw2_w, iw2_n)]
-    wall_poly(out, iw2_pts, to_svg, stroke=False)
-    for e_val in [iw2_w + _half_sw, iw2_e - _half_sw]:
-        sx1, sy1 = to_svg(e_val, iw2_s)
-        sx2, sy2 = to_svg(e_val, iw2_n)
+
+    # RO4 rough opening in IW2 — 6" south of IW6 south face, 38" long
+    _ro4_n = iw6_s - IW2_RO_OFFSET_S
+    _ro4_s = _ro4_n - IW2_RO_WIDTH
+    _ro4_jamb = 1.0 / 12.0  # 1" jamb depth
+    # Split IW2 into south and north segments around opening
+    _iw2_s_poly = [(iw2_w, iw2_s), (iw2_e, iw2_s),
+                   (iw2_e, _ro4_s), (iw2_w, _ro4_s)]
+    _iw2_n_poly = [(iw2_w, _ro4_n), (iw2_e, _ro4_n),
+                   (iw2_e, iw2_n), (iw2_w, iw2_n)]
+    wall_poly(out, _iw2_s_poly, to_svg, stroke=False)
+    wall_poly(out, _iw2_n_poly, to_svg, stroke=False)
+    # West and east edge lines, split around opening (inset by half stroke width)
+    _iw2_w_in = iw2_w + _half_sw
+    _iw2_e_in = iw2_e - _half_sw
+    for a, b in [((_iw2_w_in, iw2_s), (_iw2_w_in, _ro4_s)),
+                 ((_iw2_w_in, _ro4_n), (_iw2_w_in, iw2_n)),
+                 ((_iw2_e_in, iw2_s), (_iw2_e_in, _ro4_s)),
+                 ((_iw2_e_in, _ro4_n), (_iw2_e_in, iw2_n))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
+    # RO4 jambs (1" dark-red rectangles at opening edges)
+    for jamb_n in [_ro4_s, _ro4_n - _ro4_jamb]:
+        _jx1, _jy1 = to_svg(iw2_w, jamb_n + _ro4_jamb)
+        _jx2, _jy2 = to_svg(iw2_e, jamb_n)
+        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
+                   f' fill="darkred" stroke="none"/>')
 
     # IW6: 1" thick, W-E, from inside of F4-F5 to IW2 west face
-    iw6_n = pts["W6"][1] - IW6_OFFSET_N
-    iw6_s = iw6_n - IW6_THICKNESS
+    # iw6_n and iw6_s computed above
     _iw6_n_ints = horiz_isects(inner_poly, iw6_n)
     _iw6_s_ints = horiz_isects(inner_poly, iw6_s)
     iw6_w_n = min(_iw6_n_ints)
