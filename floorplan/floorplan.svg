@@ -218,50 +218,6 @@
 <polygon points="401.9,513.7 426.2,513.7 426.2,505.9 401.9,505.9" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
 <polygon points="297.0,502.0 321.3,502.0 321.3,494.3 297.0,494.3" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
 <polygon points="204.7,502.0 229.0,502.0 229.0,494.3 204.7,494.3" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
-<circle cx="161.5" cy="502.0" r="1.25" fill="#333"/>
-<text x="161.5" y="512.0" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F0</text>
-<circle cx="151.8" cy="492.3" r="1.25" fill="#333"/>
-<text x="143.8" y="492.3" text-anchor="end" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F1</text>
-<circle cx="151.8" cy="298.0" r="1.25" fill="#333"/>
-<text x="143.8" y="298.0" text-anchor="end" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F2</text>
-<circle cx="158.5" cy="279.9" r="1.25" fill="#333"/>
-<text x="148.5" y="279.9" text-anchor="end" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F3</text>
-<circle cx="163.4" cy="266.9" r="1.25" fill="#333"/>
-<text x="155.4" y="266.9" text-anchor="end" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F4</text>
-<circle cx="163.4" cy="228.1" r="1.25" fill="#333"/>
-<text x="155.4" y="228.1" text-anchor="end" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F5</text>
-<circle cx="190.6" cy="200.9" r="1.25" fill="#333"/>
-<text x="190.6" y="194.9" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F6</text>
-<circle cx="252.8" cy="200.9" r="1.25" fill="#333"/>
-<text x="252.8" y="194.9" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F7</text>
-<circle cx="280.0" cy="228.1" r="1.25" fill="#333"/>
-<text x="272.0" y="228.1" text-anchor="end" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F8</text>
-<circle cx="281.9" cy="230.0" r="1.25" fill="#333"/>
-<text x="281.9" y="247.0" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F9</text>
-<circle cx="483.4" cy="230.0" r="1.25" fill="#333"/>
-<text x="483.4" y="247.0" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F10</text>
-<circle cx="485.3" cy="228.1" r="1.25" fill="#333"/>
-<text x="493.3" y="228.1" text-anchor="start" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F11</text>
-<circle cx="538.8" cy="221.0" r="1.25" fill="#333"/>
-<text x="546.8" y="221.0" text-anchor="start" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F12</text>
-<circle cx="569.0" cy="333.6" r="1.25" fill="#333"/>
-<text x="577.0" y="333.6" text-anchor="start" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F13</text>
-<circle cx="571.4" cy="352.4" r="1.25" fill="#333"/>
-<text x="581.4" y="352.4" text-anchor="start" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F14</text>
-<circle cx="571.4" cy="449.6" r="1.25" fill="#333"/>
-<text x="579.4" y="449.6" text-anchor="start" dominant-baseline="central" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F15</text>
-<circle cx="557.0" cy="474.5" r="1.25" fill="#333"/>
-<text x="565.0" y="478.5" text-anchor="start" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F16</text>
-<circle cx="506.5" cy="503.7" r="1.25" fill="#333"/>
-<text x="506.5" y="516.7" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F17</text>
-<circle cx="469.2" cy="513.7" r="1.25" fill="#333"/>
-<text x="469.2" y="525.7" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F18</text>
-<circle cx="396.6" cy="513.7" r="1.25" fill="#333"/>
-<text x="396.6" y="525.7" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F19</text>
-<circle cx="378.5" cy="506.9" r="1.25" fill="#333"/>
-<text x="378.5" y="519.9" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F20</text>
-<circle cx="365.5" cy="502.0" r="1.25" fill="#333"/>
-<text x="365.5" y="512.0" text-anchor="middle" font-family="Arial" font-size="9" font-weight="bold" fill="#333">F21</text>
 <line x1="646.4" y1="296.0" x2="646.4" y2="260.0" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
 <text x="646.4" y="254.0" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">N</text>
 <rect x="581.4" y="147.0" width="130" height="92" fill="white" stroke="#333" stroke-width="1"/>
@@ -270,6 +226,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 00:19:05</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-45-g0409eca</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 00:20:44</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-46-g9b58983</text>
 </svg>

@@ -33,6 +33,7 @@ from floorplan.constants import (
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH, IW4_RO_WIDTH,
     IW6_RO_OFFSET_W, IW6_RO_WIDTH,
+    O7_NW_GAP, O7_HALF_WIDTH,
 )
 
 # ============================================================
@@ -798,13 +799,12 @@ def render_floorplan_svg(data):
         (_o6_e, pts["F10"][1]), (_o6_w, pts["F10"][1]),
     ]
 
-    # O7: F12-F13, diagonal
+    # O7: F12-F13, diagonal — NW end 2' from F12, 6' opening
     _o7_dE = pts["F13"][0] - pts["F12"][0]
     _o7_dN = pts["F13"][1] - pts["F12"][1]
     _o7_len = math.sqrt(_o7_dE**2 + _o7_dN**2)
-    _o7_half = 36.0 / 12.0
-    _o7_ts = 0.5 - _o7_half / _o7_len
-    _o7_te = 0.5 + _o7_half / _o7_len
+    _o7_ts = O7_NW_GAP / _o7_len
+    _o7_te = _o7_ts + 2 * O7_HALF_WIDTH / _o7_len
     _o7_poly = [
         (pts["F12"][0] + _o7_ts * _o7_dE, pts["F12"][1] + _o7_ts * _o7_dN),
         (pts["F12"][0] + _o7_te * _o7_dE, pts["F12"][1] + _o7_te * _o7_dN),

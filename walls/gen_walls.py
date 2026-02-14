@@ -27,6 +27,7 @@ from floorplan.constants import (
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH, IW4_RO_WIDTH, CLOSET1_HEIGHT, WALL_SOUTH_N,
     IW6_RO_OFFSET_W, IW6_RO_WIDTH,
+    O7_NW_GAP, O7_HALF_WIDTH,
 )
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 
@@ -157,14 +158,13 @@ def _compute_openings(pts, outline_segs, layout):
     t2 = _seg_param(pts, outline_segs[idx], (o6_e, pts["F9"][1]))
     openings.append(WallOpening("O6", idx, min(t1, t2), max(t1, t2)))
 
-    # --- O7: F12-F13, diagonal ---
+    # --- O7: F12-F13, diagonal — NW end 2' from F12, 6' opening ---
     idx = seg_map[("F12", "F13")]
     dE = pts["F13"][0] - pts["F12"][0]
     dN = pts["F13"][1] - pts["F12"][1]
     seg_len = math.sqrt(dE**2 + dN**2)
-    o7_half = 36.0 / 12.0
-    t1 = 0.5 - o7_half / seg_len
-    t2 = 0.5 + o7_half / seg_len
+    t1 = O7_NW_GAP / seg_len
+    t2 = t1 + 2 * O7_HALF_WIDTH / seg_len
     openings.append(WallOpening("O7", idx, t1, t2))
 
     # --- O8: F14-F15, vertical ---

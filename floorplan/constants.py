@@ -86,6 +86,11 @@ IW6_OFFSET_N = 5.5                 # 5'6" south of F6-F7 south face
 IW6_RO_OFFSET_W = 3.0 / 12.0      # 3" west of IW2 west face
 IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
+# O7 opening (F12-F13 diagonal wall)
+O7_NW_GAP = 2.0                    # 2' from F12 to NW end
+O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
+O7_SE_GAP = 6.0 / 12.0             # 6" from SE end to F13
+
 # IW5 partition
 IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face
 
@@ -102,7 +107,7 @@ F1_F2_TARGET = 16.0 + 8.0/12.0    # 16'8" F1-F2 segment target
 F4_F5_DROP = 5.0 + 8.0/12.0       # 5'8" F4 south of C5
 F16_F17_SEG = 5.0                  # 5' segment
 F14_F15_SEG = 8.0 + 4.0/12.0      # 8'4" segment
-F12_F13_SEG = 10.0                 # 10' segment
+F12_F13_SEG = 8.0 + 6.0/12.0      # 8'6" segment (O7: 2' + 6' + 6")
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
