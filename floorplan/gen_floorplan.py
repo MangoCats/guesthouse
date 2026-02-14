@@ -387,7 +387,7 @@ def render_floorplan_svg(data):
     _kitchen_cx = (pts["W9"][0] + pts["W10"][0]) / 2
     _ks_w = _kitchen_cx - _kitchen_total / 2  # kitchen sink west edge
     _ks_e = _ks_w + KITCHEN_SINK_WIDTH
-    _dw_w = _ks_e + KITCHEN_GAP
+    _dw_w = iw2_e + NORTH_CTR_LENGTH + 2.0 / 12.0  # 2" east of north counter
     _dw_e = _dw_w + DW_WIDTH
     _st_w = _dw_e + KITCHEN_GAP
     _st_e = _st_w + STOVE_WIDTH
