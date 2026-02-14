@@ -57,6 +57,8 @@ FRIDGE_SIZE = 36.0 / 12.0          # 36" fridge (square)
 KITCHEN_GAP = 0.75 / 12.0          # 3/4" gap between kitchen appliances
 KITCHEN_CTR_LENGTH = 72.0 / 12.0   # 72" kitchen counter E-W along IW1 north
 KITCHEN_CTR_DEPTH = 24.0 / 12.0    # 24" kitchen counter depth N-S
+NORTH_CTR_LENGTH = 38.0 / 12.0     # 38" north wall counter E-W
+NORTH_CTR_DEPTH = 24.0 / 12.0      # 24" north wall counter depth N-S
 
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition

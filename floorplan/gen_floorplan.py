@@ -27,6 +27,7 @@ from floorplan.constants import (
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
     FRIDGE_SIZE, KITCHEN_GAP,
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
+    NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
 )
 
 # ============================================================
@@ -435,6 +436,21 @@ def render_floorplan_svg(data):
     _kc_cy = (_kc_sy1 + _kc_sy2) / 2
     out.append(f'<text x="{_kc_cx:.1f}" y="{_kc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="#4682B4">COUNTER</text>')
+
+    # North wall counter: 24" deep x 38" long, south side against W9-W10, starting at IW2 east face
+    _nc_w = iw2_e
+    _nc_e = _nc_w + NORTH_CTR_LENGTH
+    _nc_n = pts["W9"][1]
+    _nc_s = _nc_n - NORTH_CTR_DEPTH
+    _nc_sx1, _nc_sy1 = to_svg(_nc_w, _nc_n)
+    _nc_sx2, _nc_sy2 = to_svg(_nc_e, _nc_s)
+    _nc_sw = _nc_sx2 - _nc_sx1; _nc_sh = _nc_sy2 - _nc_sy1
+    out.append(f'<rect x="{_nc_sx1:.1f}" y="{_nc_sy1:.1f}" width="{_nc_sw:.1f}" height="{_nc_sh:.1f}"'
+               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
+    _nc_cx = (_nc_sx1 + _nc_sx2) / 2
+    _nc_cy = (_nc_sy1 + _nc_sy2) / 2
+    out.append(f'<text x="{_nc_cx:.1f}" y="{_nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="#4682B4" transform="rotate(-90,{_nc_cx:.1f},{_nc_cy:.1f})">COUNTER</text>')
 
     # --- Bedroom and closet walls ---
     # IW7 L-shape (west/north walls of closet, east of counter)
