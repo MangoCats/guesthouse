@@ -265,17 +265,36 @@ def render_floorplan_svg(data):
     stroke_segs(out, outline_segs, "#333", "1.5", pts, to_svg)
     stroke_segs(out, inner_segs, "#666", "1.0", pts, to_svg)
 
-    # Interior wall IW1
+    # Compute IW2 easting early (needed for RO1 position in IW1)
+    iw2_w = pts["W1"][0] + IW2_OFFSET_E
+    iw2_e = iw2_w + WALL_6IN
+
+    # RO1 rough opening bounds in IW1
+    _ro1_w = iw2_e + KITCHEN_CTR_LENGTH + 2.0 / 12.0 + FRIDGE_SIZE + IW1_RO_OFFSET_E
+    _ro1_e = _ro1_w + IW1_RO_WIDTH
+    _ro1_jamb = 1.0 / 12.0  # 1" jamb width
+
+    # Interior wall IW1 — full polygon for area calc, split rendering around RO1
     iw_pts = [iw_sw, iw_se, iw_ne, iw_nw]
-    wall_poly(out, iw_pts, to_svg, stroke=False)
-    for a, b in [(iw_sw, iw_se), (iw_ne, iw_nw)]:
+    _iw1_w_poly = [iw_sw, (_ro1_w, iw1_s), (_ro1_w, iw1_n), iw_nw]
+    _iw1_e_poly = [(_ro1_e, iw1_s), iw_se, iw_ne, (_ro1_e, iw1_n)]
+    wall_poly(out, _iw1_w_poly, to_svg, stroke=False)
+    wall_poly(out, _iw1_e_poly, to_svg, stroke=False)
+    # South and north edge lines, split around opening
+    for a, b in [(iw_sw, (_ro1_w, iw1_s)), ((_ro1_e, iw1_s), iw_se),
+                 (iw_nw, (_ro1_w, iw1_n)), ((_ro1_e, iw1_n), iw_ne)]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
+    # RO1 jambs (1" dark-red rectangles at opening edges)
+    for jamb_e in [_ro1_w, _ro1_e - _ro1_jamb]:
+        _jx1, _jy1 = to_svg(jamb_e, iw1_n)
+        _jx2, _jy2 = to_svg(jamb_e + _ro1_jamb, iw1_s)
+        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
+                   f' fill="darkred" stroke="none"/>')
 
     # Interior wall IW2: 6" thick, N-S, west face 6'6" east of inner W1-W2 wall
-    iw2_w = pts["W1"][0] + IW2_OFFSET_E
-    iw2_e = iw2_w + WALL_6IN
+    # iw2_w and iw2_e computed above
     iw2_s = iw1_n
     iw2_n = pts["W6"][1]
     iw2_pts = [(iw2_w, iw2_s), (iw2_e, iw2_s), (iw2_e, iw2_n), (iw2_w, iw2_n)]
@@ -419,26 +438,6 @@ def render_floorplan_svg(data):
     _fr_cy = (sy1 + sy2) / 2
     out.append(f'<text x="{_fr_cx:.1f}" y="{_fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="#4682B4">FRIDGE</text>')
-
-    # IW1 rough opening: 1" dark-red jambs with white gap between
-    _ro1_w = _fr_e + IW1_RO_OFFSET_E
-    _ro1_e = _ro1_w + IW1_RO_WIDTH
-    _ro1_jamb = 1.0 / 12.0  # 1" jamb width
-    # White mask over wall
-    _rw1, _rn1 = to_svg(_ro1_w, iw1_n)
-    _rw2, _rn2 = to_svg(_ro1_e, iw1_s)
-    out.append(f'<rect x="{_rw1:.1f}" y="{_rn1:.1f}" width="{_rw2 - _rw1:.1f}" height="{_rn2 - _rn1:.1f}"'
-               f' fill="white" stroke="none"/>')
-    # West jamb
-    _jw1, _jn1 = to_svg(_ro1_w, iw1_n)
-    _jw2, _jn2 = to_svg(_ro1_w + _ro1_jamb, iw1_s)
-    out.append(f'<rect x="{_jw1:.1f}" y="{_jn1:.1f}" width="{_jw2 - _jw1:.1f}" height="{_jn2 - _jn1:.1f}"'
-               f' fill="darkred" stroke="none"/>')
-    # East jamb
-    _jw3, _jn3 = to_svg(_ro1_e - _ro1_jamb, iw1_n)
-    _jw4, _jn4 = to_svg(_ro1_e, iw1_s)
-    out.append(f'<rect x="{_jw3:.1f}" y="{_jn3:.1f}" width="{_jw4 - _jw3:.1f}" height="{_jn4 - _jn3:.1f}"'
-               f' fill="darkred" stroke="none"/>')
 
     # Kitchen counter: 24" deep x 72" long, along IW1 north face starting at IW2 east face
     _kc_w = iw2_e
