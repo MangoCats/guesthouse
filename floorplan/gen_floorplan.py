@@ -497,16 +497,10 @@ def render_floorplan_svg(data):
         if href:
             out.append('</a>')
 
-    # WW1: 30" radius circle centered on SE corner of stove
+    # WW1: 30" radius constraint circle centered on SE corner of stove
     _ww1_cx = _st_e
     _ww1_cy = _back_n - 3.0 / 12.0 - STOVE_DEPTH
     _ww1_r = 30.0 / 12.0
-    _ww1_sx, _ww1_sy = to_svg(_ww1_cx, _ww1_cy)
-    _ww1_r_svg = abs(to_svg(_ww1_r, 0)[0] - to_svg(0, 0)[0])
-    out.append(f'<circle cx="{_ww1_sx:.1f}" cy="{_ww1_sy:.1f}" r="{_ww1_r_svg:.1f}"'
-               f' fill="none" stroke="#4682B4" stroke-width="0.5" stroke-dasharray="2,2"/>')
-    out.append(f'<text x="{_ww1_sx:.1f}" y="{_ww1_sy - _ww1_r_svg - 2:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="6" fill="#4682B4">WW1</text>')
 
     # SHELVES: 36" E-W x 15" N-S, against F9-F10 south face, 3" east of stove
     _sh_w = _st_e + 3.0 / 12.0
@@ -525,16 +519,10 @@ def render_floorplan_svg(data):
                f' font-size="6" fill="#4682B4">SHELVES</text>')
     out.append('</a>')
 
-    # WW3: 30" radius circle centered on SE corner of SHELVES
+    # WW3: 30" radius constraint circle centered on SE corner of SHELVES
     _ww3_cx = _sh_e
     _ww3_cy = _sh_s
     _ww3_r = 30.0 / 12.0
-    _ww3_sx, _ww3_sy = to_svg(_ww3_cx, _ww3_cy)
-    _ww3_r_svg = abs(to_svg(_ww3_r, 0)[0] - to_svg(0, 0)[0])
-    out.append(f'<circle cx="{_ww3_sx:.1f}" cy="{_ww3_sy:.1f}" r="{_ww3_r_svg:.1f}"'
-               f' fill="none" stroke="#4682B4" stroke-width="0.5" stroke-dasharray="2,2"/>')
-    out.append(f'<text x="{_ww3_sx:.1f}" y="{_ww3_sy - _ww3_r_svg - 2:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="6" fill="#4682B4">WW3</text>')
 
     # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
     _fr_w = iw2_e + KITCHEN_CTR_LENGTH + 2.0 / 12.0
@@ -724,7 +712,6 @@ def render_floorplan_svg(data):
     _lv_width = 35.0 / 12.0
     _lv_height = 65.0 / 12.0
     _lv_angle = math.radians(15)
-    _ww2_r = 30.0 / 12.0
     # NW on WW1: NW = (ww1_cx + R*cos θ, ww1_cy + R*sin θ)
     # North face outward normal (-sin15, cos15); tangency to WW3 gives:
     #   ww1_r * sin(θ - 15°) = K
@@ -761,18 +748,6 @@ def render_floorplan_svg(data):
                f' font-size="6" fill="#4682B4">LOVESEAT</text>')
     out.append('</g>')
     out.append('</a>')
-
-    # WW2: 30" radius circle centered on loveseat's rotated NE corner
-    _lv_ne_rel_e = _lv_width * math.cos(_lv_angle) - _lv_height * math.sin(_lv_angle)
-    _lv_ne_rel_n = _lv_width * math.sin(_lv_angle) + _lv_height * math.cos(_lv_angle)
-    _ww2_cx = _lv_w + _lv_ne_rel_e
-    _ww2_cy = _lv_s + _lv_ne_rel_n
-    _ww2_sx, _ww2_sy = to_svg(_ww2_cx, _ww2_cy)
-    _ww2_r_svg = abs(to_svg(_ww2_r, 0)[0] - to_svg(0, 0)[0])
-    out.append(f'<circle cx="{_ww2_sx:.1f}" cy="{_ww2_sy:.1f}" r="{_ww2_r_svg:.1f}"'
-               f' fill="none" stroke="#4682B4" stroke-width="0.5" stroke-dasharray="2,2"/>')
-    out.append(f'<text x="{_ww2_sx:.1f}" y="{_ww2_sy - _ww2_r_svg - 2:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="6" fill="#4682B4">WW2</text>')
 
     # ET: 50cm diameter endtable, center on extended east side of loveseat, 2" from SE corner
     _et_sx, _et_sy = to_svg(_et_cx, _et_cy)
