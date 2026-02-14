@@ -476,7 +476,7 @@ def render_floorplan_svg(data):
     _st_e = _st_w + STOVE_WIDTH
     _appliances = [
         ("SINK",  _ks_w, _back_n - KITCHEN_SINK_DEPTH, _ks_e, _back_n,
-         "https://www.webstaurantstore.com/eagle-group-fn2020-1-24-14-3-one-20-x-20-bowl-stainless-steel-spec-master-commercial-compartment-sink-with-24-drainboard/575FN202024LFT.html"),
+         "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html"),
         ("D/W",   _dw_w, _back_n - DW_DEPTH,           _dw_e, _back_n, None),
         ("STOVE", _st_w, _back_n - 3.0 / 12.0 - STOVE_DEPTH, _st_e, _back_n - 3.0 / 12.0, None),
     ]
