@@ -138,6 +138,9 @@
 <text x="459.6" y="469.5" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="6" fill="#666" transform="rotate(-90 459.6 469.5)">IW8</text>
 <polygon points="433.48,392.25 563.65,392.25 563.65,389.34 433.48,389.34" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="0.5"/>
 <text x="498.6" y="386.3" text-anchor="middle" dominant-baseline="central" font-family="Arial" font-size="6" fill="#666">IW5</text>
+<rect x="356.7" y="354.4" width="36.9" height="5.8" fill="none" stroke="darkred" stroke-width="0.5"/>
+<line x1="356.7" y1="354.4" x2="393.6" y2="360.2" stroke="darkred" stroke-width="0.5"/>
+<line x1="393.6" y1="354.4" x2="356.7" y2="360.2" stroke="darkred" stroke-width="0.5"/>
 <line x1="151.75" y1="326.19" x2="141.51" y2="326.19" stroke="#4682B4" stroke-width="0.4"/>
 <line x1="151.75" y1="301.91" x2="141.51" y2="301.91" stroke="#4682B4" stroke-width="0.4"/>
 <line x1="140.01" y1="326.19" x2="146.01" y2="326.19" stroke="#4682B4" stroke-width="0.4"/>
@@ -219,8 +222,8 @@
 <text x="646.4" y="161.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.35 sq ft</text>
 <text x="646.4" y="173.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 23:46:40</text>
-<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-38-g88ef3a3</text>
+<text x="646.4" y="201.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-13 23:50:35</text>
+<text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-39-g50f0ae7</text>
 <text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7" fill="#999">2&#8243; shell / 4&#8243; gap / 2&#8243; shell</text>
 <text x="645.4" y="239.0" text-anchor="middle" font-family="Arial" font-size="7" font-weight="bold" fill="#333">Wall Segments</text>
 <text x="583.4" y="249.0" text-anchor="start" font-family="Arial" font-size="6" font-weight="bold" fill="#333">From&#8211;To</text>

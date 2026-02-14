@@ -29,7 +29,7 @@ from floorplan.constants import (
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     EAST_CTR_LENGTH, EAST_CTR_DEPTH, EAST_CTR_RADIUS,
-    IW1_RO_OFFSET_E, IW1_RO_WIDTH,
+    IW1_RO_OFFSET_E, IW1_RO_WIDTH, IW4_RO_WIDTH,
 )
 
 # ============================================================
@@ -534,7 +534,6 @@ def render_floorplan_svg(data):
     iw4_w = iw3_e + BEDROOM_WIDTH
     iw4_e = iw4_w + WALL_4IN
     iw4_poly = [(iw4_w, WALL_SOUTH_N), (iw4_e, WALL_SOUTH_N), (iw4_e, iw1_s), (iw4_w, iw1_s)]
-    wall_poly(out, iw4_poly, to_svg)
 
     # IW8 (L-shaped, 3" thick — east/north walls of closet 1)
     closet1_top = WALL_SOUTH_N + CLOSET1_HEIGHT
@@ -562,6 +561,36 @@ def render_floorplan_svg(data):
         sx2, sy2 = to_svg(iiw8_e, n_val)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="#666" stroke-width="1.0"/>')
+
+    # RO2 rough opening in IW4 — centered between IW5 south face and IW8 north face
+    _iw8_n_face = closet1_top + WALL_3IN
+    _ro2_center = (iw5_s + _iw8_n_face) / 2
+    _ro2_s = _ro2_center - IW4_RO_WIDTH / 2
+    _ro2_n = _ro2_center + IW4_RO_WIDTH / 2
+    _ro2_jamb = 1.0 / 12.0  # 1" jamb depth
+    # Split IW4 into south and north segments around opening
+    _iw4_s_poly = [(iw4_w, WALL_SOUTH_N), (iw4_e, WALL_SOUTH_N),
+                   (iw4_e, _ro2_s), (iw4_w, _ro2_s)]
+    _iw4_n_poly = [(iw4_w, _ro2_n), (iw4_e, _ro2_n),
+                   (iw4_e, iw1_s), (iw4_w, iw1_s)]
+    wall_poly(out, _iw4_s_poly, to_svg, stroke=False)
+    wall_poly(out, _iw4_n_poly, to_svg, stroke=False)
+    # West and east edge lines, split around opening (inset by half stroke width)
+    _w_in = iw4_w + _half_sw  # west face, shifted east (inward)
+    _e_in = iw4_e - _half_sw  # east face, shifted west (inward)
+    for a, b in [((_w_in, WALL_SOUTH_N), (_w_in, _ro2_s)),
+                 ((_w_in, _ro2_n), (_w_in, iw1_s)),
+                 ((_e_in, WALL_SOUTH_N), (_e_in, _ro2_s)),
+                 ((_e_in, _ro2_n), (_e_in, iw1_s))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="#666" stroke-width="1.0"/>')
+    # RO2 jambs (1" dark-red rectangles at opening edges)
+    for jamb_n in [_ro2_s, _ro2_n - _ro2_jamb]:
+        _jx1, _jy1 = to_svg(iw4_w, jamb_n + _ro2_jamb)
+        _jx2, _jy2 = to_svg(iw4_e, jamb_n)
+        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
+                   f' fill="darkred" stroke="none"/>')
 
     # Subtract interior wall areas from interior area
     _iw_polys = [iw_pts, iw2_pts, iw6_poly, iw7_poly, iw3_poly, iw4_poly, iw8_poly, iw5_poly]
