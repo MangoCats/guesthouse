@@ -8,12 +8,13 @@ from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
-    F16_F17_SEG, F14_F15_SEG, F9_F10_DIST, F13_EXIT_BRG,
+    F16_F17_SEG, F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
     IW1_OFFSET_N, WALL_SOUTH_N,
+    O6_E_FROM_F9, F10_O6_CLEARANCE,
 )
 
 
@@ -103,7 +104,7 @@ def _compute_central_region(
     Depends on F0, F1, F9, F16 already in fp_pts.
     """
     R_a11 = ARC_180_R
-    R_a10 = SMALL_ARC_R
+    R_a13 = ARC_F13_R
 
     # F14 Northing from IW1 constraint
     _iw1_n_face = fp_pts["F0"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN
@@ -133,27 +134,33 @@ def _compute_central_region(
     fp_pts["F16"] = (fp_pts["C15"][0] + R_a15 * math.cos(_brg_f4),
                      fp_pts["C15"][1] - R_a15 * math.sin(_brg_f4))
 
-    # F13-F14 arc: bearing F13->F12 = 345°, R_a13 derived from F9-F10 distance
+    # F13-F14 arc: R_a13 is a fixed constant, bearing F13->F12 = 345°
     _brg_off = math.radians(360.0 - F13_EXIT_BRG)
     _nx_t = math.cos(_brg_off)
     _ny_t = math.sin(_brg_off)
-    _inv_nx = 1.0 / _nx_t
-    _dN = (fp_pts["F9"][1] + SMALL_ARC_R) - _F14_N
-    _target_F10_E = fp_pts["F9"][0] + F9_F10_DIST
-    R_a13 = (_target_F10_E - F15_E + R_a11 * (_inv_nx + 1)
-             + _dN * _ny_t * _inv_nx + R_a10) / (_inv_nx - 1)
     fp_pts["C13"] = (F15_E - R_a13, _F14_N)
     fp_pts["F14"] = (F15_E, _F14_N)
-    # C11 easting from tangent constraint
-    _C11_N = fp_pts["F9"][1] + R_a10
+    # C11 from tangent constraint with C13 (position unchanged)
+    _C11_N = fp_pts["F9"][1] + SMALL_ARC_R
     _C13_E, _C13_N = fp_pts["C13"]
     _C11_E = _C13_E + (R_a13 - R_a11 - (_C11_N - _C13_N) * _ny_t) / _nx_t
-    _corner_E = _C11_E - R_a11
-    fp_pts["F10"] = (_corner_E - R_a10, fp_pts["F9"][1])
-    fp_pts["C10"] = (_corner_E - R_a10, fp_pts["F9"][1] + R_a10)
-    fp_pts["F11"] = (_corner_E, fp_pts["F9"][1] + R_a10)
     fp_pts["C11"] = (_C11_E, _C11_N)
-    # F13, F12: tangent points
+    # F10: 4" east of O6 east edge (O6 east = F9 + O6_E_FROM_F9)
+    _F10_E = fp_pts["F9"][0] + O6_E_FROM_F9 + F10_O6_CLEARANCE
+    _F10_N = fp_pts["F9"][1]
+    fp_pts["F10"] = (_F10_E, _F10_N)
+    # R_a10: tangent to F11-F12 arc. C10 = (F10_E, F10_N + R_a10).
+    # |C10 - C11| = R_a10 + R_a11  =>  solve for R_a10
+    _dE = _C11_E - _F10_E
+    _dN_base = _C11_N - _F10_N
+    R_a10 = (_dE**2 + _dN_base**2 - R_a11**2) / (2 * (_dN_base + R_a11))
+    fp_pts["C10"] = (_F10_E, _F10_N + R_a10)
+    # F11: tangent point on line C10 -> C11
+    _dist_cc = R_a10 + R_a11
+    _C10_N = _F10_N + R_a10
+    fp_pts["F11"] = (_F10_E + R_a10 * (_C11_E - _F10_E) / _dist_cc,
+                     _C10_N + R_a10 * (_C11_N - _C10_N) / _dist_cc)
+    # F13, F12: tangent points (unchanged — C11, C13, R_a11, R_a13 unchanged)
     fp_pts["F13"] = (fp_pts["C13"][0] + R_a13 * _nx_t, fp_pts["C13"][1] + R_a13 * _ny_t)
     fp_pts["F12"] = (fp_pts["C11"][0] + R_a11 * _nx_t, fp_pts["C11"][1] + R_a11 * _ny_t)
 

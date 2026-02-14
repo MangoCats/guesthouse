@@ -101,8 +101,9 @@ O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
 O5_E_GAP = 126.0 / 12.0            # 126" from F10 to O5 east edge
 O5_WIDTH = 6.0                     # 6' opening width
 # O6 (F9-F10)
-O6_E_GAP = 10.0 / 12.0             # 10" from F10 to O6 east edge
+O6_E_FROM_F9 = 198.0 / 12.0        # 16'6" from F9 to O6 east edge
 O6_WIDTH = 44.0 / 12.0             # 44" opening width
+F10_O6_CLEARANCE = 4.0 / 12.0      # 4" from O6 east edge to F10
 # O7 (F12-F13 diagonal wall)
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
@@ -120,7 +121,7 @@ IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face
 CORNER_NE_R = 10.0 / 12.0         # R_a0: 10" corner arc
 CORNER_NW_R = 28.0 / 12.0         # R_a5: 28" NW corner
 UPPER_E_R = 28.0 / 12.0           # R_a7: 28" upper east
-SMALL_ARC_R = 2.0 / 12.0          # R_a8, R_a10: 2" transitions
+SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
 ARC_180_R = 28.0 / 12.0           # R_a11: 28" 180-degree arc
 R_a2_a3_DELTA = 8.0 / 12.0        # R_a2 - R_a3 = 8"
 F6_HEIGHT = 26.0 - 2.0/12.0       # 25'10" F6-F7 line north of F0
@@ -129,7 +130,7 @@ F1_F2_TARGET = 16.0 + 8.0/12.0    # 16'8" F1-F2 segment target
 F4_F5_DROP = 5.0 + 8.0/12.0       # 5'8" F4 south of C5
 F16_F17_SEG = 5.0                  # 5' segment
 F14_F15_SEG = 8.0 + 4.0/12.0      # 8'4" segment
-F9_F10_DIST = 17.0 + 4.0/12.0      # 17'4" F9-F10 segment length
+ARC_F13_R = 7.760736481093573      # R_a13: ~93.13" (fixed, formerly derived from F9-F10 dist)
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
