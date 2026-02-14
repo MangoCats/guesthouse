@@ -23,6 +23,7 @@ from floorplan.layout import compute_interior_layout
 from floorplan.constants import (
     WALL_OUTER, WALL_3IN, IW1_OFFSET_N, WALL_6IN, IW2_OFFSET_E,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
+    KITCHEN_CTR_LENGTH, FRIDGE_SIZE, IW1_RO_OFFSET_E, IW1_RO_WIDTH,
 )
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 
@@ -773,6 +774,22 @@ def _render_interior_walls(out, data):
     iw5_e = pts["W15"][0]
     iw_rect(iw5_w, iw5_e, iw5_s, iw5_n)
     iw_label("IW5", iw5_w, iw5_e, iw5_s, iw5_n, vertical=False)
+
+    # RO1 rough opening in IW1 — dark red outline box with X
+    ro1_w = layout.iw2_e + KITCHEN_CTR_LENGTH + 2.0 / 12.0 + FRIDGE_SIZE + IW1_RO_OFFSET_E
+    ro1_e = ro1_w + IW1_RO_WIDTH
+    ro1_s = layout.iw1_s
+    ro1_n = layout.iw1_n
+    _RO_COLOR = "darkred"
+    _RO_SW = "0.5"
+    x1, y1 = to_svg(ro1_w, ro1_n)  # NW corner (SVG top-left)
+    x2, y2 = to_svg(ro1_e, ro1_s)  # SE corner (SVG bottom-right)
+    out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
+               f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+    out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
+               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+    out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
+               f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
 
 
 def _render_opening_dims(out, data):
