@@ -807,7 +807,7 @@ def render_floorplan_svg(data):
     _ch_angle = math.radians(30)
     _ch_cx = ((pts["W11"][0] + pts["W12"][0]) / 2
               - 4.0 / 12.0 * math.sin(_ch_angle)
-              - 2.0 / 12.0)
+              - 1.0 / 12.0)
     _ch_cy = ((pts["W11"][1] + pts["W12"][1]) / 2 - 8.0 / 12.0
               - 4.0 / 12.0 * math.cos(_ch_angle))
     _ch_w = _ch_cx - _ch_w_dim / 2
