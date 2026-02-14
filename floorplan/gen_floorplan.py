@@ -404,10 +404,10 @@ def render_floorplan_svg(data):
         out.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="7" fill="#4682B4">{label}</text>')
 
-    # Fridge: against IW1 north face, centered under kitchen run
-    _fr_w = _kitchen_cx - FRIDGE_SIZE / 2
+    # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
+    _fr_w = iw2_e + KITCHEN_CTR_LENGTH + 2.0 / 12.0
     _fr_e = _fr_w + FRIDGE_SIZE
-    _fr_s = iw1_n
+    _fr_s = iw1_n + 2.0 / 12.0
     _fr_n = _fr_s + FRIDGE_SIZE
     sx1, sy1 = to_svg(_fr_w, _fr_n)
     sx2, sy2 = to_svg(_fr_e, _fr_s)
