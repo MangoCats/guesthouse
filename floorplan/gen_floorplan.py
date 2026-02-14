@@ -512,12 +512,14 @@ def render_floorplan_svg(data):
     _sh_sx1, _sh_sy1 = to_svg(_sh_w, _sh_n)
     _sh_sx2, _sh_sy2 = to_svg(_sh_e, _sh_s)
     _sh_sw = _sh_sx2 - _sh_sx1; _sh_sh = _sh_sy2 - _sh_sy1
+    out.append('<a href="https://www.ikea.com/us/en/p/hemnes-bookcase-white-stain-light-brown-60413502/" target="_blank">')
     out.append(f'<rect x="{_sh_sx1:.1f}" y="{_sh_sy1:.1f}" width="{_sh_sw:.1f}" height="{_sh_sh:.1f}"'
                f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
     _sh_cx = (_sh_sx1 + _sh_sx2) / 2
     _sh_cy = (_sh_sy1 + _sh_sy2) / 2
     out.append(f'<text x="{_sh_cx:.1f}" y="{_sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="#4682B4">SHELVES</text>')
+    out.append('</a>')
 
     # WW3: 30" radius circle centered on SE corner of SHELVES
     _ww3_cx = _sh_e
