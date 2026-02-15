@@ -252,6 +252,10 @@
 <polygon points="401.9,513.7 426.2,513.7 426.2,505.9 401.9,505.9" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
 <polygon points="297.0,502.0 321.3,502.0 321.3,494.3 297.0,494.3" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
 <polygon points="204.7,502.0 229.0,502.0 229.0,494.3 204.7,494.3" fill="rgb(220,235,255)" stroke="#4682B4" stroke-width="1.0"/>
+<rect x="165.7" y="262.1" width="3.1" height="1.0" fill="darkred" stroke="none"/>
+<rect x="165.7" y="232.0" width="3.1" height="1.0" fill="darkred" stroke="none"/>
+<line x1="167.3" y1="232.9" x2="196.4" y2="232.9" stroke="darkred" stroke-width="1.0"/>
+<polyline points="196.4,232.9 196.4,235.2 196.1,237.5 195.6,239.7 195.0,241.9 194.2,244.1 193.3,246.2 192.1,248.2 190.9,250.1 189.5,251.9 187.9,253.5 186.2,255.1 184.4,256.5 182.5,257.8 180.5,258.9 178.4,259.9 176.3,260.6 174.1,261.3 171.9,261.7 169.6,262.0 167.3,262.1" fill="none" stroke="darkred" stroke-width="0.5"/>
 <rect x="427.6" y="232.3" width="1.0" height="3.1" fill="darkred" stroke="none"/>
 <rect x="469.4" y="232.3" width="1.0" height="3.1" fill="darkred" stroke="none"/>
 <line x1="469.4" y1="233.9" x2="469.4" y2="274.7" stroke="darkred" stroke-width="1.0"/>
@@ -274,6 +278,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.30 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 23:09:50</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-119-g72ab655</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 23:11:32</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-120-g504a879</text>
 </svg>

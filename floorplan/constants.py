@@ -168,3 +168,5 @@ OTTOMAN_SIZE = 29.0 / 12.0        # 29" square ottoman
 ET_RADIUS_CM = 25.0               # 25 cm endtable radius
 SHELVES_WIDTH = 36.0 / 12.0       # 36" shelves E-W
 SHELVES_DEPTH = 15.0 / 12.0       # 15" shelves N-S
+SHELVES2_WIDTH = 60.0 / 12.0     # 60" shelves E-W (against IW1/IW3)
+SHELVES2_DEPTH = 18.0 / 12.0     # 18" shelves N-S (against IW1/IW3)

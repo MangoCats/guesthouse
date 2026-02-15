@@ -27,7 +27,7 @@ from floorplan.constants import (
     LOVESEAT_WIDTH, LOVESEAT_LENGTH, LOVESEAT_ANGLE_DEG,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
-    SHELVES_WIDTH, SHELVES_DEPTH,
+    SHELVES_WIDTH, SHELVES_DEPTH, SHELVES2_WIDTH, SHELVES2_DEPTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE,
@@ -776,6 +776,21 @@ def _render_furniture(out, data, layout, ww1, ww3):
                f' font-size="6" fill="{APPL_STROKE}">OTTO</text>')
     out.append('</a>')
     out.append('</g>')
+
+    # SHELVES (2nd set): 60" E-W x 18" N-S, against IW1 south face and IW3 west face
+    sh2_e = layout.iw3.w
+    sh2_w = sh2_e - SHELVES2_WIDTH
+    sh2_n = layout.iw1_s
+    sh2_s = sh2_n - SHELVES2_DEPTH
+    sh2_sx1, sh2_sy1 = to_svg(sh2_w, sh2_n)
+    sh2_sx2, sh2_sy2 = to_svg(sh2_e, sh2_s)
+    sh2_sw = sh2_sx2 - sh2_sx1; sh2_sh = sh2_sy2 - sh2_sy1
+    out.append(f'<rect x="{sh2_sx1:.1f}" y="{sh2_sy1:.1f}" width="{sh2_sw:.1f}" height="{sh2_sh:.1f}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    sh2_cx = (sh2_sx1 + sh2_sx2) / 2
+    sh2_cy = (sh2_sy1 + sh2_sy2) / 2
+    out.append(f'<text x="{sh2_cx:.1f}" y="{sh2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
 
     # Room labels
     bd_cx = layout.bed_cx
