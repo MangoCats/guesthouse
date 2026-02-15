@@ -272,11 +272,23 @@ def build_floorplan_data():
 # Render sub-functions
 # ============================================================
 
-def _render_walls(out, data, layout):
-    """Render outer wall fill, outline strokes, and all interior walls with rough openings.
+def compute_iw_area(layout):
+    """Compute total interior wall area from layout polygons."""
+    iw2 = layout.iw2
+    iw3 = layout.iw3
+    iw5 = layout.iw5
+    iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
+    iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
+    iw4_poly = [(layout.iw4_w, layout.wall_south_n), (layout.iw4_e, layout.wall_south_n),
+                (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
+    iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
+    iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
+                iw3_poly, iw4_poly, layout.iw8, iw5_poly]
+    return sum(poly_area(p) for p in iw_polys)
 
-    Returns total interior wall area for subtraction from polygon area.
-    """
+
+def _render_walls(out, data, layout):
+    """Render outer wall fill, outline strokes, and all interior walls with rough openings."""
     pts = data.pts
     to_svg = data.to_svg
 
@@ -449,12 +461,6 @@ def _render_walls(out, data, layout):
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # Compute total interior wall area
-    iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
-    iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
-    iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
-                iw3_poly, iw4_poly, layout.iw8, iw5_poly]
-    return sum(poly_area(p) for p in iw_polys)
 
 
 def _render_appliances(out, data, layout):
@@ -894,7 +900,7 @@ def _render_title_block(out, data, inner_area):
 # ============================================================
 
 def render_floorplan_svg(data):
-    """Render the complete floorplan SVG. Returns (svg_string, inner_area, outer_area, vert_names)."""
+    """Render the complete floorplan SVG. Returns SVG string."""
     pts = data.pts
     to_svg = data.to_svg
     layout = compute_interior_layout(pts, data.inner_poly)
@@ -910,26 +916,18 @@ def render_floorplan_svg(data):
     out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
                f' font-weight="bold">Parent Suite</text>')
 
-    iw_area = _render_walls(out, data, layout)
+    _render_walls(out, data, layout)
     _render_appliances(out, data, layout)
     ww1, ww3 = _render_kitchen(out, data, layout)
     _render_furniture(out, data, layout, ww1, ww3)
     _render_dimensions(out, data, layout)
     _render_openings(out, data, layout)
 
-    inner_area = data.inner_area - iw_area
-
-    seen = set()
-    vert_names = []
-    for seg in data.outline_segs:
-        if seg.start not in seen:
-            seen.add(seg.start)
-            vert_names.append(seg.start)
-
+    inner_area = data.inner_area - compute_iw_area(layout)
     _render_title_block(out, data, inner_area)
     out.append('</svg>')
 
-    return "\n".join(out), inner_area, data.outer_area, vert_names
+    return "\n".join(out)
 
 
 # ============================================================
@@ -938,8 +936,11 @@ def render_floorplan_svg(data):
 
 if __name__ == "__main__":
     data = build_floorplan_data()
-    svg_content, inner_area, outer_area, _vert_names = render_floorplan_svg(data)
+    svg_content = render_floorplan_svg(data)
     pts = data.pts
+    layout = compute_interior_layout(pts, data.inner_poly)
+    inner_area = data.inner_area - compute_iw_area(layout)
+    outer_area = data.outer_area
 
     svg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "floorplan.svg")
     with open(svg_path, "w") as f:
@@ -950,7 +951,11 @@ if __name__ == "__main__":
     print(f"Interior area: {inner_area:.2f} sq ft")
     print(f"Wall area:     {outer_area - inner_area:.2f} sq ft")
     print()
-    for f_name in _vert_names:
-        w_name = "W" + f_name[1:]
-        o = pts[f_name]; w = pts[w_name]
-        print(f"  {f_name:<5s} ({o[0]:8.4f}, {o[1]:8.4f})  ->  inner ({w[0]:8.4f}, {w[1]:8.4f})")
+    seen = set()
+    for seg in data.outline_segs:
+        if seg.start not in seen:
+            seen.add(seg.start)
+            f_name = seg.start
+            w_name = "W" + f_name[1:]
+            o = pts[f_name]; w = pts[w_name]
+            print(f"  {f_name:<5s} ({o[0]:8.4f}, {o[1]:8.4f})  ->  inner ({w[0]:8.4f}, {w[1]:8.4f})")

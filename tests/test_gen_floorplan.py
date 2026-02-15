@@ -4,8 +4,10 @@ from shared.types import LineSeg, ArcSeg
 from floorplan.gen_floorplan import (
     build_floorplan_data,
     render_floorplan_svg,
+    compute_iw_area,
     dim_line_h, dim_line_v, wall_poly, stroke_segs,
 )
+from floorplan.layout import compute_interior_layout
 
 
 # --- Mock transform for helper unit tests ---
@@ -100,8 +102,7 @@ def floorplan_data():
 
 @pytest.fixture(scope="module")
 def rendered(floorplan_data):
-    svg_content, inner_area, outer_area, vert_names = render_floorplan_svg(floorplan_data)
-    return svg_content, inner_area, outer_area, vert_names
+    return render_floorplan_svg(floorplan_data)
 
 
 class TestBuildFloorplanData:
@@ -127,34 +128,23 @@ class TestBuildFloorplanData:
 
 class TestRenderFloorplanSvg:
     def test_svg_envelope(self, rendered):
-        svg, _, _, _ = rendered
-        assert svg.strip().startswith("<svg")
-        assert svg.strip().endswith("</svg>")
-
-    def test_vert_names_returned(self, rendered):
-        _, _, _, vert_names = rendered
-        assert len(vert_names) == 22, f"Expected 22 vertex names, got {len(vert_names)}"
-
+        assert rendered.strip().startswith("<svg")
+        assert rendered.strip().endswith("</svg>")
 
     def test_contains_appliance_labels(self, rendered):
-        svg, _, _, _ = rendered
         for label in ["DRYER", "WASHER", "COUNTER", "WH"]:
-            assert label in svg, f"Missing appliance label {label}"
+            assert label in rendered, f"Missing appliance label {label}"
 
     def test_contains_bed_label(self, rendered):
-        svg, _, _, _ = rendered
-        assert "KING BED" in svg
+        assert "KING BED" in rendered
 
     def test_contains_openings(self, rendered):
-        svg, _, _, _ = rendered
-        assert svg.count('fill="rgb(220,235,255)"') == 11, "Expected 11 opening polygons"
+        assert rendered.count('fill="rgb(220,235,255)"') == 11, "Expected 11 opening polygons"
 
-    def test_rendered_inner_area_less_than_data(self, rendered, floorplan_data):
-        """Rendered inner area subtracts interior walls, so it's less than the raw polygon area."""
-        _, inner_area, outer_area, _ = rendered
+    def test_iw_area_reduces_inner_area(self, floorplan_data):
+        """Interior wall area subtracted from polygon area gives usable floor area."""
+        layout = compute_interior_layout(floorplan_data.pts, floorplan_data.inner_poly)
+        iw_area = compute_iw_area(layout)
+        inner_area = floorplan_data.inner_area - iw_area
         assert inner_area < floorplan_data.inner_area
         assert inner_area > 0
-
-    def test_outer_area_matches_data(self, rendered, floorplan_data):
-        _, _, outer_area, _ = rendered
-        assert outer_area == pytest.approx(floorplan_data.outer_area)
