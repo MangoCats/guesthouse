@@ -899,7 +899,7 @@ def _render_dimensions(out, data, layout):
     # Office/bedroom verticals
     dim_line_v(out, pts["F18"][0], layout.iw5.s, pts["W18"][1],
                fmt_dist(layout.iw5.s - pts["W18"][1]), to_svg,
-               label_n=(layout.iw5.s + pts["W18"][1]) / 2 + 2.0)
+               label_n=(layout.iw5.s + pts["W18"][1]) / 2 + 2.5)
     dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
                fmt_dist(pts["W6"][1] - layout.iw6_n), to_svg)
     dim_line_v(out, pts["F6"][0] + 1.0, layout.iw1_n, layout.iw6_s,
