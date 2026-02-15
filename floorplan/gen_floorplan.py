@@ -904,8 +904,18 @@ def _render_dimensions(out, data, layout):
     dim_line_v(out, dim_ext_e, pts["F0"][1], pts["F6"][1],
                fmt_dist(pts["F6"][1] - pts["F0"][1]), to_svg)
 
-    dim_line_h(out, pts["F8"][0], pts["F6"][1] + 1.0, pts["F11"][0],
-               fmt_dist(pts["F11"][0] - pts["F8"][0]), to_svg)
+    # Top exterior dim: endpoints on arcs F7-F8 and F11-F12, 4" south of F7
+    _dim_n_arc = pts["F7"][1] - 4.0 / 12.0
+    # West end: point on arc F7-F8 (center C7, radius R_a7) at that northing
+    _c7 = pts["C7"]; _r7 = data.radii["R_a7"]
+    _sin7 = (_dim_n_arc - _c7[1]) / _r7
+    _dim_w_e = _c7[0] + _r7 * math.sqrt(1.0 - _sin7 ** 2)
+    # East end: westernmost point on arc F11-F12 (center C11, radius R_a11) at that northing
+    _c11 = pts["C11"]; _r11 = data.radii["R_a11"]
+    _sin11 = (_dim_n_arc - _c11[1]) / _r11
+    _dim_e_e = _c11[0] - _r11 * math.sqrt(1.0 - _sin11 ** 2)
+    dim_line_h(out, _dim_w_e, pts["F6"][1] + 1.0, _dim_e_e,
+               fmt_dist(_dim_e_e - _dim_w_e), to_svg)
 
     dim_ext_n = pts["F19"][1] - 3.0
     dim_line_h(out, pts["F1"][0], dim_ext_n, pts["F15"][0],
