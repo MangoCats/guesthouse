@@ -127,6 +127,54 @@ def _partial_line_strip(pts, seg, inner_seg_start, inner_seg_end, t_start, t_end
 
 
 
+def _f8f9_corner_polyline(pts, inset, R_turn, n_arc=20):
+    """Compute straight-arc-straight polyline for F8-F9 inner shell corner.
+
+    At the F8-F9 concave corner, instead of the normal large-radius arc,
+    the inner shell goes straight south, makes a tight turn (using the
+    U-turn minimum radius), then goes straight east along the F9-F10 bearing.
+
+    Args:
+        pts: Point dictionary (needs F8, C8)
+        inset: Distance from outline (SHELL_THICKNESS+AIR_GAP for G, WALL_OUTER for W)
+        R_turn: Turn radius for this shell face
+        n_arc: Number of arc interpolation points
+
+    Returns:
+        List of (E, N) points forming the polyline from inset-F8 to inset-F9.
+    """
+    F8 = pts["F8"]
+    C8 = pts["C8"]
+    R_a8 = C8[0] - F8[0]  # SMALL_ARC_R
+
+    # Start: inset from F8, same northing (tangent direction is south)
+    start_E = F8[0] - inset
+    start_N = F8[1]
+
+    # End: inset from F9 (directly below F9, tangent direction is east)
+    end_E = C8[0]          # F9 easting = F8[0] + R_a8
+    end_N = F8[1] - R_a8 - inset  # F9[1] - inset
+
+    # Straight distance (both south and east sections are equal for 90° corner)
+    d = R_a8 + inset - R_turn
+
+    # Arc center (CCW turn from south to east)
+    arc_cx = start_E + R_turn
+    arc_cy = start_N - d
+
+    # Build polyline: start → straight south → 90° CCW arc → straight east → end
+    polyline = [(start_E, start_N)]
+
+    # Arc from 180° to 270° (CCW: south-to-east turn)
+    for i in range(n_arc + 1):
+        angle = math.pi + i * (math.pi / 2) / n_arc
+        polyline.append((arc_cx + R_turn * math.cos(angle),
+                         arc_cy + R_turn * math.sin(angle)))
+
+    polyline.append((end_E, end_N))
+    return polyline
+
+
 def _uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
                     shell_t, R_in, wall_total, n_arc=12):
     """Compute U-turn arc point arrays at an opening boundary.
@@ -244,7 +292,7 @@ def _uturn_polygon(pts, outline_segs, inner_segs, s_segs, g_segs,
 # ============================================================
 
 def _trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
-                         end_t, R_out):
+                         end_t, R_out, seg_overrides=None):
     """Trace a boundary path between two opening boundaries across segments.
 
     Traces CW from (start_seg_idx, start_t + delta_t) to
@@ -255,6 +303,8 @@ def _trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
     end_t: parametric position of the ending opening's t_start.
     R_out: trim distance in feet (R_in + shell_t) — converted to delta_t
            using each line segment's length.
+    seg_overrides: optional dict mapping seg index to replacement polyline
+                   (list of (E, N) points) for non-standard segment paths.
 
     Returns list of (E, N) points along the boundary.
     """
@@ -292,7 +342,9 @@ def _trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
     idx = (start_seg_idx + 1) % n_segs
     while idx != end_seg_idx:
         seg = segs[idx]
-        if isinstance(seg, ArcSeg):
+        if seg_overrides and idx in seg_overrides:
+            path.extend(seg_overrides[idx][1:])  # skip first (matches prev end)
+        elif isinstance(seg, ArcSeg):
             poly = segment_polyline(seg, pts)
             path.extend(poly[1:])  # skip first (matches previous end)
         else:
@@ -335,7 +387,8 @@ def _enumerate_wall_sections(openings, outline_segs):
 
 def _build_section_outlines(pts, outline_segs, inner_segs, s_segs, g_segs,
                             start_op, end_op, shell_t, R_in, wall_total,
-                            n_arc=12):
+                            n_arc=12, g_seg_overrides=None,
+                            w_seg_overrides=None):
     """Build outer and inner cavity outlines for one wall section.
 
     start_op: opening whose t_end starts this wall section
@@ -362,10 +415,12 @@ def _build_section_outlines(pts, outline_segs, inner_segs, s_segs, g_segs,
                                   end_op.seg_idx, end_op.t_start, R_out)
     g_path = _trace_boundary_path(pts, g_segs,
                                   start_op.seg_idx, start_op.t_end,
-                                  end_op.seg_idx, end_op.t_start, R_out)
+                                  end_op.seg_idx, end_op.t_start, R_out,
+                                  seg_overrides=g_seg_overrides)
     w_path = _trace_boundary_path(pts, inner_segs,
                                   start_op.seg_idx, start_op.t_end,
-                                  end_op.seg_idx, end_op.t_start, R_out)
+                                  end_op.seg_idx, end_op.t_start, R_out,
+                                  seg_overrides=w_seg_overrides)
 
     # --- Outer outline ---
     # F-face forward → end U-turn (F→W) → W-face backward → start U-turn (W→F)
@@ -440,10 +495,17 @@ def _path_length_between(pts, outline_segs, start_seg_idx, start_t,
     while idx != end_seg_idx:
         seg = outline_segs[idx]
         if isinstance(seg, ArcSeg):
-            sweep = _seg_arc_sweep(seg, pts)
-            R = seg.radius
-            R_adj = (R - inset) if seg.direction == "CW" else (R + inset)
-            total += R_adj * sweep
+            if idx == 8 and inset >= SHELL_THICKNESS + AIR_GAP:
+                # F8-F9 inner shell: straight-arc-straight path length
+                R_a8 = seg.radius
+                R_turn = OPENING_INSIDE_RADIUS + (inset - (SHELL_THICKNESS + AIR_GAP))
+                d_straight = R_a8 + inset - R_turn
+                total += 2 * d_straight + R_turn * (math.pi / 2)
+            else:
+                sweep = _seg_arc_sweep(seg, pts)
+                R = seg.radius
+                R_adj = (R - inset) if seg.direction == "CW" else (R + inset)
+                total += R_adj * sweep
         else:
             A, B = pts[seg.start], pts[seg.end]
             total += math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
@@ -490,6 +552,8 @@ class WallData(NamedTuple):
     tb_h: float
     tb_cx: float
     ft_per_inch: float
+    g_f8f9_poly: list      # G-series F8-F9 straight-arc-straight polyline
+    w_f8f9_poly: list      # W-series F8-F9 straight-arc-straight polyline
 
 
 def build_wall_data():
@@ -518,6 +582,13 @@ def build_wall_data():
     # Compute openings
     outer_openings = compute_outer_openings(pts, layout)
     openings = outer_to_wall_openings(outer_openings, outline_segs, pts)
+
+    # Compute F8-F9 inner shell replacement polylines (straight-arc-straight)
+    R_in = OPENING_INSIDE_RADIUS
+    g_f8f9_poly = _f8f9_corner_polyline(
+        pts, SHELL_THICKNESS + AIR_GAP, R_in)
+    w_f8f9_poly = _f8f9_corner_polyline(
+        pts, WALL_OUTER, R_in + SHELL_THICKNESS)
 
     # --- Page layout: 1:72 scale ---
     _f_svg = [to_svg(*pts[f"F{i}"]) for i in range(22)]
@@ -564,6 +635,8 @@ def build_wall_data():
         tb_left=_tb_left, tb_right=_tb_right, tb_top=_tb_top,
         tb_bottom=_tb_bottom, tb_w=_tb_w, tb_h=_tb_h, tb_cx=_tb_cx,
         ft_per_inch=_ft_per_inch,
+        g_f8f9_poly=g_f8f9_poly,
+        w_f8f9_poly=w_f8f9_poly,
     )
 
 
@@ -835,7 +908,12 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
             _svg_polygon(out, outer_shell, to_svg, WALL_FILL, stroke="none")
 
             # Inner shell: G-arc to W-arc
-            inner_shell = _arc_strip_poly(g_seg, pts, "G", inner_seg)
+            if seg_idx == 8:
+                # F8-F9: straight-arc-straight path for inner shell
+                inner_shell = (list(data.g_f8f9_poly)
+                               + list(reversed(data.w_f8f9_poly)))
+            else:
+                inner_shell = _arc_strip_poly(g_seg, pts, "G", inner_seg)
             _svg_polygon(out, inner_shell, to_svg, WALL_FILL, stroke="none")
 
         elif isinstance(seg, LineSeg):
@@ -909,11 +987,14 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                                  stroke="#4682B4", stroke_width="0.5")
 
     # --- Continuous outlines per wall section ---
+    g_overrides = {8: data.g_f8f9_poly}
+    w_overrides = {8: data.w_f8f9_poly}
     sections = _enumerate_wall_sections(openings, outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = _build_section_outlines(
             pts, outline_segs, inner_segs, s_segs, g_segs,
-            start_op, end_op, shell_t, R_in, WALL_OUTER)
+            start_op, end_op, shell_t, R_in, WALL_OUTER,
+            g_seg_overrides=g_overrides, w_seg_overrides=w_overrides)
         for path in [outer_path, cavity_path]:
             svg_pts = " ".join(
                 f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in path)
