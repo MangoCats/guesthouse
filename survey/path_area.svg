@@ -259,7 +259,7 @@
 <text x="284.0" y="219.8" text-anchor="start" font-family="Arial" font-size="8.5" fill="#333">90.0°</text>
 <text x="270.6" y="243.4" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">Arc R=2"</text>
 <text x="270.6" y="254.4" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">90.0°</text>
-<text x="473.5" y="218.1" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">Arc R=2"</text>
+<text x="473.5" y="218.1" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">Arc R=8.6"</text>
 <text x="473.5" y="229.1" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">79.6°</text>
 <text x="524.0" y="200.9" text-anchor="start" font-family="Arial" font-size="8.5" fill="#333">Arc R=28"</text>
 <text x="524.0" y="211.9" text-anchor="start" font-family="Arial" font-size="8.5" fill="#333">154.6° CCW</text>
@@ -329,5 +329,5 @@
 <text x="60" y="569" font-family="Arial" font-size="8" fill="#999">Inset path at 20% (1022.16 sq ft)</text>
 <line x1="40" y1="578" x2="54" y2="578" stroke="#333" stroke-width="2.0"/>
 <text x="60" y="581" font-family="Arial" font-size="8" fill="#333">Outline path (856.93 sq ft)</text>
-<text x="396.0" y="610" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 22:17:18 from v0.1-106-gd5c5d7c</text>
+<text x="396.0" y="610" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 22:23:17 from v0.1-107-gdcd791c</text>
 </svg>

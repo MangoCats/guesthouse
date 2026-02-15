@@ -98,8 +98,8 @@ O3_HALF_WIDTH = 16.0 / 12.0        # 16" half-width
 # O4 (F6-F7, centered chimney opening)
 O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
 # O5 (F9-F10)
-O5_E_FROM_F7 = 112.0 / 12.0        # 9'4" from F7 easting to O5 east edge
-O5_WIDTH = 6.0                     # 6' opening width
+O5_E_FROM_F7 = 108.0 / 12.0        # 9' from F7 easting to O5 east edge
+O5_WIDTH = 68.0 / 12.0            # 5'8" opening width
 # O6 (F9-F10)
 O6_E_FROM_F9 = 198.0 / 12.0        # 16'6" from F9 to O6 east edge
 O6_WIDTH = 44.0 / 12.0             # 44" opening width
