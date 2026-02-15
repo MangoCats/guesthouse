@@ -64,14 +64,18 @@ def dim_line_h(out, e1, n, e2, label, to_svg, label_offset_e=0.0):
     lx, _ = to_svg((e1 + e2) / 2 + label_offset_e, n)
     out.append(f'<text x="{lx:.1f}" y="{y1-3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="{DIM_COLOR}">{label}</text>')
 
-def dim_line_v(out, e, n1, n2, label, to_svg):
+def dim_line_v(out, e, n1, n2, label, to_svg, label_n=None):
     """Vertical (N-S) dimension line with horizontal tick marks."""
     x1, y1 = to_svg(e, n1); x2, y2 = to_svg(e, n2)
     _t = 4
     out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
     out.append(f'<line x1="{x1-_t:.1f}" y1="{y1:.1f}" x2="{x1+_t:.1f}" y2="{y1:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
     out.append(f'<line x1="{x2-_t:.1f}" y1="{y2:.1f}" x2="{x2+_t:.1f}" y2="{y2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    lx, ly = x1 - 3, (y1 + y2) / 2 + 3
+    if label_n is not None:
+        _, ly_base = to_svg(e, label_n)
+        lx, ly = x1 - 3, ly_base + 3
+    else:
+        lx, ly = x1 - 3, (y1 + y2) / 2 + 3
     out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="{DIM_COLOR}" transform="rotate(-90,{lx:.1f},{ly:.1f})">{label}</text>')
 
 def wall_poly(out, points, to_svg, stroke=True):
@@ -894,7 +898,8 @@ def _render_dimensions(out, data, layout):
 
     # Office/bedroom verticals
     dim_line_v(out, pts["F18"][0], layout.iw5.s, pts["W18"][1],
-               fmt_dist(layout.iw5.s - pts["W18"][1]), to_svg)
+               fmt_dist(layout.iw5.s - pts["W18"][1]), to_svg,
+               label_n=(layout.iw5.s + pts["W18"][1]) / 2 + 2.0)
     dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
                fmt_dist(pts["W6"][1] - layout.iw6_n), to_svg)
     dim_line_v(out, pts["F6"][0] + 1.0, layout.iw1_n, layout.iw6_s,
