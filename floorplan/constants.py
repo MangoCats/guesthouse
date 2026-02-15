@@ -104,6 +104,12 @@ O5_WIDTH = 68.0 / 12.0            # 5'8" opening width
 O6_E_FROM_F9 = 194.0 / 12.0        # 16'2" from F9 to O6 east edge
 O6_WIDTH = 44.0 / 12.0             # 44" opening width
 F10_O6_CLEARANCE = 4.0 / 12.0      # 4" from O6 east edge to F10
+O6_DOOR_WIDTH = 42.0 / 12.0        # 42" door, centered in opening
+# Door jamb block thickness = wall - 2*(opening_inside_radius + shell_thickness)
+# Opening inside radius 10mm ≈ 0.3937", shell 2", wall 8"
+_SHELL = 2.0 / 12.0
+_OPENING_R = 10.0 / 304.8
+DOOR_FLAT_FACE = WALL_OUTER - 2 * (_OPENING_R + _SHELL)
 # O7 (F12-F13 diagonal wall)
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)

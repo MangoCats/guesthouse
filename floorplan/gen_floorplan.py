@@ -28,6 +28,7 @@ from floorplan.constants import (
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
     SHELVES_WIDTH, SHELVES_DEPTH,
+    O6_WIDTH, O6_DOOR_WIDTH, DOOR_FLAT_FACE,
 )
 from floorplan.layout import compute_interior_layout
 from floorplan.openings import compute_outer_openings, compute_rough_openings
@@ -860,6 +861,54 @@ def _render_openings(out, data, layout):
     for o in outer_openings:
         svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in o.poly)
         out.append(f'<polygon points="{svg}" fill="{OPENING_FILL}" stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
+
+    # O6 door: 42" door, hinged east, swings south
+    o6 = [o for o in outer_openings if o.name == "O6"][0]
+    o6_w = o6.poly[0][0]
+    o6_e = o6.poly[1][0]
+    wall_n = pts["F9"][1]  # outer face
+    wall_s = pts["W9"][1]  # inner face
+    wall_mid = (wall_n + wall_s) / 2
+    gap = (O6_WIDTH - O6_DOOR_WIDTH) / 2
+    door_w = o6_w + gap
+    door_e = o6_e - gap
+
+    # Jamb blocks: fill gap between opening edge and door edge
+    # Block thickness = flat face of U-turn
+    block_s = wall_mid - DOOR_FLAT_FACE / 2
+    block_n = wall_mid + DOOR_FLAT_FACE / 2
+    # West block
+    bx1, by1 = to_svg(o6_w, block_n)
+    bx2, by2 = to_svg(door_w, block_s)
+    out.append(f'<rect x="{bx1:.1f}" y="{by1:.1f}" width="{bx2-bx1:.1f}" height="{by2-by1:.1f}"'
+               f' fill="{JAMB_COLOR}" stroke="none"/>')
+    # East block
+    bx1, by1 = to_svg(door_e, block_n)
+    bx2, by2 = to_svg(o6_e, block_s)
+    out.append(f'<rect x="{bx1:.1f}" y="{by1:.1f}" width="{bx2-bx1:.1f}" height="{by2-by1:.1f}"'
+               f' fill="{JAMB_COLOR}" stroke="none"/>')
+
+    # Door: hinge at east side, swings south
+    hinge_e, hinge_n = door_e, wall_mid
+    hx, hy = to_svg(hinge_e, hinge_n)
+    # Straight line from hinge southward (door in open position)
+    tip_e, tip_n = hinge_e, hinge_n - O6_DOOR_WIDTH
+    tx, ty = to_svg(tip_e, tip_n)
+    out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
+               f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
+    # Arc from open (south) sweeping CW 90° to closed (west)
+    # In survey coords: center=hinge, from (hinge_e, hinge_n - door_w) to (hinge_e - door_w, hinge_n)
+    # In SVG coords: y is flipped, so CW in survey becomes CCW in SVG
+    n_arc = 20
+    arc_pts = []
+    for i in range(n_arc + 1):
+        angle = -math.pi / 2 + i * (math.pi / 2) / n_arc  # -90° to 0° in survey
+        ae = hinge_e + O6_DOOR_WIDTH * math.cos(angle)
+        an = hinge_n + O6_DOOR_WIDTH * math.sin(angle)
+        sx, sy = to_svg(ae, an)
+        arc_pts.append(f"{sx:.1f},{sy:.1f}")
+    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+               f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
 
 def _render_title_block(out, data, inner_area):
