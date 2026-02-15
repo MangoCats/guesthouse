@@ -10,7 +10,7 @@ Curved-wall building outline geometry and floorplan SVG generation.
 
 ```
 shared/              — Common types, geometry, survey computation, SVG utilities
-  types.py           — Point, LineSeg, ArcSeg, Segment
+  types.py           — Point, BBox, LineSeg, ArcSeg, Segment
   geometry.py        — Pure geometry functions, path ops, polygon utilities, compute_inner_walls
   survey.py          — compute_traverse, compute_three_arc, compute_inset
   svg.py             — make_svg_transform, W/H page constants
@@ -18,7 +18,8 @@ shared/              — Common types, geometry, survey computation, SVG utiliti
 floorplan/           — Building design: single source of truth for geometry and layout
   constants.py       — Named physical dimension constants (wall thicknesses, room sizes, etc.)
   geometry.py        — compute_outline_geometry → F-series points, segments, radii
-  layout.py          — compute_interior_layout (rooms, appliances, furniture)
+  layout.py          — compute_interior_layout → InteriorLayout (rooms, appliances, furniture)
+  openings.py        — compute_outer_openings, compute_rough_openings (single source for O1-O11, RO1-RO5)
   gen_floorplan.py   — Detailed floorplan SVG renderer. Outputs floorplan/floorplan.svg
 
 walls/               — Outer wall construction detail drawing
@@ -68,6 +69,7 @@ No circular dependencies. floorplan/ never imports from survey/ or walls/.
 - After each successful (as determined by passing of all tests) completed request, always: `git commit -a -m "<summary>"` then `python gen_all.py` to regenerate all SVGs.  summary shall be 25 words or less, and shall not include "Co-Authored-By: Claude".
 - Outline geometry lives in `floorplan/geometry.py`; dimension constants in `floorplan/constants.py`
 - Interior layout (rooms, furniture) lives in `floorplan/layout.py`
+- Opening positions (O1-O11, RO1-RO5) live in `floorplan/openings.py` — single source of truth
 - Wall construction constants (shell thickness, air gap, opening radius) live in `walls/constants.py`
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
 

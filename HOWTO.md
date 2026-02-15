@@ -39,11 +39,11 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
 1. **Identify the two endpoints** in survey coordinates:
    - Perimeter wall outer face: `pts["F<n>"][0]` (easting) or `pts["F<n>"][1]` (northing)
    - Perimeter wall inner face: `pts["W<n>"][0]` or `pts["W<n>"][1]`
-   - Interior wall faces: use the named variables (e.g., `iw3_w`, `iw3_e`, `iw4_w`, `iw1_s`, `iw1_n`)
+   - Interior wall faces: use `layout.<field>` (e.g., `layout.iw3.w`, `layout.iw3.e`, `layout.iw4_w`, `layout.iw1_s`)
 
 2. **Determine the offset position** (where the line is placed, perpendicular to the measurement):
-   - For `dim_line_h`: choose a northing `n` (e.g., `ctr_n + iw_thick_3 + 1.0` for "1' north of IW7 north face")
-   - For `dim_line_v`: choose an easting `e` (e.g., `iw3_e + 2.0` for "2' east of IW3 east face")
+   - For `dim_line_h`: choose a northing `n` (e.g., `layout.ctr.n + layout.iwt3 + 1.0` for "1' north of IW7 north face")
+   - For `dim_line_v`: choose an easting `e` (e.g., `layout.iw3.e + 2.0` for "2' east of IW3 east face")
 
 3. **Add the call** in the dimension lines section (between wall rendering and openings):
    ```python
@@ -60,8 +60,8 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
 
 ```python
 # F1-F2 east face to IW3 west face, 1' north of IW7 north face
-_dim_f1f2_n = ctr_n + iw_thick_3 + 1.0
-dim_line_h(out, pts["W2"][0], _dim_f1f2_n, iw3_w, fmt_dist(iw3_w - pts["W2"][0]))
+dim_n = layout.ctr.n + layout.iwt3 + 1.0
+dim_line_h(out, pts["W2"][0], dim_n, layout.iw3.w, fmt_dist(layout.iw3.w - pts["W2"][0]), to_svg)
 ```
 
 ---
@@ -85,26 +85,29 @@ The outline traverses CW (as viewed from above): F0 → F1 → ... → F21 → F
 
 ### Interior walls
 
-Interior walls use named variables computed in `gen_floorplan.py`:
+Interior wall positions are computed in `floorplan/layout.py` and returned in the `InteriorLayout` NamedTuple. Access them via `layout.<field>`:
 
 | Wall | West face | East face | South face | North face |
 |-|-|-|-|-|
-| **IW1** (horizontal, 6") | — | — | `iw1_s` | `iw1_n` |
-| **IW2** (vertical, 6") | `iw2_w` | `iw2_e` | `iw2_s` | `iw2_n` |
-| **IW3** (vertical, 4") | `iw3_w` | `iw3_e` | `iw3_s` (`ctr_s`) | `iw3_n` (`iw1_s`) |
-| **IW4** (vertical, 4") | `iw4_w` | `iw4_e` | `wall_south_n` | `iw1_s` |
-| **IW7** (L-shape, 3") | `ctr_e` | varies | `ctr_s` | `ctr_n + iw_thick_3` |
-| **IW8** (L-shape, 3") | `iw8_w` | `iw8_e` | `wall_south_n` | `closet1_top + iw_thick_3` |
-| **IW5** (horizontal, 3") | `iw5_w` (`iw4_e`) | `iw5_e` (`pts["W15"][0]`) | `iw5_s` | `iw5_n` |
+| **IW1** (horizontal, 6") | — | — | `layout.iw1_s` | `layout.iw1_n` |
+| **IW2** (vertical, 6") | `layout.iw2.w` | `layout.iw2.e` | `layout.iw2.s` | `layout.iw2.n` |
+| **IW3** (vertical, 4") | `layout.iw3.w` | `layout.iw3.e` | `layout.iw3.s` | `layout.iw3.n` |
+| **IW4** (vertical, 4") | `layout.iw4_w` | `layout.iw4_e` | `layout.wall_south_n` | `layout.iw1_s` |
+| **IW5** (horizontal, 3") | `layout.iw5.w` | `layout.iw5.e` | `layout.iw5.s` | `layout.iw5.n` |
+| **IW6** (horizontal, 1") | — | — | `layout.iw6_s` | `layout.iw6_n` |
+| **IW7** (L-shape, 3") | `layout.ctr.e` | varies | `layout.ctr.s` | polygon |
+| **IW8** (L-shape, 3") | `layout.iw8_w` | `layout.iw8_e` | `layout.wall_south_n` | polygon |
+
+BBox-type walls (IW2, IW3, IW5) use `.w`, `.s`, `.e`, `.n` accessors. L-shaped walls (IW7, IW8) and IW1 are polygons (`list[Point]`).
 
 ### Room-relative references
 
 | Reference | Variable | Notes |
 |-|-|-|
-| Counter east edge | `ctr_e` | |
-| Counter north edge | `ctr_n` | |
-| Counter south edge | `ctr_s` | Same as `pts["W0"][1]` |
-| Bedroom center E-W | `bed_cx` or `(iw3_e + iw4_w) / 2` | |
+| Counter east edge | `layout.ctr.e` | |
+| Counter north edge | `layout.ctr.n` | |
+| Counter south edge | `layout.ctr.s` | Same as `pts["W0"][1]` |
+| Bedroom center E-W | `layout.bed_cx` or `(layout.iw3.e + layout.iw4_w) / 2` | |
 | Inner south wall | `pts["W0"][1]` | |
 | Inner west wall | `pts["W1"][0]` | |
 
@@ -112,81 +115,72 @@ Interior walls use named variables computed in `gen_floorplan.py`:
 
 ## 3. Adding an Interior Wall
 
-**File:** `floorplan/gen_floorplan.py` (interior walls section, after IW1/IW2, before dimension lines)
+Interior wall positions are computed in `floorplan/layout.py` and rendered in `floorplan/gen_floorplan.py` (`_render_walls` function).
 
-### Simple rectangular wall
+### Step-by-step
 
-1. Define the four edge coordinates:
+1. **Add a constant** for any new offset/dimension in `floorplan/constants.py`.
+
+2. **Add fields** to the `InteriorLayout` NamedTuple in `floorplan/layout.py`:
+   ```python
+   mywall: BBox   # for rectangular walls
+   # or
+   mywall: list[Point]  # for L-shaped or irregular walls
+   ```
+
+3. **Compute the position** in `compute_interior_layout()` in `layout.py`:
    ```python
    mywall_w = <west face easting>
-   mywall_e = mywall_w + <thickness in feet>
+   mywall_e = mywall_w + WALL_3IN  # use named constants
    mywall_s = <south face northing>
    mywall_n = <north face northing>
    ```
 
-2. Build the polygon and render:
+4. **Render** in `_render_walls()` in `gen_floorplan.py`:
    ```python
-   mywall_poly = [(mywall_w, mywall_s), (mywall_e, mywall_s),
-                  (mywall_e, mywall_n), (mywall_w, mywall_n)]
-   wall_poly(out, mywall_poly)
-   wall_label(out, "IW<n>", mywall_w, mywall_e, mywall_s, mywall_n)
+   wall_poly(out, [(mywall.w, mywall.s), (mywall.e, mywall.s),
+                   (mywall.e, mywall.n), (mywall.w, mywall.n)], to_svg)
    ```
 
-3. For walls that span the full interior width (like IW1), use `stroke=False` and draw individual edge lines instead.
+5. **Add the polygon to `compute_iw_area()`** in `gen_floorplan.py` so its area is subtracted from the interior area.
 
-4. **Add the polygon to `_iw_polys`** (around line 332) so its area is subtracted from the interior area calculation.
-
-### L-shaped wall
-
-See IW7 or IW8 for examples. Define 6 vertices tracing the L-shape, then pass to `wall_poly()`.
+6. **Add tests** in `tests/test_layout.py`.
 
 ### Wall thickness constants
 
-Use constants from the top of the interior walls section:
-- `iw_thick_3` = 3" (0.25')
-- `iw_thick_4` = 4" (0.333')
-- `iwt` = 6" (0.5')
+Accessed via layout fields or from `floorplan/constants.py`:
+- `WALL_3IN` = 3" (0.25') — also `layout.iwt3`
+- `WALL_4IN` = 4" (0.333') — also `layout.iwt4`
+- `WALL_6IN` = 6" (0.5') — also `layout.iwt`
 
 ---
 
 ## 4. Adding an Opening
 
-**File:** `floorplan/gen_floorplan.py` (openings section, after dimension lines)
+**File:** `floorplan/openings.py` — single source of truth for all opening positions.
 
 Openings are rendered as light-blue rectangles (`rgb(220,235,255)`) with `#4682B4` stroke. They cut through the wall from outer (F-series) to inner (W-series) face.
 
-### Opening in an E-W (horizontal) wall
+### Types
 
-The polygon spans from `pts["F<n>"][1]` to `pts["W<n>"][1]` in northing, and from `e_start` to `e_end` in easting:
+- `OuterOpening(name, seg_start, seg_end, poly)` — perimeter wall opening (O1-O11)
+- `RoughOpening(name, bbox, wall_name, orientation)` — interior wall rough opening (RO1-RO5)
+- `WallOpening(name, seg_idx, t_start, t_end)` — parametric form used by `walls/gen_walls.py`
 
-```python
-_oN_poly = [
-    (e_start, pts["F<n>"][1]), (e_end, pts["F<n>"][1]),
-    (e_end, pts["W<n>"][1]), (e_start, pts["W<n>"][1]),
-]
-```
+### Adding a perimeter opening
 
-### Opening in a N-S (vertical) wall
+1. Add the opening definition in `compute_outer_openings()` in `floorplan/openings.py`.
+2. The function returns `OuterOpening` objects with 4-vertex polygons in survey coords.
+3. Both `gen_floorplan.py` and `gen_walls.py` consume openings from this single source — no need to update two places.
 
-The polygon spans from `pts["F<n>"][0]` to `pts["W<n>"][0]` in easting, and from `n_start` to `n_end` in northing:
+### Adding a rough opening (interior wall)
 
-```python
-_oN_poly = [
-    (pts["F<n>"][0], n_start), (pts["F<n>"][0], n_end),
-    (pts["W<n>"][0], n_end), (pts["W<n>"][0], n_start),
-]
-```
+1. Add the opening in `compute_rough_openings()` in `floorplan/openings.py`.
+2. Update rendering in `_render_walls()` in `gen_floorplan.py` and `_render_interior_walls()` in `walls/gen_walls.py`.
 
-### Registration
+### Tests
 
-After defining the polygon, add it to the `_openings` list and, if it's in a N-S wall, to `_ns_openings`:
-
-```python
-_openings = [..., ("O<n>", _oN_poly)]
-_ns_openings = {..., "O<n>"}  # only if in a N-S wall
-```
-
-The rendering loop handles fill, stroke, and label placement automatically.
+Opening tests are in `tests/test_openings.py` (11 outer openings, 5 rough openings, segment index validity, parametric ranges).
 
 ---
 
@@ -262,7 +256,7 @@ At each opening boundary, the shells connect via 90-degree corner turns:
 
 ### Adding/modifying openings
 
-Opening positions are defined in `_compute_openings()` in `walls/gen_walls.py`, mirroring the opening logic in `floorplan/gen_floorplan.py`. Each opening maps to a parametric range `(t_start, t_end)` along its outline segment. If you add or move an opening in the floorplan, update `_compute_openings()` to match.
+Opening positions are defined in `floorplan/openings.py` (single source of truth). `walls/gen_walls.py` imports openings via `outer_to_wall_openings()` which converts them to parametric `WallOpening` objects. Each opening maps to a parametric range `(t_start, t_end)` along its outline segment. See Section 4 for details.
 
 ---
 
