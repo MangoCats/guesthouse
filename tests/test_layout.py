@@ -44,6 +44,14 @@ class TestInteriorLayout:
         # Bed center between IW3 and IW4
         assert layout.iw3.e < layout.bed_cx < layout.iw4_w
 
+    def test_iw5_bounds(self, layout):
+        assert layout.iw5.e > layout.iw5.w
+        assert layout.iw5.n > layout.iw5.s
+
+    def test_iw6_polygon(self, layout):
+        assert len(layout.iw6_poly) == 4
+        assert layout.iw6_n > layout.iw6_s
+
     def test_wall_thicknesses(self, layout):
         assert abs(layout.iwt - 6.0 / 12.0) < 1e-12    # 6" = 0.5'
         assert abs(layout.iwt3 - 3.0 / 12.0) < 1e-12   # 3" = 0.25'

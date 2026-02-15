@@ -11,6 +11,7 @@ from floorplan.constants import (
     BEDROOM_WIDTH, CLOSET_WIDTH,
     BED_WIDTH, BED_LENGTH, BED_OFFSET_N,
     IW1_OFFSET_N, IW2_OFFSET_E, WALL_SOUTH_N,
+    IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
 )
 
 
@@ -50,6 +51,12 @@ class InteriorLayout(NamedTuple):
     # Bed
     bed: BBox
     bed_cx: float
+    # IW5 (3" thick, horizontal in office)
+    iw5: BBox
+    # IW6 (1" thick, horizontal above kitchen)
+    iw6_poly: list[Point]
+    iw6_n: float
+    iw6_s: float
 
 
 def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
@@ -106,6 +113,22 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     bed_s = ctr_s + BED_OFFSET_N
     bed_n = bed_s + BED_LENGTH
 
+    # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
+    iw5_n = iw1_s - IW5_OFFSET_N
+    iw5_s = iw5_n - WALL_3IN
+    iw5_w = iw4_e
+    iw5_e = pts["W15"][0]
+
+    # IW6: IW6_THICKNESS thick, south face IW6_OFFSET_N south of W6
+    iw6_n = pts["W6"][1] - IW6_OFFSET_N
+    iw6_s = iw6_n - IW6_THICKNESS
+    _iw6_n_ints = horiz_isects(inner_poly, iw6_n)
+    _iw6_s_ints = horiz_isects(inner_poly, iw6_s)
+    iw6_w_n = min(_iw6_n_ints)
+    iw6_w_s = min(_iw6_s_ints)
+    iw6_e = iw2_w
+    iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
+
     return InteriorLayout(
         iw1=iw1, iw1_s=iw1_s, iw1_n=iw1_n, iwt=WALL_6IN,
         iw2=BBox(w=iw2_w, s=iw2_s, e=iw2_e, n=iw2_n),
@@ -119,4 +142,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw8=iw8_poly, iw8_w=iw8_w, iw8_e=iw8_e,
         cl1_top=cl1_top,
         bed=BBox(w=bed_w, s=bed_s, e=bed_e, n=bed_n), bed_cx=bed_cx,
+        iw5=BBox(w=iw5_w, s=iw5_s, e=iw5_e, n=iw5_n),
+        iw6_poly=iw6_poly, iw6_n=iw6_n, iw6_s=iw6_s,
     )

@@ -15,14 +15,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area, arc_poly,
-    compute_inner_walls, fmt_dist, left_norm, horiz_isects,
+    compute_inner_walls, fmt_dist, left_norm,
 )
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.layout import compute_interior_layout
-from floorplan.constants import (
-    WALL_OUTER, WALL_3IN, IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
-)
+from floorplan.constants import WALL_OUTER
 from floorplan.openings import (
     WallOpening, compute_outer_openings, compute_rough_openings,
     outer_to_wall_openings,
@@ -631,16 +629,9 @@ def _render_interior_walls(out, data):
     iw_label("IW2", layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
 
     # IW6 (horizontal, 1" partition)
-    iw6_n = pts["W6"][1] - IW6_OFFSET_N
-    iw6_s = iw6_n - IW6_THICKNESS
-    _iw6_n_ints = horiz_isects(inner_poly, iw6_n)
-    _iw6_s_ints = horiz_isects(inner_poly, iw6_s)
-    iw6_w_n = min(_iw6_n_ints)
-    iw6_w_s = min(_iw6_s_ints)
-    iw6_e = layout.iw2.w
-    iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
-    iw_poly(iw6_poly)
-    iw_label("IW6", min(iw6_w_s, iw6_w_n), iw6_e, iw6_s, iw6_n, vertical=False)
+    iw_poly(layout.iw6_poly)
+    iw_label("IW6", min(layout.iw6_poly[0][0], layout.iw6_poly[3][0]),
+             layout.iw2.w, layout.iw6_s, layout.iw6_n, vertical=False)
 
     # IW7 (L-shaped, 3") — label on vertical arm
     iw_poly(layout.iw7)
@@ -662,12 +653,9 @@ def _render_interior_walls(out, data):
              layout.iw8[2][1], layout.iw8[1][1])
 
     # IW5 (horizontal, 3")
-    iw5_n = layout.iw1_s - IW5_OFFSET_N
-    iw5_s = iw5_n - WALL_3IN
-    iw5_w = layout.iw4_e
-    iw5_e = pts["W15"][0]
-    iw_rect(iw5_w, iw5_e, iw5_s, iw5_n)
-    iw_label("IW5", iw5_w, iw5_e, iw5_s, iw5_n, vertical=False)
+    iw_rect(layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n)
+    iw_label("IW5", layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n,
+             vertical=False)
 
     # Rough openings (RO1-RO5) — dark red outline box with X
     rough_openings = compute_rough_openings(pts, layout)
