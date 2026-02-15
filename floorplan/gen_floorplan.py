@@ -847,7 +847,7 @@ def _render_furniture(out, data, layout):
                f' font-size="8" fill="#666">BEDROOM</text>')
 
     of_cx = (layout.iw4_e + pts["W15"][0]) / 2
-    of_cy = (layout.cl1_top + layout.iwt3 + layout.iw1_s) / 2 - 2.0
+    of_cy = (layout.cl1_top + layout.iwt3 + layout.iw1_s) / 2 - 2.0 + 8.0 / 12.0
     ofx, ofy = to_svg(of_cx, of_cy)
     out.append(f'<text x="{ofx:.1f}" y="{ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">OFFICE</text>')
