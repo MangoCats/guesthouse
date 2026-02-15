@@ -101,7 +101,7 @@ O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
 O5_E_FROM_F7 = 108.0 / 12.0        # 9' from F7 easting to O5 east edge
 O5_WIDTH = 68.0 / 12.0            # 5'8" opening width
 # O6 (F9-F10)
-O6_E_FROM_F9 = 198.0 / 12.0        # 16'6" from F9 to O6 east edge
+O6_E_FROM_F9 = 194.0 / 12.0        # 16'2" from F9 to O6 east edge
 O6_WIDTH = 44.0 / 12.0             # 44" opening width
 F10_O6_CLEARANCE = 4.0 / 12.0      # 4" from O6 east edge to F10
 # O7 (F12-F13 diagonal wall)
