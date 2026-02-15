@@ -28,7 +28,7 @@ from floorplan.constants import (
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
     SHELVES_WIDTH, SHELVES_DEPTH,
-    O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, DOOR_FLAT_FACE,
+    O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, DOOR_FLAT_FACE,
 )
 from floorplan.layout import compute_interior_layout
 from floorplan.openings import compute_outer_openings, compute_rough_openings
@@ -929,6 +929,29 @@ def _render_openings(out, data, layout):
         angle = -math.pi / 2 - i * (math.pi / 2) / n_arc
         ae = hinge_e + RO1_DOOR_WIDTH * math.cos(angle)
         an = hinge_n + RO1_DOOR_WIDTH * math.sin(angle)
+        sx, sy = to_svg(ae, an)
+        arc_pts.append(f"{sx:.1f},{sy:.1f}")
+    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+               f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
+
+    # RO2 door: 36" door, hinged north, swings east
+    ro2 = [r for r in rough_openings if r.name == "RO2"][0]
+    ro2_mid = (ro2.bbox.w + ro2.bbox.e) / 2
+    ro2_gap = (ro2.bbox.n - ro2.bbox.s - RO2_DOOR_WIDTH) / 2
+    hinge_e, hinge_n = ro2_mid, ro2.bbox.n - ro2_gap
+    hx, hy = to_svg(hinge_e, hinge_n)
+    # Straight line from hinge eastward (door in open position)
+    tip_e, tip_n = hinge_e + RO2_DOOR_WIDTH, hinge_n
+    tx, ty = to_svg(tip_e, tip_n)
+    out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
+               f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
+    # Arc from open (east) sweeping CW 90° to closed (south)
+    n_arc = 20
+    arc_pts = []
+    for i in range(n_arc + 1):
+        angle = -i * (math.pi / 2) / n_arc  # 0° to -90°
+        ae = hinge_e + RO2_DOOR_WIDTH * math.cos(angle)
+        an = hinge_n + RO2_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
         arc_pts.append(f"{sx:.1f},{sy:.1f}")
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
