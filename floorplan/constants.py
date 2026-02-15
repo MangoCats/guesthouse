@@ -107,6 +107,7 @@ F10_O6_CLEARANCE = 4.0 / 12.0      # 4" from O6 east edge to F10
 O6_DOOR_WIDTH = 42.0 / 12.0        # 42" door, centered in opening
 RO1_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO1
 RO2_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO2
+RO3_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO3
 # Door jamb block thickness = wall - 2*(opening_inside_radius + shell_thickness)
 # Opening inside radius 10mm ≈ 0.3937", shell 2", wall 8"
 _SHELL = 2.0 / 12.0
