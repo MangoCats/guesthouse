@@ -262,6 +262,8 @@
 <polyline points="466.5,395.2 466.4,397.9 466.1,400.6 465.5,403.3 464.8,406.0 463.8,408.6 462.7,411.0 461.4,413.4 459.8,415.7 458.1,417.9 456.3,419.9 454.2,421.8 452.1,423.5 449.8,425.0 447.4,426.3 444.9,427.5 442.3,428.4 439.7,429.2 437.0,429.7 434.3,430.0 431.5,430.1" fill="none" stroke="darkred" stroke-width="0.5"/>
 <line x1="291.6" y1="418.5" x2="256.7" y2="418.5" stroke="darkred" stroke-width="1.0"/>
 <polyline points="256.7,418.5 256.8,415.7 257.1,413.0 257.6,410.3 258.4,407.7 259.3,405.1 260.5,402.6 261.8,400.2 263.4,397.9 265.1,395.8 266.9,393.8 268.9,391.9 271.1,390.2 273.4,388.7 275.8,387.3 278.3,386.2 280.8,385.2 283.5,384.5 286.2,383.9 288.9,383.6 291.6,383.5" fill="none" stroke="darkred" stroke-width="0.5"/>
+<line x1="238.2" y1="280.5" x2="203.2" y2="280.5" stroke="darkred" stroke-width="1.0"/>
+<polyline points="203.2,280.5 203.3,283.3 203.7,286.0 204.2,288.7 205.0,291.3 205.9,293.9 207.1,296.4 208.4,298.8 209.9,301.1 211.6,303.2 213.5,305.3 215.5,307.1 217.7,308.8 219.9,310.4 222.3,311.7 224.8,312.8 227.4,313.8 230.0,314.5 232.7,315.1 235.5,315.4 238.2,315.5" fill="none" stroke="darkred" stroke-width="0.5"/>
 <line x1="646.4" y1="296.0" x2="646.4" y2="260.0" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
 <text x="646.4" y="254.0" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">N</text>
 <rect x="581.4" y="147.0" width="130" height="92" fill="white" stroke="#333" stroke-width="1"/>
@@ -270,6 +272,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.30 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 23:06:02</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-117-g739e626</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 23:08:29</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-118-g4886b4c</text>
 </svg>
