@@ -3,6 +3,7 @@ floorplan/floorplan.svg
 survey/path_area.svg
 walls/all_walls.svg
 walls/walls.svg
+.coverage
 __pycache__/
 .git_describe
 nul
