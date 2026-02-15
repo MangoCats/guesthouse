@@ -672,6 +672,23 @@ def _render_interior_walls(out, data):
         out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
                    f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
 
+    # RO labels — same placement convention as IW labels
+    for ro in rough_openings:
+        b = ro.bbox
+        if ro.orientation == "H":
+            # Horizontal opening: label centered above (north)
+            lx, ly = to_svg((b.w + b.e) / 2, b.n)
+            ly -= LABEL_GAP
+            rot = ""
+        else:
+            # Vertical opening: label centered left (west)
+            lx, ly = to_svg(b.w, (b.s + b.n) / 2)
+            lx -= LABEL_GAP
+            rot = f' transform="rotate(-90 {lx:.1f} {ly:.1f})"'
+        out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
+                   f' dominant-baseline="central" font-family="Arial"'
+                   f' font-size="{LABEL_SIZE}" fill="{_RO_COLOR}"{rot}>{ro.name}</text>')
+
 
 def _render_opening_dims(out, data):
     """Render opening width dimension lines on the exterior face."""
