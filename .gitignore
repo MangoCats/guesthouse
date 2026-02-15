@@ -1,4 +1,8 @@
 floorplan/floorplan_ref.svg
+floorplan/floorplan.svg
+survey/path_area.svg
+walls/all_walls.svg
+walls/walls.svg
 __pycache__/
 .git_describe
 nul
