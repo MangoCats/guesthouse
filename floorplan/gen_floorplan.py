@@ -902,7 +902,7 @@ def _render_openings(out, data, layout):
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = -math.pi / 2 + i * (math.pi / 2) / n_arc  # -90° to 0° in survey
+        angle = -math.pi / 2 - i * (math.pi / 2) / n_arc  # -90° to -180° in survey
         ae = hinge_e + O6_DOOR_WIDTH * math.cos(angle)
         an = hinge_n + O6_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
