@@ -155,13 +155,12 @@ JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)
 STD_GAP = 2.0 / 12.0              # 2" standard gap (furniture/appliance spacing)
 KITCHEN_APPL_GAP = 3.0 / 12.0     # 3" gap (kitchen appliance spacing/setback)
 
-# Work zone
-WW_RADIUS = 30.0 / 12.0           # 30" work-zone radius
-
 # Furniture dimensions
 LOVESEAT_WIDTH = 35.0 / 12.0      # 35" loveseat short side
 LOVESEAT_LENGTH = 65.0 / 12.0     # 65" loveseat long side
 LOVESEAT_ANGLE_DEG = 15.0         # 15° CCW rotation
+LOVESEAT_NW_E = 22.310591617230667  # NW corner easting (fixed position)
+LOVESEAT_NW_N = 18.94278790189982   # NW corner northing (fixed position)
 CHAIR_WIDTH = 32.0 / 12.0         # 32" chair E-W
 CHAIR_DEPTH = 37.0 / 12.0         # 37" chair N-S
 CHAIR_CORNER_R = 3.0 / 12.0       # 3" rounded corner radius

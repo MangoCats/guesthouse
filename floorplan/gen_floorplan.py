@@ -23,7 +23,7 @@ from floorplan.constants import (
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     JAMB_WIDTH, STD_GAP, KITCHEN_APPL_GAP,
-    WW_RADIUS,
+    LOVESEAT_NW_E, LOVESEAT_NW_N,
     LOVESEAT_WIDTH, LOVESEAT_LENGTH, LOVESEAT_ANGLE_DEG,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
@@ -549,26 +549,23 @@ def _render_appliances(out, data, layout):
 
 
 def _render_kitchen(out, data, layout):
-    """Render kitchen: D/W, sink, stove, shelves, fridge, counters.
-
-    Returns ((ww1_cx, ww1_cy, ww1_r), (ww3_cx, ww3_cy, ww3_r)) work zone info.
-    """
+    """Render kitchen: D/W, sink, stove, shelves, fridge, counters."""
     pts = data.pts
     to_svg = data.to_svg
     back_n = pts["W9"][1]
 
     # Kitchen appliances
-    dw_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
-    dw_e = dw_w + DW_WIDTH
-    ks_w = dw_e + KITCHEN_APPL_GAP
-    ks_e = ks_w + KITCHEN_SINK_WIDTH
-    st_w = ks_e + KITCHEN_APPL_GAP
+    st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
     st_e = st_w + STOVE_WIDTH
+    ks_w = st_e + KITCHEN_APPL_GAP
+    ks_e = ks_w + KITCHEN_SINK_WIDTH
+    dw_w = ks_e + KITCHEN_APPL_GAP
+    dw_e = dw_w + DW_WIDTH
     appliances = [
         ("SINK",  ks_w, back_n - KITCHEN_SINK_DEPTH, ks_e, back_n,
          "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html"),
-        ("D/W",   dw_w, back_n - DW_DEPTH,           dw_e, back_n, None),
         ("STOVE", st_w, back_n - KITCHEN_APPL_GAP - STOVE_DEPTH, st_e, back_n - KITCHEN_APPL_GAP, None),
+        ("D/W",   dw_w, back_n - DW_DEPTH,           dw_e, back_n, None),
     ]
     for label, sw_e, sw_n, ne_e, ne_n, href in appliances:
         sx1, sy1 = to_svg(sw_e, ne_n)
@@ -584,12 +581,8 @@ def _render_kitchen(out, data, layout):
         if href:
             out.append('</a>')
 
-    # WW1: 30" radius constraint circle centered on SE corner of stove
-    ww1_cx = st_e
-    ww1_cy = back_n - KITCHEN_APPL_GAP - STOVE_DEPTH
-
-    # SHELVES: 36" E-W x 15" N-S, against F9-F10 south face, 3" east of stove
-    sh_w = st_e + KITCHEN_APPL_GAP
+    # SHELVES: 36" E-W x 15" N-S, against F9-F10 south face, 3" east of D/W
+    sh_w = dw_e + KITCHEN_APPL_GAP
     sh_e = sh_w + SHELVES_WIDTH
     sh_n = back_n
     sh_s = sh_n - SHELVES_DEPTH
@@ -604,10 +597,6 @@ def _render_kitchen(out, data, layout):
     out.append(f'<text x="{sh_cx:.1f}" y="{sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
     out.append('</a>')
-
-    # WW3: 30" radius constraint circle centered on SE corner of SHELVES
-    ww3_cx = sh_e
-    ww3_cy = sh_s
 
     # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
     fr_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP
@@ -658,16 +647,11 @@ def _render_kitchen(out, data, layout):
                f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
     out.append('</a>')
 
-    return (ww1_cx, ww1_cy, WW_RADIUS), (ww3_cx, ww3_cy, WW_RADIUS)
-
-
-def _render_furniture(out, data, layout, ww1, ww3):
+def _render_furniture(out, data, layout):
     """Render furniture: bed, loveseat, ET, chair, ottoman, room labels."""
     pts = data.pts
     to_svg = data.to_svg
     bed = layout.bed
-    ww1_cx, ww1_cy, ww1_r = ww1
-    ww3_cx, ww3_cy, ww3_r = ww3
 
     # Bed
     bed_sw = to_svg(bed.w, bed.n)
@@ -687,12 +671,8 @@ def _render_furniture(out, data, layout, ww1, ww3):
     lv_width = LOVESEAT_WIDTH
     lv_height = LOVESEAT_LENGTH
     lv_angle = math.radians(LOVESEAT_ANGLE_DEG)
-    K = (math.cos(lv_angle) * (ww3_cy - ww1_cy)
-         - math.sin(lv_angle) * (ww3_cx - ww1_cx)
-         - ww3_r)
-    theta = lv_angle + math.asin(K / ww1_r)
-    lv_nw_e = ww1_cx + ww1_r * math.cos(theta)
-    lv_nw_n = ww1_cy + ww1_r * math.sin(theta)
+    lv_nw_e = LOVESEAT_NW_E
+    lv_nw_n = LOVESEAT_NW_N
     lv_w = lv_nw_e + lv_height * math.sin(lv_angle)
     lv_s = lv_nw_n - lv_height * math.cos(lv_angle)
 
@@ -1172,8 +1152,8 @@ def render_floorplan_svg(data):
 
     _render_walls(out, data, layout)
     _render_appliances(out, data, layout)
-    ww1, ww3 = _render_kitchen(out, data, layout)
-    _render_furniture(out, data, layout, ww1, ww3)
+    _render_kitchen(out, data, layout)
+    _render_furniture(out, data, layout)
     _render_dimensions(out, data, layout)
     _render_openings(out, data, layout)
 
