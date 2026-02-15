@@ -122,13 +122,13 @@
 <ellipse cx="216.8" cy="345.6" rx="11.7" ry="8.7" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="216.8" y="348.6" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
 <a href="https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html" target="_blank">
-<rect x="309.1" y="237.8" width="43.7" height="23.3" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="331.0" y="252.4" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
+<rect x="311.1" y="237.8" width="43.7" height="23.3" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="332.9" y="252.4" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">SINK</text>
 </a>
-<rect x="279.0" y="237.8" width="27.2" height="26.2" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="292.6" y="253.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">D/W</text>
-<rect x="355.8" y="240.7" width="29.1" height="26.2" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
-<text x="370.3" y="256.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">STOVE</text>
+<rect x="279.0" y="240.7" width="29.1" height="26.2" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="293.6" y="256.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">STOVE</text>
+<rect x="357.7" y="237.8" width="27.2" height="26.2" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
+<text x="371.3" y="253.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">D/W</text>
 <a href="https://www.ikea.com/us/en/p/hemnes-bookcase-white-stain-light-brown-60413502/" target="_blank">
 <rect x="387.8" y="237.8" width="35.0" height="14.6" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="405.3" y="248.1" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">SHELVES</text>
@@ -280,6 +280,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.30 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 23:51:04</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-124-g4235883-DEV</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-15 00:02:45</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-125-gbcdeef9</text>
 </svg>

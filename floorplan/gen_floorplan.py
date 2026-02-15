@@ -25,6 +25,7 @@ from floorplan.constants import (
     JAMB_WIDTH, STD_GAP, KITCHEN_APPL_GAP,
     LOVESEAT_NW_E, LOVESEAT_NW_N,
     LOVESEAT_WIDTH, LOVESEAT_LENGTH, LOVESEAT_ANGLE_DEG,
+    DESK_WIDTH, DESK_DEPTH,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
     SHELVES_WIDTH, SHELVES_DEPTH, SHELVES2_WIDTH, SHELVES2_DEPTH,
@@ -796,6 +797,26 @@ def _render_furniture(out, data, layout):
     sh2_cy = (sh2_sy1 + sh2_sy2) / 2
     out.append(f'<text x="{sh2_cx:.1f}" y="{sh2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
+
+    # DESK: 60" x 30", along W16-W17 wall (30° from horizontal)
+    dk_w17 = pts["W17"]
+    dk_sw_e = dk_w17[0]
+    dk_sw_n = dk_w17[1]
+    dk_ne_e = dk_sw_e + DESK_WIDTH
+    dk_ne_n = dk_sw_n + DESK_DEPTH
+    dk_sx1, dk_sy1 = to_svg(dk_sw_e, dk_ne_n)
+    dk_sx2, dk_sy2 = to_svg(dk_ne_e, dk_sw_n)
+    dk_sw = dk_sx2 - dk_sx1; dk_sh = dk_sy2 - dk_sy1
+    dk_rot_x = dk_sx1
+    dk_rot_y = dk_sy2
+    out.append(f'<g transform="rotate(-30,{dk_rot_x:.1f},{dk_rot_y:.1f})">')
+    out.append(f'<rect x="{dk_sx1:.1f}" y="{dk_sy1:.1f}" width="{dk_sw:.1f}" height="{dk_sh:.1f}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    dk_cx = (dk_sx1 + dk_sx2) / 2
+    dk_cy = (dk_sy1 + dk_sy2) / 2
+    out.append(f'<text x="{dk_cx:.1f}" y="{dk_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="{APPL_STROKE}">DESK</text>')
+    out.append('</g>')
 
     # Room labels
     bd_cx = layout.bed_cx
