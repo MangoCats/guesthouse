@@ -9,24 +9,17 @@ from typing import NamedTuple, Any
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area,
-    compute_inner_walls, horiz_isects, vert_isects, fmt_dist,
+    compute_inner_walls, fmt_dist,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import (
-    WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
-    APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_E,
-    APPLIANCE_OFFSET_N, APPLIANCE_GAP,
-    COUNTER_DEPTH, COUNTER_LENGTH, COUNTER_NW_RADIUS, COUNTER_GAP,
-    BEDROOM_WIDTH, CLOSET_WIDTH, CLOSET1_HEIGHT,
-    BED_WIDTH, BED_LENGTH, BED_OFFSET_N,
-    IW1_OFFSET_N, IW2_OFFSET_E, WALL_SOUTH_N,
-    WH_RADIUS, IW6_THICKNESS, IW6_OFFSET_N, IW5_OFFSET_N,
+    WALL_OUTER, COUNTER_NW_RADIUS, WH_RADIUS,
     SINK_RX, SINK_RY,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
-    FRIDGE_SIZE, KITCHEN_GAP,
+    FRIDGE_SIZE,
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     JAMB_WIDTH, STD_GAP, KITCHEN_APPL_GAP,
@@ -276,202 +269,203 @@ def build_floorplan_data():
     )
 
 # ============================================================
-# SVG rendering
+# Render sub-functions
 # ============================================================
 
-def render_floorplan_svg(data):
-    """Render the complete floorplan SVG. Returns SVG string."""
+def _render_walls(out, data, layout):
+    """Render outer wall fill, outline strokes, and all interior walls with rough openings.
+
+    Returns total interior wall area for subtraction from polygon area.
+    """
     pts = data.pts
     to_svg = data.to_svg
-    outline_segs = data.outline_segs
-    inner_segs = data.inner_segs
-    outer_poly = data.outer_poly
-    inner_poly = data.inner_poly
-    outer_area = data.outer_area
-    inner_area = data.inner_area
-    wall_t = data.wall_t
 
-    out = []
-    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}"'
-               f' viewBox="{data.vb_x:.2f} {data.vb_y:.2f} {data.vb_w:.2f} {data.vb_h:.2f}">')
-    out.append(f'<rect x="{data.vb_x:.2f}" y="{data.vb_y:.2f}" width="{data.vb_w:.2f}" height="{data.vb_h:.2f}" fill="white"/>')
-    out.append('<defs>')
-    out.append('  <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">'
-               '<polygon points="0 0, 8 3, 0 6" fill="#333"/></marker>')
-    out.append('</defs>')
-    out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
-               f' font-weight="bold">Parent Suite</text>')
-
-    # ================================================================
-    # SECTION: Interior Walls (IW1-IW8) with Rough Openings
-    # ================================================================
-
-    layout = compute_interior_layout(pts, inner_poly)
-    _rough_openings = compute_rough_openings(pts, layout)
-    _ro = {ro.name: ro.bbox for ro in _rough_openings}
-
-    # IW1: 6" thick, south face 11'6" north of inner F0-F21
-    iw1_s = pts["W0"][1] + IW1_OFFSET_N
-    iw1_n = iw1_s + WALL_6IN
-
-    _s_ints = horiz_isects(inner_poly, iw1_s)
-    _n_ints = horiz_isects(inner_poly, iw1_n)
-    iw_sw = (min(_s_ints), iw1_s)
-    iw_se = (max(_s_ints), iw1_s)
-    iw_nw = (min(_n_ints), iw1_n)
-    iw_ne = (max(_n_ints), iw1_n)
-
-    # Wall fill: outer gray, inner white cutout
-    outer_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in outer_poly)
-    inner_rev = list(reversed(inner_poly))
+    # Outer wall fill with inner cutout
+    outer_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in data.outer_poly)
+    inner_rev = list(reversed(data.inner_poly))
     inner_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in inner_rev)
     out.append(f'<polygon points="{outer_svg}" fill="{WALL_FILL}" stroke="none"/>')
     out.append(f'<polygon points="{inner_svg}" fill="white" stroke="none"/>')
 
-    # Outer + inner outline strokes
-    stroke_segs(out, outline_segs, "#333", "1.5", pts, to_svg)
-    stroke_segs(out, inner_segs, WALL_STROKE, WALL_SW, pts, to_svg)
+    # Outline strokes
+    stroke_segs(out, data.outline_segs, "#333", "1.5", pts, to_svg)
+    stroke_segs(out, data.inner_segs, WALL_STROKE, WALL_SW, pts, to_svg)
 
     # Half stroke width in survey feet (for inside-only edge lines)
-    _svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
-    _half_sw = 0.5 / _svg_per_ft  # half of 1.0px stroke
+    svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
+    half_sw = 0.5 / svg_per_ft
 
-    # Compute IW2 easting early (needed for RO1 position in IW1)
-    iw2_w = pts["W1"][0] + IW2_OFFSET_E
-    iw2_e = iw2_w + WALL_6IN
+    # Rough openings
+    rough_openings = compute_rough_openings(pts, layout)
+    ro = {r.name: r.bbox for r in rough_openings}
 
-    # RO1 rough opening bounds in IW1
-    _ro1_w = _ro["RO1"].w
-    _ro1_e = _ro["RO1"].e
-    _ro1_jamb = JAMB_WIDTH
+    # ---- IW1 with RO1 ----
+    iw_sw, iw_se, iw_ne, iw_nw = layout.iw1
+    iw1_s, iw1_n = layout.iw1_s, layout.iw1_n
+    ro1_w, ro1_e = ro["RO1"].w, ro["RO1"].e
 
-    # Interior wall IW1 — full polygon for area calc, split rendering around RO1
-    iw_pts = [iw_sw, iw_se, iw_ne, iw_nw]
-    _iw1_w_poly = [iw_sw, (_ro1_w, iw1_s), (_ro1_w, iw1_n), iw_nw]
-    _iw1_e_poly = [(_ro1_e, iw1_s), iw_se, iw_ne, (_ro1_e, iw1_n)]
-    wall_poly(out, _iw1_w_poly, to_svg, stroke=False)
-    wall_poly(out, _iw1_e_poly, to_svg, stroke=False)
-    # South and north edge lines, split around opening (inset by half stroke width)
-    _s_in = iw1_s + _half_sw  # south face, shifted north (inward)
-    _n_in = iw1_n - _half_sw  # north face, shifted south (inward)
-    for a, b in [((iw_sw[0], _s_in), (_ro1_w, _s_in)),
-                 ((_ro1_e, _s_in), (iw_se[0], _s_in)),
-                 ((iw_nw[0], _n_in), (_ro1_w, _n_in)),
-                 ((_ro1_e, _n_in), (iw_ne[0], _n_in))]:
+    iw1_w_poly = [iw_sw, (ro1_w, iw1_s), (ro1_w, iw1_n), iw_nw]
+    iw1_e_poly = [(ro1_e, iw1_s), iw_se, iw_ne, (ro1_e, iw1_n)]
+    wall_poly(out, iw1_w_poly, to_svg, stroke=False)
+    wall_poly(out, iw1_e_poly, to_svg, stroke=False)
+    s_in = iw1_s + half_sw
+    n_in = iw1_n - half_sw
+    for a, b in [((iw_sw[0], s_in), (ro1_w, s_in)),
+                 ((ro1_e, s_in), (iw_se[0], s_in)),
+                 ((iw_nw[0], n_in), (ro1_w, n_in)),
+                 ((ro1_e, n_in), (iw_ne[0], n_in))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    # RO1 jambs (1" dark-red rectangles at opening edges)
-    for jamb_e in [_ro1_w, _ro1_e - _ro1_jamb]:
-        _jx1, _jy1 = to_svg(jamb_e, iw1_n)
-        _jx2, _jy2 = to_svg(jamb_e + _ro1_jamb, iw1_s)
-        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
+    for jamb_e in [ro1_w, ro1_e - JAMB_WIDTH]:
+        jx1, jy1 = to_svg(jamb_e, iw1_n)
+        jx2, jy2 = to_svg(jamb_e + JAMB_WIDTH, iw1_s)
+        out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # Compute IW6 northing early (needed for RO4 position in IW2)
-    iw6_n = pts["W6"][1] - IW6_OFFSET_N
-    iw6_s = iw6_n - IW6_THICKNESS
+    # ---- IW2 with RO4 ----
+    iw2 = layout.iw2
+    ro4_n, ro4_s = ro["RO4"].n, ro["RO4"].s
 
-    # Interior wall IW2: 6" thick, N-S, west face 6'6" east of inner W1-W2 wall
-    # iw2_w and iw2_e computed above
-    iw2_s = iw1_n
-    iw2_n = pts["W6"][1]
-    iw2_pts = [(iw2_w, iw2_s), (iw2_e, iw2_s), (iw2_e, iw2_n), (iw2_w, iw2_n)]
-
-    # RO4 rough opening in IW2
-    _ro4_n = _ro["RO4"].n
-    _ro4_s = _ro["RO4"].s
-    _ro4_jamb = JAMB_WIDTH
-    # Split IW2 into south and north segments around opening
-    _iw2_s_poly = [(iw2_w, iw2_s), (iw2_e, iw2_s),
-                   (iw2_e, _ro4_s), (iw2_w, _ro4_s)]
-    _iw2_n_poly = [(iw2_w, _ro4_n), (iw2_e, _ro4_n),
-                   (iw2_e, iw2_n), (iw2_w, iw2_n)]
-    wall_poly(out, _iw2_s_poly, to_svg, stroke=False)
-    wall_poly(out, _iw2_n_poly, to_svg, stroke=False)
-    # West and east edge lines, split around opening (inset by half stroke width)
-    _iw2_w_in = iw2_w + _half_sw
-    _iw2_e_in = iw2_e - _half_sw
-    for a, b in [((_iw2_w_in, iw2_s), (_iw2_w_in, _ro4_s)),
-                 ((_iw2_w_in, _ro4_n), (_iw2_w_in, iw2_n)),
-                 ((_iw2_e_in, iw2_s), (_iw2_e_in, _ro4_s)),
-                 ((_iw2_e_in, _ro4_n), (_iw2_e_in, iw2_n))]:
+    iw2_s_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, ro4_s), (iw2.w, ro4_s)]
+    iw2_n_poly = [(iw2.w, ro4_n), (iw2.e, ro4_n), (iw2.e, iw2.n), (iw2.w, iw2.n)]
+    wall_poly(out, iw2_s_poly, to_svg, stroke=False)
+    wall_poly(out, iw2_n_poly, to_svg, stroke=False)
+    iw2_w_in = iw2.w + half_sw
+    iw2_e_in = iw2.e - half_sw
+    for a, b in [((iw2_w_in, iw2.s), (iw2_w_in, ro4_s)),
+                 ((iw2_w_in, ro4_n), (iw2_w_in, iw2.n)),
+                 ((iw2_e_in, iw2.s), (iw2_e_in, ro4_s)),
+                 ((iw2_e_in, ro4_n), (iw2_e_in, iw2.n))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    # RO4 jambs (1" dark-red rectangles at opening edges)
-    for jamb_n in [_ro4_s, _ro4_n - _ro4_jamb]:
-        _jx1, _jy1 = to_svg(iw2_w, jamb_n + _ro4_jamb)
-        _jx2, _jy2 = to_svg(iw2_e, jamb_n)
-        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
+    for jamb_n in [ro4_s, ro4_n - JAMB_WIDTH]:
+        jx1, jy1 = to_svg(iw2.w, jamb_n + JAMB_WIDTH)
+        jx2, jy2 = to_svg(iw2.e, jamb_n)
+        out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # IW6: 1" thick, W-E, from inside of F4-F5 to IW2 west face
-    # iw6_n and iw6_s computed above
-    _iw6_n_ints = horiz_isects(inner_poly, iw6_n)
-    _iw6_s_ints = horiz_isects(inner_poly, iw6_s)
-    iw6_w_n = min(_iw6_n_ints)
-    iw6_w_s = min(_iw6_s_ints)
-    iw6_e = iw2_w
-    iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
+    # ---- IW6 with RO5 ----
+    iw6_s, iw6_n = layout.iw6_s, layout.iw6_n
+    iw6_w_s = layout.iw6_poly[0][0]
+    iw6_w_n = layout.iw6_poly[3][0]
+    iw6_e = iw2.w
+    ro5_e, ro5_w = ro["RO5"].e, ro["RO5"].w
 
-    # RO5 rough opening in IW6
-    _ro5_e = _ro["RO5"].e
-    _ro5_w = _ro["RO5"].w
-    _ro5_jamb = JAMB_WIDTH
-    # Split IW6 into west (trapezoid) and east (rectangle) segments
-    _iw6_w_poly = [(iw6_w_s, iw6_s), (_ro5_w, iw6_s), (_ro5_w, iw6_n), (iw6_w_n, iw6_n)]
-    _iw6_e_poly = [(_ro5_e, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (_ro5_e, iw6_n)]
-    wall_poly(out, _iw6_w_poly, to_svg, stroke=False)
-    wall_poly(out, _iw6_e_poly, to_svg, stroke=False)
-    # South and north edge lines, split around opening (inset by half stroke width)
-    _iw6_s_in = iw6_s + _half_sw
-    _iw6_n_in = iw6_n - _half_sw
-    for a, b in [((iw6_w_s, _iw6_s_in), (_ro5_w, _iw6_s_in)),
-                 ((_ro5_e, _iw6_s_in), (iw6_e, _iw6_s_in)),
-                 ((iw6_w_n, _iw6_n_in), (_ro5_w, _iw6_n_in)),
-                 ((_ro5_e, _iw6_n_in), (iw6_e, _iw6_n_in))]:
+    iw6_w_poly = [(iw6_w_s, iw6_s), (ro5_w, iw6_s), (ro5_w, iw6_n), (iw6_w_n, iw6_n)]
+    iw6_e_poly = [(ro5_e, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (ro5_e, iw6_n)]
+    wall_poly(out, iw6_w_poly, to_svg, stroke=False)
+    wall_poly(out, iw6_e_poly, to_svg, stroke=False)
+    iw6_s_in = iw6_s + half_sw
+    iw6_n_in = iw6_n - half_sw
+    for a, b in [((iw6_w_s, iw6_s_in), (ro5_w, iw6_s_in)),
+                 ((ro5_e, iw6_s_in), (iw6_e, iw6_s_in)),
+                 ((iw6_w_n, iw6_n_in), (ro5_w, iw6_n_in)),
+                 ((ro5_e, iw6_n_in), (iw6_e, iw6_n_in))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    # RO5 jambs (1" dark-red rectangles at opening edges)
-    for jamb_e in [_ro5_w, _ro5_e - _ro5_jamb]:
-        _jx1, _jy1 = to_svg(jamb_e, iw6_n)
-        _jx2, _jy2 = to_svg(jamb_e + _ro5_jamb, iw6_s)
-        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
+    for jamb_e in [ro5_w, ro5_e - JAMB_WIDTH]:
+        jx1, jy1 = to_svg(jamb_e, iw6_n)
+        jx2, jy2 = to_svg(jamb_e + JAMB_WIDTH, iw6_s)
+        out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # Dimension line: IW1 north face to F9-F11 south face (inner), mid-span
+    # IW1-north → F9-F11 south face dimension
     dim_e = (pts["F9"][0] + pts["F11"][0]) / 2
     dim_line_v(out, dim_e, iw1_n, pts["W9"][1], fmt_dist(pts["W9"][1] - iw1_n), to_svg)
 
-    # Dimension line: IW2 east face to inside F12-F13 wall
+    # IW2-east → inside F12-F13 wall dimension
     dim2_n = (pts["F12"][1] + pts["F13"][1]) / 2
-    _w9, _w8 = pts["W13"], pts["W12"]
-    _t_e = (dim2_n - _w9[1]) / (_w8[1] - _w9[1]) if _w8[1] != _w9[1] else 0.5
-    dim2_east_e = _w9[0] + _t_e * (_w8[0] - _w9[0])
-    dim_line_h(out, iw2_e, dim2_n, dim2_east_e, fmt_dist(dim2_east_e - iw2_e), to_svg,
+    w13, w12 = pts["W13"], pts["W12"]
+    t_e = (dim2_n - w13[1]) / (w12[1] - w13[1]) if w12[1] != w13[1] else 0.5
+    dim2_east_e = w13[0] + t_e * (w12[0] - w13[0])
+    dim_line_h(out, iw2.e, dim2_n, dim2_east_e, fmt_dist(dim2_east_e - iw2.e), to_svg,
                label_offset_e=-4.0)
 
-    # ================================================================
-    # SECTION: Appliances (Dryer, Washer, Counter, Water Heater)
-    # ================================================================
-    dryer_w = pts["W1"][0] + APPLIANCE_OFFSET_E
-    dryer_s = pts["W0"][1] + APPLIANCE_OFFSET_N
-    dryer_e = dryer_w + APPLIANCE_WIDTH
-    dryer_n = dryer_s + APPLIANCE_DEPTH
+    # ---- IW7 ----
+    wall_poly(out, layout.iw7, to_svg)
 
-    washer_w = dryer_w
-    washer_s = dryer_n + APPLIANCE_GAP
-    washer_e = dryer_e
-    washer_n = washer_s + APPLIANCE_DEPTH
+    # ---- IW3 with RO3 ----
+    iw3 = layout.iw3
+    ro3_s, ro3_n = ro["RO3"].s, ro["RO3"].n
 
-    for label, sw_e, sw_n, ne_e, ne_n in [
-        ("DRYER",  dryer_w,  dryer_s,  dryer_e,  dryer_n),
-        ("WASHER", washer_w, washer_s, washer_e, washer_n),
-    ]:
-        sx1, sy1 = to_svg(sw_e, ne_n)
-        sx2, sy2 = to_svg(ne_e, sw_n)
+    iw3_s_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, ro3_s), (iw3.w, ro3_s)]
+    iw3_n_poly = [(iw3.w, ro3_n), (iw3.e, ro3_n), (iw3.e, iw3.n), (iw3.w, iw3.n)]
+    wall_poly(out, iw3_s_poly, to_svg, stroke=False)
+    wall_poly(out, iw3_n_poly, to_svg, stroke=False)
+    iw3_w_in = iw3.w + half_sw
+    iw3_e_in = iw3.e - half_sw
+    for a, b in [((iw3_w_in, iw3.s), (iw3_w_in, ro3_s)),
+                 ((iw3_w_in, ro3_n), (iw3_w_in, iw3.n)),
+                 ((iw3_e_in, iw3.s), (iw3_e_in, ro3_s)),
+                 ((iw3_e_in, ro3_n), (iw3_e_in, iw3.n))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    for jamb_n in [ro3_s, ro3_n - JAMB_WIDTH]:
+        jx1, jy1 = to_svg(iw3.w, jamb_n + JAMB_WIDTH)
+        jx2, jy2 = to_svg(iw3.e, jamb_n)
+        out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
+                   f' fill="{JAMB_COLOR}" stroke="none"/>')
+
+    # ---- IW4 with RO2 ----
+    ro2_s, ro2_n = ro["RO2"].s, ro["RO2"].n
+    iw4_poly = [(layout.iw4_w, layout.wall_south_n), (layout.iw4_e, layout.wall_south_n),
+                (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
+
+    iw4_s_poly = [(layout.iw4_w, layout.wall_south_n), (layout.iw4_e, layout.wall_south_n),
+                  (layout.iw4_e, ro2_s), (layout.iw4_w, ro2_s)]
+    iw4_n_poly = [(layout.iw4_w, ro2_n), (layout.iw4_e, ro2_n),
+                  (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
+    wall_poly(out, iw4_s_poly, to_svg, stroke=False)
+    wall_poly(out, iw4_n_poly, to_svg, stroke=False)
+    w_in = layout.iw4_w + half_sw
+    e_in = layout.iw4_e - half_sw
+    for a, b in [((w_in, layout.wall_south_n), (w_in, ro2_s)),
+                 ((w_in, ro2_n), (w_in, layout.iw1_s)),
+                 ((e_in, layout.wall_south_n), (e_in, ro2_s)),
+                 ((e_in, ro2_n), (e_in, layout.iw1_s))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    for jamb_n in [ro2_s, ro2_n - JAMB_WIDTH]:
+        jx1, jy1 = to_svg(layout.iw4_w, jamb_n + JAMB_WIDTH)
+        jx2, jy2 = to_svg(layout.iw4_e, jamb_n)
+        out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
+                   f' fill="{JAMB_COLOR}" stroke="none"/>')
+
+    # ---- IW8 ----
+    wall_poly(out, layout.iw8, to_svg)
+
+    # ---- IW5 ----
+    iw5 = layout.iw5
+    iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
+    wall_poly(out, iw5_poly, to_svg, stroke=False)
+    for n_val in [iw5.s + half_sw, iw5.n - half_sw]:
+        sx1, sy1 = to_svg(iw5.w, n_val)
+        sx2, sy2 = to_svg(iw5.e, n_val)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+
+    # Compute total interior wall area
+    iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
+    iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
+    iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
+                iw3_poly, iw4_poly, layout.iw8, iw5_poly]
+    return sum(poly_area(p) for p in iw_polys)
+
+
+def _render_appliances(out, data, layout):
+    """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
+    pts = data.pts
+    to_svg = data.to_svg
+
+    # Dryer and washer
+    for label, b in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
+        sx1, sy1 = to_svg(b.w, b.n)
+        sx2, sy2 = to_svg(b.e, b.s)
         sw = sx2 - sx1; sh = sy2 - sy1
         out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
                    f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
@@ -480,70 +474,69 @@ def render_floorplan_svg(data):
                    f' font-size="7" fill="{APPL_STROKE}">{label}</text>')
 
     # Counter: 24" deep x 72" long, 9" NW corner radius
-    ctr_w = dryer_e + COUNTER_GAP
-    ctr_e = ctr_w + COUNTER_DEPTH
-    ctr_s = pts["W0"][1]
-    ctr_n = ctr_s + COUNTER_LENGTH
-
-    _csw = to_svg(ctr_w, ctr_s)
-    _cse = to_svg(ctr_e, ctr_s)
-    _cne = to_svg(ctr_e, ctr_n)
-    _cnas = to_svg(ctr_w + COUNTER_NW_RADIUS, ctr_n)
-    _cnae = to_svg(ctr_w, ctr_n - COUNTER_NW_RADIUS)
-    _r_svg = abs(_cnas[0] - to_svg(ctr_w, ctr_n)[0])
-    ctr_path = (f'M {_csw[0]:.1f},{_csw[1]:.1f} '
-                f'L {_cse[0]:.1f},{_cse[1]:.1f} '
-                f'L {_cne[0]:.1f},{_cne[1]:.1f} '
-                f'L {_cnas[0]:.1f},{_cnas[1]:.1f} '
-                f'A {_r_svg:.1f} {_r_svg:.1f} 0 0 0 {_cnae[0]:.1f},{_cnae[1]:.1f} '
+    ctr = layout.ctr
+    csw = to_svg(ctr.w, ctr.s)
+    cse = to_svg(ctr.e, ctr.s)
+    cne = to_svg(ctr.e, ctr.n)
+    cnas = to_svg(ctr.w + COUNTER_NW_RADIUS, ctr.n)
+    cnae = to_svg(ctr.w, ctr.n - COUNTER_NW_RADIUS)
+    r_svg = abs(cnas[0] - to_svg(ctr.w, ctr.n)[0])
+    ctr_path = (f'M {csw[0]:.1f},{csw[1]:.1f} '
+                f'L {cse[0]:.1f},{cse[1]:.1f} '
+                f'L {cne[0]:.1f},{cne[1]:.1f} '
+                f'L {cnas[0]:.1f},{cnas[1]:.1f} '
+                f'A {r_svg:.1f} {r_svg:.1f} 0 0 0 {cnae[0]:.1f},{cnae[1]:.1f} '
                 f'Z')
     out.append(f'<path d="{ctr_path}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _ccx = (_csw[0] + _cse[0]) / 2
-    _ccy = (_csw[1] + _cne[1]) / 2
-    out.append(f'<text x="{_ccx:.1f}" y="{_ccy:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{_ccx:.1f},{_ccy:.1f})">COUNTER</text>')
+    ccx = (csw[0] + cse[0]) / 2
+    ccy = (csw[1] + cne[1]) / 2
+    out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
 
-    # Water heater: 28" diameter circle, east of IW2, touching inner F7-F8 arc wall
-    wh_e = iw2_e + WH_RADIUS
-    _wh_tangent_r = (data.radii["R_a7"] - wall_t) - WH_RADIUS
-    _wh_dE = wh_e - pts["C7"][0]
-    wh_n = pts["C7"][1] + math.sqrt(_wh_tangent_r**2 - _wh_dE**2)
+    # Water heater: 28" diameter circle
+    wh_e = layout.iw2.e + WH_RADIUS
+    wh_tangent_r = (data.radii["R_a7"] - data.wall_t) - WH_RADIUS
+    wh_dE = wh_e - pts["C7"][0]
+    wh_n = pts["C7"][1] + math.sqrt(wh_tangent_r**2 - wh_dE**2)
     wh_sx, wh_sy = to_svg(wh_e, wh_n)
-    _wh_r_svg = (to_svg(WH_RADIUS, 0)[0] - to_svg(0, 0)[0])
-    out.append(f'<circle cx="{wh_sx:.1f}" cy="{wh_sy:.1f}" r="{_wh_r_svg:.1f}"'
+    wh_r_svg = (to_svg(WH_RADIUS, 0)[0] - to_svg(0, 0)[0])
+    out.append(f'<circle cx="{wh_sx:.1f}" cy="{wh_sy:.1f}" r="{wh_r_svg:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     out.append(f'<text x="{wh_sx:.1f}" y="{wh_sy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">WH</text>')
 
-    # ================================================================
-    # SECTION: Toilets and Sinks
-    # ================================================================
-    _toilet_e = (dryer_w + dryer_e) / 2
-    _sink_e = (dryer_e + ctr_w) / 2
-    # South side (utility room): fixtures face south, back against IW1 south face
-    draw_toilet(out, _toilet_e, iw1_s, face_north=False, to_svg=to_svg)
-    draw_sink(out, _sink_e, iw1_s - SINK_RY, to_svg=to_svg)
-    # North side (bath area): fixtures face north, back against IW1 north face
-    draw_toilet(out, _toilet_e, iw1_n, face_north=True, to_svg=to_svg)
-    draw_sink(out, _sink_e, iw1_n + SINK_RY, to_svg=to_svg)
+    # Toilets and sinks
+    toilet_e = (layout.dryer.w + layout.dryer.e) / 2
+    sink_e = (layout.dryer.e + layout.ctr.w) / 2
+    draw_toilet(out, toilet_e, layout.iw1_s, face_north=False, to_svg=to_svg)
+    draw_sink(out, sink_e, layout.iw1_s - SINK_RY, to_svg=to_svg)
+    draw_toilet(out, toilet_e, layout.iw1_n, face_north=True, to_svg=to_svg)
+    draw_sink(out, sink_e, layout.iw1_n + SINK_RY, to_svg=to_svg)
 
-    # ================================================================
-    # SECTION: Kitchen (D/W, Sink, Stove, Shelves, Fridge, Counters)
-    # ================================================================
-    _back_n = pts["W9"][1]  # south face of inner north wall
-    _dw_w = iw2_e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP  # 3" east of north counter
-    _dw_e = _dw_w + DW_WIDTH
-    _ks_w = _dw_e + KITCHEN_APPL_GAP  # sink west 3" east of D/W east
-    _ks_e = _ks_w + KITCHEN_SINK_WIDTH
-    _st_w = _ks_e + KITCHEN_APPL_GAP  # stove 3" east of sink
-    _st_e = _st_w + STOVE_WIDTH
-    _appliances = [
-        ("SINK",  _ks_w, _back_n - KITCHEN_SINK_DEPTH, _ks_e, _back_n,
+
+def _render_kitchen(out, data, layout):
+    """Render kitchen: D/W, sink, stove, shelves, fridge, counters.
+
+    Returns ((ww1_cx, ww1_cy, ww1_r), (ww3_cx, ww3_cy, ww3_r)) work zone info.
+    """
+    pts = data.pts
+    to_svg = data.to_svg
+    back_n = pts["W9"][1]
+
+    # Kitchen appliances
+    dw_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+    dw_e = dw_w + DW_WIDTH
+    ks_w = dw_e + KITCHEN_APPL_GAP
+    ks_e = ks_w + KITCHEN_SINK_WIDTH
+    st_w = ks_e + KITCHEN_APPL_GAP
+    st_e = st_w + STOVE_WIDTH
+    appliances = [
+        ("SINK",  ks_w, back_n - KITCHEN_SINK_DEPTH, ks_e, back_n,
          "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html"),
-        ("D/W",   _dw_w, _back_n - DW_DEPTH,           _dw_e, _back_n, None),
-        ("STOVE", _st_w, _back_n - KITCHEN_APPL_GAP - STOVE_DEPTH, _st_e, _back_n - KITCHEN_APPL_GAP, None),
+        ("D/W",   dw_w, back_n - DW_DEPTH,           dw_e, back_n, None),
+        ("STOVE", st_w, back_n - KITCHEN_APPL_GAP - STOVE_DEPTH, st_e, back_n - KITCHEN_APPL_GAP, None),
     ]
-    for label, sw_e, sw_n, ne_e, ne_n, href in _appliances:
+    for label, sw_e, sw_n, ne_e, ne_n, href in appliances:
         sx1, sy1 = to_svg(sw_e, ne_n)
         sx2, sy2 = to_svg(ne_e, sw_n)
         sw = sx2 - sx1; sh = sy2 - sy1
@@ -558,417 +551,313 @@ def render_floorplan_svg(data):
             out.append('</a>')
 
     # WW1: 30" radius constraint circle centered on SE corner of stove
-    _ww1_cx = _st_e
-    _ww1_cy = _back_n - KITCHEN_APPL_GAP - STOVE_DEPTH
-    _ww1_r = WW_RADIUS
+    ww1_cx = st_e
+    ww1_cy = back_n - KITCHEN_APPL_GAP - STOVE_DEPTH
 
     # SHELVES: 36" E-W x 15" N-S, against F9-F10 south face, 3" east of stove
-    _sh_w = _st_e + KITCHEN_APPL_GAP
-    _sh_e = _sh_w + SHELVES_WIDTH
-    _sh_n = _back_n
-    _sh_s = _sh_n - SHELVES_DEPTH
-    _sh_sx1, _sh_sy1 = to_svg(_sh_w, _sh_n)
-    _sh_sx2, _sh_sy2 = to_svg(_sh_e, _sh_s)
-    _sh_sw = _sh_sx2 - _sh_sx1; _sh_sh = _sh_sy2 - _sh_sy1
+    sh_w = st_e + KITCHEN_APPL_GAP
+    sh_e = sh_w + SHELVES_WIDTH
+    sh_n = back_n
+    sh_s = sh_n - SHELVES_DEPTH
+    sh_sx1, sh_sy1 = to_svg(sh_w, sh_n)
+    sh_sx2, sh_sy2 = to_svg(sh_e, sh_s)
+    sh_sw = sh_sx2 - sh_sx1; sh_sh = sh_sy2 - sh_sy1
     out.append('<a href="https://www.ikea.com/us/en/p/hemnes-bookcase-white-stain-light-brown-60413502/" target="_blank">')
-    out.append(f'<rect x="{_sh_sx1:.1f}" y="{_sh_sy1:.1f}" width="{_sh_sw:.1f}" height="{_sh_sh:.1f}"'
+    out.append(f'<rect x="{sh_sx1:.1f}" y="{sh_sy1:.1f}" width="{sh_sw:.1f}" height="{sh_sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _sh_cx = (_sh_sx1 + _sh_sx2) / 2
-    _sh_cy = (_sh_sy1 + _sh_sy2) / 2
-    out.append(f'<text x="{_sh_cx:.1f}" y="{_sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    sh_cx = (sh_sx1 + sh_sx2) / 2
+    sh_cy = (sh_sy1 + sh_sy2) / 2
+    out.append(f'<text x="{sh_cx:.1f}" y="{sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
     out.append('</a>')
 
     # WW3: 30" radius constraint circle centered on SE corner of SHELVES
-    _ww3_cx = _sh_e
-    _ww3_cy = _sh_s
-    _ww3_r = WW_RADIUS
+    ww3_cx = sh_e
+    ww3_cy = sh_s
 
     # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
-    _fr_w = iw2_e + KITCHEN_CTR_LENGTH + STD_GAP
-    _fr_e = _fr_w + FRIDGE_SIZE
-    _fr_s = iw1_n + STD_GAP
-    _fr_n = _fr_s + FRIDGE_SIZE
-    sx1, sy1 = to_svg(_fr_w, _fr_n)
-    sx2, sy2 = to_svg(_fr_e, _fr_s)
+    fr_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP
+    fr_e = fr_w + FRIDGE_SIZE
+    fr_s = layout.iw1_n + STD_GAP
+    fr_n = fr_s + FRIDGE_SIZE
+    sx1, sy1 = to_svg(fr_w, fr_n)
+    sx2, sy2 = to_svg(fr_e, fr_s)
     sw = sx2 - sx1; sh = sy2 - sy1
     out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _fr_cx = (sx1 + sx2) / 2
-    _fr_cy = (sy1 + sy2) / 2
-    out.append(f'<text x="{_fr_cx:.1f}" y="{_fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    fr_cx = (sx1 + sx2) / 2
+    fr_cy = (sy1 + sy2) / 2
+    out.append(f'<text x="{fr_cx:.1f}" y="{fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">FRIDGE</text>')
 
-    # Kitchen counter: 24" deep x 72" long, along IW1 north face starting at IW2 east face
-    _kc_w = iw2_e
-    _kc_e = _kc_w + KITCHEN_CTR_LENGTH
-    _kc_s = iw1_n
-    _kc_n = _kc_s + KITCHEN_CTR_DEPTH
-    _kcsw = to_svg(_kc_w, _kc_s)
-    _kcne = to_svg(_kc_e, _kc_n)
-    _kc_sx1, _kc_sy1 = to_svg(_kc_w, _kc_n)
-    _kc_sx2, _kc_sy2 = to_svg(_kc_e, _kc_s)
-    _kc_sw = _kc_sx2 - _kc_sx1; _kc_sh = _kc_sy2 - _kc_sy1
+    # Kitchen counter: along IW1 north face starting at IW2 east face
+    kc_w = layout.iw2.e
+    kc_e = kc_w + KITCHEN_CTR_LENGTH
+    kc_s = layout.iw1_n
+    kc_n = kc_s + KITCHEN_CTR_DEPTH
+    kc_sx1, kc_sy1 = to_svg(kc_w, kc_n)
+    kc_sx2, kc_sy2 = to_svg(kc_e, kc_s)
+    kc_sw = kc_sx2 - kc_sx1; kc_sh = kc_sy2 - kc_sy1
     out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-72-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3072S.html" target="_blank">')
-    out.append(f'<rect x="{_kc_sx1:.1f}" y="{_kc_sy1:.1f}" width="{_kc_sw:.1f}" height="{_kc_sh:.1f}"'
+    out.append(f'<rect x="{kc_sx1:.1f}" y="{kc_sy1:.1f}" width="{kc_sw:.1f}" height="{kc_sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _kc_cx = (_kc_sx1 + _kc_sx2) / 2
-    _kc_cy = (_kc_sy1 + _kc_sy2) / 2
-    out.append(f'<text x="{_kc_cx:.1f}" y="{_kc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    kc_cx = (kc_sx1 + kc_sx2) / 2
+    kc_cy = (kc_sy1 + kc_sy2) / 2
+    out.append(f'<text x="{kc_cx:.1f}" y="{kc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
     out.append('</a>')
 
-    # North wall counter: 24" deep x 38" long, south side against W9-W10, starting at IW2 east face
-    _nc_w = iw2_e
-    _nc_e = _nc_w + NORTH_CTR_LENGTH
-    _nc_n = pts["W9"][1]
-    _nc_s = _nc_n - NORTH_CTR_DEPTH
-    _nc_sx1, _nc_sy1 = to_svg(_nc_w, _nc_n)
-    _nc_sx2, _nc_sy2 = to_svg(_nc_e, _nc_s)
-    _nc_sw = _nc_sx2 - _nc_sx1; _nc_sh = _nc_sy2 - _nc_sy1
+    # North wall counter: south side against W9-W10, starting at IW2 east face
+    nc_w = layout.iw2.e
+    nc_e = nc_w + NORTH_CTR_LENGTH
+    nc_n = pts["W9"][1]
+    nc_s = nc_n - NORTH_CTR_DEPTH
+    nc_sx1, nc_sy1 = to_svg(nc_w, nc_n)
+    nc_sx2, nc_sy2 = to_svg(nc_e, nc_s)
+    nc_sw = nc_sx2 - nc_sx1; nc_sh = nc_sy2 - nc_sy1
     out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html" target="_blank">')
-    out.append(f'<rect x="{_nc_sx1:.1f}" y="{_nc_sy1:.1f}" width="{_nc_sw:.1f}" height="{_nc_sh:.1f}"'
+    out.append(f'<rect x="{nc_sx1:.1f}" y="{nc_sy1:.1f}" width="{nc_sw:.1f}" height="{nc_sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _nc_cx = (_nc_sx1 + _nc_sx2) / 2
-    _nc_cy = (_nc_sy1 + _nc_sy2) / 2
-    out.append(f'<text x="{_nc_cx:.1f}" y="{_nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    nc_cx = (nc_sx1 + nc_sx2) / 2
+    nc_cy = (nc_sy1 + nc_sy2) / 2
+    out.append(f'<text x="{nc_cx:.1f}" y="{nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
     out.append('</a>')
 
-    # ================================================================
-    # SECTION: Bedroom and Closet Walls (IW7, IW3, IW4, IW8, IW5)
-    # ================================================================
-    # IW7 L-shape (west/north walls of closet, east of counter)
-    iw7_poly = [
-        (ctr_e, ctr_s),
-        (ctr_e + WALL_3IN, ctr_s),
-        (ctr_e + WALL_3IN, ctr_n),
-        (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n),
-        (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n + WALL_3IN),
-        (ctr_e, ctr_n + WALL_3IN),
-    ]
-    wall_poly(out, iw7_poly, to_svg)
+    return (ww1_cx, ww1_cy, WW_RADIUS), (ww3_cx, ww3_cy, WW_RADIUS)
 
-    # IW3 (west bedroom wall, 4" thick)
-    iw3_w = ctr_e + WALL_3IN + CLOSET_WIDTH
-    iw3_e = iw3_w + WALL_4IN
-    iw3_s = ctr_s
-    iw3_n = iw1_s
-    iw3_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s), (iw3_e, iw3_n), (iw3_w, iw3_n)]
 
-    # RO3 rough opening in IW3
-    _ro3_s = _ro["RO3"].s
-    _ro3_n = _ro["RO3"].n
-    _ro3_jamb = JAMB_WIDTH
-    # Split IW3 into south and north segments around opening
-    _iw3_s_poly = [(iw3_w, iw3_s), (iw3_e, iw3_s),
-                   (iw3_e, _ro3_s), (iw3_w, _ro3_s)]
-    _iw3_n_poly = [(iw3_w, _ro3_n), (iw3_e, _ro3_n),
-                   (iw3_e, iw3_n), (iw3_w, iw3_n)]
-    wall_poly(out, _iw3_s_poly, to_svg, stroke=False)
-    wall_poly(out, _iw3_n_poly, to_svg, stroke=False)
-    # West and east edge lines, split around opening (inset by half stroke width)
-    _iw3_w_in = iw3_w + _half_sw
-    _iw3_e_in = iw3_e - _half_sw
-    for a, b in [((_iw3_w_in, iw3_s), (_iw3_w_in, _ro3_s)),
-                 ((_iw3_w_in, _ro3_n), (_iw3_w_in, iw3_n)),
-                 ((_iw3_e_in, iw3_s), (_iw3_e_in, _ro3_s)),
-                 ((_iw3_e_in, _ro3_n), (_iw3_e_in, iw3_n))]:
-        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
-        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
-                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    # RO3 jambs (1" dark-red rectangles at opening edges)
-    for jamb_n in [_ro3_s, _ro3_n - _ro3_jamb]:
-        _jx1, _jy1 = to_svg(iw3_w, jamb_n + _ro3_jamb)
-        _jx2, _jy2 = to_svg(iw3_e, jamb_n)
-        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
-                   f' fill="{JAMB_COLOR}" stroke="none"/>')
+def _render_furniture(out, data, layout, ww1, ww3):
+    """Render furniture: bed, loveseat, ET, chair, ottoman, room labels."""
+    pts = data.pts
+    to_svg = data.to_svg
+    bed = layout.bed
+    ww1_cx, ww1_cy, ww1_r = ww1
+    ww3_cx, ww3_cy, ww3_r = ww3
 
-    # IW4 (bedroom east wall, 4" thick) — 11'8" east of IW3 east face
-    iw4_w = iw3_e + BEDROOM_WIDTH
-    iw4_e = iw4_w + WALL_4IN
-    iw4_poly = [(iw4_w, WALL_SOUTH_N), (iw4_e, WALL_SOUTH_N), (iw4_e, iw1_s), (iw4_w, iw1_s)]
-
-    # IW8 (L-shaped, 3" thick — east/north walls of closet 1)
-    closet1_top = WALL_SOUTH_N + CLOSET1_HEIGHT
-    iw8_w = iw4_e + CLOSET_WIDTH
-    iw8_e = iw8_w + WALL_3IN
-    iw8_poly = [
-        (iw4_e, closet1_top + WALL_3IN),
-        (iw8_e, closet1_top + WALL_3IN),
-        (iw8_e, WALL_SOUTH_N),
-        (iw8_w, WALL_SOUTH_N),
-        (iw8_w, closet1_top),
-        (iw4_e, closet1_top),
-    ]
-    wall_poly(out, iw8_poly, to_svg)
-
-    # IW5: 3" thick, W-E in office, north face 30" south of IW1 south face
-    iw5_n = iw1_s - IW5_OFFSET_N
-    iw5_s = iw5_n - WALL_3IN
-    iiw8_w = iw4_e
-    iiw8_e = pts["W15"][0]
-    iw5_poly = [(iiw8_w, iw5_s), (iiw8_e, iw5_s), (iiw8_e, iw5_n), (iiw8_w, iw5_n)]
-    wall_poly(out, iw5_poly, to_svg, stroke=False)
-    for n_val in [iw5_s + _half_sw, iw5_n - _half_sw]:
-        sx1, sy1 = to_svg(iiw8_w, n_val)
-        sx2, sy2 = to_svg(iiw8_e, n_val)
-        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
-                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-
-    # RO2 rough opening in IW4
-    _ro2_s = _ro["RO2"].s
-    _ro2_n = _ro["RO2"].n
-    _ro2_jamb = JAMB_WIDTH
-    # Split IW4 into south and north segments around opening
-    _iw4_s_poly = [(iw4_w, WALL_SOUTH_N), (iw4_e, WALL_SOUTH_N),
-                   (iw4_e, _ro2_s), (iw4_w, _ro2_s)]
-    _iw4_n_poly = [(iw4_w, _ro2_n), (iw4_e, _ro2_n),
-                   (iw4_e, iw1_s), (iw4_w, iw1_s)]
-    wall_poly(out, _iw4_s_poly, to_svg, stroke=False)
-    wall_poly(out, _iw4_n_poly, to_svg, stroke=False)
-    # West and east edge lines, split around opening (inset by half stroke width)
-    _w_in = iw4_w + _half_sw  # west face, shifted east (inward)
-    _e_in = iw4_e - _half_sw  # east face, shifted west (inward)
-    for a, b in [((_w_in, WALL_SOUTH_N), (_w_in, _ro2_s)),
-                 ((_w_in, _ro2_n), (_w_in, iw1_s)),
-                 ((_e_in, WALL_SOUTH_N), (_e_in, _ro2_s)),
-                 ((_e_in, _ro2_n), (_e_in, iw1_s))]:
-        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
-        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
-                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    # RO2 jambs (1" dark-red rectangles at opening edges)
-    for jamb_n in [_ro2_s, _ro2_n - _ro2_jamb]:
-        _jx1, _jy1 = to_svg(iw4_w, jamb_n + _ro2_jamb)
-        _jx2, _jy2 = to_svg(iw4_e, jamb_n)
-        out.append(f'<rect x="{_jx1:.1f}" y="{_jy1:.1f}" width="{_jx2 - _jx1:.1f}" height="{_jy2 - _jy1:.1f}"'
-                   f' fill="{JAMB_COLOR}" stroke="none"/>')
-
-    # Subtract interior wall areas from interior area
-    _iw_polys = [iw_pts, iw2_pts, iw6_poly, iw7_poly, iw3_poly, iw4_poly, iw8_poly, iw5_poly]
-    inner_area -= sum(poly_area(p) for p in _iw_polys)
-
-    # ================================================================
-    # SECTION: Furniture (Bed, Loveseat, ET, Chair, Ottoman)
-    # ================================================================
-    bed_cx = (iw3_e + iw4_w) / 2
-    bed_w = bed_cx - BED_WIDTH / 2
-    bed_e = bed_cx + BED_WIDTH / 2
-    bed_s = ctr_s + BED_OFFSET_N
-    bed_n = bed_s + BED_LENGTH
-    _bed_sw = to_svg(bed_w, bed_n)
-    _bed_se = to_svg(bed_e, bed_s)
-    _bed_sw_x, _bed_sw_y = _bed_sw
-    _bed_se_x, _bed_se_y = _bed_se
-    _bed_w = _bed_se_x - _bed_sw_x
-    _bed_h = _bed_se_y - _bed_sw_y
-    out.append(f'<rect x="{_bed_sw_x:.1f}" y="{_bed_sw_y:.1f}" width="{_bed_w:.1f}" height="{_bed_h:.1f}"'
+    # Bed
+    bed_sw = to_svg(bed.w, bed.n)
+    bed_se = to_svg(bed.e, bed.s)
+    bed_sw_x, bed_sw_y = bed_sw
+    bed_se_x, bed_se_y = bed_se
+    bed_w = bed_se_x - bed_sw_x
+    bed_h = bed_se_y - bed_sw_y
+    out.append(f'<rect x="{bed_sw_x:.1f}" y="{bed_sw_y:.1f}" width="{bed_w:.1f}" height="{bed_h:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _bed_cx_svg = (_bed_sw_x + _bed_se_x) / 2
-    _bed_label_y = _bed_sw_y + 0.765 * _bed_h
-    out.append(f'<text x="{_bed_cx_svg:.1f}" y="{_bed_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
+    bed_cx_svg = (bed_sw_x + bed_se_x) / 2
+    bed_label_y = bed_sw_y + 0.765 * bed_h
+    out.append(f'<text x="{bed_cx_svg:.1f}" y="{bed_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">KING BED</text>')
 
     # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
-    # Constraints: NW corner on WW1, NNW (north) side tangent to WW3
-    _lv_width = LOVESEAT_WIDTH
-    _lv_height = LOVESEAT_LENGTH
-    _lv_angle = math.radians(LOVESEAT_ANGLE_DEG)
-    # NW on WW1: NW = (ww1_cx + R*cos θ, ww1_cy + R*sin θ)
-    # North face outward normal (-sin15, cos15); tangency to WW3 gives:
-    #   ww1_r * sin(θ - 15°) = K
-    _K = (math.cos(_lv_angle) * (_ww3_cy - _ww1_cy)
-          - math.sin(_lv_angle) * (_ww3_cx - _ww1_cx)
-          - _ww3_r)
-    _theta = _lv_angle + math.asin(_K / _ww1_r)
-    _lv_nw_e = _ww1_cx + _ww1_r * math.cos(_theta)
-    _lv_nw_n = _ww1_cy + _ww1_r * math.sin(_theta)
-    # Derive SW from NW: SW = NW + (h*sin15, -h*cos15)
-    _lv_w = _lv_nw_e + _lv_height * math.sin(_lv_angle)
-    _lv_s = _lv_nw_n - _lv_height * math.cos(_lv_angle)
+    lv_width = LOVESEAT_WIDTH
+    lv_height = LOVESEAT_LENGTH
+    lv_angle = math.radians(LOVESEAT_ANGLE_DEG)
+    K = (math.cos(lv_angle) * (ww3_cy - ww1_cy)
+         - math.sin(lv_angle) * (ww3_cx - ww1_cx)
+         - ww3_r)
+    theta = lv_angle + math.asin(K / ww1_r)
+    lv_nw_e = ww1_cx + ww1_r * math.cos(theta)
+    lv_nw_n = ww1_cy + ww1_r * math.sin(theta)
+    lv_w = lv_nw_e + lv_height * math.sin(lv_angle)
+    lv_s = lv_nw_n - lv_height * math.cos(lv_angle)
+
     # ET position: 2" N of IW1, 2" from loveseat SE corner
-    _et_r = (ET_RADIUS_CM / 2.54) / 12.0  # 25cm radius in feet
-    _lv_se_e = _lv_w + _lv_width * math.cos(_lv_angle)
-    _lv_se_n = _lv_s + _lv_width * math.sin(_lv_angle)
-    _et_gap = _et_r + STD_GAP
-    _et_cy = iw1_n + STD_GAP + _et_r
-    _et_cx = _lv_se_e + math.sqrt(_et_gap**2 - (_et_cy - _lv_se_n)**2)
-    _lv_e = _lv_w + _lv_width
-    _lv_n = _lv_s + _lv_height
-    _lv_sx1, _lv_sy1 = to_svg(_lv_w, _lv_n)
-    _lv_sx2, _lv_sy2 = to_svg(_lv_e, _lv_s)
-    _lv_sw = _lv_sx2 - _lv_sx1; _lv_sh = _lv_sy2 - _lv_sy1
-    _lv_rot_x = _lv_sx1  # SW corner in SVG (west/left edge)
-    _lv_rot_y = _lv_sy2  # SW corner in SVG (south/bottom edge)
+    et_r = (ET_RADIUS_CM / 2.54) / 12.0
+    lv_se_e = lv_w + lv_width * math.cos(lv_angle)
+    lv_se_n = lv_s + lv_width * math.sin(lv_angle)
+    et_gap = et_r + STD_GAP
+    et_cy = layout.iw1_n + STD_GAP + et_r
+    et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
+
+    lv_e = lv_w + lv_width
+    lv_n = lv_s + lv_height
+    lv_sx1, lv_sy1 = to_svg(lv_w, lv_n)
+    lv_sx2, lv_sy2 = to_svg(lv_e, lv_s)
+    lv_sw = lv_sx2 - lv_sx1; lv_sh = lv_sy2 - lv_sy1
+    lv_rot_x = lv_sx1
+    lv_rot_y = lv_sy2
     out.append(f'<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
-    out.append(f'<g transform="rotate({int(-LOVESEAT_ANGLE_DEG)},{_lv_rot_x:.1f},{_lv_rot_y:.1f})">')
-    out.append(f'<rect x="{_lv_sx1:.1f}" y="{_lv_sy1:.1f}" width="{_lv_sw:.1f}" height="{_lv_sh:.1f}"'
+    out.append(f'<g transform="rotate({int(-LOVESEAT_ANGLE_DEG)},{lv_rot_x:.1f},{lv_rot_y:.1f})">')
+    out.append(f'<rect x="{lv_sx1:.1f}" y="{lv_sy1:.1f}" width="{lv_sw:.1f}" height="{lv_sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _lv_cx = (_lv_sx1 + _lv_sx2) / 2
-    _lv_cy = (_lv_sy1 + _lv_sy2) / 2
-    out.append(f'<text x="{_lv_cx:.1f}" y="{_lv_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    lv_cx = (lv_sx1 + lv_sx2) / 2
+    lv_cy = (lv_sy1 + lv_sy2) / 2
+    out.append(f'<text x="{lv_cx:.1f}" y="{lv_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
     out.append('</g>')
     out.append('</a>')
 
-    # ET: 50cm diameter endtable, center on extended east side of loveseat, 2" from SE corner
-    _et_sx, _et_sy = to_svg(_et_cx, _et_cy)
-    _et_r_svg = abs(to_svg(_et_r, 0)[0] - to_svg(0, 0)[0])
+    # ET: 50cm diameter endtable
+    et_sx, et_sy = to_svg(et_cx, et_cy)
+    et_r_svg = abs(to_svg(et_r, 0)[0] - to_svg(0, 0)[0])
     out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
-    out.append(f'<circle cx="{_et_sx:.1f}" cy="{_et_sy:.1f}" r="{_et_r_svg:.1f}"'
+    out.append(f'<circle cx="{et_sx:.1f}" cy="{et_sy:.1f}" r="{et_r_svg:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    out.append(f'<text x="{_et_sx:.1f}" y="{_et_sy+3:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{et_sx:.1f}" y="{et_sy+3:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
     out.append('</a>')
 
     # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
-    _lv2_w = _et_cx + _et_r + STD_GAP
-    _lv2_s = iw1_n + STD_GAP
-    _lv2_e = _lv2_w + _lv_height  # 65" E-W
-    _lv2_n = _lv2_s + _lv_width   # 35" N-S
-    _lv2_sx1, _lv2_sy1 = to_svg(_lv2_w, _lv2_n)
-    _lv2_sx2, _lv2_sy2 = to_svg(_lv2_e, _lv2_s)
-    _lv2_sw = _lv2_sx2 - _lv2_sx1; _lv2_sh = _lv2_sy2 - _lv2_sy1
+    lv2_w = et_cx + et_r + STD_GAP
+    lv2_s = layout.iw1_n + STD_GAP
+    lv2_e = lv2_w + lv_height  # 65" E-W
+    lv2_n = lv2_s + lv_width   # 35" N-S
+    lv2_sx1, lv2_sy1 = to_svg(lv2_w, lv2_n)
+    lv2_sx2, lv2_sy2 = to_svg(lv2_e, lv2_s)
+    lv2_sw = lv2_sx2 - lv2_sx1; lv2_sh = lv2_sy2 - lv2_sy1
     out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
-    out.append(f'<rect x="{_lv2_sx1:.1f}" y="{_lv2_sy1:.1f}" width="{_lv2_sw:.1f}" height="{_lv2_sh:.1f}"'
+    out.append(f'<rect x="{lv2_sx1:.1f}" y="{lv2_sy1:.1f}" width="{lv2_sw:.1f}" height="{lv2_sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _lv2_cx = (_lv2_sx1 + _lv2_sx2) / 2
-    _lv2_cy = (_lv2_sy1 + _lv2_sy2) / 2
-    out.append(f'<text x="{_lv2_cx:.1f}" y="{_lv2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    lv2_cx = (lv2_sx1 + lv2_sx2) / 2
+    lv2_cy = (lv2_sy1 + lv2_sy2) / 2
+    out.append(f'<text x="{lv2_cx:.1f}" y="{lv2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
     out.append('</a>')
 
     # CHAIR: 32" E-W x 37" N-S, rounded corners 3", centered between W11 and W12
-    _ch_w_dim = CHAIR_WIDTH
-    _ch_h_dim = CHAIR_DEPTH
-    _ch_angle = math.radians(CHAIR_ANGLE_DEG)
-    _ch_cx = ((pts["W11"][0] + pts["W12"][0]) / 2
-              - 4.0 / 12.0 * math.sin(_ch_angle)
-              - 1.0 / 12.0)
-    _ch_cy = ((pts["W11"][1] + pts["W12"][1]) / 2 - 8.0 / 12.0
-              - 4.0 / 12.0 * math.cos(_ch_angle))
-    _ch_w = _ch_cx - _ch_w_dim / 2
-    _ch_e = _ch_cx + _ch_w_dim / 2
-    _ch_s = _ch_cy - _ch_h_dim / 2
-    _ch_n = _ch_cy + _ch_h_dim / 2
-    _ch_sx1, _ch_sy1 = to_svg(_ch_w, _ch_n)
-    _ch_sx2, _ch_sy2 = to_svg(_ch_e, _ch_s)
-    _ch_sw = _ch_sx2 - _ch_sx1; _ch_sh = _ch_sy2 - _ch_sy1
-    _ch_r_svg = abs(to_svg(CHAIR_CORNER_R, 0)[0] - to_svg(0, 0)[0])
-    _ch_rot_x, _ch_rot_y = to_svg(_ch_cx, _ch_cy)
-    out.append(f'<g transform="rotate({int(CHAIR_ANGLE_DEG)},{_ch_rot_x:.1f},{_ch_rot_y:.1f})">')
+    ch_angle = math.radians(CHAIR_ANGLE_DEG)
+    ch_cx = ((pts["W11"][0] + pts["W12"][0]) / 2
+             - 4.0 / 12.0 * math.sin(ch_angle)
+             - 1.0 / 12.0)
+    ch_cy = ((pts["W11"][1] + pts["W12"][1]) / 2 - 8.0 / 12.0
+             - 4.0 / 12.0 * math.cos(ch_angle))
+    ch_w = ch_cx - CHAIR_WIDTH / 2
+    ch_e = ch_cx + CHAIR_WIDTH / 2
+    ch_s = ch_cy - CHAIR_DEPTH / 2
+    ch_n = ch_cy + CHAIR_DEPTH / 2
+    ch_sx1, ch_sy1 = to_svg(ch_w, ch_n)
+    ch_sx2, ch_sy2 = to_svg(ch_e, ch_s)
+    ch_sw = ch_sx2 - ch_sx1; ch_sh = ch_sy2 - ch_sy1
+    ch_r_svg = abs(to_svg(CHAIR_CORNER_R, 0)[0] - to_svg(0, 0)[0])
+    ch_rot_x, ch_rot_y = to_svg(ch_cx, ch_cy)
+    out.append(f'<g transform="rotate({int(CHAIR_ANGLE_DEG)},{ch_rot_x:.1f},{ch_rot_y:.1f})">')
     out.append('<a href="https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/" target="_blank">')
-    out.append(f'<rect x="{_ch_sx1:.1f}" y="{_ch_sy1:.1f}" width="{_ch_sw:.1f}" height="{_ch_sh:.1f}"'
-               f' rx="{_ch_r_svg:.1f}" ry="{_ch_r_svg:.1f}"'
+    out.append(f'<rect x="{ch_sx1:.1f}" y="{ch_sy1:.1f}" width="{ch_sw:.1f}" height="{ch_sh:.1f}"'
+               f' rx="{ch_r_svg:.1f}" ry="{ch_r_svg:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _ch_label_x = (_ch_sx1 + _ch_sx2) / 2
-    _ch_label_y = (_ch_sy1 + _ch_sy2) / 2
-    out.append(f'<text x="{_ch_label_x:.1f}" y="{_ch_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
+    ch_label_x = (ch_sx1 + ch_sx2) / 2
+    ch_label_y = (ch_sy1 + ch_sy2) / 2
+    out.append(f'<text x="{ch_label_x:.1f}" y="{ch_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">CHAIR</text>')
     out.append('</a>')
     out.append('</g>')
 
     # OTTO: 29" x 29", rounded corners 3", 30° CW, 6" SSW of CHAIR
-    _ot_dim = OTTOMAN_SIZE
-    _ot_dist = 39.0 / 12.0  # ch half-h 18.5" + 6" gap + ot half 14.5"
-    _ot_cx = _ch_cx - _ot_dist * math.sin(_ch_angle)
-    _ot_cy = _ch_cy - _ot_dist * math.cos(_ch_angle)
-    _ot_w = _ot_cx - _ot_dim / 2
-    _ot_e = _ot_cx + _ot_dim / 2
-    _ot_s = _ot_cy - _ot_dim / 2
-    _ot_n = _ot_cy + _ot_dim / 2
-    _ot_sx1, _ot_sy1 = to_svg(_ot_w, _ot_n)
-    _ot_sx2, _ot_sy2 = to_svg(_ot_e, _ot_s)
-    _ot_sw = _ot_sx2 - _ot_sx1; _ot_sh = _ot_sy2 - _ot_sy1
-    _ot_r_svg = _ch_r_svg  # same 3" corner radius
-    _ot_rot_x, _ot_rot_y = to_svg(_ot_cx, _ot_cy)
-    out.append(f'<g transform="rotate({int(CHAIR_ANGLE_DEG)},{_ot_rot_x:.1f},{_ot_rot_y:.1f})">')
+    ot_dist = 39.0 / 12.0  # ch half-h 18.5" + 6" gap + ot half 14.5"
+    ot_cx = ch_cx - ot_dist * math.sin(ch_angle)
+    ot_cy = ch_cy - ot_dist * math.cos(ch_angle)
+    ot_w = ot_cx - OTTOMAN_SIZE / 2
+    ot_e = ot_cx + OTTOMAN_SIZE / 2
+    ot_s = ot_cy - OTTOMAN_SIZE / 2
+    ot_n = ot_cy + OTTOMAN_SIZE / 2
+    ot_sx1, ot_sy1 = to_svg(ot_w, ot_n)
+    ot_sx2, ot_sy2 = to_svg(ot_e, ot_s)
+    ot_sw = ot_sx2 - ot_sx1; ot_sh = ot_sy2 - ot_sy1
+    ot_r_svg = ch_r_svg  # same 3" corner radius
+    ot_rot_x, ot_rot_y = to_svg(ot_cx, ot_cy)
+    out.append(f'<g transform="rotate({int(CHAIR_ANGLE_DEG)},{ot_rot_x:.1f},{ot_rot_y:.1f})">')
     out.append('<a href="https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/" target="_blank">')
-    out.append(f'<rect x="{_ot_sx1:.1f}" y="{_ot_sy1:.1f}" width="{_ot_sw:.1f}" height="{_ot_sh:.1f}"'
-               f' rx="{_ot_r_svg:.1f}" ry="{_ot_r_svg:.1f}"'
+    out.append(f'<rect x="{ot_sx1:.1f}" y="{ot_sy1:.1f}" width="{ot_sw:.1f}" height="{ot_sh:.1f}"'
+               f' rx="{ot_r_svg:.1f}" ry="{ot_r_svg:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _ot_label_x = (_ot_sx1 + _ot_sx2) / 2
-    _ot_label_y = (_ot_sy1 + _ot_sy2) / 2
-    out.append(f'<text x="{_ot_label_x:.1f}" y="{_ot_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
+    ot_label_x = (ot_sx1 + ot_sx2) / 2
+    ot_label_y = (ot_sy1 + ot_sy2) / 2
+    out.append(f'<text x="{ot_label_x:.1f}" y="{ot_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">OTTO</text>')
     out.append('</a>')
     out.append('</g>')
 
     # Room labels
-    _bd_cx = (iw3_e + iw4_w) / 2
-    _bd_cy = (ctr_s + iw1_s) / 2
-    _bdx, _bdy = to_svg(_bd_cx, _bd_cy)
-    out.append(f'<text x="{_bdx:.1f}" y="{_bdy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    bd_cx = layout.bed_cx
+    bd_cy = (layout.ctr.s + layout.iw1_s) / 2
+    bdx, bdy = to_svg(bd_cx, bd_cy)
+    out.append(f'<text x="{bdx:.1f}" y="{bdy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">BEDROOM</text>')
 
-    _of_cx = (iw4_e + pts["W15"][0]) / 2
-    _of_cy = (closet1_top + WALL_3IN + iw1_s) / 2 - 2.0
-    _ofx, _ofy = to_svg(_of_cx, _of_cy)
-    out.append(f'<text x="{_ofx:.1f}" y="{_ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    of_cx = (layout.iw4_e + pts["W15"][0]) / 2
+    of_cy = (layout.cl1_top + layout.iwt3 + layout.iw1_s) / 2 - 2.0
+    ofx, ofy = to_svg(of_cx, of_cy)
+    out.append(f'<text x="{ofx:.1f}" y="{ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">OFFICE</text>')
 
-    # ================================================================
-    # SECTION: Dimension Lines (Interior and External)
-    # ================================================================
-    bd_ew_n = ctr_s + 0.25 * (iw1_s - ctr_s)
-    dim_line_h(out, iw3_e, bd_ew_n, iw4_w, fmt_dist(iw4_w - iw3_e), to_svg)
-    dim_line_v(out, iw3_e + 2.0, ctr_s, iw1_s, fmt_dist(iw1_s - ctr_s), to_svg)
 
-    dim_line_v(out, (ctr_e + WALL_3IN + iw3_w) / 2, ctr_s, ctr_n, f"CLOSET {fmt_dist(ctr_n - ctr_s)}", to_svg)
-    dim_line_v(out, (iw4_e + iw8_w) / 2, WALL_SOUTH_N, closet1_top, f"CLOSET {fmt_dist(closet1_top - WALL_SOUTH_N)}", to_svg)
+def _render_dimensions(out, data, layout):
+    """Render all dimension lines (interior and external)."""
+    pts = data.pts
+    to_svg = data.to_svg
 
-    dim_line_h(out, pts["W1"][0], (ctr_s + ctr_n) / 2, ctr_e, fmt_dist(ctr_e - pts["W1"][0]), to_svg)
-    dim_line_h(out, iw8_e, 5.0, pts["W15"][0], fmt_dist(pts["W15"][0] - iw8_e), to_svg)
+    # Bedroom E-W and N-S
+    bd_ew_n = layout.ctr.s + 0.25 * (layout.iw1_s - layout.ctr.s)
+    dim_line_h(out, layout.iw3.e, bd_ew_n, layout.iw4_w,
+               fmt_dist(layout.iw4_w - layout.iw3.e), to_svg)
+    dim_line_v(out, layout.iw3.e + 2.0, layout.ctr.s, layout.iw1_s,
+               fmt_dist(layout.iw1_s - layout.ctr.s), to_svg)
 
-    dim_line_h(out, iw4_e, (iw5_n + iw1_s) / 2, pts["W15"][0],
-               f"STORAGE {fmt_dist(pts['W15'][0] - iw4_e)}", to_svg)
+    # Closets
+    dim_line_v(out, (layout.ctr.e + layout.iwt3 + layout.iw3.w) / 2,
+               layout.ctr.s, layout.ctr.n,
+               f"CLOSET {fmt_dist(layout.ctr.n - layout.ctr.s)}", to_svg)
+    dim_line_v(out, (layout.iw4_e + layout.iw8_w) / 2,
+               layout.wall_south_n, layout.cl1_top,
+               f"CLOSET {fmt_dist(layout.cl1_top - layout.wall_south_n)}", to_svg)
 
-    _dim_f1f2_n = ctr_n + WALL_3IN + 1.0
-    dim_line_h(out, pts["W2"][0], _dim_f1f2_n, iw3_w, fmt_dist(iw3_w - pts["W2"][0]), to_svg)
-    dim_line_h(out, pts["W2"][0], pts["F2"][1], iw2_w, fmt_dist(iw2_w - pts["W2"][0]), to_svg)
-    dim_line_h(out, pts["W5"][0], pts["F5"][1], iw2_w, fmt_dist(iw2_w - pts["W5"][0]), to_svg)
+    # Utility
+    dim_line_h(out, pts["W1"][0], (layout.ctr.s + layout.ctr.n) / 2, layout.ctr.e,
+               fmt_dist(layout.ctr.e - pts["W1"][0]), to_svg)
+    dim_line_h(out, layout.iw8_e, 5.0, pts["W15"][0],
+               fmt_dist(pts["W15"][0] - layout.iw8_e), to_svg)
 
-    dim_line_v(out, pts["F18"][0], iw5_s, pts["W18"][1], fmt_dist(iw5_s - pts["W18"][1]), to_svg)
-    dim_line_v(out, pts["F6"][0] + 1.0, iw6_n, pts["W6"][1],
-               fmt_dist(pts["W6"][1] - iw6_n), to_svg)
-    dim_line_v(out, pts["F6"][0] + 1.0, iw1_n, iw6_s,
-               fmt_dist(iw6_s - iw1_n), to_svg)
+    # Storage
+    dim_line_h(out, layout.iw4_e, (layout.iw5.n + layout.iw1_s) / 2, pts["W15"][0],
+               f"STORAGE {fmt_dist(pts['W15'][0] - layout.iw4_e)}", to_svg)
+
+    # West wall interior widths
+    dim_f1f2_n = layout.ctr.n + layout.iwt3 + 1.0
+    dim_line_h(out, pts["W2"][0], dim_f1f2_n, layout.iw3.w,
+               fmt_dist(layout.iw3.w - pts["W2"][0]), to_svg)
+    dim_line_h(out, pts["W2"][0], pts["F2"][1], layout.iw2.w,
+               fmt_dist(layout.iw2.w - pts["W2"][0]), to_svg)
+    dim_line_h(out, pts["W5"][0], pts["F5"][1], layout.iw2.w,
+               fmt_dist(layout.iw2.w - pts["W5"][0]), to_svg)
+
+    # Office/bedroom verticals
+    dim_line_v(out, pts["F18"][0], layout.iw5.s, pts["W18"][1],
+               fmt_dist(layout.iw5.s - pts["W18"][1]), to_svg)
+    dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
+               fmt_dist(pts["W6"][1] - layout.iw6_n), to_svg)
+    dim_line_v(out, pts["F6"][0] + 1.0, layout.iw1_n, layout.iw6_s,
+               fmt_dist(layout.iw6_s - layout.iw1_n), to_svg)
 
     # External dimensions
-    _dim_ext_e = pts["F2"][0] - 2.7
-    dim_line_v(out, _dim_ext_e, pts["F0"][1], pts["F6"][1],
+    dim_ext_e = pts["F2"][0] - 2.7
+    dim_line_v(out, dim_ext_e, pts["F0"][1], pts["F6"][1],
                fmt_dist(pts["F6"][1] - pts["F0"][1]), to_svg)
 
     dim_line_h(out, pts["F8"][0], pts["F6"][1] + 1.0, pts["F11"][0],
                fmt_dist(pts["F11"][0] - pts["F8"][0]), to_svg)
 
-    _dim_ext_n = pts["F19"][1] - 3.0
-    dim_line_h(out, pts["F1"][0], _dim_ext_n, pts["F15"][0],
+    dim_ext_n = pts["F19"][1] - 3.0
+    dim_line_h(out, pts["F1"][0], dim_ext_n, pts["F15"][0],
                fmt_dist(pts["F15"][0] - pts["F1"][0]), to_svg)
 
-    _o9_dim_e = (bed_e + iw4_w) / 2
-    dim_line_v(out, _o9_dim_e, pts["W18"][1], iw1_s,
-               fmt_dist(iw1_s - pts["W18"][1]), to_svg)
+    o9_dim_e = (layout.bed.e + layout.iw4_w) / 2
+    dim_line_v(out, o9_dim_e, pts["W18"][1], layout.iw1_s,
+               fmt_dist(layout.iw1_s - pts["W18"][1]), to_svg)
 
-    # ================================================================
-    # SECTION: Openings (O1-O11, numbered CW around outline)
-    # ================================================================
 
-    _outer_openings = compute_outer_openings(pts, layout)
-    for _o in _outer_openings:
-        _svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _o.poly)
-        out.append(f'<polygon points="{_svg}" fill="{OPENING_FILL}" stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
+def _render_openings(out, data, layout):
+    """Render O1-O11 opening polygons."""
+    pts = data.pts
+    to_svg = data.to_svg
+    outer_openings = compute_outer_openings(pts, layout)
+    for o in outer_openings:
+        svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in o.poly)
+        out.append(f'<polygon points="{svg}" fill="{OPENING_FILL}" stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ================================================================
-    # SECTION: Labels, North Arrow, and Title Block
-    # ================================================================
-    _vert_names = []
-    for seg in outline_segs:
-        if seg.start not in _vert_names:
-            _vert_names.append(seg.start)
 
-    # (F-series vertex labels removed)
-
+def _render_title_block(out, data, inner_area):
+    """Render north arrow and title block."""
     # North arrow
     out.append(f'<line x1="{data.na_x:.1f}" y1="{data.na_base_y:.1f}" x2="{data.na_x:.1f}" y2="{data.na_tip_y:.1f}" stroke="#333" stroke-width="2"'
                f' marker-end="url(#ah)"/>')
@@ -985,23 +874,62 @@ def render_floorplan_svg(data):
                f' font-family="Arial" font-size="8" fill="#666">Interior area</text>')
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+40:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="11" font-weight="bold" fill="#333">'
-               f'{outer_area:.2f} sq ft</text>')
+               f'{data.outer_area:.2f} sq ft</text>')
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+52:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">Exterior area</text>')
-    _ratio = data.ft_per_inch * 12  # paper inches to real inches
-    _scale_label = f'Scale 1:{_ratio:.1f} 1&#8243; = {fmt_dist(data.ft_per_inch)}'
+    ratio = data.ft_per_inch * 12
+    scale_label = f'Scale 1:{ratio:.1f} 1&#8243; = {fmt_dist(data.ft_per_inch)}'
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+64:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="8" fill="#666">{_scale_label}</text>')
-    _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    _git_desc = git_describe()
+               f' font-family="Arial" font-size="8" fill="#666">{scale_label}</text>')
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    git_desc = git_describe()
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+76:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="7.5" fill="#999">Generated {_now}</text>')
+               f' font-family="Arial" font-size="7.5" fill="#999">Generated {now}</text>')
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+86:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="7.5" fill="#999">from {_git_desc}</text>')
+               f' font-family="Arial" font-size="7.5" fill="#999">from {git_desc}</text>')
 
+
+# ============================================================
+# SVG rendering — orchestrator
+# ============================================================
+
+def render_floorplan_svg(data):
+    """Render the complete floorplan SVG. Returns (svg_string, inner_area, outer_area, vert_names)."""
+    pts = data.pts
+    to_svg = data.to_svg
+    layout = compute_interior_layout(pts, data.inner_poly)
+
+    out = []
+    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}"'
+               f' viewBox="{data.vb_x:.2f} {data.vb_y:.2f} {data.vb_w:.2f} {data.vb_h:.2f}">')
+    out.append(f'<rect x="{data.vb_x:.2f}" y="{data.vb_y:.2f}" width="{data.vb_w:.2f}" height="{data.vb_h:.2f}" fill="white"/>')
+    out.append('<defs>')
+    out.append('  <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">'
+               '<polygon points="0 0, 8 3, 0 6" fill="#333"/></marker>')
+    out.append('</defs>')
+    out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
+               f' font-weight="bold">Parent Suite</text>')
+
+    iw_area = _render_walls(out, data, layout)
+    _render_appliances(out, data, layout)
+    ww1, ww3 = _render_kitchen(out, data, layout)
+    _render_furniture(out, data, layout, ww1, ww3)
+    _render_dimensions(out, data, layout)
+    _render_openings(out, data, layout)
+
+    inner_area = data.inner_area - iw_area
+
+    seen = set()
+    vert_names = []
+    for seg in data.outline_segs:
+        if seg.start not in seen:
+            seen.add(seg.start)
+            vert_names.append(seg.start)
+
+    _render_title_block(out, data, inner_area)
     out.append('</svg>')
 
-    return "\n".join(out), inner_area, outer_area, _vert_names
+    return "\n".join(out), inner_area, data.outer_area, vert_names
 
 
 # ============================================================

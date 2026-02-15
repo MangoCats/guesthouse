@@ -82,6 +82,29 @@
 <line x1="241.1" y1="271.0" x2="241.1" y2="279.0" stroke="#999" stroke-width="0.8"/>
 <line x1="545.8" y1="271.0" x2="545.8" y2="279.0" stroke="#999" stroke-width="0.8"/>
 <text x="346.8" y="272.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#999">26' 1.65"</text>
+<defs><clipPath id="wc84"><polygon points="257.6,494.3 260.6,494.3 260.6,424.3 289.7,424.3 289.7,421.4 257.6,421.4"/></clipPath></defs>
+<polygon points="257.6,494.3 260.6,494.3 260.6,424.3 289.7,424.3 289.7,421.4 257.6,421.4" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="1.6" clip-path="url(#wc84)"/>
+<polygon points="289.7,494.3 293.6,494.3 293.6,419.5 289.7,419.5" fill="rgba(160,160,160,0.35)" stroke="none"/>
+<polygon points="289.7,382.5 293.6,382.5 293.6,360.2 289.7,360.2" fill="rgba(160,160,160,0.35)" stroke="none"/>
+<line x1="290.2" y1="494.3" x2="290.2" y2="419.5" stroke="#666" stroke-width="1.0"/>
+<line x1="290.2" y1="382.5" x2="290.2" y2="360.2" stroke="#666" stroke-width="1.0"/>
+<line x1="293.1" y1="494.3" x2="293.1" y2="419.5" stroke="#666" stroke-width="1.0"/>
+<line x1="293.1" y1="382.5" x2="293.1" y2="360.2" stroke="#666" stroke-width="1.0"/>
+<rect x="289.7" y="418.5" width="3.9" height="1.0" fill="darkred" stroke="none"/>
+<rect x="289.7" y="382.5" width="3.9" height="1.0" fill="darkred" stroke="none"/>
+<polygon points="429.6,505.9 433.5,505.9 433.5,431.1 429.6,431.1" fill="rgba(160,160,160,0.35)" stroke="none"/>
+<polygon points="429.6,394.2 433.5,394.2 433.5,360.2 429.6,360.2" fill="rgba(160,160,160,0.35)" stroke="none"/>
+<line x1="430.1" y1="505.9" x2="430.1" y2="431.1" stroke="#666" stroke-width="1.0"/>
+<line x1="430.1" y1="394.2" x2="430.1" y2="360.2" stroke="#666" stroke-width="1.0"/>
+<line x1="433.0" y1="505.9" x2="433.0" y2="431.1" stroke="#666" stroke-width="1.0"/>
+<line x1="433.0" y1="394.2" x2="433.0" y2="360.2" stroke="#666" stroke-width="1.0"/>
+<rect x="429.6" y="430.1" width="3.9" height="1.0" fill="darkred" stroke="none"/>
+<rect x="429.6" y="394.2" width="3.9" height="1.0" fill="darkred" stroke="none"/>
+<defs><clipPath id="wc102"><polygon points="433.5,433.1 465.5,433.1 465.5,505.9 462.6,505.9 462.6,436.0 433.5,436.0"/></clipPath></defs>
+<polygon points="433.5,433.1 465.5,433.1 465.5,505.9 462.6,505.9 462.6,436.0 433.5,436.0" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="1.6" clip-path="url(#wc102)"/>
+<polygon points="433.5,392.3 563.7,392.3 563.7,389.3 433.5,389.3" fill="rgba(160,160,160,0.35)" stroke="none"/>
+<line x1="433.5" y1="391.8" x2="563.7" y2="391.8" stroke="#666" stroke-width="1.0"/>
+<line x1="433.5" y1="389.8" x2="563.7" y2="389.8" stroke="#666" stroke-width="1.0"/>
 <rect x="165.4" y="461.2" width="34.0" height="29.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="182.4" y="478.8" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">DRYER</text>
 <rect x="165.4" y="431.1" width="34.0" height="29.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
@@ -120,29 +143,6 @@
 <rect x="241.1" y="237.8" width="35.0" height="29.1" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="258.6" y="255.4" text-anchor="middle" font-family="Arial" font-size="6" fill="#4682B4">COUNTER</text>
 </a>
-<defs><clipPath id="wc122"><polygon points="257.6,494.3 260.6,494.3 260.6,424.3 289.7,424.3 289.7,421.4 257.6,421.4"/></clipPath></defs>
-<polygon points="257.6,494.3 260.6,494.3 260.6,424.3 289.7,424.3 289.7,421.4 257.6,421.4" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="1.6" clip-path="url(#wc122)"/>
-<polygon points="289.7,494.3 293.6,494.3 293.6,419.5 289.7,419.5" fill="rgba(160,160,160,0.35)" stroke="none"/>
-<polygon points="289.7,382.5 293.6,382.5 293.6,360.2 289.7,360.2" fill="rgba(160,160,160,0.35)" stroke="none"/>
-<line x1="290.2" y1="494.3" x2="290.2" y2="419.5" stroke="#666" stroke-width="1.0"/>
-<line x1="290.2" y1="382.5" x2="290.2" y2="360.2" stroke="#666" stroke-width="1.0"/>
-<line x1="293.1" y1="494.3" x2="293.1" y2="419.5" stroke="#666" stroke-width="1.0"/>
-<line x1="293.1" y1="382.5" x2="293.1" y2="360.2" stroke="#666" stroke-width="1.0"/>
-<rect x="289.7" y="418.5" width="3.9" height="1.0" fill="darkred" stroke="none"/>
-<rect x="289.7" y="382.5" width="3.9" height="1.0" fill="darkred" stroke="none"/>
-<defs><clipPath id="wc132"><polygon points="433.5,433.1 465.5,433.1 465.5,505.9 462.6,505.9 462.6,436.0 433.5,436.0"/></clipPath></defs>
-<polygon points="433.5,433.1 465.5,433.1 465.5,505.9 462.6,505.9 462.6,436.0 433.5,436.0" fill="rgba(160,160,160,0.35)" stroke="#666" stroke-width="1.6" clip-path="url(#wc132)"/>
-<polygon points="433.5,392.3 563.7,392.3 563.7,389.3 433.5,389.3" fill="rgba(160,160,160,0.35)" stroke="none"/>
-<line x1="433.5" y1="391.8" x2="563.7" y2="391.8" stroke="#666" stroke-width="1.0"/>
-<line x1="433.5" y1="389.8" x2="563.7" y2="389.8" stroke="#666" stroke-width="1.0"/>
-<polygon points="429.6,505.9 433.5,505.9 433.5,431.1 429.6,431.1" fill="rgba(160,160,160,0.35)" stroke="none"/>
-<polygon points="429.6,394.2 433.5,394.2 433.5,360.2 429.6,360.2" fill="rgba(160,160,160,0.35)" stroke="none"/>
-<line x1="430.1" y1="505.9" x2="430.1" y2="431.1" stroke="#666" stroke-width="1.0"/>
-<line x1="430.1" y1="394.2" x2="430.1" y2="360.2" stroke="#666" stroke-width="1.0"/>
-<line x1="433.0" y1="505.9" x2="433.0" y2="431.1" stroke="#666" stroke-width="1.0"/>
-<line x1="433.0" y1="394.2" x2="433.0" y2="360.2" stroke="#666" stroke-width="1.0"/>
-<rect x="429.6" y="430.1" width="3.9" height="1.0" fill="darkred" stroke="none"/>
-<rect x="429.6" y="394.2" width="3.9" height="1.0" fill="darkred" stroke="none"/>
 <rect x="324.7" y="401.0" width="73.8" height="91.3" fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>
 <text x="361.6" y="473.9" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>
 <a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">
@@ -260,6 +260,6 @@
 <text x="646.4" y="187.0" text-anchor="middle" font-family="Arial" font-size="11" font-weight="bold" fill="#333">856.93 sq ft</text>
 <text x="646.4" y="199.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Exterior area</text>
 <text x="646.4" y="211.0" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">Scale 1:72.0 1&#8243; = 6' 0"</text>
-<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 16:47:49</text>
-<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-102-geb8196d-DEV</text>
+<text x="646.4" y="223.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-14 22:11:57</text>
+<text x="646.4" y="233.0" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">from v0.1-103-g5637528-DEV</text>
 </svg>
