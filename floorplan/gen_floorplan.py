@@ -9,7 +9,7 @@ from typing import NamedTuple, Any
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area,
-    compute_inner_walls, fmt_dist,
+    compute_inner_walls, fmt_dist, f8f9_corner_polyline,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
@@ -30,7 +30,7 @@ from floorplan.constants import (
     SHELVES_WIDTH, SHELVES_DEPTH, SHELVES2_WIDTH, SHELVES2_DEPTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
-    RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE,
+    RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
 )
 from floorplan.layout import compute_interior_layout
 from floorplan.openings import compute_outer_openings, compute_rough_openings
@@ -139,10 +139,19 @@ def draw_sink(out, center_e, center_n, to_svg):
                f' font-size="7" fill="{APPL_STROKE}">SINK</text>')
 
 
-def stroke_segs(out, segs, color, width, pts, to_svg):
-    """Render segment strokes (lines and arc polylines)."""
-    for seg in segs:
-        if isinstance(seg, LineSeg):
+def stroke_segs(out, segs, color, width, pts, to_svg, seg_overrides=None):
+    """Render segment strokes (lines and arc polylines).
+
+    seg_overrides: optional dict mapping seg index to replacement polyline
+                   (list of (E, N) points) for non-standard segment paths.
+    """
+    for i, seg in enumerate(segs):
+        if seg_overrides and i in seg_overrides:
+            poly = seg_overrides[i]
+            svg_p = " ".join(f"{to_svg(e,n)[0]:.1f},{to_svg(e,n)[1]:.1f}" for e,n in poly)
+            out.append(f'<polyline points="{svg_p}" fill="none" stroke="{color}"'
+                       f' stroke-width="{width}" stroke-linecap="round"/>')
+        elif isinstance(seg, LineSeg):
             sx1, sy1 = to_svg(*pts[seg.start]); sx2, sy2 = to_svg(*pts[seg.end])
             out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                        f' stroke="{color}" stroke-width="{width}"/>')
@@ -186,6 +195,7 @@ class FloorplanData(NamedTuple):
     na_tip_y: float
     na_base_y: float
     ft_per_inch: float
+    w_f8f9_poly: list      # W-series F8-F9 straight-arc-straight polyline
 
 
 def build_floorplan_data():
@@ -210,6 +220,18 @@ def build_floorplan_data():
     inner_segs = compute_inner_walls(outline_segs, pts, wall_t, _radii)
     outer_poly = path_polygon(outline_segs, pts)
     inner_poly = path_polygon(inner_segs, pts)
+
+    # Replace W8-W9 arc in inner_poly with straight-arc-straight path
+    w_f8f9_poly = f8f9_corner_polyline(pts, WALL_OUTER, F8F9_INNER_TURN_R)
+    w8 = pts["W8"]
+    w9 = pts["W9"]
+    w8_idx = next(i for i, p in enumerate(inner_poly)
+                  if abs(p[0] - w8[0]) < 1e-9 and abs(p[1] - w8[1]) < 1e-9)
+    w9_idx = next(i for i, p in enumerate(inner_poly)
+                  if i > w8_idx
+                  and abs(p[0] - w9[0]) < 1e-9 and abs(p[1] - w9[1]) < 1e-9)
+    inner_poly[w8_idx:w9_idx + 1] = w_f8f9_poly
+
     outer_area = poly_area(outer_poly)
     inner_area = poly_area(inner_poly)
 
@@ -269,6 +291,7 @@ def build_floorplan_data():
         tb_bottom=_tb_bottom, tb_w=_tb_w, tb_h=_tb_h, tb_cx=_tb_cx,
         na_x=_na_x, na_text_y=_na_text_y, na_tip_y=_na_tip_y, na_base_y=_na_base_y,
         ft_per_inch=_ft_per_inch,
+        w_f8f9_poly=w_f8f9_poly,
     )
 
 # ============================================================
@@ -304,7 +327,9 @@ def _render_walls(out, data, layout):
 
     # Outline strokes
     stroke_segs(out, data.outline_segs, "#333", "1.5", pts, to_svg)
-    stroke_segs(out, data.inner_segs, WALL_STROKE, WALL_SW, pts, to_svg)
+    w_overrides = {8: data.w_f8f9_poly}
+    stroke_segs(out, data.inner_segs, WALL_STROKE, WALL_SW, pts, to_svg,
+                seg_overrides=w_overrides)
 
     # Half stroke width in survey feet (for inside-only edge lines)
     svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])

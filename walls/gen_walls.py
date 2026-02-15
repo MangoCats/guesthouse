@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area, arc_poly,
-    compute_inner_walls, fmt_dist, left_norm,
+    compute_inner_walls, fmt_dist, left_norm, f8f9_corner_polyline,
 )
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.gen_floorplan import build_floorplan_data
@@ -125,54 +125,6 @@ def _partial_line_strip(pts, seg, inner_seg_start, inner_seg_end, t_start, t_end
     p4 = _lerp(A_in, B_in, t_start)
     return [p1, p2, p3, p4]
 
-
-
-def _f8f9_corner_polyline(pts, inset, R_turn, n_arc=20):
-    """Compute straight-arc-straight polyline for F8-F9 inner shell corner.
-
-    At the F8-F9 concave corner, instead of the normal large-radius arc,
-    the inner shell goes straight south, makes a tight turn (using the
-    U-turn minimum radius), then goes straight east along the F9-F10 bearing.
-
-    Args:
-        pts: Point dictionary (needs F8, C8)
-        inset: Distance from outline (SHELL_THICKNESS+AIR_GAP for G, WALL_OUTER for W)
-        R_turn: Turn radius for this shell face
-        n_arc: Number of arc interpolation points
-
-    Returns:
-        List of (E, N) points forming the polyline from inset-F8 to inset-F9.
-    """
-    F8 = pts["F8"]
-    C8 = pts["C8"]
-    R_a8 = C8[0] - F8[0]  # SMALL_ARC_R
-
-    # Start: inset from F8, same northing (tangent direction is south)
-    start_E = F8[0] - inset
-    start_N = F8[1]
-
-    # End: inset from F9 (directly below F9, tangent direction is east)
-    end_E = C8[0]          # F9 easting = F8[0] + R_a8
-    end_N = F8[1] - R_a8 - inset  # F9[1] - inset
-
-    # Straight distance (both south and east sections are equal for 90° corner)
-    d = R_a8 + inset - R_turn
-
-    # Arc center (CCW turn from south to east)
-    arc_cx = start_E + R_turn
-    arc_cy = start_N - d
-
-    # Build polyline: start → straight south → 90° CCW arc → straight east → end
-    polyline = [(start_E, start_N)]
-
-    # Arc from 180° to 270° (CCW: south-to-east turn)
-    for i in range(n_arc + 1):
-        angle = math.pi + i * (math.pi / 2) / n_arc
-        polyline.append((arc_cx + R_turn * math.cos(angle),
-                         arc_cy + R_turn * math.sin(angle)))
-
-    polyline.append((end_E, end_N))
-    return polyline
 
 
 def _uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
@@ -585,9 +537,9 @@ def build_wall_data():
 
     # Compute F8-F9 inner shell replacement polylines (straight-arc-straight)
     R_in = OPENING_INSIDE_RADIUS
-    g_f8f9_poly = _f8f9_corner_polyline(
+    g_f8f9_poly = f8f9_corner_polyline(
         pts, SHELL_THICKNESS + AIR_GAP, R_in)
-    w_f8f9_poly = _f8f9_corner_polyline(
+    w_f8f9_poly = f8f9_corner_polyline(
         pts, WALL_OUTER, R_in + SHELL_THICKNESS)
 
     # --- Page layout: 1:72 scale ---

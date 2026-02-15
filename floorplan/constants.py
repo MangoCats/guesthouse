@@ -116,6 +116,8 @@ RO5_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO5
 _SHELL = 2.0 / 12.0
 _OPENING_R = 10.0 / 304.8
 DOOR_FLAT_FACE = WALL_OUTER - 2 * (_OPENING_R + _SHELL)
+# F8-F9 inner wall turn radius (W-face = inner face of inner shell)
+F8F9_INNER_TURN_R = _OPENING_R + _SHELL  # ~2.56" (10mm + 2")
 # O7 (F12-F13 diagonal wall)
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)

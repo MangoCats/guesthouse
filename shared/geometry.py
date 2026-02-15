@@ -177,6 +177,42 @@ def vert_isects(poly: list[Point], e_val: float) -> list[float]:
     return r
 
 # ============================================================
+# F8-F9 Corner Override
+# ============================================================
+def f8f9_corner_polyline(
+    pts: dict[str, Point], inset: float, R_turn: float, n_arc: int = 20,
+) -> list[Point]:
+    """Straight-arc-straight polyline for the F8-F9 inner shell corner.
+
+    At the F8-F9 concave corner, the inner shell goes straight south,
+    makes a tight CCW turn (radius *R_turn*), then goes straight east
+    along the F9-F10 bearing.
+
+    Returns list of (E, N) points from the inset-F8 to inset-F9 position.
+    """
+    F8 = pts["F8"]
+    C8 = pts["C8"]
+    R_a8 = C8[0] - F8[0]  # SMALL_ARC_R
+
+    start_E = F8[0] - inset
+    start_N = F8[1]
+    end_E   = C8[0]                    # F9 easting
+    end_N   = F8[1] - R_a8 - inset     # F9 northing − inset
+
+    d = R_a8 + inset - R_turn          # straight length (equal both sides)
+    arc_cx = start_E + R_turn
+    arc_cy = start_N - d
+
+    polyline: list[Point] = [(start_E, start_N)]
+    for i in range(n_arc + 1):
+        angle = math.pi + i * (math.pi / 2) / n_arc
+        polyline.append((arc_cx + R_turn * math.cos(angle),
+                         arc_cy + R_turn * math.sin(angle)))
+    polyline.append((end_E, end_N))
+    return polyline
+
+
+# ============================================================
 # Inner Wall Computation
 # ============================================================
 def compute_inner_walls(
