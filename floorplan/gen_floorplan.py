@@ -914,7 +914,8 @@ def _render_openings(out, data, layout):
     rough_openings = compute_rough_openings(pts, layout)
     ro1 = [r for r in rough_openings if r.name == "RO1"][0]
     ro1_mid = (ro1.bbox.s + ro1.bbox.n) / 2
-    hinge_e, hinge_n = ro1.bbox.e, ro1_mid
+    ro1_gap = (ro1.bbox.e - ro1.bbox.w - RO1_DOOR_WIDTH) / 2
+    hinge_e, hinge_n = ro1.bbox.e - ro1_gap, ro1_mid
     hx, hy = to_svg(hinge_e, hinge_n)
     # Straight line from hinge southward (door in open position)
     tip_e, tip_n = hinge_e, hinge_n - RO1_DOOR_WIDTH
