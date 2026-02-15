@@ -124,12 +124,6 @@ def draw_toilet(out, center_e, back_n, face_north, to_svg):
                        for e, n in pts_survey)
     out.append(f'<polygon points="{svg_pts}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    # Label at centroid
-    cx = sum(p[0] for p in pts_survey) / len(pts_survey)
-    cy = sum(p[1] for p in pts_survey) / len(pts_survey)
-    sx, sy = to_svg(cx, cy)
-    out.append(f'<text x="{sx:.1f}" y="{sy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="7" fill="{APPL_STROKE}">TOILET</text>')
 
 
 def draw_sink(out, center_e, center_n, to_svg):
