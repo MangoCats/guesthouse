@@ -95,6 +95,7 @@ O2_OFFSET_S = 4.0 / 12.0           # 4" south of F2 to north edge
 O2_WIDTH = 25.0 / 12.0             # 25" opening height
 # O3 (F4-F5, centered)
 O3_HALF_WIDTH = 16.0 / 12.0        # 16" half-width
+O3_DOOR_WIDTH = 30.0 / 12.0        # 30" door in O3
 # O4 (F6-F7, centered chimney opening)
 O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
 # O5 (F9-F10)

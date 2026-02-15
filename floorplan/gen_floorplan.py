@@ -28,6 +28,7 @@ from floorplan.constants import (
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
     SHELVES_WIDTH, SHELVES_DEPTH,
+    O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE,
 )
@@ -862,6 +863,53 @@ def _render_openings(out, data, layout):
     for o in outer_openings:
         svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in o.poly)
         out.append(f'<polygon points="{svg}" fill="{OPENING_FILL}" stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
+
+    # O3 door: 30" door, hinged north, swings east
+    o3 = [o for o in outer_openings if o.name == "O3"][0]
+    # O3 poly: [(F4_e, south), (F4_e, north), (W4_e, north), (W4_e, south)]
+    wall_w = pts["F4"][0]  # outer face
+    wall_e = pts["W4"][0]  # inner face
+    wall_mid = (wall_w + wall_e) / 2
+    o3_s = o3.poly[0][1]
+    o3_n = o3.poly[1][1]
+    o3_opening = o3_n - o3_s
+    gap = (o3_opening - O3_DOOR_WIDTH) / 2
+    door_s = o3_s + gap
+    door_n = o3_n - gap
+
+    # Jamb blocks
+    block_w = wall_mid - DOOR_FLAT_FACE / 2
+    block_e = wall_mid + DOOR_FLAT_FACE / 2
+    # South block
+    bx1, by1 = to_svg(block_w, o3_s + gap)
+    bx2, by2 = to_svg(block_e, o3_s)
+    out.append(f'<rect x="{bx1:.1f}" y="{by1:.1f}" width="{bx2-bx1:.1f}" height="{by2-by1:.1f}"'
+               f' fill="{JAMB_COLOR}" stroke="none"/>')
+    # North block
+    bx1, by1 = to_svg(block_w, o3_n)
+    bx2, by2 = to_svg(block_e, o3_n - gap)
+    out.append(f'<rect x="{bx1:.1f}" y="{by1:.1f}" width="{bx2-bx1:.1f}" height="{by2-by1:.1f}"'
+               f' fill="{JAMB_COLOR}" stroke="none"/>')
+
+    # Door: hinge at north side, swings east
+    hinge_e, hinge_n = wall_mid, door_n
+    hx, hy = to_svg(hinge_e, hinge_n)
+    # Straight line from hinge eastward (door in open position)
+    tip_e, tip_n = hinge_e + O3_DOOR_WIDTH, hinge_n
+    tx, ty = to_svg(tip_e, tip_n)
+    out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
+               f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
+    # Arc from open (east) sweeping CW 90° to closed (south)
+    n_arc = 20
+    arc_pts = []
+    for i in range(n_arc + 1):
+        angle = -i * (math.pi / 2) / n_arc  # 0° to -90°
+        ae = hinge_e + O3_DOOR_WIDTH * math.cos(angle)
+        an = hinge_n + O3_DOOR_WIDTH * math.sin(angle)
+        sx, sy = to_svg(ae, an)
+        arc_pts.append(f"{sx:.1f},{sy:.1f}")
+    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+               f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # O6 door: 42" door, hinged east, swings south
     o6 = [o for o in outer_openings if o.name == "O6"][0]
