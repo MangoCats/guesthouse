@@ -25,7 +25,7 @@ from floorplan.constants import (
     JAMB_WIDTH, STD_GAP, KITCHEN_APPL_GAP,
     LOVESEAT_NW_E, LOVESEAT_NW_N,
     LOVESEAT_WIDTH, LOVESEAT_LENGTH, LOVESEAT_ANGLE_DEG,
-    DESK_WIDTH, DESK_DEPTH,
+    DESK_WIDTH, DESK_DEPTH, DESK_CHAIR_WIDTH, DESK_CHAIR_DEPTH, DESK_CHAIR_GAP,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
     SHELVES_WIDTH, SHELVES_DEPTH, SHELVES2_WIDTH, SHELVES2_DEPTH,
@@ -816,6 +816,27 @@ def _render_furniture(out, data, layout):
     dk_cy = (dk_sy1 + dk_sy2) / 2
     out.append(f'<text x="{dk_cx:.1f}" y="{dk_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">DESK</text>')
+    out.append('</g>')
+
+    # DESK CHAIR: 27" x 24", 3" rounded corners, 12" in front of desk, centered
+    dc_w = dk_sw_e + DESK_WIDTH / 2 - DESK_CHAIR_WIDTH / 2
+    dc_e = dc_w + DESK_CHAIR_WIDTH
+    dc_s = dk_sw_n + DESK_DEPTH + DESK_CHAIR_GAP
+    dc_n = dc_s + DESK_CHAIR_DEPTH
+    dc_sx1, dc_sy1 = to_svg(dc_w, dc_n)
+    dc_sx2, dc_sy2 = to_svg(dc_e, dc_s)
+    dc_sw = dc_sx2 - dc_sx1; dc_sh = dc_sy2 - dc_sy1
+    dc_r_svg = abs(to_svg(CHAIR_CORNER_R, 0)[0] - to_svg(0, 0)[0])
+    out.append(f'<g transform="rotate(-30,{dk_rot_x:.1f},{dk_rot_y:.1f})">')
+    out.append('<a href="https://www.amazon.com/BESTFAIR-Ergonomic-Office-Chair-Adjustable/dp/B0FDQDMP2D?th=1" target="_blank">')
+    out.append(f'<rect x="{dc_sx1:.1f}" y="{dc_sy1:.1f}" width="{dc_sw:.1f}" height="{dc_sh:.1f}"'
+               f' rx="{dc_r_svg:.1f}" ry="{dc_r_svg:.1f}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    dc_cx = (dc_sx1 + dc_sx2) / 2
+    dc_cy = (dc_sy1 + dc_sy2) / 2
+    out.append(f'<text x="{dc_cx:.1f}" y="{dc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="{APPL_STROKE}">CHAIR</text>')
+    out.append('</a>')
     out.append('</g>')
 
     # Room labels
