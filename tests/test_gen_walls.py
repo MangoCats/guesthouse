@@ -179,6 +179,49 @@ class TestBuildWallData:
                 f"Opening {o.name}: t_start={o.t_start}, t_end={o.t_end}"
 
 
+@pytest.fixture(scope="module")
+def rendered_all(wall_data):
+    return render_walls_svg(wall_data, include_interior=True)
+
+
+class TestRenderWallsSvgWithInterior:
+    """Tests for render_walls_svg with include_interior=True."""
+
+    def test_svg_envelope(self, rendered_all):
+        assert rendered_all.strip().startswith("<svg")
+        assert rendered_all.strip().endswith("</svg>")
+
+    def test_iw_polygons_present(self, rendered_all):
+        assert 'fill="rgba(160,160,160,0.35)"' in rendered_all
+
+    def test_iw_labels_present(self, rendered_all):
+        for name in ["IW1", "IW2", "IW3", "IW4", "IW5", "IW6", "IW7", "IW8"]:
+            assert f">{name}<" in rendered_all, f"Missing label {name}"
+
+    def test_rough_opening_labels_present(self, rendered_all):
+        for name in ["RO1", "RO2", "RO3", "RO4", "RO5"]:
+            assert f">{name}<" in rendered_all, f"Missing label {name}"
+
+    def test_rough_opening_rects(self, rendered_all):
+        import re
+        ro_strokes = re.findall(r'stroke="darkred"', rendered_all)
+        # 5 ROs x 3 elements each (rect + 2 diag lines) = 15 darkred strokes
+        assert len(ro_strokes) >= 15
+
+    def test_opening_dim_lines_present(self, rendered_all):
+        assert "#4682B4" in rendered_all
+
+    def test_opening_dim_labels_have_inch_marks(self, rendered_all):
+        import re
+        dim_labels = re.findall(r'fill="#4682B4"[^>]*>[^<]*&#8243;', rendered_all)
+        assert len(dim_labels) == 11
+
+    def test_title_override(self, wall_data):
+        svg = render_walls_svg(wall_data, title="Custom Title",
+                               include_interior=True)
+        assert "Custom Title" in svg
+
+
 class TestRenderWallsSvg:
     def test_svg_envelope(self, rendered):
         assert rendered.strip().startswith("<svg")

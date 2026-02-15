@@ -16,3 +16,6 @@ include = ["shared", "shared.*", "floorplan", "floorplan.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+omit = ["survey/adjust_pentagon.py", "survey/compute_path.py"]
