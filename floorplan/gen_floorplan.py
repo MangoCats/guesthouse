@@ -29,7 +29,9 @@ from floorplan.constants import (
     DESK_WIDTH, DESK_DEPTH, DESK_CHAIR_WIDTH, DESK_CHAIR_DEPTH, DESK_CHAIR_GAP,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
+    SOFA_WIDTH, SOFA_DEPTH,
     ICE_WIDTH, ICE_DEPTH,
+    RO1_OFFSET_W_IW4, IW1_RO_WIDTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
@@ -1073,8 +1075,8 @@ def _render_kitchen(out, data, layout, minik=False):
                    f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
         out.append('</a>')
 
-def _render_furniture(out, data, layout):
-    """Render furniture: bed, loveseat, ET, chair, ottoman, room labels."""
+def _render_furniture(out, data, layout, minik=False):
+    """Render furniture: bed, loveseat/sofa, ET, chair, ottoman, room labels."""
     pts = data.pts
     to_svg = data.to_svg
     bed = layout.bed
@@ -1093,67 +1095,87 @@ def _render_furniture(out, data, layout):
     out.append(f'<text x="{bed_cx_svg:.1f}" y="{bed_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">KING BED</text>')
 
-    # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
-    lv_width = LOVESEAT_WIDTH
-    lv_height = LOVESEAT_LENGTH
-    lv_angle = math.radians(LOVESEAT_ANGLE_DEG)
-    lv_nw_e = LOVESEAT_NW_E
-    lv_nw_n = LOVESEAT_NW_N
-    lv_w = lv_nw_e + lv_height * math.sin(lv_angle)
-    lv_s = lv_nw_n - lv_height * math.cos(lv_angle)
+    if minik:
+        # SOFA: 97.2" E-W x 24.6" N-S, 6" east of RO1, north side of IW1
+        ro1_w = layout.iw4_w - RO1_OFFSET_W_IW4
+        ro1_e = ro1_w + IW1_RO_WIDTH
+        sofa_w = ro1_e + 6.0 / 12.0
+        sofa_e = sofa_w + SOFA_WIDTH
+        sofa_s = layout.iw1_n
+        sofa_n = sofa_s + SOFA_DEPTH
+        sf_sx1, sf_sy1 = to_svg(sofa_w, sofa_n)
+        sf_sx2, sf_sy2 = to_svg(sofa_e, sofa_s)
+        sf_sw = sf_sx2 - sf_sx1; sf_sh = sf_sy2 - sf_sy1
+        out.append('<a href="https://www.homedepot.com/p/AURA-OUTDOOR-4-Piece-Metal-Outdoor-Sectional-Sofa-Set-Patio-Furniture-Set-with-6-in-Olefin-Cushion-Gray-SIS006-GY/335858535" target="_blank">')
+        out.append(f'<rect x="{sf_sx1:.1f}" y="{sf_sy1:.1f}" width="{sf_sw:.1f}" height="{sf_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        sf_cx = (sf_sx1 + sf_sx2) / 2
+        sf_cy = (sf_sy1 + sf_sy2) / 2
+        out.append(f'<text x="{sf_cx:.1f}" y="{sf_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">SOFA</text>')
+        out.append('</a>')
+    else:
+        # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
+        lv_width = LOVESEAT_WIDTH
+        lv_height = LOVESEAT_LENGTH
+        lv_angle = math.radians(LOVESEAT_ANGLE_DEG)
+        lv_nw_e = LOVESEAT_NW_E
+        lv_nw_n = LOVESEAT_NW_N
+        lv_w = lv_nw_e + lv_height * math.sin(lv_angle)
+        lv_s = lv_nw_n - lv_height * math.cos(lv_angle)
 
-    # ET position: 2" N of IW1, 2" from loveseat SE corner
-    et_r = (ET_RADIUS_CM / 2.54) / 12.0
-    lv_se_e = lv_w + lv_width * math.cos(lv_angle)
-    lv_se_n = lv_s + lv_width * math.sin(lv_angle)
-    et_gap = et_r + STD_GAP
-    et_cy = layout.iw1_n + STD_GAP + et_r
-    et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
+        # ET position: 2" N of IW1, 2" from loveseat SE corner
+        et_r = (ET_RADIUS_CM / 2.54) / 12.0
+        lv_se_e = lv_w + lv_width * math.cos(lv_angle)
+        lv_se_n = lv_s + lv_width * math.sin(lv_angle)
+        et_gap = et_r + STD_GAP
+        et_cy = layout.iw1_n + STD_GAP + et_r
+        et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
 
-    lv_e = lv_w + lv_width
-    lv_n = lv_s + lv_height
-    lv_sx1, lv_sy1 = to_svg(lv_w, lv_n)
-    lv_sx2, lv_sy2 = to_svg(lv_e, lv_s)
-    lv_sw = lv_sx2 - lv_sx1; lv_sh = lv_sy2 - lv_sy1
-    lv_rot_x = lv_sx1
-    lv_rot_y = lv_sy2
-    out.append(f'<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
-    out.append(f'<g transform="rotate({int(-LOVESEAT_ANGLE_DEG)},{lv_rot_x:.1f},{lv_rot_y:.1f})">')
-    out.append(f'<rect x="{lv_sx1:.1f}" y="{lv_sy1:.1f}" width="{lv_sw:.1f}" height="{lv_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    lv_cx = (lv_sx1 + lv_sx2) / 2
-    lv_cy = (lv_sy1 + lv_sy2) / 2
-    out.append(f'<text x="{lv_cx:.1f}" y="{lv_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
-    out.append('</g>')
-    out.append('</a>')
+        lv_e = lv_w + lv_width
+        lv_n = lv_s + lv_height
+        lv_sx1, lv_sy1 = to_svg(lv_w, lv_n)
+        lv_sx2, lv_sy2 = to_svg(lv_e, lv_s)
+        lv_sw = lv_sx2 - lv_sx1; lv_sh = lv_sy2 - lv_sy1
+        lv_rot_x = lv_sx1
+        lv_rot_y = lv_sy2
+        out.append(f'<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
+        out.append(f'<g transform="rotate({int(-LOVESEAT_ANGLE_DEG)},{lv_rot_x:.1f},{lv_rot_y:.1f})">')
+        out.append(f'<rect x="{lv_sx1:.1f}" y="{lv_sy1:.1f}" width="{lv_sw:.1f}" height="{lv_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        lv_cx = (lv_sx1 + lv_sx2) / 2
+        lv_cy = (lv_sy1 + lv_sy2) / 2
+        out.append(f'<text x="{lv_cx:.1f}" y="{lv_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
+        out.append('</g>')
+        out.append('</a>')
 
-    # ET: 50cm diameter endtable
-    et_sx, et_sy = to_svg(et_cx, et_cy)
-    et_r_svg = abs(to_svg(et_r, 0)[0] - to_svg(0, 0)[0])
-    out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
-    out.append(f'<circle cx="{et_sx:.1f}" cy="{et_sy:.1f}" r="{et_r_svg:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    out.append(f'<text x="{et_sx:.1f}" y="{et_sy+3:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
-    out.append('</a>')
+        # ET: 50cm diameter endtable
+        et_sx, et_sy = to_svg(et_cx, et_cy)
+        et_r_svg = abs(to_svg(et_r, 0)[0] - to_svg(0, 0)[0])
+        out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
+        out.append(f'<circle cx="{et_sx:.1f}" cy="{et_sy:.1f}" r="{et_r_svg:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append(f'<text x="{et_sx:.1f}" y="{et_sy+3:.1f}" text-anchor="middle"'
+                   f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
+        out.append('</a>')
 
-    # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
-    lv2_w = et_cx + et_r + STD_GAP
-    lv2_s = layout.iw1_n + STD_GAP
-    lv2_e = lv2_w + lv_height  # 65" E-W
-    lv2_n = lv2_s + lv_width   # 35" N-S
-    lv2_sx1, lv2_sy1 = to_svg(lv2_w, lv2_n)
-    lv2_sx2, lv2_sy2 = to_svg(lv2_e, lv2_s)
-    lv2_sw = lv2_sx2 - lv2_sx1; lv2_sh = lv2_sy2 - lv2_sy1
-    out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
-    out.append(f'<rect x="{lv2_sx1:.1f}" y="{lv2_sy1:.1f}" width="{lv2_sw:.1f}" height="{lv2_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    lv2_cx = (lv2_sx1 + lv2_sx2) / 2
-    lv2_cy = (lv2_sy1 + lv2_sy2) / 2
-    out.append(f'<text x="{lv2_cx:.1f}" y="{lv2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
-    out.append('</a>')
+        # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
+        lv2_w = et_cx + et_r + STD_GAP
+        lv2_s = layout.iw1_n + STD_GAP
+        lv2_e = lv2_w + lv_height  # 65" E-W
+        lv2_n = lv2_s + lv_width   # 35" N-S
+        lv2_sx1, lv2_sy1 = to_svg(lv2_w, lv2_n)
+        lv2_sx2, lv2_sy2 = to_svg(lv2_e, lv2_s)
+        lv2_sw = lv2_sx2 - lv2_sx1; lv2_sh = lv2_sy2 - lv2_sy1
+        out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
+        out.append(f'<rect x="{lv2_sx1:.1f}" y="{lv2_sy1:.1f}" width="{lv2_sw:.1f}" height="{lv2_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        lv2_cx = (lv2_sx1 + lv2_sx2) / 2
+        lv2_cy = (lv2_sy1 + lv2_sy2) / 2
+        out.append(f'<text x="{lv2_cx:.1f}" y="{lv2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
+        out.append('</a>')
 
     # CHAIR: 32" E-W x 37" N-S, rounded corners 3", centered between W11 and W12
     ch_angle = math.radians(CHAIR_ANGLE_DEG)
@@ -1659,7 +1681,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False):
     _render_walls(out, data, layout)
     _render_appliances(out, data, layout, minik=minik)
     _render_kitchen(out, data, layout, minik=minik)
-    _render_furniture(out, data, layout)
+    _render_furniture(out, data, layout, minik=minik)
     _render_dimensions(out, data, layout)
     _render_openings(out, data, layout)
 
