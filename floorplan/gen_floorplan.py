@@ -6,7 +6,7 @@ Outline points F0-F21, inner wall points W0-W21.
 import os, math, datetime
 from typing import NamedTuple, Any
 
-from shared.types import LineSeg, ArcSeg
+from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area,
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
@@ -631,13 +631,17 @@ def _render_walls(out, data, layout):
 
 
 
-def _render_appliances(out, data, layout):
+def _render_appliances(out, data, layout, minik=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
     pts = data.pts
     to_svg = data.to_svg
 
     # Dryer and washer
+    minik_appl_w = 32.0 / 12.0   # 32" E-W in minik
+    minik_appl_d = 27.0 / 12.0   # 27" N-S in minik
     for label, b in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
+        if minik:
+            b = BBox(w=b.w, s=b.s, e=b.w + minik_appl_w, n=b.s + minik_appl_d)
         sx1, sy1 = to_svg(b.w, b.n)
         sx2, sy2 = to_svg(b.e, b.s)
         sw = sx2 - sx1; sh = sy2 - sy1
@@ -1588,7 +1592,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False):
                f' font-weight="bold">{room_title}</text>')
 
     _render_walls(out, data, layout)
-    _render_appliances(out, data, layout)
+    _render_appliances(out, data, layout, minik=minik)
     _render_kitchen(out, data, layout, minik=minik)
     _render_furniture(out, data, layout)
     _render_dimensions(out, data, layout)
