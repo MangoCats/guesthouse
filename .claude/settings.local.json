@@ -9,7 +9,8 @@
       "WebFetch(domain:www.bakes123.com)",
       "WebFetch(domain:www.newclassicfurniture.com)",
       "WebFetch(domain:www.homemakers.com)",
-      "WebFetch(domain:images.thdstatic.com)"
+      "WebFetch(domain:images.thdstatic.com)",
+      "WebFetch(domain:pngtree.com)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Mango Cat\\Dev\\hut2"

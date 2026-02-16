@@ -567,6 +567,76 @@ if __name__ == "__main__":
     lines.append(f'<circle cx="{_ccx:.1f}" cy="{_ccy:.1f}" r="{_cr_svg:.1f}"'
                  f' fill="none" stroke="#333" stroke-width="1.5"/>')
 
+    # Campfire icon inside the circle, 36" wide
+    # Unit coords: width=1.0, x in [-0.5,0.5], y positive=down (SVG).
+    # Fire base at y=0; logs below (positive y), flames above (negative y).
+    _icon_s = 3.0 * _cr_svg / _circ_r_ft  # scale: 1 unit = 36" in SVG
+    _fire_dy = 0.15 * _icon_s  # shift fire base below circle center
+    lines.append(f'<g transform="translate({_ccx:.1f},{_ccy + _fire_dy:.1f}) scale({_icon_s:.2f})">')
+    # --- Flames (back to front) ---
+    # Outer glow
+    lines.append('<path d="M 0,0.05 C -0.22,-0.15 -0.32,-0.45 -0.18,-0.7'
+                 ' C -0.1,-0.82 -0.04,-0.92 0,-0.95'
+                 ' C 0.04,-0.92 0.1,-0.82 0.18,-0.7'
+                 ' C 0.32,-0.45 0.22,-0.15 0,0.05 Z"'
+                 ' fill="#B22222" opacity="0.85"/>')
+    # Left red flame
+    lines.append('<path d="M -0.06,0.03 C -0.2,-0.08 -0.28,-0.35 -0.15,-0.58'
+                 ' C -0.08,-0.72 -0.03,-0.62 -0.02,-0.45'
+                 ' C -0.01,-0.3 0.0,-0.1 -0.06,0.03 Z"'
+                 ' fill="#D44000"/>')
+    # Right red flame
+    lines.append('<path d="M 0.06,0.03 C 0.2,-0.08 0.28,-0.35 0.15,-0.58'
+                 ' C 0.08,-0.72 0.03,-0.62 0.02,-0.45'
+                 ' C 0.01,-0.3 0.0,-0.1 0.06,0.03 Z"'
+                 ' fill="#D44000"/>')
+    # Center orange flame
+    lines.append('<path d="M 0,0.04 C -0.14,-0.12 -0.2,-0.4 -0.08,-0.62'
+                 ' C -0.03,-0.72 0,-0.82 0,-0.82'
+                 ' C 0,-0.82 0.03,-0.72 0.08,-0.62'
+                 ' C 0.2,-0.4 0.14,-0.12 0,0.04 Z"'
+                 ' fill="#E86100"/>')
+    # Left orange tongue
+    lines.append('<path d="M -0.04,0.0 C -0.15,-0.1 -0.18,-0.32 -0.08,-0.48'
+                 ' C -0.02,-0.38 0.0,-0.15 -0.04,0.0 Z"'
+                 ' fill="#FF7518"/>')
+    # Right orange tongue
+    lines.append('<path d="M 0.04,0.0 C 0.15,-0.1 0.18,-0.32 0.08,-0.48'
+                 ' C 0.02,-0.38 0.0,-0.15 0.04,0.0 Z"'
+                 ' fill="#FF7518"/>')
+    # Inner yellow flame
+    lines.append('<path d="M 0,0.02 C -0.09,-0.08 -0.12,-0.3 -0.04,-0.5'
+                 ' C -0.01,-0.58 0,-0.65 0,-0.65'
+                 ' C 0,-0.65 0.01,-0.58 0.04,-0.5'
+                 ' C 0.12,-0.3 0.09,-0.08 0,0.02 Z"'
+                 ' fill="#FFA500"/>')
+    # Bright yellow core
+    lines.append('<path d="M 0,0.0 C -0.05,-0.06 -0.07,-0.2 -0.02,-0.38'
+                 ' C 0,-0.44 0,-0.44'
+                 ' C 0.02,-0.38 0.07,-0.2 0.05,-0.06 Z"'
+                 ' fill="#FFD700"/>')
+    # Hot white-yellow core
+    lines.append('<path d="M 0,-0.02 C -0.025,-0.08 -0.03,-0.15 0,-0.28'
+                 ' C 0.03,-0.15 0.025,-0.08 0,-0.02 Z"'
+                 ' fill="#FFF176"/>')
+    # --- Logs ---
+    _lw = 0.065  # log stroke width
+    # Left log (lower-left to upper-right)
+    lines.append(f'<line x1="-0.4" y1="0.32" x2="0.12" y2="0.06"'
+                 f' stroke="#6B3410" stroke-width="{_lw}" stroke-linecap="round"/>')
+    # Right log (lower-right to upper-left)
+    lines.append(f'<line x1="0.4" y1="0.32" x2="-0.12" y2="0.06"'
+                 f' stroke="#8B4513" stroke-width="{_lw}" stroke-linecap="round"/>')
+    # Horizontal bottom log
+    lines.append(f'<line x1="-0.3" y1="0.25" x2="0.3" y2="0.25"'
+                 f' stroke="#A0522D" stroke-width="{_lw * 0.85:.4f}" stroke-linecap="round"/>')
+    # Log-end highlights (small circles at visible ends)
+    for _le, _ln in [(-0.4, 0.32), (0.4, 0.32), (-0.3, 0.25), (0.3, 0.25)]:
+        lines.append(f'<circle cx="{_le}" cy="{_ln}" r="0.028" fill="#A0522D" stroke="#5C2D0E" stroke-width="0.008"/>')
+    # Ember glow under logs
+    lines.append('<ellipse cx="0" cy="0.18" rx="0.18" ry="0.06" fill="#FF4500" opacity="0.3"/>')
+    lines.append('</g>')
+
     # Area label centered in outline
     centroid_names = [f"F{i}" for i in range(22)]
     cx_o = sum(pts[n][0] for n in centroid_names) / len(centroid_names)
