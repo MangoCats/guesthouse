@@ -976,8 +976,8 @@ def _render_kitchen(out, data, layout, minik=False):
     fillet_r = 6.0 / 12.0   # 6" corner fillets
 
     # Position: north side 30" south of space north, centered E-W
-    tbl_cx = space_cx
-    tbl_n = space_n - 30.0 / 12.0
+    tbl_cx = space_cx + (6.0 / 12.0 if not minik else 0)
+    tbl_n = space_n - 30.0 / 12.0 - (28.0 / 12.0 if not minik else 0)
     tbl_s_y = tbl_n - tbl_h
 
     # Base corners and arc center
