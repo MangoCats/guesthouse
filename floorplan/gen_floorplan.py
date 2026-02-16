@@ -936,10 +936,10 @@ def _render_kitchen(out, data, layout, minik=False):
         apex_r = 12.0 / 12.0    # 24" diameter arc at apex
         fillet_r = 6.0 / 12.0   # 6" corner fillets
 
-        # Position: 6" north of IW1, centered E-W
+        # Position: north side 30" south of counter south side, centered E-W
         tbl_cx = space_cx
-        tbl_s_y = layout.iw1_n + 6.0 / 12.0
-        tbl_n = tbl_s_y + tbl_h
+        tbl_n = kc_s - 30.0 / 12.0
+        tbl_s_y = tbl_n - tbl_h
 
         # Base corners and arc center
         ne = (tbl_cx + tbl_base / 2, tbl_n)
