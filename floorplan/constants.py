@@ -111,13 +111,14 @@ RO2_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO2
 RO3_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO3
 RO4_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO4
 RO5_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO5
+# Shell construction: 2" shell / 4" gap / 2" shell
+SHELL_THICKNESS = 2.0 / 12.0         # 2" concrete shell
+AIR_GAP = 4.0 / 12.0                 # 4" air gap between shells
+OPENING_INSIDE_RADIUS = 10.0 / 304.8  # 10mm inside corner radius at openings
 # Door jamb block thickness = wall - 2*(opening_inside_radius + shell_thickness)
-# Opening inside radius 10mm ≈ 0.3937", shell 2", wall 8"
-_SHELL = 2.0 / 12.0
-_OPENING_R = 10.0 / 304.8
-DOOR_FLAT_FACE = WALL_OUTER - 2 * (_OPENING_R + _SHELL)
+DOOR_FLAT_FACE = WALL_OUTER - 2 * (OPENING_INSIDE_RADIUS + SHELL_THICKNESS)
 # F8-F9 inner wall turn radius (W-face = inner face of inner shell)
-F8F9_INNER_TURN_R = _OPENING_R + _SHELL  # ~2.56" (10mm + 2")
+F8F9_INNER_TURN_R = OPENING_INSIDE_RADIUS + SHELL_THICKNESS  # ~2.56" (10mm + 2")
 # O7 (F12-F13 diagonal wall)
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)

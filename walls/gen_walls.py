@@ -12,391 +12,21 @@ from typing import NamedTuple
 # Ensure project root is on sys.path for package imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from shared.types import Point, LineSeg, ArcSeg, Segment
-from shared.geometry import (
-    segment_polyline, path_polygon, poly_area, arc_poly,
-    compute_inner_walls, fmt_dist, left_norm, f8f9_corner_polyline,
-)
+from shared.types import LineSeg, ArcSeg
+from shared.geometry import fmt_dist, left_norm
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.gen_floorplan import build_floorplan_data
-from floorplan.layout import compute_interior_layout
 from floorplan.constants import WALL_OUTER
-from floorplan.openings import (
-    WallOpening, compute_outer_openings, compute_rough_openings,
-    outer_to_wall_openings,
-)
+from floorplan.openings import compute_rough_openings
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
+from shared.wall_shells import (
+    lerp, openings_on_seg, solid_ranges,
+    arc_strip_poly, line_strip_poly, partial_line_strip, partial_line_strip_2,
+    uturn_arc_data, uturn_polygon,
+    trace_boundary_path, enumerate_wall_sections, build_section_outlines,
+)
 
 
-# ============================================================
-# Shell path computation
-# ============================================================
-
-def _compute_inset_path(outline_segs, pts, radii, inset, prefix):
-    """Compute a shell boundary path at given inset distance.
-
-    Returns (new_pts_dict, new_segs) with point names using the given prefix
-    (e.g., "S0".."S21" for prefix="S").
-    """
-    tmp_pts = dict(pts)
-    tmp_segs = compute_inner_walls(outline_segs, tmp_pts, inset, radii)
-
-    result_pts = {}
-    for i in range(22):
-        result_pts[f"{prefix}{i}"] = tmp_pts[f"W{i}"]
-
-    result_segs = []
-    for seg in tmp_segs:
-        if isinstance(seg, LineSeg):
-            s = prefix + seg.start[1:]
-            e = prefix + seg.end[1:]
-            result_segs.append(LineSeg(s, e))
-        else:
-            s = prefix + seg.start[1:]
-            e = prefix + seg.end[1:]
-            result_segs.append(ArcSeg(s, e, seg.center, seg.radius,
-                                       seg.direction, seg.n_pts))
-    return result_pts, result_segs
-
-
-def _openings_on_seg(openings, seg_idx):
-    """Get openings on a given segment, sorted by t_start."""
-    result = [o for o in openings if o.seg_idx == seg_idx]
-    result.sort(key=lambda o: o.t_start)
-    return result
-
-
-def _solid_ranges(seg_openings):
-    """Compute solid wall parametric ranges from sorted opening list.
-
-    Returns list of (t_start, t_end) for solid wall sections.
-    """
-    ranges = []
-    cursor = 0.0
-    for o in seg_openings:
-        if o.t_start > cursor + 1e-9:
-            ranges.append((cursor, o.t_start))
-        cursor = o.t_end
-    if cursor < 1.0 - 1e-9:
-        ranges.append((cursor, 1.0))
-    return ranges
-
-
-# ============================================================
-# Polygon builders
-# ============================================================
-
-def _lerp(a, b, t):
-    """Linear interpolation between two points."""
-    return (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]))
-
-
-def _arc_strip_poly(seg, pts, outer_prefix, inner_seg):
-    """Build polygon for an arc shell strip (full segment).
-
-    Returns list of (E, N) points forming the closed polygon.
-    """
-    outer_poly = segment_polyline(seg, pts)
-    inner_poly = segment_polyline(inner_seg, pts)
-    # Forward along outer, backward along inner
-    return outer_poly + list(reversed(inner_poly))
-
-
-def _line_strip_poly(pts, seg_start, seg_end, inner_start, inner_end):
-    """Build polygon for a line shell strip (full segment or sub-range).
-
-    4-point rectangle: start_outer, end_outer, end_inner, start_inner.
-    """
-    return [
-        pts[seg_start], pts[seg_end],
-        pts[inner_end], pts[inner_start],
-    ]
-
-
-def _partial_line_strip(pts, seg, inner_seg_start, inner_seg_end, t_start, t_end):
-    """Build polygon for a partial line shell strip between t_start and t_end."""
-    A_out = pts[seg.start]
-    B_out = pts[seg.end]
-    A_in = pts[inner_seg_start]
-    B_in = pts[inner_seg_end]
-    p1 = _lerp(A_out, B_out, t_start)
-    p2 = _lerp(A_out, B_out, t_end)
-    p3 = _lerp(A_in, B_in, t_end)
-    p4 = _lerp(A_in, B_in, t_start)
-    return [p1, p2, p3, p4]
-
-
-
-def _uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
-                    shell_t, R_in, wall_total, n_arc=12):
-    """Compute U-turn arc point arrays at an opening boundary.
-
-    Returns a dict with keys:
-      'oc_F': F-face arc points (outer shell, outer face)
-      'oc_S': S-face arc points (outer shell, inner face)
-      'ic_W': W-face arc points (inner shell, inner face)
-      'ic_G': G-face arc points (inner shell, outer face)
-
-    Each arc goes from the shell face toward the cross-wall face:
-      oc_F[0]/oc_S[0] = on F/S-face, R_out back from opening boundary
-      oc_F[-1]/oc_S[-1] = on cross-wall face
-      ic_W[0]/ic_G[0] = on cross-wall face
-      ic_W[-1]/ic_G[-1] = on W/G-face, R_out back from opening boundary
-
-    side: "start" means wall-to-opening transition (wall at t < t_param)
-          "end" means opening-to-wall transition (wall at t > t_param)
-    """
-    R_out = R_in + shell_t
-    seg = outline_segs[seg_idx]
-
-    # Points at the boundary parameter on outer and inner faces
-    F_A, F_B = pts[seg.start], pts[seg.end]
-    F_pt = _lerp(F_A, F_B, t_param)
-
-    inner_seg = inner_segs[seg_idx]
-    W_A, W_B = pts[inner_seg.start], pts[inner_seg.end]
-    W_pt = _lerp(W_A, W_B, t_param)
-
-    # Tangent direction (along wall, CW traversal)
-    dx, dy = F_B[0] - F_A[0], F_B[1] - F_A[1]
-    t_len = math.sqrt(dx * dx + dy * dy)
-    t_hat = (dx / t_len, dy / t_len)
-
-    # Exterior normal (left of CW traversal direction)
-    n_ext = (-t_hat[1], t_hat[0])
-
-    # Direction toward the opening along the wall
-    if side == "start":
-        open_dir = t_hat
-    else:
-        open_dir = (-t_hat[0], -t_hat[1])
-    wall_dir = (-open_dir[0], -open_dir[1])
-
-    # --- Arc centers ---
-    # Outer shell: R_out inward from F-face, R_out back from opening
-    oc = (F_pt[0] - R_out * n_ext[0] + R_out * wall_dir[0],
-          F_pt[1] - R_out * n_ext[1] + R_out * wall_dir[1])
-    # Inner shell: R_out outward from W-face, R_out back from opening
-    ic = (W_pt[0] + R_out * n_ext[0] + R_out * wall_dir[0],
-          W_pt[1] + R_out * n_ext[1] + R_out * wall_dir[1])
-
-    # Quarter-circle arc: center + R*(cos(a)*u0 + sin(a)*u1), a from 0 to pi/2
-    def qarc(cx, cy, R, u0, u1):
-        arc_pts = []
-        for i in range(n_arc + 1):
-            a = i * math.pi / (2 * n_arc)
-            ca, sa = math.cos(a), math.sin(a)
-            arc_pts.append((cx + R * (ca * u0[0] + sa * u1[0]),
-                            cy + R * (ca * u0[1] + sa * u1[1])))
-        return arc_pts
-
-    # Outer shell arcs: from shell face (n_ext) to cross-wall (open_dir)
-    oc_F = qarc(oc[0], oc[1], R_out, n_ext, open_dir)  # F-face arc
-    oc_S = qarc(oc[0], oc[1], R_in, n_ext, open_dir)   # S-face arc
-
-    # Inner shell arcs: from cross-wall (open_dir) to shell face (-n_ext)
-    n_int = (-n_ext[0], -n_ext[1])
-    ic_W = qarc(ic[0], ic[1], R_out, open_dir, n_int)   # W-face arc
-    ic_G = qarc(ic[0], ic[1], R_in, open_dir, n_int)    # G-face arc
-
-    return {'oc_F': oc_F, 'oc_S': oc_S, 'ic_W': ic_W, 'ic_G': ic_G}
-
-
-def _uturn_polygon(pts, outline_segs, inner_segs, s_segs, g_segs,
-                   seg_idx, t_param, side, shell_t, R_in, wall_total,
-                   n_arc=12):
-    """Build the U-turn polygon at an opening boundary.
-
-    The turn connects the outer shell to the inner shell via two 90-degree
-    arcs and a straight cross-wall section, curving toward building interior.
-
-        F-face --,              R_out = R_in + shell_t
-                 |
-        S-face -,|              R_in
-                ||
-                || straight (wall_total - 2*(shell_t + R_in))
-                ||
-        G-face -'|              R_in
-                 |
-        W-face --'              R_out
-
-    side: "start" means wall-to-opening transition (wall at t < t_param)
-          "end" means opening-to-wall transition (wall at t > t_param)
-
-    Returns a list of (E, N) points forming the U-turn polygon.
-    """
-    arcs = _uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param,
-                           side, shell_t, R_in, wall_total, n_arc)
-
-    # Assemble: outer profile forward, inner profile reversed
-    poly = []
-    poly.extend(arcs['oc_F'])           # F-face arc (shell -> cross-wall)
-    # implicit straight: cross-wall outer face
-    poly.extend(arcs['ic_W'])           # W-face arc (cross-wall -> shell)
-    poly.extend(reversed(arcs['ic_G'])) # G-face arc reversed
-    # implicit straight: cross-wall inner face
-    poly.extend(reversed(arcs['oc_S'])) # S-face arc reversed
-    return poly
-
-
-# ============================================================
-# Continuous outline builders
-# ============================================================
-
-def _trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
-                         end_t, R_out, seg_overrides=None):
-    """Trace a boundary path between two opening boundaries across segments.
-
-    Traces CW from (start_seg_idx, start_t + delta_t) to
-    (end_seg_idx, end_t - delta_t), spanning intermediate segments.
-
-    segs: one of outline_segs/s_segs/g_segs/inner_segs (all 22 segments).
-    start_t: parametric position of the starting opening's t_end.
-    end_t: parametric position of the ending opening's t_start.
-    R_out: trim distance in feet (R_in + shell_t) — converted to delta_t
-           using each line segment's length.
-    seg_overrides: optional dict mapping seg index to replacement polyline
-                   (list of (E, N) points) for non-standard segment paths.
-
-    Returns list of (E, N) points along the boundary.
-    """
-    n_segs = len(segs)
-    path = []
-
-    if start_seg_idx == end_seg_idx:
-        # Same segment — just two interpolated points
-        seg = segs[start_seg_idx]
-        A, B = pts[seg.start], pts[seg.end]
-        seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
-        dt = R_out / seg_len
-        path.append(_lerp(A, B, start_t + dt))
-        path.append(_lerp(A, B, end_t - dt))
-        return path
-
-    # Multi-segment: partial start + full intermediates + partial end
-
-    # Start segment (from start_t + delta to segment end)
-    seg = segs[start_seg_idx]
-    A, B = pts[seg.start], pts[seg.end]
-    seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
-    dt = R_out / seg_len
-    path.append(_lerp(A, B, start_t + dt))
-    if isinstance(seg, ArcSeg):
-        poly = segment_polyline(seg, pts)
-        # Find closest point index to our start position and take rest
-        # For arcs, the start_t + dt position is near the end of the arc
-        # Since openings are only on LineSegs, this shouldn't happen
-        path.append(B)
-    else:
-        path.append(B)
-
-    # Intermediate full segments
-    idx = (start_seg_idx + 1) % n_segs
-    while idx != end_seg_idx:
-        seg = segs[idx]
-        if seg_overrides and idx in seg_overrides:
-            path.extend(seg_overrides[idx][1:])  # skip first (matches prev end)
-        elif isinstance(seg, ArcSeg):
-            poly = segment_polyline(seg, pts)
-            path.extend(poly[1:])  # skip first (matches previous end)
-        else:
-            path.append(pts[seg.end])  # start matches previous end
-        idx = (idx + 1) % n_segs
-
-    # End segment (from segment start to end_t - delta)
-    seg = segs[end_seg_idx]
-    A, B = pts[seg.start], pts[seg.end]
-    seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
-    dt = R_out / seg_len
-    path.append(_lerp(A, B, end_t - dt))
-
-    return path
-
-
-def _enumerate_wall_sections(openings, outline_segs):
-    """Enumerate wall sections as (start_opening, end_opening) pairs.
-
-    Each wall section is bounded by start_opening.t_end on one side and
-    end_opening.t_start on the other, going CW around the building.
-    Returns list of (start_op, end_op) tuples.
-    """
-    # Collect all opening boundaries in CW order
-    ordered = []
-    for seg_idx in range(len(outline_segs)):
-        seg_ops = _openings_on_seg(openings, seg_idx)
-        for op in seg_ops:
-            ordered.append(op)
-
-    # Wall sections go from each opening's t_end to the next opening's t_start
-    sections = []
-    n = len(ordered)
-    for i in range(n):
-        start_op = ordered[i]
-        end_op = ordered[(i + 1) % n]
-        sections.append((start_op, end_op))
-    return sections
-
-
-def _build_section_outlines(pts, outline_segs, inner_segs, s_segs, g_segs,
-                            start_op, end_op, shell_t, R_in, wall_total,
-                            n_arc=12, g_seg_overrides=None,
-                            w_seg_overrides=None):
-    """Build outer and inner cavity outlines for one wall section.
-
-    start_op: opening whose t_end starts this wall section
-    end_op: opening whose t_start ends this wall section
-
-    Returns (outer_path, cavity_path) as lists of (E, N) points.
-    """
-    R_out = R_in + shell_t
-
-    # U-turn arc data at each end
-    start_arcs = _uturn_arc_data(pts, outline_segs, inner_segs,
-                                 start_op.seg_idx, start_op.t_end, "end",
-                                 shell_t, R_in, wall_total, n_arc)
-    end_arcs = _uturn_arc_data(pts, outline_segs, inner_segs,
-                               end_op.seg_idx, end_op.t_start, "start",
-                               shell_t, R_in, wall_total, n_arc)
-
-    # Trace boundary paths between the two openings
-    f_path = _trace_boundary_path(pts, outline_segs,
-                                  start_op.seg_idx, start_op.t_end,
-                                  end_op.seg_idx, end_op.t_start, R_out)
-    s_path = _trace_boundary_path(pts, s_segs,
-                                  start_op.seg_idx, start_op.t_end,
-                                  end_op.seg_idx, end_op.t_start, R_out)
-    g_path = _trace_boundary_path(pts, g_segs,
-                                  start_op.seg_idx, start_op.t_end,
-                                  end_op.seg_idx, end_op.t_start, R_out,
-                                  seg_overrides=g_seg_overrides)
-    w_path = _trace_boundary_path(pts, inner_segs,
-                                  start_op.seg_idx, start_op.t_end,
-                                  end_op.seg_idx, end_op.t_start, R_out,
-                                  seg_overrides=w_seg_overrides)
-
-    # --- Outer outline ---
-    # F-face forward → end U-turn (F→W) → W-face backward → start U-turn (W→F)
-    outer = list(f_path)
-    outer.extend(end_arcs['oc_F'][1:])          # F-face arc at end
-    outer.extend(end_arcs['ic_W'])              # cross-wall → W-face at end
-    outer.extend(list(reversed(w_path)))        # W-face backward
-    outer.extend(list(reversed(start_arcs['ic_W'])))  # W-face → cross-wall at start
-    outer.extend(list(reversed(start_arcs['oc_F']))[1:])  # cross-wall → F-face at start
-
-    # --- Cavity outline ---
-    # S-face forward → end inner arcs → G-face backward → start inner arcs
-    cavity = list(s_path)
-    cavity.extend(end_arcs['oc_S'][1:])         # S-face arc at end
-    cavity.append(end_arcs['ic_G'][0])          # cross-wall cavity face
-    cavity.extend(end_arcs['ic_G'][1:])         # G-face arc at end
-    cavity.extend(list(reversed(g_path)))       # G-face backward
-    r_start_icG = list(reversed(start_arcs['ic_G']))
-    cavity.extend(r_start_icG[1:])              # G-face arc at start (reversed)
-    cavity.append(start_arcs['oc_S'][-1])       # cross-wall cavity face
-    r_start_ocS = list(reversed(start_arcs['oc_S']))
-    cavity.extend(r_start_ocS[1:])              # S-face arc at start (reversed)
-
-    return outer, cavity
 
 
 # ============================================================
@@ -518,29 +148,13 @@ def build_wall_data():
     radii = fp_data.radii
     inner_poly = fp_data.inner_poly
 
-    # Compute S-series (2" inset = inner face of outer shell)
-    s_pts, s_segs = _compute_inset_path(outline_segs, pts, radii,
-                                         SHELL_THICKNESS, "S")
-    pts.update(s_pts)
-
-    # Compute G-series (6" inset = outer face of inner shell)
-    g_pts, g_segs = _compute_inset_path(outline_segs, pts, radii,
-                                         SHELL_THICKNESS + AIR_GAP, "G")
-    pts.update(g_pts)
-
-    # Compute interior layout (needed for opening positions)
-    layout = compute_interior_layout(pts, inner_poly)
-
-    # Compute openings
-    outer_openings = compute_outer_openings(pts, layout)
-    openings = outer_to_wall_openings(outer_openings, outline_segs, pts)
-
-    # Compute F8-F9 inner shell replacement polylines (straight-arc-straight)
-    R_in = OPENING_INSIDE_RADIUS
-    g_f8f9_poly = f8f9_corner_polyline(
-        pts, SHELL_THICKNESS + AIR_GAP, R_in)
-    w_f8f9_poly = f8f9_corner_polyline(
-        pts, WALL_OUTER, R_in + SHELL_THICKNESS)
+    # S/G series, openings, layout, F8-F9 polylines from FloorplanData
+    s_segs = fp_data.s_segs
+    g_segs = fp_data.g_segs
+    layout = fp_data.layout
+    openings = fp_data.openings
+    g_f8f9_poly = fp_data.g_f8f9_poly
+    w_f8f9_poly = fp_data.w_f8f9_poly
 
     # --- Page layout: 1:72 scale ---
     _f_svg = [to_svg(*pts[f"F{i}"]) for i in range(22)]
@@ -735,8 +349,8 @@ def _render_opening_dims(out, data):
         F_A, F_B = pts[seg.start], pts[seg.end]
 
         # Boundary points on F-face
-        p1 = _lerp(F_A, F_B, op.t_start)
-        p2 = _lerp(F_A, F_B, op.t_end)
+        p1 = lerp(F_A, F_B, op.t_start)
+        p2 = lerp(F_A, F_B, op.t_end)
 
         # Exterior normal (left of CW traversal)
         n = left_norm(F_A, F_B)
@@ -851,12 +465,12 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
         s_seg = s_segs[seg_idx]
         g_seg = g_segs[seg_idx]
 
-        seg_openings = _openings_on_seg(openings, seg_idx)
+        seg_openings = openings_on_seg(openings, seg_idx)
 
         if isinstance(seg, ArcSeg):
             # Arc segments have no openings — draw full strips
             # Outer shell: F-arc to S-arc
-            outer_shell = _arc_strip_poly(seg, pts, "F", s_seg)
+            outer_shell = arc_strip_poly(seg, pts, "F", s_seg)
             _svg_polygon(out, outer_shell, to_svg, WALL_FILL, stroke="none")
 
             # Inner shell: G-arc to W-arc
@@ -865,22 +479,22 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
             else:
-                inner_shell = _arc_strip_poly(g_seg, pts, "G", inner_seg)
+                inner_shell = arc_strip_poly(g_seg, pts, "G", inner_seg)
             _svg_polygon(out, inner_shell, to_svg, WALL_FILL, stroke="none")
 
         elif isinstance(seg, LineSeg):
             if not seg_openings:
                 # No openings — draw full rectangle strips
-                outer_strip = _line_strip_poly(pts, seg.start, seg.end,
+                outer_strip = line_strip_poly(pts, seg.start, seg.end,
                                                s_seg.start, s_seg.end)
                 _svg_polygon(out, outer_strip, to_svg, WALL_FILL, stroke="none")
 
-                inner_strip = _line_strip_poly(pts, g_seg.start, g_seg.end,
+                inner_strip = line_strip_poly(pts, g_seg.start, g_seg.end,
                                                inner_seg.start, inner_seg.end)
                 _svg_polygon(out, inner_strip, to_svg, WALL_FILL, stroke="none")
             else:
                 # Has openings — draw solid sections and U-turns
-                solid_ranges = _solid_ranges(seg_openings)
+                sr = solid_ranges(seg_openings)
 
                 # Shrink ranges so shells end where U-turn arcs begin
                 F_A, F_B = pts[seg.start], pts[seg.end]
@@ -888,37 +502,36 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                                     (F_B[1]-F_A[1])**2)
                 delta_t = R_out / seg_len
                 adjusted = []
-                for t_s, t_e in solid_ranges:
+                for t_s, t_e in sr:
                     if t_s > 1e-9:   # borders an opening end
                         t_s += delta_t
                     if t_e < 1.0 - 1e-9:  # borders an opening start
                         t_e -= delta_t
                     if t_e > t_s + 1e-9:
                         adjusted.append((t_s, t_e))
-                solid_ranges = adjusted
 
-                for t_s, t_e in solid_ranges:
+                for t_s, t_e in adjusted:
                     # Outer shell partial strip
-                    outer_strip = _partial_line_strip(
+                    outer_strip = partial_line_strip(
                         pts, seg, s_seg.start, s_seg.end, t_s, t_e)
                     _svg_polygon(out, outer_strip, to_svg, WALL_FILL, stroke="none")
 
                     # Inner shell partial strip
-                    inner_strip = _partial_line_strip_2(
+                    inner_strip = partial_line_strip_2(
                         pts, g_seg, inner_seg, t_s, t_e)
                     _svg_polygon(out, inner_strip, to_svg, WALL_FILL, stroke="none")
 
                 # Draw U-turns at each opening boundary
                 for op in seg_openings:
                     # U-turn at opening start (wall→opening transition)
-                    uturn_start = _uturn_polygon(
+                    uturn_start = uturn_polygon(
                         pts, outline_segs, inner_segs, s_segs, g_segs,
                         seg_idx, op.t_start, "start", shell_t, R_in, WALL_OUTER)
                     _svg_polygon(out, uturn_start, to_svg, WALL_FILL,
                                  stroke="none")
 
                     # U-turn at opening end (opening→wall transition)
-                    uturn_end = _uturn_polygon(
+                    uturn_end = uturn_polygon(
                         pts, outline_segs, inner_segs, s_segs, g_segs,
                         seg_idx, op.t_end, "end", shell_t, R_in, WALL_OUTER)
                     _svg_polygon(out, uturn_end, to_svg, WALL_FILL,
@@ -930,10 +543,10 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                     W_A = pts[inner_seg.start]
                     W_B = pts[inner_seg.end]
                     o_poly = [
-                        _lerp(F_A, F_B, op.t_start),
-                        _lerp(F_A, F_B, op.t_end),
-                        _lerp(W_A, W_B, op.t_end),
-                        _lerp(W_A, W_B, op.t_start),
+                        lerp(F_A, F_B, op.t_start),
+                        lerp(F_A, F_B, op.t_end),
+                        lerp(W_A, W_B, op.t_end),
+                        lerp(W_A, W_B, op.t_start),
                     ]
                     _svg_polygon(out, o_poly, to_svg, OPENING_FILL,
                                  stroke="#4682B4", stroke_width="0.5")
@@ -941,9 +554,9 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     # --- Continuous outlines per wall section ---
     g_overrides = {8: data.g_f8f9_poly}
     w_overrides = {8: data.w_f8f9_poly}
-    sections = _enumerate_wall_sections(openings, outline_segs)
+    sections = enumerate_wall_sections(openings, outline_segs)
     for start_op, end_op in sections:
-        outer_path, cavity_path = _build_section_outlines(
+        outer_path, cavity_path = build_section_outlines(
             pts, outline_segs, inner_segs, s_segs, g_segs,
             start_op, end_op, shell_t, R_in, WALL_OUTER,
             g_seg_overrides=g_overrides, w_seg_overrides=w_overrides)
@@ -965,8 +578,8 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
         t_mid = (op.t_start + op.t_end) / 2
         F_A, F_B = pts[seg.start], pts[seg.end]
         W_A, W_B = pts[inner_seg.start], pts[inner_seg.end]
-        f_mid = _lerp(F_A, F_B, t_mid)
-        w_mid = _lerp(W_A, W_B, t_mid)
+        f_mid = lerp(F_A, F_B, t_mid)
+        w_mid = lerp(W_A, W_B, t_mid)
         cx, cn = (f_mid[0] + w_mid[0]) / 2, (f_mid[1] + w_mid[1]) / 2
         sx, sy = to_svg(cx, cn)
         dE, dN = F_B[0] - F_A[0], F_B[1] - F_A[1]
@@ -1015,7 +628,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                f' fill="#999">2&#8243; shell / 4&#8243; gap / 2&#8243; shell</text>')
 
     # --- Wall segment table ---
-    sections = _enumerate_wall_sections(openings, outline_segs)
+    sections = enumerate_wall_sections(openings, outline_segs)
     # Rotate so O11-O1 (last section) comes first
     sections = sections[-1:] + sections[:-1]
 
@@ -1117,18 +730,6 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     out.append('</svg>')
     return "\n".join(out)
 
-
-def _partial_line_strip_2(pts, g_seg, inner_seg, t_start, t_end):
-    """Build inner shell strip for a partial line segment range."""
-    G_A = pts[g_seg.start]
-    G_B = pts[g_seg.end]
-    W_A = pts[inner_seg.start]
-    W_B = pts[inner_seg.end]
-    p1 = _lerp(G_A, G_B, t_start)
-    p2 = _lerp(G_A, G_B, t_end)
-    p3 = _lerp(W_A, W_B, t_end)
-    p4 = _lerp(W_A, W_B, t_start)
-    return [p1, p2, p3, p4]
 
 
 # ============================================================

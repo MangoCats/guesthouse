@@ -7,7 +7,6 @@ from floorplan.gen_floorplan import (
     compute_iw_area,
     dim_line_h, dim_line_v, wall_poly, stroke_segs,
 )
-from floorplan.layout import compute_interior_layout
 
 
 # --- Mock transform for helper unit tests ---
@@ -109,7 +108,8 @@ class TestBuildFloorplanData:
     def test_returns_namedtuple_with_expected_fields(self, floorplan_data):
         expected = {"pts", "to_svg", "inner_area", "outer_area",
                     "outline_segs", "inner_segs", "outer_poly", "inner_poly",
-                    "radii", "wall_t", "vb_x", "vb_y", "vb_w", "vb_h"}
+                    "radii", "wall_t", "vb_x", "vb_y", "vb_w", "vb_h",
+                    "s_segs", "g_segs", "openings", "g_f8f9_poly", "layout"}
         assert expected.issubset(set(floorplan_data._fields))
 
     def test_areas_positive(self, floorplan_data):
@@ -124,6 +124,19 @@ class TestBuildFloorplanData:
         for i in range(22):
             assert f"F{i}" in pts, f"Missing F{i}"
             assert f"W{i}" in pts, f"Missing W{i}"
+
+    def test_pts_contain_s_and_g_series(self, floorplan_data):
+        pts = floorplan_data.pts
+        for i in range(22):
+            assert f"S{i}" in pts, f"Missing S{i}"
+            assert f"G{i}" in pts, f"Missing G{i}"
+
+    def test_s_and_g_seg_count(self, floorplan_data):
+        assert len(floorplan_data.s_segs) == 22
+        assert len(floorplan_data.g_segs) == 22
+
+    def test_11_openings(self, floorplan_data):
+        assert len(floorplan_data.openings) == 11
 
 
 class TestRenderFloorplanSvg:
@@ -143,8 +156,7 @@ class TestRenderFloorplanSvg:
 
     def test_iw_area_reduces_inner_area(self, floorplan_data):
         """Interior wall area subtracted from polygon area gives usable floor area."""
-        layout = compute_interior_layout(floorplan_data.pts, floorplan_data.inner_poly)
-        iw_area = compute_iw_area(layout)
+        iw_area = compute_iw_area(floorplan_data.layout)
         inner_area = floorplan_data.inner_area - iw_area
         assert inner_area < floorplan_data.inner_area
         assert inner_area > 0

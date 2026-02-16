@@ -15,7 +15,8 @@ from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import (
-    WALL_OUTER, COUNTER_NW_RADIUS, WH_RADIUS,
+    WALL_OUTER, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
+    COUNTER_NW_RADIUS, WH_RADIUS,
     SINK_RX, SINK_RY,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
@@ -34,7 +35,14 @@ from floorplan.constants import (
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
 )
 from floorplan.layout import compute_interior_layout
-from floorplan.openings import compute_outer_openings, compute_rough_openings
+from floorplan.openings import (
+    compute_outer_openings, compute_rough_openings, outer_to_wall_openings,
+)
+from shared.wall_shells import (
+    compute_inset_path, lerp, openings_on_seg, solid_ranges,
+    arc_strip_poly, line_strip_poly, partial_line_strip, partial_line_strip_2,
+    uturn_polygon, enumerate_wall_sections, build_section_outlines,
+)
 
 # ============================================================
 # SVG Style Constants
@@ -195,6 +203,11 @@ class FloorplanData(NamedTuple):
     na_base_y: float
     ft_per_inch: float
     w_f8f9_poly: list      # W-series F8-F9 straight-arc-straight polyline
+    s_segs: list            # S-series segments (2" inset, inner face of outer shell)
+    g_segs: list            # G-series segments (6" inset, outer face of inner shell)
+    openings: list          # WallOpening list (parametric outer wall openings)
+    g_f8f9_poly: list       # G-series F8-F9 straight-arc-straight polyline
+    layout: Any             # InteriorLayout
 
 
 def build_floorplan_data():
@@ -230,6 +243,25 @@ def build_floorplan_data():
                   if i > w8_idx
                   and abs(p[0] - w9[0]) < 1e-9 and abs(p[1] - w9[1]) < 1e-9)
     inner_poly[w8_idx:w9_idx + 1] = w_f8f9_poly
+
+    # Compute S-series (2" inset = inner face of outer shell)
+    s_pts, s_segs = compute_inset_path(outline_segs, pts, _radii,
+                                        SHELL_THICKNESS, "S")
+    pts.update(s_pts)
+
+    # Compute G-series (6" inset = outer face of inner shell)
+    g_pts, g_segs = compute_inset_path(outline_segs, pts, _radii,
+                                        SHELL_THICKNESS + AIR_GAP, "G")
+    pts.update(g_pts)
+
+    # G-series F8-F9 straight-arc-straight polyline
+    g_f8f9_poly = f8f9_corner_polyline(
+        pts, SHELL_THICKNESS + AIR_GAP, OPENING_INSIDE_RADIUS)
+
+    # Interior layout and wall openings
+    layout = compute_interior_layout(pts, inner_poly)
+    outer_openings = compute_outer_openings(pts, layout)
+    openings = outer_to_wall_openings(outer_openings, outline_segs, pts)
 
     outer_area = poly_area(outer_poly)
     inner_area = poly_area(inner_poly)
@@ -291,6 +323,10 @@ def build_floorplan_data():
         na_x=_na_x, na_text_y=_na_text_y, na_tip_y=_na_tip_y, na_base_y=_na_base_y,
         ft_per_inch=_ft_per_inch,
         w_f8f9_poly=w_f8f9_poly,
+        s_segs=s_segs, g_segs=g_segs,
+        openings=openings,
+        g_f8f9_poly=g_f8f9_poly,
+        layout=layout,
     )
 
 # ============================================================
@@ -312,23 +348,126 @@ def compute_iw_area(layout):
     return sum(poly_area(p) for p in iw_polys)
 
 
+def _svg_wall_poly(out, poly, to_svg):
+    """Render a shell polygon with floorplan wall styling (no stroke, gray fill)."""
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in poly)
+    out.append(f'<polygon points="{svg}" fill="{WALL_FILL}" stroke="none"/>')
+
+
 def _render_walls(out, data, layout):
-    """Render outer wall fill, outline strokes, and all interior walls with rough openings."""
+    """Render outer wall fill with double-shell detail, outline strokes, and interior walls."""
     pts = data.pts
     to_svg = data.to_svg
+    outline_segs = data.outline_segs
+    inner_segs = data.inner_segs
+    s_segs = data.s_segs
+    g_segs = data.g_segs
+    openings = data.openings
 
-    # Outer wall fill with inner cutout
-    outer_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in data.outer_poly)
-    inner_rev = list(reversed(data.inner_poly))
-    inner_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in inner_rev)
-    out.append(f'<polygon points="{outer_svg}" fill="{WALL_FILL}" stroke="none"/>')
-    out.append(f'<polygon points="{inner_svg}" fill="white" stroke="none"/>')
+    shell_t = SHELL_THICKNESS
+    R_in = OPENING_INSIDE_RADIUS
+    R_out = R_in + shell_t
 
-    # Outline strokes
-    stroke_segs(out, data.outline_segs, "#333", "1.5", pts, to_svg)
+    # --- Per-segment shell strips ---
+    for seg_idx in range(22):
+        seg = outline_segs[seg_idx]
+        inner_seg = inner_segs[seg_idx]
+        s_seg = s_segs[seg_idx]
+        g_seg = g_segs[seg_idx]
+
+        seg_ops = openings_on_seg(openings, seg_idx)
+
+        if isinstance(seg, ArcSeg):
+            # Arc segments: full shell strips (no openings on arcs)
+            outer_shell = arc_strip_poly(seg, pts, "F", s_seg)
+            _svg_wall_poly(out, outer_shell, to_svg)
+
+            if seg_idx == 8:
+                inner_shell = (list(data.g_f8f9_poly)
+                               + list(reversed(data.w_f8f9_poly)))
+            else:
+                inner_shell = arc_strip_poly(g_seg, pts, "G", inner_seg)
+            _svg_wall_poly(out, inner_shell, to_svg)
+
+        elif isinstance(seg, LineSeg):
+            if not seg_ops:
+                # Full rectangle strips
+                outer_strip = line_strip_poly(pts, seg.start, seg.end,
+                                              s_seg.start, s_seg.end)
+                _svg_wall_poly(out, outer_strip, to_svg)
+
+                inner_strip = line_strip_poly(pts, g_seg.start, g_seg.end,
+                                              inner_seg.start, inner_seg.end)
+                _svg_wall_poly(out, inner_strip, to_svg)
+            else:
+                # Segments with openings: partial strips + U-turns
+                sr = solid_ranges(seg_ops)
+
+                # Trim ranges where U-turn arcs will be
+                F_A, F_B = pts[seg.start], pts[seg.end]
+                seg_len = math.sqrt((F_B[0]-F_A[0])**2 +
+                                    (F_B[1]-F_A[1])**2)
+                delta_t = R_out / seg_len
+                adjusted = []
+                for t_s, t_e in sr:
+                    if t_s > 1e-9:
+                        t_s += delta_t
+                    if t_e < 1.0 - 1e-9:
+                        t_e -= delta_t
+                    if t_e > t_s + 1e-9:
+                        adjusted.append((t_s, t_e))
+
+                for t_s, t_e in adjusted:
+                    outer_strip = partial_line_strip(
+                        pts, seg, s_seg.start, s_seg.end, t_s, t_e)
+                    _svg_wall_poly(out, outer_strip, to_svg)
+
+                    inner_strip = partial_line_strip_2(
+                        pts, g_seg, inner_seg, t_s, t_e)
+                    _svg_wall_poly(out, inner_strip, to_svg)
+
+                # U-turns at opening boundaries
+                for op in seg_ops:
+                    uturn_start = uturn_polygon(
+                        pts, outline_segs, inner_segs, s_segs, g_segs,
+                        seg_idx, op.t_start, "start", shell_t, R_in, WALL_OUTER)
+                    _svg_wall_poly(out, uturn_start, to_svg)
+
+                    uturn_end = uturn_polygon(
+                        pts, outline_segs, inner_segs, s_segs, g_segs,
+                        seg_idx, op.t_end, "end", shell_t, R_in, WALL_OUTER)
+                    _svg_wall_poly(out, uturn_end, to_svg)
+
+                # Opening void polygons
+                for op in seg_ops:
+                    F_A, F_B = pts[seg.start], pts[seg.end]
+                    W_A = pts[inner_seg.start]
+                    W_B = pts[inner_seg.end]
+                    o_poly = [
+                        lerp(F_A, F_B, op.t_start),
+                        lerp(F_A, F_B, op.t_end),
+                        lerp(W_A, W_B, op.t_end),
+                        lerp(W_A, W_B, op.t_start),
+                    ]
+                    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                                   for p in o_poly)
+                    out.append(f'<polygon points="{svg}" fill="{OPENING_FILL}" '
+                               f'stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
+
+    # --- Continuous section outlines ---
+    g_overrides = {8: data.g_f8f9_poly}
     w_overrides = {8: data.w_f8f9_poly}
-    stroke_segs(out, data.inner_segs, WALL_STROKE, WALL_SW, pts, to_svg,
-                seg_overrides=w_overrides)
+    sections = enumerate_wall_sections(openings, outline_segs)
+    for start_op, end_op in sections:
+        outer_path, cavity_path = build_section_outlines(
+            pts, outline_segs, inner_segs, s_segs, g_segs,
+            start_op, end_op, shell_t, R_in, WALL_OUTER,
+            g_seg_overrides=g_overrides, w_seg_overrides=w_overrides)
+        for path in [outer_path, cavity_path]:
+            svg_pts = " ".join(
+                f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in path)
+            out.append(f'<polygon points="{svg_pts}" fill="none" '
+                       f'stroke="#999" stroke-width="0.3"/>')
 
     # Half stroke width in survey feet (for inside-only edge lines)
     svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
@@ -927,13 +1066,14 @@ def _render_dimensions(out, data, layout):
 
 
 def _render_openings(out, data, layout):
-    """Render O1-O11 opening polygons."""
+    """Render door swings and jamb blocks for O3, O6, RO1-RO5.
+
+    Opening fill polygons are rendered by _render_walls() as part of the
+    double-shell wall section loop.
+    """
     pts = data.pts
     to_svg = data.to_svg
     outer_openings = compute_outer_openings(pts, layout)
-    for o in outer_openings:
-        svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in o.poly)
-        out.append(f'<polygon points="{svg}" fill="{OPENING_FILL}" stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # O3 door: 30" door, hinged north, swings east
     o3 = [o for o in outer_openings if o.name == "O3"][0]
@@ -1188,7 +1328,7 @@ def render_floorplan_svg(data):
     """Render the complete floorplan SVG. Returns SVG string."""
     pts = data.pts
     to_svg = data.to_svg
-    layout = compute_interior_layout(pts, data.inner_poly)
+    layout = data.layout
 
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}"'

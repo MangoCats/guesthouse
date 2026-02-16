@@ -3,15 +3,9 @@ import math
 import pytest
 from shared.types import LineSeg, ArcSeg
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
-from walls.gen_walls import (
-    build_wall_data,
-    render_walls_svg,
-    _compute_inset_path,
-    _solid_ranges,
-    _openings_on_seg,
-    _lerp,
-    _line_strip_poly,
-    _partial_line_strip,
+from walls.gen_walls import build_wall_data, render_walls_svg
+from shared.wall_shells import (
+    lerp, solid_ranges, line_strip_poly, partial_line_strip,
 )
 from floorplan.openings import WallOpening
 
@@ -22,36 +16,36 @@ from floorplan.openings import WallOpening
 
 class TestLerp:
     def test_at_zero(self):
-        assert _lerp((0, 0), (10, 20), 0.0) == (0, 0)
+        assert lerp((0, 0), (10, 20), 0.0) == (0, 0)
 
     def test_at_one(self):
-        assert _lerp((0, 0), (10, 20), 1.0) == (10, 20)
+        assert lerp((0, 0), (10, 20), 1.0) == (10, 20)
 
     def test_midpoint(self):
-        result = _lerp((0, 0), (10, 20), 0.5)
+        result = lerp((0, 0), (10, 20), 0.5)
         assert result == pytest.approx((5, 10))
 
 
 class TestSolidRanges:
     def test_no_openings(self):
-        assert _solid_ranges([]) == [(0.0, 1.0)]
+        assert solid_ranges([]) == [(0.0, 1.0)]
 
     def test_one_opening_in_middle(self):
         op = WallOpening("O1", 0, 0.3, 0.7)
-        ranges = _solid_ranges([op])
+        ranges = solid_ranges([op])
         assert len(ranges) == 2
         assert ranges[0] == pytest.approx((0.0, 0.3))
         assert ranges[1] == pytest.approx((0.7, 1.0))
 
     def test_opening_at_start(self):
         op = WallOpening("O1", 0, 0.0, 0.5)
-        ranges = _solid_ranges([op])
+        ranges = solid_ranges([op])
         assert len(ranges) == 1
         assert ranges[0] == pytest.approx((0.5, 1.0))
 
     def test_two_openings(self):
         ops = [WallOpening("O1", 0, 0.2, 0.4), WallOpening("O2", 0, 0.6, 0.8)]
-        ranges = _solid_ranges(ops)
+        ranges = solid_ranges(ops)
         assert len(ranges) == 3
         assert ranges[0] == pytest.approx((0.0, 0.2))
         assert ranges[1] == pytest.approx((0.4, 0.6))
@@ -61,12 +55,12 @@ class TestSolidRanges:
 class TestLineStripPoly:
     def test_returns_four_points(self):
         pts = {"A": (0.0, 0.0), "B": (10.0, 0.0), "C": (0.0, 1.0), "D": (10.0, 1.0)}
-        result = _line_strip_poly(pts, "A", "B", "C", "D")
+        result = line_strip_poly(pts, "A", "B", "C", "D")
         assert len(result) == 4
 
     def test_correct_winding(self):
         pts = {"A": (0.0, 0.0), "B": (10.0, 0.0), "C": (0.0, 1.0), "D": (10.0, 1.0)}
-        result = _line_strip_poly(pts, "A", "B", "C", "D")
+        result = line_strip_poly(pts, "A", "B", "C", "D")
         # Should be: A, B, D, C (outer start, outer end, inner end, inner start)
         assert result[0] == (0.0, 0.0)
         assert result[1] == (10.0, 0.0)
@@ -78,7 +72,7 @@ class TestPartialLineStrip:
     def test_full_range(self):
         pts = {"A": (0.0, 0.0), "B": (10.0, 0.0)}
         seg = LineSeg("A", "B")
-        result = _partial_line_strip(pts, seg, "A", "B", 0.0, 1.0)
+        result = partial_line_strip(pts, seg, "A", "B", 0.0, 1.0)
         assert len(result) == 4
         assert result[0] == pytest.approx((0.0, 0.0))
         assert result[1] == pytest.approx((10.0, 0.0))
@@ -86,7 +80,7 @@ class TestPartialLineStrip:
     def test_sub_range(self):
         pts = {"A": (0.0, 0.0), "B": (10.0, 0.0), "C": (0.0, 1.0), "D": (10.0, 1.0)}
         seg = LineSeg("A", "B")
-        result = _partial_line_strip(pts, seg, "C", "D", 0.2, 0.8)
+        result = partial_line_strip(pts, seg, "C", "D", 0.2, 0.8)
         assert len(result) == 4
         assert result[0] == pytest.approx((2.0, 0.0))
         assert result[1] == pytest.approx((8.0, 0.0))
