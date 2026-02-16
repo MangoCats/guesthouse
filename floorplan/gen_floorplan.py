@@ -963,18 +963,18 @@ def _render_kitchen(out, data, layout, minik=False):
         apex_r_svg = abs(to_svg(apex_r, 0)[0] - to_svg(0, 0)[0])
         fillet_r_svg = abs(to_svg(fillet_r, 0)[0] - to_svg(0, 0)[0])
 
-        # Build path (CCW in SVG due to y-flip, sweep-flag=0)
+        # Build path (sweep-flag=1 for convex outward arcs)
         s = lambda p: to_svg(*p)
         path_d = (
             f'M {s(f_nw_base)[0]:.2f},{s(f_nw_base)[1]:.2f} '
             f'L {s(f_ne_base)[0]:.2f},{s(f_ne_base)[1]:.2f} '
-            f'A {fillet_r_svg:.2f},{fillet_r_svg:.2f} 0 0 0 '
+            f'A {fillet_r_svg:.2f},{fillet_r_svg:.2f} 0 0 1 '
             f'{s(f_ne_tang)[0]:.2f},{s(f_ne_tang)[1]:.2f} '
             f'L {s(t_right)[0]:.2f},{s(t_right)[1]:.2f} '
-            f'A {apex_r_svg:.2f},{apex_r_svg:.2f} 0 0 0 '
+            f'A {apex_r_svg:.2f},{apex_r_svg:.2f} 0 0 1 '
             f'{s(t_left)[0]:.2f},{s(t_left)[1]:.2f} '
             f'L {s(f_nw_tang)[0]:.2f},{s(f_nw_tang)[1]:.2f} '
-            f'A {fillet_r_svg:.2f},{fillet_r_svg:.2f} 0 0 0 '
+            f'A {fillet_r_svg:.2f},{fillet_r_svg:.2f} 0 0 1 '
             f'{s(f_nw_base)[0]:.2f},{s(f_nw_base)[1]:.2f} Z'
         )
 
