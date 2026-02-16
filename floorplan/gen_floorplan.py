@@ -1240,6 +1240,21 @@ def _render_furniture(out, data, layout):
     out.append('</a>')
     out.append('</g>')
 
+    # FIREPLACE: 48" E-W x 30" N-S, against IW3 east face and IW1 south face
+    fp_w = layout.iw3.e
+    fp_e = fp_w + 48.0 / 12.0
+    fp_n = layout.iw1_s
+    fp_s = fp_n - 30.0 / 12.0
+    fp_sx1, fp_sy1 = to_svg(fp_w, fp_n)
+    fp_sx2, fp_sy2 = to_svg(fp_e, fp_s)
+    fp_sw = fp_sx2 - fp_sx1; fp_sh = fp_sy2 - fp_sy1
+    out.append(f'<rect x="{fp_sx1:.1f}" y="{fp_sy1:.1f}" width="{fp_sw:.1f}" height="{fp_sh:.1f}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    fp_cx = (fp_sx1 + fp_sx2) / 2
+    fp_cy = (fp_sy1 + fp_sy2) / 2
+    out.append(f'<text x="{fp_cx:.1f}" y="{fp_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="{APPL_STROKE}">FIREPLACE</text>')
+
     # Room labels
     bd_cx = layout.bed_cx
     bd_cy = (layout.ctr.s + layout.iw1_s) / 2
