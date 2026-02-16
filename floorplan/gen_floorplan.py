@@ -666,23 +666,23 @@ def _render_appliances(out, data, layout, minik=False):
         if link:
             out.append('</a>')
 
-    # Counter: 24" deep x 72" long, 9" NW corner radius
+    # Counter: 24" deep x 72" long, 9" SW corner radius
     ctr = layout.ctr
-    csw = to_svg(ctr.w, ctr.s)
-    cse = to_svg(ctr.e, ctr.s)
+    cnw = to_svg(ctr.w, ctr.n)
     cne = to_svg(ctr.e, ctr.n)
-    cnas = to_svg(ctr.w + COUNTER_NW_RADIUS, ctr.n)
-    cnae = to_svg(ctr.w, ctr.n - COUNTER_NW_RADIUS)
-    r_svg = abs(cnas[0] - to_svg(ctr.w, ctr.n)[0])
-    ctr_path = (f'M {csw[0]:.1f},{csw[1]:.1f} '
-                f'L {cse[0]:.1f},{cse[1]:.1f} '
+    cse = to_svg(ctr.e, ctr.s)
+    csas = to_svg(ctr.w + COUNTER_NW_RADIUS, ctr.s)
+    csae = to_svg(ctr.w, ctr.s + COUNTER_NW_RADIUS)
+    r_svg = abs(csas[0] - to_svg(ctr.w, ctr.s)[0])
+    ctr_path = (f'M {cnw[0]:.1f},{cnw[1]:.1f} '
                 f'L {cne[0]:.1f},{cne[1]:.1f} '
-                f'L {cnas[0]:.1f},{cnas[1]:.1f} '
-                f'A {r_svg:.1f} {r_svg:.1f} 0 0 0 {cnae[0]:.1f},{cnae[1]:.1f} '
+                f'L {cse[0]:.1f},{cse[1]:.1f} '
+                f'L {csas[0]:.1f},{csas[1]:.1f} '
+                f'A {r_svg:.1f} {r_svg:.1f} 0 0 1 {csae[0]:.1f},{csae[1]:.1f} '
                 f'Z')
     out.append(f'<path d="{ctr_path}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    ccx = (csw[0] + cse[0]) / 2
-    ccy = (csw[1] + cne[1]) / 2
+    ccx = (cnw[0] + cne[0]) / 2
+    ccy = (cnw[1] + cse[1]) / 2
     out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
 
@@ -1185,11 +1185,11 @@ def _render_furniture(out, data, layout):
     out.append('</a>')
     out.append('</g>')
 
-    # SHELVES (2nd set): 60" E-W x 18" N-S, against IW1 south face and IW3 west face
+    # SHELVES (2nd set): 60" E-W x 18" N-S, against W21-W0 south wall and IW3 west face
     sh2_e = layout.iw3.w
     sh2_w = sh2_e - SHELVES2_WIDTH
-    sh2_n = layout.iw1_s
-    sh2_s = sh2_n - SHELVES2_DEPTH
+    sh2_s = pts["W0"][1]
+    sh2_n = sh2_s + SHELVES2_DEPTH
     sh2_sx1, sh2_sy1 = to_svg(sh2_w, sh2_n)
     sh2_sx2, sh2_sy2 = to_svg(sh2_e, sh2_s)
     sh2_sw = sh2_sx2 - sh2_sx1; sh2_sh = sh2_sy2 - sh2_sy1
@@ -1243,7 +1243,7 @@ def _render_furniture(out, data, layout):
 
     # Room labels
     bd_cx = layout.bed_cx
-    bd_cy = (layout.ctr.s + layout.iw1_s) / 2
+    bd_cy = (layout.wall_south_n + layout.iw1_s) / 2
     bdx, bdy = to_svg(bd_cx, bd_cy)
     out.append(f'<text x="{bdx:.1f}" y="{bdy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">BEDROOM</text>')
@@ -1261,11 +1261,11 @@ def _render_dimensions(out, data, layout):
     to_svg = data.to_svg
 
     # Bedroom E-W and N-S
-    bd_ew_n = layout.ctr.s + 0.25 * (layout.iw1_s - layout.ctr.s)
+    bd_ew_n = layout.iw3.s + 0.25 * (layout.iw1_s - layout.iw3.s)
     dim_line_h(out, layout.iw3.e, bd_ew_n, layout.iw4_w,
                fmt_dist(layout.iw4_w - layout.iw3.e), to_svg)
-    dim_line_v(out, layout.iw3.e + 2.0, layout.ctr.s, layout.iw1_s,
-               fmt_dist(layout.iw1_s - layout.ctr.s), to_svg)
+    dim_line_v(out, layout.iw3.e + 2.0, layout.iw3.s, layout.iw1_s,
+               fmt_dist(layout.iw1_s - layout.iw3.s), to_svg)
 
     # Closets
     dim_line_v(out, (layout.ctr.e + layout.iwt3 + layout.iw3.w) / 2,
@@ -1286,7 +1286,7 @@ def _render_dimensions(out, data, layout):
                f"STORAGE {fmt_dist(pts['W15'][0] - layout.iw4_e)}", to_svg)
 
     # West wall interior widths
-    dim_f1f2_n = layout.ctr.n + layout.iwt3 + 1.0
+    dim_f1f2_n = layout.ctr.s - layout.iwt3 - 1.0
     dim_line_h(out, pts["W2"][0], dim_f1f2_n, layout.iw3.w,
                fmt_dist(layout.iw3.w - pts["W2"][0]), to_svg)
     dim_line_h(out, pts["W2"][0], pts["F2"][1], layout.iw2.w,
@@ -1482,22 +1482,22 @@ def _render_openings(out, data, layout):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO3 door: 36" door, hinged south, swings west
+    # RO3 door: 36" door, hinged north, swings west
     ro3 = [r for r in rough_openings if r.name == "RO3"][0]
     ro3_mid = (ro3.bbox.w + ro3.bbox.e) / 2
     ro3_gap = (ro3.bbox.n - ro3.bbox.s - RO3_DOOR_WIDTH) / 2
-    hinge_e, hinge_n = ro3_mid, ro3.bbox.s + ro3_gap
+    hinge_e, hinge_n = ro3_mid, ro3.bbox.n - ro3_gap
     hx, hy = to_svg(hinge_e, hinge_n)
     # Straight line from hinge westward (door in open position)
     tip_e, tip_n = hinge_e - RO3_DOOR_WIDTH, hinge_n
     tx, ty = to_svg(tip_e, tip_n)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (west) sweeping CW 90° to closed (north)
+    # Arc from open (west) sweeping 90° to closed (south)
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = math.pi - i * (math.pi / 2) / n_arc  # 180° to 90°
+        angle = math.pi + i * (math.pi / 2) / n_arc  # 180° to 270°
         ae = hinge_e + RO3_DOOR_WIDTH * math.cos(angle)
         an = hinge_n + RO3_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)

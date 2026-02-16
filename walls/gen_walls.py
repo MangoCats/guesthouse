@@ -274,13 +274,13 @@ def _render_interior_walls(out, data):
 
     # IW7 (L-shaped, 3") — label on vertical arm
     iw_poly(layout.iw7)
-    iw_label("IW7", layout.iw7[0][0], layout.iw7[1][0],
-             layout.iw7[0][1], layout.iw7[5][1])
+    iw_label("IW7", layout.iw7[5][0], layout.iw7[4][0],
+             layout.iw7[3][1], layout.iw7[5][1])
 
-    # IW3 (vertical, 4") — label shifted 6" south to clear IW7 horizontal leg
+    # IW3 (vertical, 4") — label shifted 6" north to clear IW7 horizontal leg
     iw_rect(layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
     iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n,
-             n_shift=-6.0 / 12.0)
+             n_shift=6.0 / 12.0)
 
     # IW4 (vertical, 4")
     iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)

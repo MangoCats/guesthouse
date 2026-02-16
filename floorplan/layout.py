@@ -86,22 +86,24 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     ctr_w = dryer_e + COUNTER_GAP
     ctr_e = ctr_w + COUNTER_DEPTH
-    ctr_s = pts["W0"][1]
-    ctr_n = ctr_s + COUNTER_LENGTH
+    ctr_n = iw1_s
+    ctr_s = ctr_n - COUNTER_LENGTH
     ctr_nw_r = COUNTER_NW_RADIUS
 
-    iw7_poly = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s), (ctr_e + WALL_3IN, ctr_n),
-                (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n),
-                (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n + WALL_3IN),
-                (ctr_e, ctr_n + WALL_3IN)]
+    iw7_poly = [(ctr_e, ctr_s - WALL_3IN),
+                (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_s - WALL_3IN),
+                (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_s),
+                (ctr_e + WALL_3IN, ctr_s),
+                (ctr_e + WALL_3IN, ctr_n),
+                (ctr_e, ctr_n)]
     iw3_w = ctr_e + WALL_3IN + CLOSET_WIDTH
     iw3_e = iw3_w + WALL_4IN
-    iw3_s = ctr_s
+    iw3_s = WALL_SOUTH_N
     iw3_n = iw1_s
     iw4_w = iw3_e + BEDROOM_WIDTH
     iw4_e = iw4_w + WALL_4IN
     wall_south_n = WALL_SOUTH_N
-    cl1_top = ctr_n - 1.0
+    cl1_top = pts["W0"][1] + COUNTER_LENGTH - 1.0
     iw8_w = iw4_e + CLOSET_WIDTH
     iw8_e = iw8_w + WALL_3IN
     iw8_poly = [(iw4_e, cl1_top + WALL_3IN), (iw8_e, cl1_top + WALL_3IN), (iw8_e, wall_south_n),
@@ -110,7 +112,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     bed_cx = (iw3_e + iw4_w) / 2
     bed_w = bed_cx - BED_WIDTH / 2
     bed_e = bed_cx + BED_WIDTH / 2
-    bed_s = ctr_s + BED_OFFSET_N
+    bed_s = pts["W0"][1] + BED_OFFSET_N
     bed_n = bed_s + BED_LENGTH
 
     # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
