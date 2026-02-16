@@ -805,6 +805,22 @@ def _render_kitchen(out, data, layout, minik=False):
     out.append(f'<text x="{fr_cx:.1f}" y="{fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="{fr_fs}" fill="{APPL_STROKE}">FRIDGE</text>')
     if minik:
+        # Door arc: hinged at SE corner, 23.375" door, sweeps from south (open) to west (closed)
+        fr_door = MINIK_FRIDGE_W
+        hx, hy = to_svg(fr_e, fr_s)
+        tip_x, tip_y = to_svg(fr_e, fr_s - fr_door)
+        out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
+                   f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
+        n_arc = 20
+        arc_pts = []
+        for i in range(n_arc + 1):
+            angle = math.pi + i * (math.pi / 2) / n_arc  # 180° to 270°
+            ae = fr_e + fr_door * math.cos(angle)
+            an = fr_s + fr_door * math.sin(angle)
+            ax, ay = to_svg(ae, an)
+            arc_pts.append(f"{ax:.1f},{ay:.1f}")
+        out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+                   f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
     if not minik:
         # Door arc: hinged at NE corner, 32.75" door, sweeps from west to north
