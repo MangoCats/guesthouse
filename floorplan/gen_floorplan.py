@@ -593,8 +593,8 @@ def _render_walls(out, data, layout):
         jx2, jy2 = to_svg(iw3.e, jamb_n)
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
-    # IW3 south face outline (exposed, not terminated by another wall)
-    sx1, sy1 = to_svg(iw3.w, iw3.s); sx2, sy2 = to_svg(iw3.e, iw3.s)
+    # IW3 south face outline (inset, exposed — not terminated by another wall)
+    sx1, sy1 = to_svg(iw3.w, iw3.s + half_sw); sx2, sy2 = to_svg(iw3.e, iw3.s + half_sw)
     out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
@@ -621,8 +621,8 @@ def _render_walls(out, data, layout):
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    # IW10 east face outline (exposed, not terminated by another wall)
-    sx1, sy1 = to_svg(iw10.e, iw10.s); sx2, sy2 = to_svg(iw10.e, iw10.n)
+    # IW10 east face outline (inset, exposed — not terminated by another wall)
+    sx1, sy1 = to_svg(iw10.e - half_sw, iw10.s); sx2, sy2 = to_svg(iw10.e - half_sw, iw10.n)
     out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
