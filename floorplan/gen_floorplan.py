@@ -790,10 +790,11 @@ def _render_kitchen(out, data, layout, minik=False):
     out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-72-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3072S.html" target="_blank">')
     out.append(f'<rect x="{kc_sx1:.1f}" y="{kc_sy1:.1f}" width="{kc_sw:.1f}" height="{kc_sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    kc_cx = (kc_sx1 + kc_sx2) / 2
-    kc_cy = (kc_sy1 + kc_sy2) / 2
-    out.append(f'<text x="{kc_cx:.1f}" y="{kc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
+    if not minik:
+        kc_cx = (kc_sx1 + kc_sx2) / 2
+        kc_cy = (kc_sy1 + kc_sy2) / 2
+        out.append(f'<text x="{kc_cx:.1f}" y="{kc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
     out.append('</a>')
 
     # North wall counter: south side against W9-W10, starting at IW2 east face
