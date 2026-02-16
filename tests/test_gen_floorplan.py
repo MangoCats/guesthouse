@@ -152,7 +152,7 @@ class TestRenderFloorplanSvg:
         assert "KING BED" in rendered
 
     def test_contains_openings(self, rendered):
-        assert rendered.count('fill="rgb(220,235,255)"') == 11, "Expected 11 opening polygons"
+        assert rendered.count('fill="rgb(220,235,255)"') == 9, "Expected 9 opening polygons (11 minus 2 doors)"
 
     def test_iw_area_reduces_inner_area(self, floorplan_data):
         """Interior wall area subtracted from polygon area gives usable floor area."""

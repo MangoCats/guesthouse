@@ -439,7 +439,10 @@ def _render_walls(out, data, layout):
                     _svg_wall_poly(out, uturn_end, to_svg)
 
                 # Opening void polygons (4" wide, centered on wall)
+                # Skip doors (O3, O6) — only render window voids
                 for op in seg_ops:
+                    if op.name in ("O3", "O6"):
+                        continue
                     S_A, S_B = pts[s_seg.start], pts[s_seg.end]
                     G_A, G_B = pts[g_seg.start], pts[g_seg.end]
                     o_poly = [
