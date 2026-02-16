@@ -643,9 +643,15 @@ def _render_appliances(out, data, layout, minik=False):
         "DRYER": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377",
         "WASHER": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375",
     }
+    minik_dryer_n = None
     for label, b in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
         if minik:
-            b = BBox(w=b.w, s=b.s, e=b.w + minik_appl_w, n=b.s + minik_appl_d)
+            if label == "DRYER":
+                b = BBox(w=b.w, s=b.s, e=b.w + minik_appl_w, n=b.s + minik_appl_d)
+                minik_dryer_n = b.n
+            else:  # WASHER: 1" north of minik dryer
+                ws = minik_dryer_n + 1.0 / 12.0
+                b = BBox(w=b.w, s=ws, e=b.w + minik_appl_w, n=ws + minik_appl_d)
         link = minik_appl_links.get(label) if minik else None
         if link:
             out.append(f'<a href="{link}" target="_blank">')
