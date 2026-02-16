@@ -550,6 +550,21 @@ if __name__ == "__main__":
     render_floorplan(lines, to_svg, pts, data["outer_poly"], data["inner_poly"],
                      data["inner_segs"], data["layout"])
 
+    # Circle 48" diameter tangent to POB-P2 on SSE side, at midpoint
+    _circ_r_ft = 48.0 / 12.0 / 2.0  # 24" radius = 2'
+    _pob_r = pts_rot["POB"]; _p2_r = pts_rot["P2"]
+    _mid_e = (_pob_r[0] + _p2_r[0]) / 2
+    _mid_n = (_pob_r[1] + _p2_r[1]) / 2
+    _dx_pp = _p2_r[0] - _pob_r[0]; _dy_pp = _p2_r[1] - _pob_r[1]
+    _L_pp = math.sqrt(_dx_pp**2 + _dy_pp**2)
+    _ln_e, _ln_n = -_dy_pp / _L_pp, _dx_pp / _L_pp  # left normal = SSE side
+    _circ_ce = _mid_e + _circ_r_ft * _ln_e
+    _circ_cn = _mid_n + _circ_r_ft * _ln_n
+    _ccx, _ccy = to_svg(_circ_ce, _circ_cn)
+    _cr_svg = to_svg(_circ_ce + _circ_r_ft, _circ_cn)[0] - _ccx
+    lines.append(f'<circle cx="{_ccx:.1f}" cy="{_ccy:.1f}" r="{_cr_svg:.1f}"'
+                 f' fill="none" stroke="#333" stroke-width="1.5"/>')
+
     # Area label centered in outline
     centroid_names = [f"F{i}" for i in range(22)]
     cx_o = sum(pts[n][0] for n in centroid_names) / len(centroid_names)
