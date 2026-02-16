@@ -98,7 +98,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
                 (ctr_e, ctr_n)]
     iw3_w = ctr_e + WALL_3IN + CLOSET_WIDTH
     iw3_e = iw3_w + WALL_4IN
-    iw3_s = WALL_SOUTH_N
+    iw3_s = pts["W0"][1]
     iw3_n = iw1_s
     iw4_w = iw3_e + BEDROOM_WIDTH
     iw4_e = iw4_w + WALL_4IN
