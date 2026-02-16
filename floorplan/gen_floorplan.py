@@ -869,10 +869,10 @@ def _render_kitchen(out, data, layout, minik=False):
                        f' fill="none" stroke="#666" stroke-width="0.3"/>')
         out.append('</a>')
 
-    # Minik: toaster 3" east of cooktop, 3" south of W9-W10 (12.59" E-W x 11.81" N-S)
+    # Minik: toaster 3" east of cooktop, 3" south of W9-W10 (13.7" E-W x 12.5" N-S)
     if minik:
-        ts_ew = 12.59 / 12.0
-        ts_ns = 11.81 / 12.0
+        ts_ew = 13.7 / 12.0
+        ts_ns = 12.5 / 12.0
         ts_w = cp_e + 3.0 / 12.0
         ts_e = ts_w + ts_ew
         ts_n = kc_n - 3.0 / 12.0
