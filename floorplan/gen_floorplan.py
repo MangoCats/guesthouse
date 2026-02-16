@@ -29,7 +29,7 @@ from floorplan.constants import (
     DESK_WIDTH, DESK_DEPTH, DESK_CHAIR_WIDTH, DESK_CHAIR_DEPTH, DESK_CHAIR_GAP,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
-    SHELVES_WIDTH, SHELVES_DEPTH,
+    SHELVES_WIDTH, SHELVES_DEPTH, ICE_WIDTH, ICE_DEPTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
@@ -802,26 +802,40 @@ def _render_kitchen(out, data, layout, minik=False):
     if minik:
         out.append('</a>')
 
-    # SHELVES: 36" E-W x 15" N-S
     if minik:
-        # 3" east of fridge
-        sh_w = fr_e + 3.0 / 12.0
+        # ICE: 3" east of fridge, against W9-W10 wall (3" south)
+        ice_w = fr_e + 3.0 / 12.0
+        ice_e = ice_w + ICE_WIDTH
+        ice_n = back_n - 3.0 / 12.0
+        ice_s = ice_n - ICE_DEPTH
+        ix1, iy1 = to_svg(ice_w, ice_n)
+        ix2, iy2 = to_svg(ice_e, ice_s)
+        isw = ix2 - ix1; ish = iy2 - iy1
+        out.append('<a href="https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876" target="_blank">')
+        out.append(f'<rect x="{ix1:.1f}" y="{iy1:.1f}" width="{isw:.1f}" height="{ish:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        ice_cx = (ix1 + ix2) / 2
+        ice_cy = (iy1 + iy2) / 2
+        out.append(f'<text x="{ice_cx:.1f}" y="{ice_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">ICE</text>')
+        out.append('</a>')
     else:
+        # SHELVES: 36" E-W x 15" N-S
         sh_w = dw_e + KITCHEN_APPL_GAP
-    sh_e = sh_w + SHELVES_WIDTH
-    sh_n = back_n
-    sh_s = sh_n - SHELVES_DEPTH
-    sh_sx1, sh_sy1 = to_svg(sh_w, sh_n)
-    sh_sx2, sh_sy2 = to_svg(sh_e, sh_s)
-    sh_sw = sh_sx2 - sh_sx1; sh_sh = sh_sy2 - sh_sy1
-    out.append('<a href="https://www.ikea.com/us/en/p/hemnes-bookcase-white-stain-light-brown-60413502/" target="_blank">')
-    out.append(f'<rect x="{sh_sx1:.1f}" y="{sh_sy1:.1f}" width="{sh_sw:.1f}" height="{sh_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    sh_cx = (sh_sx1 + sh_sx2) / 2
-    sh_cy = (sh_sy1 + sh_sy2) / 2
-    out.append(f'<text x="{sh_cx:.1f}" y="{sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
-    out.append('</a>')
+        sh_e = sh_w + SHELVES_WIDTH
+        sh_n = back_n
+        sh_s = sh_n - SHELVES_DEPTH
+        sh_sx1, sh_sy1 = to_svg(sh_w, sh_n)
+        sh_sx2, sh_sy2 = to_svg(sh_e, sh_s)
+        sh_sw = sh_sx2 - sh_sx1; sh_sh = sh_sy2 - sh_sy1
+        out.append('<a href="https://www.ikea.com/us/en/p/hemnes-bookcase-white-stain-light-brown-60413502/" target="_blank">')
+        out.append(f'<rect x="{sh_sx1:.1f}" y="{sh_sy1:.1f}" width="{sh_sw:.1f}" height="{sh_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        sh_cx = (sh_sx1 + sh_sx2) / 2
+        sh_cy = (sh_sy1 + sh_sy2) / 2
+        out.append(f'<text x="{sh_cx:.1f}" y="{sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
+        out.append('</a>')
 
     # Kitchen counter: starting at IW2 east face
     kc_w = layout.iw2.e

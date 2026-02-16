@@ -181,3 +181,5 @@ OTTOMAN_SIZE = 29.0 / 12.0        # 29" square ottoman
 ET_RADIUS_CM = 25.0               # 25 cm endtable radius
 SHELVES_WIDTH = 36.0 / 12.0       # 36" shelves E-W
 SHELVES_DEPTH = 15.0 / 12.0       # 15" shelves N-S
+ICE_WIDTH = 17.7 / 12.0           # 17.7" ice maker E-W
+ICE_DEPTH = 15.8 / 12.0           # 15.8" ice maker N-S
