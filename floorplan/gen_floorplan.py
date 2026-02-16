@@ -16,7 +16,7 @@ from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import (
     WALL_OUTER, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
-    COUNTER_NW_RADIUS, WH_RADIUS,
+    WH_RADIUS,
     SINK_RX, SINK_RY,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
@@ -702,21 +702,16 @@ def _render_appliances(out, data, layout, minik=False):
         if link:
             out.append('</a>')
 
-    # Counter: 24" deep x 72" long, 9" NW corner radius
+    # Counter: 24" deep, IW10 south to W21-W0 wall face
     ctr = layout.ctr
     csw = to_svg(ctr.w, ctr.s)
     cse = to_svg(ctr.e, ctr.s)
+    ctr_w_svg = cse[0] - csw[0]
+    ctr_h_svg = to_svg(ctr.e, ctr.n)[1] - to_svg(ctr.e, ctr.s)[1]
+    out.append(f'<rect x="{csw[0]:.1f}" y="{to_svg(ctr.w, ctr.n)[1]:.1f}"'
+               f' width="{ctr_w_svg:.1f}" height="{abs(ctr_h_svg):.1f}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     cne = to_svg(ctr.e, ctr.n)
-    cnas = to_svg(ctr.w + COUNTER_NW_RADIUS, ctr.n)
-    cnae = to_svg(ctr.w, ctr.n - COUNTER_NW_RADIUS)
-    r_svg = abs(cnas[0] - to_svg(ctr.w, ctr.n)[0])
-    ctr_path = (f'M {csw[0]:.1f},{csw[1]:.1f} '
-                f'L {cse[0]:.1f},{cse[1]:.1f} '
-                f'L {cne[0]:.1f},{cne[1]:.1f} '
-                f'L {cnas[0]:.1f},{cnas[1]:.1f} '
-                f'A {r_svg:.1f} {r_svg:.1f} 0 0 0 {cnae[0]:.1f},{cnae[1]:.1f} '
-                f'Z')
-    out.append(f'<path d="{ctr_path}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     ccx = (csw[0] + cse[0]) / 2
     ccy = (csw[1] + cne[1]) / 2
     out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'

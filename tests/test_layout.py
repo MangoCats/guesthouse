@@ -25,7 +25,7 @@ class TestInteriorLayout:
     def test_counter_bounds(self, layout):
         assert layout.ctr.e > layout.ctr.w
         assert layout.ctr.n > layout.ctr.s
-        assert layout.ctr_nw_r > 0
+        assert layout.ctr_nw_r == 0
 
     def test_wall_ordering_east(self, layout):
         """IW9 west of IW4 west of IW8."""

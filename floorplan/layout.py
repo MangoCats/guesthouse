@@ -7,7 +7,7 @@ from floorplan.constants import (
     WALL_6IN, WALL_4IN, WALL_3IN,
     APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_E,
     APPLIANCE_OFFSET_N, APPLIANCE_GAP,
-    COUNTER_DEPTH, COUNTER_LENGTH, COUNTER_NW_RADIUS, COUNTER_GAP,
+    COUNTER_DEPTH, COUNTER_GAP,
     BEDROOM_WIDTH, CLOSET_WIDTH,
     BED_WIDTH, BED_LENGTH, BED_OFFSET_N,
     IW1_OFFSET_N, IW2_OFFSET_E, WALL_SOUTH_N,
@@ -91,10 +91,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_w = dryer_e + COUNTER_GAP
     ctr_e = ctr_w + COUNTER_DEPTH
     ctr_s = pts["W0"][1]
-    ctr_n = ctr_s + COUNTER_LENGTH
-    ctr_nw_r = COUNTER_NW_RADIUS
-
-    iw7_n = ctr_s + 6.0  # 6' north of W21-W0 face (decoupled from counter)
+    iw7_n = ctr_s + 6.0  # 6' north of W21-W0 face
+    ctr_n = iw7_n         # counter north = IW10 south face
+    ctr_nw_r = 0
     iw7_poly = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s),
                 (ctr_e + WALL_3IN, iw7_n), (ctr_e, iw7_n)]
     iw3_e = iw2_e - 2.0 / 12.0
