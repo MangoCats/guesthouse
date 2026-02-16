@@ -14,8 +14,8 @@ from floorplan.constants import (
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
     IW1_OFFSET_N, IW5_OFFSET_N, WALL_3IN,
-    KITCHEN_CTR_LENGTH, STD_GAP, FRIDGE_SIZE,
-    IW1_RO_OFFSET_E, IW1_RO_WIDTH,
+    STD_GAP,
+    RO1_OFFSET_W_IW4, IW1_RO_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH,
     IW4_RO_WIDTH, CLOSET1_HEIGHT, WALL_SOUTH_N,
@@ -164,7 +164,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     iw8_n_face = closet1_top + WALL_3IN
 
     # RO1: in IW1, horizontal
-    ro1_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP + FRIDGE_SIZE + IW1_RO_OFFSET_E
+    ro1_w = layout.iw4_w - RO1_OFFSET_W_IW4
     ro1_e = ro1_w + IW1_RO_WIDTH
 
     # RO2: in IW4, vertical, centered between IW5 south and IW8 north
