@@ -756,8 +756,9 @@ def _render_kitchen(out, data, layout, minik=False):
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     fr_cx = (sx1 + sx2) / 2
     fr_cy = (sy1 + sy2) / 2
+    fr_fs = 6 if minik else 7
     out.append(f'<text x="{fr_cx:.1f}" y="{fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="7" fill="{APPL_STROKE}">FRIDGE</text>')
+               f' font-size="{fr_fs}" fill="{APPL_STROKE}">FRIDGE</text>')
     if minik:
         out.append('</a>')
 
