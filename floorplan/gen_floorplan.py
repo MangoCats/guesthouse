@@ -1255,6 +1255,32 @@ def _render_furniture(out, data, layout):
     out.append(f'<text x="{fp_cx:.1f}" y="{fp_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">FIREPLACE</text>')
 
+    # HEARTH: +/-12" E-W, +/-20" N-S around fireplace, split by IW1
+    h_w = fp_w - 12.0 / 12.0
+    h_e = fp_e + 12.0 / 12.0
+    h_s = fp_s - 20.0 / 12.0
+    h_n = fp_n + 20.0 / 12.0
+    # South hearth (below IW1 south face)
+    hs_sx1, hs_sy1 = to_svg(h_w, layout.iw1_s)
+    hs_sx2, hs_sy2 = to_svg(h_e, h_s)
+    hs_sw = hs_sx2 - hs_sx1; hs_sh = hs_sy2 - hs_sy1
+    out.append(f'<rect x="{hs_sx1:.1f}" y="{hs_sy1:.1f}" width="{hs_sw:.1f}" height="{hs_sh:.1f}"'
+               f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" stroke-dasharray="3,2"/>')
+    hs_cx = (hs_sx1 + hs_sx2) / 2
+    hs_cy = (hs_sy1 + hs_sy2) / 2
+    out.append(f'<text x="{hs_cx:.1f}" y="{hs_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="5" fill="{APPL_STROKE}">HEARTH</text>')
+    # North hearth (above IW1 north face)
+    hn_sx1, hn_sy1 = to_svg(h_w, h_n)
+    hn_sx2, hn_sy2 = to_svg(h_e, layout.iw1_n)
+    hn_sw = hn_sx2 - hn_sx1; hn_sh = hn_sy2 - hn_sy1
+    out.append(f'<rect x="{hn_sx1:.1f}" y="{hn_sy1:.1f}" width="{hn_sw:.1f}" height="{hn_sh:.1f}"'
+               f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" stroke-dasharray="3,2"/>')
+    hn_cx = (hn_sx1 + hn_sx2) / 2
+    hn_cy = (hn_sy1 + hn_sy2) / 2
+    out.append(f'<text x="{hn_cx:.1f}" y="{hn_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="5" fill="{APPL_STROKE}">HEARTH</text>')
+
     # Room labels
     bd_cx = layout.bed_cx
     bd_cy = (layout.ctr.s + layout.iw1_s) / 2
