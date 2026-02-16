@@ -33,9 +33,9 @@ class TestInteriorLayout:
         assert layout.iw4_e < layout.iw8_w
 
     def test_iw3_above_iw7(self, layout):
-        """IW3 east face aligns with IW2 east, starts at IW7 L north face."""
+        """IW3 east face aligns with IW2 east, starts at IW7 north end."""
         assert abs(layout.iw3.e - layout.iw2.e) < 1e-12  # east face = IW2 east face
-        assert abs(layout.iw3.s - layout.iw7[4][1]) < 1e-12  # south = IW7 L north
+        assert abs(layout.iw3.s - layout.iw7[3][1]) < 1e-12  # south = IW7 north
 
     def test_iw9_bounds(self, layout):
         """IW9 at old IW3 position, south of IW7 L north face."""
@@ -44,7 +44,7 @@ class TestInteriorLayout:
         assert abs(layout.iw9.n - layout.iw3.s) < 1e-12  # IW9 top = IW3 bottom
 
     def test_iw7_polygon(self, layout):
-        assert len(layout.iw7) == 6  # L-shape
+        assert len(layout.iw7) == 4  # straight N-S wall
 
     def test_iw8_polygon(self, layout):
         assert len(layout.iw8) == 6  # L-shape

@@ -272,10 +272,10 @@ def _render_interior_walls(out, data):
     iw_label("IW6", min(layout.iw6_poly[0][0], layout.iw6_poly[3][0]),
              layout.iw2.w, layout.iw6_s, layout.iw6_n, vertical=False)
 
-    # IW7 (L-shaped, 3") — label on vertical arm
+    # IW7 (straight N-S, 3")
     iw_poly(layout.iw7)
     iw_label("IW7", layout.iw7[0][0], layout.iw7[1][0],
-             layout.iw7[0][1], layout.iw7[5][1])
+             layout.iw7[0][1], layout.iw7[3][1])
 
     # IW3 (vertical, 4") — west face aligned with IW7
     iw_rect(layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)

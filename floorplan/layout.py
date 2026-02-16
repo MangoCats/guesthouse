@@ -92,19 +92,17 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_n = ctr_s + COUNTER_LENGTH
     ctr_nw_r = COUNTER_NW_RADIUS
 
-    iw7_poly = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s), (ctr_e + WALL_3IN, ctr_n),
-                (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n),
-                (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n + WALL_3IN),
-                (ctr_e, ctr_n + WALL_3IN)]
-    iw7_l_n = ctr_n + WALL_3IN  # north face of IW7 horizontal arm
+    iw7_n = ctr_n  # 6' north of W21-W0 face
+    iw7_poly = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s),
+                (ctr_e + WALL_3IN, iw7_n), (ctr_e, iw7_n)]
     iw3_e = iw2_e
     iw3_w = iw3_e - WALL_4IN
-    iw3_s = iw7_l_n
+    iw3_s = iw7_n
     iw3_n = iw1_s
     iw9_w = ctr_e + WALL_3IN + CLOSET_WIDTH
     iw9_e = iw9_w + WALL_4IN
     iw9_s = ctr_s
-    iw9_n = iw7_l_n
+    iw9_n = iw7_n
     iw4_w = iw9_e + BEDROOM_WIDTH
     iw4_e = iw4_w + WALL_4IN
     wall_south_n = WALL_SOUTH_N
