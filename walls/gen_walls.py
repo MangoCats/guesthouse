@@ -258,6 +258,9 @@ def _render_interior_walls(out, data):
                    f' dominant-baseline="central" font-family="Arial"'
                    f' font-size="{LABEL_SIZE}" fill="#666"{rot}>{name}</text>')
 
+    rough_openings = compute_rough_openings(pts, layout)
+    ro_map = {ro.name: ro.bbox for ro in rough_openings}
+
     # IW1 (horizontal, 6")
     iw_poly(layout.iw1)
     iw_label("IW1", layout.iw1[0][0], layout.iw1[1][0],
@@ -279,7 +282,11 @@ def _render_interior_walls(out, data):
 
     # IW3 (vertical, 4") — west face aligned with IW7
     iw_rect(layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
-    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
+    # Label centered between RO3 north end and IW3 north end
+    ro3_n = ro_map["RO3"].n
+    iw3_label_shift = (ro3_n - layout.iw3.s) / 2
+    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n,
+             n_shift=iw3_label_shift)
 
     # IW9 (vertical, 4") — old IW3 position, south of IW7 L north face
     iw_rect(layout.iw9.w, layout.iw9.e, layout.iw9.s, layout.iw9.n)
@@ -304,8 +311,7 @@ def _render_interior_walls(out, data):
     iw_label("IW5", layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n,
              vertical=False)
 
-    # Rough openings (RO1-RO5) — dark red outline box with X
-    rough_openings = compute_rough_openings(pts, layout)
+    # Rough openings (RO1-RO6) — dark red outline box with X
     _RO_COLOR = "darkred"
     _RO_SW = "0.5"
     for ro in rough_openings:
