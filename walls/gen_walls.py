@@ -287,7 +287,8 @@ def _render_interior_walls(out, data):
 
     # IW10 (horizontal, 4") — closet north wall
     iw_rect(layout.iw10.w, layout.iw10.e, layout.iw10.s, layout.iw10.n)
-    iw_label("IW10", layout.iw10.w, layout.iw10.e, layout.iw10.s, layout.iw10.n)
+    iw_label("IW10", layout.iw10.w, layout.iw10.e, layout.iw10.s, layout.iw10.n,
+             vertical=False)
 
     # IW4 (vertical, 4")
     iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)
