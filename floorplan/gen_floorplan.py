@@ -795,6 +795,8 @@ def _render_kitchen(out, data, layout, minik=False):
     sw = sx2 - sx1; sh = sy2 - sy1
     if minik:
         out.append('<a href="https://www.ikea.com/us/en/p/bergsnaes-bottom-freezer-refrigerator-stainless-steel-color-60607883/" target="_blank">')
+    else:
+        out.append('<a href="https://www.lowes.com/pd/LG-25-5-cu-ft-Bottom-Freezer-Refrigerator-with-Ice-Maker-Fingerprint-Resistant-Printproof-Stainless-Steel-ENERGY-STAR/1002543648" target="_blank">')
     out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     fr_cx = (sx1 + sx2) / 2
@@ -821,6 +823,7 @@ def _render_kitchen(out, data, layout, minik=False):
             arc_pts.append(f"{ax:.1f},{ay:.1f}")
         out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
+        out.append('</a>')
 
     if minik:
         # ICE: 3" east of fridge, against W9-W10 wall (3" south)
