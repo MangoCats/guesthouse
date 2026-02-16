@@ -74,7 +74,7 @@ IW2_RO_OFFSET_S = 6.0 / 12.0      # 6" south of IW6 south face
 IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
 # IW3 rough opening
-IW3_RO_OFFSET_N = 2.0 / 12.0      # 2" north of IW7 north face
+IW3_RO_OFFSET_N = 3.0 / 12.0      # 3" north of IW7 north face
 IW3_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
 # IW4 rough opening

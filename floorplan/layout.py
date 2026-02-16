@@ -97,8 +97,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
                 (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n + WALL_3IN),
                 (ctr_e, ctr_n + WALL_3IN)]
     iw7_l_n = ctr_n + WALL_3IN  # north face of IW7 horizontal arm
-    iw3_w = ctr_e
-    iw3_e = ctr_e + WALL_4IN
+    iw3_e = iw2_e
+    iw3_w = iw3_e - WALL_4IN
     iw3_s = iw7_l_n
     iw3_n = iw1_s
     iw9_w = ctr_e + WALL_3IN + CLOSET_WIDTH

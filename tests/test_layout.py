@@ -33,8 +33,8 @@ class TestInteriorLayout:
         assert layout.iw4_e < layout.iw8_w
 
     def test_iw3_above_iw7(self, layout):
-        """IW3 west face aligns with IW7, starts at IW7 L north face."""
-        assert layout.iw3.w == layout.iw7[0][0]  # west face = IW7 west face
+        """IW3 east face aligns with IW2 east, starts at IW7 L north face."""
+        assert abs(layout.iw3.e - layout.iw2.e) < 1e-12  # east face = IW2 east face
         assert abs(layout.iw3.s - layout.iw7[4][1]) < 1e-12  # south = IW7 L north
 
     def test_iw9_bounds(self, layout):
