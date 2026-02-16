@@ -902,9 +902,11 @@ def _render_kitchen(out, data, layout, minik=False):
     # Minik: Oscar triangle dining set centered between COUNTER, IW1, IW2, RO1
     if minik:
         # Available space bounds
+        rough_openings = compute_rough_openings(pts, layout)
+        ro1_bbox = [r for r in rough_openings if r.name == "RO1"][0].bbox
         space_w = layout.iw2.e
         space_s = layout.iw1_n
-        space_e = ro["RO1"].w
+        space_e = ro1_bbox.w
         space_n = kc_s
         space_cx = (space_w + space_e) / 2
         space_cy = (space_s + space_n) / 2
