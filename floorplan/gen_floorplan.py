@@ -797,15 +797,36 @@ def _render_kitchen(out, data, layout, minik=False):
                    f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
     out.append('</a>')
 
+    # Minik: microwave on counter (19.5" E-W x 16-5/8" N-S)
+    if minik:
+        mw_ew = 19.5 / 12.0
+        mw_ns = 16.625 / 12.0
+        mw_w = kc_w + 2.0 / 12.0
+        mw_e = mw_w + mw_ew
+        mw_n = kc_n - 3.0 / 12.0
+        mw_s = mw_n - mw_ns
+        mw_sx1, mw_sy1 = to_svg(mw_w, mw_n)
+        mw_sx2, mw_sy2 = to_svg(mw_e, mw_s)
+        mw_sw = mw_sx2 - mw_sx1
+        mw_sh = mw_sy2 - mw_sy1
+        out.append('<a href="https://www.ikea.com/us/en/p/gatebo-microwave-oven-with-air-fryer-function-ikea-500-black-70603506/" target="_blank">')
+        out.append(f'<rect x="{mw_sx1:.1f}" y="{mw_sy1:.1f}" width="{mw_sw:.1f}" height="{mw_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        mw_cx = (mw_sx1 + mw_sx2) / 2
+        mw_cy = (mw_sy1 + mw_sy2) / 2
+        out.append(f'<text x="{mw_cx:.1f}" y="{mw_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="5" fill="{APPL_STROKE}">MICRO</text>')
+        out.append('</a>')
+
     # Minik: induction cooktop on counter (rotated: 13.4" E-W x 20.5" N-S)
     if minik:
         cp_ew = 13.4 / 12.0
         cp_ns = 20.5 / 12.0
-        cp_cx_e = (kc_w + kc_e) / 2
+        cp_w = mw_e + 3.0 / 12.0
+        cp_e = cp_w + cp_ew
+        cp_cx_e = (cp_w + cp_e) / 2
         cp_n = kc_n - 3.0 / 12.0
         cp_s = cp_n - cp_ns
-        cp_w = cp_cx_e - cp_ew / 2
-        cp_e = cp_cx_e + cp_ew / 2
         cp_cy_n = (cp_s + cp_n) / 2
         cp_sx1, cp_sy1 = to_svg(cp_w, cp_n)
         cp_sx2, cp_sy2 = to_svg(cp_e, cp_s)
@@ -825,27 +846,6 @@ def _render_kitchen(out, data, layout, minik=False):
             bsx, bsy = to_svg(bx, by)
             out.append(f'<circle cx="{bsx:.1f}" cy="{bsy:.1f}" r="{burner_r_svg:.1f}"'
                        f' fill="none" stroke="#666" stroke-width="0.3"/>')
-        out.append('</a>')
-
-    # Minik: microwave on counter (19.5" E-W x 16-5/8" N-S)
-    if minik:
-        mw_ew = 19.5 / 12.0
-        mw_ns = 16.625 / 12.0
-        mw_w = kc_w + 2.0 / 12.0
-        mw_e = mw_w + mw_ew
-        mw_n = kc_n - 3.0 / 12.0
-        mw_s = mw_n - mw_ns
-        mw_sx1, mw_sy1 = to_svg(mw_w, mw_n)
-        mw_sx2, mw_sy2 = to_svg(mw_e, mw_s)
-        mw_sw = mw_sx2 - mw_sx1
-        mw_sh = mw_sy2 - mw_sy1
-        out.append('<a href="https://www.ikea.com/us/en/p/gatebo-microwave-oven-with-air-fryer-function-ikea-500-black-70603506/" target="_blank">')
-        out.append(f'<rect x="{mw_sx1:.1f}" y="{mw_sy1:.1f}" width="{mw_sw:.1f}" height="{mw_sh:.1f}"'
-                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-        mw_cx = (mw_sx1 + mw_sx2) / 2
-        mw_cy = (mw_sy1 + mw_sy2) / 2
-        out.append(f'<text x="{mw_cx:.1f}" y="{mw_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-                   f' font-size="6" fill="{APPL_STROKE}">MICRO</text>')
         out.append('</a>')
 
     # North wall counter: south side against W9-W10, starting at IW2 east face
