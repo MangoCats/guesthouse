@@ -29,7 +29,7 @@ from floorplan.constants import (
     DESK_WIDTH, DESK_DEPTH, DESK_CHAIR_WIDTH, DESK_CHAIR_DEPTH, DESK_CHAIR_GAP,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
-    SHELVES_WIDTH, SHELVES_DEPTH, ICE_WIDTH, ICE_DEPTH,
+    ICE_WIDTH, ICE_DEPTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
@@ -819,23 +819,6 @@ def _render_kitchen(out, data, layout, minik=False):
         ice_cy = (iy1 + iy2) / 2
         out.append(f'<text x="{ice_cx:.1f}" y="{ice_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="6" fill="{APPL_STROKE}">ICE</text>')
-        out.append('</a>')
-    else:
-        # SHELVES: 36" E-W x 15" N-S
-        sh_w = dw_e + KITCHEN_APPL_GAP
-        sh_e = sh_w + SHELVES_WIDTH
-        sh_n = back_n
-        sh_s = sh_n - SHELVES_DEPTH
-        sh_sx1, sh_sy1 = to_svg(sh_w, sh_n)
-        sh_sx2, sh_sy2 = to_svg(sh_e, sh_s)
-        sh_sw = sh_sx2 - sh_sx1; sh_sh = sh_sy2 - sh_sy1
-        out.append('<a href="https://www.ikea.com/us/en/p/hemnes-bookcase-white-stain-light-brown-60413502/" target="_blank">')
-        out.append(f'<rect x="{sh_sx1:.1f}" y="{sh_sy1:.1f}" width="{sh_sw:.1f}" height="{sh_sh:.1f}"'
-                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-        sh_cx = (sh_sx1 + sh_sx2) / 2
-        sh_cy = (sh_sy1 + sh_sy2) / 2
-        out.append(f'<text x="{sh_cx:.1f}" y="{sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-                   f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
         out.append('</a>')
 
     # Kitchen counter: starting at IW2 east face (minik only)
