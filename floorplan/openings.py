@@ -173,7 +173,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     ro2_n = ro2_center + IW4_RO_WIDTH / 2
 
     # RO3: in IW3, vertical
-    ro3_s = layout.ctr.n + WALL_3IN + IW3_RO_OFFSET_N
+    ro3_s = layout.iw10.n + IW3_RO_OFFSET_N
     ro3_n = ro3_s + IW3_RO_WIDTH
 
     # RO4: in IW2, vertical
