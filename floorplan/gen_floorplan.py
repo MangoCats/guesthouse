@@ -20,7 +20,7 @@ from floorplan.constants import (
     SINK_RX, SINK_RY,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
-    FRIDGE_SIZE,
+    FRIDGE_SIZE, MINIK_FRIDGE_W, MINIK_FRIDGE_D,
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     JAMB_WIDTH, STD_GAP, KITCHEN_APPL_GAP,
@@ -688,7 +688,7 @@ def _render_appliances(out, data, layout):
     draw_sink(out, sink_e, layout.iw1_n + SINK_RY, to_svg=to_svg)
 
 
-def _render_kitchen(out, data, layout):
+def _render_kitchen(out, data, layout, minik=False):
     """Render kitchen: D/W, sink, stove, shelves, fridge, counters."""
     pts = data.pts
     to_svg = data.to_svg
@@ -740,18 +740,26 @@ def _render_kitchen(out, data, layout):
 
     # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
     fr_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP
-    fr_e = fr_w + FRIDGE_SIZE
     fr_s = layout.iw1_n + STD_GAP
-    fr_n = fr_s + FRIDGE_SIZE
+    if minik:
+        fr_e = fr_w + MINIK_FRIDGE_W
+        fr_n = fr_s + MINIK_FRIDGE_D
+    else:
+        fr_e = fr_w + FRIDGE_SIZE
+        fr_n = fr_s + FRIDGE_SIZE
     sx1, sy1 = to_svg(fr_w, fr_n)
     sx2, sy2 = to_svg(fr_e, fr_s)
     sw = sx2 - sx1; sh = sy2 - sy1
+    if minik:
+        out.append('<a href="https://www.ikea.com/us/en/p/bergsnaes-bottom-freezer-refrigerator-stainless-steel-color-60607883/" target="_blank">')
     out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     fr_cx = (sx1 + sx2) / 2
     fr_cy = (sy1 + sy2) / 2
     out.append(f'<text x="{fr_cx:.1f}" y="{fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">FRIDGE</text>')
+    if minik:
+        out.append('</a>')
 
     # Kitchen counter: along IW1 north face starting at IW2 east face
     kc_w = layout.iw2.e
@@ -1326,7 +1334,7 @@ def _render_title_block(out, data, inner_area):
 # SVG rendering — orchestrator
 # ============================================================
 
-def render_floorplan_svg(data, room_title="Parent Suite"):
+def render_floorplan_svg(data, room_title="Parent Suite", minik=False):
     """Render the complete floorplan SVG. Returns SVG string."""
     pts = data.pts
     to_svg = data.to_svg
@@ -1345,7 +1353,7 @@ def render_floorplan_svg(data, room_title="Parent Suite"):
 
     _render_walls(out, data, layout)
     _render_appliances(out, data, layout)
-    _render_kitchen(out, data, layout)
+    _render_kitchen(out, data, layout, minik=minik)
     _render_furniture(out, data, layout)
     _render_dimensions(out, data, layout)
     _render_openings(out, data, layout)
@@ -1376,7 +1384,7 @@ if __name__ == "__main__":
         f.write(svg_content)
     print(f"Floorplan written to {svg_path}")
 
-    minik_content = render_floorplan_svg(data, room_title="Parent Suite w/Small Kitchen")
+    minik_content = render_floorplan_svg(data, room_title="Parent Suite w/Small Kitchen", minik=True)
     minik_path = os.path.join(base_dir, "floorplan_minik.svg")
     with open(minik_path, "w") as f:
         f.write(minik_content)

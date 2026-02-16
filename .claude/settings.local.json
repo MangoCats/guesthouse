@@ -1,10 +1,11 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "WebFetch(domain:www.ikea.com)"
+    ],
     "additionalDirectories": [
       "c:\\Users\\Mango Cat\\Dev\\hut2"
-    ],
-    "allow": [
-      "Bash(pip install:*)"
     ]
   }
 }
