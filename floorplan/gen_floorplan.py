@@ -1132,9 +1132,9 @@ def _render_furniture(out, data, layout, minik=False):
         # SOFA: 97.2" E-W x 24.6" N-S, 6" east of RO1, north side of IW1
         ro1_w = layout.iw4_w - RO1_OFFSET_W_IW4
         ro1_e = ro1_w + IW1_RO_WIDTH
-        sofa_w = ro1_e + 6.0 / 12.0
+        sofa_w = ro1_e + 30.0 / 12.0
         sofa_e = sofa_w + SOFA_WIDTH
-        sofa_s = layout.iw1_n
+        sofa_s = layout.iw1_n + 6.0 / 12.0
         sofa_n = sofa_s + SOFA_DEPTH
         sf_sx1, sf_sy1 = to_svg(sofa_w, sofa_n)
         sf_sx2, sf_sy2 = to_svg(sofa_e, sofa_s)
