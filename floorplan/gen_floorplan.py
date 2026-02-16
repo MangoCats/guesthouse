@@ -1318,6 +1318,11 @@ def _render_furniture(out, data, layout, minik=False):
     fp_cy = (fp_sy1 + fp_sy2) / 2
     out.append(f'<text x="{fp_cx:.1f}" y="{fp_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="6" fill="{APPL_STROKE}">FIREPLACE</text>')
+    fp_dim_y = (fp_cy + 3 + fp_sy2) / 2 + 2
+    fp_ew_in = round((fp_e - fp_w) * 12.0)
+    fp_ns_in = round((fp_n - fp_s) * 12.0)
+    out.append(f'<text x="{fp_cx:.1f}" y="{fp_dim_y:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="5" fill="{APPL_STROKE}">{fp_ew_in:.0f}&quot; x {fp_ns_in:.0f}&quot;</text>')
 
     # HEARTH: +/-12" E-W, +/-20" N-S around fireplace, split by IW1
     h_w = fp_w - 12.0 / 12.0
