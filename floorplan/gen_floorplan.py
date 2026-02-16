@@ -1326,7 +1326,7 @@ def _render_title_block(out, data, inner_area):
 # SVG rendering — orchestrator
 # ============================================================
 
-def render_floorplan_svg(data):
+def render_floorplan_svg(data, room_title="Parent Suite"):
     """Render the complete floorplan SVG. Returns SVG string."""
     pts = data.pts
     to_svg = data.to_svg
@@ -1341,7 +1341,7 @@ def render_floorplan_svg(data):
                '<polygon points="0 0, 8 3, 0 6" fill="#333"/></marker>')
     out.append('</defs>')
     out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
-               f' font-weight="bold">Parent Suite</text>')
+               f' font-weight="bold">{room_title}</text>')
 
     _render_walls(out, data, layout)
     _render_appliances(out, data, layout)
@@ -1369,11 +1369,19 @@ if __name__ == "__main__":
     inner_area = data.inner_area - compute_iw_area(layout)
     outer_area = data.outer_area
 
-    svg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "floorplan.svg")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    svg_path = os.path.join(base_dir, "floorplan.svg")
     with open(svg_path, "w") as f:
         f.write(svg_content)
-
     print(f"Floorplan written to {svg_path}")
+
+    minik_content = render_floorplan_svg(data, room_title="Parent Suite w/Small Kitchen")
+    minik_path = os.path.join(base_dir, "floorplan_minik.svg")
+    with open(minik_path, "w") as f:
+        f.write(minik_content)
+    print(f"Floorplan (minik) written to {minik_path}")
+
     print(f"Outer area:    {outer_area:.2f} sq ft")
     print(f"Interior area: {inner_area:.2f} sq ft")
     print(f"Wall area:     {outer_area - inner_area:.2f} sq ft")
