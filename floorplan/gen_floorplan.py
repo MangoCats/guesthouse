@@ -1267,8 +1267,9 @@ def _render_furniture(out, data, layout):
     out.append(f'<rect x="{hs_sx1:.1f}" y="{hs_sy1:.1f}" width="{hs_sw:.1f}" height="{hs_sh:.1f}"'
                f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" stroke-dasharray="3,2"/>')
     hs_cx = (hs_sx1 + hs_sx2) / 2
-    hs_cy = (hs_sy1 + hs_sy2) / 2
-    out.append(f'<text x="{hs_cx:.1f}" y="{hs_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+    hs_label_n = (fp_s + h_s) / 2  # centered between fireplace S and hearth S
+    _, hs_ly = to_svg(0, hs_label_n)
+    out.append(f'<text x="{hs_cx:.1f}" y="{hs_ly+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="5" fill="{APPL_STROKE}">HEARTH</text>')
     # North hearth (above IW1 north face)
     hn_sx1, hn_sy1 = to_svg(h_w, h_n)
