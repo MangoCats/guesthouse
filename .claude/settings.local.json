@@ -3,7 +3,9 @@
     "allow": [
       "Bash(pip install:*)",
       "WebFetch(domain:www.ikea.com)",
-      "WebFetch(domain:www.homedepot.com)"
+      "WebFetch(domain:www.homedepot.com)",
+      "WebFetch(domain:www.amazon.com)",
+      "WebFetch(domain:info-coffee.com)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Mango Cat\\Dev\\hut2"
