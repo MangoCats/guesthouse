@@ -741,14 +741,18 @@ def _render_kitchen(out, data, layout, minik=False):
                f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
     out.append('</a>')
 
-    # Fridge: 2" east of kitchen counter, 2" north of IW1 north face
-    fr_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP
-    fr_s = layout.iw1_n + STD_GAP
+    # Fridge
     if minik:
+        # 3" east of SINK, 3" south of W9-W10 inner face
+        fr_w = ks_e + 3.0 / 12.0
         fr_e = fr_w + MINIK_FRIDGE_W
-        fr_n = fr_s + MINIK_FRIDGE_D
+        fr_n = back_n - 3.0 / 12.0
+        fr_s = fr_n - MINIK_FRIDGE_D
     else:
+        # 2" east of kitchen counter, 2" north of IW1 north face
+        fr_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP
         fr_e = fr_w + FRIDGE_SIZE
+        fr_s = layout.iw1_n + STD_GAP
         fr_n = fr_s + FRIDGE_SIZE
     sx1, sy1 = to_svg(fr_w, fr_n)
     sx2, sy2 = to_svg(fr_e, fr_s)
@@ -783,21 +787,22 @@ def _render_kitchen(out, data, layout, minik=False):
     out.append('</a>')
 
     # North wall counter: south side against W9-W10, starting at IW2 east face
-    nc_w = layout.iw2.e
-    nc_e = nc_w + NORTH_CTR_LENGTH
-    nc_n = pts["W9"][1]
-    nc_s = nc_n - NORTH_CTR_DEPTH
-    nc_sx1, nc_sy1 = to_svg(nc_w, nc_n)
-    nc_sx2, nc_sy2 = to_svg(nc_e, nc_s)
-    nc_sw = nc_sx2 - nc_sx1; nc_sh = nc_sy2 - nc_sy1
-    out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html" target="_blank">')
-    out.append(f'<rect x="{nc_sx1:.1f}" y="{nc_sy1:.1f}" width="{nc_sw:.1f}" height="{nc_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    nc_cx = (nc_sx1 + nc_sx2) / 2
-    nc_cy = (nc_sy1 + nc_sy2) / 2
-    out.append(f'<text x="{nc_cx:.1f}" y="{nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
-    out.append('</a>')
+    if not minik:
+        nc_w = layout.iw2.e
+        nc_e = nc_w + NORTH_CTR_LENGTH
+        nc_n = pts["W9"][1]
+        nc_s = nc_n - NORTH_CTR_DEPTH
+        nc_sx1, nc_sy1 = to_svg(nc_w, nc_n)
+        nc_sx2, nc_sy2 = to_svg(nc_e, nc_s)
+        nc_sw = nc_sx2 - nc_sx1; nc_sh = nc_sy2 - nc_sy1
+        out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html" target="_blank">')
+        out.append(f'<rect x="{nc_sx1:.1f}" y="{nc_sy1:.1f}" width="{nc_sw:.1f}" height="{nc_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        nc_cx = (nc_sx1 + nc_sx2) / 2
+        nc_cy = (nc_sy1 + nc_sy2) / 2
+        out.append(f'<text x="{nc_cx:.1f}" y="{nc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
+        out.append('</a>')
 
 def _render_furniture(out, data, layout):
     """Render furniture: bed, loveseat, ET, chair, ottoman, room labels."""
