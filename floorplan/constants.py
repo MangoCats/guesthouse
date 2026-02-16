@@ -18,7 +18,7 @@ APPLIANCE_GAP = 1.0 / 12.0        # 1" gap between dryer and washer
 
 # Counter
 COUNTER_DEPTH = 24.0 / 12.0       # 2' E-W
-COUNTER_LENGTH = 72.0 / 12.0      # 6' N-S
+COUNTER_LENGTH = 70.0 / 12.0      # 5'10" N-S
 COUNTER_NW_RADIUS = 9.0 / 12.0    # 9" rounded corner
 COUNTER_GAP = 36.0 / 12.0         # 3' east of dryer
 
