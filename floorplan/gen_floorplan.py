@@ -1240,10 +1240,10 @@ def _render_furniture(out, data, layout):
     out.append('</a>')
     out.append('</g>')
 
-    # FIREPLACE: 48" E-W x 30" N-S, against IW3 east face and IW1 south face
-    fp_w = layout.iw3.e
+    # FIREPLACE: 48" E-W x 30" N-S, 18" east of IW3 east face, 6" north of IW1 south
+    fp_w = layout.iw3.e + 18.0 / 12.0
     fp_e = fp_w + 48.0 / 12.0
-    fp_n = layout.iw1_s
+    fp_n = layout.iw1_s + 6.0 / 12.0
     fp_s = fp_n - 30.0 / 12.0
     fp_sx1, fp_sy1 = to_svg(fp_w, fp_n)
     fp_sx2, fp_sy2 = to_svg(fp_e, fp_s)
