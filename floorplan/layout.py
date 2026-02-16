@@ -97,7 +97,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw7_n = ctr_s + 6.0  # 6' north of W21-W0 face (decoupled from counter)
     iw7_poly = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s),
                 (ctr_e + WALL_3IN, iw7_n), (ctr_e, iw7_n)]
-    iw3_e = iw2_e
+    iw3_e = iw2_e - 2.0 / 12.0
     iw3_w = iw3_e - WALL_4IN
     iw3_s = iw7_n
     iw3_n = iw1_s
