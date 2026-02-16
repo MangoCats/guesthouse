@@ -838,29 +838,20 @@ def _render_kitchen(out, data, layout, minik=False):
                    f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
         out.append('</a>')
 
-    # Kitchen counter: starting at IW2 east face
-    kc_w = layout.iw2.e
-    kc_e = kc_w + KITCHEN_CTR_LENGTH
+    # Kitchen counter: starting at IW2 east face (minik only)
     if minik:
+        kc_w = layout.iw2.e
+        kc_e = kc_w + KITCHEN_CTR_LENGTH
         # Against W9-W10 (north wall) and IW2
         kc_n = pts["W9"][1]
         kc_s = kc_n - KITCHEN_CTR_DEPTH
-    else:
-        # Against IW1 north face and IW2
-        kc_s = layout.iw1_n
-        kc_n = kc_s + KITCHEN_CTR_DEPTH
-    kc_sx1, kc_sy1 = to_svg(kc_w, kc_n)
-    kc_sx2, kc_sy2 = to_svg(kc_e, kc_s)
-    kc_sw = kc_sx2 - kc_sx1; kc_sh = kc_sy2 - kc_sy1
-    out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-72-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3072S.html" target="_blank">')
-    out.append(f'<rect x="{kc_sx1:.1f}" y="{kc_sy1:.1f}" width="{kc_sw:.1f}" height="{kc_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    if not minik:
-        kc_cx = (kc_sx1 + kc_sx2) / 2
-        kc_cy = (kc_sy1 + kc_sy2) / 2
-        out.append(f'<text x="{kc_cx:.1f}" y="{kc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-                   f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
-    out.append('</a>')
+        kc_sx1, kc_sy1 = to_svg(kc_w, kc_n)
+        kc_sx2, kc_sy2 = to_svg(kc_e, kc_s)
+        kc_sw = kc_sx2 - kc_sx1; kc_sh = kc_sy2 - kc_sy1
+        out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-72-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3072S.html" target="_blank">')
+        out.append(f'<rect x="{kc_sx1:.1f}" y="{kc_sy1:.1f}" width="{kc_sw:.1f}" height="{kc_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append('</a>')
 
     # Minik: microwave on counter (19.5" E-W x 16-5/8" N-S)
     if minik:
