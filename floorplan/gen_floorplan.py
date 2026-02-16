@@ -639,9 +639,16 @@ def _render_appliances(out, data, layout, minik=False):
     # Dryer and washer
     minik_appl_w = 32.0 / 12.0   # 32" E-W in minik
     minik_appl_d = 27.0 / 12.0   # 27" N-S in minik
+    minik_appl_links = {
+        "DRYER": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377",
+        "WASHER": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375",
+    }
     for label, b in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
         if minik:
             b = BBox(w=b.w, s=b.s, e=b.w + minik_appl_w, n=b.s + minik_appl_d)
+        link = minik_appl_links.get(label) if minik else None
+        if link:
+            out.append(f'<a href="{link}" target="_blank">')
         sx1, sy1 = to_svg(b.w, b.n)
         sx2, sy2 = to_svg(b.e, b.s)
         sw = sx2 - sx1; sh = sy2 - sy1
@@ -650,6 +657,8 @@ def _render_appliances(out, data, layout, minik=False):
         cx, cy = (sx1 + sx2) / 2, (sy1 + sy2) / 2
         out.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="7" fill="{APPL_STROKE}">{label}</text>')
+        if link:
+            out.append('</a>')
 
     # Counter: 24" deep x 72" long, 9" NW corner radius
     ctr = layout.ctr
