@@ -6,7 +6,9 @@
       "WebFetch(domain:www.homedepot.com)",
       "WebFetch(domain:www.amazon.com)",
       "WebFetch(domain:info-coffee.com)",
-      "WebFetch(domain:www.bakes123.com)"
+      "WebFetch(domain:www.bakes123.com)",
+      "WebFetch(domain:www.newclassicfurniture.com)",
+      "WebFetch(domain:www.homemakers.com)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Mango Cat\\Dev\\hut2"

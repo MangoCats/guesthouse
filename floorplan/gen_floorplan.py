@@ -899,6 +899,76 @@ def _render_kitchen(out, data, layout, minik=False):
                        f' stroke="#666" stroke-width="0.4"/>')
         out.append('</a>')
 
+    # Minik: Oscar triangle dining set centered between COUNTER, IW1, IW2, RO1
+    if minik:
+        # Available space bounds
+        space_w = layout.iw2.e
+        space_s = layout.iw1_n
+        space_e = ro["RO1"].w
+        space_n = kc_s
+        space_cx = (space_w + space_e) / 2
+        space_cy = (space_s + space_n) / 2
+
+        # Triangle table: 35.25" E-W x 31.5" N-S, right angle at NW
+        tbl_ew = 35.25 / 12.0
+        tbl_ns = 31.5 / 12.0
+        tbl_w = space_cx - tbl_ew / 2
+        tbl_e = tbl_w + tbl_ew
+        tbl_n = space_cy + tbl_ns / 2
+        tbl_s = tbl_n - tbl_ns
+        # Triangle: NW corner (right angle), NE corner, SW corner
+        t_nw = (tbl_w, tbl_n)
+        t_ne = (tbl_e, tbl_n)
+        t_sw = (tbl_w, tbl_s)
+        t_nw_svg = to_svg(*t_nw)
+        t_ne_svg = to_svg(*t_ne)
+        t_sw_svg = to_svg(*t_sw)
+        tbl_svg = (f'{t_nw_svg[0]:.1f},{t_nw_svg[1]:.1f} '
+                   f'{t_ne_svg[0]:.1f},{t_ne_svg[1]:.1f} '
+                   f'{t_sw_svg[0]:.1f},{t_sw_svg[1]:.1f}')
+        href_dining = 'https://www.homedepot.com/pep/NEW-CLASSIC-HOME-FURNISHINGS-New-Classic-Furniture-Oscar-3-Piece-Wood-Top-Triangle-Dining-Set-Walnut-40-1651-D2C/327836175'
+        out.append(f'<a href="{href_dining}" target="_blank">')
+        out.append(f'<polygon points="{tbl_svg}" fill="{APPL_FILL}" '
+                   f'stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append('</a>')
+
+        # Two chairs: 18" E-W x 21" N-S, along hypotenuse
+        ch_ew = 18.0 / 12.0
+        ch_ns = 21.0 / 12.0
+        # Hypotenuse midpoint and direction
+        hyp_cx = (t_ne[0] + t_sw[0]) / 2
+        hyp_cy = (t_ne[1] + t_sw[1]) / 2
+        dx = t_sw[0] - t_ne[0]
+        dy = t_sw[1] - t_ne[1]
+        hyp_len = math.sqrt(dx**2 + dy**2)
+        # Unit normal pointing away from right-angle corner (SE direction)
+        nx = -dy / hyp_len
+        ny = dx / hyp_len
+        # Chair offset along hypotenuse and perpendicular
+        chair_gap = 2.0 / 12.0  # 2" gap from table edge
+        for sign in (-0.35, 0.35):
+            # Position along hypotenuse
+            ch_cx = hyp_cx + sign * hyp_len * (dx / hyp_len)
+            ch_cy = hyp_cy + sign * hyp_len * (dy / hyp_len)
+            # Offset away from table
+            ch_cx += nx * (ch_ns / 2 + chair_gap)
+            ch_cy += ny * (ch_ns / 2 + chair_gap)
+            # Draw axis-aligned chair rectangle centered at (ch_cx, ch_cy)
+            ch_w = ch_cx - ch_ew / 2
+            ch_e = ch_cx + ch_ew / 2
+            ch_n = ch_cy + ch_ns / 2
+            ch_s = ch_cy - ch_ns / 2
+            ch_sx1, ch_sy1 = to_svg(ch_w, ch_n)
+            ch_sx2, ch_sy2 = to_svg(ch_e, ch_s)
+            ch_sw = ch_sx2 - ch_sx1
+            ch_sh = ch_sy2 - ch_sy1
+            out.append(f'<a href="{href_dining}" target="_blank">')
+            out.append(f'<rect x="{ch_sx1:.1f}" y="{ch_sy1:.1f}" '
+                       f'width="{ch_sw:.1f}" height="{ch_sh:.1f}" '
+                       f'fill="{APPL_FILL}" stroke="{APPL_STROKE}" '
+                       f'stroke-width="{APPL_SW}"/>')
+            out.append('</a>')
+
     # North wall counter: south side against W9-W10, starting at IW2 east face
     if not minik:
         nc_w = layout.iw2.e
