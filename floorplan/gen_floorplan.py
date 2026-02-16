@@ -911,64 +911,81 @@ def _render_kitchen(out, data, layout, minik=False):
         space_cx = (space_w + space_e) / 2
         space_cy = (space_s + space_n) / 2
 
-        # Triangle table: 35.25" E-W x 31.5" N-S, right angle at NW
-        tbl_ew = 35.25 / 12.0
-        tbl_ns = 31.5 / 12.0
-        tbl_w = space_cx - tbl_ew / 2
-        tbl_e = tbl_w + tbl_ew
-        tbl_n = space_cy + tbl_ns / 2
-        tbl_s = tbl_n - tbl_ns
-        # Triangle: NW corner (right angle), NE corner, SW corner
-        t_nw = (tbl_w, tbl_n)
-        t_ne = (tbl_e, tbl_n)
-        t_sw = (tbl_w, tbl_s)
-        t_nw_svg = to_svg(*t_nw)
-        t_ne_svg = to_svg(*t_ne)
-        t_sw_svg = to_svg(*t_sw)
-        tbl_svg = (f'{t_nw_svg[0]:.1f},{t_nw_svg[1]:.1f} '
-                   f'{t_ne_svg[0]:.1f},{t_ne_svg[1]:.1f} '
-                   f'{t_sw_svg[0]:.1f},{t_sw_svg[1]:.1f}')
+        # Isosceles triangle table: base 35.25" (N), height 31.5" (S)
+        tbl_base = 35.25 / 12.0
+        tbl_h = 31.5 / 12.0
+        tbl_r = 2.0 / 12.0  # 2" corner radius
+        # Vertices: NW, NE (base), S (apex)
+        tbl_nw = (space_cx - tbl_base / 2, space_cy + tbl_h / 3)
+        tbl_ne = (space_cx + tbl_base / 2, space_cy + tbl_h / 3)
+        tbl_s = (space_cx, space_cy - 2 * tbl_h / 3)
+
+        # Build rounded-corner triangle path via arcs at each vertex
+        def _tri_arc_path(v0, v1, v2, r, to_svg_fn):
+            """SVG path segment: arc at v1 between edges v0->v1 and v1->v2."""
+            # Vectors from v1 toward v0 and v2
+            d0 = (v0[0] - v1[0], v0[1] - v1[1])
+            d2 = (v2[0] - v1[0], v2[1] - v1[1])
+            l0 = math.sqrt(d0[0]**2 + d0[1]**2)
+            l2 = math.sqrt(d2[0]**2 + d2[1]**2)
+            u0 = (d0[0] / l0, d0[1] / l0)
+            u2 = (d2[0] / l2, d2[1] / l2)
+            # Points where arc meets the edges
+            p0 = (v1[0] + u0[0] * r, v1[1] + u0[1] * r)
+            p2 = (v1[0] + u2[0] * r, v1[1] + u2[1] * r)
+            sp0 = to_svg_fn(*p0)
+            sp2 = to_svg_fn(*p2)
+            r_svg = abs(to_svg_fn(r, 0)[0] - to_svg_fn(0, 0)[0])
+            return (f'L {sp0[0]:.1f},{sp0[1]:.1f} '
+                    f'A {r_svg:.1f},{r_svg:.1f} 0 0 1 {sp2[0]:.1f},{sp2[1]:.1f}')
+
+        verts = [tbl_nw, tbl_ne, tbl_s]
+        path_d = f'M {to_svg(*tbl_nw)[0]:.1f},{to_svg(*tbl_nw)[1]:.1f} '
+        for i in range(3):
+            v0 = verts[(i - 1) % 3]
+            v1 = verts[i]
+            v2 = verts[(i + 1) % 3]
+            path_d += _tri_arc_path(v0, v1, v2, tbl_r, to_svg)
+        path_d += ' Z'
+
         href_dining = 'https://www.homedepot.com/pep/NEW-CLASSIC-HOME-FURNISHINGS-New-Classic-Furniture-Oscar-3-Piece-Wood-Top-Triangle-Dining-Set-Walnut-40-1651-D2C/327836175'
         out.append(f'<a href="{href_dining}" target="_blank">')
-        out.append(f'<polygon points="{tbl_svg}" fill="{APPL_FILL}" '
+        out.append(f'<path d="{path_d}" fill="{APPL_FILL}" '
                    f'stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
         out.append('</a>')
 
-        # Two chairs: 18" E-W x 21" N-S, along hypotenuse
-        ch_ew = 18.0 / 12.0
-        ch_ns = 21.0 / 12.0
-        # Hypotenuse midpoint and direction
-        hyp_cx = (t_ne[0] + t_sw[0]) / 2
-        hyp_cy = (t_ne[1] + t_sw[1]) / 2
-        dx = t_sw[0] - t_ne[0]
-        dy = t_sw[1] - t_ne[1]
-        hyp_len = math.sqrt(dx**2 + dy**2)
-        # Unit normal pointing away from right-angle corner (SE direction)
-        nx = -dy / hyp_len
-        ny = dx / hyp_len
-        # Chair offset along hypotenuse and perpendicular
-        chair_gap = 2.0 / 12.0  # 2" gap from table edge
-        for sign in (-0.35, 0.35):
-            # Position along hypotenuse
-            ch_cx = hyp_cx + sign * hyp_len * (dx / hyp_len)
-            ch_cy = hyp_cy + sign * hyp_len * (dy / hyp_len)
-            # Offset away from table
-            ch_cx += nx * (ch_ns / 2 + chair_gap)
-            ch_cy += ny * (ch_ns / 2 + chair_gap)
-            # Draw axis-aligned chair rectangle centered at (ch_cx, ch_cy)
-            ch_w = ch_cx - ch_ew / 2
-            ch_e = ch_cx + ch_ew / 2
-            ch_n = ch_cy + ch_ns / 2
-            ch_s = ch_cy - ch_ns / 2
-            ch_sx1, ch_sy1 = to_svg(ch_w, ch_n)
-            ch_sx2, ch_sy2 = to_svg(ch_e, ch_s)
-            ch_sw = ch_sx2 - ch_sx1
-            ch_sh = ch_sy2 - ch_sy1
+        # Two chairs: 18" x 21", one on each equal side, facing into the side
+        ch_long = 21.0 / 12.0   # depth (along normal to side)
+        ch_short = 18.0 / 12.0  # width (along side)
+        chair_gap = 2.0 / 12.0
+
+        for side_start, side_end in [(tbl_nw, tbl_s), (tbl_ne, tbl_s)]:
+            # Midpoint of this equal side
+            mid_e = (side_start[0] + side_end[0]) / 2
+            mid_n = (side_start[1] + side_end[1]) / 2
+            # Side direction and outward normal
+            se = (side_end[0] - side_start[0], side_end[1] - side_start[1])
+            sl = math.sqrt(se[0]**2 + se[1]**2)
+            su = (se[0] / sl, se[1] / sl)
+            # Outward normal (away from triangle center)
+            sn = (-su[1], su[0])
+            # Check normal points away from center
+            to_center = (space_cx - mid_e, space_cy - mid_n)
+            if sn[0] * to_center[0] + sn[1] * to_center[1] > 0:
+                sn = (-sn[0], -sn[1])
+            # Chair center: offset from side midpoint along outward normal
+            cc_e = mid_e + sn[0] * (ch_long / 2 + chair_gap)
+            cc_n = mid_n + sn[1] * (ch_long / 2 + chair_gap)
+            # Chair corners (rotated rectangle along side direction)
+            corners = []
+            for ds, dn in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:
+                ce = cc_e + su[0] * ds * ch_short / 2 + sn[0] * dn * ch_long / 2
+                cn = cc_n + su[1] * ds * ch_short / 2 + sn[1] * dn * ch_long / 2
+                corners.append(to_svg(ce, cn))
+            ch_svg = " ".join(f'{p[0]:.1f},{p[1]:.1f}' for p in corners)
             out.append(f'<a href="{href_dining}" target="_blank">')
-            out.append(f'<rect x="{ch_sx1:.1f}" y="{ch_sy1:.1f}" '
-                       f'width="{ch_sw:.1f}" height="{ch_sh:.1f}" '
-                       f'fill="{APPL_FILL}" stroke="{APPL_STROKE}" '
-                       f'stroke-width="{APPL_SW}"/>')
+            out.append(f'<polygon points="{ch_svg}" fill="{APPL_FILL}" '
+                       f'stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
             out.append('</a>')
 
     # North wall counter: south side against W9-W10, starting at IW2 east face
