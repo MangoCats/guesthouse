@@ -28,9 +28,20 @@ class TestInteriorLayout:
         assert layout.ctr_nw_r > 0
 
     def test_wall_ordering_east(self, layout):
-        """IW3 west of IW4 west of IW8."""
-        assert layout.iw3.w < layout.iw4_w
+        """IW9 west of IW4 west of IW8."""
+        assert layout.iw9.w < layout.iw4_w
         assert layout.iw4_e < layout.iw8_w
+
+    def test_iw3_above_iw7(self, layout):
+        """IW3 west face aligns with IW7, starts at IW7 L north face."""
+        assert layout.iw3.w == layout.iw7[0][0]  # west face = IW7 west face
+        assert abs(layout.iw3.s - layout.iw7[4][1]) < 1e-12  # south = IW7 L north
+
+    def test_iw9_bounds(self, layout):
+        """IW9 at old IW3 position, south of IW7 L north face."""
+        assert layout.iw9.e > layout.iw9.w
+        assert layout.iw9.n > layout.iw9.s
+        assert abs(layout.iw9.n - layout.iw3.s) < 1e-12  # IW9 top = IW3 bottom
 
     def test_iw7_polygon(self, layout):
         assert len(layout.iw7) == 6  # L-shape
@@ -41,8 +52,8 @@ class TestInteriorLayout:
     def test_bed_bounds(self, layout):
         assert layout.bed.e > layout.bed.w
         assert layout.bed.n > layout.bed.s
-        # Bed center between IW3 and IW4
-        assert layout.iw3.e < layout.bed_cx < layout.iw4_w
+        # Bed center between IW9 and IW4
+        assert layout.iw9.e < layout.bed_cx < layout.iw4_w
 
     def test_iw5_bounds(self, layout):
         assert layout.iw5.e > layout.iw5.w

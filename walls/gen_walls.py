@@ -277,10 +277,13 @@ def _render_interior_walls(out, data):
     iw_label("IW7", layout.iw7[0][0], layout.iw7[1][0],
              layout.iw7[0][1], layout.iw7[5][1])
 
-    # IW3 (vertical, 4") — label shifted 6" south to clear IW7 horizontal leg
+    # IW3 (vertical, 4") — west face aligned with IW7
     iw_rect(layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
-    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n,
-             n_shift=-6.0 / 12.0)
+    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
+
+    # IW9 (vertical, 4") — old IW3 position, south of IW7 L north face
+    iw_rect(layout.iw9.w, layout.iw9.e, layout.iw9.s, layout.iw9.n)
+    iw_label("IW9", layout.iw9.w, layout.iw9.e, layout.iw9.s, layout.iw9.n)
 
     # IW4 (vertical, 4")
     iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)

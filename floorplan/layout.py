@@ -51,6 +51,8 @@ class InteriorLayout(NamedTuple):
     # Bed
     bed: BBox
     bed_cx: float
+    # IW9 (vertical, 4" — old IW3 position, south of IW7 L north face)
+    iw9: BBox
     # IW5 (3" thick, horizontal in office)
     iw5: BBox
     # IW6 (1" thick, horizontal above kitchen)
@@ -94,11 +96,16 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
                 (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n),
                 (ctr_e + WALL_3IN + CLOSET_WIDTH, ctr_n + WALL_3IN),
                 (ctr_e, ctr_n + WALL_3IN)]
-    iw3_w = ctr_e + WALL_3IN + CLOSET_WIDTH
-    iw3_e = iw3_w + WALL_4IN
-    iw3_s = ctr_s
+    iw7_l_n = ctr_n + WALL_3IN  # north face of IW7 horizontal arm
+    iw3_w = ctr_e
+    iw3_e = ctr_e + WALL_4IN
+    iw3_s = iw7_l_n
     iw3_n = iw1_s
-    iw4_w = iw3_e + BEDROOM_WIDTH
+    iw9_w = ctr_e + WALL_3IN + CLOSET_WIDTH
+    iw9_e = iw9_w + WALL_4IN
+    iw9_s = ctr_s
+    iw9_n = iw7_l_n
+    iw4_w = iw9_e + BEDROOM_WIDTH
     iw4_e = iw4_w + WALL_4IN
     wall_south_n = WALL_SOUTH_N
     cl1_top = ctr_n - 1.0
@@ -107,7 +114,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw8_poly = [(iw4_e, cl1_top + WALL_3IN), (iw8_e, cl1_top + WALL_3IN), (iw8_e, wall_south_n),
                 (iw8_w, wall_south_n), (iw8_w, cl1_top), (iw4_e, cl1_top)]
 
-    bed_cx = (iw3_e + iw4_w) / 2
+    bed_cx = (iw9_e + iw4_w) / 2
     bed_w = bed_cx - BED_WIDTH / 2
     bed_e = bed_cx + BED_WIDTH / 2
     bed_s = ctr_s + BED_OFFSET_N
@@ -138,6 +145,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iwt3=WALL_3IN, iwt4=WALL_4IN,
         iw7=iw7_poly,
         iw3=BBox(w=iw3_w, s=iw3_s, e=iw3_e, n=iw3_n),
+        iw9=BBox(w=iw9_w, s=iw9_s, e=iw9_e, n=iw9_n),
         iw4_w=iw4_w, iw4_e=iw4_e, wall_south_n=wall_south_n,
         iw8=iw8_poly, iw8_w=iw8_w, iw8_e=iw8_e,
         cl1_top=cl1_top,

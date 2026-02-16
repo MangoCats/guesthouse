@@ -337,14 +337,16 @@ def compute_iw_area(layout):
     """Compute total interior wall area from layout polygons."""
     iw2 = layout.iw2
     iw3 = layout.iw3
+    iw9 = layout.iw9
     iw5 = layout.iw5
     iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
     iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
+    iw9_poly = [(iw9.w, iw9.s), (iw9.e, iw9.s), (iw9.e, iw9.n), (iw9.w, iw9.n)]
     iw4_poly = [(layout.iw4_w, layout.wall_south_n), (layout.iw4_e, layout.wall_south_n),
                 (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
     iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
-                iw3_poly, iw4_poly, layout.iw8, iw5_poly]
+                iw3_poly, iw9_poly, iw4_poly, layout.iw8, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -589,6 +591,18 @@ def _render_walls(out, data, layout):
         jx2, jy2 = to_svg(iw3.e, jamb_n)
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
+
+    # ---- IW9 (solid, no opening) ----
+    iw9 = layout.iw9
+    wall_poly(out, [(iw9.w, iw9.s), (iw9.e, iw9.s), (iw9.e, iw9.n), (iw9.w, iw9.n)],
+              to_svg, stroke=False)
+    iw9_w_in = iw9.w + half_sw
+    iw9_e_in = iw9.e - half_sw
+    for a, b in [((iw9_w_in, iw9.s), (iw9_w_in, iw9.n)),
+                 ((iw9_e_in, iw9.s), (iw9_e_in, iw9.n))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW4 with RO2 ----
     ro2_s, ro2_n = ro["RO2"].s, ro["RO2"].n
@@ -1247,13 +1261,13 @@ def _render_dimensions(out, data, layout):
 
     # Bedroom E-W and N-S
     bd_ew_n = layout.ctr.s + 0.25 * (layout.iw1_s - layout.ctr.s)
-    dim_line_h(out, layout.iw3.e, bd_ew_n, layout.iw4_w,
-               fmt_dist(layout.iw4_w - layout.iw3.e), to_svg)
-    dim_line_v(out, layout.iw3.e + 2.0, layout.ctr.s, layout.iw1_s,
+    dim_line_h(out, layout.iw9.e, bd_ew_n, layout.iw4_w,
+               fmt_dist(layout.iw4_w - layout.iw9.e), to_svg)
+    dim_line_v(out, layout.iw9.e + 2.0, layout.ctr.s, layout.iw1_s,
                fmt_dist(layout.iw1_s - layout.ctr.s), to_svg)
 
     # Closets
-    dim_line_v(out, (layout.ctr.e + layout.iwt3 + layout.iw3.w) / 2,
+    dim_line_v(out, (layout.ctr.e + layout.iwt3 + layout.iw9.w) / 2,
                layout.ctr.s, layout.ctr.n,
                f"CLOSET {fmt_dist(layout.ctr.n - layout.ctr.s)}", to_svg)
     dim_line_v(out, (layout.iw4_e + layout.iw8_w) / 2,
