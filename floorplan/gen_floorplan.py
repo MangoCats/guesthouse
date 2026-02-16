@@ -797,6 +797,36 @@ def _render_kitchen(out, data, layout, minik=False):
                    f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
     out.append('</a>')
 
+    # Minik: induction cooktop centered on counter (20.5" E-W x 13.4" N-S)
+    if minik:
+        cp_ew = 20.5 / 12.0
+        cp_ns = 13.4 / 12.0
+        cp_cx_e = (kc_w + kc_e) / 2
+        cp_cy_n = (kc_s + kc_n) / 2
+        cp_w = cp_cx_e - cp_ew / 2
+        cp_s = cp_cy_n - cp_ns / 2
+        cp_n = cp_cy_n + cp_ns / 2
+        cp_e = cp_cx_e + cp_ew / 2
+        cp_sx1, cp_sy1 = to_svg(cp_w, cp_n)
+        cp_sx2, cp_sy2 = to_svg(cp_e, cp_s)
+        cp_sw = cp_sx2 - cp_sx1
+        cp_sh = cp_sy2 - cp_sy1
+        cp_r = abs(to_svg(1.0 / 12.0, 0)[0] - to_svg(0, 0)[0])  # 1" corner radius
+        out.append('<a href="https://www.homedepot.com/p/Empava-Portable-13-4-in-Induction-Electric-Cooktop-in-Black-with-2-Elements-EMPV-ID12/313815692" target="_blank">')
+        out.append(f'<rect x="{cp_sx1:.1f}" y="{cp_sy1:.1f}" width="{cp_sw:.1f}" height="{cp_sh:.1f}"'
+                   f' rx="{cp_r:.1f}" ry="{cp_r:.1f}"'
+                   f' fill="#222" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        # Two burner circles (6" diameter each), spaced evenly E-W
+        burner_r_ft = 3.0 / 12.0
+        burner_r_svg = abs(to_svg(burner_r_ft, 0)[0] - to_svg(0, 0)[0])
+        for sign in (-1, 1):
+            bx = cp_cx_e + sign * cp_ew / 4
+            by = cp_cy_n
+            bsx, bsy = to_svg(bx, by)
+            out.append(f'<circle cx="{bsx:.1f}" cy="{bsy:.1f}" r="{burner_r_svg:.1f}"'
+                       f' fill="none" stroke="#666" stroke-width="0.3"/>')
+        out.append('</a>')
+
     # North wall counter: south side against W9-W10, starting at IW2 east face
     if not minik:
         nc_w = layout.iw2.e
