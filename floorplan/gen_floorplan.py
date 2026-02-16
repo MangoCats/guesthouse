@@ -707,6 +707,9 @@ def _render_kitchen(out, data, layout, minik=False):
         ("STOVE", st_w, back_n - KITCHEN_APPL_GAP - STOVE_DEPTH, st_e, back_n - KITCHEN_APPL_GAP, None),
         ("D/W",   dw_w, back_n - DW_DEPTH,           dw_e, back_n, None),
     ]
+    if minik:
+        appliances = [(l, w, s, e, n, h) for l, w, s, e, n, h in appliances
+                      if l not in ("STOVE", "D/W")]
     for label, sw_e, sw_n, ne_e, ne_n, href in appliances:
         sx1, sy1 = to_svg(sw_e, ne_n)
         sx2, sy2 = to_svg(ne_e, sw_n)
