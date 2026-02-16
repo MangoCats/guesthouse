@@ -806,20 +806,23 @@ def _render_kitchen(out, data, layout, minik=False):
     if minik:
         # ICE: 3" east of fridge, against W9-W10 wall (3" south)
         ice_w = fr_e + 3.0 / 12.0
-        ice_e = ice_w + ICE_WIDTH
-        ice_n = back_n - 3.0 / 12.0
-        ice_s = ice_n - ICE_DEPTH
-        ix1, iy1 = to_svg(ice_w, ice_n)
-        ix2, iy2 = to_svg(ice_e, ice_s)
-        isw = ix2 - ix1; ish = iy2 - iy1
-        out.append('<a href="https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876" target="_blank">')
-        out.append(f'<rect x="{ix1:.1f}" y="{iy1:.1f}" width="{isw:.1f}" height="{ish:.1f}"'
-                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-        ice_cx = (ix1 + ix2) / 2
-        ice_cy = (iy1 + iy2) / 2
-        out.append(f'<text x="{ice_cx:.1f}" y="{ice_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-                   f' font-size="6" fill="{APPL_STROKE}">ICE</text>')
-        out.append('</a>')
+    else:
+        # ICE: 6" east of D/W, against W9-W10 wall
+        ice_w = dw_e + 6.0 / 12.0
+    ice_e = ice_w + ICE_WIDTH
+    ice_n = back_n
+    ice_s = ice_n - ICE_DEPTH
+    ix1, iy1 = to_svg(ice_w, ice_n)
+    ix2, iy2 = to_svg(ice_e, ice_s)
+    isw = ix2 - ix1; ish = iy2 - iy1
+    out.append('<a href="https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876" target="_blank">')
+    out.append(f'<rect x="{ix1:.1f}" y="{iy1:.1f}" width="{isw:.1f}" height="{ish:.1f}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    ice_cx = (ix1 + ix2) / 2
+    ice_cy = (iy1 + iy2) / 2
+    out.append(f'<text x="{ice_cx:.1f}" y="{ice_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="{APPL_STROKE}">ICE</text>')
+    out.append('</a>')
 
     # Kitchen counter: starting at IW2 east face (minik only)
     if minik:
