@@ -563,8 +563,11 @@ if __name__ == "__main__":
     _circ_cn = _tan_n + _circ_r_ft * _ln_n
     _ccx, _ccy = to_svg(_circ_ce, _circ_cn)
     _cr_svg = to_svg(_circ_ce + _circ_r_ft, _circ_cn)[0] - _ccx
+    _fireplace_url = ("https://www.wayfair.com/outdoor/pdp/big-horn-outdoors-wellington"
+                      "-819-h-concrete-outdoor-fireplace-famu1012.html")
+    lines.append(f'<a href="{_fireplace_url}" target="_blank">')
     lines.append(f'<circle cx="{_ccx:.1f}" cy="{_ccy:.1f}" r="{_cr_svg:.1f}"'
-                 f' fill="none" stroke="#333" stroke-width="1.5"/>')
+                 f' fill="transparent" stroke="#333" stroke-width="1.5" cursor="pointer"/>')
 
     # Campfire icon inside the circle, 36" wide
     # Unit coords: width=1.0, x in [-0.5,0.5], y positive=down (SVG).
@@ -635,6 +638,7 @@ if __name__ == "__main__":
     # Ember glow under logs
     lines.append('<ellipse cx="0" cy="0.18" rx="0.18" ry="0.06" fill="#FF4500" opacity="0.3"/>')
     lines.append('</g>')
+    lines.append('</a>')
 
     # Area label centered in outline
     centroid_names = [f"F{i}" for i in range(22)]
