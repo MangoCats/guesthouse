@@ -438,16 +438,15 @@ def _render_walls(out, data, layout):
                         seg_idx, op.t_end, "end", shell_t, R_in, WALL_OUTER)
                     _svg_wall_poly(out, uturn_end, to_svg)
 
-                # Opening void polygons
+                # Opening void polygons (4" wide, centered on wall)
                 for op in seg_ops:
-                    F_A, F_B = pts[seg.start], pts[seg.end]
-                    W_A = pts[inner_seg.start]
-                    W_B = pts[inner_seg.end]
+                    S_A, S_B = pts[s_seg.start], pts[s_seg.end]
+                    G_A, G_B = pts[g_seg.start], pts[g_seg.end]
                     o_poly = [
-                        lerp(F_A, F_B, op.t_start),
-                        lerp(F_A, F_B, op.t_end),
-                        lerp(W_A, W_B, op.t_end),
-                        lerp(W_A, W_B, op.t_start),
+                        lerp(S_A, S_B, op.t_start),
+                        lerp(S_A, S_B, op.t_end),
+                        lerp(G_A, G_B, op.t_end),
+                        lerp(G_A, G_B, op.t_start),
                     ]
                     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
                                    for p in o_poly)
