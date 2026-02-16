@@ -782,8 +782,9 @@ def _render_kitchen(out, data, layout, minik=False):
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
     else:
-        # 2" east of kitchen counter, 2" north of IW1 north face
-        fr_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP
+        # 2" east of hearth, 2" north of IW1 north face
+        hearth_e = layout.iw3.e + 20.0 / 12.0 + 48.0 / 12.0 + 12.0 / 12.0
+        fr_w = hearth_e + STD_GAP
         fr_e = fr_w + FRIDGE_SIZE
         fr_s = layout.iw1_n + STD_GAP
         fr_n = fr_s + FRIDGE_SIZE
