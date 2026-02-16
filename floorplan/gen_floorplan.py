@@ -818,10 +818,10 @@ def _render_kitchen(out, data, layout, minik=False):
                    f' font-size="5" fill="{APPL_STROKE}">MICRO</text>')
         out.append('</a>')
 
-    # Minik: coffee maker on counter (9" E-W x 7" N-S)
+    # Minik: coffee maker on counter (7.2" E-W x 9.2" N-S)
     if minik:
-        cm_ew = 9.0 / 12.0
-        cm_ns = 7.0 / 12.0
+        cm_ew = 7.2 / 12.0
+        cm_ns = 9.2 / 12.0
         cm_w = mw_e + 3.0 / 12.0
         cm_e = cm_w + cm_ew
         cm_n = kc_n - 3.0 / 12.0
