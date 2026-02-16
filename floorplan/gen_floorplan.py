@@ -1540,22 +1540,22 @@ def _render_openings(out, data, layout):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO3 door: 36" door, hinged south, swings west
+    # RO3 door: 36" door, hinged south, swings east
     ro3 = [r for r in rough_openings if r.name == "RO3"][0]
     ro3_mid = (ro3.bbox.w + ro3.bbox.e) / 2
     ro3_gap = (ro3.bbox.n - ro3.bbox.s - RO3_DOOR_WIDTH) / 2
     hinge_e, hinge_n = ro3_mid, ro3.bbox.s + ro3_gap
     hx, hy = to_svg(hinge_e, hinge_n)
-    # Straight line from hinge westward (door in open position)
-    tip_e, tip_n = hinge_e - RO3_DOOR_WIDTH, hinge_n
+    # Straight line from hinge eastward (door in open position)
+    tip_e, tip_n = hinge_e + RO3_DOOR_WIDTH, hinge_n
     tx, ty = to_svg(tip_e, tip_n)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (west) sweeping CW 90° to closed (north)
+    # Arc from open (east) sweeping CCW 90° to closed (north)
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = math.pi - i * (math.pi / 2) / n_arc  # 180° to 90°
+        angle = i * (math.pi / 2) / n_arc  # 0° to 90°
         ae = hinge_e + RO3_DOOR_WIDTH * math.cos(angle)
         an = hinge_n + RO3_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
