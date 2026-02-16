@@ -943,119 +943,116 @@ def _render_kitchen(out, data, layout, minik=False):
                        f' stroke="#666" stroke-width="0.4"/>')
         out.append('</a>')
 
-    # Minik: Oscar triangle dining set centered between COUNTER, IW1, IW2, RO1
-    if minik:
-        # Available space bounds
-        rough_openings = compute_rough_openings(pts, layout)
-        ro1_bbox = [r for r in rough_openings if r.name == "RO1"][0].bbox
-        space_w = layout.iw2.e
-        space_s = layout.iw1_n
-        space_e = ro1_bbox.w
-        space_n = kc_s
-        space_cx = (space_w + space_e) / 2
-        space_cy = (space_s + space_n) / 2
+    # Oscar triangle dining set centered between north wall, IW1, IW2, RO1
+    ro1_w_pos = layout.iw4_w - RO1_OFFSET_W_IW4
+    space_w = layout.iw2.e
+    space_s = layout.iw1_n
+    space_e = ro1_w_pos
+    space_n = kc_s if minik else back_n
+    space_cx = (space_w + space_e) / 2
+    space_cy = (space_s + space_n) / 2
 
-        # Table: base 31.5" (N), height 35.25", 24" arc at apex, 6" fillets
-        tbl_base = 31.5 / 12.0
-        tbl_h = 35.25 / 12.0
-        apex_r = 12.0 / 12.0    # 24" diameter arc at apex
-        fillet_r = 6.0 / 12.0   # 6" corner fillets
+    # Table: base 31.5" (N), height 35.25", 24" arc at apex, 6" fillets
+    tbl_base = 31.5 / 12.0
+    tbl_h = 35.25 / 12.0
+    apex_r = 12.0 / 12.0    # 24" diameter arc at apex
+    fillet_r = 6.0 / 12.0   # 6" corner fillets
 
-        # Position: north side 30" south of counter south side, centered E-W
-        tbl_cx = space_cx
-        tbl_n = kc_s - 30.0 / 12.0
-        tbl_s_y = tbl_n - tbl_h
+    # Position: north side 30" south of space north, centered E-W
+    tbl_cx = space_cx
+    tbl_n = space_n - 30.0 / 12.0
+    tbl_s_y = tbl_n - tbl_h
 
-        # Base corners and arc center
-        ne = (tbl_cx + tbl_base / 2, tbl_n)
-        nw = (tbl_cx - tbl_base / 2, tbl_n)
-        arc_c = (tbl_cx, tbl_s_y + apex_r)  # 12" north of south edge
+    # Base corners and arc center
+    ne = (tbl_cx + tbl_base / 2, tbl_n)
+    nw = (tbl_cx - tbl_base / 2, tbl_n)
+    arc_c = (tbl_cx, tbl_s_y + apex_r)  # 12" north of south edge
 
-        # Right tangent from NE to apex arc
-        dx_r = ne[0] - arc_c[0]
-        dn_r = ne[1] - arc_c[1]
-        dist_r = math.sqrt(dx_r**2 + dn_r**2)
-        angle_cp = math.atan2(dn_r, dx_r)
-        delta = math.acos(apex_r / dist_r)
-        alpha_r = angle_cp - delta
-        t_right = (arc_c[0] + apex_r * math.cos(alpha_r),
-                    arc_c[1] + apex_r * math.sin(alpha_r))
-        t_left = (2 * tbl_cx - t_right[0], t_right[1])
+    # Right tangent from NE to apex arc
+    dx_r = ne[0] - arc_c[0]
+    dn_r = ne[1] - arc_c[1]
+    dist_r = math.sqrt(dx_r**2 + dn_r**2)
+    angle_cp = math.atan2(dn_r, dx_r)
+    delta = math.acos(apex_r / dist_r)
+    alpha_r = angle_cp - delta
+    t_right = (arc_c[0] + apex_r * math.cos(alpha_r),
+                arc_c[1] + apex_r * math.sin(alpha_r))
+    t_left = (2 * tbl_cx - t_right[0], t_right[1])
 
-        # NE fillet between base (west) and tangent line (toward t_right)
-        d_base_ne = (-1.0, 0.0)
-        dtr = (t_right[0] - ne[0], t_right[1] - ne[1])
-        dtr_len = math.sqrt(dtr[0]**2 + dtr[1]**2)
-        d_tang_ne = (dtr[0] / dtr_len, dtr[1] / dtr_len)
-        cos_th = d_base_ne[0] * d_tang_ne[0] + d_base_ne[1] * d_tang_ne[1]
-        half_angle = math.acos(max(-1, min(1, cos_th))) / 2
-        fillet_dist = fillet_r / math.sin(half_angle)
-        bis_ne = (d_base_ne[0] + d_tang_ne[0], d_base_ne[1] + d_tang_ne[1])
-        bis_ne_len = math.sqrt(bis_ne[0]**2 + bis_ne[1]**2)
-        bis_ne = (bis_ne[0] / bis_ne_len, bis_ne[1] / bis_ne_len)
-        fc_ne = (ne[0] + fillet_dist * bis_ne[0], ne[1] + fillet_dist * bis_ne[1])
-        f_ne_base = (fc_ne[0], tbl_n)  # tangent to base
-        v_ne = (fc_ne[0] - ne[0], fc_ne[1] - ne[1])
-        t_proj = v_ne[0] * d_tang_ne[0] + v_ne[1] * d_tang_ne[1]
-        f_ne_tang = (ne[0] + t_proj * d_tang_ne[0], ne[1] + t_proj * d_tang_ne[1])
+    # NE fillet between base (west) and tangent line (toward t_right)
+    d_base_ne = (-1.0, 0.0)
+    dtr = (t_right[0] - ne[0], t_right[1] - ne[1])
+    dtr_len = math.sqrt(dtr[0]**2 + dtr[1]**2)
+    d_tang_ne = (dtr[0] / dtr_len, dtr[1] / dtr_len)
+    cos_th = d_base_ne[0] * d_tang_ne[0] + d_base_ne[1] * d_tang_ne[1]
+    half_angle = math.acos(max(-1, min(1, cos_th))) / 2
+    fillet_dist = fillet_r / math.sin(half_angle)
+    bis_ne = (d_base_ne[0] + d_tang_ne[0], d_base_ne[1] + d_tang_ne[1])
+    bis_ne_len = math.sqrt(bis_ne[0]**2 + bis_ne[1]**2)
+    bis_ne = (bis_ne[0] / bis_ne_len, bis_ne[1] / bis_ne_len)
+    fc_ne = (ne[0] + fillet_dist * bis_ne[0], ne[1] + fillet_dist * bis_ne[1])
+    f_ne_base = (fc_ne[0], tbl_n)  # tangent to base
+    v_ne = (fc_ne[0] - ne[0], fc_ne[1] - ne[1])
+    t_proj = v_ne[0] * d_tang_ne[0] + v_ne[1] * d_tang_ne[1]
+    f_ne_tang = (ne[0] + t_proj * d_tang_ne[0], ne[1] + t_proj * d_tang_ne[1])
 
-        # NW fillet by symmetry
-        f_nw_base = (2 * tbl_cx - f_ne_base[0], tbl_n)
-        f_nw_tang = (2 * tbl_cx - f_ne_tang[0], f_ne_tang[1])
+    # NW fillet by symmetry
+    f_nw_base = (2 * tbl_cx - f_ne_base[0], tbl_n)
+    f_nw_tang = (2 * tbl_cx - f_ne_tang[0], f_ne_tang[1])
 
-        # SVG radii
-        apex_r_svg = abs(to_svg(apex_r, 0)[0] - to_svg(0, 0)[0])
-        fillet_r_svg = abs(to_svg(fillet_r, 0)[0] - to_svg(0, 0)[0])
+    # SVG radii
+    apex_r_svg = abs(to_svg(apex_r, 0)[0] - to_svg(0, 0)[0])
+    fillet_r_svg = abs(to_svg(fillet_r, 0)[0] - to_svg(0, 0)[0])
 
-        # Build path (sweep-flag=1 for convex outward arcs)
-        s = lambda p: to_svg(*p)
-        path_d = (
-            f'M {s(f_nw_base)[0]:.2f},{s(f_nw_base)[1]:.2f} '
-            f'L {s(f_ne_base)[0]:.2f},{s(f_ne_base)[1]:.2f} '
-            f'A {fillet_r_svg:.2f},{fillet_r_svg:.2f} 0 0 1 '
-            f'{s(f_ne_tang)[0]:.2f},{s(f_ne_tang)[1]:.2f} '
-            f'L {s(t_right)[0]:.2f},{s(t_right)[1]:.2f} '
-            f'A {apex_r_svg:.2f},{apex_r_svg:.2f} 0 0 1 '
-            f'{s(t_left)[0]:.2f},{s(t_left)[1]:.2f} '
-            f'L {s(f_nw_tang)[0]:.2f},{s(f_nw_tang)[1]:.2f} '
-            f'A {fillet_r_svg:.2f},{fillet_r_svg:.2f} 0 0 1 '
-            f'{s(f_nw_base)[0]:.2f},{s(f_nw_base)[1]:.2f} Z'
-        )
+    # Build path (sweep-flag=1 for convex outward arcs)
+    s = lambda p: to_svg(*p)
+    path_d = (
+        f'M {s(f_nw_base)[0]:.2f},{s(f_nw_base)[1]:.2f} '
+        f'L {s(f_ne_base)[0]:.2f},{s(f_ne_base)[1]:.2f} '
+        f'A {fillet_r_svg:.2f},{fillet_r_svg:.2f} 0 0 1 '
+        f'{s(f_ne_tang)[0]:.2f},{s(f_ne_tang)[1]:.2f} '
+        f'L {s(t_right)[0]:.2f},{s(t_right)[1]:.2f} '
+        f'A {apex_r_svg:.2f},{apex_r_svg:.2f} 0 0 1 '
+        f'{s(t_left)[0]:.2f},{s(t_left)[1]:.2f} '
+        f'L {s(f_nw_tang)[0]:.2f},{s(f_nw_tang)[1]:.2f} '
+        f'A {fillet_r_svg:.2f},{fillet_r_svg:.2f} 0 0 1 '
+        f'{s(f_nw_base)[0]:.2f},{s(f_nw_base)[1]:.2f} Z'
+    )
 
-        href_dining = 'https://www.homedepot.com/pep/NEW-CLASSIC-HOME-FURNISHINGS-New-Classic-Furniture-Oscar-3-Piece-Wood-Top-Triangle-Dining-Set-Walnut-40-1651-D2C/327836175'
+    href_dining = 'https://www.homedepot.com/pep/NEW-CLASSIC-HOME-FURNISHINGS-New-Classic-Furniture-Oscar-3-Piece-Wood-Top-Triangle-Dining-Set-Walnut-40-1651-D2C/327836175'
+    out.append(f'<a href="{href_dining}" target="_blank">')
+    out.append(f'<path d="{path_d}" fill="{APPL_FILL}" '
+               f'stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    out.append('</a>')
+
+    # Two chairs: 18" x 21", one on each equal (tangent) side
+    ch_short = 18.0 / 12.0   # width along side
+    ch_long = 21.0 / 12.0    # depth perpendicular to side
+    chair_gap = 2.0 / 12.0
+
+    for side_start, side_end in [(f_ne_tang, t_right), (t_left, f_nw_tang)]:
+        mid_e = (side_start[0] + side_end[0]) / 2
+        mid_n = (side_start[1] + side_end[1]) / 2
+        se_d = (side_end[0] - side_start[0], side_end[1] - side_start[1])
+        sl = math.sqrt(se_d[0]**2 + se_d[1]**2)
+        su = (se_d[0] / sl, se_d[1] / sl)
+        # Outward normal (away from table center)
+        sn = (-su[1], su[0])
+        to_ctr = (tbl_cx - mid_e, space_cy - mid_n)
+        if sn[0] * to_ctr[0] + sn[1] * to_ctr[1] > 0:
+            sn = (-sn[0], -sn[1])
+        cc_e = mid_e + sn[0] * (ch_long / 2 + chair_gap)
+        cc_n = mid_n + sn[1] * (ch_long / 2 + chair_gap)
+        corners = []
+        for ds, dn in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:
+            ce = cc_e + su[0] * ds * ch_short / 2 + sn[0] * dn * ch_long / 2
+            cn = cc_n + su[1] * ds * ch_short / 2 + sn[1] * dn * ch_long / 2
+            corners.append(to_svg(ce, cn))
+        ch_svg = " ".join(f'{p[0]:.1f},{p[1]:.1f}' for p in corners)
         out.append(f'<a href="{href_dining}" target="_blank">')
-        out.append(f'<path d="{path_d}" fill="{APPL_FILL}" '
+        out.append(f'<polygon points="{ch_svg}" fill="{APPL_FILL}" '
                    f'stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
         out.append('</a>')
-
-        # Two chairs: 18" x 21", one on each equal (tangent) side
-        ch_short = 18.0 / 12.0   # width along side
-        ch_long = 21.0 / 12.0    # depth perpendicular to side
-        chair_gap = 2.0 / 12.0
-
-        for side_start, side_end in [(f_ne_tang, t_right), (t_left, f_nw_tang)]:
-            mid_e = (side_start[0] + side_end[0]) / 2
-            mid_n = (side_start[1] + side_end[1]) / 2
-            se_d = (side_end[0] - side_start[0], side_end[1] - side_start[1])
-            sl = math.sqrt(se_d[0]**2 + se_d[1]**2)
-            su = (se_d[0] / sl, se_d[1] / sl)
-            # Outward normal (away from table center)
-            sn = (-su[1], su[0])
-            to_ctr = (tbl_cx - mid_e, space_cy - mid_n)
-            if sn[0] * to_ctr[0] + sn[1] * to_ctr[1] > 0:
-                sn = (-sn[0], -sn[1])
-            cc_e = mid_e + sn[0] * (ch_long / 2 + chair_gap)
-            cc_n = mid_n + sn[1] * (ch_long / 2 + chair_gap)
-            corners = []
-            for ds, dn in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:
-                ce = cc_e + su[0] * ds * ch_short / 2 + sn[0] * dn * ch_long / 2
-                cn = cc_n + su[1] * ds * ch_short / 2 + sn[1] * dn * ch_long / 2
-                corners.append(to_svg(ce, cn))
-            ch_svg = " ".join(f'{p[0]:.1f},{p[1]:.1f}' for p in corners)
-            out.append(f'<a href="{href_dining}" target="_blank">')
-            out.append(f'<polygon points="{ch_svg}" fill="{APPL_FILL}" '
-                       f'stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-            out.append('</a>')
 
     # North wall counter: south side against W9-W10, starting at IW2 east face
     if not minik:
