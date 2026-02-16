@@ -869,6 +869,36 @@ def _render_kitchen(out, data, layout, minik=False):
                        f' fill="none" stroke="#666" stroke-width="0.3"/>')
         out.append('</a>')
 
+    # Minik: toaster 3" east of cooktop, 3" south of W9-W10 (12.59" E-W x 11.81" N-S)
+    if minik:
+        ts_ew = 12.59 / 12.0
+        ts_ns = 11.81 / 12.0
+        ts_w = cp_e + 3.0 / 12.0
+        ts_e = ts_w + ts_ew
+        ts_n = kc_n - 3.0 / 12.0
+        ts_s = ts_n - ts_ns
+        ts_sx1, ts_sy1 = to_svg(ts_w, ts_n)
+        ts_sx2, ts_sy2 = to_svg(ts_e, ts_s)
+        ts_sw = ts_sx2 - ts_sx1
+        ts_sh = ts_sy2 - ts_sy1
+        out.append('<a href="https://www.amazon.com/Roter-Mond-Stainless-Independent-Removable/dp/B0CGTQZTDZ?th=1" target="_blank">')
+        out.append(f'<rect x="{ts_sx1:.1f}" y="{ts_sy1:.1f}" width="{ts_sw:.1f}" height="{ts_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        # Four toast slot lines (1.5" wide slots, evenly spaced E-W)
+        slot_len_ft = 5.5 / 12.0  # 5.5" slot length
+        ts_cx_e = (ts_w + ts_e) / 2
+        ts_cy_n = (ts_s + ts_n) / 2
+        slot_spacing = ts_ew / 5.0  # 5 gaps for 4 slots
+        for i in range(4):
+            sl_e = ts_w + slot_spacing * (i + 1)
+            sl_n = ts_cy_n + slot_len_ft / 2
+            sl_s = ts_cy_n - slot_len_ft / 2
+            sl_sx, sl_sy1 = to_svg(sl_e, sl_n)
+            _, sl_sy2 = to_svg(sl_e, sl_s)
+            out.append(f'<line x1="{sl_sx:.1f}" y1="{sl_sy1:.1f}" x2="{sl_sx:.1f}" y2="{sl_sy2:.1f}"'
+                       f' stroke="#666" stroke-width="0.4"/>')
+        out.append('</a>')
+
     # North wall counter: south side against W9-W10, starting at IW2 east face
     if not minik:
         nc_w = layout.iw2.e
