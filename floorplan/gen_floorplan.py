@@ -848,7 +848,7 @@ def _render_kitchen(out, data, layout, minik=False):
         # ICE: 6" east of D/W, against W9-W10 wall
         ice_w = dw_e + 6.0 / 12.0
     ice_e = ice_w + ICE_WIDTH
-    ice_n = back_n
+    ice_n = back_n - (3.0 / 12.0 if minik else 0)
     ice_s = ice_n - ICE_DEPTH
     ix1, iy1 = to_svg(ice_w, ice_n)
     ix2, iy2 = to_svg(ice_e, ice_s)
