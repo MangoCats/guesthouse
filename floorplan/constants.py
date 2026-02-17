@@ -157,6 +157,7 @@ F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
 F15_OFFSET_E = 9.0 + 3.0/12.0     # 9'3" F15 east of iw8_e
+F16_F17_SEG = 5.0                  # 5' F16-F17 segment length
 F20A_F21_CHORD = 16.0 / 12.0      # 16" chord F20a-F21
 F18_OFFSET_E = 4.0 / 12.0         # 4" F18 east of IW4 east face
 F18_F19_GAP = 12.0 / 12.0         # 12" F18-F19 distance
