@@ -276,6 +276,10 @@ def _render_interior_walls(out, data):
     iw_rect(layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
     iw_label("IW2", layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
 
+    # IW3 (vertical, 4")
+    iw_rect(layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
+    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
+
     # IW6 (horizontal, 1" partition)
     iw_poly(layout.iw6_poly)
     iw_label("IW6", min(layout.iw6_poly[0][0], layout.iw6_poly[3][0]),

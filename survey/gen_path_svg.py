@@ -287,6 +287,10 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     for ev in [L.iw2.w,L.iw2.e]:
         s1,s2 = to_svg(ev,L.iw2.s),to_svg(ev,L.iw2.n)
         lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
+    # IW3 (vertical, 4")
+    iw3_poly = [(L.iw3.w,L.iw3.s),(L.iw3.e,L.iw3.s),(L.iw3.e,L.iw3.n),(L.iw3.w,L.iw3.n)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw3_poly)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW4 (east bedroom wall)
     wsn = L.wall_south_n
     _iw4_n = L.iw12_poly[2][1]

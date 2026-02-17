@@ -342,13 +342,15 @@ def compute_iw_area(layout):
     iw2 = layout.iw2
     iw5 = layout.iw5
     iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
+    iw3 = layout.iw3
+    iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
     _iw4_n_area = layout.iw12_poly[2][1]  # IW12 NE northing
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, _iw4_n_area), (layout.iw4_w, _iw4_n_area)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
     iw8 = layout.iw8
     iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
-    iw_polys = [layout.iw1, iw8_poly, iw2_poly, layout.iw6_poly,
+    iw_polys = [layout.iw1, iw8_poly, iw2_poly, iw3_poly, layout.iw6_poly,
                 iw4_poly, layout.iw11_poly, layout.iw12_poly,
                 layout.iw14_poly, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
@@ -541,6 +543,18 @@ def _render_walls(out, data, layout):
         jx2, jy2 = to_svg(iw2.e, jamb_n)
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
+
+    # ---- IW3 (solid, no opening) ----
+    iw3 = layout.iw3
+    iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
+    wall_poly(out, iw3_poly, to_svg, stroke=False)
+    iw3_w_in = iw3.w + half_sw
+    iw3_e_in = iw3.e - half_sw
+    for a, b in [((iw3_w_in, iw3.s), (iw3_w_in, iw3.n)),
+                 ((iw3_e_in, iw3.s), (iw3_e_in, iw3.n))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW6 with RO5 ----
     iw6_s, iw6_n = layout.iw6_s, layout.iw6_n

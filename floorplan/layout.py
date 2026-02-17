@@ -12,6 +12,7 @@ from floorplan.constants import (
     BED_WIDTH, BED_LENGTH,
     O9_HALF_WIDTH,
     IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E,
+    IW3_LENGTH,
     IW4_OFFSET_E_IW2, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
     IW4_RO_WIDTH,
@@ -34,6 +35,8 @@ class InteriorLayout(NamedTuple):
     # Counter
     ctr: BBox
     ctr_nw_r: float
+    # Interior wall 3 (IW3) — vertical wall, west face aligned with IW2
+    iw3: BBox
     # Wall thicknesses
     iwt3: float
     iwt4: float
@@ -79,6 +82,12 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw2_e = iw2_w + WALL_6IN
     iw2_s = iw1_n
     iw2_n = pts["W6"][1]
+
+    # IW3: 4" thick, west face = IW2 west, north = IW1 south, 78" south
+    iw3_w = iw2_w
+    iw3_e = iw3_w + WALL_4IN
+    iw3_n = iw1_s
+    iw3_s = iw3_n - IW3_LENGTH
 
     dryer_w = pts["W1"][0] + APPLIANCE_OFFSET_E
     dryer_s = pts["W0"][1] + APPLIANCE_OFFSET_N
@@ -223,6 +232,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     return InteriorLayout(
         iw1=iw1, iw1_s=iw1_s, iw1_n=iw1_n, iwt=WALL_6IN,
         iw2=BBox(w=iw2_w, s=iw2_s, e=iw2_e, n=iw2_n),
+        iw3=BBox(w=iw3_w, s=iw3_s, e=iw3_e, n=iw3_n),
         dryer=BBox(w=dryer_w, s=dryer_s, e=dryer_e, n=dryer_n),
         washer=BBox(w=washer_w, s=washer_s, e=washer_e, n=washer_n),
         ctr=BBox(w=ctr_w, s=ctr_s, e=ctr_e, n=ctr_n), ctr_nw_r=ctr_nw_r,
