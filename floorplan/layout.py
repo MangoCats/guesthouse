@@ -119,10 +119,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     wall_south_n = WALL_SOUTH_N
     cl1_top = iw7_n - 1.0
 
-    # IW11: 4" thick, south extension below IW4
-    iw11_w = iw9_e + BEDROOM_WIDTH
-    iw11_e = iw11_w + WALL_4IN
-    iw11_n = wall_south_n + 6.0
+    # IW11: 4" thick, normal to W20-W20a, 6'4" long
     # SE corner: intersection of line W20-W20a with circle(W19, 32")
     _w19 = pts["W19"]
     _w20 = pts["W20"]
@@ -138,8 +135,26 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _disc = _qb**2 - 4 * _qa * _qc
     _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)  # westward along W20-W20a
     iw11_se = (_w20[0] + _t * _dE, _w20[1] + _t * _dN)
-    iw11_s = wall_south_n
-    iw11_poly = [(iw11_w, iw11_s), iw11_se, (iw11_e, iw11_n), (iw11_w, iw11_n)]
+    # Unit vectors: along W20-W20a and inward normal
+    _seg_len = math.sqrt(_dE**2 + _dN**2)
+    _along_E = _dE / _seg_len
+    _along_N = _dN / _seg_len
+    _norm_E = _along_N    # right normal = inward
+    _norm_N = -_along_E
+    _iw11_thick = WALL_4IN
+    _iw11_len = 6.0 + 4.0 / 12.0  # 6'4"
+    iw11_sw = (iw11_se[0] + _iw11_thick * _along_E,
+               iw11_se[1] + _iw11_thick * _along_N)
+    iw11_ne = (iw11_se[0] + _iw11_len * _norm_E,
+               iw11_se[1] + _iw11_len * _norm_N)
+    iw11_nw = (iw11_sw[0] + _iw11_len * _norm_E,
+               iw11_sw[1] + _iw11_len * _norm_N)
+    iw11_poly = [iw11_sw, iw11_se, iw11_ne, iw11_nw]
+    # Bounding box (for IW12 connection and labels)
+    iw11_w = min(p[0] for p in iw11_poly)
+    iw11_e = max(p[0] for p in iw11_poly)
+    iw11_s = min(p[1] for p in iw11_poly)
+    iw11_n = max(p[1] for p in iw11_poly)
 
     # IW12: 4" thick, E-W from IW11 west face to IW4 west face
     iw12_w = iw11_w
