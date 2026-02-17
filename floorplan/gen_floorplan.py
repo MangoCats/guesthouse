@@ -1502,6 +1502,11 @@ def _render_dimensions(out, data, layout):
     dim_line_v(out, o9_dim_e, pts["W18"][1], layout.iw1_s,
                fmt_dist(layout.iw1_s - pts["W18"][1]), to_svg)
 
+    # Utility area N-S: IW1 south face to W21-W0, centered on O11
+    o11_cx = (layout.dryer.e + layout.ctr.w) / 2
+    dim_line_v(out, o11_cx, layout.wall_south_n, layout.iw1_s,
+               fmt_dist(layout.iw1_s - layout.wall_south_n), to_svg)
+
 
 def _render_openings(out, data, layout):
     """Render door swings and jamb blocks for O3, O6, RO1-RO5.
