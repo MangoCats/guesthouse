@@ -1179,12 +1179,10 @@ def _render_furniture(out, data, layout, minik=False):
                f'KING BED</text>')
 
     if minik:
-        # SOFA: 97.2" E-W x 24.6" N-S, 6" east of RO1, north side of IW1
-        ro1_w = layout.iw9.e + RO1_OFFSET_E_IW9
-        ro1_e = ro1_w + IW1_RO_WIDTH
-        sofa_w = ro1_e + 30.0 / 12.0
-        sofa_e = sofa_w + SOFA_WIDTH
-        sofa_s = layout.iw1_n + 6.0 / 12.0
+        # SOFA: 73.2" E-W x 24.6" N-S, 6" east of hearth, 2" north of IW1
+        sofa_w = layout.iw4_w + 6.0 / 12.0
+        sofa_e = sofa_w + SOFA_WIDTH - 24.0 / 12.0
+        sofa_s = layout.iw1_n + 2.0 / 12.0
         sofa_n = sofa_s + SOFA_DEPTH
         sf_sx1, sf_sy1 = to_svg(sofa_w, sofa_n)
         sf_sx2, sf_sy2 = to_svg(sofa_e, sofa_s)
