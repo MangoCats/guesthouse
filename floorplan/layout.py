@@ -164,14 +164,13 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _iw12_shorten = 4.0 / 12.0
     iw12_sw = (iw11_nw[0] - _iw12_shorten * _along_E,
                iw11_nw[1] - _iw12_shorten * _along_N)
-    # IW12 runs in -_along direction (toward IW4); length to reach iw4_w
-    _iw12_len = (iw4_w - iw11_nw[0]) / (-_along_E)
-    iw12_se = (iw12_sw[0] - _iw12_len * _along_E,
-               iw12_sw[1] - _iw12_len * _along_N)
+    # IW12 east end: SE and NE at iw4_w easting
+    # South edge: line from iw12_sw in -_along direction, solve for easting = iw4_w
+    _t_se = (iw4_w - iw12_sw[0]) / (-_along_E)
+    iw12_se = (iw4_w, iw12_sw[1] - _t_se * _along_N)
     iw12_nw = (iw12_sw[0] + WALL_4IN * _norm_E,
                iw12_sw[1] + WALL_4IN * _norm_N)
-    iw12_ne = (iw12_se[0] + WALL_4IN * _norm_E,
-               iw12_se[1] + WALL_4IN * _norm_N)
+    iw12_ne = (iw4_w, iw12_nw[1] + (iw12_se[1] - iw12_sw[1]))
     iw12_poly = [iw12_sw, iw12_se, iw12_ne, iw12_nw]
     # Bounding box (for RO2 center, dimension lines, labels)
     iw12_w = min(p[0] for p in iw12_poly)
