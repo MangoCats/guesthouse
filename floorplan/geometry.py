@@ -10,7 +10,7 @@ from floorplan.constants import (
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
     F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, F16_F17_SEG,
-    F18_OFFSET_E, F18_F19_GAP, F19_F20_CHORD,
+    F18_OFFSET_E, F18_F19_GAP, ARC_F19_R,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
@@ -177,7 +177,7 @@ def _compute_south_wall(
     F19-F20: CW arc (C19). F20 exit bearing used by caller for tangency to F0.
     """
     _sweep = math.asin(1.0 / 9.0)  # arcsin(1/9)
-    R_a19 = F19_F20_CHORD / (2 * math.sin(_sweep / 2))  # chord = 2R·sin(θ/2)
+    R_a19 = ARC_F19_R
 
     # F18: 4" east of IW4 east face, at SOUTH_WALL_N
     _iw4_e = (fp_pts["F1"][0] + WALL_OUTER

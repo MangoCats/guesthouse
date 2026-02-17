@@ -1477,12 +1477,13 @@ def _render_dimensions(out, data, layout):
            layout.iw11_poly[2][1] - layout.iw11_poly[1][1])
     _dl = math.sqrt(_dn[0]**2 + _dn[1]**2)
     _nrm = (_dn[0] / _dl, _dn[1] / _dl)
-    _cx, _cy = pts["C19"]
-    _ri = data.radii["R_a19"] - data.wall_t
-    _ux, _uy = _dim_s[0] - _cx, _dim_s[1] - _cy
-    _dot_nu = _nrm[0] * _ux + _nrm[1] * _uy
-    _t_arc = _dot_nu + math.sqrt(_dot_nu**2 + _ri**2 - _ux**2 - _uy**2)
-    _dim_e = (_dim_s[0] - _t_arc * _nrm[0], _dim_s[1] - _t_arc * _nrm[1])
+    # Ray-line intersection: ray from _dim_s in direction -_nrm hits W20-W0
+    _w20 = pts["W20"]; _w0 = pts["W0"]
+    _dw = (_w0[0] - _w20[0], _w0[1] - _w20[1])
+    _u = (_dim_s[0] - _w20[0], _dim_s[1] - _w20[1])
+    _det = _nrm[0] * _dw[1] - _nrm[1] * _dw[0]
+    _t_line = (_u[0] * _dw[1] - _u[1] * _dw[0]) / _det
+    _dim_e = (_dim_s[0] - _t_line * _nrm[0], _dim_s[1] - _t_line * _nrm[1])
     _dsx1, _dsy1 = to_svg(*_dim_s)
     _dsx2, _dsy2 = to_svg(*_dim_e)
     _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
@@ -1500,7 +1501,7 @@ def _render_dimensions(out, data, layout):
     _lx = _lmx + 3 * _up_dy / _slen; _ly = _lmy - 3 * _up_dx / _slen
     out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
-               f'CLOSET {fmt_dist(_t_arc)}</text>')
+               f'CLOSET {fmt_dist(_t_line)}</text>')
 
     # Utility
     dim_line_h(out, pts["W1"][0], (layout.ctr.s + layout.ctr.n) / 2, layout.ctr.e,
