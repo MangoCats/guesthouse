@@ -82,9 +82,6 @@ IW3_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 # IW4 rough opening
 IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
-# RO6 (fireplace opening in IW1)
-RO6_WIDTH = 48.0 / 12.0           # 48" opening width E-W
-
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition
 IW6_OFFSET_N = 5.5                 # 5'6" south of F6-F7 south face

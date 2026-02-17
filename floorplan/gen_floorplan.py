@@ -849,7 +849,7 @@ def _render_kitchen(out, data, layout, minik=False):
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
     else:
-        # SE corner: 9" east of hearth + 36", 2" north of IW1 north face
+        # SE corner: relative to IW4 west face, 2" north of IW1 north face
         hearth_e = layout.iw4_w
         fr_e = hearth_e + STD_GAP + FRIDGE_SIZE + 7.0 / 12.0
         fr_s = layout.iw1_n + STD_GAP
@@ -1201,7 +1201,7 @@ def _render_furniture(out, data, layout, minik=False):
                f'KING BED</text>')
 
     if minik:
-        # SOFA: 73.2" E-W x 24.6" N-S, 6" east of hearth, 2" north of IW1
+        # SOFA: 73.2" E-W x 24.6" N-S, 6" east of IW4 west, 2" north of IW1
         sofa_w = layout.iw4_w + 6.0 / 12.0
         sofa_e = sofa_w + SOFA_WIDTH - 24.0 / 12.0
         sofa_s = layout.iw1_n + 2.0 / 12.0
@@ -1402,62 +1402,6 @@ def _render_furniture(out, data, layout, minik=False):
                f' font-size="7" fill="{APPL_STROKE}">CHAIR</text>')
     out.append('</a>')
     out.append('</g>')
-
-    # FIREPLACE: 48" E-W x 30" N-S, hearth east = IW4 west, 12" north of IW1 south
-    fp_e = layout.iw4_w - 12.0 / 12.0
-    fp_w = fp_e - 48.0 / 12.0
-    fp_n = layout.iw1_s + 12.0 / 12.0
-    fp_s = fp_n - 30.0 / 12.0
-    fp_sx1, fp_sy1 = to_svg(fp_w, fp_n)
-    fp_sx2, fp_sy2 = to_svg(fp_e, fp_s)
-    fp_sw = fp_sx2 - fp_sx1; fp_sh = fp_sy2 - fp_sy1
-    out.append(f'<rect x="{fp_sx1:.1f}" y="{fp_sy1:.1f}" width="{fp_sw:.1f}" height="{fp_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    fp_cx = (fp_sx1 + fp_sx2) / 2
-    fp_cy = (fp_sy1 + fp_sy2) / 2
-    out.append(f'<text x="{fp_cx:.1f}" y="{fp_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">FIREPLACE</text>')
-    fp_dim_y = (fp_cy + 3 + fp_sy2) / 2 + 2
-    fp_ew_in = round((fp_e - fp_w) * 12.0)
-    fp_ns_in = round((fp_n - fp_s) * 12.0)
-    out.append(f'<text x="{fp_cx:.1f}" y="{fp_dim_y:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="5" fill="{APPL_STROKE}">{fp_ew_in:.0f}&quot; x {fp_ns_in:.0f}&quot;</text>')
-
-    # HEARTH: +/-12" E-W, +/-20" N-S around fireplace, split by IW1
-    h_w = fp_w - 12.0 / 12.0
-    h_e = fp_e + 12.0 / 12.0
-    h_s = fp_s - 20.0 / 12.0
-    h_n = fp_n + 20.0 / 12.0
-    # South hearth (below IW1 south face)
-    hs_sx1, hs_sy1 = to_svg(h_w, layout.iw1_s)
-    hs_sx2, hs_sy2 = to_svg(h_e, h_s)
-    hs_sw = hs_sx2 - hs_sx1; hs_sh = hs_sy2 - hs_sy1
-    out.append(f'<rect x="{hs_sx1:.1f}" y="{hs_sy1:.1f}" width="{hs_sw:.1f}" height="{hs_sh:.1f}"'
-               f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" stroke-dasharray="3,2"/>')
-    hs_cx = (hs_sx1 + hs_sx2) / 2
-    hs_label_n = (fp_s + h_s) / 2  # centered between fireplace S and hearth S
-    _, hs_ly = to_svg(0, hs_label_n)
-    out.append(f'<text x="{hs_cx:.1f}" y="{hs_ly+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="5" fill="{APPL_STROKE}">HEARTH</text>')
-    # North hearth (above IW1 north face)
-    hn_sx1, hn_sy1 = to_svg(h_w, h_n)
-    hn_sx2, hn_sy2 = to_svg(h_e, layout.iw1_n)
-    hn_sw = hn_sx2 - hn_sx1; hn_sh = hn_sy2 - hn_sy1
-    out.append(f'<rect x="{hn_sx1:.1f}" y="{hn_sy1:.1f}" width="{hn_sw:.1f}" height="{hn_sh:.1f}"'
-               f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" stroke-dasharray="3,2"/>')
-    hn_cx = (hn_sx1 + hn_sx2) / 2
-    hn_cy = (hn_sy1 + hn_sy2) / 2
-    out.append(f'<text x="{hn_cx:.1f}" y="{hn_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="5" fill="{APPL_STROKE}">HEARTH</text>')
-
-    # WW6: 30" radius circle centered on fireplace SW corner
-    ww6_r = 30.0 / 12.0
-    ww6_sx, ww6_sy = to_svg(fp_w, fp_s)
-    ww6_r_svg = to_svg(ww6_r, 0)[0] - to_svg(0, 0)[0]
-    out.append(f'<circle cx="{ww6_sx:.1f}" cy="{ww6_sy:.1f}" r="{ww6_r_svg:.1f}"'
-               f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
-    out.append(f'<text x="{ww6_sx + ww6_r_svg + 3:.1f}" y="{ww6_sy+3:.1f}" font-family="Arial"'
-               f' font-size="7" fill="{DIM_COLOR}">WW6</text>')
 
     # Room labels
     bd_cx = (layout.iw9.e + layout.iw4_w) / 2

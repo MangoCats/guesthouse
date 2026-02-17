@@ -201,7 +201,7 @@ class TestRenderWallsSvgWithInterior:
             assert f">{name}<" in rendered_all, f"Missing label {name}"
 
     def test_rough_opening_labels_present(self, rendered_all):
-        for name in ["RO1", "RO2", "RO3", "RO4", "RO5", "RO6"]:
+        for name in ["RO1", "RO2", "RO3", "RO4", "RO5"]:
             assert f">{name}<" in rendered_all, f"Missing label {name}"
 
     def test_rough_opening_rects(self, rendered_all):

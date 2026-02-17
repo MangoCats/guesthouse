@@ -316,7 +316,7 @@ def _render_interior_walls(out, data):
     iw_label("IW5", layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n,
              vertical=False)
 
-    # Rough openings (RO1-RO6) — dark red outline box with X
+    # Rough openings (RO1-RO5) — dark red outline box with X
     _RO_COLOR = "darkred"
     _RO_SW = "0.5"
     for ro in rough_openings:

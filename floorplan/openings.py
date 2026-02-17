@@ -19,7 +19,6 @@ from floorplan.constants import (
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH,
     IW4_RO_WIDTH,
-    RO6_WIDTH,
     IW6_THICKNESS, IW6_OFFSET_N, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
@@ -174,7 +173,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
 
 
 def compute_rough_openings(pts, layout) -> list[RoughOpening]:
-    """Compute all 6 interior rough-opening bounding boxes."""
+    """Compute all 5 interior rough-opening bounding boxes."""
     iw1_s = layout.iw1_s
     iw1_n = layout.iw1_n
     iw6_n = pts["W6"][1] - IW6_OFFSET_N
@@ -203,18 +202,12 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     ro5_e = layout.iw2.w - IW6_RO_OFFSET_W
     ro5_w = ro5_e - IW6_RO_WIDTH
 
-    # RO6: in IW1, horizontal — fireplace pass-through
-    # Hearth east = IW4 west; fireplace 12" inside hearth; RO6 = fireplace
-    ro6_e = layout.iw4_w - 12.0 / 12.0
-    ro6_w = ro6_e - RO6_WIDTH
-
     return [
         RoughOpening("RO1", BBox(w=ro1_w, s=iw1_s, e=ro1_e, n=iw1_n), "IW1", "H"),
         RoughOpening("RO2", BBox(w=layout.iw4_w, s=ro2_s, e=layout.iw4_e, n=ro2_n), "IW4", "V"),
         RoughOpening("RO3", BBox(w=layout.iw3.w, s=ro3_s, e=layout.iw3.e, n=ro3_n), "IW3", "V"),
         RoughOpening("RO4", BBox(w=layout.iw2.w, s=ro4_s, e=layout.iw2.e, n=ro4_n), "IW2", "V"),
         RoughOpening("RO5", BBox(w=ro5_w, s=iw6_s, e=ro5_e, n=iw6_n), "IW6", "H"),
-        RoughOpening("RO6", BBox(w=ro6_w, s=iw1_s, e=ro6_e, n=iw1_n), "IW1", "H"),
     ]
 
 
