@@ -861,9 +861,9 @@ def _render_kitchen(out, data, layout, minik=False):
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
     else:
-        # SE corner: relative to IW4 west face, 2" north of IW1 north face
-        hearth_e = layout.iw4_w
-        fr_e = hearth_e + STD_GAP + FRIDGE_SIZE + 7.0 / 12.0
+        # East edge 6" west of RO1, 2" north of IW1 north face
+        ro1_w = layout.iw9.e + RO1_OFFSET_E_IW9
+        fr_e = ro1_w - 6.0 / 12.0
         fr_s = layout.iw1_n + STD_GAP
         fr_w = fr_e - 32.75 / 12.0
         fr_n = fr_s + 35.0 / 12.0
@@ -1074,8 +1074,8 @@ def _render_kitchen(out, data, layout, minik=False):
     # Position: north side 30" south of space north, centered E-W
     if not minik:
         # Center between fridge west and IW2 east + 1.125" east
-        hearth_e = layout.iw4_w
-        _fr_w = hearth_e + STD_GAP + FRIDGE_SIZE + 7.0 / 12.0 - 32.75 / 12.0
+        _ro1_w = layout.iw9.e + RO1_OFFSET_E_IW9
+        _fr_w = _ro1_w - 6.0 / 12.0 - 32.75 / 12.0
         tbl_cx = (_fr_w + layout.iw2.e) / 2 + 1.125 / 12.0
     else:
         # Center on SINK west end
