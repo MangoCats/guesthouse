@@ -301,11 +301,6 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     iw4_poly = [(L.iw4_w,L.iw4_s),(L.iw4_e,L.iw4_s),(L.iw4_e,L.iw1_s),(L.iw4_w,L.iw1_s)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw4_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW8 N-S wall
-    iwt3 = L.iwt3
-    iw8_poly = L.iw8
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw8_poly)
-    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW11 N-S wall
     iw11 = L.iw11
     iw11_poly = [(iw11.w,iw11.s),(iw11.e,iw11.s),(iw11.e,iw11.n),(iw11.w,iw11.n)]
@@ -340,11 +335,11 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     bcx,bly = (bs[0]+be[0])/2,bs[1]+0.765*bh
     lines.append(f'<text x="{bcx:.1f}" y="{bly+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
     # Room labels
-    cx,cy = to_svg((ctr_e+iwt3+L.iw9.w)/2,(ctr_s+ctr_n)/2)
+    cx,cy = to_svg((ctr_e+L.iwt3+L.iw9.w)/2,(ctr_s+ctr_n)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     bx,by = to_svg((L.iw9.e+L.iw4_w)/2,(ctr_s+L.iw1_s)/2)
     lines.append(f'<text x="{bx:.1f}" y="{by+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
-    cx,cy = to_svg((L.iw4_e+L.iw8_w)/2,(wsn+wsn+6.0)/2)
+    cx,cy = to_svg((L.iw4_e+L.iw4_w)/2,(wsn+wsn+6.0)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     lines.append('</g>')
 

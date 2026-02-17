@@ -356,7 +356,7 @@ def compute_iw_area(layout):
     iw12 = layout.iw12
     iw12_poly = [(iw12.w, iw12.s), (iw12.e, iw12.s), (iw12.e, iw12.n), (iw12.w, iw12.n)]
     iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
-                iw3_poly, iw9_poly, iw10_poly, iw4_poly, iw11_poly, iw12_poly, layout.iw8, iw5_poly]
+                iw3_poly, iw9_poly, iw10_poly, iw4_poly, iw11_poly, iw12_poly, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -659,9 +659,6 @@ def _render_walls(out, data, layout):
         jx2, jy2 = to_svg(layout.iw4_e, jamb_n)
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
-
-    # ---- IW8 ----
-    wall_poly(out, layout.iw8, to_svg)
 
     # ---- IW11 ----
     iw11 = layout.iw11
@@ -1451,8 +1448,8 @@ def _render_dimensions(out, data, layout):
     # Utility
     dim_line_h(out, pts["W1"][0], (layout.ctr.s + layout.ctr.n) / 2, layout.ctr.e,
                fmt_dist(layout.ctr.e - pts["W1"][0]), to_svg)
-    dim_line_h(out, layout.iw8_e, 5.0, pts["W15"][0],
-               fmt_dist(pts["W15"][0] - layout.iw8_e), to_svg)
+    dim_line_h(out, layout.iw4_e, 5.0, pts["W15"][0],
+               fmt_dist(pts["W15"][0] - layout.iw4_e), to_svg)
 
     # Storage
     dim_line_h(out, layout.iw4_e, (layout.iw5.n + layout.iw1_s) / 2, pts["W15"][0],

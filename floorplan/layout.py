@@ -43,10 +43,6 @@ class InteriorLayout(NamedTuple):
     iw4_e: float
     iw4_s: float
     wall_south_n: float
-    # IW8 (N-S wall, 6' from south wall)
-    iw8: list[Point]
-    iw8_w: float
-    iw8_e: float
     # Closet 1
     cl1_top: float
     # Bed
@@ -117,13 +113,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     iw4_w = iw9_e + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH
     iw4_e = iw4_w + WALL_4IN
-    iw4_s = WALL_SOUTH_N + 6.0 + 4.0 / 12.0
+    iw4_s = WALL_SOUTH_N
     wall_south_n = WALL_SOUTH_N
     cl1_top = iw7_n - 1.0
-    iw8_w = iw9_e + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH
-    iw8_e = iw8_w + WALL_3IN
-    iw8_poly = [(iw8_w, wall_south_n + 6.0), (iw8_e, wall_south_n + 6.0),
-                (iw8_e, wall_south_n), (iw8_w, wall_south_n)]
 
     # IW11: 4" thick, south extension below IW4 to south wall
     iw11_w = iw9_e + BEDROOM_WIDTH
@@ -173,7 +165,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw4_w=iw4_w, iw4_e=iw4_e, iw4_s=iw4_s, wall_south_n=wall_south_n,
         iw11=BBox(w=iw11_w, s=iw11_s, e=iw11_e, n=iw11_n),
         iw12=BBox(w=iw12_w, s=iw12_s, e=iw12_e, n=iw12_n),
-        iw8=iw8_poly, iw8_w=iw8_w, iw8_e=iw8_e,
         cl1_top=cl1_top,
         bed=BBox(w=bed_w, s=bed_s, e=bed_e, n=bed_n), bed_cx=bed_cx,
         iw5=BBox(w=iw5_w, s=iw5_s, e=iw5_e, n=iw5_n),
