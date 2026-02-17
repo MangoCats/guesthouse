@@ -146,7 +146,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _norm_E = _along_N    # right normal = inward
     _norm_N = -_along_E
     _iw11_thick = WALL_4IN
-    _iw11_len = 6.0  # 6'
+    _iw11_len = (iw1_s - iw11_se[1]) / _norm_N  # extend to IW1 south face
     iw11_sw = (iw11_se[0] + _iw11_thick * _along_E,
                iw11_se[1] + _iw11_thick * _along_N)
     iw11_ne = (iw11_se[0] + _iw11_len * _norm_E,
