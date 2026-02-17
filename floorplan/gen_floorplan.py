@@ -347,13 +347,15 @@ def compute_iw_area(layout):
     iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
     iw7 = layout.iw7
     iw7_poly = [(iw7.w, iw7.s), (iw7.e, iw7.s), (iw7.e, iw7.n), (iw7.w, iw7.n)]
+    iw9 = layout.iw9
+    iw9_poly = [(iw9.w, iw9.s), (iw9.e, iw9.s), (iw9.e, iw9.n), (iw9.w, iw9.n)]
     _iw4_n_area = layout.iw12_poly[2][1]  # IW12 NE northing
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, _iw4_n_area), (layout.iw4_w, _iw4_n_area)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
     iw8 = layout.iw8
     iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
-    iw_polys = [layout.iw1, iw8_poly, iw2_poly, iw3_poly, iw7_poly, layout.iw6_poly,
+    iw_polys = [layout.iw1, iw8_poly, iw2_poly, iw3_poly, iw7_poly, iw9_poly, layout.iw6_poly,
                 iw4_poly, layout.iw11_poly, layout.iw12_poly,
                 layout.iw14_poly, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
@@ -567,6 +569,18 @@ def _render_walls(out, data, layout):
     iw7_s_in = iw7.s + half_sw
     for a, b in [((iw7.w, iw7_n_in), (iw7.e, iw7_n_in)),
                  ((iw7.w, iw7_s_in), (iw7.e, iw7_s_in))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+
+    # ---- IW9 (solid, no opening) ----
+    iw9 = layout.iw9
+    iw9_poly = [(iw9.w, iw9.s), (iw9.e, iw9.s), (iw9.e, iw9.n), (iw9.w, iw9.n)]
+    wall_poly(out, iw9_poly, to_svg, stroke=False)
+    iw9_w_in = iw9.w + half_sw
+    iw9_e_in = iw9.e - half_sw
+    for a, b in [((iw9_w_in, iw9.s), (iw9_w_in, iw9.n)),
+                 ((iw9_e_in, iw9.s), (iw9_e_in, iw9.n))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')

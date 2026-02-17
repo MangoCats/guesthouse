@@ -12,7 +12,7 @@ from floorplan.constants import (
     BED_WIDTH, BED_LENGTH,
     O9_HALF_WIDTH,
     IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E,
-    IW3_LENGTH, IW7_OFFSET_S_IW1, WW10_RADIUS,
+    IW3_LENGTH, IW7_OFFSET_S_IW1, IW7_LENGTH,
     IW4_OFFSET_E_IW2, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
     IW4_RO_WIDTH,
@@ -37,8 +37,10 @@ class InteriorLayout(NamedTuple):
     ctr_nw_r: float
     # Interior wall 3 (IW3) — vertical wall, west face aligned with IW2
     iw3: BBox
-    # Interior wall 7 (IW7) — horizontal wall, west at IW3 east, east at WW10
+    # Interior wall 7 (IW7) — horizontal wall, west at IW3 east, 66" long
     iw7: BBox
+    # Interior wall 9 (IW9) — vertical wall, IW7 north to IW1 south, east = IW7 east
+    iw9: BBox
     # Wall thicknesses
     iwt3: float
     iwt4: float
@@ -190,12 +192,17 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
               bed_sw[1] + BED_LENGTH * _norm_N)
     bed_poly = [bed_sw, bed_se, bed_ne, bed_nw]
 
-    # IW7: 4" thick, E-W, west at IW3 east, NE corner on WW10 circle
+    # IW7: 4" thick, E-W, west at IW3 east, 66" long
     iw7_n = iw1_s - IW7_OFFSET_S_IW1
     iw7_s = iw7_n - WALL_4IN
     iw7_w = iw3_e
-    _ww10_cx, _ww10_cy = bed_nw
-    iw7_e = _ww10_cx - math.sqrt(WW10_RADIUS**2 - (iw7_n - _ww10_cy)**2)
+    iw7_e = iw7_w + IW7_LENGTH
+
+    # IW9: 4" thick, N-S, from IW7 north to IW1 south, east face = IW7 east
+    iw9_e = iw7_e
+    iw9_w = iw9_e - WALL_4IN
+    iw9_s = iw7_n
+    iw9_n = iw1_s
 
     # IW8: 6" thick, horizontal, from W1-W2 face to IW1 west end
     iw8_w = pts["W1"][0]
@@ -243,6 +250,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw2=BBox(w=iw2_w, s=iw2_s, e=iw2_e, n=iw2_n),
         iw3=BBox(w=iw3_w, s=iw3_s, e=iw3_e, n=iw3_n),
         iw7=BBox(w=iw7_w, s=iw7_s, e=iw7_e, n=iw7_n),
+        iw9=BBox(w=iw9_w, s=iw9_s, e=iw9_e, n=iw9_n),
         dryer=BBox(w=dryer_w, s=dryer_s, e=dryer_e, n=dryer_n),
         washer=BBox(w=washer_w, s=washer_s, e=washer_e, n=washer_n),
         ctr=BBox(w=ctr_w, s=ctr_s, e=ctr_e, n=ctr_n), ctr_nw_r=ctr_nw_r,

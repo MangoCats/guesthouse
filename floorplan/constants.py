@@ -83,6 +83,7 @@ IW3_LENGTH = 78.0 / 12.0          # 78" N-S length
 
 # IW7 (horizontal, 4" thick)
 IW7_OFFSET_S_IW1 = 30.0 / 12.0   # 30" IW7 north face south of IW1 south face
+IW7_LENGTH = 66.0 / 12.0          # 66" E-W length
 WW10_RADIUS = 30.0 / 12.0         # 30" WW10 circle radius (bed NW corner)
 
 # IW4 rough opening
