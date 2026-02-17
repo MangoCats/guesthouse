@@ -1504,8 +1504,8 @@ def _render_dimensions(out, data, layout):
                label_n=(layout.iw5.s + pts["W18"][1]) / 2 + 2.5)
     dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
                fmt_dist(pts["W6"][1] - layout.iw6_n), to_svg)
-    dim_line_v(out, pts["F6"][0] + 1.0, layout.iw1_n, layout.iw6_s,
-               fmt_dist(layout.iw6_s - layout.iw1_n), to_svg)
+    dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, layout.iw6_s,
+               fmt_dist(layout.iw6_s - layout.iw8.n), to_svg)
 
     # External dimensions
     dim_ext_e = pts["F2"][0] - 2.7
