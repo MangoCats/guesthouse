@@ -36,6 +36,7 @@ from floorplan.constants import (
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, IW4_RO_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
+    WW10_RADIUS,
 )
 from floorplan.layout import compute_interior_layout
 from floorplan.openings import (
@@ -344,13 +345,15 @@ def compute_iw_area(layout):
     iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
     iw3 = layout.iw3
     iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
+    iw7 = layout.iw7
+    iw7_poly = [(iw7.w, iw7.s), (iw7.e, iw7.s), (iw7.e, iw7.n), (iw7.w, iw7.n)]
     _iw4_n_area = layout.iw12_poly[2][1]  # IW12 NE northing
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, _iw4_n_area), (layout.iw4_w, _iw4_n_area)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
     iw8 = layout.iw8
     iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
-    iw_polys = [layout.iw1, iw8_poly, iw2_poly, iw3_poly, layout.iw6_poly,
+    iw_polys = [layout.iw1, iw8_poly, iw2_poly, iw3_poly, iw7_poly, layout.iw6_poly,
                 iw4_poly, layout.iw11_poly, layout.iw12_poly,
                 layout.iw14_poly, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
@@ -552,6 +555,18 @@ def _render_walls(out, data, layout):
     iw3_e_in = iw3.e - half_sw
     for a, b in [((iw3_w_in, iw3.s), (iw3_w_in, iw3.n)),
                  ((iw3_e_in, iw3.s), (iw3_e_in, iw3.n))]:
+        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+
+    # ---- IW7 (solid, no opening) ----
+    iw7 = layout.iw7
+    iw7_poly = [(iw7.w, iw7.s), (iw7.e, iw7.s), (iw7.e, iw7.n), (iw7.w, iw7.n)]
+    wall_poly(out, iw7_poly, to_svg, stroke=False)
+    iw7_n_in = iw7.n - half_sw
+    iw7_s_in = iw7.s + half_sw
+    for a, b in [((iw7.w, iw7_n_in), (iw7.e, iw7_n_in)),
+                 ((iw7.w, iw7_s_in), (iw7.e, iw7_s_in))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
@@ -1210,7 +1225,7 @@ def _render_furniture(out, data, layout, minik=False):
                f' font-size="7" fill="{DIM_COLOR}">WW9</text>')
 
     # WW10: 30" radius circle centered on NW corner of king bed
-    _ww10_r_svg = (30.0 / 12.0) * abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
+    _ww10_r_svg = WW10_RADIUS * abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
     _ww10_sx, _ww10_sy = to_svg(*_bp[3])
     out.append(f'<circle cx="{_ww10_sx:.1f}" cy="{_ww10_sy:.1f}" r="{_ww10_r_svg:.1f}"'
                f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
