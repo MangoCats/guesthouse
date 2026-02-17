@@ -351,12 +351,10 @@ def compute_iw_area(layout):
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
-    iw11 = layout.iw11
-    iw11_poly = [(iw11.w, iw11.s), (iw11.e, iw11.s), (iw11.e, iw11.n), (iw11.w, iw11.n)]
     iw12 = layout.iw12
     iw12_poly = [(iw12.w, iw12.s), (iw12.e, iw12.s), (iw12.e, iw12.n), (iw12.w, iw12.n)]
     iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
-                iw3_poly, iw9_poly, iw10_poly, iw4_poly, iw11_poly, iw12_poly, iw5_poly]
+                iw3_poly, iw9_poly, iw10_poly, iw4_poly, layout.iw11_poly, iw12_poly, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -661,9 +659,8 @@ def _render_walls(out, data, layout):
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
     # ---- IW11 ----
+    wall_poly(out, layout.iw11_poly, to_svg, stroke=False)
     iw11 = layout.iw11
-    iw11_poly = [(iw11.w, iw11.s), (iw11.e, iw11.s), (iw11.e, iw11.n), (iw11.w, iw11.n)]
-    wall_poly(out, iw11_poly, to_svg, stroke=False)
     w_in = iw11.w + half_sw
     e_in = iw11.e - half_sw
     for e_val in [w_in, e_in]:

@@ -1,4 +1,5 @@
 """Interior layout computation — rooms, walls, appliances, furniture."""
+import math
 from typing import NamedTuple
 
 from shared.types import Point, BBox
@@ -53,7 +54,8 @@ class InteriorLayout(NamedTuple):
     # IW10 (4" thick, horizontal — closet north wall, IW3.e to IW9.e)
     iw10: BBox
     # IW11 (4" thick, N-S — south extension below IW4)
-    iw11: BBox
+    iw11: BBox         # bounding box (for labels/dimensions)
+    iw11_poly: list[Point]  # actual polygon (SE corner on W20-W20a)
     # IW12 (4" thick, E-W — connects IW11 west to IW4 west)
     iw12: BBox
     # IW5 (3" thick, horizontal in office)
@@ -117,11 +119,27 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     wall_south_n = WALL_SOUTH_N
     cl1_top = iw7_n - 1.0
 
-    # IW11: 4" thick, south extension below IW4 to south wall
+    # IW11: 4" thick, south extension below IW4
     iw11_w = iw9_e + BEDROOM_WIDTH
     iw11_e = iw11_w + WALL_4IN
-    iw11_s = wall_south_n
     iw11_n = wall_south_n + 6.0
+    # SE corner: intersection of line W20-W20a with circle(W19, 32")
+    _w19 = pts["W19"]
+    _w20 = pts["W20"]
+    _w20a = pts["W20a"]
+    _dE = _w20a[0] - _w20[0]
+    _dN = _w20a[1] - _w20[1]
+    _uE = _w20[0] - _w19[0]
+    _uN = _w20[1] - _w19[1]
+    _r = 32.0 / 12.0
+    _qa = _dE**2 + _dN**2
+    _qb = 2 * (_uE * _dE + _uN * _dN)
+    _qc = _uE**2 + _uN**2 - _r**2
+    _disc = _qb**2 - 4 * _qa * _qc
+    _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)  # westward along W20-W20a
+    iw11_se = (_w20[0] + _t * _dE, _w20[1] + _t * _dN)
+    iw11_s = wall_south_n
+    iw11_poly = [(iw11_w, iw11_s), iw11_se, (iw11_e, iw11_n), (iw11_w, iw11_n)]
 
     # IW12: 4" thick, E-W from IW11 west face to IW4 west face
     iw12_w = iw11_w
@@ -163,7 +181,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw9=BBox(w=iw9_w, s=iw9_s, e=iw9_e, n=iw9_n),
         iw10=BBox(w=iw10_w, s=iw10_s, e=iw10_e, n=iw10_n),
         iw4_w=iw4_w, iw4_e=iw4_e, iw4_s=iw4_s, wall_south_n=wall_south_n,
-        iw11=BBox(w=iw11_w, s=iw11_s, e=iw11_e, n=iw11_n),
+        iw11=BBox(w=iw11_w, s=iw11_s, e=iw11_e, n=iw11_n), iw11_poly=iw11_poly,
         iw12=BBox(w=iw12_w, s=iw12_s, e=iw12_e, n=iw12_n),
         cl1_top=cl1_top,
         bed=BBox(w=bed_w, s=bed_s, e=bed_e, n=bed_n), bed_cx=bed_cx,

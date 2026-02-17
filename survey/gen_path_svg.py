@@ -302,9 +302,7 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw4_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW11 N-S wall
-    iw11 = L.iw11
-    iw11_poly = [(iw11.w,iw11.s),(iw11.e,iw11.s),(iw11.e,iw11.n),(iw11.w,iw11.n)]
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw11_poly)
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw11_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW12 E-W wall
     iw12 = L.iw12

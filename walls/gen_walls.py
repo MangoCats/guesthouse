@@ -303,7 +303,7 @@ def _render_interior_walls(out, data):
     iw_label("IW4", layout.iw4_w, layout.iw4_e, layout.iw4_s, layout.iw3.n)
 
     # IW11 (vertical, 4")
-    iw_rect(layout.iw11.w, layout.iw11.e, layout.iw11.s, layout.iw11.n)
+    iw_poly(layout.iw11_poly)
     iw_label("IW11", layout.iw11.w, layout.iw11.e, layout.iw11.s, layout.iw11.n)
 
     # IW12 (horizontal, 4")
