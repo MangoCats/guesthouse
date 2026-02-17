@@ -157,7 +157,8 @@ def build_wall_data():
     w_f8f9_poly = fp_data.w_f8f9_poly
 
     # --- Page layout: 1:72 scale ---
-    _f_svg = [to_svg(*pts[f"F{i}"]) for i in range(22)]
+    _f_names = [f"F{i}" for i in range(22)] + ["F20a"]
+    _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
     _bldg_ymin = min(p[1] for p in _f_svg)
@@ -482,7 +483,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     OPENING_FILL = "rgb(220,235,255)"
 
     # --- Draw wall sections ---
-    for seg_idx in range(22):
+    for seg_idx in range(len(outline_segs)):
         seg = outline_segs[seg_idx]
         inner_seg = inner_segs[seg_idx]
         s_seg = s_segs[seg_idx]

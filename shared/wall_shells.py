@@ -18,14 +18,15 @@ def compute_inset_path(outline_segs, pts, radii, inset, prefix):
     """Compute a shell boundary path at given inset distance.
 
     Returns (new_pts_dict, new_segs) with point names using the given prefix
-    (e.g., "S0".."S21" for prefix="S").
+    (e.g., "S0".."S21", "S20a" for prefix="S").
     """
     tmp_pts = dict(pts)
     tmp_segs = compute_inner_walls(outline_segs, tmp_pts, inset, radii)
 
     result_pts = {}
-    for i in range(22):
-        result_pts[f"{prefix}{i}"] = tmp_pts[f"W{i}"]
+    for seg in outline_segs:
+        suffix = seg.end[1:]  # "0", "1", ..., "20a", "21"
+        result_pts[f"{prefix}{suffix}"] = tmp_pts[f"W{suffix}"]
 
     result_segs = []
     for seg in tmp_segs:

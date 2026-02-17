@@ -226,7 +226,7 @@ def compute_inner_walls(
     Mutates pts adding W-series points.
     Returns inner_segs list.
 
-    radii keys: R_a0, R_a19, R_a17, R_a15,
+    radii keys: R_a0, R_a19, R_a20, R_a17, R_a15,
                 R_a11, R_a8, R_a7, R_a5, R_a13, R_a10
     """
     def _inner_point(seg_b, seg_a):
@@ -277,7 +277,8 @@ def compute_inner_walls(
         ArcSeg("W17","W18","C17",R["R_a17"]-wall_t,"CW",20),
         LineSeg("W18","W19"),
         ArcSeg("W19","W20","C19",R["R_a19"]-wall_t,"CW",60),
-        LineSeg("W20","W21"),
+        LineSeg("W20","W20a"),
+        ArcSeg("W20a","W21","C20",R["R_a20"]+wall_t,"CCW",60),
         LineSeg("W21","W0"),
     ]
     return inner_segs

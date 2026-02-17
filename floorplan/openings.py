@@ -136,12 +136,12 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (o9_e, pts["W0"][1]), (o9_w, pts["W0"][1]),
     ]))
 
-    # O10: F21-F0, horizontal (bed area) — centered between bed west and IW9 east
-    o10_cn = (layout.bed.w + layout.iw9.e) / 2
-    openings.append(OuterOpening("O10", "F21", "F0", [
-        (o10_cn - O10_HALF_WIDTH, pts["F0"][1]), (o10_cn + O10_HALF_WIDTH, pts["F0"][1]),
-        (o10_cn + O10_HALF_WIDTH, pts["W0"][1]), (o10_cn - O10_HALF_WIDTH, pts["W0"][1]),
-    ]))
+    # O10: disabled — bed area is east of F21 after SE corner geometry change
+    # o10_cn = (layout.bed.w + layout.iw9.e) / 2
+    # openings.append(OuterOpening("O10", "F21", "F0", [
+    #     (o10_cn - O10_HALF_WIDTH, pts["F0"][1]), (o10_cn + O10_HALF_WIDTH, pts["F0"][1]),
+    #     (o10_cn + O10_HALF_WIDTH, pts["W0"][1]), (o10_cn - O10_HALF_WIDTH, pts["W0"][1]),
+    # ]))
 
     # O11: F21-F0, horizontal (utility area) — centered between dryer and counter
     o11_cn = (layout.dryer.e + layout.ctr.w) / 2

@@ -156,6 +156,8 @@ F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
 F15_OFFSET_E = 9.0 + 1.0/12.0     # 9'1" F15 east of iw8_e
+SE_ARC_R = 180.0 / 12.0           # 180" SE corner arc radius (C19, C20)
+SE_STRAIGHT = 12.0                 # 12' straight segment F20-F20a
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)

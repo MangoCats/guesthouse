@@ -115,52 +115,50 @@ class TestBuildWallData:
         pts = wall_data.pts
         for i in range(22):
             assert f"S{i}" in pts, f"Missing S{i}"
+        assert "S20a" in pts, "Missing S20a"
 
     def test_g_series_points_exist(self, wall_data):
         pts = wall_data.pts
         for i in range(22):
             assert f"G{i}" in pts, f"Missing G{i}"
+        assert "G20a" in pts, "Missing G20a"
 
     def test_shell_distances(self, wall_data):
         """Shell boundary distances from F-series should match expected insets."""
-        # F20 is a non-tangent junction (arc C19 meets line F20-F21 at fixed
-        # sweep angle), so the offset point is not at exact shell distance.
-        NON_TANGENT = {20}
         pts = wall_data.pts
-        for i in range(22):
-            if i in NON_TANGENT:
-                continue
-            f_pt = pts[f"F{i}"]
-            s_pt = pts[f"S{i}"]
-            g_pt = pts[f"G{i}"]
-            w_pt = pts[f"W{i}"]
+        _suffixes = [str(i) for i in range(22)] + ["20a"]
+        for suffix in _suffixes:
+            f_pt = pts[f"F{suffix}"]
+            s_pt = pts[f"S{suffix}"]
+            g_pt = pts[f"G{suffix}"]
+            w_pt = pts[f"W{suffix}"]
 
             fs_dist = math.sqrt((f_pt[0] - s_pt[0])**2 + (f_pt[1] - s_pt[1])**2)
             fg_dist = math.sqrt((f_pt[0] - g_pt[0])**2 + (f_pt[1] - g_pt[1])**2)
             fw_dist = math.sqrt((f_pt[0] - w_pt[0])**2 + (f_pt[1] - w_pt[1])**2)
 
             assert fs_dist == pytest.approx(SHELL_THICKNESS, abs=0.01), \
-                f"F{i}-S{i} distance {fs_dist} != {SHELL_THICKNESS}"
+                f"F{suffix}-S{suffix} distance {fs_dist} != {SHELL_THICKNESS}"
             assert fg_dist == pytest.approx(SHELL_THICKNESS + AIR_GAP, abs=0.01), \
-                f"F{i}-G{i} distance {fg_dist} != {SHELL_THICKNESS + AIR_GAP}"
+                f"F{suffix}-G{suffix} distance {fg_dist} != {SHELL_THICKNESS + AIR_GAP}"
             assert fw_dist == pytest.approx(SHELL_THICKNESS * 2 + AIR_GAP, abs=0.01), \
-                f"F{i}-W{i} distance {fw_dist} != {SHELL_THICKNESS * 2 + AIR_GAP}"
+                f"F{suffix}-W{suffix} distance {fw_dist} != {SHELL_THICKNESS * 2 + AIR_GAP}"
 
-    def test_22_outline_segments(self, wall_data):
-        assert len(wall_data.outline_segs) == 22
+    def test_23_outline_segments(self, wall_data):
+        assert len(wall_data.outline_segs) == 23
 
-    def test_22_s_segments(self, wall_data):
-        assert len(wall_data.s_segs) == 22
+    def test_23_s_segments(self, wall_data):
+        assert len(wall_data.s_segs) == 23
 
-    def test_22_g_segments(self, wall_data):
-        assert len(wall_data.g_segs) == 22
+    def test_23_g_segments(self, wall_data):
+        assert len(wall_data.g_segs) == 23
 
-    def test_11_openings(self, wall_data):
-        assert len(wall_data.openings) == 11
+    def test_10_openings(self, wall_data):
+        assert len(wall_data.openings) == 10
 
     def test_opening_names(self, wall_data):
         names = {o.name for o in wall_data.openings}
-        expected = {f"O{i}" for i in range(1, 12)}
+        expected = {f"O{i}" for i in range(1, 12)} - {"O10"}
         assert names == expected
 
     def test_openings_on_line_segs(self, wall_data):
@@ -213,7 +211,7 @@ class TestRenderWallsSvgWithInterior:
     def test_opening_dim_labels_have_inch_marks(self, rendered_all):
         import re
         dim_labels = re.findall(r'fill="#4682B4"[^>]*>[^<]*&#8243;', rendered_all)
-        assert len(dim_labels) == 11
+        assert len(dim_labels) == 10
 
     def test_title_override(self, wall_data):
         svg = render_walls_svg(wall_data, title="Custom Title",
@@ -228,17 +226,19 @@ class TestRenderWallsSvg:
 
     def test_contains_all_opening_labels(self, rendered):
         for i in range(1, 12):
+            if i == 10:
+                continue  # O10 disabled (bed area east of F21)
             assert f">O{i}<" in rendered, f"Missing opening label O{i}"
 
     def test_wall_polygon_count(self, rendered):
         import re
         wall_fills = re.findall(r'fill="rgba\(180,180,180,0\.5\)"', rendered)
-        assert len(wall_fills) == 88
+        assert len(wall_fills) == 86
 
     def test_opening_polygon_count(self, rendered):
         import re
         opening_fills = re.findall(r'fill="rgb\(220,235,255\)"', rendered)
-        assert len(opening_fills) == 11
+        assert len(opening_fills) == 10
 
     def test_title_present(self, rendered):
         assert "Outer Walls" in rendered

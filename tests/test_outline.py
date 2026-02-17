@@ -8,8 +8,8 @@ from floorplan.geometry import OutlineGeometry
 
 # Known-good F-series coordinates (regression snapshot)
 _EXPECTED_F = {
-    "F0":  ( 1.3333333333,  0.5000000000),
-    "F1":  ( 0.5000000000,  1.3333333333),
+    "F0":  ( 1.3333333333,  0.6001730109),
+    "F1":  ( 0.5000000000,  1.4335063442),
     "F2":  ( 0.5000000000, 18.0000000000),
     "F3":  ( 1.0821917808, 19.5525114155),
     "F4":  ( 1.5000000000, 20.6666666667),
@@ -28,8 +28,9 @@ _EXPECTED_F = {
     "F17": (30.9332253454,  0.3580634639),
     "F18": (27.7308889019, -0.5000000000),
     "F19": (27.2308889019, -0.5000000000),
-    "F20": (26.8156615026, -0.4827287912),
-    "F21": (17.9802146530,  0.5000000000),
+    "F20": (25.9852067041, -0.4481863737),
+    "F20a":(14.0266576051,  0.5483593846),
+    "F21": (12.7809754073,  0.6001730109),
 }
 
 
@@ -37,15 +38,16 @@ class TestOutlineGeometry:
     def test_returns_outline_geometry(self, outline_geo):
         assert isinstance(outline_geo, OutlineGeometry)
 
-    def test_22_points(self, outline_geo):
+    def test_23_points(self, outline_geo):
         for i in range(22):
             assert f"F{i}" in outline_geo.fp_pts
+        assert "F20a" in outline_geo.fp_pts
 
-    def test_22_segments(self, outline_geo):
-        assert len(outline_geo.outline_segs) == 22
+    def test_23_segments(self, outline_geo):
+        assert len(outline_geo.outline_segs) == 23
 
-    def test_12_radii(self, outline_geo):
-        assert len(outline_geo.radii) == 12
+    def test_13_radii(self, outline_geo):
+        assert len(outline_geo.radii) == 13
         for key, val in outline_geo.radii.items():
             assert key.startswith("R_a")
             assert val > 0, f"{key} = {val}"
@@ -67,7 +69,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 853.91) < 0.1
+        assert abs(area - 854.42) < 0.1
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):

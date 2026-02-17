@@ -10,6 +10,7 @@ from floorplan.constants import (
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
     F16_F17_SEG, F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
+    SE_ARC_R, SE_STRAIGHT,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
@@ -31,8 +32,8 @@ class OutlineAnchors(NamedTuple):
 
 class OutlineGeometry(NamedTuple):
     """Complete outline geometry result."""
-    fp_pts: dict[str, Point]     # F0-F21 + C0-C20
-    outline_segs: list[Segment]  # 22 segments with F-series names
+    fp_pts: dict[str, Point]     # F0-F21 + F20a + C0-C20
+    outline_segs: list[Segment]  # 23 segments with F-series names
     radii: dict[str, float]      # R_a0 through R_a20
 
 
@@ -168,20 +169,16 @@ def _compute_central_region(
 
 
 def _compute_south_wall(
-    fp_pts: dict[str, Point], anchors: OutlineAnchors, R_a2: float, R_a3: float,
-) -> tuple[float, float]:
-    """South wall: F17-F21, C17, C19. Returns (R_a17, R_a19).
+    fp_pts: dict[str, Point],
+) -> tuple[float, float, float]:
+    """South wall: F17-F21, F20a, C17, C19, C20. Returns (R_a17, R_a19, R_a20).
 
-    Depends on F1, F16 already in fp_pts.
-    F20-F21 is a straight line (no arc C20).
+    Depends on F16 already in fp_pts.
+    F19-F20: CW arc (C19), F20-F20a: straight line, F20a-F21: CCW arc (C20).
+    F21-F0 exit bearing = 270° (due west).
     """
-    R_a20 = R_a3
-    R_a19 = 60.0 / 12.0  # 60" radius for F19-F20 arc
-    dN_c = (SOUTH_WALL_N + R_a19) - (anchors.Ti3[1] - R_a20)
-    dE_c = math.sqrt((R_a20 + R_a19)**2 - dN_c**2)
-    # Align F21 with east side of king bed
-    _bed_e_align = fp_pts["F1"][0] + WALL_OUTER + 20.5
-    fp_pts["F21"] = (_bed_e_align - dE_c - 2.0/12, anchors.Ti3[1])
+    R_a19 = SE_ARC_R   # 180" = 15'
+    R_a20 = SE_ARC_R   # same radius for C20
 
     # F17 on line from F16 at bearing 60°
     _brg_13 = math.radians(PIX_PI5_TARGET_BRG)
@@ -199,11 +196,31 @@ def _compute_south_wall(
     fp_pts["C19"] = (F19_E, SOUTH_WALL_N + R_a19)
     # F20: CW arc from F19 with sweep = atan(1/12)
     _sweep = math.atan2(1, 12)  # atan(1/12)
-    _theta = -math.pi / 2 - _sweep  # F19 at -π/2, sweep CW
-    fp_pts["F20"] = (fp_pts["C19"][0] + R_a19 * math.cos(_theta),
-                     fp_pts["C19"][1] + R_a19 * math.sin(_theta))
+    _theta_f20 = -math.pi / 2 - _sweep  # F19 at -π/2, sweep CW
+    fp_pts["F20"] = (fp_pts["C19"][0] + R_a19 * math.cos(_theta_f20),
+                     fp_pts["C19"][1] + R_a19 * math.sin(_theta_f20))
 
-    return R_a17, R_a19
+    # Exit bearing from C19 arc at F20 (CW: tangent angle = radius angle - π/2)
+    _exit_angle = _theta_f20 - math.pi / 2
+    _ex = math.cos(_exit_angle)   # -12/√145
+    _ey = math.sin(_exit_angle)   # 1/√145
+
+    # F20a: 12' from F20 along exit bearing
+    fp_pts["F20a"] = (fp_pts["F20"][0] + SE_STRAIGHT * _ex,
+                      fp_pts["F20"][1] + SE_STRAIGHT * _ey)
+
+    # C20: center of CCW arc from F20a to F21
+    # For CCW arc, center is to the LEFT of direction of travel
+    _left_x = -_ey   # -1/√145
+    _left_y = _ex     # -12/√145
+    fp_pts["C20"] = (fp_pts["F20a"][0] + R_a20 * _left_x,
+                     fp_pts["F20a"][1] + R_a20 * _left_y)
+
+    # F21: on C20 circle where exit bearing = 270° (due west)
+    # For CCW arc: tangent = radius_angle + π/2 = π  →  radius_angle = π/2
+    fp_pts["F21"] = (fp_pts["C20"][0], fp_pts["C20"][1] + R_a20)
+
+    return R_a17, R_a19, R_a20
 
 
 # ============================================================
@@ -218,7 +235,12 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     R_a5 = _compute_nw_corner(fp_pts, anchors)
     R_a2, R_a3, R_a7, R_a8 = _compute_east_wall_arcs(fp_pts)
     R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
-    R_a17, R_a19 = _compute_south_wall(fp_pts, anchors, R_a2, R_a3)
+    R_a17, R_a19, R_a20 = _compute_south_wall(fp_pts)
+
+    # F0: keep easting, set northing to match F21 (south wall exit is due west)
+    fp_pts["F0"] = (fp_pts["F0"][0], fp_pts["F21"][1])
+    fp_pts["C0"] = (fp_pts["F0"][0], fp_pts["F0"][1] + R_a0)
+    fp_pts["F1"] = (fp_pts["F1"][0], fp_pts["C0"][1])
 
     # --- Build outline segments (F-series) ---
     outline_segs: list[Segment] = [
@@ -242,7 +264,8 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         ArcSeg("F17", "F18", "C17", R_a17, "CW", 20),
         LineSeg("F18", "F19"),
         ArcSeg("F19", "F20", "C19", R_a19, "CW", 60),
-        LineSeg("F20", "F21"),
+        LineSeg("F20", "F20a"),
+        ArcSeg("F20a", "F21", "C20", R_a20, "CCW", 60),
         LineSeg("F21", "F0"),
     ]
 
@@ -250,7 +273,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         "R_a0": R_a0, "R_a2": R_a2, "R_a3": R_a3, "R_a5": R_a5,
         "R_a7": R_a7, "R_a8": R_a8, "R_a10": R_a10, "R_a11": R_a11,
         "R_a13": R_a13, "R_a15": R_a15, "R_a17": R_a17,
-        "R_a19": R_a19,
+        "R_a19": R_a19, "R_a20": R_a20,
     }
 
     return OutlineGeometry(fp_pts=fp_pts, outline_segs=outline_segs, radii=radii)

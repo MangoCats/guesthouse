@@ -272,7 +272,8 @@ def build_floorplan_data():
     # --- Fit content on letter landscape (792x612) page ---
     _margin_top = 36   # 0.5" top margin
     _margin = 72       # 1" margins on left, right, bottom
-    _f_svg = [to_svg(*pts[f"F{i}"]) for i in range(22)]
+    _f_names = [f"F{i}" for i in range(22)] + ["F20a"]
+    _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
     _bldg_ymin = min(p[1] for p in _f_svg)
@@ -380,7 +381,7 @@ def _render_walls(out, data, layout):
     R_out = R_in + shell_t
 
     # --- Per-segment shell strips ---
-    for seg_idx in range(22):
+    for seg_idx in range(len(outline_segs)):
         seg = outline_segs[seg_idx]
         inner_seg = inner_segs[seg_idx]
         s_seg = s_segs[seg_idx]
