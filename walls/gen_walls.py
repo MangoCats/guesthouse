@@ -380,8 +380,8 @@ def _render_interior_walls(out, data):
             _fdx = _sx2 - _sx1; _fdy = _sy2 - _sy1
             _fl = _m.sqrt(_fdx**2 + _fdy**2)
             _nudge = float(LABEL_SIZE) / 3.0
-            lx += (-_fdy / _fl) * _nudge
-            ly += (_fdx / _fl) * _nudge
+            lx += (_fdy / _fl) * _nudge
+            ly += (-_fdx / _fl) * _nudge
             rot = f' transform="rotate({_svg_ang:.1f} {lx:.1f} {ly:.1f})"'
         elif ro.orientation == "H":
             # Horizontal opening: label centered above (north)
