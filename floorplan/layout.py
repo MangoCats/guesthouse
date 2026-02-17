@@ -175,9 +175,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
     _t_sw9 = ((iw11_sw[0] - pts["F20"][0]) * _dE9
               + (iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
-    _ts9 = _t_sw9 + 4.0 / 12.0 / _seg9_len
+    _ts9 = _t_sw9 + 5.0 / 12.0 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
-    _bed_t = _te9 + 1.0 / 12.0 / _seg_len  # 1" past O9 NW along W20-W0
+    _bed_t = _te9 + 2.0 / 12.0 / _seg_len  # 2" past O9 NW along W20-W0
     _bed_se_wall = (_w20[0] + _bed_t * (_w0[0] - _w20[0]),
                     _w20[1] + _bed_t * (_w0[1] - _w20[1]))
     bed_se = (_bed_se_wall[0] + 2.0 / 12.0 * _norm_E,
@@ -191,7 +191,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     bed_poly = [bed_sw, bed_se, bed_ne, bed_nw]
 
     # IW9: 4" thick, perpendicular to W20-W0, 8" past O10 along inner wall
-    _ts10 = _te9 + 80.0 / 12.0 / _seg9_len
+    _ts10 = _te9 + 82.0 / 12.0 / _seg9_len
     _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
     _o10_end = (_w20[0] + _te10 * _dE, _w20[1] + _te10 * _dN)
     iw9_base = (_o10_end[0] + IW9_OFFSET_O10 * _along_E,
