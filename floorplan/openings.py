@@ -19,7 +19,7 @@ from floorplan.constants import (
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH,
     IW4_RO_WIDTH,
-    RO6_OFFSET_E, RO6_WIDTH,
+    RO6_WIDTH,
     IW6_THICKNESS, IW6_OFFSET_N, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
@@ -183,8 +183,9 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     ro5_w = ro5_e - IW6_RO_WIDTH
 
     # RO6: in IW1, horizontal — fireplace pass-through
-    ro6_w = layout.iw3.e + RO6_OFFSET_E
-    ro6_e = ro6_w + RO6_WIDTH
+    # Hearth east = IW4 west; fireplace 12" inside hearth; RO6 = fireplace
+    ro6_e = layout.iw4_w - 12.0 / 12.0
+    ro6_w = ro6_e - RO6_WIDTH
 
     return [
         RoughOpening("RO1", BBox(w=ro1_w, s=iw1_s, e=ro1_e, n=iw1_n), "IW1", "H"),
