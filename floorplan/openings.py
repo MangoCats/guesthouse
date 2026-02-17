@@ -128,11 +128,12 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
     ]))
 
-    # O9: F18-F19, horizontal — centered between bed east and IW11 west
-    o9_cn = (layout.bed.e + layout.iw11.w) / 2
-    openings.append(OuterOpening("O9", "F18", "F19", [
-        (o9_cn - O9_HALF_WIDTH, pts["F18"][1]), (o9_cn + O9_HALF_WIDTH, pts["F18"][1]),
-        (o9_cn + O9_HALF_WIDTH, pts["W18"][1]), (o9_cn - O9_HALF_WIDTH, pts["W18"][1]),
+    # O9: F21-F0, horizontal — 30" to 5" west of F21
+    o9_e = pts["F21"][0] - 5.0 / 12.0
+    o9_w = pts["F21"][0] - 30.0 / 12.0
+    openings.append(OuterOpening("O9", "F21", "F0", [
+        (o9_w, pts["F0"][1]), (o9_e, pts["F0"][1]),
+        (o9_e, pts["W0"][1]), (o9_w, pts["W0"][1]),
     ]))
 
     # O10: F21-F0, horizontal (bed area) — centered between bed west and IW9 east

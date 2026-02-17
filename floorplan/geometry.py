@@ -169,16 +169,17 @@ def _compute_central_region(
 
 def _compute_south_wall(
     fp_pts: dict[str, Point], anchors: OutlineAnchors, R_a2: float, R_a3: float,
-) -> tuple[float, float, float]:
-    """South wall: F17-F21, C17, C19, C20. Returns (R_a17, R_a19, R_a20).
+) -> tuple[float, float]:
+    """South wall: F17-F21, C17, C19. Returns (R_a17, R_a19).
 
     Depends on F1, F16 already in fp_pts.
+    F20-F21 is a straight line (no arc C20).
     """
     R_a20 = R_a3
     R_a19 = R_a2
     dN_c = (SOUTH_WALL_N + R_a19) - (anchors.Ti3[1] - R_a20)
     dE_c = math.sqrt((R_a20 + R_a19)**2 - dN_c**2)
-    # Align F19 with east side of king bed
+    # Align F21 with east side of king bed
     _bed_e_align = fp_pts["F1"][0] + WALL_OUTER + 20.5
     fp_pts["F21"] = (_bed_e_align - dE_c - 2.0/12, anchors.Ti3[1])
 
@@ -192,16 +193,21 @@ def _compute_south_wall(
     fp_pts["F17"] = (fp_pts["F16"][0] - _t_13 * _sin_b, F17_N)
     fp_pts["C17"] = (fp_pts["F17"][0] - R_a17 * _cos_b, SOUTH_WALL_N + R_a17)
     fp_pts["F18"] = (fp_pts["C17"][0], SOUTH_WALL_N)
-    # C20, C19, F19, F20
-    fp_pts["C20"] = (fp_pts["F21"][0], fp_pts["F21"][1] - R_a20)
-    F19_E = fp_pts["F21"][0] + dE_c
+    # F19: 6" west of F18
+    F19_E = fp_pts["F18"][0] - 6.0 / 12.0
     fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
     fp_pts["C19"] = (F19_E, SOUTH_WALL_N + R_a19)
-    _f_w = R_a20 / (R_a20 + R_a19)
-    fp_pts["F20"] = (fp_pts["C20"][0] + _f_w * (fp_pts["C19"][0] - fp_pts["C20"][0]),
-                     fp_pts["C20"][1] + _f_w * (fp_pts["C19"][1] - fp_pts["C20"][1]))
+    # F20: tangent point from F21 to circle (C19, R_a19)
+    _dx = fp_pts["F21"][0] - fp_pts["C19"][0]
+    _dy = fp_pts["F21"][1] - fp_pts["C19"][1]
+    _d = math.sqrt(_dx * _dx + _dy * _dy)
+    _alpha = math.atan2(_dy, _dx)
+    _beta = math.acos(R_a19 / _d)
+    _theta = _alpha + _beta  # interior on right for CW outline
+    fp_pts["F20"] = (fp_pts["C19"][0] + R_a19 * math.cos(_theta),
+                     fp_pts["C19"][1] + R_a19 * math.sin(_theta))
 
-    return R_a17, R_a19, R_a20
+    return R_a17, R_a19
 
 
 # ============================================================
@@ -216,7 +222,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     R_a5 = _compute_nw_corner(fp_pts, anchors)
     R_a2, R_a3, R_a7, R_a8 = _compute_east_wall_arcs(fp_pts)
     R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
-    R_a17, R_a19, R_a20 = _compute_south_wall(fp_pts, anchors, R_a2, R_a3)
+    R_a17, R_a19 = _compute_south_wall(fp_pts, anchors, R_a2, R_a3)
 
     # --- Build outline segments (F-series) ---
     outline_segs: list[Segment] = [
@@ -240,7 +246,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         ArcSeg("F17", "F18", "C17", R_a17, "CW", 20),
         LineSeg("F18", "F19"),
         ArcSeg("F19", "F20", "C19", R_a19, "CW", 60),
-        ArcSeg("F20", "F21", "C20", R_a20, "CCW", 60),
+        LineSeg("F20", "F21"),
         LineSeg("F21", "F0"),
     ]
 
@@ -248,7 +254,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         "R_a0": R_a0, "R_a2": R_a2, "R_a3": R_a3, "R_a5": R_a5,
         "R_a7": R_a7, "R_a8": R_a8, "R_a10": R_a10, "R_a11": R_a11,
         "R_a13": R_a13, "R_a15": R_a15, "R_a17": R_a17,
-        "R_a19": R_a19, "R_a20": R_a20,
+        "R_a19": R_a19,
     }
 
     return OutlineGeometry(fp_pts=fp_pts, outline_segs=outline_segs, radii=radii)

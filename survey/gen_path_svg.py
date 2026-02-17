@@ -412,7 +412,7 @@ def build_outline_cfg(outline_segs, pts, radii):
     """Build outline layer config (needs computed sweep angles and radii)."""
     R = radii
     sw = {i: arc_sweep_deg(outline_segs[i], pts)
-          for i in [0,2,3,5,7,8,10,11,13,15,17,19,20]}
+          for i in [0,2,3,5,7,8,10,11,13,15,17,19]}
     return LayerConfig(
         opacity=1.0, fill_color="rgba(200,230,255,0.25)",
         line_stroke="#333", line_width=2.0,
@@ -429,7 +429,6 @@ def build_outline_cfg(outline_segs, pts, radii):
             ("F15","F16"):  ("#333", 2.0),
             ("F17","F18"):  ("#333", 2.0),
             ("F19","F20"):  ("#333", 2.0),
-            ("F20","F21"):  ("#333", 2.0),
         },
         vertex_styles={
             "F5":   VertexStyle("F5",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
@@ -491,8 +490,6 @@ def build_outline_cfg(outline_segs, pts, radii):
                 f"{sw[17]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
             ("F19","F20"): ArcLabel(f"Arc R={R['R_a19']*12:.1f}\"",
                 f"{sw[19]:.1f}\u00b0", "start", 12, -10, 11, "#333"),
-            ("F20","F21"): ArcLabel(f"Arc R={R['R_a20']*12:.1f}\"",
-                f"{sw[20]:.1f}\u00b0 CW", "start", 12, 4, 11, "#333"),
         },
         center_marks=[
             CenterMark("C0", "F0", "#333"), CenterMark("C2", "F2", "#333"),
@@ -501,7 +498,6 @@ def build_outline_cfg(outline_segs, pts, radii):
             CenterMark("C10", "F10", "#333"), CenterMark("C11", "F11", "#333"),
             CenterMark("C13", "F13", "#333"), CenterMark("C15", "F15", "#333"),
             CenterMark("C17", "F17", "#333"), CenterMark("C19", "F19", "#333"),
-            CenterMark("C20", "F20", "#333"),
         ],
         traverse_pts=None, traverse_stroke=None,
         brg_decimal=True,
@@ -542,7 +538,6 @@ if __name__ == "__main__":
     ]
     for name, note in _pt_notes:
         print(f"  {name:<5s} ({pts[name][0]:.4f}, {pts[name][1]:.4f})  ({note})")
-    print(f"  C20:  ({pts['C20'][0]:.4f}, {pts['C20'][1]:.4f})  (F20->F21 arc center)")
     print(f"  C19:  ({pts['C19'][0]:.4f}, {pts['C19'][1]:.4f})  (F19->F20 arc center)")
     print(f"  C17:  ({pts['C17'][0]:.4f}, {pts['C17'][1]:.4f})  (F17->F18 arc center)")
     print(f"  F18-F19 segment length = {abs(pts['F18'][0]-pts['F19'][0])*12:.1f}\"")
@@ -699,4 +694,4 @@ if __name__ == "__main__":
     print(f"Outer path area: {outer_area:.2f} sq ft (rendered at 20%)")
     print(f"Inset path area: {inset_area:.2f} sq ft (rendered at 20%)")
     print(f"Outline path area: {outline_area:.2f} sq ft (rendered at 100%)")
-    print(f"Outline: F0->ArcC0->F1->F2->ArcC2->F3->ArcC3->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11_180->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->ArcC20->F21->F0")
+    print(f"Outline: F0->ArcC0->F1->F2->ArcC2->F3->ArcC3->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11_180->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->F21->F0")
