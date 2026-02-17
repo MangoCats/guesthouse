@@ -156,11 +156,18 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W20"][1] + _ts10 * (pts["W20a"][1] - pts["W20"][1])),
     ]))
 
-    # O11: F21-F0, horizontal (utility area) — centered between dryer and counter
-    o11_cn = (layout.dryer.e + layout.ctr.w) / 2
-    openings.append(OuterOpening("O11", "F21", "F0", [
-        (o11_cn - O11_HALF_WIDTH, pts["F0"][1]), (o11_cn + O11_HALF_WIDTH, pts["F0"][1]),
-        (o11_cn + O11_HALF_WIDTH, pts["W0"][1]), (o11_cn - O11_HALF_WIDTH, pts["W0"][1]),
+    # O11: F20-F20a — centered at dryer/counter midpoint easting, rotated to segment
+    o11_cn_e = (layout.dryer.e + layout.ctr.w) / 2
+    _tc11 = (o11_cn_e - pts["F20"][0]) / _dE9  # parametric center from easting
+    _ts11 = _tc11 - O11_HALF_WIDTH / _seg9_len
+    _te11 = _tc11 + O11_HALF_WIDTH / _seg9_len
+    openings.append(OuterOpening("O11", "F20", "F20a", [
+        (pts["F20"][0] + _ts11 * _dE9, pts["F20"][1] + _ts11 * _dN9),
+        (pts["F20"][0] + _te11 * _dE9, pts["F20"][1] + _te11 * _dN9),
+        (pts["W20"][0] + _te11 * (pts["W20a"][0] - pts["W20"][0]),
+         pts["W20"][1] + _te11 * (pts["W20a"][1] - pts["W20"][1])),
+        (pts["W20"][0] + _ts11 * (pts["W20a"][0] - pts["W20"][0]),
+         pts["W20"][1] + _ts11 * (pts["W20a"][1] - pts["W20"][1])),
     ]))
 
     return openings

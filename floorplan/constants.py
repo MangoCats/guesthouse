@@ -162,7 +162,7 @@ F20A_F21_CHORD = 16.0 / 12.0      # 16" chord F20a-F21
 F18_OFFSET_E = 4.0 / 12.0         # 4" F18 east of IW4 east face
 F18_F19_GAP = 12.0 / 12.0         # 12" F18-F19 distance
 F19_F20_CHORD = 24.0 / 12.0       # 24" chord F19-F20
-F21_OFFSET_E_IW7 = 4.0 / 12.0     # 4" F21 east of IW7 east face
+F21_OFFSET_E_F0 = 1.0              # 1' F21 east of F0
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)

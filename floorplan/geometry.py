@@ -10,7 +10,7 @@ from floorplan.constants import (
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
     F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, F16_F17_SEG,
-    F20A_F21_CHORD, F18_OFFSET_E, F18_F19_GAP, F19_F20_CHORD, F21_OFFSET_E_IW7,
+    F20A_F21_CHORD, F18_OFFSET_E, F18_F19_GAP, F19_F20_CHORD, F21_OFFSET_E_F0,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
@@ -216,11 +216,8 @@ def _compute_south_wall(
     _ex = math.cos(_exit_angle)   # -12/√145
     _ey = math.sin(_exit_angle)   # 1/√145
 
-    # F21_E target: 4" east of IW7 east face
-    _iw7_e = (fp_pts["F1"][0] + WALL_OUTER
-              + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
-              + WALL_3IN)
-    _f21_target_e = _iw7_e + F21_OFFSET_E_IW7
+    # F21_E target: 1' east of F0
+    _f21_target_e = fp_pts["F0"][0] + F21_OFFSET_E_F0
 
     # C20 left-normal components (CCW arc: center LEFT of travel direction)
     _left_x = -_ey   # -1/√145
