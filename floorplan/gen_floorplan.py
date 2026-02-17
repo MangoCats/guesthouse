@@ -1468,10 +1468,10 @@ def _render_dimensions(out, data, layout):
                layout.ctr.s, layout.iw10.s,
                f"CLOSET {fmt_dist(layout.iw10.s - layout.ctr.s)}", to_svg)
     # East closet (rotated dimension, parallel to IW11)
-    _iw11_ne = layout.iw11_poly[2]
+    _iw12_sw = layout.iw12_poly[0]
     _iw12_se = layout.iw12_poly[1]
-    _dim_s = ((_iw11_ne[0] + _iw12_se[0]) / 2,
-              (_iw11_ne[1] + _iw12_se[1]) / 2)
+    _dim_s = ((_iw12_sw[0] + _iw12_se[0]) / 2,
+              (_iw12_sw[1] + _iw12_se[1]) / 2)
     _dn = (layout.iw11_poly[2][0] - layout.iw11_poly[1][0],
            layout.iw11_poly[2][1] - layout.iw11_poly[1][1])
     _dl = math.sqrt(_dn[0]**2 + _dn[1]**2)
