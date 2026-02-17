@@ -176,7 +176,7 @@ def _compute_south_wall(
     F20-F21 is a straight line (no arc C20).
     """
     R_a20 = R_a3
-    R_a19 = R_a2
+    R_a19 = 60.0 / 12.0  # 60" radius for F19-F20 arc
     dN_c = (SOUTH_WALL_N + R_a19) - (anchors.Ti3[1] - R_a20)
     dE_c = math.sqrt((R_a20 + R_a19)**2 - dN_c**2)
     # Align F21 with east side of king bed
@@ -197,13 +197,9 @@ def _compute_south_wall(
     F19_E = fp_pts["F18"][0] - 6.0 / 12.0
     fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
     fp_pts["C19"] = (F19_E, SOUTH_WALL_N + R_a19)
-    # F20: tangent point from F21 to circle (C19, R_a19)
-    _dx = fp_pts["F21"][0] - fp_pts["C19"][0]
-    _dy = fp_pts["F21"][1] - fp_pts["C19"][1]
-    _d = math.sqrt(_dx * _dx + _dy * _dy)
-    _alpha = math.atan2(_dy, _dx)
-    _beta = math.acos(R_a19 / _d)
-    _theta = _alpha + _beta  # interior on right for CW outline
+    # F20: CW arc from F19 with sweep = atan(1/12)
+    _sweep = math.atan2(1, 12)  # atan(1/12)
+    _theta = -math.pi / 2 - _sweep  # F19 at -π/2, sweep CW
     fp_pts["F20"] = (fp_pts["C19"][0] + R_a19 * math.cos(_theta),
                      fp_pts["C19"][1] + R_a19 * math.sin(_theta))
 
