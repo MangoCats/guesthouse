@@ -10,7 +10,7 @@ from floorplan.constants import (
     COUNTER_DEPTH, COUNTER_GAP,
     BEDROOM_WIDTH, CLOSET_WIDTH, CLOSET2_WIDTH,
     BED_WIDTH, BED_LENGTH, BED_OFFSET_N,
-    IW1_OFFSET_N, IW2_OFFSET_E, WALL_SOUTH_N,
+    IW1_DIST_FROM_NORTH, IW2_OFFSET_E, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
 )
 
@@ -73,8 +73,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     pts must contain W-series (W0-W21) and F-series (F0-F21).
     """
-    iw1_s = pts["W0"][1] + IW1_OFFSET_N
-    iw1_n = iw1_s + WALL_6IN
+    iw1_n = pts["W9"][1] - IW1_DIST_FROM_NORTH
+    iw1_s = iw1_n - WALL_6IN
     si = horiz_isects(inner_poly, iw1_s)
     ni = horiz_isects(inner_poly, iw1_n)
     iw1 = [(min(si), iw1_s), (max(si), iw1_s), (max(ni), iw1_n), (min(ni), iw1_n)]

@@ -13,7 +13,7 @@ from floorplan.constants import (
     O5_E_FROM_F7, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
-    IW1_OFFSET_N, IW5_OFFSET_N, WALL_3IN,
+    IW5_OFFSET_N, WALL_3IN,
     STD_GAP,
     RO1_OFFSET_E_IW9, IW1_RO_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
@@ -120,9 +120,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O8: F14-F15, vertical — centered between IW5 south face and F15
-    iw5_n = pts["W0"][1] + IW1_OFFSET_N - IW5_OFFSET_N
-    iw5_s = iw5_n - WALL_3IN
-    o8_cn = (iw5_s + pts["F15"][1]) / 2
+    o8_cn = (layout.iw5.s + pts["F15"][1]) / 2
     openings.append(OuterOpening("O8", "F14", "F15", [
         (pts["F15"][0], o8_cn - O8_HALF_WIDTH), (pts["F15"][0], o8_cn + O8_HALF_WIDTH),
         (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),

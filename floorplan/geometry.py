@@ -8,7 +8,7 @@ from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
-    F16_F17_SEG, F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
+    F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
     F20A_F21_CHORD, F18_OFFSET_E, F18_F19_GAP, F19_F20_CHORD, F21_OFFSET_E_IW7,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
@@ -181,15 +181,6 @@ def _compute_south_wall(
     R_a19 = F19_F20_CHORD / (2 * math.sin(_sweep / 2))  # chord = 2R·sin(θ/2)
     R_a20 = F20A_F21_CHORD / (2 * math.sin(_sweep / 2))  # chord = 2R·sin(θ/2)
 
-    # F17: position determined by F16-F17 line at bearing 60° (kept fixed)
-    _brg_13 = math.radians(PIX_PI5_TARGET_BRG)
-    _sin_b = math.sin(_brg_13)
-    _cos_b = math.cos(_brg_13)
-    _R_a17_old = (fp_pts["F16"][1] - SOUTH_WALL_N - F16_F17_SEG * _cos_b) / (1.0 - _sin_b)
-    F17_N = SOUTH_WALL_N + _R_a17_old * (1.0 - _sin_b)
-    _t_13 = (fp_pts["F16"][1] - F17_N) / _cos_b
-    fp_pts["F17"] = (fp_pts["F16"][0] - _t_13 * _sin_b, F17_N)
-
     # F18: 4" east of IW4 east face, at SOUTH_WALL_N
     _iw4_e = (fp_pts["F1"][0] + WALL_OUTER
               + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
@@ -199,12 +190,21 @@ def _compute_south_wall(
     F18_E = _iw4_e + F18_OFFSET_E
     fp_pts["F18"] = (F18_E, SOUTH_WALL_N)
 
-    # R_a17: arc from F17 to F18 with C17 directly above F18
-    # |C17 - F17|² = R_a17² with C17 = (F18_E, SOUTH_WALL_N + R_a17)
-    _dE = F18_E - fp_pts["F17"][0]
-    _dN = SOUTH_WALL_N - fp_pts["F17"][1]
-    R_a17 = -(_dE**2 + _dN**2) / (2 * _dN)
+    # R_a17: tangent arc from F17 to F18
+    # C17 directly above F18 (tangent to horizontal bearing 270° at F18)
+    # Perpendicular distance from C17 to F16-F17 line = R_a17 (tangent at F17)
+    _brg = math.radians(PIX_PI5_TARGET_BRG)
+    _sin_b = math.sin(_brg)
+    _cos_b = math.cos(_brg)
+    _dE = F18_E - fp_pts["F16"][0]
+    _dN = SOUTH_WALL_N - fp_pts["F16"][1]
+    R_a17 = (_cos_b * _dE - _sin_b * _dN) / (_sin_b - 1.0)
     fp_pts["C17"] = (F18_E, SOUTH_WALL_N + R_a17)
+
+    # F17: tangent point = foot of perpendicular from C17 to F16-F17 line
+    _t17 = -_dE * _sin_b - (SOUTH_WALL_N + R_a17 - fp_pts["F16"][1]) * _cos_b
+    fp_pts["F17"] = (fp_pts["F16"][0] - _t17 * _sin_b,
+                     fp_pts["F16"][1] - _t17 * _cos_b)
     # F19: 12" west of F18
     F19_E = fp_pts["F18"][0] - F18_F19_GAP
     fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
