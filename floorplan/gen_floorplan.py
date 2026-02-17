@@ -35,7 +35,7 @@ from floorplan.constants import (
     RO1_OFFSET_E_IW9, IW1_RO_WIDTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
-    RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
+    RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, IW4_RO_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
 )
 from floorplan.layout import compute_interior_layout
 from floorplan.openings import (
@@ -1745,7 +1745,7 @@ def _render_openings(out, data, layout):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO2 door: 36" door in IW11 (rotated), hinged at south edge, swings east
+    # RO2 door: 36" door in IW11 (rotated), hinged at NNE edge, swings into office
     ro2 = [r for r in rough_openings if r.name == "RO2"][0]
     _ro2p = ro2.poly  # [SW, SE, NE, NW]
     # IW11 unit vectors (recompute from polygon)
@@ -1756,22 +1756,25 @@ def _render_openings(out, data, layout):
     _i11_dx_t = _i11_sw[0] - _i11_se[0]; _i11_dy_t = _i11_sw[1] - _i11_se[1]
     _i11_lt = math.sqrt(_i11_dx_t**2 + _i11_dy_t**2)
     _i11_at = (_i11_dx_t / _i11_lt, _i11_dy_t / _i11_lt)  # SE→SW (across thickness)
-    # Hinge: center of RO2 south edge (midpoint of SW and SE)
-    hinge_e = (_ro2p[0][0] + _ro2p[1][0]) / 2
-    hinge_n = (_ro2p[0][1] + _ro2p[1][1]) / 2
+    # Hinge: NNE edge center, offset inward by centering gap
+    _ro2_gap = (IW4_RO_WIDTH - RO2_DOOR_WIDTH) / 2
+    _ro2_n_ctr = ((_ro2p[3][0] + _ro2p[2][0]) / 2,
+                  (_ro2p[3][1] + _ro2p[2][1]) / 2)
+    hinge_e = _ro2_n_ctr[0] - _ro2_gap * _i11_an[0]
+    hinge_n = _ro2_n_ctr[1] - _ro2_gap * _i11_an[1]
     hx, hy = to_svg(hinge_e, hinge_n)
-    # Open position: door swings toward east face (-_i11_at direction = toward bedroom)
+    # Open position: door swings into office (-_i11_at direction = ENE)
     tip_e = hinge_e - RO2_DOOR_WIDTH * _i11_at[0]
     tip_n = hinge_n - RO2_DOOR_WIDTH * _i11_at[1]
     tx, ty = to_svg(tip_e, tip_n)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (east) sweeping 90° to closed (NNE along wall)
-    _open_ang = math.atan2(-_i11_at[1], -_i11_at[0])
+    # Arc from closed (SSW, -_i11_an) sweeping CCW 90° to open (ENE, -_i11_at)
+    _closed_ang = math.atan2(-_i11_an[1], -_i11_an[0])
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = _open_ang + i * (math.pi / 2) / n_arc
+        angle = _closed_ang + i * (math.pi / 2) / n_arc
         ae = hinge_e + RO2_DOOR_WIDTH * math.cos(angle)
         an = hinge_n + RO2_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
