@@ -350,8 +350,10 @@ def compute_iw_area(layout):
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
+    iw11 = layout.iw11
+    iw11_poly = [(iw11.w, iw11.s), (iw11.e, iw11.s), (iw11.e, iw11.n), (iw11.w, iw11.n)]
     iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
-                iw3_poly, iw9_poly, iw10_poly, iw4_poly, layout.iw8, iw5_poly]
+                iw3_poly, iw9_poly, iw10_poly, iw4_poly, iw11_poly, layout.iw8, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -657,6 +659,18 @@ def _render_walls(out, data, layout):
 
     # ---- IW8 ----
     wall_poly(out, layout.iw8, to_svg)
+
+    # ---- IW11 ----
+    iw11 = layout.iw11
+    iw11_poly = [(iw11.w, iw11.s), (iw11.e, iw11.s), (iw11.e, iw11.n), (iw11.w, iw11.n)]
+    wall_poly(out, iw11_poly, to_svg, stroke=False)
+    w_in = iw11.w + half_sw
+    e_in = iw11.e - half_sw
+    for e_val in [w_in, e_in]:
+        sx1, sy1 = to_svg(e_val, iw11.s)
+        sx2, sy2 = to_svg(e_val, iw11.n)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW5 ----
     iw5 = layout.iw5
