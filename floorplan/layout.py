@@ -115,7 +115,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     iw4_w = iw9_e + BEDROOM_WIDTH + 34.0 / 12.0
     iw4_e = iw4_w + WALL_4IN
-    iw4_s = WALL_SOUTH_N + 6.0
+    iw4_s = WALL_SOUTH_N + 6.0 + 4.0 / 12.0
     wall_south_n = WALL_SOUTH_N
     cl1_top = iw7_n - 1.0
     iw8_w = iw9_e + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH

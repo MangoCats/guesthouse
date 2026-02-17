@@ -167,7 +167,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     ro1_e = ro1_w + IW1_RO_WIDTH
 
     # RO2: in IW4, vertical, centered between IW5 south and IW8 north
-    ro2_center = (iw5_s + iw8_n_face) / 2
+    ro2_center = (iw5_s + iw8_n_face) / 2 + 0.5 / 12.0
     ro2_s = ro2_center - IW4_RO_WIDTH / 2
     ro2_n = ro2_center + IW4_RO_WIDTH / 2
 
