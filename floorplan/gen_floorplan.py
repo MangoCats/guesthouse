@@ -1046,7 +1046,9 @@ def _render_kitchen(out, data, layout, minik=False):
         _fr_w = hearth_e + STD_GAP + FRIDGE_SIZE + 7.0 / 12.0 - 32.75 / 12.0
         tbl_cx = (_fr_w + layout.iw2.e) / 2 + 1.125 / 12.0
     else:
-        tbl_cx = space_cx
+        # Center on SINK west end
+        _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+        tbl_cx = _st_w + STOVE_WIDTH + KITCHEN_APPL_GAP
     tbl_n = space_n - 30.0 / 12.0 - (28.0 / 12.0 if not minik else 0)
     tbl_s_y = tbl_n - tbl_h
 
