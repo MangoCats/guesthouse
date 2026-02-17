@@ -347,8 +347,7 @@ def compute_iw_area(layout):
     iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
     iw7 = layout.iw7
     iw7_poly = [(iw7.w, iw7.s), (iw7.e, iw7.s), (iw7.e, iw7.n), (iw7.w, iw7.n)]
-    iw9 = layout.iw9
-    iw9_poly = [(iw9.w, iw9.s), (iw9.e, iw9.s), (iw9.e, iw9.n), (iw9.w, iw9.n)]
+    iw9_poly = layout.iw9_poly
     _iw4_n_area = layout.iw12_poly[2][1]  # IW12 NE northing
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, _iw4_n_area), (layout.iw4_w, _iw4_n_area)]
@@ -573,15 +572,25 @@ def _render_walls(out, data, layout):
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ---- IW9 (solid, no opening) ----
-    iw9 = layout.iw9
-    iw9_poly = [(iw9.w, iw9.s), (iw9.e, iw9.s), (iw9.e, iw9.n), (iw9.w, iw9.n)]
-    wall_poly(out, iw9_poly, to_svg, stroke=False)
-    iw9_w_in = iw9.w + half_sw
-    iw9_e_in = iw9.e - half_sw
-    for a, b in [((iw9_w_in, iw9.s), (iw9_w_in, iw9.n)),
-                 ((iw9_e_in, iw9.s), (iw9_e_in, iw9.n))]:
-        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+    # ---- IW9 (solid, no opening, rotated perpendicular to W20-W0) ----
+    _iw9_sw, _iw9_se, _iw9_ne, _iw9_nw = layout.iw9_poly
+    wall_poly(out, layout.iw9_poly, to_svg, stroke=False)
+    # Thickness unit vector: SW - SE direction
+    _iw9_dx_t = _iw9_sw[0] - _iw9_se[0]
+    _iw9_dy_t = _iw9_sw[1] - _iw9_se[1]
+    _iw9_lt = math.sqrt(_iw9_dx_t**2 + _iw9_dy_t**2)
+    _iw9_at = (_iw9_dx_t / _iw9_lt, _iw9_dy_t / _iw9_lt)
+    # Length unit vector: NE - SE direction
+    _iw9_dx_n = _iw9_ne[0] - _iw9_se[0]
+    _iw9_dy_n = _iw9_ne[1] - _iw9_se[1]
+    _iw9_ln = math.sqrt(_iw9_dx_n**2 + _iw9_dy_n**2)
+    _iw9_an = (_iw9_dx_n / _iw9_ln, _iw9_dy_n / _iw9_ln)
+    for (p1, p2), (ox, oy) in [
+        ((_iw9_se, _iw9_ne), _iw9_at),                            # east face
+        ((_iw9_sw, _iw9_nw), (-_iw9_at[0], -_iw9_at[1])),        # west face
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
