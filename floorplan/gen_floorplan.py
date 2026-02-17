@@ -1550,9 +1550,9 @@ def _render_dimensions(out, data, layout):
                fmt_dist(layout.iw2.w - pts["W5"][0]), to_svg)
 
     # Office/bedroom verticals
-    dim_line_v(out, pts["F18"][0], layout.iw5.s, pts["W18"][1],
-               fmt_dist(layout.iw5.s - pts["W18"][1]), to_svg,
-               label_n=(layout.iw5.s + pts["W18"][1]) / 2 + 2.5)
+    dim_line_v(out, pts["F18"][0], layout.iw1_s, pts["W18"][1],
+               fmt_dist(layout.iw1_s - pts["W18"][1]), to_svg,
+               label_n=(layout.iw1_s + pts["W18"][1]) / 2 + 2.5)
     dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
                fmt_dist(pts["W6"][1] - layout.iw6_n), to_svg)
     dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, layout.iw6_s,
