@@ -23,7 +23,7 @@ COUNTER_NW_RADIUS = 9.0 / 12.0    # 9" rounded corner
 COUNTER_GAP = 36.0 / 12.0         # 3' east of dryer
 
 # Rooms
-BEDROOM_WIDTH = 140.0 / 12.0      # 11'8" E-W
+BEDROOM_WIDTH = 138.0 / 12.0      # 11'6" E-W
 CLOSET_WIDTH = 30.0 / 12.0        # 30" closet depth (closet 1)
 CLOSET2_WIDTH = 28.0 / 12.0       # 28" closet 2 depth (east)
 CLOSET1_HEIGHT = 6.0              # 6' closet 1 N-S
@@ -156,7 +156,7 @@ ARC_F13_R = 5.627004870830987      # R_a13: ~67.52" (set for 75° F10-F11 sweep)
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
-F15_OFFSET_E = 9.0 + 1.0/12.0     # 9'1" F15 east of iw8_e
+F15_OFFSET_E = 9.0 + 3.0/12.0     # 9'3" F15 east of iw8_e
 F20A_F21_CHORD = 16.0 / 12.0      # 16" chord F20a-F21
 F18_OFFSET_E = 4.0 / 12.0         # 4" F18 east of IW4 east face
 F18_F19_GAP = 12.0 / 12.0         # 12" F18-F19 distance
