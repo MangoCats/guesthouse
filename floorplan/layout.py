@@ -120,15 +120,16 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     wall_south_n = WALL_SOUTH_N
     cl1_top = iw7_n - 1.0
 
-    # IW11: 4" thick, normal to W20-W20a, 6'4" long
-    # SE corner: intersection of line W20-W20a with circle(W19, 32")
-    _w19 = pts["W19"]
+    # IW11: 4" thick, normal to W20-W20a, 6' long
+    # SE corner: circle(IW4_SW, 32") ∩ W20-W20a
+    _iw4_sw = (iw4_w, iw4_s)
     _w20 = pts["W20"]
     _w20a = pts["W20a"]
     _dE = _w20a[0] - _w20[0]
     _dN = _w20a[1] - _w20[1]
-    _uE = _w20[0] - _w19[0]
-    _uN = _w20[1] - _w19[1]
+    _seg_len = math.sqrt(_dE**2 + _dN**2)
+    _uE = _w20[0] - _iw4_sw[0]
+    _uN = _w20[1] - _iw4_sw[1]
     _r = 32.0 / 12.0
     _qa = _dE**2 + _dN**2
     _qb = 2 * (_uE * _dE + _uN * _dN)
@@ -137,7 +138,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)  # westward along W20-W20a
     iw11_se = (_w20[0] + _t * _dE, _w20[1] + _t * _dN)
     # Unit vectors: along W20-W20a and inward normal
-    _seg_len = math.sqrt(_dE**2 + _dN**2)
     _along_E = _dE / _seg_len
     _along_N = _dN / _seg_len
     _norm_E = _along_N    # right normal = inward
