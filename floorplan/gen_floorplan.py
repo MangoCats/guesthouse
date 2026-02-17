@@ -344,8 +344,7 @@ def compute_iw_area(layout):
     iw5 = layout.iw5
     iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
     iw3_poly = layout.iw3_poly
-    iw7 = layout.iw7
-    iw7_poly = [(iw7.w, iw7.s), (iw7.e, iw7.s), (iw7.e, iw7.n), (iw7.w, iw7.n)]
+    iw7_poly = layout.iw7_poly
     iw9_poly = layout.iw9_poly
     _iw4_n_area = layout.iw12_poly[2][1]  # IW12 NE northing
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
@@ -563,15 +562,20 @@ def _render_walls(out, data, layout):
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ---- IW7 (solid, no opening) ----
-    iw7 = layout.iw7
-    iw7_poly = [(iw7.w, iw7.s), (iw7.e, iw7.s), (iw7.e, iw7.n), (iw7.w, iw7.n)]
-    wall_poly(out, iw7_poly, to_svg, stroke=False)
-    iw7_n_in = iw7.n - half_sw
-    iw7_s_in = iw7.s + half_sw
-    for a, b in [((iw7.w, iw7_n_in), (iw7.e, iw7_n_in)),
-                 ((iw7.w, iw7_s_in), (iw7.e, iw7_s_in))]:
-        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+    # ---- IW7 (solid, no opening, rotated parallel to W20-W0) ----
+    _iw7_sw, _iw7_se, _iw7_ne, _iw7_nw = layout.iw7_poly
+    wall_poly(out, layout.iw7_poly, to_svg, stroke=False)
+    # Thickness unit vector: NW - SW direction (norm direction)
+    _iw7_dx_t = _iw7_nw[0] - _iw7_sw[0]
+    _iw7_dy_t = _iw7_nw[1] - _iw7_sw[1]
+    _iw7_lt = math.sqrt(_iw7_dx_t**2 + _iw7_dy_t**2)
+    _iw7_at = (_iw7_dx_t / _iw7_lt, _iw7_dy_t / _iw7_lt)
+    for (p1, p2), (ox, oy) in [
+        ((_iw7_nw, _iw7_ne), (-_iw7_at[0], -_iw7_at[1])),        # north face
+        ((_iw7_sw, _iw7_se), _iw7_at),                            # south face
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 

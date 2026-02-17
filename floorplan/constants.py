@@ -82,9 +82,7 @@ IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 IW3_LENGTH = 80.0 / 12.0          # 80" (6'8") length into structure
 IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W20-W0
 
-# IW7 (horizontal, 4" thick)
-IW7_OFFSET_S_IW1 = 30.0 / 12.0   # 30" IW7 north face south of IW1 south face
-IW7_LENGTH = 66.0 / 12.0          # 66" E-W length
+# IW7 (parallel to W20-W0, 4" thick, between IW3 and IW9)
 WW10_RADIUS = 30.0 / 12.0         # 30" WW10 circle radius (bed NW corner)
 
 # IW9 (perpendicular to W20-W0, 4" thick)

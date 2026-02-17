@@ -12,7 +12,7 @@ from floorplan.constants import (
     BED_WIDTH, BED_LENGTH,
     O9_HALF_WIDTH, O10_HALF_WIDTH,
     IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E,
-    IW3_LENGTH, IW3_OFFSET_IW9, IW7_OFFSET_S_IW1, IW7_LENGTH,
+    IW3_LENGTH, IW3_OFFSET_IW9,
     IW9_LENGTH, IW9_OFFSET_O10,
     IW4_OFFSET_E_IW2, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
@@ -39,8 +39,9 @@ class InteriorLayout(NamedTuple):
     # Interior wall 3 (IW3) — perpendicular to W20-W0, 30" from IW9 W face
     iw3: BBox
     iw3_poly: list[Point]  # [SW, SE, NE, NW]
-    # Interior wall 7 (IW7) — horizontal wall, 66" long
+    # Interior wall 7 (IW7) — parallel to W20-W0, between IW3 and IW9
     iw7: BBox
+    iw7_poly: list[Point]  # [SW, SE, NE, NW]
     # Interior wall 9 (IW9) — perpendicular to W20-W0, 8" past O10
     iw9: BBox
     iw9_poly: list[Point]  # [SW, SE, NE, NW]
@@ -189,12 +190,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
               bed_sw[1] + BED_LENGTH * _norm_N)
     bed_poly = [bed_sw, bed_se, bed_ne, bed_nw]
 
-    # IW7: 4" thick, E-W, 66" long
-    iw7_n = iw1_s - IW7_OFFSET_S_IW1
-    iw7_s = iw7_n - WALL_4IN
-    iw7_w = iw2_w + WALL_4IN
-    iw7_e = iw7_w + IW7_LENGTH
-
     # IW9: 4" thick, perpendicular to W20-W0, 8" past O10 along inner wall
     _ts10 = _te9 + 80.0 / 12.0 / _seg9_len
     _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
@@ -228,6 +223,20 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw3_e = max(p[0] for p in iw3_poly)
     iw3_s = min(p[1] for p in iw3_poly)
     iw3_n = max(p[1] for p in iw3_poly)
+
+    # IW7: 4" thick, parallel to W20-W0, NW corner at IW3 NE, spans to IW9
+    iw7_nw = iw3_ne
+    iw7_ne = (iw7_nw[0] - IW3_OFFSET_IW9 * _along_E,
+              iw7_nw[1] - IW3_OFFSET_IW9 * _along_N)
+    iw7_sw = (iw7_nw[0] - WALL_4IN * _norm_E,
+              iw7_nw[1] - WALL_4IN * _norm_N)
+    iw7_se = (iw7_ne[0] - WALL_4IN * _norm_E,
+              iw7_ne[1] - WALL_4IN * _norm_N)
+    iw7_poly = [iw7_sw, iw7_se, iw7_ne, iw7_nw]
+    iw7_w = min(p[0] for p in iw7_poly)
+    iw7_e = max(p[0] for p in iw7_poly)
+    iw7_s = min(p[1] for p in iw7_poly)
+    iw7_n = max(p[1] for p in iw7_poly)
 
     # IW8: 6" thick, horizontal, from W1-W2 face to IW1 west end
     iw8_w = pts["W1"][0]
@@ -274,7 +283,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw1=iw1, iw1_s=iw1_s, iw1_n=iw1_n, iwt=WALL_6IN,
         iw2=BBox(w=iw2_w, s=iw2_s, e=iw2_e, n=iw2_n),
         iw3=BBox(w=iw3_w, s=iw3_s, e=iw3_e, n=iw3_n), iw3_poly=iw3_poly,
-        iw7=BBox(w=iw7_w, s=iw7_s, e=iw7_e, n=iw7_n),
+        iw7=BBox(w=iw7_w, s=iw7_s, e=iw7_e, n=iw7_n), iw7_poly=iw7_poly,
         iw9=BBox(w=iw9_w, s=iw9_s, e=iw9_e, n=iw9_n), iw9_poly=iw9_poly,
         dryer=BBox(w=dryer_w, s=dryer_s, e=dryer_e, n=dryer_n),
         washer=BBox(w=washer_w, s=washer_s, e=washer_e, n=washer_n),

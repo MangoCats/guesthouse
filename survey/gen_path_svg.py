@@ -289,9 +289,8 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     # IW3 (rotated, 4" thick, perpendicular to W20-W0)
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw3_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW7 (horizontal, 4")
-    iw7_poly = [(L.iw7.w,L.iw7.s),(L.iw7.e,L.iw7.s),(L.iw7.e,L.iw7.n),(L.iw7.w,L.iw7.n)]
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw7_poly)
+    # IW7 (rotated, 4" thick, parallel to W20-W0)
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw7_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW9 (rotated, 4" thick, perpendicular to W20-W0)
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw9_poly)
