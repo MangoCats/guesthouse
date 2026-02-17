@@ -177,7 +177,7 @@ def _compute_south_wall(
     F19-F20: CW arc (C19), F20-F20a: straight line, F20a-F21: CCW arc (C20).
     F21-F0 exit bearing = 270° (due west).
     """
-    _sweep = math.atan2(1, 12)  # atan(1/12), used for both C19 and C20 arcs
+    _sweep = math.asin(1.0 / 9.0)  # arcsin(1/9), used for both C19 and C20 arcs
     R_a19 = F19_F20_CHORD / (2 * math.sin(_sweep / 2))  # chord = 2R·sin(θ/2)
     R_a20 = F20A_F21_CHORD / (2 * math.sin(_sweep / 2))  # chord = 2R·sin(θ/2)
 
