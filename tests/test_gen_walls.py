@@ -158,12 +158,12 @@ class TestBuildWallData:
     def test_23_g_segments(self, wall_data):
         assert len(wall_data.g_segs) == 23
 
-    def test_10_openings(self, wall_data):
-        assert len(wall_data.openings) == 10
+    def test_11_openings(self, wall_data):
+        assert len(wall_data.openings) == 11
 
     def test_opening_names(self, wall_data):
         names = {o.name for o in wall_data.openings}
-        expected = {f"O{i}" for i in range(1, 12)} - {"O10"}
+        expected = {f"O{i}" for i in range(1, 12)}
         assert names == expected
 
     def test_openings_on_line_segs(self, wall_data):
@@ -216,7 +216,7 @@ class TestRenderWallsSvgWithInterior:
     def test_opening_dim_labels_have_inch_marks(self, rendered_all):
         import re
         dim_labels = re.findall(r'fill="#4682B4"[^>]*>[^<]*&#8243;', rendered_all)
-        assert len(dim_labels) == 10
+        assert len(dim_labels) == 11
 
     def test_title_override(self, wall_data):
         svg = render_walls_svg(wall_data, title="Custom Title",
@@ -231,19 +231,17 @@ class TestRenderWallsSvg:
 
     def test_contains_all_opening_labels(self, rendered):
         for i in range(1, 12):
-            if i == 10:
-                continue  # O10 disabled (bed area east of F21)
             assert f">O{i}<" in rendered, f"Missing opening label O{i}"
 
     def test_wall_polygon_count(self, rendered):
         import re
         wall_fills = re.findall(r'fill="rgba\(180,180,180,0\.5\)"', rendered)
-        assert len(wall_fills) == 86
+        assert len(wall_fills) == 90
 
     def test_opening_polygon_count(self, rendered):
         import re
         opening_fills = re.findall(r'fill="rgb\(220,235,255\)"', rendered)
-        assert len(opening_fills) == 10
+        assert len(opening_fills) == 11
 
     def test_title_present(self, rendered):
         assert "Outer Walls" in rendered
