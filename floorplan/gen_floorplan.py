@@ -1461,9 +1461,39 @@ def _render_dimensions(out, data, layout):
     dim_line_v(out, (layout.ctr.e + layout.iwt3 + layout.iw9.w) / 2,
                layout.ctr.s, layout.iw10.s,
                f"CLOSET {fmt_dist(layout.iw10.s - layout.ctr.s)}", to_svg)
-    dim_line_v(out, (layout.iw12.w + layout.iw12.e) / 2,
-               layout.wall_south_n, layout.cl1_top,
-               f"CLOSET {fmt_dist(layout.cl1_top - layout.wall_south_n)}", to_svg)
+    # East closet (rotated dimension, parallel to IW11)
+    _iw11_ne = layout.iw11_poly[2]
+    _iw12_se = layout.iw12_poly[1]
+    _dim_s = ((_iw11_ne[0] + _iw12_se[0]) / 2,
+              (_iw11_ne[1] + _iw12_se[1]) / 2)
+    _dn = (layout.iw11_poly[2][0] - layout.iw11_poly[1][0],
+           layout.iw11_poly[2][1] - layout.iw11_poly[1][1])
+    _dl = math.sqrt(_dn[0]**2 + _dn[1]**2)
+    _nrm = (_dn[0] / _dl, _dn[1] / _dl)
+    _cx, _cy = pts["C19"]
+    _ri = data.radii["R_a19"] - data.wall_t
+    _ux, _uy = _dim_s[0] - _cx, _dim_s[1] - _cy
+    _dot_nu = _nrm[0] * _ux + _nrm[1] * _uy
+    _t_arc = _dot_nu + math.sqrt(_dot_nu**2 + _ri**2 - _ux**2 - _uy**2)
+    _dim_e = (_dim_s[0] - _t_arc * _nrm[0], _dim_s[1] - _t_arc * _nrm[1])
+    _dsx1, _dsy1 = to_svg(*_dim_s)
+    _dsx2, _dsy2 = to_svg(*_dim_e)
+    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
+    _slen = math.sqrt(_sdx**2 + _sdy**2)
+    _px = -_sdy / _slen; _py = _sdx / _slen
+    _tk = 4
+    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
+        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
+                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
+                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
+    _up_dx = _dsx1 - _dsx2; _up_dy = _dsy1 - _dsy2
+    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
+    _lx = _lmx + 3 * _up_dy / _slen; _ly = _lmy - 3 * _up_dx / _slen
+    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
+               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
+               f'CLOSET {fmt_dist(_t_arc)}</text>')
 
     # Utility
     dim_line_h(out, pts["W1"][0], (layout.ctr.s + layout.ctr.n) / 2, layout.ctr.e,
