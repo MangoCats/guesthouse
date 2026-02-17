@@ -1167,7 +1167,7 @@ def _render_furniture(out, data, layout, minik=False):
         rk_sx2, rk_sy2 = to_svg(rk_cx + rk_hw, rk_cy - rk_hh)
         rk_sw = rk_sx2 - rk_sx1; rk_sh = rk_sy2 - rk_sy1
         rk_sr = abs(to_svg(rk_r, 0)[0] - to_svg(0, 0)[0])
-        rk_angle = 15.0  # 15° CCW in plan = CW in SVG (Y-axis flipped)
+        rk_angle = -15.0  # 15° CCW in plan = -15° in SVG (Y-axis flipped)
         out.append(f'<a href="https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/" target="_blank">')
         out.append(f'<g transform="rotate({rk_angle:.1f},{rk_scx:.1f},{rk_scy:.1f})">')
         out.append(f'<rect x="{rk_sx1:.1f}" y="{rk_sy1:.1f}" width="{rk_sw:.1f}" height="{rk_sh:.1f}"'
