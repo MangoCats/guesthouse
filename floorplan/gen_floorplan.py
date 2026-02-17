@@ -1430,6 +1430,15 @@ def _render_furniture(out, data, layout, minik=False):
     out.append(f'<text x="{hn_cx:.1f}" y="{hn_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="5" fill="{APPL_STROKE}">HEARTH</text>')
 
+    # WW6: 30" radius circle centered on fireplace SW corner
+    ww6_r = 30.0 / 12.0
+    ww6_sx, ww6_sy = to_svg(fp_w, fp_s)
+    ww6_r_svg = to_svg(ww6_r, 0)[0] - to_svg(0, 0)[0]
+    out.append(f'<circle cx="{ww6_sx:.1f}" cy="{ww6_sy:.1f}" r="{ww6_r_svg:.1f}"'
+               f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
+    out.append(f'<text x="{ww6_sx + ww6_r_svg + 3:.1f}" y="{ww6_sy+3:.1f}" font-family="Arial"'
+               f' font-size="7" fill="{DIM_COLOR}">WW6</text>')
+
     # Room labels
     bd_cx = (layout.iw9.e + layout.iw4_w) / 2
     bd_cy = (layout.ctr.s + layout.iw1_s) / 2
