@@ -1577,7 +1577,7 @@ def _render_dimensions(out, data, layout):
                    f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
     _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
     _up_dx = _dsx2 - _dsx1; _up_dy = _dsy2 - _dsy1
-    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx)) - 90
+    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
     _lx = _lmx - 3 * _px; _ly = _lmy - 3 * _py
     out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
