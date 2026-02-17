@@ -126,12 +126,14 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
     ]))
 
-    # O9: F20-F20a — east end 4" west of IW11 west face
+    # O9: F20-F20a — east end 4" past IW11 SW corner along F20-F20a
     _dE9 = pts["F20a"][0] - pts["F20"][0]
     _dN9 = pts["F20a"][1] - pts["F20"][1]
     _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
-    _o9_target_e = layout.iw11.w - 4.0 / 12.0
-    _ts9 = (_o9_target_e - pts["F20"][0]) / _dE9
+    _iw11_sw = layout.iw11_poly[0]
+    _t_sw = ((_iw11_sw[0] - pts["F20"][0]) * _dE9
+             + (_iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
+    _ts9 = _t_sw + 4.0 / 12.0 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
     openings.append(OuterOpening("O9", "F20", "F20a", [
         (pts["F20"][0] + _ts9 * _dE9, pts["F20"][1] + _ts9 * _dN9),
