@@ -8,7 +8,7 @@ from floorplan.constants import (
     APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_E,
     APPLIANCE_OFFSET_N, APPLIANCE_GAP,
     COUNTER_DEPTH, COUNTER_GAP,
-    BEDROOM_WIDTH, CLOSET_WIDTH,
+    BEDROOM_WIDTH, CLOSET_WIDTH, CLOSET2_WIDTH,
     BED_WIDTH, BED_LENGTH, BED_OFFSET_N,
     IW1_OFFSET_N, IW2_OFFSET_E, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
@@ -115,12 +115,12 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw10_s = iw7_n
     iw10_n = iw7_n + WALL_4IN
 
-    iw4_w = iw9_e + BEDROOM_WIDTH + 34.0 / 12.0
+    iw4_w = iw9_e + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH
     iw4_e = iw4_w + WALL_4IN
     iw4_s = WALL_SOUTH_N + 6.0 + 4.0 / 12.0
     wall_south_n = WALL_SOUTH_N
     cl1_top = iw7_n - 1.0
-    iw8_w = iw9_e + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH
+    iw8_w = iw9_e + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH
     iw8_e = iw8_w + WALL_3IN
     iw8_poly = [(iw8_w, wall_south_n + 6.0), (iw8_e, wall_south_n + 6.0),
                 (iw8_e, wall_south_n), (iw8_w, wall_south_n)]

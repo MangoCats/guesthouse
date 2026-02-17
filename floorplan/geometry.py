@@ -13,7 +13,7 @@ from floorplan.constants import (
     F20A_F21_CHORD, F18_OFFSET_E, F18_F19_GAP, F19_F20_CHORD, F21_OFFSET_E_IW7,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
-    CLOSET_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
+    CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
     IW1_OFFSET_N, WALL_SOUTH_N,
     O6_E_FROM_F9, F10_O6_CLEARANCE,
 )
@@ -194,7 +194,7 @@ def _compute_south_wall(
     _iw4_e = (fp_pts["F1"][0] + WALL_OUTER
               + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
               + WALL_3IN + CLOSET_WIDTH + WALL_4IN      # closet 1 (IW7-IW3-IW9)
-              + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH  # bedroom + closet 2
+              + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH  # bedroom + closet 2
               + WALL_4IN)                                 # IW4 thickness
     F18_E = _iw4_e + F18_OFFSET_E
     fp_pts["F18"] = (F18_E, SOUTH_WALL_N)
