@@ -87,7 +87,7 @@ WW10_RADIUS = 30.0 / 12.0         # 30" WW10 circle radius (bed NW corner)
 
 # IW9 (perpendicular to W20-W0, 4" thick)
 IW9_LENGTH = 88.0 / 12.0            # 88" (7'4") IW9 length
-IW9_OFFSET_O10 = 8.0 / 12.0         # 8" past O10 along W20-W0
+IW9_OFFSET_O10 = 5.0 / 12.0         # 5" past O10 along W20-W0
 
 # IW4 rough opening
 IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
