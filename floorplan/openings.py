@@ -128,8 +128,8 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
     ]))
 
-    # O9: F18-F19, horizontal — centered between bed east and IW4 west
-    o9_cn = (layout.bed.e + layout.iw4_w) / 2
+    # O9: F18-F19, horizontal — centered between bed east and IW11 west
+    o9_cn = (layout.bed.e + layout.iw11.w) / 2
     openings.append(OuterOpening("O9", "F18", "F19", [
         (o9_cn - O9_HALF_WIDTH, pts["F18"][1]), (o9_cn + O9_HALF_WIDTH, pts["F18"][1]),
         (o9_cn + O9_HALF_WIDTH, pts["W18"][1]), (o9_cn - O9_HALF_WIDTH, pts["W18"][1]),

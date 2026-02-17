@@ -52,8 +52,8 @@ class TestInteriorLayout:
     def test_bed_bounds(self, layout):
         assert layout.bed.e > layout.bed.w
         assert layout.bed.n > layout.bed.s
-        # Bed center between IW9 and IW4
-        assert layout.iw9.e < layout.bed_cx < layout.iw4_w
+        # Bed center between IW9 and IW11
+        assert layout.iw9.e < layout.bed_cx < layout.iw11.w
 
     def test_iw10_bounds(self, layout):
         """IW10 horizontal, 4" thick, from IW3.e to IW9.e at iw7_n."""

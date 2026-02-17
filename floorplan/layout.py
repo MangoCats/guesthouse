@@ -129,7 +129,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw11_s = wall_south_n
     iw11_n = iw4_s
 
-    bed_cx = (iw9_e + iw4_w) / 2
+    bed_cx = iw9_e + BEDROOM_WIDTH / 2
     bed_w = bed_cx - BED_WIDTH / 2
     bed_e = bed_cx + BED_WIDTH / 2
     bed_s = ctr_s + BED_OFFSET_N
