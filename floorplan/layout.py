@@ -202,7 +202,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # IW8: 6" thick, horizontal, from W1-W2 face to IW1 west end
     iw8_w = pts["W1"][0]
     iw8_e = iw1_w
-    iw8 = BBox(w=iw8_w, s=iw1_s, e=iw8_e, n=iw1_n)
+    iw8 = BBox(w=iw8_w, s=iw1_s + 18.0 / 12.0, e=iw8_e, n=iw1_n + 18.0 / 12.0)
 
     # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
     iw5_n = iw1_s - IW5_OFFSET_N
