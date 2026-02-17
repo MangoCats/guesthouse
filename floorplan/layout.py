@@ -161,7 +161,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw11_n = max(p[1] for p in iw11_poly)
 
     # IW12: 4" thick, perpendicular to IW11, from IW11 NW corner to IW4 west face
-    iw12_sw = iw11_nw
+    _iw12_shorten = 4.0 / 12.0
+    iw12_sw = (iw11_nw[0] - _iw12_shorten * _along_E,
+               iw11_nw[1] - _iw12_shorten * _along_N)
     # IW12 runs in -_along direction (toward IW4); length to reach iw4_w
     _iw12_len = (iw4_w - iw11_nw[0]) / (-_along_E)
     iw12_se = (iw12_sw[0] - _iw12_len * _along_E,
