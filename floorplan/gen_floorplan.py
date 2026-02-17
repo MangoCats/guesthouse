@@ -31,6 +31,7 @@ from floorplan.constants import (
     OTTOMAN_SIZE, ET_RADIUS_CM,
     SOFA_WIDTH, SOFA_DEPTH,
     ICE_WIDTH, ICE_DEPTH,
+    ROCKER_WIDTH, ROCKER_DEPTH, ROCKER_CORNER_R,
     RO1_OFFSET_W_IW4, IW1_RO_WIDTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
@@ -1146,6 +1147,35 @@ def _render_furniture(out, data, layout, minik=False):
         sf_cy = (sf_sy1 + sf_sy2) / 2
         out.append(f'<text x="{sf_cx:.1f}" y="{sf_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="6" fill="{APPL_STROKE}">SOFA</text>')
+        out.append('</a>')
+
+        # ROCKER: midpoint between ICE SE corner and SOFA NW corner
+        # Recompute ICE SE: fridge_e = ks_e + 3" + MINIK_FRIDGE_W
+        _st_e = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP + STOVE_WIDTH
+        _ks_e = _st_e + KITCHEN_APPL_GAP + KITCHEN_SINK_WIDTH
+        _fr_e = _ks_e + 3.0 / 12.0 + MINIK_FRIDGE_W
+        _ice_e = _fr_e + 3.0 / 12.0 + ICE_WIDTH
+        _back_n = pts["W9"][1]
+        _ice_s = _back_n - 3.0 / 12.0 - ICE_DEPTH
+        rk_cx = (_ice_e + sofa_w) / 2
+        rk_cy = (_ice_s + sofa_n) / 2
+        rk_w = rk_cx - ROCKER_WIDTH / 2
+        rk_e = rk_cx + ROCKER_WIDTH / 2
+        rk_n = rk_cy + ROCKER_DEPTH / 2
+        rk_s = rk_cy - ROCKER_DEPTH / 2
+        rk_r = ROCKER_CORNER_R
+        rk_sx1, rk_sy1 = to_svg(rk_w, rk_n)
+        rk_sx2, rk_sy2 = to_svg(rk_e, rk_s)
+        rk_sw = rk_sx2 - rk_sx1; rk_sh = rk_sy2 - rk_sy1
+        rk_sr = abs(to_svg(rk_r, 0)[0] - to_svg(0, 0)[0])
+        out.append(f'<a href="https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/" target="_blank">')
+        out.append(f'<rect x="{rk_sx1:.1f}" y="{rk_sy1:.1f}" width="{rk_sw:.1f}" height="{rk_sh:.1f}"'
+                   f' rx="{rk_sr:.1f}" ry="{rk_sr:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        rk_scx = (rk_sx1 + rk_sx2) / 2
+        rk_scy = (rk_sy1 + rk_sy2) / 2
+        out.append(f'<text x="{rk_scx:.1f}" y="{rk_scy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">ROCKER</text>')
         out.append('</a>')
     else:
         # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner

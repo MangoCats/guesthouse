@@ -185,3 +185,6 @@ SHELVES_WIDTH = 36.0 / 12.0       # 36" shelves E-W
 SHELVES_DEPTH = 15.0 / 12.0       # 15" shelves N-S
 ICE_WIDTH = 17.7 / 12.0           # 17.7" ice maker E-W
 ICE_DEPTH = 15.8 / 12.0           # 15.8" ice maker N-S
+ROCKER_WIDTH = 26.75 / 12.0       # 26.75" POANG rocking chair E-W
+ROCKER_DEPTH = 37.0 / 12.0        # 37" POANG rocking chair N-S
+ROCKER_CORNER_R = 3.0 / 12.0      # 3" rounded corner radius
