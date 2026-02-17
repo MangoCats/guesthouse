@@ -1553,9 +1553,35 @@ def _render_dimensions(out, data, layout):
     dim_line_h(out, pts["F1"][0], dim_ext_n, pts["F15"][0],
                fmt_dist(pts["F15"][0] - pts["F1"][0]), to_svg)
 
-    o9_dim_e = layout.iw11.w - 1.0
-    dim_line_v(out, o9_dim_e, pts["W18"][1], layout.iw1_s,
-               fmt_dist(layout.iw1_s - pts["W18"][1]), to_svg)
+    # Bedroom: O9 inner center perpendicular to W20-W20a up to IW1 south face
+    _o9_open = compute_outer_openings(pts, layout)[8]  # O9
+    _o9_ic = ((_o9_open.poly[2][0] + _o9_open.poly[3][0]) / 2,
+              (_o9_open.poly[2][1] + _o9_open.poly[3][1]) / 2)
+    _dEw = pts["W20a"][0] - pts["W20"][0]
+    _dNw = pts["W20a"][1] - pts["W20"][1]
+    _wlen = math.sqrt(_dEw**2 + _dNw**2)
+    _nrmE = _dNw / _wlen; _nrmN = -_dEw / _wlen  # inward normal (NNE)
+    _t_iw1 = (layout.iw1_s - _o9_ic[1]) / _nrmN
+    _dim_end = (_o9_ic[0] + _t_iw1 * _nrmE, layout.iw1_s)
+    _dim_len = abs(_t_iw1)
+    _dsx1, _dsy1 = to_svg(*_o9_ic)
+    _dsx2, _dsy2 = to_svg(*_dim_end)
+    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
+    _slen = math.sqrt(_sdx**2 + _sdy**2)
+    _px = -_sdy / _slen; _py = _sdx / _slen
+    _tk = 4
+    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
+        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
+                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
+                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
+    _up_dx = _dsx2 - _dsx1; _up_dy = _dsy2 - _dsy1
+    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx)) - 90
+    _lx = _lmx - 3 * _px; _ly = _lmy - 3 * _py
+    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
+               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
+               f'{fmt_dist(_dim_len)}</text>')
 
     # Utility area N-S: IW1 south face to W21-W0, centered on O11
     o11_cx = (layout.dryer.e + layout.ctr.w) / 2
