@@ -78,8 +78,9 @@ IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 IW2_RO_OFFSET_S = 6.0 / 12.0      # 6" south of IW6 south face
 IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
-# IW3 (vertical, 4" thick)
-IW3_LENGTH = 78.0 / 12.0          # 78" N-S length
+# IW3 (perpendicular to W20-W0, 4" thick)
+IW3_LENGTH = 80.0 / 12.0          # 80" (6'8") length into structure
+IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W20-W0
 
 # IW7 (horizontal, 4" thick)
 IW7_OFFSET_S_IW1 = 30.0 / 12.0   # 30" IW7 north face south of IW1 south face

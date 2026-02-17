@@ -343,8 +343,7 @@ def compute_iw_area(layout):
     iw2 = layout.iw2
     iw5 = layout.iw5
     iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
-    iw3 = layout.iw3
-    iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
+    iw3_poly = layout.iw3_poly
     iw7 = layout.iw7
     iw7_poly = [(iw7.w, iw7.s), (iw7.e, iw7.s), (iw7.e, iw7.n), (iw7.w, iw7.n)]
     iw9_poly = layout.iw9_poly
@@ -548,15 +547,19 @@ def _render_walls(out, data, layout):
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # ---- IW3 (solid, no opening) ----
-    iw3 = layout.iw3
-    iw3_poly = [(iw3.w, iw3.s), (iw3.e, iw3.s), (iw3.e, iw3.n), (iw3.w, iw3.n)]
-    wall_poly(out, iw3_poly, to_svg, stroke=False)
-    iw3_w_in = iw3.w + half_sw
-    iw3_e_in = iw3.e - half_sw
-    for a, b in [((iw3_w_in, iw3.s), (iw3_w_in, iw3.n)),
-                 ((iw3_e_in, iw3.s), (iw3_e_in, iw3.n))]:
-        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+    # ---- IW3 (solid, no opening, rotated perpendicular to W20-W0) ----
+    _iw3_sw, _iw3_se, _iw3_ne, _iw3_nw = layout.iw3_poly
+    wall_poly(out, layout.iw3_poly, to_svg, stroke=False)
+    _iw3_dx_t = _iw3_sw[0] - _iw3_se[0]
+    _iw3_dy_t = _iw3_sw[1] - _iw3_se[1]
+    _iw3_lt = math.sqrt(_iw3_dx_t**2 + _iw3_dy_t**2)
+    _iw3_at = (_iw3_dx_t / _iw3_lt, _iw3_dy_t / _iw3_lt)
+    for (p1, p2), (ox, oy) in [
+        ((_iw3_se, _iw3_ne), _iw3_at),                            # east face
+        ((_iw3_sw, _iw3_nw), (-_iw3_at[0], -_iw3_at[1])),        # west face
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
