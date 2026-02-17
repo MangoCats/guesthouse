@@ -347,7 +347,7 @@ def compute_iw_area(layout):
     iw9_poly = [(iw9.w, iw9.s), (iw9.e, iw9.s), (iw9.e, iw9.n), (iw9.w, iw9.n)]
     iw10 = layout.iw10
     iw10_poly = [(iw10.w, iw10.s), (iw10.e, iw10.s), (iw10.e, iw10.n), (iw10.w, iw10.n)]
-    iw4_poly = [(layout.iw4_w, layout.wall_south_n), (layout.iw4_e, layout.wall_south_n),
+    iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
     iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
@@ -631,10 +631,10 @@ def _render_walls(out, data, layout):
 
     # ---- IW4 with RO2 ----
     ro2_s, ro2_n = ro["RO2"].s, ro["RO2"].n
-    iw4_poly = [(layout.iw4_w, layout.wall_south_n), (layout.iw4_e, layout.wall_south_n),
+    iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
 
-    iw4_s_poly = [(layout.iw4_w, layout.wall_south_n), (layout.iw4_e, layout.wall_south_n),
+    iw4_s_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                   (layout.iw4_e, ro2_s), (layout.iw4_w, ro2_s)]
     iw4_n_poly = [(layout.iw4_w, ro2_n), (layout.iw4_e, ro2_n),
                   (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
@@ -642,9 +642,9 @@ def _render_walls(out, data, layout):
     wall_poly(out, iw4_n_poly, to_svg, stroke=False)
     w_in = layout.iw4_w + half_sw
     e_in = layout.iw4_e - half_sw
-    for a, b in [((w_in, layout.wall_south_n), (w_in, ro2_s)),
+    for a, b in [((w_in, layout.iw4_s), (w_in, ro2_s)),
                  ((w_in, ro2_n), (w_in, layout.iw1_s)),
-                 ((e_in, layout.wall_south_n), (e_in, ro2_s)),
+                 ((e_in, layout.iw4_s), (e_in, ro2_s)),
                  ((e_in, ro2_n), (e_in, layout.iw1_s))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
