@@ -317,6 +317,11 @@ def _render_interior_walls(out, data):
     iw_label("IW12", layout.iw12.w, layout.iw12.e, layout.iw12.s, layout.iw12.n,
              vertical=False)
 
+    # IW14 (rotated, 3" — parallel to IW12)
+    iw_poly(layout.iw14_poly)
+    iw_label("IW14", layout.iw14.w, layout.iw14.e, layout.iw14.s, layout.iw14.n,
+             vertical=False)
+
     # IW5 (horizontal, 3")
     iw_rect(layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n)
     iw_label("IW5", layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n,

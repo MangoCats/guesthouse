@@ -315,6 +315,9 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     # IW12 wall
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw12_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # IW14 wall
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw14_poly)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # Appliances
     for lbl,sw_e,sw_n,ne_e,ne_n in [("DRYER",L.dryer.w,L.dryer.s,L.dryer.e,L.dryer.n),
                                       ("WASHER",L.washer.w,L.washer.s,L.washer.e,L.washer.n)]:

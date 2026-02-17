@@ -14,6 +14,7 @@ from floorplan.constants import (
     O9_HALF_WIDTH,
     IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
+    IW4_RO_WIDTH,
 )
 
 
@@ -63,6 +64,9 @@ class InteriorLayout(NamedTuple):
     iw5: BBox
     # IW8 (6" thick, horizontal — west extension of IW1, W1-W2 to IW1 west end)
     iw8: BBox
+    # IW14 (3" thick, parallel to IW12, north of RO2)
+    iw14: BBox
+    iw14_poly: list[Point]  # [SW, SE, NE, NW]
     # IW6 (1" thick, horizontal above kitchen)
     iw6_poly: list[Point]
     iw6_n: float
@@ -212,6 +216,24 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw5_w = iw4_e
     iw5_e = pts["W15"][0]
 
+    # IW14: 3" thick, parallel to IW12, 3" past RO2 north edge along IW11
+    # Distance along IW11 from iw11_se: IW12 base(6') + IW12 thick + 3" + RO2 + 3"
+    _iw14_d = 6.0 + WALL_4IN + 3.0 / 12.0 + IW4_RO_WIDTH + 3.0 / 12.0
+    iw14_sw = (iw11_se[0] + _iw14_d * _norm_E,
+               iw11_se[1] + _iw14_d * _norm_N)
+    iw14_nw = (iw14_sw[0] + WALL_3IN * _norm_E,
+               iw14_sw[1] + WALL_3IN * _norm_N)
+    # SE corner: south face line (-_along direction) hits iw5_s northing
+    _t14 = (iw14_sw[1] - iw5_s) / _along_N
+    iw14_se = (iw14_sw[0] - _t14 * _along_E, iw5_s)
+    iw14_ne = (iw14_se[0] + WALL_3IN * _norm_E,
+               iw14_se[1] + WALL_3IN * _norm_N)
+    iw14_poly = [iw14_sw, iw14_se, iw14_ne, iw14_nw]
+    iw14_w = min(p[0] for p in iw14_poly)
+    iw14_e = max(p[0] for p in iw14_poly)
+    iw14_s = min(p[1] for p in iw14_poly)
+    iw14_n = max(p[1] for p in iw14_poly)
+
     # IW6: IW6_THICKNESS thick, south face IW6_OFFSET_N south of W6
     iw6_n = pts["W6"][1] - IW6_OFFSET_N
     iw6_s = iw6_n - IW6_THICKNESS
@@ -240,5 +262,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         bed_poly=bed_poly,
         iw8=iw8,
         iw5=BBox(w=iw5_w, s=iw5_s, e=iw5_e, n=iw5_n),
+        iw14=BBox(w=iw14_w, s=iw14_s, e=iw14_e, n=iw14_n), iw14_poly=iw14_poly,
         iw6_poly=iw6_poly, iw6_n=iw6_n, iw6_s=iw6_s,
     )

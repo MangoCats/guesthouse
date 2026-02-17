@@ -355,7 +355,8 @@ def compute_iw_area(layout):
     iw8 = layout.iw8
     iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
     iw_polys = [layout.iw1, iw8_poly, iw2_poly, layout.iw6_poly, layout.iw7,
-                iw3_poly, iw9_poly, iw10_poly, iw4_poly, layout.iw11_poly, layout.iw12_poly, iw5_poly]
+                iw3_poly, iw9_poly, iw10_poly, iw4_poly, layout.iw11_poly, layout.iw12_poly,
+                layout.iw14_poly, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -724,6 +725,28 @@ def _render_walls(out, data, layout):
         ((_iw12_nw, _iw12_ne), (-_iw12_an[0], -_iw12_an[1])),  # north face, inset toward south
         ((_iw12_sw, _iw12_nw), _iw12_al),      # west end, inset toward east
         ((_iw12_se, _iw12_ne), (-_iw12_al[0], -_iw12_al[1])),  # east end, inset toward west
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+
+    # ---- IW14 (rotated rectangle, 3" thick, parallel to IW12) ----
+    wall_poly(out, layout.iw14_poly, to_svg, stroke=False)
+    _iw14_sw, _iw14_se, _iw14_ne, _iw14_nw = layout.iw14_poly
+    _iw14_dx_t = _iw14_se[0] - _iw14_sw[0]  # length direction (-along)
+    _iw14_dy_t = _iw14_se[1] - _iw14_sw[1]
+    _iw14_lt = math.sqrt(_iw14_dx_t**2 + _iw14_dy_t**2)
+    _iw14_al = (_iw14_dx_t / _iw14_lt, _iw14_dy_t / _iw14_lt)  # unit along length
+    _iw14_dx_n = _iw14_nw[0] - _iw14_sw[0]  # thickness direction (norm)
+    _iw14_dy_n = _iw14_nw[1] - _iw14_sw[1]
+    _iw14_ln = math.sqrt(_iw14_dx_n**2 + _iw14_dy_n**2)
+    _iw14_an = (_iw14_dx_n / _iw14_ln, _iw14_dy_n / _iw14_ln)  # unit normal
+    for (p1, p2), (ox, oy) in [
+        ((_iw14_sw, _iw14_se), _iw14_an),      # south face, inset toward north
+        ((_iw14_nw, _iw14_ne), (-_iw14_an[0], -_iw14_an[1])),  # north face
+        ((_iw14_sw, _iw14_nw), _iw14_al),      # west end, inset toward east
+        ((_iw14_se, _iw14_ne), (-_iw14_al[0], -_iw14_al[1])),  # east end
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
