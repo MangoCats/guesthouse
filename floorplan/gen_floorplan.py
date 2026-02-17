@@ -658,14 +658,27 @@ def _render_walls(out, data, layout):
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # ---- IW11 ----
+    # ---- IW11 (rotated rectangle) ----
     wall_poly(out, layout.iw11_poly, to_svg, stroke=False)
-    iw11 = layout.iw11
-    w_in = iw11.w + half_sw
-    e_in = iw11.e - half_sw
-    for e_val in [w_in, e_in]:
-        sx1, sy1 = to_svg(e_val, iw11.s)
-        sx2, sy2 = to_svg(e_val, iw11.n)
+    _iw11_sw, _iw11_se, _iw11_ne, _iw11_nw = layout.iw11_poly
+    # Unit vectors from polygon corners
+    _iw11_dx_t = _iw11_sw[0] - _iw11_se[0]  # thickness direction (along)
+    _iw11_dy_t = _iw11_sw[1] - _iw11_se[1]
+    _iw11_lt = math.sqrt(_iw11_dx_t**2 + _iw11_dy_t**2)
+    _iw11_at = (_iw11_dx_t / _iw11_lt, _iw11_dy_t / _iw11_lt)  # unit along
+    _iw11_dx_n = _iw11_ne[0] - _iw11_se[0]  # length direction (normal)
+    _iw11_dy_n = _iw11_ne[1] - _iw11_se[1]
+    _iw11_ln = math.sqrt(_iw11_dx_n**2 + _iw11_dy_n**2)
+    _iw11_an = (_iw11_dx_n / _iw11_ln, _iw11_dy_n / _iw11_ln)  # unit normal
+    # Inset outline: 4 lines along wall faces and ends
+    for (p1, p2), (ox, oy) in [
+        ((_iw11_se, _iw11_ne), _iw11_at),     # east face, inset toward west
+        ((_iw11_sw, _iw11_nw), (-_iw11_at[0], -_iw11_at[1])),  # west face, inset toward east
+        ((_iw11_sw, _iw11_se), _iw11_an),      # south end, inset toward north
+        ((_iw11_ne, _iw11_nw), (-_iw11_an[0], -_iw11_an[1])),  # north end, inset toward south
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
