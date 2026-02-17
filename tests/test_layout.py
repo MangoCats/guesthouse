@@ -33,8 +33,8 @@ class TestInteriorLayout:
         assert layout.iw11.e < layout.iw8_w
 
     def test_iw3_above_iw7(self, layout):
-        """IW3 east face 2" west of IW2 east, starts at IW7 north end."""
-        assert abs(layout.iw3.e - (layout.iw2.e - 2.0 / 12.0)) < 1e-12  # 2" west of IW2 east
+        """IW3 east face = IW7 east face, starts at IW7 north end."""
+        assert abs(layout.iw3.e - (layout.ctr.e + layout.iwt3)) < 1e-12  # east = IW7 east
         assert abs(layout.iw3.s - layout.iw7[3][1]) < 1e-12  # south = IW7 north
 
     def test_iw9_bounds(self, layout):
@@ -56,7 +56,7 @@ class TestInteriorLayout:
         assert layout.iw9.e < layout.bed_cx < layout.iw11.w
 
     def test_iw10_bounds(self, layout):
-        """IW10 horizontal, 4" thick, from IW3.e to IW9.e at iw7_n."""
+        """IW10 horizontal, 4" thick, from IW7 east (=IW3.e) to IW9.e at iw7_n."""
         assert layout.iw10.e > layout.iw10.w
         assert layout.iw10.n > layout.iw10.s
         assert abs(layout.iw10.w - layout.iw3.e) < 1e-12  # west = IW3 east

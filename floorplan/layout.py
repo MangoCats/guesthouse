@@ -101,7 +101,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_nw_r = 0
     iw7_poly = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s),
                 (ctr_e + WALL_3IN, iw7_n), (ctr_e, iw7_n)]
-    iw3_e = iw2_e - 2.0 / 12.0
+    iw3_e = ctr_e + WALL_3IN          # east face = IW7 east face
     iw3_w = iw3_e - WALL_4IN
     iw3_s = iw7_n
     iw3_n = iw1_s
