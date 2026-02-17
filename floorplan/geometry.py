@@ -180,16 +180,30 @@ def _compute_south_wall(
     R_a19 = SE_ARC_R   # 180" = 15'
     R_a20 = SE_ARC_R   # same radius for C20
 
-    # F17 on line from F16 at bearing 60°
+    # F17: position determined by F16-F17 line at bearing 60° (kept fixed)
     _brg_13 = math.radians(PIX_PI5_TARGET_BRG)
     _sin_b = math.sin(_brg_13)
     _cos_b = math.cos(_brg_13)
-    R_a17 = (fp_pts["F16"][1] - SOUTH_WALL_N - F16_F17_SEG * _cos_b) / (1.0 - _sin_b)
-    F17_N = SOUTH_WALL_N + R_a17 * (1.0 - _sin_b)
+    _R_a17_old = (fp_pts["F16"][1] - SOUTH_WALL_N - F16_F17_SEG * _cos_b) / (1.0 - _sin_b)
+    F17_N = SOUTH_WALL_N + _R_a17_old * (1.0 - _sin_b)
     _t_13 = (fp_pts["F16"][1] - F17_N) / _cos_b
     fp_pts["F17"] = (fp_pts["F16"][0] - _t_13 * _sin_b, F17_N)
-    fp_pts["C17"] = (fp_pts["F17"][0] - R_a17 * _cos_b, SOUTH_WALL_N + R_a17)
-    fp_pts["F18"] = (fp_pts["C17"][0], SOUTH_WALL_N)
+
+    # F18: 1" east of IW4 east face, at SOUTH_WALL_N
+    _iw4_e = (fp_pts["F1"][0] + WALL_OUTER
+              + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
+              + WALL_3IN + CLOSET_WIDTH + WALL_4IN      # closet 1 (IW7-IW3-IW9)
+              + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH  # bedroom + closet 2
+              + WALL_4IN)                                 # IW4 thickness
+    F18_E = _iw4_e + 1.0 / 12.0
+    fp_pts["F18"] = (F18_E, SOUTH_WALL_N)
+
+    # R_a17: arc from F17 to F18 with C17 directly above F18
+    # |C17 - F17|² = R_a17² with C17 = (F18_E, SOUTH_WALL_N + R_a17)
+    _dE = F18_E - fp_pts["F17"][0]
+    _dN = SOUTH_WALL_N - fp_pts["F17"][1]
+    R_a17 = -(_dE**2 + _dN**2) / (2 * _dN)
+    fp_pts["C17"] = (F18_E, SOUTH_WALL_N + R_a17)
     # F19: 6" west of F18
     F19_E = fp_pts["F18"][0] - 6.0 / 12.0
     fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
