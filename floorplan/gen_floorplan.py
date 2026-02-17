@@ -1532,9 +1532,13 @@ def _render_dimensions(out, data, layout):
     dim_line_h(out, layout.iw4_e, 5.0, pts["W15"][0],
                fmt_dist(pts["W15"][0] - layout.iw4_e), to_svg)
 
-    # Storage
-    dim_line_h(out, layout.iw4_e, (layout.iw5.n + layout.iw1_s) / 2, pts["W15"][0],
-               f"STORAGE {fmt_dist(pts['W15'][0] - layout.iw4_e)}", to_svg)
+    # Storage — west end at IW11 east face
+    _stor_n = (layout.iw5.n + layout.iw1_s) / 2
+    _iw11_se, _iw11_ne = layout.iw11_poly[1], layout.iw11_poly[2]
+    _t_stor = (_stor_n - _iw11_se[1]) / (_iw11_ne[1] - _iw11_se[1])
+    _stor_w = _iw11_se[0] + _t_stor * (_iw11_ne[0] - _iw11_se[0])
+    dim_line_h(out, _stor_w, _stor_n, pts["W15"][0],
+               f"STORAGE {fmt_dist(pts['W15'][0] - _stor_w)}", to_svg)
 
     # West wall interior widths
     dim_f1f2_n = layout.ctr.n + layout.iwt3 + 1.0
