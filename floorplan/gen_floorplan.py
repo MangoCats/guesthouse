@@ -1600,12 +1600,12 @@ def _render_dimensions(out, data, layout):
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
                f'{fmt_dist(_dim_len)}</text>')
 
-    # IW3 east face to IW11 west face, perpendicular to IW3 east face
-    _iw3_se3 = layout.iw3_poly[1]
-    _iw3_ne3 = layout.iw3_poly[2]
-    _dim3_s = ((_iw3_se3[0] + _iw3_ne3[0]) / 2,
-               (_iw3_se3[1] + _iw3_ne3[1]) / 2)
-    _fd3 = (_iw3_ne3[0] - _iw3_se3[0], _iw3_ne3[1] - _iw3_se3[1])
+    # IW9 east face to IW11 west face, perpendicular to IW9 east face
+    _iw9_se9 = layout.iw9_poly[1]
+    _iw9_ne9 = layout.iw9_poly[2]
+    _dim3_s = ((_iw9_se9[0] + _iw9_ne9[0]) / 2,
+               (_iw9_se9[1] + _iw9_ne9[1]) / 2)
+    _fd3 = (_iw9_ne9[0] - _iw9_se9[0], _iw9_ne9[1] - _iw9_se9[1])
     _fd3_len = math.sqrt(_fd3[0]**2 + _fd3[1]**2)
     _perp3 = (_fd3[1] / _fd3_len, -_fd3[0] / _fd3_len)  # CW perp, toward IW11
     _iw11_sw3 = layout.iw11_poly[0]
