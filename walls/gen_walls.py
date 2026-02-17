@@ -325,20 +325,46 @@ def _render_interior_walls(out, data):
     _RO_COLOR = "darkred"
     _RO_SW = "0.5"
     for ro in rough_openings:
-        b = ro.bbox
-        x1, y1 = to_svg(b.w, b.n)  # NW corner (SVG top-left)
-        x2, y2 = to_svg(b.e, b.s)  # SE corner (SVG bottom-right)
-        out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
-                   f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-        out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
-                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-        out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
-                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        if ro.poly is not None:
+            # Rotated opening: draw polygon + diagonals
+            _rp = ro.poly  # [SW, SE, NE, NW]
+            _rp_svg = [(to_svg(*p)) for p in _rp]
+            pts_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in _rp_svg)
+            out.append(f'<polygon points="{pts_str}" fill="none"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+            out.append(f'<line x1="{_rp_svg[0][0]:.1f}" y1="{_rp_svg[0][1]:.1f}"'
+                       f' x2="{_rp_svg[2][0]:.1f}" y2="{_rp_svg[2][1]:.1f}"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+            out.append(f'<line x1="{_rp_svg[1][0]:.1f}" y1="{_rp_svg[1][1]:.1f}"'
+                       f' x2="{_rp_svg[3][0]:.1f}" y2="{_rp_svg[3][1]:.1f}"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        else:
+            b = ro.bbox
+            x1, y1 = to_svg(b.w, b.n)  # NW corner (SVG top-left)
+            x2, y2 = to_svg(b.e, b.s)  # SE corner (SVG bottom-right)
+            out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
+                       f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+            out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+            out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
 
     # RO labels — same placement convention as IW labels
     for ro in rough_openings:
         b = ro.bbox
-        if ro.orientation == "H":
+        if ro.orientation == "R" and ro.poly is not None:
+            # Rotated opening: label at center of polygon
+            _rc = (sum(p[0] for p in ro.poly) / 4, sum(p[1] for p in ro.poly) / 4)
+            lx, ly = to_svg(*_rc)
+            # Rotation angle from polygon SW→NW direction
+            _rd = (ro.poly[3][0] - ro.poly[0][0], ro.poly[3][1] - ro.poly[0][1])
+            import math as _m
+            _ra = _m.degrees(_m.atan2(-(ro.poly[3][1] - ro.poly[0][1]),
+                                       ro.poly[3][0] - ro.poly[0][0]))
+            # SVG Y is inverted, so negate the angle component
+            _svg_ang = -_ra
+            rot = f' transform="rotate({_svg_ang:.1f} {lx:.1f} {ly:.1f})"'
+        elif ro.orientation == "H":
             # Horizontal opening: label centered above (north)
             lx, ly = to_svg((b.w + b.e) / 2, b.n)
             ly -= LABEL_GAP

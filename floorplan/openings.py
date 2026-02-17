@@ -34,9 +34,10 @@ class OuterOpening(NamedTuple):
 class RoughOpening(NamedTuple):
     """Rough opening in an interior wall."""
     name: str
-    bbox: BBox           # w, s, e, n in survey coords
+    bbox: BBox           # w, s, e, n in survey coords (axis-aligned BB)
     wall_name: str       # "IW1", "IW2", etc.
-    orientation: str     # "H" or "V"
+    orientation: str     # "H", "V", or "R" (rotated)
+    poly: list[Point] | None = None  # [SW, SE, NE, NW] for rotated openings
 
 
 class WallOpening(NamedTuple):
@@ -185,10 +186,34 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     ro1_w = layout.iw9.e + RO1_OFFSET_E_IW9
     ro1_e = ro1_w + IW1_RO_WIDTH
 
-    # RO2: in IW4, vertical, centered between IW12 north and IW5 south
-    ro2_center = (layout.iw12.n + iw5_s) / 2
-    ro2_s = ro2_center - IW4_RO_WIDTH / 2
-    ro2_n = ro2_center + IW4_RO_WIDTH / 2
+    # RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11
+    _iw11_se, _iw11_ne = layout.iw11_poly[1], layout.iw11_poly[2]
+    _iw11_sw = layout.iw11_poly[0]
+    _dx11 = _iw11_ne[0] - _iw11_se[0]
+    _dy11 = _iw11_ne[1] - _iw11_se[1]
+    _len11 = math.sqrt(_dx11**2 + _dy11**2)
+    _un11 = (_dx11 / _len11, _dy11 / _len11)  # unit along IW11 length (NNE)
+    _dx11t = _iw11_sw[0] - _iw11_se[0]
+    _dy11t = _iw11_sw[1] - _iw11_se[1]
+    _lt11 = math.sqrt(_dx11t**2 + _dy11t**2)
+    _ut11 = (_dx11t / _lt11, _dy11t / _lt11)  # unit along IW11 thickness
+    # IW12 NW corner projected onto IW11 length axis
+    _iw12_nw = layout.iw12_poly[3]
+    _ro2_start_d = ((_iw12_nw[0] - _iw11_se[0]) * _un11[0]
+                    + (_iw12_nw[1] - _iw11_se[1]) * _un11[1]) + 3.0 / 12.0
+    _ro2_end_d = _ro2_start_d + IW4_RO_WIDTH
+    # RO2 polygon [SW, SE, NE, NW] in IW11 coords
+    _ro2_sw = (_iw11_se[0] + _ro2_start_d * _un11[0],
+               _iw11_se[1] + _ro2_start_d * _un11[1])
+    _ro2_se = (_iw11_sw[0] + _ro2_start_d * _un11[0],
+               _iw11_sw[1] + _ro2_start_d * _un11[1])
+    _ro2_ne = (_iw11_sw[0] + _ro2_end_d * _un11[0],
+               _iw11_sw[1] + _ro2_end_d * _un11[1])
+    _ro2_nw = (_iw11_se[0] + _ro2_end_d * _un11[0],
+               _iw11_se[1] + _ro2_end_d * _un11[1])
+    _ro2_poly = [_ro2_sw, _ro2_se, _ro2_ne, _ro2_nw]
+    _ro2_bb = BBox(w=min(p[0] for p in _ro2_poly), s=min(p[1] for p in _ro2_poly),
+                   e=max(p[0] for p in _ro2_poly), n=max(p[1] for p in _ro2_poly))
 
     # RO3: in IW3, vertical
     ro3_s = layout.iw10.n + IW3_RO_OFFSET_N
@@ -204,7 +229,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
 
     return [
         RoughOpening("RO1", BBox(w=ro1_w, s=iw1_s, e=ro1_e, n=iw1_n), "IW1", "H"),
-        RoughOpening("RO2", BBox(w=layout.iw4_w, s=ro2_s, e=layout.iw4_e, n=ro2_n), "IW4", "V"),
+        RoughOpening("RO2", _ro2_bb, "IW11", "R", _ro2_poly),
         RoughOpening("RO3", BBox(w=layout.iw3.w, s=ro3_s, e=layout.iw3.e, n=ro3_n), "IW3", "V"),
         RoughOpening("RO4", BBox(w=layout.iw2.w, s=ro4_s, e=layout.iw2.e, n=ro4_n), "IW2", "V"),
         RoughOpening("RO5", BBox(w=ro5_w, s=iw6_s, e=ro5_e, n=iw6_n), "IW6", "H"),

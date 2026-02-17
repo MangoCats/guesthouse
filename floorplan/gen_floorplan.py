@@ -642,34 +642,19 @@ def _render_walls(out, data, layout):
     out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ---- IW4 with RO2 ----
-    ro2_s, ro2_n = ro["RO2"].s, ro["RO2"].n
+    # ---- IW4 (solid, no opening) ----
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
-
-    iw4_s_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
-                  (layout.iw4_e, ro2_s), (layout.iw4_w, ro2_s)]
-    iw4_n_poly = [(layout.iw4_w, ro2_n), (layout.iw4_e, ro2_n),
-                  (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
-    wall_poly(out, iw4_s_poly, to_svg, stroke=False)
-    wall_poly(out, iw4_n_poly, to_svg, stroke=False)
+    wall_poly(out, iw4_poly, to_svg, stroke=False)
     w_in = layout.iw4_w + half_sw
     e_in = layout.iw4_e - half_sw
-    for a, b in [((w_in, layout.iw4_s), (w_in, ro2_s)),
-                 ((w_in, ro2_n), (w_in, layout.iw1_s)),
-                 ((e_in, layout.iw4_s), (e_in, ro2_s)),
-                 ((e_in, ro2_n), (e_in, layout.iw1_s))]:
+    for a, b in [((w_in, layout.iw4_s), (w_in, layout.iw1_s)),
+                 ((e_in, layout.iw4_s), (e_in, layout.iw1_s))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    for jamb_n in [ro2_s, ro2_n - JAMB_WIDTH]:
-        jx1, jy1 = to_svg(layout.iw4_w, jamb_n + JAMB_WIDTH)
-        jx2, jy2 = to_svg(layout.iw4_e, jamb_n)
-        out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
-                   f' fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # ---- IW11 (rotated rectangle) ----
-    wall_poly(out, layout.iw11_poly, to_svg, stroke=False)
+    # ---- IW11 with RO2 (rotated rectangle, split by opening) ----
     _iw11_sw, _iw11_se, _iw11_ne, _iw11_nw = layout.iw11_poly
     # Unit vectors from polygon corners
     _iw11_dx_t = _iw11_sw[0] - _iw11_se[0]  # thickness direction (along)
@@ -680,17 +665,46 @@ def _render_walls(out, data, layout):
     _iw11_dy_n = _iw11_ne[1] - _iw11_se[1]
     _iw11_ln = math.sqrt(_iw11_dx_n**2 + _iw11_dy_n**2)
     _iw11_an = (_iw11_dx_n / _iw11_ln, _iw11_dy_n / _iw11_ln)  # unit normal
-    # Inset outline: 4 lines along wall faces and ends
+
+    # RO2 polygon corners on IW11
+    ro2_ro = [r for r in rough_openings if r.name == "RO2"][0]
+    _ro2p = ro2_ro.poly  # [SW, SE, NE, NW]
+
+    # South segment: IW11 south end to RO2 south edge
+    iw11_s_poly = [_iw11_sw, _iw11_se, _ro2p[0], _ro2p[1]]
+    wall_poly(out, iw11_s_poly, to_svg, stroke=False)
+    # North segment: RO2 north edge to IW11 north end
+    iw11_n_poly = [_ro2p[2], _ro2p[3], _iw11_ne, _iw11_nw]
+    wall_poly(out, iw11_n_poly, to_svg, stroke=False)
+
+    # Inset stroke lines for south segment
     for (p1, p2), (ox, oy) in [
-        ((_iw11_se, _iw11_ne), _iw11_at),     # east face, inset toward west
-        ((_iw11_sw, _iw11_nw), (-_iw11_at[0], -_iw11_at[1])),  # west face, inset toward east
-        ((_iw11_sw, _iw11_se), _iw11_an),      # south end, inset toward north
-        ((_iw11_ne, _iw11_nw), (-_iw11_an[0], -_iw11_an[1])),  # north end, inset toward south
+        ((_iw11_se, _ro2p[0]), _iw11_at),     # east face south
+        ((_iw11_sw, _ro2p[1]), (-_iw11_at[0], -_iw11_at[1])),  # west face south
+        ((_iw11_sw, _iw11_se), _iw11_an),      # south end
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    # Inset stroke lines for north segment
+    for (p1, p2), (ox, oy) in [
+        ((_ro2p[3], _iw11_ne), _iw11_at),     # east face north
+        ((_ro2p[2], _iw11_nw), (-_iw11_at[0], -_iw11_at[1])),  # west face north
+        ((_iw11_ne, _iw11_nw), (-_iw11_an[0], -_iw11_an[1])),  # north end
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    # Jambs at RO2 edges
+    for (j1, j2) in [(_ro2p[0], _ro2p[1]), (_ro2p[3], _ro2p[2])]:
+        # Jamb is JAMB_WIDTH wide along the opening direction
+        _jn = (_iw11_an[0] * JAMB_WIDTH, _iw11_an[1] * JAMB_WIDTH)
+        j_poly = [j1, j2, (j2[0] + _jn[0], j2[1] + _jn[1]),
+                  (j1[0] + _jn[0], j1[1] + _jn[1])]
+        jp = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in j_poly)
+        out.append(f'<polygon points="{jp}" fill="{JAMB_COLOR}" stroke="none"/>')
 
     # ---- IW12 (rotated rectangle) ----
     wall_poly(out, layout.iw12_poly, to_svg, stroke=False)
@@ -1702,22 +1716,33 @@ def _render_openings(out, data, layout):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO2 door: 36" door, hinged south, swings west
+    # RO2 door: 36" door in IW11 (rotated), hinged at south edge, swings east
     ro2 = [r for r in rough_openings if r.name == "RO2"][0]
-    ro2_mid = (ro2.bbox.w + ro2.bbox.e) / 2
-    ro2_gap = (ro2.bbox.n - ro2.bbox.s - RO2_DOOR_WIDTH) / 2
-    hinge_e, hinge_n = ro2_mid, ro2.bbox.s + ro2_gap
+    _ro2p = ro2.poly  # [SW, SE, NE, NW]
+    # IW11 unit vectors (recompute from polygon)
+    _i11_sw, _i11_se, _i11_ne, _i11_nw = layout.iw11_poly
+    _i11_dx_n = _i11_ne[0] - _i11_se[0]; _i11_dy_n = _i11_ne[1] - _i11_se[1]
+    _i11_ln = math.sqrt(_i11_dx_n**2 + _i11_dy_n**2)
+    _i11_an = (_i11_dx_n / _i11_ln, _i11_dy_n / _i11_ln)  # NNE (along length)
+    _i11_dx_t = _i11_sw[0] - _i11_se[0]; _i11_dy_t = _i11_sw[1] - _i11_se[1]
+    _i11_lt = math.sqrt(_i11_dx_t**2 + _i11_dy_t**2)
+    _i11_at = (_i11_dx_t / _i11_lt, _i11_dy_t / _i11_lt)  # SE→SW (across thickness)
+    # Hinge: center of RO2 south edge (midpoint of SW and SE)
+    hinge_e = (_ro2p[0][0] + _ro2p[1][0]) / 2
+    hinge_n = (_ro2p[0][1] + _ro2p[1][1]) / 2
     hx, hy = to_svg(hinge_e, hinge_n)
-    # Straight line from hinge westward (door in open position)
-    tip_e, tip_n = hinge_e - RO2_DOOR_WIDTH, hinge_n
+    # Open position: door swings toward east face (-_i11_at direction = toward bedroom)
+    tip_e = hinge_e - RO2_DOOR_WIDTH * _i11_at[0]
+    tip_n = hinge_n - RO2_DOOR_WIDTH * _i11_at[1]
     tx, ty = to_svg(tip_e, tip_n)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (west) sweeping to closed (north)
+    # Arc from open (east) sweeping 90° to closed (NNE along wall)
+    _open_ang = math.atan2(-_i11_at[1], -_i11_at[0])
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = math.pi - i * (math.pi / 2) / n_arc  # 180° to 90°
+        angle = _open_ang + i * (math.pi / 2) / n_arc
         ae = hinge_e + RO2_DOOR_WIDTH * math.cos(angle)
         an = hinge_n + RO2_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
