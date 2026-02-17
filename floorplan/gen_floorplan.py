@@ -1519,6 +1519,40 @@ def _render_dimensions(out, data, layout):
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
                f'CLOSET {fmt_dist(_t_line)}</text>')
 
+    # West closet (rotated dimension, perpendicular to IW7 south face)
+    _iw7_sw7 = layout.iw7_poly[0]
+    _iw7_se7 = layout.iw7_poly[1]
+    _dim7_s = ((_iw7_sw7[0] + _iw7_se7[0]) / 2,
+               (_iw7_sw7[1] + _iw7_se7[1]) / 2)
+    _dn7 = (layout.iw7_poly[3][0] - _iw7_sw7[0],
+            layout.iw7_poly[3][1] - _iw7_sw7[1])
+    _dl7 = math.sqrt(_dn7[0]**2 + _dn7[1]**2)
+    _nrm7 = (_dn7[0] / _dl7, _dn7[1] / _dl7)
+    _w20 = pts["W20"]; _w0 = pts["W0"]
+    _dw7 = (_w0[0] - _w20[0], _w0[1] - _w20[1])
+    _u7 = (_dim7_s[0] - _w20[0], _dim7_s[1] - _w20[1])
+    _det7 = _nrm7[0] * _dw7[1] - _nrm7[1] * _dw7[0]
+    _t7 = (_u7[0] * _dw7[1] - _u7[1] * _dw7[0]) / _det7
+    _dim7_e = (_dim7_s[0] - _t7 * _nrm7[0], _dim7_s[1] - _t7 * _nrm7[1])
+    _dsx1, _dsy1 = to_svg(*_dim7_s)
+    _dsx2, _dsy2 = to_svg(*_dim7_e)
+    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
+    _slen = math.sqrt(_sdx**2 + _sdy**2)
+    _px = -_sdy / _slen; _py = _sdx / _slen
+    _tk = 4
+    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
+        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
+                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
+                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
+    _up_dx = _dsx1 - _dsx2; _up_dy = _dsy1 - _dsy2
+    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
+    _lx = _lmx + 3 * _up_dy / _slen; _ly = _lmy - 3 * _up_dx / _slen
+    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
+               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
+               f'CLOSET {fmt_dist(_t7)}</text>')
+
     # Utility
     dim_line_h(out, pts["W1"][0], (layout.ctr.s + layout.ctr.n) / 2, layout.ctr.e,
                fmt_dist(layout.ctr.e - pts["W1"][0]), to_svg)
