@@ -1436,7 +1436,7 @@ def _render_dimensions(out, data, layout):
     bd_ew_n = layout.ctr.s + 0.25 * (layout.iw1_s - layout.ctr.s)
     dim_line_h(out, layout.iw9.e, bd_ew_n, layout.iw4_w,
                fmt_dist(layout.iw4_w - layout.iw9.e), to_svg)
-    dim_line_v(out, layout.iw11.w - 1.0, layout.ctr.s, layout.iw1_s,
+    dim_line_v(out, layout.iw9.e + 2.0, layout.ctr.s, layout.iw1_s,
                fmt_dist(layout.iw1_s - layout.ctr.s), to_svg)
 
     # Closets
@@ -1497,7 +1497,7 @@ def _render_dimensions(out, data, layout):
     dim_line_h(out, pts["F1"][0], dim_ext_n, pts["F15"][0],
                fmt_dist(pts["F15"][0] - pts["F1"][0]), to_svg)
 
-    o9_dim_e = (layout.bed.e + layout.iw4_w) / 2
+    o9_dim_e = layout.iw11.w - 1.0
     dim_line_v(out, o9_dim_e, pts["W18"][1], layout.iw1_s,
                fmt_dist(layout.iw1_s - pts["W18"][1]), to_svg)
 
