@@ -197,7 +197,7 @@ class TestRenderWallsSvgWithInterior:
         assert 'fill="rgba(160,160,160,0.35)"' in rendered_all
 
     def test_iw_labels_present(self, rendered_all):
-        for name in ["IW1", "IW2", "IW3", "IW4", "IW5", "IW6", "IW7", "IW9", "IW10", "IW11", "IW12"]:
+        for name in ["IW1", "IW2", "IW3", "IW4", "IW5", "IW6", "IW7", "IW8", "IW9", "IW10", "IW11", "IW12"]:
             assert f">{name}<" in rendered_all, f"Missing label {name}"
 
     def test_rough_opening_labels_present(self, rendered_all):

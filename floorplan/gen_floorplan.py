@@ -351,7 +351,9 @@ def compute_iw_area(layout):
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
                 (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
-    iw_polys = [layout.iw1, iw2_poly, layout.iw6_poly, layout.iw7,
+    iw8 = layout.iw8
+    iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
+    iw_polys = [layout.iw1, iw8_poly, iw2_poly, layout.iw6_poly, layout.iw7,
                 iw3_poly, iw9_poly, iw10_poly, iw4_poly, layout.iw11_poly, layout.iw12_poly, iw5_poly]
     return sum(poly_area(p) for p in iw_polys)
 
@@ -510,6 +512,16 @@ def _render_walls(out, data, layout):
         jx2, jy2 = to_svg(jamb_e + JAMB_WIDTH, iw1_s)
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
+
+    # ---- IW8 (no openings) ----
+    iw8 = layout.iw8
+    iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
+    wall_poly(out, iw8_poly, to_svg, stroke=False)
+    for n_val in [iw8.s + half_sw, iw8.n - half_sw]:
+        sx1, sy1 = to_svg(iw8.w, n_val)
+        sx2, sy2 = to_svg(iw8.e, n_val)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW2 with RO4 ----
     iw2 = layout.iw2
@@ -779,14 +791,14 @@ def _render_appliances(out, data, layout, minik=False):
     # Toilets and sinks
     toilet_e = (layout.dryer.w + layout.dryer.e) / 2
     sink_e = (layout.dryer.e + layout.ctr.w) / 2
-    draw_toilet(out, toilet_e, layout.iw1_s, face_north=False, to_svg=to_svg)
-    draw_sink(out, sink_e, layout.iw1_s - SINK_RY, to_svg=to_svg)
-    draw_toilet(out, toilet_e, layout.iw1_n, face_north=True, to_svg=to_svg)
-    draw_sink(out, sink_e, layout.iw1_n + SINK_RY, to_svg=to_svg)
+    draw_toilet(out, toilet_e, layout.iw8.s, face_north=False, to_svg=to_svg)
+    draw_sink(out, sink_e, layout.iw8.s - SINK_RY, to_svg=to_svg)
+    draw_toilet(out, toilet_e, layout.iw8.n, face_north=True, to_svg=to_svg)
+    draw_sink(out, sink_e, layout.iw8.n + SINK_RY, to_svg=to_svg)
 
     # WW7: 36" radius circle centered on south end of south toilet
     _ww7_e = toilet_e
-    _ww7_n = layout.iw1_s - 7.193 * _SVG_TO_FT
+    _ww7_n = layout.iw8.s - 7.193 * _SVG_TO_FT
     _ww7_r = 36.0 / 12.0
     _ww7_sx, _ww7_sy = to_svg(_ww7_e, _ww7_n)
     _ww7_r_svg = to_svg(_ww7_r, 0)[0] - to_svg(0, 0)[0]
@@ -797,7 +809,7 @@ def _render_appliances(out, data, layout, minik=False):
 
     # WW8: 36" radius circle centered on north end of north toilet
     _ww8_e = toilet_e
-    _ww8_n = layout.iw1_n + 7.193 * _SVG_TO_FT
+    _ww8_n = layout.iw8.n + 7.193 * _SVG_TO_FT
     _ww8_sx, _ww8_sy = to_svg(_ww8_e, _ww8_n)
     out.append(f'<circle cx="{_ww8_sx:.1f}" cy="{_ww8_sy:.1f}" r="{_ww7_r_svg:.1f}"'
                f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')

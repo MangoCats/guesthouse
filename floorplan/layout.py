@@ -61,6 +61,8 @@ class InteriorLayout(NamedTuple):
     iw12_poly: list[Point]  # actual polygon [SW, SE, NE, NW]
     # IW5 (3" thick, horizontal in office)
     iw5: BBox
+    # IW8 (6" thick, horizontal — west extension of IW1, W1-W2 to IW1 west end)
+    iw8: BBox
     # IW6 (1" thick, horizontal above kitchen)
     iw6_poly: list[Point]
     iw6_n: float
@@ -197,6 +199,11 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
               bed_sw[1] + BED_LENGTH * _norm_N)
     bed_poly = [bed_sw, bed_se, bed_ne, bed_nw]
 
+    # IW8: 6" thick, horizontal, from W1-W2 face to IW1 west end
+    iw8_w = pts["W1"][0]
+    iw8_e = iw1_w
+    iw8 = BBox(w=iw8_w, s=iw1_s, e=iw8_e, n=iw1_n)
+
     # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
     iw5_n = iw1_s - IW5_OFFSET_N
     iw5_s = iw5_n - WALL_3IN
@@ -229,6 +236,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw12=BBox(w=iw12_w, s=iw12_s, e=iw12_e, n=iw12_n), iw12_poly=iw12_poly,
         cl1_top=cl1_top,
         bed_poly=bed_poly,
+        iw8=iw8,
         iw5=BBox(w=iw5_w, s=iw5_s, e=iw5_e, n=iw5_n),
         iw6_poly=iw6_poly, iw6_n=iw6_n, iw6_s=iw6_s,
     )

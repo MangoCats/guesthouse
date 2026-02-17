@@ -273,6 +273,13 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     for a,b in [(iw1[0],iw1[1]),(iw1[3],iw1[2])]:
         s1,s2 = to_svg(*a),to_svg(*b)
         lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
+    # IW8 (west extension of IW1)
+    iw8 = [(L.iw8.w,L.iw8.s),(L.iw8.e,L.iw8.s),(L.iw8.e,L.iw8.n),(L.iw8.w,L.iw8.n)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw8)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
+    for a,b in [(iw8[0],iw8[1]),(iw8[3],iw8[2])]:
+        s1,s2 = to_svg(*a),to_svg(*b)
+        lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
     # IW2
     iw2 = [(L.iw2.w,L.iw2.s),(L.iw2.e,L.iw2.s),(L.iw2.e,L.iw2.n),(L.iw2.w,L.iw2.n)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw2)

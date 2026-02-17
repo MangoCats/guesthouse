@@ -267,6 +267,11 @@ def _render_interior_walls(out, data):
     iw_label("IW1", layout.iw1[0][0], layout.iw1[1][0],
              layout.iw1_s, layout.iw1_n, vertical=False)
 
+    # IW8 (horizontal, 6" — west extension of IW1)
+    iw_rect(layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n)
+    iw_label("IW8", layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n,
+             vertical=False)
+
     # IW2 (vertical, 6")
     iw_rect(layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
     iw_label("IW2", layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
