@@ -72,7 +72,7 @@ Understanding which coordinate to use for "east face of X wall" is the most comm
 
 ### Perimeter walls (8" thick, F-series outer / W-series inner)
 
-The outline traverses CW (as viewed from above): F0 → F1 → ... → F21 → F0. The interior is on the **right** side.
+The outline traverses CW (as viewed from above): F0 → F1 → ... → F20 → F0. The interior is on the **right** side.
 
 | Wall side of building | Outer (exterior) face | Inner (interior) face |
 |-|-|-|

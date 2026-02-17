@@ -157,7 +157,7 @@ def build_wall_data():
     w_f8f9_poly = fp_data.w_f8f9_poly
 
     # --- Page layout: 1:72 scale ---
-    _f_names = [f"F{i}" for i in range(22)] + ["F20a"]
+    _f_names = [f"F{i}" for i in range(21)]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)

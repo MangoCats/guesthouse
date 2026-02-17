@@ -8,8 +8,8 @@ from floorplan.geometry import OutlineGeometry
 
 # Known-good F-series coordinates (regression snapshot)
 _EXPECTED_F = {
-    "F0":  ( 1.3333333333,  2.0152873499),
-    "F1":  ( 0.5000000000,  2.8486206833),
+    "F0":  ( 1.2407407407,  2.2120941645),
+    "F1":  ( 0.5000000000,  3.0402674895),
     "F2":  ( 0.5000000000, 18.0000000000),
     "F3":  ( 1.0821917808, 19.5525114155),
     "F4":  ( 1.5000000000, 20.6666666667),
@@ -29,8 +29,6 @@ _EXPECTED_F = {
     "F18": (27.5000000000, -0.5000000000),
     "F19": (26.5000000000, -0.5000000000),
     "F20": (24.5030984050, -0.3887164882),
-    "F20a":( 3.6646010633,  1.9410983421),
-    "F21": ( 2.3333333333,  2.0152873499),
 }
 
 
@@ -38,16 +36,15 @@ class TestOutlineGeometry:
     def test_returns_outline_geometry(self, outline_geo):
         assert isinstance(outline_geo, OutlineGeometry)
 
-    def test_23_points(self, outline_geo):
-        for i in range(22):
+    def test_21_points(self, outline_geo):
+        for i in range(21):
             assert f"F{i}" in outline_geo.fp_pts
-        assert "F20a" in outline_geo.fp_pts
 
-    def test_23_segments(self, outline_geo):
-        assert len(outline_geo.outline_segs) == 23
+    def test_21_segments(self, outline_geo):
+        assert len(outline_geo.outline_segs) == 21
 
-    def test_13_radii(self, outline_geo):
-        assert len(outline_geo.radii) == 13
+    def test_12_radii(self, outline_geo):
+        assert len(outline_geo.radii) == 12
         for key, val in outline_geo.radii.items():
             assert key.startswith("R_a")
             assert val > 0, f"{key} = {val}"
@@ -69,7 +66,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 841.22) < 0.1
+        assert abs(area - 840.90) < 0.1
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):

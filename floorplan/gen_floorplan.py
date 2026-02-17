@@ -1,7 +1,7 @@
 """Generate floorplan SVG with 8" wall inset from the outline path.
 
 Computes geometry from shared/ and floorplan/ packages.
-Outline points F0-F21, inner wall points W0-W21.
+Outline points F0-F20, inner wall points W0-W20.
 """
 import os, math, datetime
 from typing import NamedTuple, Any
@@ -273,7 +273,7 @@ def build_floorplan_data():
     # --- Fit content on letter landscape (792x612) page ---
     _margin_top = 36   # 0.5" top margin
     _margin = 72       # 1" margins on left, right, bottom
-    _f_names = [f"F{i}" for i in range(22)] + ["F20a"]
+    _f_names = [f"F{i}" for i in range(21)]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -779,7 +779,7 @@ def _render_appliances(out, data, layout, minik=False):
         if link:
             out.append('</a>')
 
-    # Counter: 24" deep, IW10 south to W21-W0 wall face
+    # Counter: 24" deep, IW10 south to W20-W0 wall face
     ctr = layout.ctr
     csw = to_svg(ctr.w, ctr.s)
     cse = to_svg(ctr.e, ctr.s)
@@ -1222,7 +1222,7 @@ def _render_furniture(out, data, layout, minik=False):
     _bp_cx = sum(p[0] for p in _bp) / 4
     _bp_cy = sum(p[1] for p in _bp) / 4
     _bsx, _bsy = to_svg(_bp_cx, _bp_cy)
-    # Rotate label to align with bed long axis (perpendicular to W20-W20a)
+    # Rotate label to align with bed long axis (perpendicular to W20-W0)
     _bed_dx = to_svg(*_bp[2])[0] - to_svg(*_bp[1])[0]
     _bed_dy = to_svg(*_bp[2])[1] - to_svg(*_bp[1])[1]
     _bed_ang = math.degrees(math.atan2(_bed_dy, _bed_dx))
@@ -1553,12 +1553,12 @@ def _render_dimensions(out, data, layout):
     dim_line_h(out, pts["F1"][0], dim_ext_n, pts["F15"][0],
                fmt_dist(pts["F15"][0] - pts["F1"][0]), to_svg)
 
-    # Bedroom: O9 inner center perpendicular to W20-W20a up to IW1 south face
+    # Bedroom: O9 inner center perpendicular to W20-W0 up to IW1 south face
     _o9_open = compute_outer_openings(pts, layout)[8]  # O9
     _o9_ic = ((_o9_open.poly[2][0] + _o9_open.poly[3][0]) / 2,
               (_o9_open.poly[2][1] + _o9_open.poly[3][1]) / 2)
-    _dEw = pts["W20a"][0] - pts["W20"][0]
-    _dNw = pts["W20a"][1] - pts["W20"][1]
+    _dEw = pts["W0"][0] - pts["W20"][0]
+    _dNw = pts["W0"][1] - pts["W20"][1]
     _wlen = math.sqrt(_dEw**2 + _dNw**2)
     _nrmE = _dNw / _wlen; _nrmN = -_dEw / _wlen  # inward normal (NNE)
     _t_iw1 = (layout.iw1_s - _o9_ic[1]) / _nrmN
@@ -1583,7 +1583,7 @@ def _render_dimensions(out, data, layout):
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
                f'{fmt_dist(_dim_len)}</text>')
 
-    # Utility area N-S: IW1 south face to W21-W0, centered on O11
+    # Utility area N-S: IW1 south face to W20-W0, centered on O11
     o11_cx = (layout.dryer.e + layout.ctr.w) / 2
     dim_line_v(out, o11_cx, pts["W0"][1], layout.iw1_s,
                fmt_dist(layout.iw1_s - pts["W0"][1]), to_svg)

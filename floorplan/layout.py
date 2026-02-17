@@ -49,11 +49,11 @@ class InteriorLayout(NamedTuple):
     iw4_e: float
     iw4_s: float
     wall_south_n: float
-    # Bed (rotated polygon, long sides perpendicular to W20-W20a)
+    # Bed (rotated polygon, long sides perpendicular to W20-W0)
     bed_poly: list[Point]  # [SW, SE, NE, NW]
     # IW11 (4" thick, N-S — south extension below IW4)
     iw11: BBox         # bounding box (for labels/dimensions)
-    iw11_poly: list[Point]  # actual polygon (SE corner on W20-W20a)
+    iw11_poly: list[Point]  # actual polygon (SE corner on W20-W0)
     # IW12 (4" thick, perpendicular to IW11 — connects IW11 NW to IW4 west)
     iw12: BBox
     iw12_poly: list[Point]  # actual polygon [SW, SE, NE, NW]
@@ -73,7 +73,7 @@ class InteriorLayout(NamedTuple):
 def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     """Compute interior layout positions.
 
-    pts must contain W-series (W0-W21) and F-series (F0-F21).
+    pts must contain W-series (W0-W20) and F-series (F0-F20).
     """
     iw1_n = pts["W9"][1] - IW1_DIST_FROM_NORTH
     iw1_s = iw1_n - WALL_6IN
@@ -105,7 +105,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_w = dryer_e + COUNTER_GAP
     ctr_e = ctr_w + COUNTER_DEPTH
     ctr_s = pts["W0"][1]
-    ctr_n = ctr_s + 6.0  # 6' north of W21-W0 face
+    ctr_n = ctr_s + 6.0  # 6' north of W20-W0 south face
     ctr_nw_r = 0
 
     iw2_e = iw2_w + WALL_6IN
@@ -114,13 +114,13 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw4_s = WALL_SOUTH_N
     wall_south_n = WALL_SOUTH_N
 
-    # IW11: 4" thick, normal to W20-W20a, 6' long
-    # SE corner: circle(IW4_SW, 32") ∩ W20-W20a
+    # IW11: 4" thick, normal to W20-W0, 6' long
+    # SE corner: circle(IW4_SW, 32") ∩ W20-W0
     _iw4_sw = (iw4_w, iw4_s)
     _w20 = pts["W20"]
-    _w20a = pts["W20a"]
-    _dE = _w20a[0] - _w20[0]
-    _dN = _w20a[1] - _w20[1]
+    _w0 = pts["W0"]
+    _dE = _w0[0] - _w20[0]
+    _dN = _w0[1] - _w20[1]
     _seg_len = math.sqrt(_dE**2 + _dN**2)
     _uE = _w20[0] - _iw4_sw[0]
     _uN = _w20[1] - _iw4_sw[1]
@@ -129,9 +129,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _qb = 2 * (_uE * _dE + _uN * _dN)
     _qc = _uE**2 + _uN**2 - _r**2
     _disc = _qb**2 - 4 * _qa * _qc
-    _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)  # westward along W20-W20a
+    _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)  # westward along W20-W0
     iw11_se = (_w20[0] + _t * _dE, _w20[1] + _t * _dN)
-    # Unit vectors: along W20-W20a and inward normal
+    # Unit vectors: along W20-W0 and inward normal
     _along_E = _dE / _seg_len
     _along_N = _dN / _seg_len
     _norm_E = _along_N    # right normal = inward
@@ -170,18 +170,18 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw12_s = min(p[1] for p in iw12_poly)
     iw12_n = max(p[1] for p in iw12_poly)
 
-    # Bed: rotated, long sides perpendicular to W20-W20a
-    # SE corner = 1" past O9 NW corner along W20-W20a, 2" from wall
-    _dE9 = pts["F20a"][0] - pts["F20"][0]
-    _dN9 = pts["F20a"][1] - pts["F20"][1]
+    # Bed: rotated, long sides perpendicular to W20-W0
+    # SE corner = 1" past O9 NW corner along W20-W0, 2" from wall
+    _dE9 = pts["F0"][0] - pts["F20"][0]
+    _dN9 = pts["F0"][1] - pts["F20"][1]
     _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
     _t_sw9 = ((iw11_sw[0] - pts["F20"][0]) * _dE9
               + (iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
     _ts9 = _t_sw9 + 4.0 / 12.0 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
-    _bed_t = _te9 + 1.0 / 12.0 / _seg_len  # 1" past O9 NW along W20-W20a
-    _bed_se_wall = (_w20[0] + _bed_t * (_w20a[0] - _w20[0]),
-                    _w20[1] + _bed_t * (_w20a[1] - _w20[1]))
+    _bed_t = _te9 + 1.0 / 12.0 / _seg_len  # 1" past O9 NW along W20-W0
+    _bed_se_wall = (_w20[0] + _bed_t * (_w0[0] - _w20[0]),
+                    _w20[1] + _bed_t * (_w0[1] - _w20[1]))
     bed_se = (_bed_se_wall[0] + 2.0 / 12.0 * _norm_E,
               _bed_se_wall[1] + 2.0 / 12.0 * _norm_N)
     bed_sw = (bed_se[0] + BED_WIDTH * _along_E,
