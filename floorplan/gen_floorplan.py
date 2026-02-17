@@ -1010,7 +1010,13 @@ def _render_kitchen(out, data, layout, minik=False):
     fillet_r = 6.0 / 12.0   # 6" corner fillets
 
     # Position: north side 30" south of space north, centered E-W
-    tbl_cx = space_cx + (-18.75 / 12.0 if not minik else 0)
+    if not minik:
+        # Center between fridge west and IW2 east + 1.125" east
+        hearth_e = layout.iw3.e + 20.0 / 12.0 + 48.0 / 12.0 + 12.0 / 12.0
+        _fr_w = hearth_e + STD_GAP + FRIDGE_SIZE + 7.0 / 12.0 - 32.75 / 12.0
+        tbl_cx = (_fr_w + layout.iw2.e) / 2 + 1.125 / 12.0
+    else:
+        tbl_cx = space_cx
     tbl_n = space_n - 30.0 / 12.0 - (28.0 / 12.0 if not minik else 0)
     tbl_s_y = tbl_n - tbl_h
 
