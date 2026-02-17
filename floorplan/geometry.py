@@ -10,7 +10,7 @@ from floorplan.constants import (
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
     F16_F17_SEG, F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
-    F20A_F21_CHORD, F18_OFFSET_E, F18_F19_GAP, F19_F20_CHORD, SE_STRAIGHT,
+    F20A_F21_CHORD, F18_OFFSET_E, F18_F19_GAP, F19_F20_CHORD, F21_OFFSET_E_IW7,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
@@ -219,14 +219,24 @@ def _compute_south_wall(
     _ex = math.cos(_exit_angle)   # -12/√145
     _ey = math.sin(_exit_angle)   # 1/√145
 
-    # F20a: 12' from F20 along exit bearing
-    fp_pts["F20a"] = (fp_pts["F20"][0] + SE_STRAIGHT * _ex,
-                      fp_pts["F20"][1] + SE_STRAIGHT * _ey)
+    # F21_E target: 4" east of IW7 east face
+    _iw7_e = (fp_pts["F1"][0] + WALL_OUTER
+              + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
+              + WALL_3IN)
+    _f21_target_e = _iw7_e + F21_OFFSET_E_IW7
 
-    # C20: center of CCW arc from F20a to F21
-    # For CCW arc, center is to the LEFT of direction of travel
+    # C20 left-normal components (CCW arc: center LEFT of travel direction)
     _left_x = -_ey   # -1/√145
     _left_y = _ex     # -12/√145
+
+    # F21_E = F20_E + L*_ex + R_a20*_left_x  →  solve for L
+    _L = (_f21_target_e - fp_pts["F20"][0] - R_a20 * _left_x) / _ex
+
+    # F20a: _L from F20 along exit bearing
+    fp_pts["F20a"] = (fp_pts["F20"][0] + _L * _ex,
+                      fp_pts["F20"][1] + _L * _ey)
+
+    # C20: center of CCW arc from F20a to F21
     fp_pts["C20"] = (fp_pts["F20a"][0] + R_a20 * _left_x,
                      fp_pts["F20a"][1] + R_a20 * _left_y)
 
