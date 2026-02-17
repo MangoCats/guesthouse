@@ -1600,6 +1600,41 @@ def _render_dimensions(out, data, layout):
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
                f'{fmt_dist(_dim_len)}</text>')
 
+    # IW3 east face to IW11 west face, perpendicular to IW3 east face
+    _iw3_se3 = layout.iw3_poly[1]
+    _iw3_ne3 = layout.iw3_poly[2]
+    _dim3_s = ((_iw3_se3[0] + _iw3_ne3[0]) / 2,
+               (_iw3_se3[1] + _iw3_ne3[1]) / 2)
+    _fd3 = (_iw3_ne3[0] - _iw3_se3[0], _iw3_ne3[1] - _iw3_se3[1])
+    _fd3_len = math.sqrt(_fd3[0]**2 + _fd3[1]**2)
+    _perp3 = (_fd3[1] / _fd3_len, -_fd3[0] / _fd3_len)  # CW perp, toward IW11
+    _iw11_sw3 = layout.iw11_poly[0]
+    _iw11_nw3 = layout.iw11_poly[3]
+    _dw11f = (_iw11_nw3[0] - _iw11_sw3[0], _iw11_nw3[1] - _iw11_sw3[1])
+    _dx3 = _iw11_sw3[0] - _dim3_s[0]
+    _dy3 = _iw11_sw3[1] - _dim3_s[1]
+    _det3 = _dw11f[0] * _perp3[1] - _dw11f[1] * _perp3[0]
+    _t3 = (_dw11f[0] * _dy3 - _dw11f[1] * _dx3) / _det3
+    _dim3_e = (_dim3_s[0] + _t3 * _perp3[0], _dim3_s[1] + _t3 * _perp3[1])
+    _dsx1, _dsy1 = to_svg(*_dim3_s)
+    _dsx2, _dsy2 = to_svg(*_dim3_e)
+    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
+    _slen = math.sqrt(_sdx**2 + _sdy**2)
+    _px = -_sdy / _slen; _py = _sdx / _slen
+    _tk = 4
+    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
+        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
+                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
+                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
+    _up_dx = _dsx2 - _dsx1; _up_dy = _dsy2 - _dsy1
+    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
+    _lx = _lmx - 3 * _px; _ly = _lmy - 3 * _py
+    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
+               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
+               f'{fmt_dist(_t3)}</text>')
+
     # Utility area N-S: IW1 south face to W20-W0, centered on O11
     o11_cx = (layout.dryer.e + layout.ctr.w) / 2
     dim_line_v(out, o11_cx, pts["W0"][1], layout.iw1_s,
