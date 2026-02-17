@@ -1163,21 +1163,20 @@ def _render_furniture(out, data, layout, minik=False):
     """Render furniture: bed, loveseat/sofa, ET, chair, ottoman, room labels."""
     pts = data.pts
     to_svg = data.to_svg
-    bed = layout.bed
-
-    # Bed
-    bed_sw = to_svg(bed.w, bed.n)
-    bed_se = to_svg(bed.e, bed.s)
-    bed_sw_x, bed_sw_y = bed_sw
-    bed_se_x, bed_se_y = bed_se
-    bed_w = bed_se_x - bed_sw_x
-    bed_h = bed_se_y - bed_sw_y
-    out.append(f'<rect x="{bed_sw_x:.1f}" y="{bed_sw_y:.1f}" width="{bed_w:.1f}" height="{bed_h:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    bed_cx_svg = (bed_sw_x + bed_se_x) / 2
-    bed_label_y = bed_sw_y + 0.765 * bed_h
-    out.append(f'<text x="{bed_cx_svg:.1f}" y="{bed_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="7" fill="{APPL_STROKE}">KING BED</text>')
+    # Bed (rotated polygon)
+    _bp = layout.bed_poly
+    _bp_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _bp)
+    out.append(f'<polygon points="{_bp_svg}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    _bp_cx = sum(p[0] for p in _bp) / 4
+    _bp_cy = sum(p[1] for p in _bp) / 4
+    _bsx, _bsy = to_svg(_bp_cx, _bp_cy)
+    # Rotate label to align with bed long axis (perpendicular to W20-W20a)
+    _bed_dx = to_svg(*_bp[2])[0] - to_svg(*_bp[1])[0]
+    _bed_dy = to_svg(*_bp[2])[1] - to_svg(*_bp[1])[1]
+    _bed_ang = math.degrees(math.atan2(_bed_dy, _bed_dx))
+    out.append(f'<text x="{_bsx:.1f}" y="{_bsy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="{APPL_STROKE}" transform="rotate({_bed_ang:.1f},{_bsx:.1f},{_bsy+3:.1f})">'
+               f'KING BED</text>')
 
     if minik:
         # SOFA: 97.2" E-W x 24.6" N-S, 6" east of RO1, north side of IW1
@@ -1432,7 +1431,7 @@ def _render_furniture(out, data, layout, minik=False):
                f' font-size="5" fill="{APPL_STROKE}">HEARTH</text>')
 
     # Room labels
-    bd_cx = layout.bed_cx
+    bd_cx = (layout.iw9.e + layout.iw4_w) / 2
     bd_cy = (layout.ctr.s + layout.iw1_s) / 2
     bdx, bdy = to_svg(bd_cx, bd_cy)
     out.append(f'<text x="{bdx:.1f}" y="{bdy+3:.1f}" text-anchor="middle" font-family="Arial"'

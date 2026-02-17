@@ -326,10 +326,11 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     ccx,ccy = (csw[0]+cse[0])/2,(csw[1]+cne[1])/2
     lines.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
     # King Bed
-    bs,be = to_svg(L.bed.w,L.bed.n),to_svg(L.bed.e,L.bed.s); bw,bh = be[0]-bs[0],be[1]-bs[1]
-    lines.append(f'<rect x="{bs[0]:.1f}" y="{bs[1]:.1f}" width="{bw:.1f}" height="{bh:.1f}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
-    bcx,bly = (bs[0]+be[0])/2,bs[1]+0.765*bh
-    lines.append(f'<text x="{bcx:.1f}" y="{bly+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
+    bp_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.bed_poly)
+    lines.append(f'<polygon points="{bp_svg}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
+    bcx = sum(to_svg(*p)[0] for p in L.bed_poly)/4
+    bcy = sum(to_svg(*p)[1] for p in L.bed_poly)/4
+    lines.append(f'<text x="{bcx:.1f}" y="{bcy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
     # Room labels
     cx,cy = to_svg((ctr_e+L.iwt3+L.iw9.w)/2,(ctr_s+ctr_n)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')

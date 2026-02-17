@@ -10,7 +10,8 @@ from floorplan.constants import (
     APPLIANCE_OFFSET_N, APPLIANCE_GAP,
     COUNTER_DEPTH, COUNTER_GAP,
     BEDROOM_WIDTH, CLOSET_WIDTH, CLOSET2_WIDTH,
-    BED_WIDTH, BED_LENGTH, BED_OFFSET_N,
+    BED_WIDTH, BED_LENGTH,
+    O9_HALF_WIDTH,
     IW1_DIST_FROM_NORTH, IW2_OFFSET_E, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
 )
@@ -46,9 +47,8 @@ class InteriorLayout(NamedTuple):
     wall_south_n: float
     # Closet 1
     cl1_top: float
-    # Bed
-    bed: BBox
-    bed_cx: float
+    # Bed (rotated polygon, long sides perpendicular to W20-W20a)
+    bed_poly: list[Point]  # [SW, SE, NE, NW]
     # IW9 (vertical, 4" — old IW3 position, south of IW7 L north face)
     iw9: BBox
     # IW10 (4" thick, horizontal — closet north wall, IW3.e to IW9.e)
@@ -174,11 +174,27 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw12_s = min(p[1] for p in iw12_poly)
     iw12_n = max(p[1] for p in iw12_poly)
 
-    bed_cx = iw9_e + BEDROOM_WIDTH / 2
-    bed_w = bed_cx - BED_WIDTH / 2
-    bed_e = bed_cx + BED_WIDTH / 2
-    bed_s = ctr_s + BED_OFFSET_N
-    bed_n = bed_s + BED_LENGTH
+    # Bed: rotated, long sides perpendicular to W20-W20a
+    # SE corner = 1" past O9 NW corner along W20-W20a, 2" from wall
+    _dE9 = pts["F20a"][0] - pts["F20"][0]
+    _dN9 = pts["F20a"][1] - pts["F20"][1]
+    _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
+    _t_sw9 = ((iw11_sw[0] - pts["F20"][0]) * _dE9
+              + (iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
+    _ts9 = _t_sw9 + 4.0 / 12.0 / _seg9_len
+    _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
+    _bed_t = _te9 + 1.0 / 12.0 / _seg_len  # 1" past O9 NW along W20-W20a
+    _bed_se_wall = (_w20[0] + _bed_t * (_w20a[0] - _w20[0]),
+                    _w20[1] + _bed_t * (_w20a[1] - _w20[1]))
+    bed_se = (_bed_se_wall[0] + 2.0 / 12.0 * _norm_E,
+              _bed_se_wall[1] + 2.0 / 12.0 * _norm_N)
+    bed_sw = (bed_se[0] + BED_WIDTH * _along_E,
+              bed_se[1] + BED_WIDTH * _along_N)
+    bed_ne = (bed_se[0] + BED_LENGTH * _norm_E,
+              bed_se[1] + BED_LENGTH * _norm_N)
+    bed_nw = (bed_sw[0] + BED_LENGTH * _norm_E,
+              bed_sw[1] + BED_LENGTH * _norm_N)
+    bed_poly = [bed_sw, bed_se, bed_ne, bed_nw]
 
     # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
     iw5_n = iw1_s - IW5_OFFSET_N
@@ -211,7 +227,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw11=BBox(w=iw11_w, s=iw11_s, e=iw11_e, n=iw11_n), iw11_poly=iw11_poly,
         iw12=BBox(w=iw12_w, s=iw12_s, e=iw12_e, n=iw12_n), iw12_poly=iw12_poly,
         cl1_top=cl1_top,
-        bed=BBox(w=bed_w, s=bed_s, e=bed_e, n=bed_n), bed_cx=bed_cx,
+        bed_poly=bed_poly,
         iw5=BBox(w=iw5_w, s=iw5_s, e=iw5_e, n=iw5_n),
         iw6_poly=iw6_poly, iw6_n=iw6_n, iw6_s=iw6_s,
     )
