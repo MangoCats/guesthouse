@@ -795,6 +795,15 @@ def _render_appliances(out, data, layout, minik=False):
     out.append(f'<text x="{_ww7_sx + _ww7_r_svg + 3:.1f}" y="{_ww7_sy+3:.1f}" font-family="Arial"'
                f' font-size="7" fill="{DIM_COLOR}">WW7</text>')
 
+    # WW8: 36" radius circle centered on north end of north toilet
+    _ww8_e = toilet_e
+    _ww8_n = layout.iw1_n + 7.193 * _SVG_TO_FT
+    _ww8_sx, _ww8_sy = to_svg(_ww8_e, _ww8_n)
+    out.append(f'<circle cx="{_ww8_sx:.1f}" cy="{_ww8_sy:.1f}" r="{_ww7_r_svg:.1f}"'
+               f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
+    out.append(f'<text x="{_ww8_sx + _ww7_r_svg + 3:.1f}" y="{_ww8_sy+3:.1f}" font-family="Arial"'
+               f' font-size="7" fill="{DIM_COLOR}">WW8</text>')
+
 
 def _render_kitchen(out, data, layout, minik=False):
     """Render kitchen: D/W, sink, stove, shelves, fridge, counters."""
