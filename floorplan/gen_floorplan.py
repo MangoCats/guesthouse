@@ -1443,7 +1443,7 @@ def _render_dimensions(out, data, layout):
     dim_line_v(out, (layout.ctr.e + layout.iwt3 + layout.iw9.w) / 2,
                layout.ctr.s, layout.iw10.s,
                f"CLOSET {fmt_dist(layout.iw10.s - layout.ctr.s)}", to_svg)
-    dim_line_v(out, (layout.iw4_e + layout.iw8_w) / 2,
+    dim_line_v(out, (layout.iw12.w + layout.iw12.e) / 2,
                layout.wall_south_n, layout.cl1_top,
                f"CLOSET {fmt_dist(layout.cl1_top - layout.wall_south_n)}", to_svg)
 
