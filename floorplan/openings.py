@@ -15,7 +15,7 @@ from floorplan.constants import (
     O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
     IW1_OFFSET_N, IW5_OFFSET_N, WALL_3IN,
     STD_GAP,
-    RO1_OFFSET_W_IW4, IW1_RO_WIDTH,
+    RO1_OFFSET_E_IW9, IW1_RO_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH,
     IW4_RO_WIDTH, WALL_SOUTH_N,
@@ -163,7 +163,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     iw8_n_face = WALL_SOUTH_N + 6.0
 
     # RO1: in IW1, horizontal
-    ro1_w = layout.iw4_w - RO1_OFFSET_W_IW4
+    ro1_w = layout.iw9.e + RO1_OFFSET_E_IW9
     ro1_e = ro1_w + IW1_RO_WIDTH
 
     # RO2: in IW4, vertical, centered between IW5 south and IW8 north

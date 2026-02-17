@@ -66,7 +66,8 @@ EAST_CTR_DEPTH = 42.0 / 12.0       # 42" east counter depth N-S
 EAST_CTR_RADIUS = 12.0 / 12.0      # 12" south corner radius
 
 # IW1 rough opening
-RO1_OFFSET_W_IW4 = 64.0 / 12.0    # 64" west of IW4 west face
+RO1_OFFSET_W_IW4 = 64.0 / 12.0    # 64" west of IW4 west face (legacy)
+RO1_OFFSET_E_IW9 = 76.0 / 12.0    # 76" east of IW9 east face
 IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
 # IW2 rough opening

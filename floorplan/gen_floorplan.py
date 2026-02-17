@@ -32,7 +32,7 @@ from floorplan.constants import (
     SOFA_WIDTH, SOFA_DEPTH,
     ICE_WIDTH, ICE_DEPTH,
     ROCKER_WIDTH, ROCKER_DEPTH, ROCKER_CORNER_R,
-    RO1_OFFSET_W_IW4, IW1_RO_WIDTH,
+    RO1_OFFSET_E_IW9, IW1_RO_WIDTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
@@ -995,7 +995,7 @@ def _render_kitchen(out, data, layout, minik=False):
         out.append('</a>')
 
     # Oscar triangle dining set centered between north wall, IW1, IW2, RO1
-    ro1_w_pos = layout.iw4_w - RO1_OFFSET_W_IW4
+    ro1_w_pos = layout.iw9.e + RO1_OFFSET_E_IW9
     space_w = layout.iw2.e
     space_s = layout.iw1_n
     space_e = ro1_w_pos
@@ -1145,7 +1145,7 @@ def _render_furniture(out, data, layout, minik=False):
 
     if minik:
         # SOFA: 97.2" E-W x 24.6" N-S, 6" east of RO1, north side of IW1
-        ro1_w = layout.iw4_w - RO1_OFFSET_W_IW4
+        ro1_w = layout.iw9.e + RO1_OFFSET_E_IW9
         ro1_e = ro1_w + IW1_RO_WIDTH
         sofa_w = ro1_e + 30.0 / 12.0
         sofa_e = sofa_w + SOFA_WIDTH
