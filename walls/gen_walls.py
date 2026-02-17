@@ -353,16 +353,29 @@ def _render_interior_walls(out, data):
     for ro in rough_openings:
         b = ro.bbox
         if ro.orientation == "R" and ro.poly is not None:
-            # Rotated opening: label at center of polygon
-            _rc = (sum(p[0] for p in ro.poly) / 4, sum(p[1] for p in ro.poly) / 4)
-            lx, ly = to_svg(*_rc)
-            # Rotation angle from polygon SW→NW direction
-            _rd = (ro.poly[3][0] - ro.poly[0][0], ro.poly[3][1] - ro.poly[0][1])
+            # Rotated opening: label on WNW face of IW11
             import math as _m
-            _ra = _m.degrees(_m.atan2(-(ro.poly[3][1] - ro.poly[0][1]),
-                                       ro.poly[3][0] - ro.poly[0][0]))
-            # SVG Y is inverted, so negate the angle component
-            _svg_ang = -_ra
+            _iw11 = layout.iw11_poly  # [SW, SE, NE, NW]
+            # WNW face direction: SW→NW
+            _face_dx = _iw11[3][0] - _iw11[0][0]
+            _face_dy = _iw11[3][1] - _iw11[0][1]
+            _face_len = _m.sqrt(_face_dx**2 + _face_dy**2)
+            _face_ux = _face_dx / _face_len
+            _face_uy = _face_dy / _face_len
+            # Label at center of RO2 poly, offset toward WNW face
+            _rc = (sum(p[0] for p in ro.poly) / 4,
+                   sum(p[1] for p in ro.poly) / 4)
+            # Offset toward west face (SE→SW direction = _iw11_at)
+            _thick_ux = _iw11[0][0] - _iw11[1][0]
+            _thick_uy = _iw11[0][1] - _iw11[1][1]
+            _thick_l = _m.sqrt(_thick_ux**2 + _thick_uy**2)
+            _lpt = (_rc[0] + (_thick_ux / _thick_l) * LABEL_GAP / abs(to_svg(1, 0)[0] - to_svg(0, 0)[0]),
+                    _rc[1] + (_thick_uy / _thick_l) * LABEL_GAP / abs(to_svg(1, 0)[0] - to_svg(0, 0)[0]))
+            lx, ly = to_svg(*_lpt)
+            # SVG rotation: angle of face direction in SVG coords
+            _sx1, _sy1 = to_svg(*_iw11[0])
+            _sx2, _sy2 = to_svg(*_iw11[3])
+            _svg_ang = _m.degrees(_m.atan2(_sy2 - _sy1, _sx2 - _sx1))
             rot = f' transform="rotate({_svg_ang:.1f} {lx:.1f} {ly:.1f})"'
         elif ro.orientation == "H":
             # Horizontal opening: label centered above (north)
