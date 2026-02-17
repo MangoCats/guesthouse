@@ -128,12 +128,20 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
     ]))
 
-    # O9: F21-F0, horizontal — 30" to 5" west of F21
-    o9_e = pts["F21"][0] - 5.0 / 12.0
-    o9_w = pts["F21"][0] - 30.0 / 12.0
-    openings.append(OuterOpening("O9", "F21", "F0", [
-        (o9_w, pts["F0"][1]), (o9_e, pts["F0"][1]),
-        (o9_e, pts["W0"][1]), (o9_w, pts["W0"][1]),
+    # O9: F20-F20a — east-end midpoint 37" west of IW4 east face
+    _dE9 = pts["F20a"][0] - pts["F20"][0]
+    _dN9 = pts["F20a"][1] - pts["F20"][1]
+    _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
+    _o9_target_e = layout.iw4_e - 37.0 / 12.0
+    _ts9 = (_o9_target_e - pts["F20"][0]) / _dE9
+    _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
+    openings.append(OuterOpening("O9", "F20", "F20a", [
+        (pts["F20"][0] + _ts9 * _dE9, pts["F20"][1] + _ts9 * _dN9),
+        (pts["F20"][0] + _te9 * _dE9, pts["F20"][1] + _te9 * _dN9),
+        (pts["W20"][0] + _te9 * (pts["W20a"][0] - pts["W20"][0]),
+         pts["W20"][1] + _te9 * (pts["W20a"][1] - pts["W20"][1])),
+        (pts["W20"][0] + _ts9 * (pts["W20a"][0] - pts["W20"][0]),
+         pts["W20"][1] + _ts9 * (pts["W20a"][1] - pts["W20"][1])),
     ]))
 
     # O10: disabled — bed area is east of F21 after SE corner geometry change
