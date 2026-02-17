@@ -1504,8 +1504,8 @@ def _render_dimensions(out, data, layout):
 
     # Utility area N-S: IW1 south face to W21-W0, centered on O11
     o11_cx = (layout.dryer.e + layout.ctr.w) / 2
-    dim_line_v(out, o11_cx, layout.wall_south_n, layout.iw1_s,
-               fmt_dist(layout.iw1_s - layout.wall_south_n), to_svg)
+    dim_line_v(out, o11_cx, pts["W0"][1], layout.iw1_s,
+               fmt_dist(layout.iw1_s - pts["W0"][1]), to_svg)
 
 
 def _render_openings(out, data, layout):
