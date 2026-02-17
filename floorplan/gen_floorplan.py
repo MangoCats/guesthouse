@@ -348,8 +348,9 @@ def compute_iw_area(layout):
     iw9_poly = [(iw9.w, iw9.s), (iw9.e, iw9.s), (iw9.e, iw9.n), (iw9.w, iw9.n)]
     iw10 = layout.iw10
     iw10_poly = [(iw10.w, iw10.s), (iw10.e, iw10.s), (iw10.e, iw10.n), (iw10.w, iw10.n)]
+    _iw4_n_area = layout.iw12_poly[2][1]  # IW12 NE northing
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
-                (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
+                (layout.iw4_e, _iw4_n_area), (layout.iw4_w, _iw4_n_area)]
     iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
     iw8 = layout.iw8
     iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
@@ -642,14 +643,15 @@ def _render_walls(out, data, layout):
     out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ---- IW4 (solid, no opening) ----
+    # ---- IW4 (solid, no opening) — north end at IW12 north face ----
+    iw4_n = layout.iw12_poly[2][1]  # IW12 NE northing
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
-                (layout.iw4_e, layout.iw1_s), (layout.iw4_w, layout.iw1_s)]
+                (layout.iw4_e, iw4_n), (layout.iw4_w, iw4_n)]
     wall_poly(out, iw4_poly, to_svg, stroke=False)
     w_in = layout.iw4_w + half_sw
     e_in = layout.iw4_e - half_sw
-    for a, b in [((w_in, layout.iw4_s), (w_in, layout.iw1_s)),
-                 ((e_in, layout.iw4_s), (e_in, layout.iw1_s))]:
+    for a, b in [((w_in, layout.iw4_s), (w_in, iw4_n)),
+                 ((e_in, layout.iw4_s), (e_in, iw4_n))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
