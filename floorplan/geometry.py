@@ -10,7 +10,7 @@ from floorplan.constants import (
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
     F16_F17_SEG, F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
-    SE_ARC_R, F19_F20_CHORD, SE_STRAIGHT,
+    SE_ARC_R, F19_F20_R, SE_STRAIGHT,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
@@ -178,7 +178,7 @@ def _compute_south_wall(
     F21-F0 exit bearing = 270° (due west).
     """
     _sweep = math.atan2(1, 12)  # atan(1/12), used for both C19 and C20 arcs
-    R_a19 = F19_F20_CHORD / (2 * math.sin(_sweep / 2))  # chord = 2R·sin(θ/2)
+    R_a19 = F19_F20_R     # 28" = 2'4"
     R_a20 = SE_ARC_R   # 180" = 15'
 
     # F17: position determined by F16-F17 line at bearing 60° (kept fixed)
