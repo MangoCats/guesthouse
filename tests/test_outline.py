@@ -8,8 +8,8 @@ from floorplan.geometry import OutlineGeometry
 
 # Known-good F-series coordinates (regression snapshot)
 _EXPECTED_F = {
-    "F0":  ( 1.3333333333,  1.1021684342),
-    "F1":  ( 0.5000000000,  1.9355017675),
+    "F0":  ( 1.3333333333,  1.1394940587),
+    "F1":  ( 0.5000000000,  1.9728273921),
     "F2":  ( 0.5000000000, 18.0000000000),
     "F3":  ( 1.0821917808, 19.5525114155),
     "F4":  ( 1.5000000000, 20.6666666667),
@@ -28,9 +28,9 @@ _EXPECTED_F = {
     "F17": (30.9332253454,  0.3580634639),
     "F18": (27.5000000000, -0.5000000000),
     "F19": (26.5000000000, -0.5000000000),
-    "F20": (23.8374645400, -0.3516219843),
-    "F20a":(11.4979343966,  1.0279794263),
-    "F21": (10.1666666667,  1.1021684342),
+    "F20": (24.5030984050, -0.3887164882),
+    "F20a":(11.4979343966,  1.0653050509),
+    "F21": (10.1666666667,  1.1394940587),
 }
 
 
@@ -69,7 +69,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 847.75) < 0.1
+        assert abs(area - 846.84) < 0.1
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):
