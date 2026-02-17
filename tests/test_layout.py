@@ -28,9 +28,9 @@ class TestInteriorLayout:
         assert layout.ctr_nw_r == 0
 
     def test_wall_ordering_east(self, layout):
-        """IW9 west of IW4 west of IW8."""
-        assert layout.iw9.w < layout.iw4_w
-        assert layout.iw4_e < layout.iw8_w
+        """IW9 west of IW11, IW11 west of IW8."""
+        assert layout.iw9.w < layout.iw11.w
+        assert layout.iw11.e < layout.iw8_w
 
     def test_iw3_above_iw7(self, layout):
         """IW3 east face 2" west of IW2 east, starts at IW7 north end."""
