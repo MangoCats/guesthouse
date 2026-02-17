@@ -28,6 +28,7 @@ CLOSET_WIDTH = 30.0 / 12.0        # 30" closet depth (closet 1)
 CLOSET2_WIDTH = 28.0 / 12.0       # 28" closet 2 depth (east)
 CLOSET1_HEIGHT = 6.0              # 6' closet 1 N-S
 IW1_OFFSET_N = 11.5               # 11'6" IW1 south face above W0
+IW1_WEST_OFFSET_E = 6.5           # 6'6" IW1 west end east of W1
 IW2_OFFSET_E = 6.5                # 6'6" IW2 west face east of W1
 WALL_SOUTH_N = 2.0 / 12.0         # 2" south end of bedroom walls
 
