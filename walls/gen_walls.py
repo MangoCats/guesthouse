@@ -301,7 +301,7 @@ def _render_interior_walls(out, data):
     iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)
     iw_label("IW4", layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)
 
-    # IW8 (L-shaped, 3") — label on vertical arm
+    # IW8 (N-S, 3")
     iw_poly(layout.iw8)
     iw_label("IW8", layout.iw8[3][0], layout.iw8[2][0],
              layout.iw8[2][1], layout.iw8[1][1])
