@@ -213,7 +213,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
     iw5_n = iw1_s - IW5_OFFSET_N
     iw5_s = iw5_n - WALL_3IN
-    iw5_w = iw4_e
     iw5_e = pts["W15"][0]
 
     # IW14: 3" thick, parallel to IW12, 3" past RO2 north edge along IW11
@@ -233,6 +232,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw14_e = max(p[0] for p in iw14_poly)
     iw14_s = min(p[1] for p in iw14_poly)
     iw14_n = max(p[1] for p in iw14_poly)
+
+    # IW5 west end: meets IW14 SE corner
+    iw5_w = iw14_se[0]
 
     # IW6: IW6_THICKNESS thick, south face IW6_OFFSET_N south of W6
     iw6_n = pts["W6"][1] - IW6_OFFSET_N
