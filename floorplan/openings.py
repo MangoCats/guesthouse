@@ -18,7 +18,7 @@ from floorplan.constants import (
     RO1_OFFSET_W_IW4, IW1_RO_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW3_RO_OFFSET_N, IW3_RO_WIDTH,
-    IW4_RO_WIDTH, WALL_SOUTH_N,
+    IW4_RO_WIDTH, CLOSET1_HEIGHT, WALL_SOUTH_N,
     RO6_OFFSET_E, RO6_WIDTH,
     IW6_THICKNESS, IW6_OFFSET_N, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
@@ -160,7 +160,8 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     iw6_s = iw6_n - IW6_THICKNESS
     iw5_n = iw1_s - IW5_OFFSET_N
     iw5_s = iw5_n - WALL_3IN
-    iw8_n_face = WALL_SOUTH_N + 6.0
+    closet1_top = WALL_SOUTH_N + CLOSET1_HEIGHT
+    iw8_n_face = closet1_top + WALL_3IN
 
     # RO1: in IW1, horizontal
     ro1_w = layout.iw4_w - RO1_OFFSET_W_IW4

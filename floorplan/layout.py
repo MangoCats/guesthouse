@@ -42,7 +42,7 @@ class InteriorLayout(NamedTuple):
     iw4_w: float
     iw4_e: float
     wall_south_n: float
-    # IW8 (N-S wall, 6' from south wall)
+    # IW8 (L-shaped, east closet wall)
     iw8: list[Point]
     iw8_w: float
     iw8_e: float
@@ -116,8 +116,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     cl1_top = iw7_n - 1.0
     iw8_w = iw4_e + CLOSET_WIDTH
     iw8_e = iw8_w + WALL_3IN
-    iw8_poly = [(iw8_w, wall_south_n + 6.0), (iw8_e, wall_south_n + 6.0),
-                (iw8_e, wall_south_n), (iw8_w, wall_south_n)]
+    iw8_poly = [(iw4_e, cl1_top + WALL_3IN), (iw8_e, cl1_top + WALL_3IN), (iw8_e, wall_south_n),
+                (iw8_w, wall_south_n), (iw8_w, cl1_top), (iw4_e, cl1_top)]
 
     bed_cx = (iw9_e + iw4_w) / 2
     bed_w = bed_cx - BED_WIDTH / 2
