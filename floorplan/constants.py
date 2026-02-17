@@ -157,7 +157,9 @@ SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
 F15_OFFSET_E = 9.0 + 1.0/12.0     # 9'1" F15 east of iw8_e
 SE_ARC_R = 180.0 / 12.0           # 180" SE corner arc radius (C20)
-F19_F20_R = 28.0 / 12.0           # 28" F19-F20 arc radius
+F18_OFFSET_E = 4.0 / 12.0         # 4" F18 east of IW4 east face
+F18_F19_GAP = 12.0 / 12.0         # 12" F18-F19 distance
+F19_F20_CHORD = 22.0 / 12.0       # 22" chord F19-F20
 SE_STRAIGHT = 12.0                 # 12' straight segment F20-F20a
 
 # Jamb and gap constants

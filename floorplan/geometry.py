@@ -10,7 +10,7 @@ from floorplan.constants import (
     R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
     F16_F17_SEG, F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
-    SE_ARC_R, F19_F20_R, SE_STRAIGHT,
+    SE_ARC_R, F18_OFFSET_E, F18_F19_GAP, F19_F20_CHORD, SE_STRAIGHT,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
@@ -178,7 +178,7 @@ def _compute_south_wall(
     F21-F0 exit bearing = 270° (due west).
     """
     _sweep = math.atan2(1, 12)  # atan(1/12), used for both C19 and C20 arcs
-    R_a19 = F19_F20_R     # 28" = 2'4"
+    R_a19 = F19_F20_CHORD / (2 * math.sin(_sweep / 2))  # chord = 2R·sin(θ/2)
     R_a20 = SE_ARC_R   # 180" = 15'
 
     # F17: position determined by F16-F17 line at bearing 60° (kept fixed)
@@ -190,13 +190,13 @@ def _compute_south_wall(
     _t_13 = (fp_pts["F16"][1] - F17_N) / _cos_b
     fp_pts["F17"] = (fp_pts["F16"][0] - _t_13 * _sin_b, F17_N)
 
-    # F18: 1" east of IW4 east face, at SOUTH_WALL_N
+    # F18: 4" east of IW4 east face, at SOUTH_WALL_N
     _iw4_e = (fp_pts["F1"][0] + WALL_OUTER
               + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
               + WALL_3IN + CLOSET_WIDTH + WALL_4IN      # closet 1 (IW7-IW3-IW9)
               + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH  # bedroom + closet 2
               + WALL_4IN)                                 # IW4 thickness
-    F18_E = _iw4_e + 1.0 / 12.0
+    F18_E = _iw4_e + F18_OFFSET_E
     fp_pts["F18"] = (F18_E, SOUTH_WALL_N)
 
     # R_a17: arc from F17 to F18 with C17 directly above F18
@@ -205,8 +205,8 @@ def _compute_south_wall(
     _dN = SOUTH_WALL_N - fp_pts["F17"][1]
     R_a17 = -(_dE**2 + _dN**2) / (2 * _dN)
     fp_pts["C17"] = (F18_E, SOUTH_WALL_N + R_a17)
-    # F19: 6" west of F18
-    F19_E = fp_pts["F18"][0] - 6.0 / 12.0
+    # F19: 12" west of F18
+    F19_E = fp_pts["F18"][0] - F18_F19_GAP
     fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
     fp_pts["C19"] = (F19_E, SOUTH_WALL_N + R_a19)
     # F20: CW arc from F19 with sweep = atan(1/12)
