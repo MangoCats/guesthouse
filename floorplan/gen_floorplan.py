@@ -1212,6 +1212,14 @@ def _render_furniture(out, data, layout, minik=False):
                f' font-size="7" fill="{APPL_STROKE}" transform="rotate({_bed_ang:.1f},{_bsx:.1f},{_bsy+3:.1f})">'
                f'KING BED</text>')
 
+    # WW9: 36" diameter circle centered on NW corner of king bed
+    _ww9_r_svg = (36.0 / 12.0 / 2) * abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
+    _ww9_sx, _ww9_sy = to_svg(*_bp[3])
+    out.append(f'<circle cx="{_ww9_sx:.1f}" cy="{_ww9_sy:.1f}" r="{_ww9_r_svg:.1f}"'
+               f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
+    out.append(f'<text x="{_ww9_sx + _ww9_r_svg + 3:.1f}" y="{_ww9_sy+3:.1f}" font-family="Arial"'
+               f' font-size="7" fill="{DIM_COLOR}">WW9</text>')
+
     if minik:
         # SOFA: 73.2" E-W x 24.6" N-S, 6" east of IW4 west, 2" north of IW1
         sofa_w = layout.iw4_w + 6.0 / 12.0
