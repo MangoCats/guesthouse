@@ -58,6 +58,8 @@ class InteriorLayout(NamedTuple):
     iw10: BBox
     # IW11 (4" thick, N-S — south extension below IW4)
     iw11: BBox
+    # IW12 (4" thick, E-W — connects IW11 west to IW4 west)
+    iw12: BBox
     # IW5 (3" thick, horizontal in office)
     iw5: BBox
     # IW6 (1" thick, horizontal above kitchen)
@@ -129,6 +131,12 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw11_s = wall_south_n
     iw11_n = wall_south_n + 6.0
 
+    # IW12: 4" thick, E-W from IW11 west face to IW4 west face
+    iw12_w = iw11_w
+    iw12_e = iw4_w
+    iw12_s = iw11_n
+    iw12_n = iw11_n + WALL_4IN
+
     bed_cx = iw9_e + BEDROOM_WIDTH / 2
     bed_w = bed_cx - BED_WIDTH / 2
     bed_e = bed_cx + BED_WIDTH / 2
@@ -164,6 +172,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw10=BBox(w=iw10_w, s=iw10_s, e=iw10_e, n=iw10_n),
         iw4_w=iw4_w, iw4_e=iw4_e, iw4_s=iw4_s, wall_south_n=wall_south_n,
         iw11=BBox(w=iw11_w, s=iw11_s, e=iw11_e, n=iw11_n),
+        iw12=BBox(w=iw12_w, s=iw12_s, e=iw12_e, n=iw12_n),
         iw8=iw8_poly, iw8_w=iw8_w, iw8_e=iw8_e,
         cl1_top=cl1_top,
         bed=BBox(w=bed_w, s=bed_s, e=bed_e, n=bed_n), bed_cx=bed_cx,
