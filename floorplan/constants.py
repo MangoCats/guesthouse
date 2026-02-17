@@ -30,6 +30,8 @@ CLOSET1_HEIGHT = 6.0              # 6' closet 1 N-S
 IW1_OFFSET_N = 11.5               # 11'6" IW1 south face above W0
 IW1_WEST_OFFSET_E = 6.5           # 6'6" IW1 west end east of W1
 IW2_OFFSET_E = 6.5                # 6'6" IW2 west face east of W1
+IW4_OFFSET_E_IW2 = 224.0 / 12.0   # 18'8" IW4 west face east of IW2 east face
+RO1_OFFSET_E_IW2 = 130.0 / 12.0   # 10'10" RO1 west edge east of IW2 east face
 WALL_SOUTH_N = 2.0 / 12.0         # 2" south end of bedroom walls
 
 # Bed

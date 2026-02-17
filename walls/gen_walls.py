@@ -281,28 +281,6 @@ def _render_interior_walls(out, data):
     iw_label("IW6", min(layout.iw6_poly[0][0], layout.iw6_poly[3][0]),
              layout.iw2.w, layout.iw6_s, layout.iw6_n, vertical=False)
 
-    # IW7 (straight N-S, 3")
-    iw_poly(layout.iw7)
-    iw_label("IW7", layout.iw7[0][0], layout.iw7[1][0],
-             layout.iw7[0][1], layout.iw7[3][1])
-
-    # IW3 (vertical, 4") — west face aligned with IW7
-    iw_rect(layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
-    # Label centered between RO3 north end and IW3 north end
-    ro3_n = ro_map["RO3"].n
-    iw3_label_shift = (ro3_n - layout.iw3.s) / 2
-    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n,
-             n_shift=iw3_label_shift)
-
-    # IW9 (vertical, 4") — old IW3 position, south of IW7 L north face
-    iw_rect(layout.iw9.w, layout.iw9.e, layout.iw9.s, layout.iw9.n)
-    iw_label("IW9", layout.iw9.w, layout.iw9.e, layout.iw9.s, layout.iw9.n)
-
-    # IW10 (horizontal, 4") — closet north wall
-    iw_rect(layout.iw10.w, layout.iw10.e, layout.iw10.s, layout.iw10.n)
-    iw_label("IW10", layout.iw10.w, layout.iw10.e, layout.iw10.s, layout.iw10.n,
-             vertical=False)
-
     # IW4 (vertical, 4" — north end at IW12 north face)
     _iw4_n = layout.iw12_poly[2][1]
     iw_rect(layout.iw4_w, layout.iw4_e, layout.iw4_s, _iw4_n)

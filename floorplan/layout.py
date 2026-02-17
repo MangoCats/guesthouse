@@ -9,10 +9,10 @@ from floorplan.constants import (
     APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_E,
     APPLIANCE_OFFSET_N, APPLIANCE_GAP,
     COUNTER_DEPTH, COUNTER_GAP,
-    BEDROOM_WIDTH, CLOSET_WIDTH, CLOSET2_WIDTH,
     BED_WIDTH, BED_LENGTH,
     O9_HALF_WIDTH,
-    IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E, WALL_SOUTH_N,
+    IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E,
+    IW4_OFFSET_E_IW2, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
     IW4_RO_WIDTH,
 )
@@ -37,23 +37,13 @@ class InteriorLayout(NamedTuple):
     # Wall thicknesses
     iwt3: float
     iwt4: float
-    # IW7 (L-shaped, west/north walls of closet)
-    iw7: list[Point]
-    # Interior wall 3 (IW3) — west bedroom wall
-    iw3: BBox
     # Interior wall 4 (IW4) — east bedroom wall
     iw4_w: float
     iw4_e: float
     iw4_s: float
     wall_south_n: float
-    # Closet 1
-    cl1_top: float
     # Bed (rotated polygon, long sides perpendicular to W20-W20a)
     bed_poly: list[Point]  # [SW, SE, NE, NW]
-    # IW9 (vertical, 4" — old IW3 position, south of IW7 L north face)
-    iw9: BBox
-    # IW10 (4" thick, horizontal — closet north wall, IW3.e to IW9.e)
-    iw10: BBox
     # IW11 (4" thick, N-S — south extension below IW4)
     iw11: BBox         # bounding box (for labels/dimensions)
     iw11_poly: list[Point]  # actual polygon (SE corner on W20-W20a)
@@ -102,30 +92,14 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_w = dryer_e + COUNTER_GAP
     ctr_e = ctr_w + COUNTER_DEPTH
     ctr_s = pts["W0"][1]
-    iw7_n = ctr_s + 6.0  # 6' north of W21-W0 face
-    ctr_n = iw7_n         # counter north = IW10 south face
+    ctr_n = ctr_s + 6.0  # 6' north of W21-W0 face
     ctr_nw_r = 0
-    iw7_poly = [(ctr_e, ctr_s), (ctr_e + WALL_3IN, ctr_s),
-                (ctr_e + WALL_3IN, iw7_n), (ctr_e, iw7_n)]
-    iw3_e = ctr_e + WALL_3IN          # east face = IW7 east face
-    iw3_w = iw3_e - WALL_4IN
-    iw3_s = iw7_n
-    iw3_n = iw1_s
-    iw9_w = ctr_e + WALL_3IN + CLOSET_WIDTH
-    iw9_e = iw9_w + WALL_4IN
-    iw9_s = ctr_s
-    iw9_n = iw7_n
-    # IW10: 4" thick E-W wall from IW3 east face to IW9 east face
-    iw10_w = iw3_e
-    iw10_e = iw9_e
-    iw10_s = iw7_n
-    iw10_n = iw7_n + WALL_4IN
 
-    iw4_w = iw9_e + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH
+    iw2_e = iw2_w + WALL_6IN
+    iw4_w = iw2_e + IW4_OFFSET_E_IW2
     iw4_e = iw4_w + WALL_4IN
     iw4_s = WALL_SOUTH_N
     wall_south_n = WALL_SOUTH_N
-    cl1_top = iw7_n - 1.0
 
     # IW11: 4" thick, normal to W20-W20a, 6' long
     # SE corner: circle(IW4_SW, 32") ∩ W20-W20a
@@ -253,14 +227,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         washer=BBox(w=washer_w, s=washer_s, e=washer_e, n=washer_n),
         ctr=BBox(w=ctr_w, s=ctr_s, e=ctr_e, n=ctr_n), ctr_nw_r=ctr_nw_r,
         iwt3=WALL_3IN, iwt4=WALL_4IN,
-        iw7=iw7_poly,
-        iw3=BBox(w=iw3_w, s=iw3_s, e=iw3_e, n=iw3_n),
-        iw9=BBox(w=iw9_w, s=iw9_s, e=iw9_e, n=iw9_n),
-        iw10=BBox(w=iw10_w, s=iw10_s, e=iw10_e, n=iw10_n),
         iw4_w=iw4_w, iw4_e=iw4_e, iw4_s=iw4_s, wall_south_n=wall_south_n,
         iw11=BBox(w=iw11_w, s=iw11_s, e=iw11_e, n=iw11_n), iw11_poly=iw11_poly,
         iw12=BBox(w=iw12_w, s=iw12_s, e=iw12_e, n=iw12_n), iw12_poly=iw12_poly,
-        cl1_top=cl1_top,
         bed_poly=bed_poly,
         iw8=iw8,
         iw5=BBox(w=iw5_w, s=iw5_s, e=iw5_e, n=iw5_n),
