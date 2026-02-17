@@ -162,8 +162,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     # IW12: 4" thick, perpendicular to IW11, from IW11 NW corner to IW4 west face
     _iw12_shorten = 4.0 / 12.0
-    iw12_sw = (iw11_nw[0] - _iw12_shorten * _along_E,
-               iw11_nw[1] - _iw12_shorten * _along_N)
+    _iw12_base = (iw11_sw[0] + 6.0 * _norm_E, iw11_sw[1] + 6.0 * _norm_N)
+    iw12_sw = (_iw12_base[0] - _iw12_shorten * _along_E,
+               _iw12_base[1] - _iw12_shorten * _along_N)
     # IW12 east end: SE and NE at iw4_w easting
     # South edge: line from iw12_sw in -_along direction, solve for easting = iw4_w
     _t_se = (iw4_w - iw12_sw[0]) / (-_along_E)
