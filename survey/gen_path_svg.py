@@ -300,10 +300,9 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     iw4_poly = [(L.iw4_w,wsn),(L.iw4_e,wsn),(L.iw4_e,L.iw1_s),(L.iw4_w,L.iw1_s)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw4_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW8 L-shape
-    cl1_top = L.cl1_top; iwt3 = L.iwt3; iw8_w = L.iw8_w; iw8_e = L.iw8_e
-    iw8_poly = [(L.iw4_e,cl1_top+iwt3),(iw8_e,cl1_top+iwt3),(iw8_e,wsn),
-                (iw8_w,wsn),(iw8_w,cl1_top),(L.iw4_e,cl1_top)]
+    # IW8 N-S wall
+    iwt3 = L.iwt3
+    iw8_poly = L.iw8
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw8_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # Appliances
@@ -334,7 +333,7 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     bx,by = to_svg((L.iw9.e+L.iw4_w)/2,(ctr_s+L.iw1_s)/2)
     lines.append(f'<text x="{bx:.1f}" y="{by+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
-    cx,cy = to_svg((L.iw4_e+iw8_w)/2,(ctr_s+cl1_top)/2)
+    cx,cy = to_svg((L.iw4_e+L.iw8_w)/2,(wsn+wsn+6.0)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     lines.append('</g>')
 

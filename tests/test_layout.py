@@ -47,7 +47,7 @@ class TestInteriorLayout:
         assert len(layout.iw7) == 4  # straight N-S wall
 
     def test_iw8_polygon(self, layout):
-        assert len(layout.iw8) == 6  # L-shape
+        assert len(layout.iw8) == 4  # N-S rectangle
 
     def test_bed_bounds(self, layout):
         assert layout.bed.e > layout.bed.w
