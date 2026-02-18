@@ -106,8 +106,7 @@ IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 # O1 (F1-F2, lower)
 O1_OFFSET_S = 99.0 / 12.0          # 99" south of F2 to north edge
 O1_WIDTH = 25.0 / 12.0             # 25" opening height
-# O2 (F3-F5, 4" from F3)
-O2_GAP_F3 = 4.0 / 12.0             # 4" from F3 along F3-F5 line
+# O2 (F3-F5, centered at RO4 northing center)
 O2_WIDTH = 25.0 / 12.0             # 25" opening width
 # O3 (F3-F5, 4" from F5)
 O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F3 line
