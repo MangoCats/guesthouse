@@ -1378,6 +1378,28 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         db_cy = (db_sy1 + db_sy2) / 2
         out.append(f'<text x="{db_cx:.1f}" y="{db_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="7" fill="{APPL_STROKE}">DAYBED</text>')
+
+        # ROCKER: midpoint between DAYBED NE corner and ET, shifted 18" south
+        rk_cx = (db_e + et_cx) / 2
+        rk_cy = (db_n + et_cy) / 2 - 18.0 / 12.0
+        rk_hw = ROCKER_DEPTH / 2   # half E-W (rotated 90°)
+        rk_hh = ROCKER_WIDTH / 2   # half N-S (rotated 90°)
+        rk_r = ROCKER_CORNER_R
+        rk_scx, rk_scy = to_svg(rk_cx, rk_cy)
+        rk_sx1, rk_sy1 = to_svg(rk_cx - rk_hw, rk_cy + rk_hh)
+        rk_sx2, rk_sy2 = to_svg(rk_cx + rk_hw, rk_cy - rk_hh)
+        rk_sw = rk_sx2 - rk_sx1; rk_sh = rk_sy2 - rk_sy1
+        rk_sr = abs(to_svg(rk_r, 0)[0] - to_svg(0, 0)[0])
+        rk_angle = -15.0  # 15° CCW in plan = -15° in SVG (Y-axis flipped)
+        out.append(f'<a href="https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/" target="_blank">')
+        out.append(f'<g transform="rotate({rk_angle:.1f},{rk_scx:.1f},{rk_scy:.1f})">')
+        out.append(f'<rect x="{rk_sx1:.1f}" y="{rk_sy1:.1f}" width="{rk_sw:.1f}" height="{rk_sh:.1f}"'
+                   f' rx="{rk_sr:.1f}" ry="{rk_sr:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append(f'<text x="{rk_scx:.1f}" y="{rk_scy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">ROCKER</text>')
+        out.append('</g>')
+        out.append('</a>')
     else:
         # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
         lv_width = LOVESEAT_WIDTH
