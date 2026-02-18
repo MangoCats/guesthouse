@@ -17,7 +17,7 @@ from floorplan.constants import (
     STD_GAP,
     RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
-    IW4_RO_WIDTH,
+    IW4_RO_WIDTH, IW16_RO_WIDTH,
     IW6_THICKNESS, IW6_OFFSET_N, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
@@ -214,6 +214,16 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     _ro2_bb = BBox(w=min(p[0] for p in _ro2_poly), s=min(p[1] for p in _ro2_poly),
                    e=max(p[0] for p in _ro2_poly), n=max(p[1] for p in _ro2_poly))
 
+    # RO3: in IW16 (axis-aligned N-S), 38" centered
+    _iw16 = layout.iw16_poly  # [(w,s), (e,s), (e,n), (w,n)]
+    _iw16_w = _iw16[0][0]
+    _iw16_e = _iw16[1][0]
+    _iw16_s = _iw16[0][1]
+    _iw16_n = _iw16[2][1]
+    _iw16_mid_n = (_iw16_s + _iw16_n) / 2
+    ro3_s = _iw16_mid_n - IW16_RO_WIDTH / 2
+    ro3_n = _iw16_mid_n + IW16_RO_WIDTH / 2
+
     # RO4: in IW2, vertical
     ro4_n = iw6_s - IW2_RO_OFFSET_S
     ro4_s = ro4_n - IW2_RO_WIDTH
@@ -225,6 +235,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     return [
         RoughOpening("RO1", BBox(w=ro1_w, s=iw1_s, e=ro1_e, n=iw1_n), "IW1", "H"),
         RoughOpening("RO2", _ro2_bb, "IW11", "R", _ro2_poly),
+        RoughOpening("RO3", BBox(w=_iw16_w, s=ro3_s, e=_iw16_e, n=ro3_n), "IW16", "V"),
         RoughOpening("RO4", BBox(w=layout.iw2.w, s=ro4_s, e=layout.iw2.e, n=ro4_n), "IW2", "V"),
         RoughOpening("RO5", BBox(w=ro5_w, s=iw6_s, e=ro5_e, n=iw6_n), "IW6", "H"),
     ]

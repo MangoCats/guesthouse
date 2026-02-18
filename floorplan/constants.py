@@ -88,6 +88,9 @@ IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W20-W0
 IW9_LENGTH = 80.0 / 12.0            # 80" (6'8") IW9 length, same as IW3
 IW9_OFFSET_O10 = 5.0 / 12.0         # 5" past O10 along W20-W0
 
+# IW16 rough opening
+IW16_RO_WIDTH = 38.0 / 12.0         # 38" opening width N-S
+
 # IW4 rough opening
 IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
