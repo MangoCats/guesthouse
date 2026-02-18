@@ -1361,6 +1361,23 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         out.append(f'<text x="{et_sx:.1f}" y="{et_sy+3:.1f}" text-anchor="middle"'
                    f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
         out.append('</a>')
+
+        # DAYBED: 86" E-W x 43" N-S, 2" N of IW1, 3" W of ET
+        db_ew = 86.0 / 12.0
+        db_ns = 43.0 / 12.0
+        db_s = layout.iw1_n + STD_GAP
+        db_n = db_s + db_ns
+        db_e = et_cx - et_r - 3.0 / 12.0
+        db_w = db_e - db_ew
+        db_sx1, db_sy1 = to_svg(db_w, db_n)
+        db_sx2, db_sy2 = to_svg(db_e, db_s)
+        db_sw = db_sx2 - db_sx1; db_sh = db_sy2 - db_sy1
+        out.append(f'<rect x="{db_sx1:.1f}" y="{db_sy1:.1f}" width="{db_sw:.1f}" height="{db_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        db_cx = (db_sx1 + db_sx2) / 2
+        db_cy = (db_sy1 + db_sy2) / 2
+        out.append(f'<text x="{db_cx:.1f}" y="{db_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="7" fill="{APPL_STROKE}">DAYBED</text>')
     else:
         # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
         lv_width = LOVESEAT_WIDTH
