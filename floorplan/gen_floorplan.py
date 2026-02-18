@@ -1553,9 +1553,14 @@ def _render_dimensions(out, data, layout):
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
                f'CLOSET {fmt_dist(_t7)}</text>')
 
-    # Utility
-    dim_line_h(out, pts["W1"][0], (layout.ctr.s + layout.ctr.n) / 2, layout.ctr.e,
-               fmt_dist(layout.ctr.e - pts["W1"][0]), to_svg)
+    # Utility: W1 to IW3 west face, at northing where distance = 8'
+    _iw3_sw, _iw3_nw = layout.iw3_poly[0], layout.iw3_poly[3]
+    _target_dist = 8.0
+    _t_iw3 = (_target_dist - (_iw3_sw[0] - pts["W1"][0])) / (_iw3_nw[0] - _iw3_sw[0])
+    _dim_n = _iw3_sw[1] + _t_iw3 * (_iw3_nw[1] - _iw3_sw[1])
+    _dim_e = _iw3_sw[0] + _t_iw3 * (_iw3_nw[0] - _iw3_sw[0])
+    dim_line_h(out, pts["W1"][0], _dim_n, _dim_e,
+               fmt_dist(_dim_e - pts["W1"][0]), to_svg)
     dim_line_h(out, layout.iw4_e, 5.0, pts["W15"][0],
                fmt_dist(pts["W15"][0] - layout.iw4_e), to_svg)
 
