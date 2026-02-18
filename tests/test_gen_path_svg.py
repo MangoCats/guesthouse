@@ -42,10 +42,10 @@ class TestBuildOutlineCfg:
         assert cfg.opacity == 1.0
         assert isinstance(cfg.arc_styles, dict)
 
-    def test_has_12_arc_styles(self, all_data):
+    def test_has_11_arc_styles(self, all_data):
         cfg = build_outline_cfg(
             all_data["outline_segs"], all_data["pts"], all_data["radii"])
-        assert len(cfg.arc_styles) == 12
+        assert len(cfg.arc_styles) == 11
 
 
 class TestRenderLayer:

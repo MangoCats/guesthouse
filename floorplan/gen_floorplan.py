@@ -34,7 +34,7 @@ from floorplan.constants import (
     ICE_WIDTH, ICE_DEPTH,
     ROCKER_WIDTH, ROCKER_DEPTH, ROCKER_CORNER_R,
     RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
-    O3_HALF_WIDTH, O3_DOOR_WIDTH,
+    O3_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH,
     RO3_DOOR_WIDTH, RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, IW4_RO_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
 )
@@ -273,7 +273,7 @@ def build_floorplan_data():
     # --- Fit content on letter landscape (792x612) page ---
     _margin_top = 36   # 0.5" top margin
     _margin = 72       # 1" margins on left, right, bottom
-    _f_names = [f"F{i}" for i in range(21)]
+    _f_names = [f"F{i}" for i in range(21) if i != 4]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -1840,51 +1840,56 @@ def _render_openings(out, data, layout):
     to_svg = data.to_svg
     outer_openings = compute_outer_openings(pts, layout)
 
-    # O3 door: 30" door, hinged north, swings east
+    # O3 door: 30" door on diagonal F3-F5 wall, hinged F5-side, swings east
     o3 = [o for o in outer_openings if o.name == "O3"][0]
-    # O3 poly: [(F4_e, south), (F4_e, north), (W4_e, north), (W4_e, south)]
-    wall_w = pts["F4"][0]  # outer face
-    wall_e = pts["W4"][0]  # inner face
-    wall_mid = (wall_w + wall_e) / 2
-    o3_s = o3.poly[0][1]
-    o3_n = o3.poly[1][1]
-    o3_opening = o3_n - o3_s
-    gap = (o3_opening - O3_DOOR_WIDTH) / 2
-    door_s = o3_s + gap
-    door_n = o3_n - gap
+    # O3 poly: [outer_start, outer_end, inner_end, inner_start] on diagonal wall
+    # Wall direction (F3→F5) and cross direction (outer→inner)
+    _o3_os, _o3_oe = o3.poly[0], o3.poly[1]
+    _o3_is, _o3_ie = o3.poly[3], o3.poly[2]
+    _o3_dE = _o3_oe[0] - _o3_os[0]
+    _o3_dN = _o3_oe[1] - _o3_os[1]
+    _o3_len = math.sqrt(_o3_dE**2 + _o3_dN**2)
+    _o3_along = (_o3_dE / _o3_len, _o3_dN / _o3_len)  # unit along wall
+    _o3_cross = (_o3_along[1], -_o3_along[0])  # unit outer→inner (right of along)
+    # Midline endpoints (halfway between outer and inner faces)
+    _o3_ms = ((_o3_os[0] + _o3_is[0]) / 2, (_o3_os[1] + _o3_is[1]) / 2)
+    _o3_me = ((_o3_oe[0] + _o3_ie[0]) / 2, (_o3_oe[1] + _o3_ie[1]) / 2)
+    gap = (_o3_len - O3_DOOR_WIDTH) / 2
 
-    # Jamb blocks
-    block_w = wall_mid - DOOR_FLAT_FACE / 2
-    block_e = wall_mid + DOOR_FLAT_FACE / 2
-    # South block
-    bx1, by1 = to_svg(block_w, o3_s + gap)
-    bx2, by2 = to_svg(block_e, o3_s)
-    out.append(f'<rect x="{bx1:.1f}" y="{by1:.1f}" width="{bx2-bx1:.1f}" height="{by2-by1:.1f}"'
-               f' fill="{JAMB_COLOR}" stroke="none"/>')
-    # North block
-    bx1, by1 = to_svg(block_w, o3_n)
-    bx2, by2 = to_svg(block_e, o3_n - gap)
-    out.append(f'<rect x="{bx1:.1f}" y="{by1:.1f}" width="{bx2-bx1:.1f}" height="{by2-by1:.1f}"'
-               f' fill="{JAMB_COLOR}" stroke="none"/>')
+    # Jamb blocks (rotated rectangles along wall direction)
+    _hf = DOOR_FLAT_FACE / 2
+    for _jc_t in [gap / 2, _o3_len - gap / 2]:  # center of each jamb along opening
+        _jc = (_o3_ms[0] + _jc_t * _o3_along[0], _o3_ms[1] + _jc_t * _o3_along[1])
+        _jl = gap / 2  # half-length of jamb block along wall
+        _jp = [(_jc[0] + da * _o3_along[0] + dc * _o3_cross[0],
+                _jc[1] + da * _o3_along[1] + dc * _o3_cross[1])
+               for da, dc in [(-_jl, -_hf), (_jl, -_hf), (_jl, _hf), (-_jl, _hf)]]
+        _svg_pts = " ".join(f"{to_svg(p[0], p[1])[0]:.1f},{to_svg(p[0], p[1])[1]:.1f}" for p in _jp)
+        out.append(f'<polygon points="{_svg_pts}" fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # Door: hinge at north side, swings east
-    hinge_e, hinge_n = wall_mid, door_n
-    hx, hy = to_svg(hinge_e, hinge_n)
-    # Straight line from hinge eastward (door in open position)
-    tip_e, tip_n = hinge_e + O3_DOOR_WIDTH, hinge_n
-    tx, ty = to_svg(tip_e, tip_n)
+    # Door: hinge at F5-side (upper end), swings into interior (cross direction)
+    hinge = (_o3_me[0] + (_o3_len - gap) * _o3_along[0],
+             _o3_me[1] + (_o3_len - gap) * _o3_along[1])
+    hx, hy = to_svg(hinge[0], hinge[1])
+    # Open position: door extends perpendicular to wall (into interior)
+    tip = (hinge[0] + O3_DOOR_WIDTH * _o3_cross[0],
+           hinge[1] + O3_DOOR_WIDTH * _o3_cross[1])
+    tx, ty = to_svg(tip[0], tip[1])
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (east) sweeping CW 90° to closed (south)
+    # Arc from open (cross) sweeping 90° to closed (along wall toward F3)
     n_arc = 20
-    arc_pts = []
+    arc_pts_list = []
     for i in range(n_arc + 1):
-        angle = -i * (math.pi / 2) / n_arc  # 0° to -90°
-        ae = hinge_e + O3_DOOR_WIDTH * math.cos(angle)
-        an = hinge_n + O3_DOOR_WIDTH * math.sin(angle)
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+        angle = i * (math.pi / 2) / n_arc  # 0° to 90°
+        _cos_a = math.cos(angle)
+        _sin_a = math.sin(angle)
+        # Rotate from cross direction toward -along direction
+        _de = O3_DOOR_WIDTH * (_cos_a * _o3_cross[0] - _sin_a * _o3_along[0])
+        _dn = O3_DOOR_WIDTH * (_cos_a * _o3_cross[1] - _sin_a * _o3_along[1])
+        sx, sy = to_svg(hinge[0] + _de, hinge[1] + _dn)
+        arc_pts_list.append(f"{sx:.1f},{sy:.1f}")
+    out.append(f'<polyline points="{" ".join(arc_pts_list)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # O6 door: 42" door, hinged east, swings south

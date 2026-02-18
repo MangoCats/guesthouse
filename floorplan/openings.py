@@ -9,7 +9,7 @@ from typing import NamedTuple
 from shared.types import Point, BBox, LineSeg
 from floorplan.constants import (
     O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
-    O3_HALF_WIDTH, O4_HALF_WIDTH,
+    O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH, O4_OFFSET_W_IW2,
     O5_E_FROM_F7, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
@@ -72,15 +72,23 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (pts["W2"][0], o2_n), (pts["W2"][0], o2_s),
     ]))
 
-    # O3: F4-F5, vertical, centered
-    o3_cn = (pts["F4"][1] + pts["F5"][1]) / 2
-    openings.append(OuterOpening("O3", "F4", "F5", [
-        (pts["F4"][0], o3_cn - O3_HALF_WIDTH), (pts["F4"][0], o3_cn + O3_HALF_WIDTH),
-        (pts["W4"][0], o3_cn + O3_HALF_WIDTH), (pts["W4"][0], o3_cn - O3_HALF_WIDTH),
+    # O3: F3-F5, diagonal, 4" from F5 along F5-F3 line
+    _dE3 = pts["F5"][0] - pts["F3"][0]
+    _dN3 = pts["F5"][1] - pts["F3"][1]
+    _seg3_len = math.sqrt(_dE3**2 + _dN3**2)
+    _t3_end = 1 - O3_GAP_F5 / _seg3_len       # closer to F5
+    _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg3_len  # farther from F5
+    openings.append(OuterOpening("O3", "F3", "F5", [
+        (pts["F3"][0] + _t3_start * _dE3, pts["F3"][1] + _t3_start * _dN3),
+        (pts["F3"][0] + _t3_end * _dE3, pts["F3"][1] + _t3_end * _dN3),
+        (pts["W3"][0] + _t3_end * (pts["W5"][0] - pts["W3"][0]),
+         pts["W3"][1] + _t3_end * (pts["W5"][1] - pts["W3"][1])),
+        (pts["W3"][0] + _t3_start * (pts["W5"][0] - pts["W3"][0]),
+         pts["W3"][1] + _t3_start * (pts["W5"][1] - pts["W3"][1])),
     ]))
 
-    # O4: F6-F7, horizontal, centered on midpoint
-    o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
+    # O4: F6-F7, horizontal, relative to IW2 west face
+    o4_mid = layout.iw2.w - O4_OFFSET_W_IW2
     o4_w = o4_mid - O4_HALF_WIDTH
     o4_e = o4_mid + O4_HALF_WIDTH
     openings.append(OuterOpening("O4", "F6", "F7", [

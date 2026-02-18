@@ -7,7 +7,8 @@ from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
-    R_a2_a3_DELTA, F6_HEIGHT, NW_SHIFT, F1_F2_TARGET, F4_F5_DROP,
+    ARC_F2_R, F23_SWEEP_DEG, F56_SWEEP_DEG, F6_EAST_ADJ,
+    F6_HEIGHT, NW_SHIFT,
     F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, F16_F17_SEG,
     F18_OFFSET_E, F18_F19_GAP, ARC_F19_R,
@@ -33,7 +34,7 @@ class OutlineAnchors(NamedTuple):
 class OutlineGeometry(NamedTuple):
     """Complete outline geometry result."""
     fp_pts: dict[str, Point]     # F0-F20 + C0-C19
-    outline_segs: list[Segment]  # 21 segments with F-series names
+    outline_segs: list[Segment]  # 20 segments with F-series names
     radii: dict[str, float]      # R_a0 through R_a19
 
 
@@ -51,40 +52,60 @@ def _compute_ne_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
 
 
 def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> float:
-    """NW corner arc: F4, F5, F6, C5. Returns R_a5."""
+    """NW corner arc: F5, F6, C5. Returns R_a5.
+
+    F6 exits at bearing 90° (east). 75° CW sweep places F5 at 165° from C5.
+    """
     R_a5 = CORNER_NW_R
     corner2_N = fp_pts["F0"][1] + F6_HEIGHT
-    fp_pts["C5"] = (anchors.Pi2[0] + NW_SHIFT + R_a5, corner2_N - R_a5)
-    fp_pts["F5"] = (anchors.Pi2[0] + NW_SHIFT, fp_pts["C5"][1])
+    fp_pts["C5"] = (anchors.Pi2[0] + NW_SHIFT + R_a5 + F6_EAST_ADJ, corner2_N - R_a5)
     fp_pts["F6"] = (fp_pts["C5"][0], corner2_N)
-    fp_pts["F4"] = (fp_pts["F5"][0], fp_pts["F5"][1] - F4_F5_DROP + CORNER_NW_R)
+    # F5 at angle (90° + sweep) = 165° from C5
+    _alpha = math.radians(F56_SWEEP_DEG)
+    _angle_f5 = math.pi / 2 + _alpha  # 165° in standard math coords
+    fp_pts["F5"] = (fp_pts["C5"][0] + R_a5 * math.cos(_angle_f5),
+                    fp_pts["C5"][1] + R_a5 * math.sin(_angle_f5))
     return R_a5
 
 
-def _compute_east_wall_arcs(fp_pts: dict[str, Point]) -> tuple[float, float, float, float]:
-    """East wall arcs: F2, F3, C2, C3, F7, F8, C7, F9, C8. Returns (R_a2, R_a3, R_a7, R_a8).
+def _compute_west_wall_arcs(fp_pts: dict[str, Point]) -> float:
+    """West wall arcs: F2, F3, C2. Returns R_a2.
 
-    Depends on F1, F4, F6 already in fp_pts.
+    R_a2 = 68", sweep = 15° CW. F3-F5 line tangent to both arcs F2-F3 and F5-F6.
+    Depends on F1, F5, C5 already in fp_pts.
     """
-    # Arcs F2-F3-F4: R_a2 = R_a3 + 8/12, F1-F2 = 16'8"
-    _a23 = fp_pts["F1"][0] - fp_pts["F4"][0]
-    _K23 = (fp_pts["F4"][1] - fp_pts["F1"][1]) - F1_F2_TARGET
-    _S23 = -(_K23**2 + _a23**2) / (2 * _a23)
-    R_a3 = (_S23 - R_a2_a3_DELTA) / 2
-    R_a2 = R_a3 + R_a2_a3_DELTA
-    fp_pts["C3"] = (fp_pts["F4"][0] - R_a3, fp_pts["F4"][1])
-    _cc2_E = fp_pts["F1"][0] + R_a2
-    _dE_cc = _cc2_E - fp_pts["C3"][0]
-    _dN_cc = -math.sqrt((R_a3 + R_a2)**2 - _dE_cc**2)
-    fp_pts["F2"] = (fp_pts["F1"][0], fp_pts["C3"][1] + _dN_cc)
-    fp_pts["C2"] = (_cc2_E, fp_pts["F2"][1])
-    # F3: tangent point on C3->C2 line
-    _f1b = R_a3 / (R_a3 + R_a2)
-    fp_pts["F3"] = (fp_pts["C3"][0] + _f1b * (fp_pts["C2"][0] - fp_pts["C3"][0]),
-                    fp_pts["C3"][1] + _f1b * (fp_pts["C2"][1] - fp_pts["C3"][1]))
+    R_a2 = ARC_F2_R
+    _alpha = math.radians(F23_SWEEP_DEG)  # 15°
+    _cos_a = math.cos(_alpha)
+    _sin_a = math.sin(_alpha)
 
-    # F7: east of F6, arc C7 (R=28")
-    fp_pts["F7"] = (fp_pts["F6"][0] + 5.5 + 6.0/12 - NW_SHIFT + 4.0/12, fp_pts["F6"][1])
+    # Tangent constraint determines F2_N:
+    # F3-F5 tangent to both arcs at angle 165° from respective centers.
+    C5_E, C5_N = fp_pts["C5"]
+    F2_E = fp_pts["F1"][0]  # F2 easting = F1 easting (unchanged)
+    _X = C5_E - F2_E
+    _dR = CORNER_NW_R - R_a2  # R_a5 - R_a2
+    F2_N = C5_N + (_dR + (R_a2 - _X) * _cos_a) / _sin_a
+
+    fp_pts["F2"] = (F2_E, F2_N)
+    fp_pts["C2"] = (F2_E + R_a2, F2_N)
+
+    # F3 at angle 165° from C2 (15° CW from F2 at 180°)
+    _angle_f3 = math.pi - _alpha  # 165°
+    fp_pts["F3"] = (fp_pts["C2"][0] + R_a2 * math.cos(_angle_f3),
+                    fp_pts["C2"][1] + R_a2 * math.sin(_angle_f3))
+
+    return R_a2
+
+
+def _compute_upper_east_arcs(fp_pts: dict[str, Point]) -> tuple[float, float]:
+    """Upper east arcs: F7, F8, C7, F9, C8. Returns (R_a7, R_a8).
+
+    Depends on F6 already in fp_pts.
+    """
+    # F7: east of F6, adjusted for F6 east shift to keep F7 fixed
+    fp_pts["F7"] = (fp_pts["F6"][0] + 5.5 + 6.0/12 - NW_SHIFT + 4.0/12 - F6_EAST_ADJ,
+                    fp_pts["F6"][1])
     R_a7 = UPPER_E_R
     fp_pts["C7"] = (fp_pts["F7"][0], fp_pts["F7"][1] - R_a7)
     fp_pts["F8"] = (fp_pts["C7"][0] + R_a7, fp_pts["C7"][1])
@@ -94,7 +115,7 @@ def _compute_east_wall_arcs(fp_pts: dict[str, Point]) -> tuple[float, float, flo
     fp_pts["C8"] = (fp_pts["F8"][0] + R_a8, fp_pts["F8"][1])
     fp_pts["F9"] = (fp_pts["C8"][0], fp_pts["C8"][1] - R_a8)
 
-    return R_a2, R_a3, R_a7, R_a8
+    return R_a7, R_a8
 
 
 def _compute_central_region(
@@ -222,7 +243,8 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
 
     R_a0 = _compute_ne_corner(fp_pts, anchors)
     R_a5 = _compute_nw_corner(fp_pts, anchors)
-    R_a2, R_a3, R_a7, R_a8 = _compute_east_wall_arcs(fp_pts)
+    R_a2 = _compute_west_wall_arcs(fp_pts)
+    R_a7, R_a8 = _compute_upper_east_arcs(fp_pts)
     R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
     R_a17, R_a19 = _compute_south_wall(fp_pts)
 
@@ -246,8 +268,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         ArcSeg("F0", "F1", "C0", R_a0, "CW", 20),
         LineSeg("F1", "F2"),
         ArcSeg("F2", "F3", "C2", R_a2, "CW", 20),
-        ArcSeg("F3", "F4", "C3", R_a3, "CCW", 20),
-        LineSeg("F4", "F5"),
+        LineSeg("F3", "F5"),
         ArcSeg("F5", "F6", "C5", R_a5, "CW", 20),
         LineSeg("F6", "F7"),
         ArcSeg("F7", "F8", "C7", R_a7, "CW", 20),
@@ -267,7 +288,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     ]
 
     radii = {
-        "R_a0": R_a0, "R_a2": R_a2, "R_a3": R_a3, "R_a5": R_a5,
+        "R_a0": R_a0, "R_a2": R_a2, "R_a5": R_a5,
         "R_a7": R_a7, "R_a8": R_a8, "R_a10": R_a10, "R_a11": R_a11,
         "R_a13": R_a13, "R_a15": R_a15, "R_a17": R_a17,
         "R_a19": R_a19,

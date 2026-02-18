@@ -10,11 +10,10 @@ from floorplan.geometry import OutlineGeometry
 _EXPECTED_F = {
     "F0":  ( 1.2407407407,  2.2134933417),
     "F1":  ( 0.5000000000,  3.0416666667),
-    "F2":  ( 0.5000000000, 18.0000000000),
-    "F3":  ( 1.0821917808, 19.5525114155),
-    "F4":  ( 1.5000000000, 20.6666666667),
-    "F5":  ( 1.5000000000, 24.0000000000),
-    "F6":  ( 3.8333333333, 26.3333333333),
+    "F2":  ( 0.5000000000, 17.9630821300),
+    "F3":  ( 0.6930869844, 19.4297233856),
+    "F5":  ( 2.0795064053, 24.6039111052),
+    "F6":  ( 4.3333333333, 26.3333333333),
     "F7":  ( 9.1666666667, 26.3333333333),
     "F8":  (11.5000000000, 24.0000000000),
     "F9":  (11.6666666667, 23.8333333333),
@@ -36,15 +35,15 @@ class TestOutlineGeometry:
     def test_returns_outline_geometry(self, outline_geo):
         assert isinstance(outline_geo, OutlineGeometry)
 
-    def test_21_points(self, outline_geo):
-        for i in range(21):
+    def test_20_points(self, outline_geo):
+        for i in [j for j in range(21) if j != 4]:
             assert f"F{i}" in outline_geo.fp_pts
 
-    def test_21_segments(self, outline_geo):
-        assert len(outline_geo.outline_segs) == 21
+    def test_20_segments(self, outline_geo):
+        assert len(outline_geo.outline_segs) == 20
 
-    def test_12_radii(self, outline_geo):
-        assert len(outline_geo.radii) == 12
+    def test_11_radii(self, outline_geo):
+        assert len(outline_geo.radii) == 11
         for key, val in outline_geo.radii.items():
             assert key.startswith("R_a")
             assert val > 0, f"{key} = {val}"
@@ -66,7 +65,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 840.86) < 0.1
+        assert abs(area - 840.53) < 0.1
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):

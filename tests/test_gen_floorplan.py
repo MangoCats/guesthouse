@@ -121,19 +121,19 @@ class TestBuildFloorplanData:
 
     def test_pts_contain_f_and_w_series(self, floorplan_data):
         pts = floorplan_data.pts
-        for i in range(21):
+        for i in [j for j in range(21) if j != 4]:
             assert f"F{i}" in pts, f"Missing F{i}"
             assert f"W{i}" in pts, f"Missing W{i}"
 
     def test_pts_contain_s_and_g_series(self, floorplan_data):
         pts = floorplan_data.pts
-        for i in range(21):
+        for i in [j for j in range(21) if j != 4]:
             assert f"S{i}" in pts, f"Missing S{i}"
             assert f"G{i}" in pts, f"Missing G{i}"
 
     def test_s_and_g_seg_count(self, floorplan_data):
-        assert len(floorplan_data.s_segs) == 21
-        assert len(floorplan_data.g_segs) == 21
+        assert len(floorplan_data.s_segs) == 20
+        assert len(floorplan_data.g_segs) == 20
 
     def test_11_openings(self, floorplan_data):
         assert len(floorplan_data.openings) == 11

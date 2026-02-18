@@ -109,11 +109,13 @@ O1_WIDTH = 25.0 / 12.0             # 25" opening height
 # O2 (F1-F2, upper)
 O2_OFFSET_S = 4.0 / 12.0           # 4" south of F2 to north edge
 O2_WIDTH = 25.0 / 12.0             # 25" opening height
-# O3 (F4-F5, centered)
-O3_HALF_WIDTH = 16.0 / 12.0        # 16" half-width
+# O3 (F3-F5, 4" from F5)
+O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F3 line
+O3_WIDTH = 32.0 / 12.0             # 32" opening width
 O3_DOOR_WIDTH = 30.0 / 12.0        # 30" door in O3
-# O4 (F6-F7, centered chimney opening)
+# O4 (F6-F7, relative to IW2 west face)
 O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
+O4_OFFSET_W_IW2 = 11.0 / 12.0     # 11" west of IW2 west face
 # O5 (F9-F10)
 O5_E_FROM_F7 = 108.0 / 12.0        # 9' from F7 easting to O5 east edge
 O5_WIDTH = 68.0 / 12.0            # 5'8" opening width
@@ -154,11 +156,12 @@ CORNER_NW_R = 28.0 / 12.0         # R_a5: 28" NW corner
 UPPER_E_R = 28.0 / 12.0           # R_a7: 28" upper east
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
 ARC_180_R = 28.0 / 12.0           # R_a11: 28" 180-degree arc
-R_a2_a3_DELTA = 8.0 / 12.0        # R_a2 - R_a3 = 8"
+ARC_F2_R = 68.0 / 12.0             # R_a2: 68" arc radius
+F23_SWEEP_DEG = 15.0               # 15° F2-F3 arc sweep
+F56_SWEEP_DEG = 75.0               # 75° F5-F6 arc sweep
+F6_EAST_ADJ = 6.0 / 12.0           # 6" F6 east adjustment
 F6_HEIGHT = 26.0 - 2.0/12.0       # 25'10" F6-F7 line north of F0
-NW_SHIFT = 1.0                    # C5/C3 1' east shift
-F1_F2_TARGET = 16.0 + 8.0/12.0    # 16'8" F1-F2 segment target
-F4_F5_DROP = 5.0 + 8.0/12.0       # 5'8" F4 south of C5
+NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_DIST_FROM_NORTH = 10.0 + 4.0/12.0  # 10'4" IW1 north face to north inner wall
 F14_F15_SEG = 8.0 + 4.0/12.0      # 8'4" segment
 ARC_F13_R = 5.627004870830987      # R_a13: ~67.52" (set for 75° F10-F11 sweep)
