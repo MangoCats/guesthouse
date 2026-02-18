@@ -1867,9 +1867,9 @@ def _render_openings(out, data, layout):
         _svg_pts = " ".join(f"{to_svg(p[0], p[1])[0]:.1f},{to_svg(p[0], p[1])[1]:.1f}" for p in _jp)
         out.append(f'<polygon points="{_svg_pts}" fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # Door: hinge at F5-side (upper end), swings into interior (cross direction)
-    hinge = (_o3_me[0] + (_o3_len - gap) * _o3_along[0],
-             _o3_me[1] + (_o3_len - gap) * _o3_along[1])
+    # Door: hinge at inner face, NE end (F5-side) - 1" toward SW
+    hinge = (_o3_ie[0] - gap * _o3_along[0],
+             _o3_ie[1] - gap * _o3_along[1])
     hx, hy = to_svg(hinge[0], hinge[1])
     # Open position: door extends perpendicular to wall (into interior)
     tip = (hinge[0] + O3_DOOR_WIDTH * _o3_cross[0],
