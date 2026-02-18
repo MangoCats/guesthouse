@@ -1666,10 +1666,12 @@ def _render_dimensions(out, data, layout):
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
                f'{fmt_dist(_t3)}</text>')
 
-    # Utility area N-S: IW1 south face to W20-W0, centered on O11
-    o11_cx = (layout.dryer.e + layout.ctr.w) / 2
-    dim_line_v(out, o11_cx, pts["W0"][1], layout.iw1_s,
-               fmt_dist(layout.iw1_s - pts["W0"][1]), to_svg)
+    # Utility area N-S: IW8 south face to W20-W0 at O11 center
+    _o11 = compute_outer_openings(pts, layout)[10]  # O11
+    _o11_inner_mid = ((_o11.poly[2][0] + _o11.poly[3][0]) / 2,
+                      (_o11.poly[2][1] + _o11.poly[3][1]) / 2)
+    dim_line_v(out, _o11_inner_mid[0], _o11_inner_mid[1], layout.iw8.s,
+               fmt_dist(layout.iw8.s - _o11_inner_mid[1]), to_svg)
 
 
 def _render_openings(out, data, layout):
