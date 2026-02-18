@@ -1660,6 +1660,31 @@ def _render_dimensions(out, data, layout):
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
                f'{fmt_dist(_dim_len)}</text>')
 
+    # O10 inner center perpendicular to W20-W0 up to IW1 south face
+    _o10_open = compute_outer_openings(pts, layout)[9]  # O10
+    _o10_ic = ((_o10_open.poly[2][0] + _o10_open.poly[3][0]) / 2,
+               (_o10_open.poly[2][1] + _o10_open.poly[3][1]) / 2)
+    _t_iw1_10 = (layout.iw1_s - _o10_ic[1]) / _nrmN
+    _dim_end10 = (_o10_ic[0] + _t_iw1_10 * _nrmE, layout.iw1_s)
+    _dim_len10 = abs(_t_iw1_10)
+    _dsx1, _dsy1 = to_svg(*_o10_ic)
+    _dsx2, _dsy2 = to_svg(*_dim_end10)
+    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
+    _slen = math.sqrt(_sdx**2 + _sdy**2)
+    _px = -_sdy / _slen; _py = _sdx / _slen
+    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
+        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
+                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
+                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
+    _up_dx = _dsx2 - _dsx1; _up_dy = _dsy2 - _dsy1
+    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
+    _lx = _lmx - 3 * _px; _ly = _lmy - 3 * _py
+    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
+               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
+               f'{fmt_dist(_dim_len10)}</text>')
+
     # IW9 east face to IW11 west face, perpendicular to IW9 east face
     _iw9_se9 = layout.iw9_poly[1]
     _iw9_ne9 = layout.iw9_poly[2]
