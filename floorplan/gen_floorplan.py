@@ -903,10 +903,10 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
     elif db:
-        # 6" east of D/W, back against W9-W10 wall
+        # 6" east of D/W, back 3" south of W9-W10 wall
         fr_w = dw_e + 6.0 / 12.0
         fr_e = fr_w + 32.75 / 12.0
-        fr_n = back_n
+        fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - 35.0 / 12.0
     else:
         # East edge 6" west of RO1, 2" north of IW1 north face
