@@ -819,26 +819,27 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' font-size="6" fill="{APPL_STROKE}">ICE</text>')
         out.append('</a>')
 
-    # SHELVES: 36" E-W x 15" N-S
-    if minik:
-        # 3" east of fridge
-        sh_w = fr_e + 3.0 / 12.0
-    else:
-        sh_w = dw_e + KITCHEN_APPL_GAP
-    sh_e = sh_w + SHELVES_WIDTH
-    sh_n = back_n
-    sh_s = sh_n - SHELVES_DEPTH
-    sh_sx1, sh_sy1 = to_svg(sh_w, sh_n)
-    sh_sx2, sh_sy2 = to_svg(sh_e, sh_s)
-    sh_sw = sh_sx2 - sh_sx1; sh_sh = sh_sy2 - sh_sy1
-    out.append('<a href="https://www.ikea.com/us/en/p/hemnes-bookcase-white-stain-light-brown-60413502/" target="_blank">')
-    out.append(f'<rect x="{sh_sx1:.1f}" y="{sh_sy1:.1f}" width="{sh_sw:.1f}" height="{sh_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    sh_cx = (sh_sx1 + sh_sx2) / 2
-    sh_cy = (sh_sy1 + sh_sy2) / 2
-    out.append(f'<text x="{sh_cx:.1f}" y="{sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
-    out.append('</a>')
+    # SHELVES: 36" E-W x 15" N-S (not in db)
+    if not db:
+        if minik:
+            # 3" east of fridge
+            sh_w = fr_e + 3.0 / 12.0
+        else:
+            sh_w = dw_e + KITCHEN_APPL_GAP
+        sh_e = sh_w + SHELVES_WIDTH
+        sh_n = back_n
+        sh_s = sh_n - SHELVES_DEPTH
+        sh_sx1, sh_sy1 = to_svg(sh_w, sh_n)
+        sh_sx2, sh_sy2 = to_svg(sh_e, sh_s)
+        sh_sw = sh_sx2 - sh_sx1; sh_sh = sh_sy2 - sh_sy1
+        out.append('<a href="https://www.ikea.com/us/en/p/hemnes-bookcase-white-stain-light-brown-60413502/" target="_blank">')
+        out.append(f'<rect x="{sh_sx1:.1f}" y="{sh_sy1:.1f}" width="{sh_sw:.1f}" height="{sh_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        sh_cx = (sh_sx1 + sh_sx2) / 2
+        sh_cy = (sh_sy1 + sh_sy2) / 2
+        out.append(f'<text x="{sh_cx:.1f}" y="{sh_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">SHELVES</text>')
+        out.append('</a>')
 
     # Kitchen counter: starting at IW2 east face
     kc_w = layout.iw2.e
@@ -1090,7 +1091,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
             out.append('</a>')
 
     # North wall counter: south side against W9-W10, starting at IW2 east face
-    if not minik:
+    if not minik and not db:
         nc_w = layout.iw2.e
         nc_e = nc_w + NORTH_CTR_LENGTH
         nc_n = pts["W9"][1]
