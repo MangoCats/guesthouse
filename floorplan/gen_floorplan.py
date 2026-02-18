@@ -869,7 +869,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     # Kitchen appliances
     st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
     st_e = st_w + STOVE_WIDTH
-    ks_w = st_e + KITCHEN_APPL_GAP
+    ks_w = st_e + KITCHEN_APPL_GAP + 2.0 / 12.0
     ks_e = ks_w + KITCHEN_SINK_WIDTH
     dw_w = ks_e + KITCHEN_APPL_GAP
     dw_e = dw_w + DW_WIDTH
@@ -904,8 +904,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
     elif db:
-        # 6" east of D/W, back 3" south of W9-W10 wall
-        fr_w = dw_e + 6.0 / 12.0
+        # 5" east of D/W, back 3" south of W9-W10 wall
+        fr_w = dw_e + 5.0 / 12.0
         fr_e = fr_w + 32.75 / 12.0
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - 35.0 / 12.0
