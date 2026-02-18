@@ -10,6 +10,7 @@ from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area,
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
+    horiz_isects,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
@@ -29,6 +30,8 @@ from floorplan.constants import (
     DESK_WIDTH, DESK_DEPTH, DESK_CHAIR_WIDTH, DESK_CHAIR_DEPTH, DESK_CHAIR_GAP,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
     OTTOMAN_SIZE, ET_RADIUS_CM,
+    ICE_WIDTH, ICE_DEPTH,
+    ROCKER_WIDTH, ROCKER_DEPTH, ROCKER_CORNER_R,
     SHELVES_WIDTH, SHELVES_DEPTH, SHELVES2_WIDTH, SHELVES2_DEPTH,
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
@@ -631,7 +634,7 @@ def _render_walls(out, data, layout):
 
 
 
-def _render_appliances(out, data, layout, minik=False):
+def _render_appliances(out, data, layout, minik=False, db=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
     pts = data.pts
     to_svg = data.to_svg
@@ -643,16 +646,17 @@ def _render_appliances(out, data, layout, minik=False):
         "DRYER": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377",
         "WASHER": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375",
     }
+    _small_wd = minik or db
     minik_dryer_n = None
     for label, b in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
-        if minik:
+        if _small_wd:
             if label == "DRYER":
                 b = BBox(w=b.w, s=b.s, e=b.w + minik_appl_w, n=b.s + minik_appl_d)
                 minik_dryer_n = b.n
-            else:  # WASHER: 1" north of minik dryer
+            else:  # WASHER: 1" north of dryer
                 ws = minik_dryer_n + 1.0 / 12.0
                 b = BBox(w=b.w, s=ws, e=b.w + minik_appl_w, n=ws + minik_appl_d)
-        link = minik_appl_links.get(label) if minik else None
+        link = minik_appl_links.get(label) if _small_wd else None
         if link:
             out.append(f'<a href="{link}" target="_blank">')
         sx1, sy1 = to_svg(b.w, b.n)
@@ -707,7 +711,7 @@ def _render_appliances(out, data, layout, minik=False):
     draw_sink(out, sink_e, layout.iw1_n + SINK_RY, to_svg=to_svg)
 
 
-def _render_kitchen(out, data, layout, minik=False):
+def _render_kitchen(out, data, layout, minik=False, db=False):
     """Render kitchen: D/W, sink, stove, shelves, fridge, counters."""
     pts = data.pts
     to_svg = data.to_svg
@@ -716,7 +720,7 @@ def _render_kitchen(out, data, layout, minik=False):
     # Kitchen appliances
     st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
     st_e = st_w + STOVE_WIDTH
-    ks_w = st_e + KITCHEN_APPL_GAP
+    ks_w = st_e + KITCHEN_APPL_GAP + 2.0 / 12.0
     ks_e = ks_w + KITCHEN_SINK_WIDTH
     dw_w = ks_e + KITCHEN_APPL_GAP
     dw_e = dw_w + DW_WIDTH
@@ -750,6 +754,12 @@ def _render_kitchen(out, data, layout, minik=False):
         fr_e = fr_w + MINIK_FRIDGE_W
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
+    elif db:
+        # 5" east of D/W, back 3" south of W9-W10 wall
+        fr_w = dw_e + 5.0 / 12.0
+        fr_e = fr_w + 32.75 / 12.0
+        fr_n = back_n - 3.0 / 12.0
+        fr_s = fr_n - 35.0 / 12.0
     else:
         # 2" east of kitchen counter, 2" north of IW1 north face
         fr_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP
@@ -761,6 +771,8 @@ def _render_kitchen(out, data, layout, minik=False):
     sw = sx2 - sx1; sh = sy2 - sy1
     if minik:
         out.append('<a href="https://www.ikea.com/us/en/p/bergsnaes-bottom-freezer-refrigerator-stainless-steel-color-60607883/" target="_blank">')
+    elif db:
+        out.append('<a href="https://www.lowes.com/pd/LG-25-5-cu-ft-Bottom-Freezer-Refrigerator-with-Ice-Maker-Fingerprint-Resistant-Printproof-Stainless-Steel-ENERGY-STAR/1002543648" target="_blank">')
     out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     fr_cx = (sx1 + sx2) / 2
@@ -769,6 +781,42 @@ def _render_kitchen(out, data, layout, minik=False):
     out.append(f'<text x="{fr_cx:.1f}" y="{fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="{fr_fs}" fill="{APPL_STROKE}">FRIDGE</text>')
     if minik:
+        out.append('</a>')
+    if db:
+        # Door arc: hinged at SE corner, 32.75" door, sweeps from west to south
+        fr_door = 32.75 / 12.0
+        hx, hy = to_svg(fr_e, fr_s)
+        tip_x, tip_y = to_svg(fr_e, fr_s - fr_door)
+        out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
+                   f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
+        n_arc = 20
+        arc_pts = []
+        for i in range(n_arc + 1):
+            angle = math.pi + i * (math.pi / 2) / n_arc  # 180 to 270
+            ae = fr_e + fr_door * math.cos(angle)
+            an = fr_s + fr_door * math.sin(angle)
+            ax, ay = to_svg(ae, an)
+            arc_pts.append(f"{ax:.1f},{ay:.1f}")
+        out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+                   f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
+        out.append('</a>')
+
+    # ICE maker (db: in corner of IW1 and IW2)
+    if db:
+        ice_w = layout.iw2.e + 2.0 / 12.0
+        ice_s = layout.iw1_n + 2.0 / 12.0
+        ice_e = ice_w + ICE_WIDTH
+        ice_n = ice_s + ICE_DEPTH
+        ix1, iy1 = to_svg(ice_w, ice_n)
+        ix2, iy2 = to_svg(ice_e, ice_s)
+        isw = ix2 - ix1; ish = iy2 - iy1
+        out.append('<a href="https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876" target="_blank">')
+        out.append(f'<rect x="{ix1:.1f}" y="{iy1:.1f}" width="{isw:.1f}" height="{ish:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        ice_cx = (ix1 + ix2) / 2
+        ice_cy = (iy1 + iy2) / 2
+        out.append(f'<text x="{ice_cx:.1f}" y="{ice_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">ICE</text>')
         out.append('</a>')
 
     # SHELVES: 36" E-W x 15" N-S
@@ -918,15 +966,19 @@ def _render_kitchen(out, data, layout, minik=False):
                        f' stroke="#666" stroke-width="0.4"/>')
         out.append('</a>')
 
-    # Minik: Oscar triangle dining set centered between COUNTER, IW1, IW2, RO1
-    if minik:
+    # Oscar triangle dining set centered between COUNTER/wall, IW1, IW2, RO1
+    if minik or db:
         # Available space bounds
         rough_openings = compute_rough_openings(pts, layout)
         ro1_bbox = [r for r in rough_openings if r.name == "RO1"][0].bbox
+        if minik:
+            space_e = ro1_bbox.w
+            space_n = kc_s
+        else:
+            space_e = ro1_bbox.w
+            space_n = back_n
         space_w = layout.iw2.e
         space_s = layout.iw1_n
-        space_e = ro1_bbox.w
-        space_n = kc_s
         space_cx = (space_w + space_e) / 2
         space_cy = (space_s + space_n) / 2
 
@@ -936,10 +988,15 @@ def _render_kitchen(out, data, layout, minik=False):
         apex_r = 12.0 / 12.0    # 24" diameter arc at apex
         fillet_r = 6.0 / 12.0   # 6" corner fillets
 
-        # Position: 6" north of IW1, centered E-W
-        tbl_cx = space_cx
-        tbl_s_y = layout.iw1_n + 6.0 / 12.0
-        tbl_n = tbl_s_y + tbl_h
+        # Position
+        if db:
+            tbl_cx = ks_w
+            tbl_n = space_n - 30.0 / 12.0 - 28.0 / 12.0
+            tbl_s_y = tbl_n - tbl_h
+        else:
+            tbl_cx = space_cx
+            tbl_s_y = layout.iw1_n + 6.0 / 12.0
+            tbl_n = tbl_s_y + tbl_h
 
         # Base corners and arc center
         ne = (tbl_cx + tbl_base / 2, tbl_n)
@@ -1050,8 +1107,8 @@ def _render_kitchen(out, data, layout, minik=False):
                    f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
         out.append('</a>')
 
-def _render_furniture(out, data, layout):
-    """Render furniture: bed, loveseat, ET, chair, ottoman, room labels."""
+def _render_furniture(out, data, layout, db=False):
+    """Render furniture: bed, loveseat/daybed, ET, chair, ottoman, room labels."""
     pts = data.pts
     to_svg = data.to_svg
     bed = layout.bed
@@ -1070,67 +1127,136 @@ def _render_furniture(out, data, layout):
     out.append(f'<text x="{bed_cx_svg:.1f}" y="{bed_label_y+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">KING BED</text>')
 
-    # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
-    lv_width = LOVESEAT_WIDTH
-    lv_height = LOVESEAT_LENGTH
-    lv_angle = math.radians(LOVESEAT_ANGLE_DEG)
-    lv_nw_e = LOVESEAT_NW_E
-    lv_nw_n = LOVESEAT_NW_N
-    lv_w = lv_nw_e + lv_height * math.sin(lv_angle)
-    lv_s = lv_nw_n - lv_height * math.cos(lv_angle)
+    if db:
+        # DB variant: no loveseats; ET shifted east to 2" from W-series wall
+        et_r = (ET_RADIUS_CM / 2.54) / 12.0
+        et_cy = layout.iw1_n + STD_GAP + et_r
+        # Find easternmost W-series wall easting at ET's northing
+        wall_e = max(horiz_isects(data.inner_poly, et_cy))
+        et_cx = wall_e - STD_GAP - et_r
 
-    # ET position: 2" N of IW1, 2" from loveseat SE corner
-    et_r = (ET_RADIUS_CM / 2.54) / 12.0
-    lv_se_e = lv_w + lv_width * math.cos(lv_angle)
-    lv_se_n = lv_s + lv_width * math.sin(lv_angle)
-    et_gap = et_r + STD_GAP
-    et_cy = layout.iw1_n + STD_GAP + et_r
-    et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
+        # ET: 50cm diameter endtable
+        et_sx, et_sy = to_svg(et_cx, et_cy)
+        et_r_svg = abs(to_svg(et_r, 0)[0] - to_svg(0, 0)[0])
+        out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
+        out.append(f'<circle cx="{et_sx:.1f}" cy="{et_sy:.1f}" r="{et_r_svg:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append(f'<text x="{et_sx:.1f}" y="{et_sy+3:.1f}" text-anchor="middle"'
+                   f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
+        out.append('</a>')
 
-    lv_e = lv_w + lv_width
-    lv_n = lv_s + lv_height
-    lv_sx1, lv_sy1 = to_svg(lv_w, lv_n)
-    lv_sx2, lv_sy2 = to_svg(lv_e, lv_s)
-    lv_sw = lv_sx2 - lv_sx1; lv_sh = lv_sy2 - lv_sy1
-    lv_rot_x = lv_sx1
-    lv_rot_y = lv_sy2
-    out.append(f'<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
-    out.append(f'<g transform="rotate({int(-LOVESEAT_ANGLE_DEG)},{lv_rot_x:.1f},{lv_rot_y:.1f})">')
-    out.append(f'<rect x="{lv_sx1:.1f}" y="{lv_sy1:.1f}" width="{lv_sw:.1f}" height="{lv_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    lv_cx = (lv_sx1 + lv_sx2) / 2
-    lv_cy = (lv_sy1 + lv_sy2) / 2
-    out.append(f'<text x="{lv_cx:.1f}" y="{lv_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
-    out.append('</g>')
-    out.append('</a>')
+        # DAYBED: 86" E-W x 43" N-S, 2" N of IW1, 3" W of ET
+        db_ew = 86.0 / 12.0
+        db_ns = 43.0 / 12.0
+        db_s = layout.iw1_n + STD_GAP
+        db_n = db_s + db_ns
+        db_e = et_cx - et_r - 3.0 / 12.0
+        db_w = db_e - db_ew
+        db_sx1, db_sy1 = to_svg(db_w, db_n)
+        db_sx2, db_sy2 = to_svg(db_e, db_s)
+        db_sw = db_sx2 - db_sx1; db_sh = db_sy2 - db_sy1
+        out.append(f'<rect x="{db_sx1:.1f}" y="{db_sy1:.1f}" width="{db_sw:.1f}" height="{db_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        db_cx = (db_sx1 + db_sx2) / 2
+        db_cy = (db_sy1 + db_sy2) / 2
+        out.append(f'<text x="{db_cx:.1f}" y="{db_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="7" fill="{APPL_STROKE}">DAYBED</text>')
 
-    # ET: 50cm diameter endtable
-    et_sx, et_sy = to_svg(et_cx, et_cy)
-    et_r_svg = abs(to_svg(et_r, 0)[0] - to_svg(0, 0)[0])
-    out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
-    out.append(f'<circle cx="{et_sx:.1f}" cy="{et_sy:.1f}" r="{et_r_svg:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    out.append(f'<text x="{et_sx:.1f}" y="{et_sy+3:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
-    out.append('</a>')
+        # ROCKER: center E-W between DAYBED and RO1,
+        #         center N-S between IW1 and fridge door arc southern extent
+        _rough_openings = compute_rough_openings(pts, layout)
+        _ro1_bbox = [r for r in _rough_openings if r.name == "RO1"][0].bbox
+        _ro1_e = _ro1_bbox.e
+        rk_cx = (db_w + _ro1_e) / 2 - 8.0 / 12.0
+        # Recompute fridge door arc southern extent
+        _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+        _st_e = _st_w + STOVE_WIDTH
+        _ks_w = _st_e + KITCHEN_APPL_GAP + 2.0 / 12.0
+        _ks_e = _ks_w + KITCHEN_SINK_WIDTH
+        _dw_e = _ks_e + KITCHEN_APPL_GAP + DW_WIDTH
+        _fr_s = pts["W9"][1] - 3.0 / 12.0 - 35.0 / 12.0
+        _fr_door_s = _fr_s - 32.75 / 12.0
+        rk_cy = (layout.iw1_n + _fr_door_s) / 2 + 8.0 / 12.0
+        rk_hw = ROCKER_DEPTH / 2   # half E-W (rotated 90°)
+        rk_hh = ROCKER_WIDTH / 2   # half N-S (rotated 90°)
+        rk_r = ROCKER_CORNER_R
+        rk_scx, rk_scy = to_svg(rk_cx, rk_cy)
+        rk_sx1, rk_sy1 = to_svg(rk_cx - rk_hw, rk_cy + rk_hh)
+        rk_sx2, rk_sy2 = to_svg(rk_cx + rk_hw, rk_cy - rk_hh)
+        rk_sw = rk_sx2 - rk_sx1; rk_sh = rk_sy2 - rk_sy1
+        rk_sr = abs(to_svg(rk_r, 0)[0] - to_svg(0, 0)[0])
+        rk_angle = -15.0  # 15° CCW in plan = -15° in SVG (Y-axis flipped)
+        out.append(f'<a href="https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/" target="_blank">')
+        out.append(f'<g transform="rotate({rk_angle:.1f},{rk_scx:.1f},{rk_scy:.1f})">')
+        out.append(f'<rect x="{rk_sx1:.1f}" y="{rk_sy1:.1f}" width="{rk_sw:.1f}" height="{rk_sh:.1f}"'
+                   f' rx="{rk_sr:.1f}" ry="{rk_sr:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append(f'<text x="{rk_scx:.1f}" y="{rk_scy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">ROCKER</text>')
+        out.append('</g>')
+        out.append('</a>')
+    else:
+        # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
+        lv_width = LOVESEAT_WIDTH
+        lv_height = LOVESEAT_LENGTH
+        lv_angle = math.radians(LOVESEAT_ANGLE_DEG)
+        lv_nw_e = LOVESEAT_NW_E
+        lv_nw_n = LOVESEAT_NW_N
+        lv_w = lv_nw_e + lv_height * math.sin(lv_angle)
+        lv_s = lv_nw_n - lv_height * math.cos(lv_angle)
 
-    # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
-    lv2_w = et_cx + et_r + STD_GAP
-    lv2_s = layout.iw1_n + STD_GAP
-    lv2_e = lv2_w + lv_height  # 65" E-W
-    lv2_n = lv2_s + lv_width   # 35" N-S
-    lv2_sx1, lv2_sy1 = to_svg(lv2_w, lv2_n)
-    lv2_sx2, lv2_sy2 = to_svg(lv2_e, lv2_s)
-    lv2_sw = lv2_sx2 - lv2_sx1; lv2_sh = lv2_sy2 - lv2_sy1
-    out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
-    out.append(f'<rect x="{lv2_sx1:.1f}" y="{lv2_sy1:.1f}" width="{lv2_sw:.1f}" height="{lv2_sh:.1f}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    lv2_cx = (lv2_sx1 + lv2_sx2) / 2
-    lv2_cy = (lv2_sy1 + lv2_sy2) / 2
-    out.append(f'<text x="{lv2_cx:.1f}" y="{lv2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
-    out.append('</a>')
+        # ET position: 2" N of IW1, 2" from loveseat SE corner
+        et_r = (ET_RADIUS_CM / 2.54) / 12.0
+        lv_se_e = lv_w + lv_width * math.cos(lv_angle)
+        lv_se_n = lv_s + lv_width * math.sin(lv_angle)
+        et_gap = et_r + STD_GAP
+        et_cy = layout.iw1_n + STD_GAP + et_r
+        et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
+
+        lv_e = lv_w + lv_width
+        lv_n = lv_s + lv_height
+        lv_sx1, lv_sy1 = to_svg(lv_w, lv_n)
+        lv_sx2, lv_sy2 = to_svg(lv_e, lv_s)
+        lv_sw = lv_sx2 - lv_sx1; lv_sh = lv_sy2 - lv_sy1
+        lv_rot_x = lv_sx1
+        lv_rot_y = lv_sy2
+        out.append(f'<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
+        out.append(f'<g transform="rotate({int(-LOVESEAT_ANGLE_DEG)},{lv_rot_x:.1f},{lv_rot_y:.1f})">')
+        out.append(f'<rect x="{lv_sx1:.1f}" y="{lv_sy1:.1f}" width="{lv_sw:.1f}" height="{lv_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        lv_cx = (lv_sx1 + lv_sx2) / 2
+        lv_cy = (lv_sy1 + lv_sy2) / 2
+        out.append(f'<text x="{lv_cx:.1f}" y="{lv_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
+        out.append('</g>')
+        out.append('</a>')
+
+        # ET: 50cm diameter endtable
+        et_sx, et_sy = to_svg(et_cx, et_cy)
+        et_r_svg = abs(to_svg(et_r, 0)[0] - to_svg(0, 0)[0])
+        out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
+        out.append(f'<circle cx="{et_sx:.1f}" cy="{et_sy:.1f}" r="{et_r_svg:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append(f'<text x="{et_sx:.1f}" y="{et_sy+3:.1f}" text-anchor="middle"'
+                   f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
+        out.append('</a>')
+
+        # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
+        lv2_w = et_cx + et_r + STD_GAP
+        lv2_s = layout.iw1_n + STD_GAP
+        lv2_e = lv2_w + lv_height  # 65" E-W
+        lv2_n = lv2_s + lv_width   # 35" N-S
+        lv2_sx1, lv2_sy1 = to_svg(lv2_w, lv2_n)
+        lv2_sx2, lv2_sy2 = to_svg(lv2_e, lv2_s)
+        lv2_sw = lv2_sx2 - lv2_sx1; lv2_sh = lv2_sy2 - lv2_sy1
+        out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
+        out.append(f'<rect x="{lv2_sx1:.1f}" y="{lv2_sy1:.1f}" width="{lv2_sw:.1f}" height="{lv2_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        lv2_cx = (lv2_sx1 + lv2_sx2) / 2
+        lv2_cy = (lv2_sy1 + lv2_sy2) / 2
+        out.append(f'<text x="{lv2_cx:.1f}" y="{lv2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
+        out.append('</a>')
 
     # CHAIR: 32" E-W x 37" N-S, rounded corners 3", centered between W11 and W12
     ch_angle = math.radians(CHAIR_ANGLE_DEG)
@@ -1589,7 +1715,7 @@ def _render_title_block(out, data, inner_area):
 # SVG rendering — orchestrator
 # ============================================================
 
-def render_floorplan_svg(data, room_title="Parent Suite", minik=False):
+def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False):
     """Render the complete floorplan SVG. Returns SVG string."""
     pts = data.pts
     to_svg = data.to_svg
@@ -1607,9 +1733,9 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False):
                f' font-weight="bold">{room_title}</text>')
 
     _render_walls(out, data, layout)
-    _render_appliances(out, data, layout, minik=minik)
-    _render_kitchen(out, data, layout, minik=minik)
-    _render_furniture(out, data, layout)
+    _render_appliances(out, data, layout, minik=minik, db=db)
+    _render_kitchen(out, data, layout, minik=minik, db=db)
+    _render_furniture(out, data, layout, db=db)
     _render_dimensions(out, data, layout)
     _render_openings(out, data, layout)
 
@@ -1644,6 +1770,12 @@ if __name__ == "__main__":
     with open(minik_path, "w") as f:
         f.write(minik_content)
     print(f"Floorplan (minik) written to {minik_path}")
+
+    db_content = render_floorplan_svg(data, db=True)
+    db_path = os.path.join(base_dir, "floorplan_db.svg")
+    with open(db_path, "w") as f:
+        f.write(db_content)
+    print(f"Floorplan (daybed) written to {db_path}")
 
     print(f"Outer area:    {outer_area:.2f} sq ft")
     print(f"Interior area: {inner_area:.2f} sq ft")
