@@ -353,7 +353,7 @@ def compute_iw_area(layout):
     iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
     iw_polys = [layout.iw1, iw8_poly, iw2_poly, iw3_poly, iw7_poly, iw9_poly, layout.iw6_poly,
                 iw4_poly, layout.iw11_poly, layout.iw12_poly,
-                layout.iw14_poly, iw5_poly]
+                layout.iw14_poly, iw5_poly, layout.iw16_poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -597,6 +597,17 @@ def _render_walls(out, data, layout):
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+
+    # ---- IW16 (solid, no opening, N-S) ----
+    _iw16 = layout.iw16_poly
+    wall_poly(out, _iw16, to_svg, stroke=False)
+    _iw16_w_in = _iw16[0][0] + half_sw
+    _iw16_e_in = _iw16[1][0] - half_sw
+    for _xe in [_iw16_w_in, _iw16_e_in]:
+        sx1, sy1 = to_svg(_xe, _iw16[0][1])
+        sx2, sy2 = to_svg(_xe, _iw16[2][1])
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 

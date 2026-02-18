@@ -68,6 +68,8 @@ class InteriorLayout(NamedTuple):
     # IW14 (3" thick, parallel to IW12, north of RO2)
     iw14: BBox
     iw14_poly: list[Point]  # [SW, SE, NE, NW]
+    # IW16 (4" thick, N-S, west face at IW3 NW easting, IW1 to IW3 end)
+    iw16_poly: list[Point]  # [SW, SE, NE, NW]
     # IW6 (1" thick, horizontal above kitchen)
     iw6_poly: list[Point]
     iw6_n: float
@@ -238,6 +240,14 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw7_s = min(p[1] for p in iw7_poly)
     iw7_n = max(p[1] for p in iw7_poly)
 
+    # IW16: 4" thick, N-S, west face at IW3 NW easting, IW1 south to IW3 NW northing
+    iw16_w = iw3_nw[0]
+    iw16_e = iw16_w + WALL_4IN
+    iw16_n = iw1_s
+    iw16_s = iw3_nw[1]
+    iw16_poly = [(iw16_w, iw16_s), (iw16_e, iw16_s),
+                 (iw16_e, iw16_n), (iw16_w, iw16_n)]
+
     # IW8: 6" thick, horizontal, from W1-W2 face to IW1 west end
     iw8_w = pts["W1"][0]
     iw8_e = iw1_w
@@ -296,5 +306,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw8=iw8,
         iw5=BBox(w=iw5_w, s=iw5_s, e=iw5_e, n=iw5_n),
         iw14=BBox(w=iw14_w, s=iw14_s, e=iw14_e, n=iw14_n), iw14_poly=iw14_poly,
+        iw16_poly=iw16_poly,
         iw6_poly=iw6_poly, iw6_n=iw6_n, iw6_s=iw6_s,
     )
