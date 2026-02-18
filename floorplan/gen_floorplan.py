@@ -755,11 +755,11 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
     elif db:
-        # 5" east of D/W, back 3" south of W9-W10 wall
-        fr_w = dw_e + 5.0 / 12.0
+        # 2" east of IW2, 3" north of IW1
+        fr_w = layout.iw2.e + 2.0 / 12.0
         fr_e = fr_w + 32.75 / 12.0
-        fr_n = back_n - 3.0 / 12.0
-        fr_s = fr_n - 35.0 / 12.0
+        fr_s = layout.iw1_n + 3.0 / 12.0
+        fr_n = fr_s + 35.0 / 12.0
     else:
         # 2" east of kitchen counter, 2" north of IW1 north face
         fr_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP
@@ -783,28 +783,28 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     if minik:
         out.append('</a>')
     if db:
-        # Door arc: hinged at SE corner, 32.75" door, sweeps from west to south
+        # Door arc: hinged at NE corner, 32.75" door, sweeps from west to north
         fr_door = 32.75 / 12.0
-        hx, hy = to_svg(fr_e, fr_s)
-        tip_x, tip_y = to_svg(fr_e, fr_s - fr_door)
+        hx, hy = to_svg(fr_e, fr_n)
+        tip_x, tip_y = to_svg(fr_e, fr_n + fr_door)
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         n_arc = 20
         arc_pts = []
         for i in range(n_arc + 1):
-            angle = math.pi + i * (math.pi / 2) / n_arc  # 180 to 270
+            angle = math.pi / 2 + i * (math.pi / 2) / n_arc  # 90 to 180
             ae = fr_e + fr_door * math.cos(angle)
-            an = fr_s + fr_door * math.sin(angle)
+            an = fr_n + fr_door * math.sin(angle)
             ax, ay = to_svg(ae, an)
             arc_pts.append(f"{ax:.1f},{ay:.1f}")
         out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
 
-    # ICE maker (db: in corner of IW1 and IW2)
+    # ICE maker (db: on top of fridge, against IW2)
     if db:
         ice_w = layout.iw2.e + 2.0 / 12.0
-        ice_s = layout.iw1_n + 2.0 / 12.0
+        ice_s = fr_n + 2.0 / 12.0
         ice_e = ice_w + ICE_WIDTH
         ice_n = ice_s + ICE_DEPTH
         ix1, iy1 = to_svg(ice_w, ice_n)
@@ -1170,15 +1170,11 @@ def _render_furniture(out, data, layout, db=False):
         _ro1_bbox = [r for r in _rough_openings if r.name == "RO1"][0].bbox
         _ro1_e = _ro1_bbox.e
         rk_cx = (db_w + _ro1_e) / 2 - 8.0 / 12.0
-        # Recompute fridge door arc southern extent
-        _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
-        _st_e = _st_w + STOVE_WIDTH
-        _ks_w = _st_e + KITCHEN_APPL_GAP + 2.0 / 12.0
-        _ks_e = _ks_w + KITCHEN_SINK_WIDTH
-        _dw_e = _ks_e + KITCHEN_APPL_GAP + DW_WIDTH
-        _fr_s = pts["W9"][1] - 3.0 / 12.0 - 35.0 / 12.0
-        _fr_door_s = _fr_s - 32.75 / 12.0
-        rk_cy = (layout.iw1_n + _fr_door_s) / 2 + 8.0 / 12.0
+        # Recompute fridge door arc northern extent
+        _fr_w = layout.iw2.e + 2.0 / 12.0
+        _fr_n = layout.iw1_n + 3.0 / 12.0 + 35.0 / 12.0
+        _fr_door_n = _fr_n + 32.75 / 12.0
+        rk_cy = (layout.iw1_n + _fr_door_n) / 2 + 8.0 / 12.0
         rk_hw = ROCKER_DEPTH / 2   # half E-W (rotated 90°)
         rk_hh = ROCKER_WIDTH / 2   # half N-S (rotated 90°)
         rk_r = ROCKER_CORNER_R
