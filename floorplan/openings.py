@@ -143,8 +143,8 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W20"][1] + _ts9 * (pts["W0"][1] - pts["W20"][1])),
     ]))
 
-    # O10: F20-F0 — 82" wall segment west of O9
-    _ts10 = _te9 + 82.0 / 12.0 / _seg9_len
+    # O10: F20-F0 — 84" wall segment west of O9
+    _ts10 = _te9 + 84.0 / 12.0 / _seg9_len
     _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
     openings.append(OuterOpening("O10", "F20", "F0", [
         (pts["F20"][0] + _ts10 * _dE9, pts["F20"][1] + _ts10 * _dN9),
