@@ -801,12 +801,12 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
 
-    # ICE maker (db: on top of fridge, against IW2)
+    # ICE maker (db: 2" south of W9-W10, 6" east of D/W)
     if db:
-        ice_w = layout.iw2.e + 2.0 / 12.0
-        ice_s = fr_n + 2.0 / 12.0
+        ice_w = dw_e + 6.0 / 12.0
+        ice_n = back_n - 2.0 / 12.0
+        ice_s = ice_n - ICE_DEPTH
         ice_e = ice_w + ICE_WIDTH
-        ice_n = ice_s + ICE_DEPTH
         ix1, iy1 = to_svg(ice_w, ice_n)
         ix2, iy2 = to_svg(ice_e, ice_s)
         isw = ix2 - ix1; ish = iy2 - iy1
