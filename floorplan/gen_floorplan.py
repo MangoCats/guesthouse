@@ -1382,7 +1382,8 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         # ROCKER: center E-W between DAYBED and RO1,
         #         center N-S between IW1 and fridge door arc southern extent
         _ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
-        rk_cx = (db_e + _ro1_w) / 2
+        _ro1_e = _ro1_w + IW1_RO_WIDTH
+        rk_cx = (db_w + _ro1_e) / 2
         # Recompute fridge door arc southern extent
         _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
         _st_e = _st_w + STOVE_WIDTH
