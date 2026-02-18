@@ -787,7 +787,7 @@ def _render_walls(out, data, layout):
 
 
 
-def _render_appliances(out, data, layout, minik=False):
+def _render_appliances(out, data, layout, minik=False, db=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
     pts = data.pts
     to_svg = data.to_svg
@@ -802,18 +802,19 @@ def _render_appliances(out, data, layout, minik=False):
     _appl_shift_e = 4.0 / 12.0   # 4" east of layout position
     _appl_shift_s = -2.0 / 12.0  # 2" south of layout position
     minik_dryer_n = None
+    _small_wd = minik or db
     for label, b in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
-        if not minik:
+        if not _small_wd:
             b = BBox(w=b.w + _appl_shift_e, s=b.s + _appl_shift_s,
                      e=b.e + _appl_shift_e, n=b.n + _appl_shift_s)
-        if minik:
+        if _small_wd:
             if label == "DRYER":
                 b = BBox(w=b.w, s=b.s, e=b.w + minik_appl_w, n=b.s + minik_appl_d)
                 minik_dryer_n = b.n
-            else:  # WASHER: 1" north of minik dryer
+            else:  # WASHER: 1" north of dryer
                 ws = minik_dryer_n + 1.0 / 12.0
                 b = BBox(w=b.w, s=ws, e=b.w + minik_appl_w, n=ws + minik_appl_d)
-        link = minik_appl_links.get(label) if minik else None
+        link = minik_appl_links.get(label) if _small_wd else None
         if link:
             out.append(f'<a href="{link}" target="_blank">')
         sx1, sy1 = to_svg(b.w, b.n)
@@ -2070,7 +2071,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False)
                f' font-weight="bold">{room_title}</text>')
 
     _render_walls(out, data, layout)
-    _render_appliances(out, data, layout, minik=minik)
+    _render_appliances(out, data, layout, minik=minik, db=db)
     _render_kitchen(out, data, layout, minik=minik, db=db)
     _render_furniture(out, data, layout, minik=minik, db=db)
     out.append('<g opacity="0.5">')
