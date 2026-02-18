@@ -138,7 +138,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _norm_E = _along_N    # right normal = inward
     _norm_N = -_along_E
     _iw11_thick = WALL_4IN
-    _iw11_len = (iw1_s - iw11_se[1]) / _norm_N  # extend to IW1 south face
+    _iw14_d = 6.0 + WALL_4IN + 3.0 / 12.0 + IW4_RO_WIDTH + 3.0 / 12.0
+    _iw11_len = _iw14_d + WALL_3IN  # extend to IW14 north face
     iw11_sw = (iw11_se[0] + _iw11_thick * _along_E,
                iw11_se[1] + _iw11_thick * _along_N)
     iw11_ne = (iw11_se[0] + _iw11_len * _norm_E,
@@ -283,8 +284,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw5_e = pts["W15"][0]
 
     # IW14: 3" thick, parallel to IW12, 3" past RO2 north edge along IW11
-    # Distance along IW11 from iw11_se: IW12 base(6') + IW12 thick + 3" + RO2 + 3"
-    _iw14_d = 6.0 + WALL_4IN + 3.0 / 12.0 + IW4_RO_WIDTH + 3.0 / 12.0
+    # _iw14_d computed earlier (used for IW11 length)
     iw14_sw = (iw11_se[0] + _iw14_d * _norm_E,
                iw11_se[1] + _iw14_d * _norm_N)
     iw14_nw = (iw14_sw[0] + WALL_3IN * _norm_E,
