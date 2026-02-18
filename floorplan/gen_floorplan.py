@@ -655,18 +655,6 @@ def _render_walls(out, data, layout):
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # IW1-north → F9-F11 south face dimension
-    dim_e = (pts["F9"][0] + pts["F11"][0]) / 2
-    dim_line_v(out, dim_e, iw1_n, pts["W9"][1], fmt_dist(pts["W9"][1] - iw1_n), to_svg)
-
-    # IW2-east → inside F12-F13 wall dimension
-    dim2_n = (pts["F12"][1] + pts["F13"][1]) / 2
-    w13, w12 = pts["W13"], pts["W12"]
-    t_e = (dim2_n - w13[1]) / (w12[1] - w13[1]) if w12[1] != w13[1] else 0.5
-    dim2_east_e = w13[0] + t_e * (w12[0] - w13[0])
-    dim_line_h(out, iw2.e, dim2_n, dim2_east_e, fmt_dist(dim2_east_e - iw2.e), to_svg,
-               label_offset_e=-4.0)
-
     # ---- IW4 (solid, no opening) — north end at IW12 north face ----
     iw4_n = layout.iw12_poly[2][1]  # IW12 NE northing
     iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
@@ -1498,6 +1486,19 @@ def _render_dimensions(out, data, layout):
     pts = data.pts
     to_svg = data.to_svg
 
+    # IW1-north → F9-F11 south face dimension
+    iw1_n = layout.iw1_n
+    dim_e = (pts["F9"][0] + pts["F11"][0]) / 2
+    dim_line_v(out, dim_e, iw1_n, pts["W9"][1], fmt_dist(pts["W9"][1] - iw1_n), to_svg)
+
+    # IW2-east → inside F12-F13 wall dimension
+    dim2_n = (pts["F12"][1] + pts["F13"][1]) / 2
+    w13, w12 = pts["W13"], pts["W12"]
+    t_e = (dim2_n - w13[1]) / (w12[1] - w13[1]) if w12[1] != w13[1] else 0.5
+    dim2_east_e = w13[0] + t_e * (w12[0] - w13[0])
+    dim_line_h(out, layout.iw2.e, dim2_n, dim2_east_e, fmt_dist(dim2_east_e - layout.iw2.e), to_svg,
+               label_offset_e=-4.0)
+
     # East closet (rotated dimension, parallel to IW11)
     _iw12_sw = layout.iw12_poly[0]
     _iw12_se = layout.iw12_poly[1]
@@ -2022,7 +2023,9 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False):
     _render_appliances(out, data, layout, minik=minik)
     _render_kitchen(out, data, layout, minik=minik)
     _render_furniture(out, data, layout, minik=minik)
+    out.append('<g opacity="0.5">')
     _render_dimensions(out, data, layout)
+    out.append('</g>')
     _render_openings(out, data, layout)
 
     inner_area = data.inner_area - compute_iw_area(layout)
