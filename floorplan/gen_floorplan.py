@@ -1584,6 +1584,15 @@ def _render_dimensions(out, data, layout):
     dim_line_h(out, _stor_w, _stor_n, pts["W15"][0],
                f"STORAGE {fmt_dist(pts['W15'][0] - _stor_w)}", to_svg)
 
+    # O1 east face center to RO3 west face center
+    _o1 = compute_outer_openings(pts, layout)[0]  # O1
+    _o1_e_ctr = ((_o1.poly[2][0] + _o1.poly[3][0]) / 2,
+                 (_o1.poly[2][1] + _o1.poly[3][1]) / 2)
+    _ro3 = [r for r in compute_rough_openings(pts, layout) if r.name == "RO3"][0]
+    _ro3_w_ctr = (_ro3.bbox.w, (_ro3.bbox.s + _ro3.bbox.n) / 2)
+    dim_line_h(out, _o1_e_ctr[0], _o1_e_ctr[1], _ro3_w_ctr[0],
+               fmt_dist(_ro3_w_ctr[0] - _o1_e_ctr[0]), to_svg)
+
     # West wall interior widths
     dim_line_h(out, pts["W2"][0], pts["F2"][1], layout.iw2.w,
                fmt_dist(layout.iw2.w - pts["W2"][0]), to_svg)
