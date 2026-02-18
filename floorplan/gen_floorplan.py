@@ -992,7 +992,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
 
         # Position
         if db:
-            tbl_cx = ks_w
+            tbl_cx = ks_w + 24.0 / 12.0
             tbl_n = space_n - 30.0 / 12.0 - 28.0 / 12.0
             tbl_s_y = tbl_n - tbl_h
         else:
