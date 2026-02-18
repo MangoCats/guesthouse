@@ -1143,7 +1143,10 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     fillet_r = 6.0 / 12.0   # 6" corner fillets
 
     # Position: north side 30" south of space north, centered E-W
-    if not minik:
+    if db:
+        # Center under SINK west end
+        tbl_cx = ks_w
+    elif not minik:
         # Center between fridge west and IW2 east + 1.125" east
         _ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
         _fr_w = _ro1_w - 6.0 / 12.0 - 32.75 / 12.0
