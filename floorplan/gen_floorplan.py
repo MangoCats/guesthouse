@@ -10,6 +10,7 @@ from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area,
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
+    horiz_isects,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
@@ -1239,7 +1240,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
         out.append('</a>')
 
-def _render_furniture(out, data, layout, minik=False):
+def _render_furniture(out, data, layout, minik=False, db=False):
     """Render furniture: bed, loveseat/sofa, ET, chair, ottoman, room labels."""
     pts = data.pts
     to_svg = data.to_svg
@@ -1314,6 +1315,23 @@ def _render_furniture(out, data, layout, minik=False):
         out.append(f'<text x="{rk_scx:.1f}" y="{rk_scy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="6" fill="{APPL_STROKE}">ROCKER</text>')
         out.append('</g>')
+        out.append('</a>')
+    elif db:
+        # DB variant: no loveseats; ET shifted east to 2" from W-series wall
+        et_r = (ET_RADIUS_CM / 2.54) / 12.0
+        et_cy = layout.iw1_n + STD_GAP + et_r
+        # Find easternmost W-series wall easting at ET's northing
+        wall_e = max(horiz_isects(data.inner_poly, et_cy))
+        et_cx = wall_e - STD_GAP - et_r
+
+        # ET: 50cm diameter endtable
+        et_sx, et_sy = to_svg(et_cx, et_cy)
+        et_r_svg = abs(to_svg(et_r, 0)[0] - to_svg(0, 0)[0])
+        out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
+        out.append(f'<circle cx="{et_sx:.1f}" cy="{et_sy:.1f}" r="{et_r_svg:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append(f'<text x="{et_sx:.1f}" y="{et_sy+3:.1f}" text-anchor="middle"'
+                   f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
         out.append('</a>')
     else:
         # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
@@ -2027,7 +2045,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False)
     _render_walls(out, data, layout)
     _render_appliances(out, data, layout, minik=minik)
     _render_kitchen(out, data, layout, minik=minik, db=db)
-    _render_furniture(out, data, layout, minik=minik)
+    _render_furniture(out, data, layout, minik=minik, db=db)
     out.append('<g opacity="0.5">')
     _render_dimensions(out, data, layout)
     out.append('</g>')
