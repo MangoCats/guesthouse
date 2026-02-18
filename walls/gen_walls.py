@@ -390,6 +390,11 @@ def _render_interior_walls(out, data):
             lx, ly = to_svg((b.w + b.e) / 2, b.n)
             ly -= LABEL_GAP
             rot = ""
+        elif ro.name == "RO3":
+            # RO3: label on east side to avoid IW16/IW3 overlap
+            lx, ly = to_svg(b.e, (b.s + b.n) / 2)
+            lx += LABEL_GAP
+            rot = f' transform="rotate(-90 {lx:.1f} {ly:.1f})"'
         else:
             # Vertical opening: label centered left (west)
             lx, ly = to_svg(b.w, (b.s + b.n) / 2)
