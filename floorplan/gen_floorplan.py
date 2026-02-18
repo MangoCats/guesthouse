@@ -858,7 +858,7 @@ def _render_appliances(out, data, layout, minik=False):
     draw_sink(out, sink_e, layout.iw8.n + SINK_RY, to_svg=to_svg)
 
 
-def _render_kitchen(out, data, layout, minik=False):
+def _render_kitchen(out, data, layout, minik=False, db=False):
     """Render kitchen: D/W, sink, stove, shelves, fridge, counters."""
     pts = data.pts
     to_svg = data.to_svg
@@ -959,15 +959,20 @@ def _render_kitchen(out, data, layout, minik=False):
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
 
-    if minik:
+    if db:
+        # ICE: in corner of IW1 and IW2, 2" from each wall
+        ice_w = layout.iw2.e + 2.0 / 12.0
+        ice_s = layout.iw1_n + 2.0 / 12.0
+    elif minik:
         # ICE: 3" east of fridge, against W9-W10 wall (3" south)
         ice_w = fr_e + 3.0 / 12.0
+        ice_s = back_n - 3.0 / 12.0 - ICE_DEPTH
     else:
         # ICE: 6" east of D/W, against W9-W10 wall
         ice_w = dw_e + 6.0 / 12.0
+        ice_s = back_n - ICE_DEPTH
     ice_e = ice_w + ICE_WIDTH
-    ice_n = back_n - (3.0 / 12.0 if minik else 0)
-    ice_s = ice_n - ICE_DEPTH
+    ice_n = ice_s + ICE_DEPTH
     ix1, iy1 = to_svg(ice_w, ice_n)
     ix2, iy2 = to_svg(ice_e, ice_s)
     isw = ix2 - ix1; ish = iy2 - iy1
@@ -2002,7 +2007,7 @@ def _render_title_block(out, data, inner_area):
 # SVG rendering — orchestrator
 # ============================================================
 
-def render_floorplan_svg(data, room_title="Parent Suite", minik=False):
+def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False):
     """Render the complete floorplan SVG. Returns SVG string."""
     pts = data.pts
     to_svg = data.to_svg
@@ -2021,7 +2026,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False):
 
     _render_walls(out, data, layout)
     _render_appliances(out, data, layout, minik=minik)
-    _render_kitchen(out, data, layout, minik=minik)
+    _render_kitchen(out, data, layout, minik=minik, db=db)
     _render_furniture(out, data, layout, minik=minik)
     out.append('<g opacity="0.5">')
     _render_dimensions(out, data, layout)
@@ -2060,7 +2065,7 @@ if __name__ == "__main__":
         f.write(minik_content)
     print(f"Floorplan (minik) written to {minik_path}")
 
-    db_content = render_floorplan_svg(data)
+    db_content = render_floorplan_svg(data, db=True)
     db_path = os.path.join(base_dir, "floorplan_db.svg")
     with open(db_path, "w") as f:
         f.write(db_content)
