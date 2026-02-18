@@ -1379,9 +1379,19 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         out.append(f'<text x="{db_cx:.1f}" y="{db_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="7" fill="{APPL_STROKE}">DAYBED</text>')
 
-        # ROCKER: midpoint between DAYBED NE corner and ET, shifted 18" south
-        rk_cx = (db_e + et_cx) / 2
-        rk_cy = (db_n + et_cy) / 2 - 18.0 / 12.0
+        # ROCKER: center E-W between DAYBED and RO1,
+        #         center N-S between IW1 and fridge door arc southern extent
+        _ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
+        rk_cx = (db_e + _ro1_w) / 2
+        # Recompute fridge door arc southern extent
+        _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+        _st_e = _st_w + STOVE_WIDTH
+        _ks_w = _st_e + KITCHEN_APPL_GAP + 2.0 / 12.0
+        _ks_e = _ks_w + KITCHEN_SINK_WIDTH
+        _dw_e = _ks_e + KITCHEN_APPL_GAP + DW_WIDTH
+        _fr_s = pts["W9"][1] - 3.0 / 12.0 - 35.0 / 12.0
+        _fr_door_s = _fr_s - 32.75 / 12.0
+        rk_cy = (layout.iw1_n + _fr_door_s) / 2
         rk_hw = ROCKER_DEPTH / 2   # half E-W (rotated 90°)
         rk_hh = ROCKER_WIDTH / 2   # half N-S (rotated 90°)
         rk_r = ROCKER_CORNER_R
