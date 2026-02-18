@@ -16,7 +16,7 @@ from floorplan.constants import (
     IW9_LENGTH, IW9_OFFSET_O10,
     IW4_OFFSET_E_IW2, WALL_SOUTH_N,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
-    IW4_RO_WIDTH,
+    IW4_RO_WIDTH, IW8_OFFSET_N_IW1,
 )
 
 
@@ -278,7 +278,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # IW8: 6" thick, horizontal, from W1-W2 face to IW1 west end
     iw8_w = pts["W1"][0]
     iw8_e = iw1_w
-    iw8 = BBox(w=iw8_w, s=iw1_s + 18.0 / 12.0, e=iw8_e, n=iw1_n + 18.0 / 12.0)
+    iw8 = BBox(w=iw8_w, s=iw1_s + IW8_OFFSET_N_IW1, e=iw8_e, n=iw1_n + IW8_OFFSET_N_IW1)
 
     # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
     iw5_n = iw1_s - IW5_OFFSET_N

@@ -7,8 +7,8 @@ from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
-    ARC_F2_R, F23_SWEEP_DEG, F56_SWEEP_DEG, F6_EAST_ADJ,
-    F6_HEIGHT, NW_SHIFT,
+    ARC_F2_R, F6_EAST_ADJ,
+    F6_HEIGHT, NW_SHIFT, IW1_DIST_FROM_NORTH, IW8_OFFSET_N_IW1, F2_GAP_N_IW8,
     F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, F16_F17_SEG,
     F18_OFFSET_E, F18_F19_GAP, ARC_F19_R,
@@ -52,48 +52,55 @@ def _compute_ne_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
 
 
 def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> float:
-    """NW corner arc: F5, F6, C5. Returns R_a5.
+    """NW corner: F6, C5. Returns R_a5.
 
-    F6 exits at bearing 90° (east). 75° CW sweep places F5 at 165° from C5.
+    F6 exits at bearing 90° (east). F5 computed later by tangent constraint.
     """
     R_a5 = CORNER_NW_R
     corner2_N = fp_pts["F0"][1] + F6_HEIGHT
     fp_pts["C5"] = (anchors.Pi2[0] + NW_SHIFT + R_a5 + F6_EAST_ADJ, corner2_N - R_a5)
     fp_pts["F6"] = (fp_pts["C5"][0], corner2_N)
-    # F5 at angle (90° + sweep) = 165° from C5
-    _alpha = math.radians(F56_SWEEP_DEG)
-    _angle_f5 = math.pi / 2 + _alpha  # 165° in standard math coords
-    fp_pts["F5"] = (fp_pts["C5"][0] + R_a5 * math.cos(_angle_f5),
-                    fp_pts["C5"][1] + R_a5 * math.sin(_angle_f5))
     return R_a5
 
 
-def _compute_west_wall_arcs(fp_pts: dict[str, Point]) -> float:
-    """West wall arcs: F2, F3, C2. Returns R_a2.
+def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
+    """West wall: F2, F3, F5, C2. Returns R_a2.
 
-    R_a2 = 68", sweep = 15° CW. F3-F5 line tangent to both arcs F2-F3 and F5-F6.
-    Depends on F1, F5, C5 already in fp_pts.
+    F2 positioned 4" north of IW8 north face. Sweep angles derived from
+    tangent constraint (F3-F5 tangent to both arcs F2-F3 and F5-F6).
+    Depends on F1, F6, C5 already in fp_pts.
     """
     R_a2 = ARC_F2_R
-    _alpha = math.radians(F23_SWEEP_DEG)  # 15°
-    _cos_a = math.cos(_alpha)
-    _sin_a = math.sin(_alpha)
+    R_a5 = CORNER_NW_R
 
-    # Tangent constraint determines F2_N:
-    # F3-F5 tangent to both arcs at angle 165° from respective centers.
-    C5_E, C5_N = fp_pts["C5"]
-    F2_E = fp_pts["F1"][0]  # F2 easting = F1 easting (unchanged)
-    _X = C5_E - F2_E
-    _dR = CORNER_NW_R - R_a2  # R_a5 - R_a2
-    F2_N = C5_N + (_dR + (R_a2 - _X) * _cos_a) / _sin_a
+    # F2 northing: 4" north of IW8 north face
+    # IW8.n = (F9.N - WALL_OUTER) - IW1_DIST_FROM_NORTH + IW8_OFFSET_N_IW1
+    # F9.N = F6.N - R_a5 - SMALL_ARC_R (from NE corner geometry)
+    _F9_N = fp_pts["F6"][1] - R_a5 - SMALL_ARC_R
+    _iw8_n = _F9_N - WALL_OUTER - IW1_DIST_FROM_NORTH + IW8_OFFSET_N_IW1
+    F2_N = _iw8_n + F2_GAP_N_IW8
 
+    F2_E = fp_pts["F1"][0]
     fp_pts["F2"] = (F2_E, F2_N)
     fp_pts["C2"] = (F2_E + R_a2, F2_N)
 
-    # F3 at angle 165° from C2 (15° CW from F2 at 180°)
-    _angle_f3 = math.pi - _alpha  # 165°
-    fp_pts["F3"] = (fp_pts["C2"][0] + R_a2 * math.cos(_angle_f3),
-                    fp_pts["C2"][1] + R_a2 * math.sin(_angle_f3))
+    # Solve tangent angle γ (= sweep_23) from constraint:
+    # dN·sin(γ) - dE·cos(γ) = R_a2 - R_a5
+    C5_E, C5_N = fp_pts["C5"]
+    C2_E, C2_N = fp_pts["C2"]
+    _dE = C5_E - C2_E
+    _dN = C5_N - C2_N
+    _A, _B = _dN, -_dE
+    _C = R_a2 - R_a5
+    _d = math.sqrt(_A * _A + _B * _B)
+    _gamma = math.asin(_C / _d) - math.atan2(_B, _A)
+
+    # F3 and F5 at angle (π - γ) from their respective centers
+    _angle = math.pi - _gamma
+    fp_pts["F3"] = (C2_E + R_a2 * math.cos(_angle),
+                    C2_N + R_a2 * math.sin(_angle))
+    fp_pts["F5"] = (C5_E + R_a5 * math.cos(_angle),
+                    C5_N + R_a5 * math.sin(_angle))
 
     return R_a2
 
@@ -243,7 +250,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
 
     R_a0 = _compute_ne_corner(fp_pts, anchors)
     R_a5 = _compute_nw_corner(fp_pts, anchors)
-    R_a2 = _compute_west_wall_arcs(fp_pts)
+    R_a2 = _compute_west_wall(fp_pts)
     R_a7, R_a8 = _compute_upper_east_arcs(fp_pts)
     R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
     R_a17, R_a19 = _compute_south_wall(fp_pts)
