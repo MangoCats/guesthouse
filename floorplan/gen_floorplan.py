@@ -821,18 +821,14 @@ def _render_appliances(out, data, layout, minik=False):
         if link:
             out.append('</a>')
 
-    # Counter: 24" deep, IW10 south to W20-W0 wall face
-    ctr = layout.ctr
-    csw = to_svg(ctr.w, ctr.s)
-    cse = to_svg(ctr.e, ctr.s)
-    ctr_w_svg = cse[0] - csw[0]
-    ctr_h_svg = to_svg(ctr.e, ctr.n)[1] - to_svg(ctr.e, ctr.s)[1]
-    out.append(f'<rect x="{csw[0]:.1f}" y="{to_svg(ctr.w, ctr.n)[1]:.1f}"'
-               f' width="{ctr_w_svg:.1f}" height="{abs(ctr_h_svg):.1f}"'
+    # Counter: polygon clipped to W20-W0 south edge, IW3/IW16 west face east edge
+    ctr_poly_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                            for p in layout.ctr_poly)
+    out.append(f'<polygon points="{ctr_poly_svg}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    cne = to_svg(ctr.e, ctr.n)
-    ccx = (csw[0] + cse[0]) / 2
-    ccy = (csw[1] + cne[1]) / 2
+    _ctr_cx = sum(p[0] for p in layout.ctr_poly) / len(layout.ctr_poly)
+    _ctr_cy = sum(p[1] for p in layout.ctr_poly) / len(layout.ctr_poly)
+    ccx, ccy = to_svg(_ctr_cx, _ctr_cy)
     out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
 

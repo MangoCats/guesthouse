@@ -35,6 +35,7 @@ class InteriorLayout(NamedTuple):
     washer: BBox
     # Counter
     ctr: BBox
+    ctr_poly: list[Point]  # polygon clipped to W20-W0 and IW3/IW16 west faces
     ctr_nw_r: float
     # Interior wall 3 (IW3) — perpendicular to W20-W0, 30" from IW9 W face
     iw3: BBox
@@ -248,6 +249,29 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw16_poly = [(iw16_w, iw16_s), (iw16_e, iw16_s),
                  (iw16_e, iw16_n), (iw16_w, iw16_n)]
 
+    # Counter polygon: south edge follows W20-W0, east edge clipped at IW3/IW16
+    _t_ctr_w = (ctr_w - _w20[0]) / (_w0[0] - _w20[0])
+    _ctr_sw_n = _w20[1] + _t_ctr_w * (_w0[1] - _w20[1])
+    if ctr_n > iw3_nw[1]:
+        # Counter top above IW3 NW: clip at IW16 west face then IW3 west face
+        ctr_poly = [
+            (ctr_w, ctr_n),
+            (iw16_w, ctr_n),
+            iw3_nw,
+            iw3_sw,
+            (ctr_w, _ctr_sw_n),
+        ]
+    else:
+        # Counter top below IW3 NW: clip at IW3 west face only
+        _t_face = (ctr_n - iw3_sw[1]) / (iw3_nw[1] - iw3_sw[1])
+        _ctr_ne_e = iw3_sw[0] + _t_face * (iw3_nw[0] - iw3_sw[0])
+        ctr_poly = [
+            (ctr_w, ctr_n),
+            (_ctr_ne_e, ctr_n),
+            iw3_sw,
+            (ctr_w, _ctr_sw_n),
+        ]
+
     # IW8: 6" thick, horizontal, from W1-W2 face to IW1 west end
     iw8_w = pts["W1"][0]
     iw8_e = iw1_w
@@ -297,7 +321,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw9=BBox(w=iw9_w, s=iw9_s, e=iw9_e, n=iw9_n), iw9_poly=iw9_poly,
         dryer=BBox(w=dryer_w, s=dryer_s, e=dryer_e, n=dryer_n),
         washer=BBox(w=washer_w, s=washer_s, e=washer_e, n=washer_n),
-        ctr=BBox(w=ctr_w, s=ctr_s, e=ctr_e, n=ctr_n), ctr_nw_r=ctr_nw_r,
+        ctr=BBox(w=ctr_w, s=ctr_s, e=ctr_e, n=ctr_n), ctr_poly=ctr_poly, ctr_nw_r=ctr_nw_r,
         iwt3=WALL_3IN, iwt4=WALL_4IN,
         iw4_w=iw4_w, iw4_e=iw4_e, iw4_s=iw4_s, wall_south_n=wall_south_n,
         iw11=BBox(w=iw11_w, s=iw11_s, e=iw11_e, n=iw11_n), iw11_poly=iw11_poly,
