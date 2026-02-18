@@ -2060,6 +2060,12 @@ if __name__ == "__main__":
         f.write(minik_content)
     print(f"Floorplan (minik) written to {minik_path}")
 
+    db_content = render_floorplan_svg(data)
+    db_path = os.path.join(base_dir, "floorplan_db.svg")
+    with open(db_path, "w") as f:
+        f.write(db_content)
+    print(f"Floorplan (daybed) written to {db_path}")
+
     print(f"Outer area:    {outer_area:.2f} sq ft")
     print(f"Interior area: {inner_area:.2f} sq ft")
     print(f"Wall area:     {outer_area - inner_area:.2f} sq ft")

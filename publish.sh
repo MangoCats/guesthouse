@@ -5,6 +5,7 @@ branch=$(git rev-parse --abbrev-ref HEAD)
 
 files=(
     floorplan/floorplan.svg
+    floorplan/floorplan_db.svg
     floorplan/floorplan_minik.svg
     walls/walls.svg
     walls/all_walls.svg
