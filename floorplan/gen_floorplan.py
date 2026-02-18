@@ -902,6 +902,12 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         fr_e = fr_w + MINIK_FRIDGE_W
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
+    elif db:
+        # 6" east of D/W, back against W9-W10 wall
+        fr_w = dw_e + 6.0 / 12.0
+        fr_e = fr_w + 32.75 / 12.0
+        fr_n = back_n
+        fr_s = fr_n - 35.0 / 12.0
     else:
         # East edge 6" west of RO1, 2" north of IW1 north face
         ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
@@ -941,7 +947,25 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
-    if not minik:
+    if db:
+        # Door arc: hinged at SE corner, 32.75" door, sweeps from west to south
+        fr_door = 32.75 / 12.0
+        hx, hy = to_svg(fr_e, fr_s)
+        tip_x, tip_y = to_svg(fr_e, fr_s - fr_door)
+        out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
+                   f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
+        n_arc = 20
+        arc_pts = []
+        for i in range(n_arc + 1):
+            angle = math.pi + i * (math.pi / 2) / n_arc  # 180° to 270°
+            ae = fr_e + fr_door * math.cos(angle)
+            an = fr_s + fr_door * math.sin(angle)
+            ax, ay = to_svg(ae, an)
+            arc_pts.append(f"{ax:.1f},{ay:.1f}")
+        out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+                   f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
+        out.append('</a>')
+    elif not minik:
         # Door arc: hinged at NE corner, 32.75" door, sweeps from west to north
         fr_door = 32.75 / 12.0
         hx, hy = to_svg(fr_e, fr_n)
