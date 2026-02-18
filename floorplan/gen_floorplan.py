@@ -1392,7 +1392,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         _dw_e = _ks_e + KITCHEN_APPL_GAP + DW_WIDTH
         _fr_s = pts["W9"][1] - 3.0 / 12.0 - 35.0 / 12.0
         _fr_door_s = _fr_s - 32.75 / 12.0
-        rk_cy = (layout.iw1_n + _fr_door_s) / 2
+        rk_cy = (layout.iw1_n + _fr_door_s) / 2 + 8.0 / 12.0
         rk_hw = ROCKER_DEPTH / 2   # half E-W (rotated 90°)
         rk_hh = ROCKER_WIDTH / 2   # half N-S (rotated 90°)
         rk_r = ROCKER_CORNER_R
