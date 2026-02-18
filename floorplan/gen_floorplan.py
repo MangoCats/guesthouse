@@ -798,11 +798,13 @@ def _render_appliances(out, data, layout, minik=False):
         "DRYER": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377",
         "WASHER": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375",
     }
-    _appl_shift_w = pts["W1"][0] + 2.0 / 12.0 - layout.dryer.w  # shift to 2" from W1-W2
+    _appl_shift_e = 4.0 / 12.0   # 4" east of layout position
+    _appl_shift_s = -2.0 / 12.0  # 2" south of layout position
     minik_dryer_n = None
     for label, b in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
         if not minik:
-            b = BBox(w=b.w + _appl_shift_w, s=b.s, e=b.e + _appl_shift_w, n=b.n)
+            b = BBox(w=b.w + _appl_shift_e, s=b.s + _appl_shift_s,
+                     e=b.e + _appl_shift_e, n=b.n + _appl_shift_s)
         if minik:
             if label == "DRYER":
                 b = BBox(w=b.w, s=b.s, e=b.w + minik_appl_w, n=b.s + minik_appl_d)
