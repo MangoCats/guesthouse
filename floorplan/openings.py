@@ -155,11 +155,9 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W20"][1] + _ts10 * (pts["W0"][1] - pts["W20"][1])),
     ]))
 
-    # O11: F20-F0 — centered at dryer/counter midpoint easting, rotated to segment
-    o11_cn_e = (layout.dryer.e + layout.ctr.w) / 2
-    _tc11 = (o11_cn_e - pts["F20"][0]) / _dE9  # parametric center from easting
-    _ts11 = _tc11 - O11_HALF_WIDTH / _seg9_len
-    _te11 = _tc11 + O11_HALF_WIDTH / _seg9_len
+    # O11: F20-F0 — 70" wall segment past O10 toward F0
+    _ts11 = _te10 + 70.0 / 12.0 / _seg9_len
+    _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
     openings.append(OuterOpening("O11", "F20", "F0", [
         (pts["F20"][0] + _ts11 * _dE9, pts["F20"][1] + _ts11 * _dN9),
         (pts["F20"][0] + _te11 * _dE9, pts["F20"][1] + _te11 * _dN9),
