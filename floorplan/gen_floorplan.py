@@ -1237,11 +1237,22 @@ def _render_furniture(out, data, layout, minik=False):
     out.append(f'<polygon points="{_bp_svg}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     _bp_cx = sum(p[0] for p in _bp) / 4
     _bp_cy = sum(p[1] for p in _bp) / 4
-    _bsx, _bsy = to_svg(_bp_cx, _bp_cy)
-    # Rotate label to align with bed long axis (perpendicular to W20-W0)
+    # Rotate label 90° CW from bed long axis (now parallel to W20-W0)
     _bed_dx = to_svg(*_bp[2])[0] - to_svg(*_bp[1])[0]
     _bed_dy = to_svg(*_bp[2])[1] - to_svg(*_bp[1])[1]
-    _bed_ang = math.degrees(math.atan2(_bed_dy, _bed_dx))
+    _bed_ang = math.degrees(math.atan2(_bed_dy, _bed_dx)) + 90
+    # Position at 1/2 the perpendicular distance from W20-W0 to IW1
+    _w20b = pts["W20"]; _w0b = pts["W0"]
+    _dEwb = _w0b[0] - _w20b[0]; _dNwb = _w0b[1] - _w20b[1]
+    _wlb = math.sqrt(_dEwb**2 + _dNwb**2)
+    _nEb = _dNwb / _wlb; _nNb = -_dEwb / _wlb  # inward normal
+    _ucx = _bp_cx - _w20b[0]; _ucy = _bp_cy - _w20b[1]
+    _tw = (_ucx * _dEwb + _ucy * _dNwb) / (_dEwb**2 + _dNwb**2)
+    _wb = (_w20b[0] + _tw * _dEwb, _w20b[1] + _tw * _dNwb)
+    _d_iw1 = (layout.iw1_s - _wb[1]) / _nNb
+    _lbl_e = _wb[0] + _d_iw1 / 2 * _nEb
+    _lbl_n = _wb[1] + _d_iw1 / 2 * _nNb
+    _bsx, _bsy = to_svg(_lbl_e, _lbl_n)
     out.append(f'<text x="{_bsx:.1f}" y="{_bsy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}" transform="rotate({_bed_ang:.1f},{_bsx:.1f},{_bsy+3:.1f})">'
                f'KING BED</text>')
