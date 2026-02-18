@@ -161,7 +161,8 @@ F6_HEIGHT = 26.0 + 6.0/12.0       # 26'6" F6-F7 line north of F0
 NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_DIST_FROM_NORTH = 11.0              # 11'0" IW1 north face to north inner wall
 IW8_OFFSET_N_IW1 = 22.0 / 12.0    # 22" IW8 north face above IW1 north face
-F2_GAP_N_IW8 = 4.0 / 12.0         # 4" F2 north of IW8 north face
+F2_GAP_N_IW8 = 4.0 / 12.0         # 4" F2 north of IW8 north face (legacy)
+ARC_F2_SWEEP = 10.0                # 10° F2-F3 arc sweep (F5-F6 = 90° - this)
 F14_F15_SEG = 9.0                  # 9'0" segment
 ARC_F13_R = 5.627004870830987      # R_a13: ~67.52" (set for 75° F10-F11 sweep)
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing

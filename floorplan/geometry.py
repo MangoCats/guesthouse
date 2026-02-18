@@ -7,8 +7,8 @@ from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
-    ARC_F2_R, F6_EAST_ADJ,
-    F6_HEIGHT, NW_SHIFT, IW1_DIST_FROM_NORTH, IW8_OFFSET_N_IW1, F2_GAP_N_IW8,
+    ARC_F2_R, ARC_F2_SWEEP, F6_EAST_ADJ,
+    F6_HEIGHT, NW_SHIFT,
     F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, F16_F17_SEG,
     F18_OFFSET_E, F18_F19_GAP, ARC_F19_R,
@@ -66,37 +66,30 @@ def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
 def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
     """West wall: F2, F3, F5, C2. Returns R_a2.
 
-    F2 positioned 4" north of IW8 north face. Sweep angles derived from
-    tangent constraint (F3-F5 tangent to both arcs F2-F3 and F5-F6).
+    F2 northing solved from fixed sweep angle ARC_F2_SWEEP and tangent
+    constraint (F3-F5 tangent to both arcs F2-F3 and F5-F6).
     Depends on F1, F6, C5 already in fp_pts.
     """
     R_a2 = ARC_F2_R
     R_a5 = CORNER_NW_R
 
-    # F2 northing: 4" north of IW8 north face
-    # IW8.n = (F9.N - WALL_OUTER) - IW1_DIST_FROM_NORTH + IW8_OFFSET_N_IW1
-    # F9.N = F6.N - R_a5 - SMALL_ARC_R (from NE corner geometry)
-    _F9_N = fp_pts["F6"][1] - R_a5 - SMALL_ARC_R
-    _iw8_n = _F9_N - WALL_OUTER - IW1_DIST_FROM_NORTH + IW8_OFFSET_N_IW1
-    F2_N = _iw8_n + F2_GAP_N_IW8
-
     F2_E = fp_pts["F1"][0]
+    C5_E, C5_N = fp_pts["C5"]
+
+    # Fixed sweep angle γ = ARC_F2_SWEEP
+    _gamma = math.radians(ARC_F2_SWEEP)
+
+    # Solve F2_N from tangent constraint:
+    # (C5_N - F2_N)·sin(γ) - (C5_E - F2_E - R_a2)·cos(γ) = R_a2 - R_a5
+    _dE_fixed = C5_E - F2_E - R_a2
+    F2_N = C5_N - (R_a2 - R_a5 + _dE_fixed * math.cos(_gamma)) / math.sin(_gamma)
+
     fp_pts["F2"] = (F2_E, F2_N)
     fp_pts["C2"] = (F2_E + R_a2, F2_N)
 
-    # Solve tangent angle γ (= sweep_23) from constraint:
-    # dN·sin(γ) - dE·cos(γ) = R_a2 - R_a5
-    C5_E, C5_N = fp_pts["C5"]
-    C2_E, C2_N = fp_pts["C2"]
-    _dE = C5_E - C2_E
-    _dN = C5_N - C2_N
-    _A, _B = _dN, -_dE
-    _C = R_a2 - R_a5
-    _d = math.sqrt(_A * _A + _B * _B)
-    _gamma = math.asin(_C / _d) - math.atan2(_B, _A)
-
     # F3 and F5 at angle (π - γ) from their respective centers
     _angle = math.pi - _gamma
+    C2_E, C2_N = fp_pts["C2"]
     fp_pts["F3"] = (C2_E + R_a2 * math.cos(_angle),
                     C2_N + R_a2 * math.sin(_angle))
     fp_pts["F5"] = (C5_E + R_a5 * math.cos(_angle),
