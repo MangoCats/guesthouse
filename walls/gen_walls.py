@@ -296,8 +296,8 @@ def _render_interior_walls(out, data):
 
     # IW6 (horizontal, 1" partition)
     iw_poly(layout.iw6_poly)
-    iw_label("IW6", min(layout.iw6_poly[0][0], layout.iw6_poly[3][0]),
-             layout.iw2.w, layout.iw6_s, layout.iw6_n, vertical=False)
+    _ro5_w = ro_map["RO5"].w
+    iw_label("IW6", _ro5_w, _ro5_w, layout.iw6_s, layout.iw6_n, vertical=False)
 
     # IW4 (vertical, 4" — north end at IW12 north face)
     _iw4_n = layout.iw12_poly[2][1]
