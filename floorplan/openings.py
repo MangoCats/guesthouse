@@ -8,7 +8,7 @@ from typing import NamedTuple
 
 from shared.types import Point, BBox, LineSeg
 from floorplan.constants import (
-    O1_OFFSET_S, O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
+    O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
     O3_HALF_WIDTH, O4_HALF_WIDTH,
     O5_E_FROM_F7, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
     O7_NW_GAP, O7_HALF_WIDTH,
@@ -55,9 +55,10 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     """
     openings = []
 
-    # O1: F1-F2, vertical, lower (south of IW1)
-    o1_n = pts["F2"][1] - O1_OFFSET_S
-    o1_s = o1_n - O1_WIDTH
+    # O1: F1-F2, vertical, centered at RO3/IW16 center northing
+    _iw16_ctr_n = (layout.iw16_poly[0][1] + layout.iw16_poly[2][1]) / 2
+    o1_n = _iw16_ctr_n + O1_WIDTH / 2
+    o1_s = _iw16_ctr_n - O1_WIDTH / 2
     openings.append(OuterOpening("O1", "F1", "F2", [
         (pts["F2"][0], o1_s), (pts["F2"][0], o1_n),
         (pts["W2"][0], o1_n), (pts["W2"][0], o1_s),
