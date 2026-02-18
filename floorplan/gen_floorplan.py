@@ -36,7 +36,6 @@ from floorplan.constants import (
     O3_HALF_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, IW4_RO_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
-    WW10_RADIUS,
 )
 from floorplan.layout import compute_interior_layout
 from floorplan.openings import (
@@ -830,26 +829,6 @@ def _render_appliances(out, data, layout, minik=False):
     draw_toilet(out, toilet_e, layout.iw8.n, face_north=True, to_svg=to_svg)
     draw_sink(out, sink_e, layout.iw8.n + SINK_RY, to_svg=to_svg)
 
-    # WW7: 36" radius circle centered on south end of south toilet
-    _ww7_e = toilet_e
-    _ww7_n = layout.iw8.s - 7.193 * _SVG_TO_FT
-    _ww7_r = 36.0 / 12.0
-    _ww7_sx, _ww7_sy = to_svg(_ww7_e, _ww7_n)
-    _ww7_r_svg = to_svg(_ww7_r, 0)[0] - to_svg(0, 0)[0]
-    out.append(f'<circle cx="{_ww7_sx:.1f}" cy="{_ww7_sy:.1f}" r="{_ww7_r_svg:.1f}"'
-               f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
-    out.append(f'<text x="{_ww7_sx + _ww7_r_svg + 3:.1f}" y="{_ww7_sy+3:.1f}" font-family="Arial"'
-               f' font-size="7" fill="{DIM_COLOR}">WW7</text>')
-
-    # WW8: 36" radius circle centered on north end of north toilet
-    _ww8_e = toilet_e
-    _ww8_n = layout.iw8.n + 7.193 * _SVG_TO_FT
-    _ww8_sx, _ww8_sy = to_svg(_ww8_e, _ww8_n)
-    out.append(f'<circle cx="{_ww8_sx:.1f}" cy="{_ww8_sy:.1f}" r="{_ww7_r_svg:.1f}"'
-               f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
-    out.append(f'<text x="{_ww8_sx + _ww7_r_svg + 3:.1f}" y="{_ww8_sy+3:.1f}" font-family="Arial"'
-               f' font-size="7" fill="{DIM_COLOR}">WW8</text>')
-
 
 def _render_kitchen(out, data, layout, minik=False):
     """Render kitchen: D/W, sink, stove, shelves, fridge, counters."""
@@ -1256,22 +1235,6 @@ def _render_furniture(out, data, layout, minik=False):
     out.append(f'<text x="{_bsx:.1f}" y="{_bsy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}" transform="rotate({_bed_ang:.1f},{_bsx:.1f},{_bsy+3:.1f})">'
                f'KING BED</text>')
-
-    # WW9: 36" radius circle centered on NW corner of king bed
-    _ww9_r_svg = (36.0 / 12.0) * abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
-    _ww9_sx, _ww9_sy = to_svg(*_bp[3])
-    out.append(f'<circle cx="{_ww9_sx:.1f}" cy="{_ww9_sy:.1f}" r="{_ww9_r_svg:.1f}"'
-               f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
-    out.append(f'<text x="{_ww9_sx + _ww9_r_svg + 3:.1f}" y="{_ww9_sy+3:.1f}" font-family="Arial"'
-               f' font-size="7" fill="{DIM_COLOR}">WW9</text>')
-
-    # WW10: 30" radius circle centered on NW corner of king bed
-    _ww10_r_svg = WW10_RADIUS * abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
-    _ww10_sx, _ww10_sy = to_svg(*_bp[3])
-    out.append(f'<circle cx="{_ww10_sx:.1f}" cy="{_ww10_sy:.1f}" r="{_ww10_r_svg:.1f}"'
-               f' fill="none" stroke="{DIM_COLOR}" stroke-width="0.6" stroke-dasharray="4,2"/>')
-    out.append(f'<text x="{_ww10_sx + _ww10_r_svg + 3:.1f}" y="{_ww10_sy - 3:.1f}" font-family="Arial"'
-               f' font-size="7" fill="{DIM_COLOR}">WW10</text>')
 
     if minik:
         # SOFA: 73.2" E-W x 24.6" N-S, 6" east of IW4 west, 2" north of IW1
