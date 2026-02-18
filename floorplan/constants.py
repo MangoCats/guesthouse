@@ -12,7 +12,7 @@ WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW7, IW8)
 # Appliance dimensions (feet)
 APPLIANCE_WIDTH = 35.0 / 12.0     # 35" washer/dryer width
 APPLIANCE_DEPTH = 30.0 / 12.0     # 30" washer/dryer depth
-APPLIANCE_OFFSET_E = 2.0 / 12.0   # 2" from west wall to dryer
+APPLIANCE_OFFSET_E = 6.0 / 12.0   # 6" from west wall to dryer
 APPLIANCE_OFFSET_N = 4.0 / 12.0   # 4" from south wall to dryer
 APPLIANCE_GAP = 1.0 / 12.0        # 1" gap between dryer and washer
 
