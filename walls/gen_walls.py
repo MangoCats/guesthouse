@@ -550,7 +550,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
             _svg_polygon(out, outer_shell, to_svg, WALL_FILL, stroke="none")
 
             # Inner shell: G-arc to W-arc
-            if seg_idx == 8:
+            if seg_idx == 7:
                 # F8-F9: straight-arc-straight path for inner shell
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
@@ -628,8 +628,8 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                                  stroke="#4682B4", stroke_width="0.5")
 
     # --- Continuous outlines per wall section ---
-    g_overrides = {8: data.g_f8f9_poly}
-    w_overrides = {8: data.w_f8f9_poly}
+    g_overrides = {7: data.g_f8f9_poly}
+    w_overrides = {7: data.w_f8f9_poly}
     sections = enumerate_wall_sections(openings, outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(

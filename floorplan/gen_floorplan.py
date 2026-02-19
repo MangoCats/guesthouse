@@ -394,7 +394,7 @@ def _render_walls(out, data, layout):
             outer_shell = arc_strip_poly(seg, pts, "F", s_seg)
             _svg_wall_poly(out, outer_shell, to_svg)
 
-            if seg_idx == 8:
+            if seg_idx == 7:
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
             else:
@@ -469,8 +469,8 @@ def _render_walls(out, data, layout):
                                f'stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # --- Continuous section outlines ---
-    g_overrides = {8: data.g_f8f9_poly}
-    w_overrides = {8: data.w_f8f9_poly}
+    g_overrides = {7: data.g_f8f9_poly}
+    w_overrides = {7: data.w_f8f9_poly}
     sections = enumerate_wall_sections(openings, outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(
