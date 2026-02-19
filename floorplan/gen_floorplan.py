@@ -904,11 +904,11 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - MINIK_FRIDGE_D
     elif db:
-        # 5" east of D/W, back 3" south of W9-W10 wall
-        fr_w = dw_e + 5.0 / 12.0
+        # IW1/IW2 corner, 3" from each wall
+        fr_w = layout.iw2.e + KITCHEN_APPL_GAP
+        fr_s = layout.iw1_n + KITCHEN_APPL_GAP
         fr_e = fr_w + 32.75 / 12.0
-        fr_n = back_n - 3.0 / 12.0
-        fr_s = fr_n - 35.0 / 12.0
+        fr_n = fr_s + 35.0 / 12.0
     else:
         # IW1/IW2 corner, 3" from each wall
         fr_w = layout.iw2.e + KITCHEN_APPL_GAP
@@ -947,25 +947,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
-    if db:
-        # Door arc: hinged at SE corner, 32.75" door, sweeps from west to south
-        fr_door = 32.75 / 12.0
-        hx, hy = to_svg(fr_e, fr_s)
-        tip_x, tip_y = to_svg(fr_e, fr_s - fr_door)
-        out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
-                   f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
-        n_arc = 20
-        arc_pts = []
-        for i in range(n_arc + 1):
-            angle = math.pi + i * (math.pi / 2) / n_arc  # 180° to 270°
-            ae = fr_e + fr_door * math.cos(angle)
-            an = fr_s + fr_door * math.sin(angle)
-            ax, ay = to_svg(ae, an)
-            arc_pts.append(f"{ax:.1f},{ay:.1f}")
-        out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
-                   f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
-        out.append('</a>')
-    elif not minik:
+    if db or (not minik):
         # Door arc: hinged at NW corner, 32.75" door, sweeps from north to east
         fr_door = 32.75 / 12.0
         hx, hy = to_svg(fr_w, fr_n)
@@ -985,9 +967,9 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         out.append('</a>')
 
     if db:
-        # ICE: in corner of IW1 and IW2, 2" from each wall
-        ice_w = layout.iw2.e + 2.0 / 12.0
-        ice_s = layout.iw1_n + 2.0 / 12.0
+        # ICE: 6" east of D/W, 3" south of W9-W10 wall
+        ice_w = dw_e + 6.0 / 12.0
+        ice_s = back_n - KITCHEN_APPL_GAP - ICE_DEPTH
     elif minik:
         # ICE: 3" east of fridge, against W9-W10 wall (3" south)
         ice_w = fr_e + 3.0 / 12.0
