@@ -1147,10 +1147,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         # Center under SINK west end
         tbl_cx = ks_w
     elif not minik:
-        # Center between fridge east and IW2 east
-        _fr_w = layout.iw2.e + KITCHEN_APPL_GAP
-        _fr_e = _fr_w + 32.75 / 12.0
-        tbl_cx = (_fr_e + layout.iw2.e) / 2
+        # Center under SINK west end
+        tbl_cx = ks_w
     else:
         # Center on SINK west end
         _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
