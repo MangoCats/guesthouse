@@ -8,7 +8,7 @@ from floorplan.geometry import OutlineGeometry
 
 # Known-good F-series coordinates (regression snapshot)
 _EXPECTED_F = {
-    "F0":  ( 1.2407407407,  2.2134933417),
+    "F1":  ( 1.2407407407,  2.2134933417),
     "F2":  ( 0.5000000000,  3.0416666667),
     "F3":  ( 0.5000000000, 15.8681150588),
     "F4":  ( 0.5860893996, 16.8521213989),
@@ -36,7 +36,7 @@ class TestOutlineGeometry:
         assert isinstance(outline_geo, OutlineGeometry)
 
     def test_20_points(self, outline_geo):
-        for i in [j for j in range(21) if j != 1]:
+        for i in [j for j in range(21) if j != 0]:
             assert f"F{i}" in outline_geo.fp_pts
 
     def test_20_segments(self, outline_geo):

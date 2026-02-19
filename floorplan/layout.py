@@ -82,7 +82,7 @@ class InteriorLayout(NamedTuple):
 def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     """Compute interior layout positions.
 
-    pts must contain W-series (W0-W20) and F-series (F0-F20).
+    pts must contain W-series (W1-W20) and F-series (F1-F20).
     """
     iw1_n = pts["W9"][1] - IW1_DIST_FROM_NORTH
     iw1_s = iw1_n - WALL_6IN
@@ -97,7 +97,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw2_n = pts["W6"][1]
 
     dryer_w = pts["W2"][0] + APPLIANCE_OFFSET_E
-    dryer_s = pts["W0"][1] + APPLIANCE_OFFSET_N
+    dryer_s = pts["W1"][1] + APPLIANCE_OFFSET_N
     dryer_e = dryer_w + APPLIANCE_WIDTH
     dryer_n = dryer_s + APPLIANCE_DEPTH
     washer_w = dryer_w
@@ -107,7 +107,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     ctr_w = dryer_e + COUNTER_GAP
     ctr_e = ctr_w + COUNTER_DEPTH
-    ctr_s = pts["W0"][1]
+    ctr_s = pts["W1"][1]
     ctr_n = ctr_s + 6.0  # 6' north of W20-W0 south face
     ctr_nw_r = 0
 
@@ -121,9 +121,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # SE corner: circle(IW4_SW, 32") ∩ W20-W0
     _iw4_sw = (iw4_w, iw4_s)
     _w20 = pts["W20"]
-    _w0 = pts["W0"]
-    _dE = _w0[0] - _w20[0]
-    _dN = _w0[1] - _w20[1]
+    _w1 = pts["W1"]
+    _dE = _w1[0] - _w20[0]
+    _dN = _w1[1] - _w20[1]
     _seg_len = math.sqrt(_dE**2 + _dN**2)
     _uE = _w20[0] - _iw4_sw[0]
     _uN = _w20[1] - _iw4_sw[1]
@@ -176,16 +176,16 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     # Bed: rotated, long sides perpendicular to W20-W0
     # SE corner = 1" past O9 NW corner along W20-W0, 2" from wall
-    _dE9 = pts["F0"][0] - pts["F20"][0]
-    _dN9 = pts["F0"][1] - pts["F20"][1]
+    _dE9 = pts["F1"][0] - pts["F20"][0]
+    _dN9 = pts["F1"][1] - pts["F20"][1]
     _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
     _t_sw9 = ((iw11_sw[0] - pts["F20"][0]) * _dE9
               + (iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
     _ts9 = _t_sw9 + 5.0 / 12.0 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
     _bed_t = _te9 + 3.0 / 12.0 / _seg_len  # 3" past O9 NW along W20-W0
-    _bed_se_wall = (_w20[0] + _bed_t * (_w0[0] - _w20[0]),
-                    _w20[1] + _bed_t * (_w0[1] - _w20[1]))
+    _bed_se_wall = (_w20[0] + _bed_t * (_w1[0] - _w20[0]),
+                    _w20[1] + _bed_t * (_w1[1] - _w20[1]))
     bed_se = (_bed_se_wall[0] + 2.0 / 12.0 * _norm_E,
               _bed_se_wall[1] + 2.0 / 12.0 * _norm_N)
     bed_sw = (bed_se[0] + BED_WIDTH * _along_E,
@@ -253,8 +253,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
                  (iw16_e, iw16_n), (iw16_w, iw16_n)]
 
     # Counter polygon: south edge follows W20-W0, east edge clipped at IW3/IW16
-    _t_ctr_w = (ctr_w - _w20[0]) / (_w0[0] - _w20[0])
-    _ctr_sw_n = _w20[1] + _t_ctr_w * (_w0[1] - _w20[1])
+    _t_ctr_w = (ctr_w - _w20[0]) / (_w1[0] - _w20[0])
+    _ctr_sw_n = _w20[1] + _t_ctr_w * (_w1[1] - _w20[1])
     if ctr_n > iw3_nw[1]:
         # Counter top above IW3 NW: clip at IW16 west face then IW3 west face
         ctr_poly = [

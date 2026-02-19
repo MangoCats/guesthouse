@@ -27,7 +27,7 @@ BEDROOM_WIDTH = 138.0 / 12.0      # 11'6" E-W
 CLOSET_WIDTH = 30.0 / 12.0        # 30" closet depth (closet 1)
 CLOSET2_WIDTH = 28.0 / 12.0       # 28" closet 2 depth (east)
 CLOSET1_HEIGHT = 6.0              # 6' closet 1 N-S
-IW1_OFFSET_N = 12.0 + 2.0/12.0    # 12'2" IW1 south face above W0
+IW1_OFFSET_N = 12.0 + 2.0/12.0    # 12'2" IW1 south face above W1
 IW1_WEST_OFFSET_E = 6.5           # 6'6" IW1 west end east of W2
 IW2_OFFSET_E = 6.5                # 6'6" IW2 west face east of W2
 IW4_OFFSET_E_IW2 = 224.0 / 12.0   # 18'8" IW4 west face east of IW2 east face
@@ -150,14 +150,14 @@ O11_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
 IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face
 
 # Outline geometry constraints
-CORNER_NE_R = 10.0 / 12.0         # R_a0: 10" corner arc
+CORNER_NE_R = 10.0 / 12.0         # R_a1: 10" corner arc
 CORNER_NW_R = 28.0 / 12.0         # R_a5: 28" NW corner
 UPPER_E_R = 28.0 / 12.0           # R_a7: 28" upper east
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
 ARC_180_R = 28.0 / 12.0           # R_a11: 28" 180-degree arc
 ARC_F3_R = 68.0 / 12.0             # R_a3: 68" arc radius
 F6_EAST_ADJ = 6.0 / 12.0           # 6" F6 east adjustment
-F6_HEIGHT = 26.0 + 6.0/12.0       # 26'6" F6-F7 line north of F0
+F6_HEIGHT = 26.0 + 6.0/12.0       # 26'6" F6-F7 line north of F1
 NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_DIST_FROM_NORTH = 11.0              # 11'0" IW1 north face to north inner wall
 IW8_OFFSET_N_IW1 = 22.0 / 12.0    # 22" IW8 north face above IW1 north face

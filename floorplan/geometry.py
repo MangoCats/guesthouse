@@ -33,9 +33,9 @@ class OutlineAnchors(NamedTuple):
 
 class OutlineGeometry(NamedTuple):
     """Complete outline geometry result."""
-    fp_pts: dict[str, Point]     # F0-F20 + C0-C19
+    fp_pts: dict[str, Point]     # F1-F20 + C1-C19
     outline_segs: list[Segment]  # 20 segments with F-series names
-    radii: dict[str, float]      # R_a0 through R_a19
+    radii: dict[str, float]      # R_a1 through R_a19
 
 
 # ============================================================
@@ -43,12 +43,12 @@ class OutlineGeometry(NamedTuple):
 # ============================================================
 
 def _compute_ne_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> float:
-    """NE corner arc: F0, F2, C0. Returns R_a0."""
-    R_a0 = CORNER_NE_R
-    fp_pts["C0"] = (anchors.Pi3[0] + R_a0, anchors.Pi3[1] + R_a0)
-    fp_pts["F2"] = (anchors.Pi3[0], fp_pts["C0"][1])
-    fp_pts["F0"] = (fp_pts["C0"][0], anchors.Pi3[1])
-    return R_a0
+    """NE corner arc: F1, F2, C1. Returns R_a1."""
+    R_a1 = CORNER_NE_R
+    fp_pts["C1"] = (anchors.Pi3[0] + R_a1, anchors.Pi3[1] + R_a1)
+    fp_pts["F2"] = (anchors.Pi3[0], fp_pts["C1"][1])
+    fp_pts["F1"] = (fp_pts["C1"][0], anchors.Pi3[1])
+    return R_a1
 
 
 def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> float:
@@ -57,7 +57,7 @@ def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
     F6 exits at bearing 90° (east). F5 computed later by tangent constraint.
     """
     R_a5 = CORNER_NW_R
-    corner2_N = fp_pts["F0"][1] + F6_HEIGHT
+    corner2_N = fp_pts["F1"][1] + F6_HEIGHT
     fp_pts["C5"] = (anchors.Pi2[0] + NW_SHIFT + R_a5 + F6_EAST_ADJ, corner2_N - R_a5)
     fp_pts["F6"] = (fp_pts["C5"][0], corner2_N)
     return R_a5
@@ -129,7 +129,7 @@ def _compute_central_region(
     R_a13 = ARC_F13_R
 
     # F14 Northing from IW1 constraint
-    _iw1_n_face = fp_pts["F0"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN
+    _iw1_n_face = fp_pts["F1"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN
     _F14_N = _iw1_n_face + WALL_SOUTH_N
 
     # Arc at Po5 corner (exits North)
@@ -241,31 +241,31 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     """Compute F-series outline from inset anchor points + design constants."""
     fp_pts: dict[str, Point] = {}
 
-    R_a0 = _compute_ne_corner(fp_pts, anchors)
+    R_a1 = _compute_ne_corner(fp_pts, anchors)
     R_a5 = _compute_nw_corner(fp_pts, anchors)
     R_a3 = _compute_west_wall(fp_pts)
     R_a7, R_a8 = _compute_upper_east_arcs(fp_pts)
     R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
     R_a17, R_a19 = _compute_south_wall(fp_pts)
 
-    # F0: tangent to line from F20 on arc C0 (CW, radius R_a0, center at F2 northing)
+    # F1: tangent to line from F20 on arc C1 (CW, radius R_a1, center at F2 northing)
     # Exit bearing from F20 (same sweep as C19 arc)
     _sweep = math.asin(1.0 / 9.0)
     _exit_angle = -math.pi - _sweep  # CW tangent at F20: radius_angle - π/2
     _ex = math.cos(_exit_angle)
     _ey = math.sin(_exit_angle)
-    # Solve for F2_N from tangency: F0 on line from F20 and on circle C0
+    # Solve for F2_N from tangency: F1 on line from F20 and on circle C1
     _F2_E = fp_pts["F2"][0]
     _F20_E, _F20_N = fp_pts["F20"]
     _dE = _F2_E - _F20_E
-    _F2_N = _F20_N + (_dE + R_a0 * (1 - _ey)) * _ey / _ex - R_a0 * _ex
+    _F2_N = _F20_N + (_dE + R_a1 * (1 - _ey)) * _ey / _ex - R_a1 * _ex
     fp_pts["F2"] = (_F2_E, _F2_N)
-    fp_pts["C0"] = (_F2_E + R_a0, _F2_N)
-    fp_pts["F0"] = (_F2_E + R_a0 * (1 - _ey), _F2_N + R_a0 * _ex)
+    fp_pts["C1"] = (_F2_E + R_a1, _F2_N)
+    fp_pts["F1"] = (_F2_E + R_a1 * (1 - _ey), _F2_N + R_a1 * _ex)
 
     # --- Build outline segments (F-series) ---
     outline_segs: list[Segment] = [
-        ArcSeg("F0", "F2", "C0", R_a0, "CW", 20),
+        ArcSeg("F1", "F2", "C1", R_a1, "CW", 20),
         LineSeg("F2", "F3"),
         ArcSeg("F3", "F4", "C3", R_a3, "CW", 20),
         LineSeg("F4", "F5"),
@@ -284,11 +284,11 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         ArcSeg("F17", "F18", "C17", R_a17, "CW", 20),
         LineSeg("F18", "F19"),
         ArcSeg("F19", "F20", "C19", R_a19, "CW", 60),
-        LineSeg("F20", "F0"),
+        LineSeg("F20", "F1"),
     ]
 
     radii = {
-        "R_a0": R_a0, "R_a3": R_a3, "R_a5": R_a5,
+        "R_a1": R_a1, "R_a3": R_a3, "R_a5": R_a5,
         "R_a7": R_a7, "R_a8": R_a8, "R_a10": R_a10, "R_a11": R_a11,
         "R_a13": R_a13, "R_a15": R_a15, "R_a17": R_a17,
         "R_a19": R_a19,

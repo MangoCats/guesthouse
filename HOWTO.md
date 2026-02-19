@@ -72,14 +72,14 @@ Understanding which coordinate to use for "east face of X wall" is the most comm
 
 ### Perimeter walls (8" thick, F-series outer / W-series inner)
 
-The outline traverses CW (as viewed from above): F0 → F2 → ... → F20 → F0. The interior is on the **right** side.
+The outline traverses CW (as viewed from above): F1 → F2 → ... → F20 → F1. The interior is on the **right** side.
 
 | Wall side of building | Outer (exterior) face | Inner (interior) face |
 |-|-|-|
 | **West** (F2-F3, F4-F5) | `pts["F<n>"][0]` (smaller easting) | `pts["W<n>"][0]` (larger easting) |
 | **East** (F14-F15) | `pts["F<n>"][0]` (larger easting) | `pts["W<n>"][0]` (smaller easting) |
 | **North** (F6-F7) | `pts["F<n>"][1]` (larger northing) | `pts["W<n>"][1]` (smaller northing) |
-| **South** (F18-F19, F21-F0) | `pts["F<n>"][1]` (smaller northing) | `pts["W<n>"][1]` (larger northing) |
+| **South** (F18-F19, F21-F1) | `pts["F<n>"][1]` (smaller northing) | `pts["W<n>"][1]` (larger northing) |
 
 **Key insight:** For walls on the west side (like F2-F3), the "east face" is the **inner** face at `pts["W<n>"]`, not the F-series point.
 
@@ -106,9 +106,9 @@ BBox-type walls (IW2, IW3, IW5) use `.w`, `.s`, `.e`, `.n` accessors. L-shaped w
 |-|-|-|
 | Counter east edge | `layout.ctr.e` | |
 | Counter north edge | `layout.ctr.n` | |
-| Counter south edge | `layout.ctr.s` | Same as `pts["W0"][1]` |
+| Counter south edge | `layout.ctr.s` | Same as `pts["W1"][1]` |
 | Bedroom center E-W | `layout.bed_cx` or `(layout.iw3.e + layout.iw4_w) / 2` | |
-| Inner south wall | `pts["W0"][1]` | |
+| Inner south wall | `pts["W1"][1]` | |
 | Inner west wall | `pts["W2"][0]` | |
 
 ---

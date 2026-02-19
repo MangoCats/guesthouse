@@ -145,46 +145,46 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
     ]))
 
-    # O9: F20-F0 — east end 5" past IW11 SW corner along F20-F0
-    _dE9 = pts["F0"][0] - pts["F20"][0]
-    _dN9 = pts["F0"][1] - pts["F20"][1]
+    # O9: F20-F1 — east end 5" past IW11 SW corner along F20-F1
+    _dE9 = pts["F1"][0] - pts["F20"][0]
+    _dN9 = pts["F1"][1] - pts["F20"][1]
     _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
     _iw11_sw = layout.iw11_poly[0]
     _t_sw = ((_iw11_sw[0] - pts["F20"][0]) * _dE9
              + (_iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
     _ts9 = _t_sw + 5.0 / 12.0 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
-    openings.append(OuterOpening("O9", "F20", "F0", [
+    openings.append(OuterOpening("O9", "F20", "F1", [
         (pts["F20"][0] + _ts9 * _dE9, pts["F20"][1] + _ts9 * _dN9),
         (pts["F20"][0] + _te9 * _dE9, pts["F20"][1] + _te9 * _dN9),
-        (pts["W20"][0] + _te9 * (pts["W0"][0] - pts["W20"][0]),
-         pts["W20"][1] + _te9 * (pts["W0"][1] - pts["W20"][1])),
-        (pts["W20"][0] + _ts9 * (pts["W0"][0] - pts["W20"][0]),
-         pts["W20"][1] + _ts9 * (pts["W0"][1] - pts["W20"][1])),
+        (pts["W20"][0] + _te9 * (pts["W1"][0] - pts["W20"][0]),
+         pts["W20"][1] + _te9 * (pts["W1"][1] - pts["W20"][1])),
+        (pts["W20"][0] + _ts9 * (pts["W1"][0] - pts["W20"][0]),
+         pts["W20"][1] + _ts9 * (pts["W1"][1] - pts["W20"][1])),
     ]))
 
-    # O10: F20-F0 — 84" wall segment west of O9
+    # O10: F20-F1 — 84" wall segment west of O9
     _ts10 = _te9 + 84.0 / 12.0 / _seg9_len
     _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
-    openings.append(OuterOpening("O10", "F20", "F0", [
+    openings.append(OuterOpening("O10", "F20", "F1", [
         (pts["F20"][0] + _ts10 * _dE9, pts["F20"][1] + _ts10 * _dN9),
         (pts["F20"][0] + _te10 * _dE9, pts["F20"][1] + _te10 * _dN9),
-        (pts["W20"][0] + _te10 * (pts["W0"][0] - pts["W20"][0]),
-         pts["W20"][1] + _te10 * (pts["W0"][1] - pts["W20"][1])),
-        (pts["W20"][0] + _ts10 * (pts["W0"][0] - pts["W20"][0]),
-         pts["W20"][1] + _ts10 * (pts["W0"][1] - pts["W20"][1])),
+        (pts["W20"][0] + _te10 * (pts["W1"][0] - pts["W20"][0]),
+         pts["W20"][1] + _te10 * (pts["W1"][1] - pts["W20"][1])),
+        (pts["W20"][0] + _ts10 * (pts["W1"][0] - pts["W20"][0]),
+         pts["W20"][1] + _ts10 * (pts["W1"][1] - pts["W20"][1])),
     ]))
 
-    # O11: F20-F0 — 70" wall segment past O10 toward F0
+    # O11: F20-F1 — 70" wall segment past O10 toward F1
     _ts11 = _te10 + 70.0 / 12.0 / _seg9_len
     _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
-    openings.append(OuterOpening("O11", "F20", "F0", [
+    openings.append(OuterOpening("O11", "F20", "F1", [
         (pts["F20"][0] + _ts11 * _dE9, pts["F20"][1] + _ts11 * _dN9),
         (pts["F20"][0] + _te11 * _dE9, pts["F20"][1] + _te11 * _dN9),
-        (pts["W20"][0] + _te11 * (pts["W0"][0] - pts["W20"][0]),
-         pts["W20"][1] + _te11 * (pts["W0"][1] - pts["W20"][1])),
-        (pts["W20"][0] + _ts11 * (pts["W0"][0] - pts["W20"][0]),
-         pts["W20"][1] + _ts11 * (pts["W0"][1] - pts["W20"][1])),
+        (pts["W20"][0] + _te11 * (pts["W1"][0] - pts["W20"][0]),
+         pts["W20"][1] + _te11 * (pts["W1"][1] - pts["W20"][1])),
+        (pts["W20"][0] + _ts11 * (pts["W1"][0] - pts["W20"][0]),
+         pts["W20"][1] + _ts11 * (pts["W1"][1] - pts["W20"][1])),
     ]))
 
     return openings

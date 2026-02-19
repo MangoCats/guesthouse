@@ -230,7 +230,7 @@ def compute_all():
     radii = outline_geo.radii
 
     # Derive U-series as aliases (downstream from F-series)
-    for i in [j for j in range(21) if j != 1]:
+    for i in [j for j in range(21) if j != 0]:
         pts[f"U{i}"] = outline_geo.fp_pts[f"F{i}"]
 
     # Inner walls + layout
@@ -414,7 +414,7 @@ def build_outline_cfg(outline_segs, pts, radii):
         opacity=1.0, fill_color="rgba(200,230,255,0.25)",
         line_stroke="#333", line_width=2.0,
         arc_styles={
-            ("F0","F2"):    ("#333", 2.0),
+            ("F1","F2"):    ("#333", 2.0),
             ("F3","F4"):    ("#333", 2.0),
             ("F5","F6"):    ("#333", 2.0),
             ("F7","F8"):    ("#333", 2.0),
@@ -437,7 +437,7 @@ def build_outline_cfg(outline_segs, pts, radii):
             "F13":  VertexStyle("F13",  "start",   8,  4,  "#d32f2f", 1.75, 10),
             "F14":  VertexStyle("F14",  "start",  10,  4,  "#d32f2f", 1.75, 10),
             "F15":  VertexStyle("F15",  "start",   8,  4,  "#d32f2f", 1.75, 10),
-            "F0":   VertexStyle("F0",   "middle",  0, 10,  "#d32f2f", 1.75, 10),
+            "F1":   VertexStyle("F1",   "middle",  0, 10,  "#d32f2f", 1.75, 10),
             "F6":   VertexStyle("F6",   "middle",  0, -6,  "#d32f2f", 1.75, 10),
             "F7":   VertexStyle("F7",   "middle",  0, -6,  "#d32f2f", 1.75, 10),
             "F9":   VertexStyle("F9",   "middle",  0, 17,  "#d32f2f", 1.75, 10),
@@ -457,10 +457,10 @@ def build_outline_cfg(outline_segs, pts, radii):
             ("F14","F15"): BrgDistLabel(-16),
             ("F16","F17"): BrgDistLabel(16),
             ("F18","F19"): BrgDistLabel(-16),
-            ("F20","F0"): BrgDistLabel(16),
+            ("F20","F1"): BrgDistLabel(16),
         },
         arc_labels={
-            ("F0","F2"): ArcLabel(f"Arc R={R['R_a0']*12:.0f}\"",
+            ("F1","F2"): ArcLabel(f"Arc R={R['R_a1']*12:.0f}\"",
                 f"{sw[0]:.1f}\u00b0", "end", -10, 14, 11, "#333"),
             ("F3","F4"): ArcLabel(f"Arc R={R['R_a3']*12:.0f}\"",
                 f"{sw[2]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
@@ -484,7 +484,7 @@ def build_outline_cfg(outline_segs, pts, radii):
                 f"{sw[18]:.1f}\u00b0", "start", 12, -10, 11, "#333"),
         },
         center_marks=[
-            CenterMark("C0", "F0", "#333"), CenterMark("C3", "F3", "#333"),
+            CenterMark("C1", "F1", "#333"), CenterMark("C3", "F3", "#333"),
             CenterMark("C5", "F5", "#333"),
             CenterMark("C7", "F7", "#333"), CenterMark("C8", "F8", "#333"),
             CenterMark("C10", "F10", "#333"), CenterMark("C11", "F11", "#333"),
@@ -512,7 +512,7 @@ if __name__ == "__main__":
     print(f"  Inset area: {inset_area:.2f} sq ft")
     print(f'=== OUTLINE PATH ===')
     _pt_notes = [
-        ("F0", "arc tangent"), ("F2", "arc tangent"),
+        ("F1", "arc tangent"), ("F2", "arc tangent"),
         ("F3", "same E as F2"), ("F4", "arc tangent point"),
         ("F5", "arc tangent"),
         ("F6", "arc tangent"), ("F7", "east of F6"),
@@ -645,7 +645,7 @@ if __name__ == "__main__":
     lines.append('</a>')
 
     # Area label centered in outline
-    centroid_names = [f"F{i}" for i in range(21) if i != 1]
+    centroid_names = [f"F{i}" for i in range(21) if i != 0]
     cx_o = sum(pts[n][0] for n in centroid_names) / len(centroid_names)
     cy_o = sum(pts[n][1] for n in centroid_names) / len(centroid_names)
     sx, sy = to_svg(cx_o, cy_o)
@@ -685,4 +685,4 @@ if __name__ == "__main__":
     print(f"Outer path area: {outer_area:.2f} sq ft (rendered at 20%)")
     print(f"Inset path area: {inset_area:.2f} sq ft (rendered at 20%)")
     print(f"Outline path area: {outline_area:.2f} sq ft (rendered at 100%)")
-    print(f"Outline: F0->ArcC0->F2->F3->ArcC3->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11_180->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->F0")
+    print(f"Outline: F1->ArcC1->F2->F3->ArcC3->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11_180->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->F1")

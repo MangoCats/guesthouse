@@ -1,7 +1,7 @@
 """Generate floorplan SVG with 8" wall inset from the outline path.
 
 Computes geometry from shared/ and floorplan/ packages.
-Outline points F0-F20, inner wall points W0-W20.
+Outline points F1-F20, inner wall points W1-W20.
 """
 import os, math, datetime
 from typing import NamedTuple, Any
@@ -273,7 +273,7 @@ def build_floorplan_data():
     # --- Fit content on letter landscape (792x612) page ---
     _margin_top = 36   # 0.5" top margin
     _margin = 72       # 1" margins on left, right, bottom
-    _f_names = [f"F{i}" for i in range(21) if i != 1]
+    _f_names = [f"F{i}" for i in range(21) if i != 0]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -1298,7 +1298,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     _bed_dy = to_svg(*_bp[2])[1] - to_svg(*_bp[1])[1]
     _bed_ang = math.degrees(math.atan2(_bed_dy, _bed_dx)) + 90
     # Position at 1/2 the perpendicular distance from W20-W0 to IW1
-    _w20b = pts["W20"]; _w0b = pts["W0"]
+    _w20b = pts["W20"]; _w0b = pts["W1"]
     _dEwb = _w0b[0] - _w20b[0]; _dNwb = _w0b[1] - _w20b[1]
     _wlb = math.sqrt(_dEwb**2 + _dNwb**2)
     _nEb = _dNwb / _wlb; _nNb = -_dEwb / _wlb  # inward normal
@@ -1625,7 +1625,7 @@ def _render_dimensions(out, data, layout):
     _dl = math.sqrt(_dn[0]**2 + _dn[1]**2)
     _nrm = (_dn[0] / _dl, _dn[1] / _dl)
     # Ray-line intersection: ray from _dim_s in direction -_nrm hits W20-W0
-    _w20 = pts["W20"]; _w0 = pts["W0"]
+    _w20 = pts["W20"]; _w0 = pts["W1"]
     _dw = (_w0[0] - _w20[0], _w0[1] - _w20[1])
     _u = (_dim_s[0] - _w20[0], _dim_s[1] - _w20[1])
     _det = _nrm[0] * _dw[1] - _nrm[1] * _dw[0]
@@ -1659,7 +1659,7 @@ def _render_dimensions(out, data, layout):
             layout.iw7_poly[3][1] - _iw7_sw7[1])
     _dl7 = math.sqrt(_dn7[0]**2 + _dn7[1]**2)
     _nrm7 = (_dn7[0] / _dl7, _dn7[1] / _dl7)
-    _w20 = pts["W20"]; _w0 = pts["W0"]
+    _w20 = pts["W20"]; _w0 = pts["W1"]
     _dw7 = (_w0[0] - _w20[0], _w0[1] - _w20[1])
     _u7 = (_dim7_s[0] - _w20[0], _dim7_s[1] - _w20[1])
     _det7 = _nrm7[0] * _dw7[1] - _nrm7[1] * _dw7[0]
@@ -1727,8 +1727,8 @@ def _render_dimensions(out, data, layout):
 
     # External dimensions
     dim_ext_e = pts["F3"][0] - 2.7
-    dim_line_v(out, dim_ext_e, pts["F0"][1], pts["F6"][1],
-               fmt_dist(pts["F6"][1] - pts["F0"][1]), to_svg)
+    dim_line_v(out, dim_ext_e, pts["F1"][1], pts["F6"][1],
+               fmt_dist(pts["F6"][1] - pts["F1"][1]), to_svg)
 
     # Top exterior dim: endpoints on arcs F7-F8 and F11-F12, 4" south of F7
     _dim_n_arc = pts["F7"][1] - 4.0 / 12.0
@@ -1751,8 +1751,8 @@ def _render_dimensions(out, data, layout):
     _o9_open = compute_outer_openings(pts, layout)[8]  # O9
     _o9_ic = ((_o9_open.poly[2][0] + _o9_open.poly[3][0]) / 2,
               (_o9_open.poly[2][1] + _o9_open.poly[3][1]) / 2)
-    _dEw = pts["W0"][0] - pts["W20"][0]
-    _dNw = pts["W0"][1] - pts["W20"][1]
+    _dEw = pts["W1"][0] - pts["W20"][0]
+    _dNw = pts["W1"][1] - pts["W20"][1]
     _wlen = math.sqrt(_dEw**2 + _dNw**2)
     _nrmE = _dNw / _wlen; _nrmN = -_dEw / _wlen  # inward normal (NNE)
     _t_iw1 = (layout.iw1_s - _o9_ic[1]) / _nrmN
