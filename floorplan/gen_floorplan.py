@@ -600,6 +600,7 @@ def _render_walls(out, data, layout):
     for (p1, p2), (ox, oy) in [
         ((_iw9_se, _iw9_ne), _iw9_at),                            # east face
         ((_iw9_sw, _iw9_nw), (-_iw9_at[0], -_iw9_at[1])),        # west face
+        ((_iw9_ne, _iw9_nw), (-_iw9_an[0], -_iw9_an[1])),        # north end
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
@@ -666,8 +667,10 @@ def _render_walls(out, data, layout):
     wall_poly(out, iw4_poly, to_svg, stroke=False)
     w_in = layout.iw4_w + half_sw
     e_in = layout.iw4_e - half_sw
+    n_in4 = iw4_n - half_sw
     for a, b in [((w_in, layout.iw4_s), (w_in, iw4_n)),
-                 ((e_in, layout.iw4_s), (e_in, iw4_n))]:
+                 ((e_in, layout.iw4_s), (e_in, iw4_n)),
+                 ((layout.iw4_w, n_in4), (layout.iw4_e, n_in4))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
