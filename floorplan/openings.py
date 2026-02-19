@@ -13,7 +13,7 @@ from floorplan.constants import (
     O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH, O4_OFFSET_W_IW2,
     O5_E_FROM_F7, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
     O7_NW_GAP, O7_HALF_WIDTH,
-    O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
+    O8_HALF_WIDTH,
     IW5_OFFSET_N, WALL_3IN,
     STD_GAP,
     RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
@@ -145,47 +145,20 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
     ]))
 
-    # O9: F20-F1 — east end 5" past IW11 SW corner along F20-F1
+    # O9, O10, O11: F20-F1 — parametric positions from layout (single source)
     _dE9 = pts["F1"][0] - pts["F20"][0]
     _dN9 = pts["F1"][1] - pts["F20"][1]
-    _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
-    _iw11_sw = layout.iw11_poly[0]
-    _t_sw = ((_iw11_sw[0] - pts["F20"][0]) * _dE9
-             + (_iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
-    _ts9 = _t_sw + 6.0 / 12.0 / _seg9_len
-    _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
-    openings.append(OuterOpening("O9", "F20", "F1", [
-        (pts["F20"][0] + _ts9 * _dE9, pts["F20"][1] + _ts9 * _dN9),
-        (pts["F20"][0] + _te9 * _dE9, pts["F20"][1] + _te9 * _dN9),
-        (pts["W20"][0] + _te9 * (pts["W1"][0] - pts["W20"][0]),
-         pts["W20"][1] + _te9 * (pts["W1"][1] - pts["W20"][1])),
-        (pts["W20"][0] + _ts9 * (pts["W1"][0] - pts["W20"][0]),
-         pts["W20"][1] + _ts9 * (pts["W1"][1] - pts["W20"][1])),
-    ]))
-
-    # O10: F20-F1 — 84" wall segment west of O9
-    _ts10 = _te9 + 86.0 / 12.0 / _seg9_len
-    _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
-    openings.append(OuterOpening("O10", "F20", "F1", [
-        (pts["F20"][0] + _ts10 * _dE9, pts["F20"][1] + _ts10 * _dN9),
-        (pts["F20"][0] + _te10 * _dE9, pts["F20"][1] + _te10 * _dN9),
-        (pts["W20"][0] + _te10 * (pts["W1"][0] - pts["W20"][0]),
-         pts["W20"][1] + _te10 * (pts["W1"][1] - pts["W20"][1])),
-        (pts["W20"][0] + _ts10 * (pts["W1"][0] - pts["W20"][0]),
-         pts["W20"][1] + _ts10 * (pts["W1"][1] - pts["W20"][1])),
-    ]))
-
-    # O11: F20-F1 — 70" wall segment past O10 toward F1
-    _ts11 = _te10 + 74.0 / 12.0 / _seg9_len
-    _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
-    openings.append(OuterOpening("O11", "F20", "F1", [
-        (pts["F20"][0] + _ts11 * _dE9, pts["F20"][1] + _ts11 * _dN9),
-        (pts["F20"][0] + _te11 * _dE9, pts["F20"][1] + _te11 * _dN9),
-        (pts["W20"][0] + _te11 * (pts["W1"][0] - pts["W20"][0]),
-         pts["W20"][1] + _te11 * (pts["W1"][1] - pts["W20"][1])),
-        (pts["W20"][0] + _ts11 * (pts["W1"][0] - pts["W20"][0]),
-         pts["W20"][1] + _ts11 * (pts["W1"][1] - pts["W20"][1])),
-    ]))
+    for _name, _ts, _te in [("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
+                             ("O10", layout.sw_t_o10_start, layout.sw_t_o10_end),
+                             ("O11", layout.sw_t_o11_start, layout.sw_t_o11_end)]:
+        openings.append(OuterOpening(_name, "F20", "F1", [
+            (pts["F20"][0] + _ts * _dE9, pts["F20"][1] + _ts * _dN9),
+            (pts["F20"][0] + _te * _dE9, pts["F20"][1] + _te * _dN9),
+            (pts["W20"][0] + _te * (pts["W1"][0] - pts["W20"][0]),
+             pts["W20"][1] + _te * (pts["W1"][1] - pts["W20"][1])),
+            (pts["W20"][0] + _ts * (pts["W1"][0] - pts["W20"][0]),
+             pts["W20"][1] + _ts * (pts["W1"][1] - pts["W20"][1])),
+        ]))
 
     return openings
 

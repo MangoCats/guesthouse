@@ -141,10 +141,14 @@ O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
 # O8 (F14-F15)
 O8_HALF_WIDTH = 9.5 / 12.0         # 9.5" half-width
-# O9, O10, O11
+# O9, O10, O11 (F20-F1 south wall chain)
 O9_HALF_WIDTH = 11.5 / 12.0        # 11.5" half-width
 O10_HALF_WIDTH = 11.5 / 12.0       # 11.5" half-width
 O11_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width
+O9_OFFSET_IW11 = 6.0 / 12.0       # 6" IW11 SW to O9 SE along F20-F1
+O9_O10_WALL = 86.0 / 12.0         # 86" solid wall between O9 NW and O10 SE
+O10_O11_WALL = 74.0 / 12.0        # 74" solid wall between O10 NW and O11 SE
+BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 
 # IW5 partition
 IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face

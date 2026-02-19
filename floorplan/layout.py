@@ -10,7 +10,8 @@ from floorplan.constants import (
     APPLIANCE_OFFSET_N, APPLIANCE_GAP,
     COUNTER_DEPTH, COUNTER_GAP,
     BED_WIDTH, BED_LENGTH,
-    O9_HALF_WIDTH, O10_HALF_WIDTH,
+    O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
+    O9_OFFSET_IW11, O9_O10_WALL, O10_O11_WALL, BED_GAP_O9,
     IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E,
     IW3_LENGTH, IW3_OFFSET_IW9,
     IW9_LENGTH, IW9_OFFSET_O10,
@@ -77,6 +78,13 @@ class InteriorLayout(NamedTuple):
     iw6_poly: list[Point]
     iw6_n: float
     iw6_s: float
+    # South wall opening anchors (parametric t along F20→F1)
+    sw_t_o9_start: float
+    sw_t_o9_end: float
+    sw_t_o10_start: float
+    sw_t_o10_end: float
+    sw_t_o11_start: float
+    sw_t_o11_end: float
 
 
 def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
@@ -181,9 +189,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
     _t_sw9 = ((iw11_sw[0] - pts["F20"][0]) * _dE9
               + (iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
-    _ts9 = _t_sw9 + 6.0 / 12.0 / _seg9_len
+    _ts9 = _t_sw9 + O9_OFFSET_IW11 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
-    _bed_t = _te9 + 4.0 / 12.0 / _seg_len  # 4" past O9 NW along W20-W0
+    _bed_t = _te9 + BED_GAP_O9 / _seg_len
     _bed_se_wall = (_w20[0] + _bed_t * (_w1[0] - _w20[0]),
                     _w20[1] + _bed_t * (_w1[1] - _w20[1]))
     bed_se = (_bed_se_wall[0] + 2.0 / 12.0 * _norm_E,
@@ -196,9 +204,11 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
               bed_sw[1] + BED_LENGTH * _norm_N)
     bed_poly = [bed_sw, bed_se, bed_ne, bed_nw]
 
-    # IW9: 4" thick, perpendicular to W20-W0, 8" past O10 along inner wall
-    _ts10 = _te9 + 86.0 / 12.0 / _seg9_len
+    # IW9: 4" thick, perpendicular to W20-W0, past O10 along inner wall
+    _ts10 = _te9 + O9_O10_WALL / _seg9_len
     _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
+    _ts11 = _te10 + O10_O11_WALL / _seg9_len
+    _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
     _o10_end = (_w20[0] + _te10 * _dE, _w20[1] + _te10 * _dN)
     iw9_base = (_o10_end[0] + IW9_OFFSET_O10 * _along_E,
                 _o10_end[1] + IW9_OFFSET_O10 * _along_N)
@@ -339,4 +349,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw15=iw15,
         iw16_poly=iw16_poly,
         iw6_poly=iw6_poly, iw6_n=iw6_n, iw6_s=iw6_s,
+        sw_t_o9_start=_ts9, sw_t_o9_end=_te9,
+        sw_t_o10_start=_ts10, sw_t_o10_end=_te10,
+        sw_t_o11_start=_ts11, sw_t_o11_end=_te11,
     )
