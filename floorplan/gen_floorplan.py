@@ -1311,6 +1311,11 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     _dr_sr = to_svg(_dr_r, 0)[0] - to_svg(0, 0)[0]
     out.append(f'<circle cx="{_dr_cx:.1f}" cy="{_dr_cy:.1f}" r="{_dr_sr:.1f}"'
                f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    # 48" diameter circle at SW corner of dresser
+    _dr_r2 = 24.0 / 12.0  # 24" radius
+    _dr_sr2 = to_svg(_dr_r2, 0)[0] - to_svg(0, 0)[0]
+    out.append(f'<circle cx="{_dr_cx:.1f}" cy="{_dr_cy:.1f}" r="{_dr_sr2:.1f}"'
+               f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     # Dashed clearance rectangle: 34" E-W × 15" N-S on south side
     cl_n = d.s
     cl_s = cl_n - 15.0 / 12.0
