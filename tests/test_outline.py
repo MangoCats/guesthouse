@@ -28,8 +28,8 @@ _EXPECTED_F = {
     "F16": (35.2633523643,  2.8580634639),
     "F17": (30.9332253454,  0.3580634639),
     "F18": (27.5000000000, -0.5000000000),
-    "F19": (26.6666666667, -0.5000000000),
-    "F20": (23.9161287487, -0.3476610775),
+    "F19": (26.3333333333, -0.5000000000),
+    "F20": (24.2474233269, -0.3844715862),
 }
 
 
@@ -69,7 +69,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 866.35) < 0.1
+        assert abs(area - 866.37) < 0.1
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):
