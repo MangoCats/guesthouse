@@ -12,6 +12,7 @@ files=(
     survey/path_area.svg
 	span/span.svg
 	span/span_min.svg
+    roof/roof.svg
 )
 
 dest_files=()
