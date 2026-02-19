@@ -273,7 +273,7 @@ def build_floorplan_data():
     # --- Fit content on letter landscape (792x612) page ---
     _margin_top = 36   # 0.5" top margin
     _margin = 72       # 1" margins on left, right, bottom
-    _f_names = [f"F{i}" for i in range(21) if i != 4]
+    _f_names = [f"F{i}" for i in range(21) if i != 3]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -1855,10 +1855,10 @@ def _render_openings(out, data, layout):
     to_svg = data.to_svg
     outer_openings = compute_outer_openings(pts, layout)
 
-    # O3 door: 30" door on diagonal F3-F5 wall, hinged F5-side, swings east
+    # O3 door: 30" door on diagonal F4-F5 wall, hinged F5-side, swings east
     o3 = [o for o in outer_openings if o.name == "O3"][0]
     # O3 poly: [outer_start, outer_end, inner_end, inner_start] on diagonal wall
-    # Wall direction (F3→F5) and cross direction (outer→inner)
+    # Wall direction (F4→F5) and cross direction (outer→inner)
     _o3_os, _o3_oe = o3.poly[0], o3.poly[1]
     _o3_is, _o3_ie = o3.poly[3], o3.poly[2]
     _o3_dE = _o3_oe[0] - _o3_os[0]
@@ -1892,7 +1892,7 @@ def _render_openings(out, data, layout):
     tx, ty = to_svg(tip[0], tip[1])
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (cross) sweeping 90° to closed (along wall toward F3)
+    # Arc from open (cross) sweeping 90° to closed (along wall toward F4)
     n_arc = 20
     arc_pts_list = []
     for i in range(n_arc + 1):

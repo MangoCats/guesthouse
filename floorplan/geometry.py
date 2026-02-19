@@ -64,10 +64,10 @@ def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
 
 
 def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
-    """West wall: F2, F3, F5, C2. Returns R_a2.
+    """West wall: F2, F4, F5, C2. Returns R_a2.
 
     F2 northing solved from fixed sweep angle ARC_F2_SWEEP and tangent
-    constraint (F3-F5 tangent to both arcs F2-F3 and F5-F6).
+    constraint (F4-F5 tangent to both arcs F2-F4 and F5-F6).
     Depends on F1, F6, C5 already in fp_pts.
     """
     R_a2 = ARC_F2_R
@@ -87,10 +87,10 @@ def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
     fp_pts["F2"] = (F2_E, F2_N)
     fp_pts["C2"] = (F2_E + R_a2, F2_N)
 
-    # F3 and F5 at angle (π - γ) from their respective centers
+    # F4 and F5 at angle (π - γ) from their respective centers
     _angle = math.pi - _gamma
     C2_E, C2_N = fp_pts["C2"]
-    fp_pts["F3"] = (C2_E + R_a2 * math.cos(_angle),
+    fp_pts["F4"] = (C2_E + R_a2 * math.cos(_angle),
                     C2_N + R_a2 * math.sin(_angle))
     fp_pts["F5"] = (C5_E + R_a5 * math.cos(_angle),
                     C5_N + R_a5 * math.sin(_angle))
@@ -267,8 +267,8 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     outline_segs: list[Segment] = [
         ArcSeg("F0", "F1", "C0", R_a0, "CW", 20),
         LineSeg("F1", "F2"),
-        ArcSeg("F2", "F3", "C2", R_a2, "CW", 20),
-        LineSeg("F3", "F5"),
+        ArcSeg("F2", "F4", "C2", R_a2, "CW", 20),
+        LineSeg("F4", "F5"),
         ArcSeg("F5", "F6", "C5", R_a5, "CW", 20),
         LineSeg("F6", "F7"),
         ArcSeg("F7", "F8", "C7", R_a7, "CW", 20),

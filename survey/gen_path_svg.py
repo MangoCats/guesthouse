@@ -230,7 +230,7 @@ def compute_all():
     radii = outline_geo.radii
 
     # Derive U-series as aliases (downstream from F-series)
-    for i in [j for j in range(21) if j != 4]:
+    for i in [j for j in range(21) if j != 3]:
         pts[f"U{i}"] = outline_geo.fp_pts[f"F{i}"]
 
     # Inner walls + layout
@@ -415,7 +415,7 @@ def build_outline_cfg(outline_segs, pts, radii):
         line_stroke="#333", line_width=2.0,
         arc_styles={
             ("F0","F1"):    ("#333", 2.0),
-            ("F2","F3"):    ("#333", 2.0),
+            ("F2","F4"):    ("#333", 2.0),
             ("F5","F6"):    ("#333", 2.0),
             ("F7","F8"):    ("#333", 2.0),
             ("F8","F9"):    ("#333", 2.0),
@@ -428,7 +428,7 @@ def build_outline_cfg(outline_segs, pts, radii):
         },
         vertex_styles={
             "F5":   VertexStyle("F5",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
-            "F3":   VertexStyle("F3",   "end",   -10,  4,  "#d32f2f", 1.75, 10),
+            "F4":   VertexStyle("F4",   "end",   -10,  4,  "#d32f2f", 1.75, 10),
             "F2":   VertexStyle("F2",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
             "F1":   VertexStyle("F1",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
             "F8":   VertexStyle("F8",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
@@ -450,7 +450,7 @@ def build_outline_cfg(outline_segs, pts, radii):
         },
         brg_dist_labels={
             ("F1","F2"): BrgDistLabel(18),
-            ("F3","F5"): BrgDistLabel(18),
+            ("F4","F5"): BrgDistLabel(18),
             ("F6","F7"): BrgDistLabel(-16),
             ("F9","F10"): BrgDistLabel(-16),
             ("F12","F13"): BrgDistLabel(-16),
@@ -462,7 +462,7 @@ def build_outline_cfg(outline_segs, pts, radii):
         arc_labels={
             ("F0","F1"): ArcLabel(f"Arc R={R['R_a0']*12:.0f}\"",
                 f"{sw[0]:.1f}\u00b0", "end", -10, 14, 11, "#333"),
-            ("F2","F3"): ArcLabel(f"Arc R={R['R_a2']*12:.0f}\"",
+            ("F2","F4"): ArcLabel(f"Arc R={R['R_a2']*12:.0f}\"",
                 f"{sw[2]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
             ("F5","F6"): ArcLabel(f"Arc R={R['R_a5']*12:.0f}\"",
                 f"{sw[4]:.1f}\u00b0", "end", -10, -14, 11, "#333"),
@@ -513,7 +513,7 @@ if __name__ == "__main__":
     print(f'=== OUTLINE PATH ===')
     _pt_notes = [
         ("F0", "arc tangent"), ("F1", "arc tangent"),
-        ("F2", "same E as F1"), ("F3", "arc tangent point"),
+        ("F2", "same E as F1"), ("F4", "arc tangent point"),
         ("F5", "arc tangent"),
         ("F6", "arc tangent"), ("F7", "east of F6"),
         ("F8", "C7/C8 arc junction"), ("F9", "arc tangent"),
@@ -645,7 +645,7 @@ if __name__ == "__main__":
     lines.append('</a>')
 
     # Area label centered in outline
-    centroid_names = [f"F{i}" for i in range(21) if i != 4]
+    centroid_names = [f"F{i}" for i in range(21) if i != 3]
     cx_o = sum(pts[n][0] for n in centroid_names) / len(centroid_names)
     cy_o = sum(pts[n][1] for n in centroid_names) / len(centroid_names)
     sx, sy = to_svg(cx_o, cy_o)
@@ -685,4 +685,4 @@ if __name__ == "__main__":
     print(f"Outer path area: {outer_area:.2f} sq ft (rendered at 20%)")
     print(f"Inset path area: {inset_area:.2f} sq ft (rendered at 20%)")
     print(f"Outline path area: {outline_area:.2f} sq ft (rendered at 100%)")
-    print(f"Outline: F0->ArcC0->F1->F2->ArcC2->F3->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11_180->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->F0")
+    print(f"Outline: F0->ArcC0->F1->F2->ArcC2->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11_180->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->F0")

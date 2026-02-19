@@ -106,10 +106,10 @@ IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 # O1 (F1-F2, lower)
 O1_OFFSET_S = 99.0 / 12.0          # 99" south of F2 to north edge
 O1_WIDTH = 25.0 / 12.0             # 25" opening height
-# O2 (F3-F5, centered at RO4 northing center)
+# O2 (F4-F5, centered at RO4 northing center)
 O2_WIDTH = 25.0 / 12.0             # 25" opening width
-# O3 (F3-F5, 4" from F5)
-O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F3 line
+# O3 (F4-F5, 4" from F5)
+O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F4 line
 O3_WIDTH = 32.0 / 12.0             # 32" opening width
 O3_DOOR_WIDTH = 30.0 / 12.0        # 30" door in O3
 # O4 (F6-F7, relative to IW2 west face)
@@ -162,7 +162,7 @@ NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_DIST_FROM_NORTH = 11.0              # 11'0" IW1 north face to north inner wall
 IW8_OFFSET_N_IW1 = 22.0 / 12.0    # 22" IW8 north face above IW1 north face
 F2_GAP_N_IW8 = 4.0 / 12.0         # 4" F2 north of IW8 north face (legacy)
-ARC_F2_SWEEP = 10.0                # 10° F2-F3 arc sweep (F5-F6 = 90° - this)
+ARC_F2_SWEEP = 10.0                # 10° F2-F4 arc sweep (F5-F6 = 90° - this)
 F14_F15_SEG = 9.0                  # 9'0" segment
 ARC_F13_R = 5.627004870830987      # R_a13: ~67.52" (set for 75° F10-F11 sweep)
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing

@@ -11,7 +11,7 @@ _EXPECTED_F = {
     "F0":  ( 1.2407407407,  2.2134933417),
     "F1":  ( 0.5000000000,  3.0416666667),
     "F2":  ( 0.5000000000, 15.8681150588),
-    "F3":  ( 0.5860893996, 16.8521213989),
+    "F4":  ( 0.5860893996, 16.8521213989),
     "F5":  ( 2.0354485763, 25.0718457479),
     "F6":  ( 4.3333333333, 27.0000000000),
     "F7":  ( 9.1666666667, 27.0000000000),
@@ -36,7 +36,7 @@ class TestOutlineGeometry:
         assert isinstance(outline_geo, OutlineGeometry)
 
     def test_20_points(self, outline_geo):
-        for i in [j for j in range(21) if j != 4]:
+        for i in [j for j in range(21) if j != 3]:
             assert f"F{i}" in outline_geo.fp_pts
 
     def test_20_segments(self, outline_geo):

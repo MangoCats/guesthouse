@@ -65,37 +65,37 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         (pts["W2"][0], o1_n), (pts["W2"][0], o1_s),
     ]))
 
-    # O2: F3-F5, diagonal, centered at RO4 northing center
-    _dE2 = pts["F5"][0] - pts["F3"][0]
-    _dN2 = pts["F5"][1] - pts["F3"][1]
+    # O2: F4-F5, diagonal, centered at RO4 northing center
+    _dE2 = pts["F5"][0] - pts["F4"][0]
+    _dN2 = pts["F5"][1] - pts["F4"][1]
     _seg2_len = math.sqrt(_dE2**2 + _dN2**2)
     _ro4_ctr_n = layout.iw6_s - IW2_RO_OFFSET_S - IW2_RO_WIDTH / 2
-    _t2_ctr = (_ro4_ctr_n - pts["F3"][1]) / _dN2
+    _t2_ctr = (_ro4_ctr_n - pts["F4"][1]) / _dN2
     _t2_half = (O2_WIDTH / 2) / _seg2_len
     _t2_start = _t2_ctr - _t2_half
     _t2_end = _t2_ctr + _t2_half
-    openings.append(OuterOpening("O2", "F3", "F5", [
-        (pts["F3"][0] + _t2_start * _dE2, pts["F3"][1] + _t2_start * _dN2),
-        (pts["F3"][0] + _t2_end * _dE2, pts["F3"][1] + _t2_end * _dN2),
-        (pts["W3"][0] + _t2_end * (pts["W5"][0] - pts["W3"][0]),
-         pts["W3"][1] + _t2_end * (pts["W5"][1] - pts["W3"][1])),
-        (pts["W3"][0] + _t2_start * (pts["W5"][0] - pts["W3"][0]),
-         pts["W3"][1] + _t2_start * (pts["W5"][1] - pts["W3"][1])),
+    openings.append(OuterOpening("O2", "F4", "F5", [
+        (pts["F4"][0] + _t2_start * _dE2, pts["F4"][1] + _t2_start * _dN2),
+        (pts["F4"][0] + _t2_end * _dE2, pts["F4"][1] + _t2_end * _dN2),
+        (pts["W4"][0] + _t2_end * (pts["W5"][0] - pts["W4"][0]),
+         pts["W4"][1] + _t2_end * (pts["W5"][1] - pts["W4"][1])),
+        (pts["W4"][0] + _t2_start * (pts["W5"][0] - pts["W4"][0]),
+         pts["W4"][1] + _t2_start * (pts["W5"][1] - pts["W4"][1])),
     ]))
 
-    # O3: F3-F5, diagonal, 4" from F5 along F5-F3 line
-    _dE3 = pts["F5"][0] - pts["F3"][0]
-    _dN3 = pts["F5"][1] - pts["F3"][1]
+    # O3: F4-F5, diagonal, 4" from F5 along F5-F4 line
+    _dE3 = pts["F5"][0] - pts["F4"][0]
+    _dN3 = pts["F5"][1] - pts["F4"][1]
     _seg3_len = math.sqrt(_dE3**2 + _dN3**2)
     _t3_end = 1 - O3_GAP_F5 / _seg3_len       # closer to F5
     _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg3_len  # farther from F5
-    openings.append(OuterOpening("O3", "F3", "F5", [
-        (pts["F3"][0] + _t3_start * _dE3, pts["F3"][1] + _t3_start * _dN3),
-        (pts["F3"][0] + _t3_end * _dE3, pts["F3"][1] + _t3_end * _dN3),
-        (pts["W3"][0] + _t3_end * (pts["W5"][0] - pts["W3"][0]),
-         pts["W3"][1] + _t3_end * (pts["W5"][1] - pts["W3"][1])),
-        (pts["W3"][0] + _t3_start * (pts["W5"][0] - pts["W3"][0]),
-         pts["W3"][1] + _t3_start * (pts["W5"][1] - pts["W3"][1])),
+    openings.append(OuterOpening("O3", "F4", "F5", [
+        (pts["F4"][0] + _t3_start * _dE3, pts["F4"][1] + _t3_start * _dN3),
+        (pts["F4"][0] + _t3_end * _dE3, pts["F4"][1] + _t3_end * _dN3),
+        (pts["W4"][0] + _t3_end * (pts["W5"][0] - pts["W4"][0]),
+         pts["W4"][1] + _t3_end * (pts["W5"][1] - pts["W4"][1])),
+        (pts["W4"][0] + _t3_start * (pts["W5"][0] - pts["W4"][0]),
+         pts["W4"][1] + _t3_start * (pts["W5"][1] - pts["W4"][1])),
     ]))
 
     # O4: F6-F7, horizontal, relative to IW2 west face

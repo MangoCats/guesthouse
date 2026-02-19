@@ -113,18 +113,18 @@ class TestBuildWallData:
 
     def test_s_series_points_exist(self, wall_data):
         pts = wall_data.pts
-        for i in [j for j in range(21) if j != 4]:
+        for i in [j for j in range(21) if j != 3]:
             assert f"S{i}" in pts, f"Missing S{i}"
 
     def test_g_series_points_exist(self, wall_data):
         pts = wall_data.pts
-        for i in [j for j in range(21) if j != 4]:
+        for i in [j for j in range(21) if j != 3]:
             assert f"G{i}" in pts, f"Missing G{i}"
 
     def test_shell_distances(self, wall_data):
         """Shell boundary distances from F-series should match expected insets."""
         pts = wall_data.pts
-        _suffixes = [str(i) for i in range(21) if i != 4]
+        _suffixes = [str(i) for i in range(21) if i != 3]
         # F17: non-tangent junction (line F16-F17 at 60° meets arc C17 with
         # adjusted radius); inner-wall offset ≠ shell_t at that vertex.
         _NON_TANGENT = {"17"}
