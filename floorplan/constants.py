@@ -105,9 +105,9 @@ IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 # Outer-wall openings (numbered CW around outline)
 # O1 (F2-F3, lower)
 O1_OFFSET_S = 99.0 / 12.0          # 99" south of F3 to north edge
-O1_WIDTH = 25.0 / 12.0             # 25" opening height
+O1_WIDTH = 19.0 / 12.0             # 19" opening height
 # O2 (F4-F5, centered at RO4 northing center)
-O2_WIDTH = 25.0 / 12.0             # 25" opening width
+O2_WIDTH = 19.0 / 12.0             # 19" opening width
 # O3 (F4-F5, 4" from F5)
 O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F4 line
 O3_WIDTH = 32.0 / 12.0             # 32" opening width
@@ -140,11 +140,11 @@ F8F9_INNER_TURN_R = OPENING_INSIDE_RADIUS + SHELL_THICKNESS  # ~2.56" (10mm + 2"
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
 # O8 (F14-F15)
-O8_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
+O8_HALF_WIDTH = 9.5 / 12.0         # 9.5" half-width
 # O9, O10, O11
-O9_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
-O10_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
-O11_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
+O9_HALF_WIDTH = 11.5 / 12.0        # 11.5" half-width
+O10_HALF_WIDTH = 11.5 / 12.0       # 11.5" half-width
+O11_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width
 
 # IW5 partition
 IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face

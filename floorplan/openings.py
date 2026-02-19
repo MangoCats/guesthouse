@@ -152,7 +152,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     _iw11_sw = layout.iw11_poly[0]
     _t_sw = ((_iw11_sw[0] - pts["F20"][0]) * _dE9
              + (_iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
-    _ts9 = _t_sw + 5.0 / 12.0 / _seg9_len
+    _ts9 = _t_sw + 6.0 / 12.0 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
     openings.append(OuterOpening("O9", "F20", "F1", [
         (pts["F20"][0] + _ts9 * _dE9, pts["F20"][1] + _ts9 * _dN9),
@@ -164,7 +164,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O10: F20-F1 — 84" wall segment west of O9
-    _ts10 = _te9 + 84.0 / 12.0 / _seg9_len
+    _ts10 = _te9 + 86.0 / 12.0 / _seg9_len
     _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
     openings.append(OuterOpening("O10", "F20", "F1", [
         (pts["F20"][0] + _ts10 * _dE9, pts["F20"][1] + _ts10 * _dN9),
@@ -176,7 +176,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O11: F20-F1 — 70" wall segment past O10 toward F1
-    _ts11 = _te10 + 70.0 / 12.0 / _seg9_len
+    _ts11 = _te10 + 74.0 / 12.0 / _seg9_len
     _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
     openings.append(OuterOpening("O11", "F20", "F1", [
         (pts["F20"][0] + _ts11 * _dE9, pts["F20"][1] + _ts11 * _dN9),
