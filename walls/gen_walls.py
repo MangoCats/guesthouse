@@ -168,7 +168,7 @@ def build_wall_data():
     _title_y = _bldg_ymin - 49
 
     _tb_w, _tb_h = 130, 80
-    _tb_left = _bldg_xmax + 10
+    _tb_left = _bldg_xmax + 30
     _tb_right = _tb_left + _tb_w
     _tb_top = _title_y - 14 * 0.35
     _tb_bottom = _tb_top + _tb_h
