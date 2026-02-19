@@ -140,7 +140,7 @@ F8F9_INNER_TURN_R = OPENING_INSIDE_RADIUS + SHELL_THICKNESS  # ~2.56" (10mm + 2"
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
 # O8 (F14-F15)
-O8_HALF_WIDTH = 9.5 / 12.0         # 9.5" half-width
+O8_HALF_WIDTH = 11.5 / 12.0        # 11.5" half-width
 # O9, O10, O11 (F20-F1 south wall chain)
 O9_HALF_WIDTH = 11.5 / 12.0        # 11.5" half-width
 O10_HALF_WIDTH = 11.5 / 12.0       # 11.5" half-width
