@@ -1295,6 +1295,25 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                f' font-size="7" fill="{APPL_STROKE}" transform="rotate({_bed_ang:.1f},{_bsx:.1f},{_bsy+3:.1f})">'
                f'KING BED</text>')
 
+    # Dresser (34" E-W × 19" N-S) with 15" clearance zone on south side
+    d = layout.dresser
+    dx1, dy1 = to_svg(d.w, d.n)
+    dx2, dy2 = to_svg(d.e, d.s)
+    dw = dx2 - dx1; dh = dy2 - dy1
+    out.append(f'<rect x="{dx1:.1f}" y="{dy1:.1f}" width="{dw:.1f}" height="{dh:.1f}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    dcx, dcy = (dx1 + dx2) / 2, (dy1 + dy2) / 2
+    out.append(f'<text x="{dcx:.1f}" y="{dcy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="{APPL_STROKE}">DRESSER</text>')
+    # Dashed clearance rectangle: 34" E-W × 15" N-S on south side
+    cl_n = d.s
+    cl_s = cl_n - 15.0 / 12.0
+    cx1, cy1 = to_svg(d.w, cl_n)
+    cx2, cy2 = to_svg(d.e, cl_s)
+    cw = cx2 - cx1; ch = cy2 - cy1
+    out.append(f'<rect x="{cx1:.1f}" y="{cy1:.1f}" width="{cw:.1f}" height="{ch:.1f}"'
+               f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" stroke-dasharray="4,3"/>')
+
     if minik:
         # SOFA: 73.2" E-W x 24.6" N-S, 6" east of IW4 west, 2" north of IW1
         sofa_w = layout.iw4_w + 6.0 / 12.0
