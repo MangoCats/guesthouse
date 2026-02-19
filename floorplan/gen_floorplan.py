@@ -1395,6 +1395,17 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         out.append(f'<text x="{db_cx:.1f}" y="{db_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="7" fill="{APPL_STROKE}">DAYBED</text>')
 
+        # ET west: 6" W of DAYBED, north-aligned with DAYBED north edge
+        et2_cx = db_w - 6.0 / 12.0 - et_r
+        et2_cy = db_n - et_r
+        et2_sx, et2_sy = to_svg(et2_cx, et2_cy)
+        out.append('<a href="https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/" target="_blank">')
+        out.append(f'<circle cx="{et2_sx:.1f}" cy="{et2_sy:.1f}" r="{et_r_svg:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        out.append(f'<text x="{et2_sx:.1f}" y="{et2_sy+3:.1f}" text-anchor="middle"'
+                   f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
+        out.append('</a>')
+
         # ROCKER: center E-W between DAYBED and RO1,
         #         center N-S between IW1 and fridge door arc southern extent
         _ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
