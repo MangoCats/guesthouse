@@ -4,6 +4,12 @@ Measures the north-south interior span at every inch of easting across
 the W-series (inner wall) polygon.  Outputs a portrait-Letter SVG with
 the span graph directly above a plan-view structure outline.
 
+Three curves:
+  blue  — total N-S span (south W surface to north W surface)
+  green — south W surface to midline of IW8 or IW1 (whichever is hit first)
+  cyan  — midline of IW8/IW1 to north W surface
+When no 6" IW is intersected, green and cyan both equal the full span.
+
 Output: span/span.svg
 """
 import os, math
@@ -16,12 +22,13 @@ from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import WALL_OUTER, F8F9_INNER_TURN_R
+from floorplan.layout import compute_interior_layout
 
 
 # ── geometry bootstrap ─────────────────────────────────────────
 
 def _build_geometry():
-    """Return (pts, outline_segs, outer_poly, inner_poly)."""
+    """Return (pts, outline_segs, outer_poly, inner_poly, layout)."""
     pts, _ = compute_traverse()
     ai = compute_three_arc(pts)
     ins = compute_inset(pts, ai["R1"], ai["R2"], ai["R3"], ai["nE"], ai["nN"])
@@ -43,30 +50,71 @@ def _build_geometry():
     i9 = next(i for i, p in enumerate(inner_poly)
               if i > i8 and abs(p[0] - w9[0]) < 1e-9 and abs(p[1] - w9[1]) < 1e-9)
     inner_poly[i8:i9 + 1] = w_f8f9
-    return pts, geo.outline_segs, outer_poly, inner_poly
+    layout = compute_interior_layout(pts, inner_poly)
+    return pts, geo.outline_segs, outer_poly, inner_poly, layout
 
 
 # ── span computation ───────────────────────────────────────────
 
-def _compute_spans(inner_poly):
-    """N-S span at every inch of easting.  Returns (eastings, spans) in feet."""
+def _compute_spans(inner_poly, layout):
+    """N-S span at every inch of easting.
+
+    Returns (eastings, spans, south_spans, north_spans) all in feet.
+      spans       — total N-S span (blue curve)
+      south_spans — south W surface to IW midline (green curve)
+      north_spans — IW midline to north W surface (cyan curve)
+    When no IW is intersected, south_spans = north_spans = spans.
+    """
+    iw1_poly = layout.iw1                          # 4-vertex polygon
+    iw8_poly = [(layout.iw8.w, layout.iw8.s),      # convert BBox → polygon
+                (layout.iw8.e, layout.iw8.s),
+                (layout.iw8.e, layout.iw8.n),
+                (layout.iw8.w, layout.iw8.n)]
+
     e_min = min(p[0] for p in inner_poly)
     e_max = max(p[0] for p in inner_poly)
     inch = 1.0 / 12.0
-    eastings, spans = [], []
+    eastings, spans, south_spans, north_spans = [], [], [], []
     e = e_min
     while e <= e_max + 1e-9:
         ns = vert_isects(inner_poly, e)
-        spans.append(max(ns) - min(ns) if len(ns) >= 2 else 0.0)
+        if len(ns) >= 2:
+            south_n = min(ns)
+            north_n = max(ns)
+            span = north_n - south_n
+        else:
+            span = 0.0
+            south_n = north_n = 0.0
+
+        spans.append(span)
+
+        # find IW midline at this easting (IW8 or IW1, whichever first from south)
+        mid_n = None
+        iw1_ns = vert_isects(iw1_poly, e)
+        if len(iw1_ns) >= 2:
+            mid_n = (min(iw1_ns) + max(iw1_ns)) / 2
+        iw8_ns = vert_isects(iw8_poly, e)
+        if len(iw8_ns) >= 2:
+            iw8_mid = (min(iw8_ns) + max(iw8_ns)) / 2
+            if mid_n is None or iw8_mid < mid_n:   # closer to south
+                mid_n = iw8_mid
+
+        if mid_n is not None and span > 0:
+            south_spans.append(mid_n - south_n)
+            north_spans.append(north_n - mid_n)
+        else:
+            south_spans.append(span)
+            north_spans.append(span)
+
         eastings.append(e)
         e += inch
-    return eastings, spans
+    return eastings, spans, south_spans, north_spans
 
 
 # ── SVG generation ─────────────────────────────────────────────
 
-def _generate_svg(pts, outer_poly, inner_poly):
-    eastings, spans = _compute_spans(inner_poly)
+def _generate_svg(pts, outer_poly, inner_poly, layout):
+    eastings, spans, south_spans, north_spans = _compute_spans(inner_poly, layout)
     max_span = max(spans)
     max_span_e = eastings[spans.index(max_span)]
 
@@ -139,7 +187,19 @@ def _generate_svg(pts, outer_poly, inner_poly):
         o.append(f'<text x="{x:.1f}" y="{g_bot + 12}" text-anchor="middle"'
                  f' font-family="Arial" font-size="7" fill="#555">{ft}\'</text>')
 
-    # span curve
+    # green curve — south W surface to IW midline
+    grn = [f"{ex(e):.1f},{sy(s):.1f}" for e, s in zip(eastings, south_spans) if s > 0]
+    if grn:
+        o.append(f'<polyline points="{" ".join(grn)}" fill="none"'
+                 f' stroke="#2E7D32" stroke-width="0.8" stroke-linejoin="round"/>')
+
+    # cyan curve — IW midline to north W surface
+    cyn = [f"{ex(e):.1f},{sy(s):.1f}" for e, s in zip(eastings, north_spans) if s > 0]
+    if cyn:
+        o.append(f'<polyline points="{" ".join(cyn)}" fill="none"'
+                 f' stroke="#00ACC1" stroke-width="0.8" stroke-linejoin="round"/>')
+
+    # blue curve — total span (on top so it's visible where it overlaps)
     crv = [f"{ex(e):.1f},{sy(s):.1f}" for e, s in zip(eastings, spans) if s > 0]
     if crv:
         o.append(f'<polyline points="{" ".join(crv)}" fill="none"'
@@ -159,6 +219,20 @@ def _generate_svg(pts, outer_poly, inner_poly):
              f' font-family="Arial" font-size="9" fill="#333"'
              f' transform="rotate(-90,{lx},{ly:.1f})">Span (ft)</text>')
 
+    # legend
+    leg_x = ML + 8
+    leg_y = g_top + 10
+    for i, (color, label) in enumerate([
+        ("#1565C0", "Total span"),
+        ("#2E7D32", "S wall \u2192 IW mid"),
+        ("#00ACC1", "IW mid \u2192 N wall"),
+    ]):
+        ly_i = leg_y + i * 11
+        o.append(f'<line x1="{leg_x}" y1="{ly_i}" x2="{leg_x + 14}" y2="{ly_i}"'
+                 f' stroke="{color}" stroke-width="1.2"/>')
+        o.append(f'<text x="{leg_x + 17}" y="{ly_i + 3}" font-family="Arial"'
+                 f' font-size="6" fill="#444">{label}</text>')
+
     # ── outline panel ─────────────────────────────────────────
     # F polygon (outer) — gray fill shows walls
     fp = " ".join(f"{ex(p[0]):.1f},{ny(p[1]):.1f}" for p in outer_poly)
@@ -168,6 +242,14 @@ def _generate_svg(pts, outer_poly, inner_poly):
     wp = " ".join(f"{ex(p[0]):.1f},{ny(p[1]):.1f}" for p in inner_poly)
     o.append(f'<polygon points="{wp}" fill="white"'
              f' stroke="#1565C0" stroke-width="0.6"/>')
+
+    # IW1 and IW8 in the outline (show the dividing walls)
+    for wall_poly in [layout.iw1,
+                      [(layout.iw8.w, layout.iw8.s), (layout.iw8.e, layout.iw8.s),
+                       (layout.iw8.e, layout.iw8.n), (layout.iw8.w, layout.iw8.n)]]:
+        wpts = " ".join(f"{ex(p[0]):.1f},{ny(p[1]):.1f}" for p in wall_poly)
+        o.append(f'<polygon points="{wpts}" fill="rgba(100,100,100,0.25)"'
+                 f' stroke="#666" stroke-width="0.4"/>')
 
     # F-series dots + labels
     for i in range(21):
@@ -204,8 +286,8 @@ def _generate_svg(pts, outer_poly, inner_poly):
 # ── entry point ────────────────────────────────────────────────
 
 def main():
-    pts, _, outer_poly, inner_poly = _build_geometry()
-    svg = _generate_svg(pts, outer_poly, inner_poly)
+    pts, _, outer_poly, inner_poly, layout = _build_geometry()
+    svg = _generate_svg(pts, outer_poly, inner_poly, layout)
     outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "span.svg")
     with open(outpath, 'w', encoding='utf-8') as f:
         f.write(svg)
