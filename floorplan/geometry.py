@@ -203,7 +203,7 @@ def _compute_south_wall(
     Depends on F16 already in fp_pts.
     F19-F20: CW arc (C19). F20 exit bearing used by caller for tangency to F0.
     """
-    _sweep = math.asin(1.0 / 9.0)  # arcsin(1/9)
+    _sweep = math.atan(1.0 / 9.0)  # arctan(1/9)
     R_a19 = ARC_F19_R
 
     # F18: 4" east of IW4 east face, at SOUTH_WALL_N
@@ -231,7 +231,7 @@ def _compute_south_wall(
     F19_E = fp_pts["F18"][0] - F18_F19_GAP
     fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
     fp_pts["C19"] = (F19_E, SOUTH_WALL_N + R_a19)
-    # F20: CW arc from F19 with sweep = arcsin(1/9)
+    # F20: CW arc from F19 with sweep = arctan(1/9)
     _theta_f20 = -math.pi / 2 - _sweep  # F19 at -π/2, sweep CW
     fp_pts["F20"] = (fp_pts["C19"][0] + R_a19 * math.cos(_theta_f20),
                      fp_pts["C19"][1] + R_a19 * math.sin(_theta_f20))
@@ -256,7 +256,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
 
     # F1: tangent to line from F20 on arc C1 (CW, radius R_a1, center at F2 northing)
     # Exit bearing from F20 (same sweep as C19 arc)
-    _sweep = math.asin(1.0 / 9.0)
+    _sweep = math.atan(1.0 / 9.0)
     _exit_angle = -math.pi - _sweep  # CW tangent at F20: radius_angle - π/2
     _ex = math.cos(_exit_angle)
     _ey = math.sin(_exit_angle)
