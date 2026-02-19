@@ -2193,7 +2193,7 @@ if __name__ == "__main__":
         f.write(minik_content)
     print(f"Floorplan (minik) written to {minik_path}")
 
-    db_content = render_floorplan_svg(data, db=True)
+    db_content = render_floorplan_svg(data, room_title="Parent Suite with Daybed", db=True)
     db_path = os.path.join(base_dir, "floorplan_db.svg")
     with open(db_path, "w") as f:
         f.write(db_content)
