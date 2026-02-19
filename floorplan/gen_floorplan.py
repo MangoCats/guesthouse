@@ -1616,7 +1616,7 @@ def _render_dimensions(out, data, layout):
 
     # IW1-north → F9-F11 south face dimension
     iw1_n = layout.iw1_n
-    dim_e = (pts["F9"][0] + pts["F11"][0]) / 2
+    dim_e = (pts["F9"][0] + pts["F11"][0]) / 2 + 12.0 / 12.0
     dim_line_v(out, dim_e, iw1_n, pts["W9"][1], fmt_dist(pts["W9"][1] - iw1_n), to_svg)
 
     # IW2-east → inside F12-F13 wall dimension
