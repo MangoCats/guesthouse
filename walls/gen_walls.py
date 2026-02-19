@@ -18,6 +18,7 @@ from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import WALL_OUTER
 from floorplan.openings import compute_rough_openings
+from floorplan.roof import compute_roof_geometry
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges,
@@ -136,6 +137,7 @@ class WallData(NamedTuple):
     ft_per_inch: float
     g_f8f9_poly: list      # G-series F8-F9 straight-arc-straight polyline
     w_f8f9_poly: list      # W-series F8-F9 straight-arc-straight polyline
+    roof: object           # RoofGeometry
 
 
 def build_wall_data():
@@ -204,6 +206,7 @@ def build_wall_data():
         ft_per_inch=_ft_per_inch,
         g_f8f9_poly=g_f8f9_poly,
         w_f8f9_poly=w_f8f9_poly,
+        roof=compute_roof_geometry(pts, radii),
     )
 
 
@@ -893,6 +896,14 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                    f' width="{iw_col[-1] - tbl_left:.1f}"'
                    f' height="{iw_border_bottom - iw_border_top:.1f}"'
                    f' fill="none" stroke="#999" stroke-width="0.5"/>')
+
+    # --- Roof outline (dotted) ---
+    from roof.gen_roof import _roof_polyline
+    roof_poly = _roof_polyline(data.roof)
+    roof_svg = " ".join(
+        f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in roof_poly)
+    out.append(f'<polygon points="{roof_svg}" fill="none"'
+               f' stroke="#333" stroke-width="0.6" stroke-dasharray="3,2"/>')
 
     out.append('</svg>')
     return "\n".join(out)
