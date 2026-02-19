@@ -966,17 +966,17 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
     elif not minik:
-        # Door arc: hinged at NE corner, 32.75" door, sweeps from west to north
+        # Door arc: hinged at NW corner, 32.75" door, sweeps from north to east
         fr_door = 32.75 / 12.0
-        hx, hy = to_svg(fr_e, fr_n)
-        tip_x, tip_y = to_svg(fr_e, fr_n + fr_door)
+        hx, hy = to_svg(fr_w, fr_n)
+        tip_x, tip_y = to_svg(fr_w, fr_n + fr_door)
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         n_arc = 20
         arc_pts = []
         for i in range(n_arc + 1):
-            angle = math.pi / 2 + i * (math.pi / 2) / n_arc  # 90° to 180°
-            ae = fr_e + fr_door * math.cos(angle)
+            angle = math.pi / 2 - i * (math.pi / 2) / n_arc  # 90° to 0°
+            ae = fr_w + fr_door * math.cos(angle)
             an = fr_n + fr_door * math.sin(angle)
             ax, ay = to_svg(ae, an)
             arc_pts.append(f"{ax:.1f},{ay:.1f}")
