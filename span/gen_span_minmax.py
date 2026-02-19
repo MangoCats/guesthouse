@@ -9,7 +9,8 @@ of the rotated x-axis.  Three curves per panel:
 When no IW centerline is intersected, green and cyan equal the full span.
 
 The rotation with the lowest maximum total span is highlighted.
-A fine search (0.5 deg steps, +/-4.5 deg around the coarse minimum) refines
+A fine search (0.5 deg steps, +/-4.5 deg around the coarse minimum) and a
+superfine search (0.1 deg steps, +/-0.9 deg around the fine minimum) refine
 the exact minimum angle.
 
 Output: span/span_minmax.svg
@@ -201,13 +202,28 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
             fine_best_angle = fine_a
         fine_a += 0.5
 
+    # superfine search: 0.1 deg steps, +/-0.9 deg around fine minimum
+    sf_best_span = fine_best_span
+    sf_best_angle = fine_best_angle
+    sf_a = fine_best_angle - 0.9
+    while sf_a <= fine_best_angle + 0.9 + 1e-9:
+        ms = _max_span_at_angle(inner_poly, iw_cls, sf_a, cx, cy)
+        if ms < sf_best_span:
+            sf_best_span = ms
+            sf_best_angle = sf_a
+        sf_a += 0.1
+
     # full data for the refined minimum angle
     refined = _compute_rotation_data(
-        fine_best_angle, outer_poly, inner_poly, iw_cls, cx, cy)
+        sf_best_angle, outer_poly, inner_poly, iw_cls, cx, cy)
 
-    fine_ang_str = (f"{fine_best_angle:.1f}".rstrip('0').rstrip('.')
-                    if fine_best_angle != int(fine_best_angle)
-                    else f"{int(fine_best_angle)}")
+    def _fmt_angle(a):
+        if a == int(a):
+            return f"{int(a)}"
+        s = f"{a:.1f}"
+        return s.rstrip('0').rstrip('.')
+
+    ref_ang_str = _fmt_angle(sf_best_angle)
 
     # global bounds (include refined panel)
     all_panels = all_data + [refined]
@@ -242,8 +258,8 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
     o.append(f'<text x="{PW / 2}" y="{MT - 12}" text-anchor="middle"'
              f' font-family="Arial" font-size="13" font-weight="bold"'
              f' fill="#222">Span vs. Rotation (5\u00b0\u2013175\u00b0)'
-             f' \u2014 min max: {fmt_dist(fine_best_span)}'
-             f' at {fine_ang_str}\u00b0</text>')
+             f' \u2014 min max: {fmt_dist(sf_best_span)}'
+             f' at {ref_ang_str}\u00b0</text>')
 
     # legend
     ly = MT + 2
@@ -379,8 +395,8 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
         ang = d['angle']
         is_min = ang == mm_angle
         if is_min:
-            tag = (f" \u2190 MIN (refined: {fmt_dist(fine_best_span)}"
-                   f" at {fine_ang_str}\u00b0)")
+            tag = (f" \u2190 MIN (refined: {fmt_dist(sf_best_span)}"
+                   f" at {ref_ang_str}\u00b0)")
         else:
             tag = ""
         _panel(d,
@@ -391,7 +407,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
 
     # ── render refined minimum panel ──────────────────────────
     _panel(refined,
-           f'{fine_ang_str}\u00b0  max: {fmt_dist(refined["max_span"])}'
+           f'{ref_ang_str}\u00b0  max: {fmt_dist(refined["max_span"])}'
            f' \u2014 REFINED MIN',
            "#C62828", "bold", True)
 
