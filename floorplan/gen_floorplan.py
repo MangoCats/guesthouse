@@ -1071,10 +1071,6 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         out.append('<a href="https://www.webstaurantstore.com/table-s-s-18x60-s-s-under/600TS1860S.html" target="_blank">')
         out.append(f'<rect x="{wc_sx1:.1f}" y="{wc_sy1:.1f}" width="{wc_sw:.1f}" height="{wc_sh:.1f}"'
                    f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-        wc_cx = (wc_sx1 + wc_sx2) / 2
-        wc_cy = (wc_sy1 + wc_sy2) / 2
-        out.append(f'<text x="{wc_cx:.1f}" y="{wc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
-                   f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
         out.append('</a>')
 
     # Microwave on 18" counter (non-minik): 19.5" E-W x 16-5/8" N-S
