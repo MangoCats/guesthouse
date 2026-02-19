@@ -945,6 +945,23 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' font-size="7" fill="{APPL_STROKE}">{label}</text>')
         if href:
             out.append('</a>')
+        # Dashed door/drawer extension rectangles
+        if label == "STOVE":
+            _ext = 24.0 / 12.0
+            _dx1, _dy1 = to_svg(sw_e, sw_n)
+            _dx2, _dy2 = to_svg(ne_e, sw_n - _ext)
+            _dw = _dx2 - _dx1; _dh = _dy2 - _dy1
+            out.append(f'<rect x="{_dx1:.1f}" y="{_dy1:.1f}" width="{_dw:.1f}" height="{_dh:.1f}"'
+                       f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"'
+                       f' stroke-dasharray="4,3"/>')
+        elif label == "D/W":
+            _ext = 31.0 / 12.0
+            _dx1, _dy1 = to_svg(sw_e, sw_n)
+            _dx2, _dy2 = to_svg(ne_e, sw_n - _ext)
+            _dw = _dx2 - _dx1; _dh = _dy2 - _dy1
+            out.append(f'<rect x="{_dx1:.1f}" y="{_dy1:.1f}" width="{_dw:.1f}" height="{_dh:.1f}"'
+                       f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"'
+                       f' stroke-dasharray="4,3"/>')
 
     # Fridge
     if minik:
