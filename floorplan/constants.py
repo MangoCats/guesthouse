@@ -103,8 +103,8 @@ IW6_RO_OFFSET_W = 3.0 / 12.0      # 3" west of IW2 west face
 IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
 # Outer-wall openings (numbered CW around outline)
-# O1 (F1-F2, lower)
-O1_OFFSET_S = 99.0 / 12.0          # 99" south of F2 to north edge
+# O1 (F1-F3, lower)
+O1_OFFSET_S = 99.0 / 12.0          # 99" south of F3 to north edge
 O1_WIDTH = 25.0 / 12.0             # 25" opening height
 # O2 (F4-F5, centered at RO4 northing center)
 O2_WIDTH = 25.0 / 12.0             # 25" opening width
@@ -155,14 +155,14 @@ CORNER_NW_R = 28.0 / 12.0         # R_a5: 28" NW corner
 UPPER_E_R = 28.0 / 12.0           # R_a7: 28" upper east
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
 ARC_180_R = 28.0 / 12.0           # R_a11: 28" 180-degree arc
-ARC_F2_R = 68.0 / 12.0             # R_a2: 68" arc radius
+ARC_F3_R = 68.0 / 12.0             # R_a3: 68" arc radius
 F6_EAST_ADJ = 6.0 / 12.0           # 6" F6 east adjustment
 F6_HEIGHT = 26.0 + 6.0/12.0       # 26'6" F6-F7 line north of F0
 NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_DIST_FROM_NORTH = 11.0              # 11'0" IW1 north face to north inner wall
 IW8_OFFSET_N_IW1 = 22.0 / 12.0    # 22" IW8 north face above IW1 north face
-F2_GAP_N_IW8 = 4.0 / 12.0         # 4" F2 north of IW8 north face (legacy)
-ARC_F2_SWEEP = 10.0                # 10° F2-F4 arc sweep (F5-F6 = 90° - this)
+F3_GAP_N_IW8 = 4.0 / 12.0         # 4" F3 north of IW8 north face (legacy)
+ARC_F3_SWEEP = 10.0                # 10° F3-F4 arc sweep (F5-F6 = 90° - this)
 F14_F15_SEG = 9.0                  # 9'0" segment
 ARC_F13_R = 5.627004870830987      # R_a13: ~67.52" (set for 75° F10-F11 sweep)
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
@@ -172,7 +172,7 @@ F15_OFFSET_E = 9.0 + 3.0/12.0     # 9'3" F15 east of iw8_e
 F16_F17_SEG = 5.0                  # 5' F16-F17 segment length
 F18_OFFSET_E = 4.0 / 12.0         # 4" F18 east of IW4 east face
 F18_F19_GAP = 12.0 / 12.0         # 12" F18-F19 distance
-ARC_F19_R = 17.747548595415985    # R_a19: ~213" (set for F1-F2 = 14'11.5")
+ARC_F19_R = 17.747548595415985    # R_a19: ~213" (set for F1-F3 = 14'11.5")
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)

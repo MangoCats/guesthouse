@@ -273,7 +273,7 @@ def build_floorplan_data():
     # --- Fit content on letter landscape (792x612) page ---
     _margin_top = 36   # 0.5" top margin
     _margin = 72       # 1" margins on left, right, bottom
-    _f_names = [f"F{i}" for i in range(21) if i != 3]
+    _f_names = [f"F{i}" for i in range(21) if i != 2]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -296,7 +296,7 @@ def build_floorplan_data():
     _na_tip_y = _na_text_y + 6
     _na_base_y = _na_tip_y + 36
 
-    _ext_w_x = to_svg(pts["F2"][0] - 2.7, 0)[0]
+    _ext_w_x = to_svg(pts["F3"][0] - 2.7, 0)[0]
     _ext_s_y = to_svg(0, pts["F19"][1] - 3.0)[1]
     _cb_xmin = min(_bldg_xmin - 25, _ext_w_x - 10)
     _cb_xmax = _tb_right + 5
@@ -1711,8 +1711,8 @@ def _render_dimensions(out, data, layout):
                fmt_dist(_ro3_w_ctr[0] - _o1_e_ctr[0]), to_svg)
 
     # West wall interior widths
-    dim_line_h(out, pts["W2"][0], pts["F2"][1], layout.iw2.w,
-               fmt_dist(layout.iw2.w - pts["W2"][0]), to_svg)
+    dim_line_h(out, pts["W3"][0], pts["F3"][1], layout.iw2.w,
+               fmt_dist(layout.iw2.w - pts["W3"][0]), to_svg)
     dim_line_h(out, pts["W5"][0], pts["F5"][1], layout.iw2.w,
                fmt_dist(layout.iw2.w - pts["W5"][0]), to_svg)
 
@@ -1726,7 +1726,7 @@ def _render_dimensions(out, data, layout):
                fmt_dist(layout.iw6_s - layout.iw8.n), to_svg)
 
     # External dimensions
-    dim_ext_e = pts["F2"][0] - 2.7
+    dim_ext_e = pts["F3"][0] - 2.7
     dim_line_v(out, dim_ext_e, pts["F0"][1], pts["F6"][1],
                fmt_dist(pts["F6"][1] - pts["F0"][1]), to_svg)
 

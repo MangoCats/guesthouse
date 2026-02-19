@@ -58,7 +58,7 @@ No circular dependencies. floorplan/ never imports from survey/ or walls/.
 - Outline points: F-series (`F0`..`F20`), primary naming; U-series derived as aliases in survey/gen_path_svg.py
 - Inner wall points: W-series (`W0`..`W20`), 8" inset from outline, matching F-series numbering
 - Shell boundary points: S-series (`S0`..`S20`) = 2" inset (inner face of outer shell); G-series (`G0`..`G20`) = 6" inset (outer face of inner shell). Computed in `walls/gen_walls.py` via `compute_inner_walls` with custom inset + rename
-- Arc centers: C-series by lower point number (`C0`, `C2`, `C5`, `C7`, `C8`, `C10`, `C11`, `C13`, `C15`, `C17`, `C19`); radii: R_a-series (`R_a0`, `R_a2`, ..., `R_a19`)
+- Arc centers: C-series by lower point number (`C0`, `C3`, `C5`, `C7`, `C8`, `C10`, `C11`, `C13`, `C15`, `C17`, `C19`); radii: R_a-series (`R_a0`, `R_a3`, ..., `R_a19`)
 - Traverse arc centers: `TC1`, `TC2`, `TC3` (outer/inset path)
 - `outline_segs`: list of `LineSeg`/`ArcSeg` defining the closed outline path (CW traversal: F0→F1→...→F20→F0)
 - All radii in `OutlineGeometry.radii` dict; passed to `compute_inner_walls`

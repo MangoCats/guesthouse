@@ -7,7 +7,7 @@ from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
-    ARC_F2_R, ARC_F2_SWEEP, F6_EAST_ADJ,
+    ARC_F3_R, ARC_F3_SWEEP, F6_EAST_ADJ,
     F6_HEIGHT, NW_SHIFT,
     F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, F16_F17_SEG,
@@ -64,38 +64,38 @@ def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
 
 
 def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
-    """West wall: F2, F4, F5, C2. Returns R_a2.
+    """West wall: F3, F4, F5, C3. Returns R_a3.
 
-    F2 northing solved from fixed sweep angle ARC_F2_SWEEP and tangent
-    constraint (F4-F5 tangent to both arcs F2-F4 and F5-F6).
+    F3 northing solved from fixed sweep angle ARC_F3_SWEEP and tangent
+    constraint (F4-F5 tangent to both arcs F3-F4 and F5-F6).
     Depends on F1, F6, C5 already in fp_pts.
     """
-    R_a2 = ARC_F2_R
+    R_a3 = ARC_F3_R
     R_a5 = CORNER_NW_R
 
-    F2_E = fp_pts["F1"][0]
+    F3_E = fp_pts["F1"][0]
     C5_E, C5_N = fp_pts["C5"]
 
-    # Fixed sweep angle γ = ARC_F2_SWEEP
-    _gamma = math.radians(ARC_F2_SWEEP)
+    # Fixed sweep angle γ = ARC_F3_SWEEP
+    _gamma = math.radians(ARC_F3_SWEEP)
 
-    # Solve F2_N from tangent constraint:
-    # (C5_N - F2_N)·sin(γ) - (C5_E - F2_E - R_a2)·cos(γ) = R_a2 - R_a5
-    _dE_fixed = C5_E - F2_E - R_a2
-    F2_N = C5_N - (R_a2 - R_a5 + _dE_fixed * math.cos(_gamma)) / math.sin(_gamma)
+    # Solve F3_N from tangent constraint:
+    # (C5_N - F3_N)·sin(γ) - (C5_E - F3_E - R_a3)·cos(γ) = R_a3 - R_a5
+    _dE_fixed = C5_E - F3_E - R_a3
+    F3_N = C5_N - (R_a3 - R_a5 + _dE_fixed * math.cos(_gamma)) / math.sin(_gamma)
 
-    fp_pts["F2"] = (F2_E, F2_N)
-    fp_pts["C2"] = (F2_E + R_a2, F2_N)
+    fp_pts["F3"] = (F3_E, F3_N)
+    fp_pts["C3"] = (F3_E + R_a3, F3_N)
 
     # F4 and F5 at angle (π - γ) from their respective centers
     _angle = math.pi - _gamma
-    C2_E, C2_N = fp_pts["C2"]
-    fp_pts["F4"] = (C2_E + R_a2 * math.cos(_angle),
-                    C2_N + R_a2 * math.sin(_angle))
+    C3_E, C3_N = fp_pts["C3"]
+    fp_pts["F4"] = (C3_E + R_a3 * math.cos(_angle),
+                    C3_N + R_a3 * math.sin(_angle))
     fp_pts["F5"] = (C5_E + R_a5 * math.cos(_angle),
                     C5_N + R_a5 * math.sin(_angle))
 
-    return R_a2
+    return R_a3
 
 
 def _compute_upper_east_arcs(fp_pts: dict[str, Point]) -> tuple[float, float]:
@@ -243,7 +243,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
 
     R_a0 = _compute_ne_corner(fp_pts, anchors)
     R_a5 = _compute_nw_corner(fp_pts, anchors)
-    R_a2 = _compute_west_wall(fp_pts)
+    R_a3 = _compute_west_wall(fp_pts)
     R_a7, R_a8 = _compute_upper_east_arcs(fp_pts)
     R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
     R_a17, R_a19 = _compute_south_wall(fp_pts)
@@ -266,8 +266,8 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     # --- Build outline segments (F-series) ---
     outline_segs: list[Segment] = [
         ArcSeg("F0", "F1", "C0", R_a0, "CW", 20),
-        LineSeg("F1", "F2"),
-        ArcSeg("F2", "F4", "C2", R_a2, "CW", 20),
+        LineSeg("F1", "F3"),
+        ArcSeg("F3", "F4", "C3", R_a3, "CW", 20),
         LineSeg("F4", "F5"),
         ArcSeg("F5", "F6", "C5", R_a5, "CW", 20),
         LineSeg("F6", "F7"),
@@ -288,7 +288,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     ]
 
     radii = {
-        "R_a0": R_a0, "R_a2": R_a2, "R_a5": R_a5,
+        "R_a0": R_a0, "R_a3": R_a3, "R_a5": R_a5,
         "R_a7": R_a7, "R_a8": R_a8, "R_a10": R_a10, "R_a11": R_a11,
         "R_a13": R_a13, "R_a15": R_a15, "R_a17": R_a17,
         "R_a19": R_a19,

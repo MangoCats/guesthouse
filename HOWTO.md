@@ -59,9 +59,9 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
 ### Example (real code)
 
 ```python
-# F1-F2 east face to IW3 west face, 1' north of IW7 north face
+# F1-F3 east face to IW3 west face, 1' north of IW7 north face
 dim_n = layout.ctr.n + layout.iwt3 + 1.0
-dim_line_h(out, pts["W2"][0], dim_n, layout.iw3.w, fmt_dist(layout.iw3.w - pts["W2"][0]), to_svg)
+dim_line_h(out, pts["W3"][0], dim_n, layout.iw3.w, fmt_dist(layout.iw3.w - pts["W3"][0]), to_svg)
 ```
 
 ---
@@ -76,12 +76,12 @@ The outline traverses CW (as viewed from above): F0 → F1 → ... → F20 → F
 
 | Wall side of building | Outer (exterior) face | Inner (interior) face |
 |-|-|-|
-| **West** (F1-F2, F4-F5) | `pts["F<n>"][0]` (smaller easting) | `pts["W<n>"][0]` (larger easting) |
+| **West** (F1-F3, F4-F5) | `pts["F<n>"][0]` (smaller easting) | `pts["W<n>"][0]` (larger easting) |
 | **East** (F14-F15) | `pts["F<n>"][0]` (larger easting) | `pts["W<n>"][0]` (smaller easting) |
 | **North** (F6-F7) | `pts["F<n>"][1]` (larger northing) | `pts["W<n>"][1]` (smaller northing) |
 | **South** (F18-F19, F21-F0) | `pts["F<n>"][1]` (smaller northing) | `pts["W<n>"][1]` (larger northing) |
 
-**Key insight:** For walls on the west side (like F1-F2), the "east face" is the **inner** face at `pts["W<n>"]`, not the F-series point.
+**Key insight:** For walls on the west side (like F1-F3), the "east face" is the **inner** face at `pts["W<n>"]`, not the F-series point.
 
 ### Interior walls
 
