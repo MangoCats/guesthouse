@@ -993,9 +993,9 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         ice_w = fr_e + 3.0 / 12.0
         ice_s = back_n - 3.0 / 12.0 - ICE_DEPTH
     else:
-        # ICE: 6" east of D/W, against W9-W10 wall
+        # ICE: 6" east of D/W, 3" south of W9-W10 wall
         ice_w = dw_e + 6.0 / 12.0
-        ice_s = back_n - ICE_DEPTH
+        ice_s = back_n - KITCHEN_APPL_GAP - ICE_DEPTH
     ice_e = ice_w + ICE_WIDTH
     ice_n = ice_s + ICE_DEPTH
     ix1, iy1 = to_svg(ice_w, ice_n)
