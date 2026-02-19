@@ -118,73 +118,75 @@ def _max_span_at_angle(inner_poly, iw_cls, angle, cx, cy):
     return best
 
 
+# ── full rotation data ─────────────────────────────────────────
+
+def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy):
+    """Compute full span data for one rotation angle."""
+    rad = math.radians(angle)
+    ca, sa = math.cos(rad), math.sin(rad)
+    r_outer = _rot_poly(outer_poly, cx, cy, ca, sa)
+    r_inner = _rot_poly(inner_poly, cx, cy, ca, sa)
+    r_cls = [(_rot_pt(c[0], cx, cy, ca, sa),
+              _rot_pt(c[1], cx, cy, ca, sa)) for c in iw_cls]
+
+    all_vis = r_outer + r_inner
+    e_min = min(p[0] for p in all_vis)
+    e_max = max(p[0] for p in all_vis)
+    n_min = min(p[1] for p in all_vis)
+    n_max = max(p[1] for p in all_vis)
+
+    ie_min = min(p[0] for p in r_inner)
+    ie_max = max(p[0] for p in r_inner)
+    inch = 1.0 / 12.0
+    eastings, spans, s_spans, n_spans = [], [], [], []
+    e = ie_min
+    while e <= ie_max + 1e-9:
+        ns = vert_isects(r_inner, e)
+        if len(ns) >= 2:
+            bot, top = min(ns), max(ns)
+            span = top - bot
+        else:
+            span = bot = top = 0.0
+        spans.append(span)
+
+        iw_ns = []
+        for cl in r_cls:
+            n = _seg_vert_isect(cl[0], cl[1], e)
+            if n is not None and span > 0 and bot < n < top:
+                iw_ns.append(n)
+        if iw_ns and span > 0:
+            s_spans.append(min(iw_ns) - bot)
+            n_spans.append(top - max(iw_ns))
+        else:
+            s_spans.append(span)
+            n_spans.append(span)
+
+        eastings.append(e)
+        e += inch
+
+    max_span = max(spans) if spans else 0
+    max_e = eastings[spans.index(max_span)] if spans else 0
+    return dict(
+        angle=angle, eastings=eastings, spans=spans,
+        s_spans=s_spans, n_spans=n_spans,
+        r_outer=r_outer, r_inner=r_inner, r_cls=r_cls,
+        max_span=max_span, max_e=max_e,
+        e_min=e_min, e_max=e_max, n_min=n_min, n_max=n_max,
+    )
+
+
 # ── SVG generation ─────────────────────────────────────────────
 
 def _generate_svg(pts, outer_poly, inner_poly, layout):
     iw_cls = _extract_iw_centerlines(layout)
     cx = sum(p[0] for p in inner_poly) / len(inner_poly)
     cy = sum(p[1] for p in inner_poly) / len(inner_poly)
-    angles = list(range(5, 176, 5))
 
-    # pre-compute all rotations
-    all_data = []
-    for angle in angles:
-        rad = math.radians(angle)
-        ca, sa = math.cos(rad), math.sin(rad)
-        r_outer = _rot_poly(outer_poly, cx, cy, ca, sa)
-        r_inner = _rot_poly(inner_poly, cx, cy, ca, sa)
-        r_cls = [(_rot_pt(c[0], cx, cy, ca, sa),
-                  _rot_pt(c[1], cx, cy, ca, sa)) for c in iw_cls]
+    # coarse rotations (5 deg steps)
+    all_data = [_compute_rotation_data(a, outer_poly, inner_poly, iw_cls, cx, cy)
+                for a in range(5, 176, 5)]
 
-        all_vis = r_outer + r_inner
-        e_min = min(p[0] for p in all_vis)
-        e_max = max(p[0] for p in all_vis)
-        n_min = min(p[1] for p in all_vis)
-        n_max = max(p[1] for p in all_vis)
-
-        ie_min = min(p[0] for p in r_inner)
-        ie_max = max(p[0] for p in r_inner)
-        inch = 1.0 / 12.0
-        eastings, spans, s_spans, n_spans = [], [], [], []
-        e = ie_min
-        while e <= ie_max + 1e-9:
-            ns = vert_isects(r_inner, e)
-            if len(ns) >= 2:
-                bot, top = min(ns), max(ns)
-                span = top - bot
-            else:
-                span = bot = top = 0.0
-            spans.append(span)
-
-            iw_ns = []
-            for cl in r_cls:
-                n = _seg_vert_isect(cl[0], cl[1], e)
-                if n is not None and span > 0 and bot < n < top:
-                    iw_ns.append(n)
-            if iw_ns and span > 0:
-                s_spans.append(min(iw_ns) - bot)
-                n_spans.append(top - max(iw_ns))
-            else:
-                s_spans.append(span)
-                n_spans.append(span)
-
-            eastings.append(e)
-            e += inch
-
-        max_span = max(spans) if spans else 0
-        max_e = eastings[spans.index(max_span)] if spans else 0
-        all_data.append(dict(
-            angle=angle, eastings=eastings, spans=spans,
-            s_spans=s_spans, n_spans=n_spans,
-            r_outer=r_outer, r_inner=r_inner, r_cls=r_cls,
-            max_span=max_span, max_e=max_e,
-            e_min=e_min, e_max=e_max, n_min=n_min, n_max=n_max,
-        ))
-
-    # global bounds and coarse best angle
-    g_e_min = min(d['e_min'] for d in all_data)
-    g_e_max = max(d['e_max'] for d in all_data)
-    g_max_span = max(d['max_span'] for d in all_data)
+    # coarse best angle
     mm_span = min(d['max_span'] for d in all_data)
     mm_angle = next(d['angle'] for d in all_data if d['max_span'] == mm_span)
 
@@ -199,6 +201,20 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
             fine_best_angle = fine_a
         fine_a += 0.5
 
+    # full data for the refined minimum angle
+    refined = _compute_rotation_data(
+        fine_best_angle, outer_poly, inner_poly, iw_cls, cx, cy)
+
+    fine_ang_str = (f"{fine_best_angle:.1f}".rstrip('0').rstrip('.')
+                    if fine_best_angle != int(fine_best_angle)
+                    else f"{int(fine_best_angle)}")
+
+    # global bounds (include refined panel)
+    all_panels = all_data + [refined]
+    g_e_min = min(d['e_min'] for d in all_panels)
+    g_e_max = max(d['e_max'] for d in all_panels)
+    g_max_span = max(d['max_span'] for d in all_panels)
+
     # page layout (portrait Letter width)
     PW = 612
     ML, MR, MT = 62, 20, 40
@@ -210,9 +226,9 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
     y_cap = math.ceil(g_max_span)                 # Y-axis cap (ft)
     ys = GH / y_cap                               # pt per span-foot
 
-    # total SVG height
+    # total SVG height (coarse panels + refined panel)
     th = MT + 16                                  # title + legend
-    for d in all_data:
+    for d in all_panels:
         oh = (d['n_max'] - d['n_min']) * xs
         th += 18 + GH + 14 + 8 + oh + PGAP
     th += 20                                      # bottom margin
@@ -223,9 +239,6 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
     o.append('<rect width="100%" height="100%" fill="white"/>')
 
     # title
-    fine_ang_str = (f"{fine_best_angle:.1f}".rstrip('0').rstrip('.')
-                    if fine_best_angle != int(fine_best_angle)
-                    else f"{int(fine_best_angle)}")
     o.append(f'<text x="{PW / 2}" y="{MT - 12}" text-anchor="middle"'
              f' font-family="Arial" font-size="13" font-weight="bold"'
              f' fill="#222">Span vs. Rotation (5\u00b0\u2013175\u00b0)'
@@ -250,124 +263,137 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
     def ex(e):
         return ML + (e - g_e_min) * xs
 
-    for d in all_data:
-        ang = d['angle']
-        is_min = ang == mm_angle
+    # ── panel renderer (nested to share layout vars) ──────────
+    def _panel(d, title_text, title_color, title_weight, highlight):
+        nonlocal yc
         oh = (d['n_max'] - d['n_min']) * xs
 
-        # panel title
         yc += 14
-        tc = "#C62828" if is_min else "#333"
-        tw = "bold" if is_min else "normal"
-        if is_min:
-            tag = (f" \u2190 MIN (refined: {fmt_dist(fine_best_span)}"
-                   f" at {fine_ang_str}\u00b0)")
-        else:
-            tag = ""
         o.append(f'<text x="{ML}" y="{yc}" font-family="Arial"'
-                 f' font-size="9" fill="{tc}" font-weight="{tw}">'
-                 f'{ang}\u00b0  max: {fmt_dist(d["max_span"])}{tag}</text>')
+                 f' font-size="9" fill="{title_color}"'
+                 f' font-weight="{title_weight}">{title_text}</text>')
         yc += 4
 
         gt = yc                                   # graph top
         gb = gt + GH                              # graph bottom
 
-        # highlight min panel
-        if is_min:
+        if highlight:
             ph = GH + 14 + 8 + oh
             o.append(f'<rect x="{ML - 4}" y="{gt - 2}" width="{pw + 8}"'
                      f' height="{ph + 4:.0f}" fill="rgba(198,40,40,0.04)"'
                      f' stroke="#C62828" stroke-width="0.5" rx="3"/>')
 
-        # graph frame
         o.append(f'<rect x="{ML}" y="{gt}" width="{pw}" height="{GH}"'
                  f' fill="none" stroke="#bbb" stroke-width="0.5"/>')
 
-        # Y grid + labels
         ystep = 2 if y_cap > 14 else 1
         for ft in range(0, y_cap + 1, ystep):
             yy = gb - ft * ys
             if ft > 0:
-                o.append(f'<line x1="{ML}" y1="{yy:.1f}" x2="{ML + pw}" y2="{yy:.1f}"'
+                o.append(f'<line x1="{ML}" y1="{yy:.1f}"'
+                         f' x2="{ML + pw}" y2="{yy:.1f}"'
                          f' stroke="#eaeaea" stroke-width="0.3"/>')
-            o.append(f'<line x1="{ML - 3}" y1="{yy:.1f}" x2="{ML}" y2="{yy:.1f}"'
+            o.append(f'<line x1="{ML - 3}" y1="{yy:.1f}"'
+                     f' x2="{ML}" y2="{yy:.1f}"'
                      f' stroke="#666" stroke-width="0.5"/>')
-            o.append(f'<text x="{ML - 5}" y="{yy + 2.5:.1f}" text-anchor="end"'
-                     f' font-family="Arial" font-size="6" fill="#555">{ft}\'</text>')
+            o.append(f'<text x="{ML - 5}" y="{yy + 2.5:.1f}"'
+                     f' text-anchor="end" font-family="Arial"'
+                     f' font-size="6" fill="#555">{ft}\'</text>')
 
-        # X ticks (every 5 ft)
         for ft in range(0, int(math.ceil(gw)) + 1, 5):
             xx = ML + ft * xs
             if xx > ML + pw + 0.5:
                 break
             if 0 < ft < gw:
-                o.append(f'<line x1="{xx:.1f}" y1="{gt}" x2="{xx:.1f}" y2="{gb}"'
+                o.append(f'<line x1="{xx:.1f}" y1="{gt}"'
+                         f' x2="{xx:.1f}" y2="{gb}"'
                          f' stroke="#f0f0f0" stroke-width="0.3"/>')
-            o.append(f'<line x1="{xx:.1f}" y1="{gb}" x2="{xx:.1f}" y2="{gb + 3}"'
+            o.append(f'<line x1="{xx:.1f}" y1="{gb}"'
+                     f' x2="{xx:.1f}" y2="{gb + 3}"'
                      f' stroke="#666" stroke-width="0.5"/>')
-            o.append(f'<text x="{xx:.1f}" y="{gb + 10}" text-anchor="middle"'
-                     f' font-family="Arial" font-size="5" fill="#555">{ft}\'</text>')
+            o.append(f'<text x="{xx:.1f}" y="{gb + 10}"'
+                     f' text-anchor="middle" font-family="Arial"'
+                     f' font-size="5" fill="#555">{ft}\'</text>')
 
-        # green curve — bottom to nearest IW centerline
         grn = [f"{ex(e):.1f},{gb - s * ys:.1f}"
                for e, s in zip(d['eastings'], d['s_spans']) if s > 0]
         if grn:
             o.append(f'<polyline points="{" ".join(grn)}" fill="none"'
-                     f' stroke="#2E7D32" stroke-width="0.6" stroke-linejoin="round"/>')
+                     f' stroke="#2E7D32" stroke-width="0.6"'
+                     f' stroke-linejoin="round"/>')
 
-        # cyan curve — uppermost IW centerline to top
         cyn = [f"{ex(e):.1f},{gb - s * ys:.1f}"
                for e, s in zip(d['eastings'], d['n_spans']) if s > 0]
         if cyn:
             o.append(f'<polyline points="{" ".join(cyn)}" fill="none"'
-                     f' stroke="#00ACC1" stroke-width="0.6" stroke-linejoin="round"/>')
+                     f' stroke="#00ACC1" stroke-width="0.6"'
+                     f' stroke-linejoin="round"/>')
 
-        # blue curve — total span (on top)
         crv = [f"{ex(e):.1f},{gb - s * ys:.1f}"
                for e, s in zip(d['eastings'], d['spans']) if s > 0]
         if crv:
             o.append(f'<polyline points="{" ".join(crv)}" fill="none"'
-                     f' stroke="#1565C0" stroke-width="0.8" stroke-linejoin="round"/>')
+                     f' stroke="#1565C0" stroke-width="0.8"'
+                     f' stroke-linejoin="round"/>')
 
-        # max-span dashed line
         my = gb - d['max_span'] * ys
-        o.append(f'<line x1="{ML}" y1="{my:.1f}" x2="{ML + pw}" y2="{my:.1f}"'
-                 f' stroke="#C62828" stroke-width="0.5" stroke-dasharray="4,2"/>')
+        o.append(f'<line x1="{ML}" y1="{my:.1f}"'
+                 f' x2="{ML + pw}" y2="{my:.1f}"'
+                 f' stroke="#C62828" stroke-width="0.5"'
+                 f' stroke-dasharray="4,2"/>')
 
-        yc = gb + 14                              # past x-axis labels
+        yc = gb + 14
 
-        # ── outline panel ─────────────────────────────────────
-        ot = yc + 8                               # outline top
-        ob = ot + oh                              # outline bottom
+        ot = yc + 8
+        ob = ot + oh
         nm = d['n_min']
 
-        # outer polygon
         fp = " ".join(f"{ex(p[0]):.1f},{ob - (p[1] - nm) * xs:.1f}"
                       for p in d['r_outer'])
         o.append(f'<polygon points="{fp}" fill="rgba(180,180,180,0.25)"'
                  f' stroke="#555" stroke-width="0.4"/>')
 
-        # inner polygon
         wp = " ".join(f"{ex(p[0]):.1f},{ob - (p[1] - nm) * xs:.1f}"
                       for p in d['r_inner'])
         o.append(f'<polygon points="{wp}" fill="white"'
                  f' stroke="#1565C0" stroke-width="0.4"/>')
 
-        # IW centerlines
         for cl in d['r_cls']:
             x1, y1 = ex(cl[0][0]), ob - (cl[0][1] - nm) * xs
             x2, y2 = ex(cl[1][0]), ob - (cl[1][1] - nm) * xs
             o.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}"'
                      f' x2="{x2:.1f}" y2="{y2:.1f}"'
-                     f' stroke="#666" stroke-width="0.5" stroke-dasharray="2,1"/>')
+                     f' stroke="#666" stroke-width="0.5"'
+                     f' stroke-dasharray="2,1"/>')
 
-        # max-span easting reference line
         mx = ex(d['max_e'])
-        o.append(f'<line x1="{mx:.1f}" y1="{gt}" x2="{mx:.1f}" y2="{ob}"'
+        o.append(f'<line x1="{mx:.1f}" y1="{gt}"'
+                 f' x2="{mx:.1f}" y2="{ob}"'
                  f' stroke="#C62828" stroke-width="0.3"'
                  f' stroke-dasharray="2,3" opacity="0.3"/>')
 
         yc = ob + PGAP
+
+    # ── render coarse panels ──────────────────────────────────
+    for d in all_data:
+        ang = d['angle']
+        is_min = ang == mm_angle
+        if is_min:
+            tag = (f" \u2190 MIN (refined: {fmt_dist(fine_best_span)}"
+                   f" at {fine_ang_str}\u00b0)")
+        else:
+            tag = ""
+        _panel(d,
+               f'{ang}\u00b0  max: {fmt_dist(d["max_span"])}{tag}',
+               "#C62828" if is_min else "#333",
+               "bold" if is_min else "normal",
+               is_min)
+
+    # ── render refined minimum panel ──────────────────────────
+    _panel(refined,
+           f'{fine_ang_str}\u00b0  max: {fmt_dist(refined["max_span"])}'
+           f' \u2014 REFINED MIN',
+           "#C62828", "bold", True)
 
     # version stamp
     ver = git_describe()
