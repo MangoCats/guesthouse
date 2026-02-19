@@ -12,19 +12,26 @@ Curved-wall building outline geometry and floorplan SVG generation.
 shared/              — Common types, geometry, survey computation, SVG utilities
   types.py           — Point, BBox, LineSeg, ArcSeg, Segment
   geometry.py        — Pure geometry functions, path ops, polygon utilities, compute_inner_walls
+  wall_shells.py     — Shell inset paths, U-turn arcs/polygons, wall section enumeration
   survey.py          — compute_traverse, compute_three_arc, compute_inset
   svg.py             — make_svg_transform, W/H page constants
 
 floorplan/           — Building design: single source of truth for geometry and layout
-  constants.py       — Named physical dimension constants (wall thicknesses, room sizes, etc.)
+  constants.py       — Named physical dimension constants (wall thicknesses, room sizes,
+                       shell thickness, air gap, opening corner radius, etc.)
   geometry.py        — compute_outline_geometry → F-series points, segments, radii
   layout.py          — compute_interior_layout → InteriorLayout (rooms, appliances, furniture)
   openings.py        — compute_outer_openings, compute_rough_openings (single source for O1-O11, RO1-RO5)
   gen_floorplan.py   — Detailed floorplan SVG renderer. Outputs floorplan/floorplan.svg
 
 walls/               — Outer wall construction detail drawing
-  constants.py       — Shell thickness, air gap, opening corner radius
-  gen_walls.py       — Double-shell wall detail SVG renderer. Outputs walls/walls.svg
+  constants.py       — Re-exports SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS from floorplan.constants
+  gen_walls.py       — Double-shell wall detail SVG renderer. Outputs walls/walls.svg, walls/all_walls.svg
+
+span/                — N-S span measurement analysis
+  gen_span.py        — Interior span graph + plan view. Outputs span/span.svg
+  gen_span_minmax.py — Span-vs-rotation analysis (5-175°). Outputs span/span_minmax.svg
+  gen_span_min.py    — Minimum-span rotation finder. Outputs span/span_min.svg
 
 survey/              — Survey scripts and data (not a Python package)
   gen_path_svg.py    — Outline + inset path SVG with labels. Outputs survey/path_area.svg
@@ -43,10 +50,12 @@ floorplan/gen_floorplan.py ──→ floorplan/ ──→ shared/
                            └──→ shared/
 walls/gen_walls.py ──→ walls/ ──→ floorplan/ ──→ shared/
                    └──→ shared/
+span/gen_span*.py ──→ floorplan/ ──→ shared/
+                  └──→ shared/
 survey/compute_path.py ──→ shared/
 ```
 
-No circular dependencies. floorplan/ never imports from survey/ or walls/.
+No circular dependencies. floorplan/ never imports from survey/, walls/, or span/.
 
 ## Traversal Conventions
 - **Survey traverse** (POB→P2→P3→P4→P5→POB): **CCW** as viewed from above
@@ -57,7 +66,7 @@ No circular dependencies. floorplan/ never imports from survey/ or walls/.
 ## Key Patterns
 - Outline points: F-series (`F1`..`F20`), primary naming; U-series derived as aliases in survey/gen_path_svg.py
 - Inner wall points: W-series (`W1`..`W20`), 8" inset from outline, matching F-series numbering
-- Shell boundary points: S-series (`S1`..`S20`) = 2" inset (inner face of outer shell); G-series (`G1`..`G20`) = 6" inset (outer face of inner shell). Computed in `walls/gen_walls.py` via `compute_inner_walls` with custom inset + rename
+- Shell boundary points: S-series (`S1`..`S20`) = 2" inset (inner face of outer shell); G-series (`G1`..`G20`) = 6" inset (outer face of inner shell). Computed via `shared/wall_shells.py:compute_inset_path` with custom inset + prefix rename
 - Arc centers: C-series by lower point number (`C1`, `C3`, `C5`, `C7`, `C8`, `C10`, `C11`, `C13`, `C15`, `C17`, `C19`); radii: R_a-series (`R_a1`, `R_a3`, ..., `R_a19`)
 - Traverse arc centers: `TC1`, `TC2`, `TC3` (outer/inset path)
 - `outline_segs`: list of `LineSeg`/`ArcSeg` defining the closed outline path (CW traversal: F1→F2→...→F20→F1)
@@ -70,7 +79,8 @@ No circular dependencies. floorplan/ never imports from survey/ or walls/.
 - Outline geometry lives in `floorplan/geometry.py`; dimension constants in `floorplan/constants.py`
 - Interior layout (rooms, furniture) lives in `floorplan/layout.py`
 - Opening positions (O1-O11, RO1-RO5) live in `floorplan/openings.py` — single source of truth
-- Wall construction constants (shell thickness, air gap, opening radius) live in `walls/constants.py`
+- Wall construction constants (shell thickness, air gap, opening radius) defined in `floorplan/constants.py`, re-exported by `walls/constants.py`
+- Shell geometry utilities (inset paths, U-turn polygons, wall sections) live in `shared/wall_shells.py`
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
 
 ## HOWTO Reference

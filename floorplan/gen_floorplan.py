@@ -1718,10 +1718,10 @@ def _render_dimensions(out, data, layout):
     _c7 = pts["C7"]; _r7 = data.radii["R_a7"]
     _sin7 = (_dim_n_arc - _c7[1]) / _r7
     _dim_w_e = _c7[0] + _r7 * math.sqrt(1.0 - _sin7 ** 2)
-    # East end: westernmost point on arc F11-F12 (center C11, radius R_a11) at that northing
-    _c11 = pts["C11"]; _r11 = data.radii["R_a11"]
-    _sin11 = (_dim_n_arc - _c11[1]) / _r11
-    _dim_e_e = _c11[0] - _r11 * math.sqrt(1.0 - _sin11 ** 2)
+    # East end: westernmost point on arc F11-F11a (center C11a, radius R_a11) at that northing
+    _c11a = pts["C11a"]; _r11 = data.radii["R_a11"]
+    _sin11 = (_dim_n_arc - _c11a[1]) / _r11
+    _dim_e_e = _c11a[0] - _r11 * math.sqrt(1.0 - _sin11 ** 2)
     dim_line_h(out, _dim_w_e, pts["F6"][1] + 1.0, _dim_e_e,
                fmt_dist(_dim_e_e - _dim_w_e), to_svg)
 

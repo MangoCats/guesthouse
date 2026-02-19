@@ -115,16 +115,20 @@ class TestBuildWallData:
         pts = wall_data.pts
         for i in [j for j in range(21) if j != 0]:
             assert f"S{i}" in pts, f"Missing S{i}"
+        for suffix in ["11a", "11b"]:
+            assert f"S{suffix}" in pts, f"Missing S{suffix}"
 
     def test_g_series_points_exist(self, wall_data):
         pts = wall_data.pts
         for i in [j for j in range(21) if j != 0]:
             assert f"G{i}" in pts, f"Missing G{i}"
+        for suffix in ["11a", "11b"]:
+            assert f"G{suffix}" in pts, f"Missing G{suffix}"
 
     def test_shell_distances(self, wall_data):
         """Shell boundary distances from F-series should match expected insets."""
         pts = wall_data.pts
-        _suffixes = [str(i) for i in range(21) if i != 0]
+        _suffixes = [str(i) for i in range(21) if i != 0] + ["11a", "11b"]
         # F17: non-tangent junction (line F16-F17 at 60° meets arc C17 with
         # adjusted radius); inner-wall offset ≠ shell_t at that vertex.
         _NON_TANGENT = {"17"}
@@ -147,14 +151,14 @@ class TestBuildWallData:
             assert fw_dist == pytest.approx(SHELL_THICKNESS * 2 + AIR_GAP, abs=0.01), \
                 f"F{suffix}-W{suffix} distance {fw_dist} != {SHELL_THICKNESS * 2 + AIR_GAP}"
 
-    def test_20_outline_segments(self, wall_data):
-        assert len(wall_data.outline_segs) == 20
+    def test_22_outline_segments(self, wall_data):
+        assert len(wall_data.outline_segs) == 22
 
-    def test_20_s_segments(self, wall_data):
-        assert len(wall_data.s_segs) == 20
+    def test_22_s_segments(self, wall_data):
+        assert len(wall_data.s_segs) == 22
 
-    def test_20_g_segments(self, wall_data):
-        assert len(wall_data.g_segs) == 20
+    def test_22_g_segments(self, wall_data):
+        assert len(wall_data.g_segs) == 22
 
     def test_11_openings(self, wall_data):
         assert len(wall_data.openings) == 11
@@ -234,7 +238,7 @@ class TestRenderWallsSvg:
     def test_wall_polygon_count(self, rendered):
         import re
         wall_fills = re.findall(r'fill="rgba\(180,180,180,0\.5\)"', rendered)
-        assert len(wall_fills) == 84
+        assert len(wall_fills) == 88
 
     def test_opening_polygon_count(self, rendered):
         import re

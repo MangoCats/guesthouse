@@ -79,7 +79,7 @@ The outline traverses CW (as viewed from above): F1 → F2 → ... → F20 → F
 | **West** (F2-F3, F4-F5) | `pts["F<n>"][0]` (smaller easting) | `pts["W<n>"][0]` (larger easting) |
 | **East** (F14-F15) | `pts["F<n>"][0]` (larger easting) | `pts["W<n>"][0]` (smaller easting) |
 | **North** (F6-F7) | `pts["F<n>"][1]` (larger northing) | `pts["W<n>"][1]` (smaller northing) |
-| **South** (F18-F19, F21-F1) | `pts["F<n>"][1]` (smaller northing) | `pts["W<n>"][1]` (larger northing) |
+| **South** (F18-F19, F20-F1) | `pts["F<n>"][1]` (smaller northing) | `pts["W<n>"][1]` (larger northing) |
 
 **Key insight:** For walls on the west side (like F2-F3), the "east face" is the **inner** face at `pts["W<n>"]`, not the F-series point.
 
@@ -87,18 +87,24 @@ The outline traverses CW (as viewed from above): F1 → F2 → ... → F20 → F
 
 Interior wall positions are computed in `floorplan/layout.py` and returned in the `InteriorLayout` NamedTuple. Access them via `layout.<field>`:
 
-| Wall | West face | East face | South face | North face |
-|-|-|-|-|-|
-| **IW1** (horizontal, 6") | — | — | `layout.iw1_s` | `layout.iw1_n` |
-| **IW2** (vertical, 6") | `layout.iw2.w` | `layout.iw2.e` | `layout.iw2.s` | `layout.iw2.n` |
-| **IW3** (vertical, 4") | `layout.iw3.w` | `layout.iw3.e` | `layout.iw3.s` | `layout.iw3.n` |
-| **IW4** (vertical, 4") | `layout.iw4_w` | `layout.iw4_e` | `layout.wall_south_n` | `layout.iw1_s` |
-| **IW5** (horizontal, 3") | `layout.iw5.w` | `layout.iw5.e` | `layout.iw5.s` | `layout.iw5.n` |
-| **IW6** (horizontal, 1") | — | — | `layout.iw6_s` | `layout.iw6_n` |
-| **IW7** (L-shape, 3") | `layout.ctr.e` | varies | `layout.ctr.s` | polygon |
-| **IW8** (L-shape, 3") | `layout.iw8_w` | `layout.iw8_e` | `layout.wall_south_n` | polygon |
+| Wall | Type | West face | East face | South face | North face |
+|-|-|-|-|-|-|
+| **IW1** (horizontal, 6") | polygon | — | — | `layout.iw1_s` | `layout.iw1_n` |
+| **IW2** (vertical, 6") | BBox | `layout.iw2.w` | `layout.iw2.e` | `layout.iw2.s` | `layout.iw2.n` |
+| **IW3** (perpendicular to W20-W1, 4") | BBox+poly | `layout.iw3.w` | `layout.iw3.e` | `layout.iw3.s` | `layout.iw3.n` |
+| **IW4** (vertical, 4") | scalars | `layout.iw4_w` | `layout.iw4_e` | `layout.wall_south_n` | `layout.iw1_s` |
+| **IW5** (horizontal, 3") | BBox | `layout.iw5.w` | `layout.iw5.e` | `layout.iw5.s` | `layout.iw5.n` |
+| **IW6** (horizontal, 1") | polygon | — | — | `layout.iw6_s` | `layout.iw6_n` |
+| **IW7** (parallel to W20-W1, 3") | BBox+poly | `layout.iw7.w` | `layout.iw7.e` | `layout.iw7.s` | `layout.iw7.n` |
+| **IW8** (horizontal, 6") | BBox | `layout.iw8.w` | `layout.iw8.e` | `layout.iw8.s` | `layout.iw8.n` |
+| **IW9** (perpendicular to W20-W1, 3") | BBox+poly | `layout.iw9.w` | `layout.iw9.e` | `layout.iw9.s` | `layout.iw9.n` |
+| **IW11** (N-S, 4") | BBox+poly | `layout.iw11.w` | `layout.iw11.e` | `layout.iw11.s` | `layout.iw11.n` |
+| **IW12** (perpendicular to IW11, 4") | BBox+poly | `layout.iw12.w` | `layout.iw12.e` | `layout.iw12.s` | `layout.iw12.n` |
+| **IW14** (parallel to IW12, 3") | BBox+poly | `layout.iw14.w` | `layout.iw14.e` | `layout.iw14.s` | `layout.iw14.n` |
+| **IW15** (N-S, 4") | BBox | `layout.iw15.w` | `layout.iw15.e` | `layout.iw15.s` | `layout.iw15.n` |
+| **IW16** (N-S, 4") | polygon | — | — | — | — |
 
-BBox-type walls (IW2, IW3, IW5) use `.w`, `.s`, `.e`, `.n` accessors. L-shaped walls (IW7, IW8) and IW1 are polygons (`list[Point]`).
+BBox-type walls use `.w`, `.s`, `.e`, `.n` accessors. "BBox+poly" walls have both a `BBox` field and a `_poly` field (`list[Point]`) for the actual polygon (which may differ from the BBox on curved walls). IW1 and IW6 are pure polygon walls. IW4 uses individual scalar fields.
 
 ### Room-relative references
 
@@ -107,7 +113,7 @@ BBox-type walls (IW2, IW3, IW5) use `.w`, `.s`, `.e`, `.n` accessors. L-shaped w
 | Counter east edge | `layout.ctr.e` | |
 | Counter north edge | `layout.ctr.n` | |
 | Counter south edge | `layout.ctr.s` | Same as `pts["W1"][1]` |
-| Bedroom center E-W | `layout.bed_cx` or `(layout.iw3.e + layout.iw4_w) / 2` | |
+| Bedroom center E-W | `(layout.iw3.e + layout.iw4_w) / 2` | |
 | Inner south wall | `pts["W1"][1]` | |
 | Inner west wall | `pts["W2"][0]` | |
 
@@ -180,7 +186,7 @@ Openings are rendered as light-blue rectangles (`rgb(220,235,255)`) with `#4682B
 
 ### Tests
 
-Opening tests are in `tests/test_openings.py` (11 outer openings, 5 rough openings, segment index validity, parametric ranges).
+Opening tests are in `tests/test_gen_floorplan.py` and `tests/test_gen_walls.py` (11 outer openings, 5 rough openings, segment index validity, parametric ranges).
 
 ---
 
@@ -211,7 +217,7 @@ Use `<circle>` with `cx`, `cy` from `to_svg()` and radius converted via the scal
 
 ## 6. Wall Construction Detail Drawing
 
-**Files:** `walls/gen_walls.py`, `walls/constants.py`
+**Files:** `walls/gen_walls.py`, `shared/wall_shells.py`, `floorplan/constants.py`
 
 The wall detail drawing (`walls/walls.svg`) shows the double-shell 3D-printed concrete outer wall construction at 1:72 scale.
 
@@ -227,30 +233,30 @@ Four concentric boundary paths trace the building perimeter:
 | Path | Point series | Inset from F | Description |
 |-|-|-|-|
 | Outer face of outer shell | F-series | 0" | Existing `outline_segs` |
-| Inner face of outer shell | S-series | 2" | `_compute_inset_path(..., SHELL_THICKNESS, "S")` |
-| Outer face of inner shell | G-series | 6" | `_compute_inset_path(..., SHELL_THICKNESS + AIR_GAP, "G")` |
+| Inner face of outer shell | S-series | 2" | `compute_inset_path(..., SHELL_THICKNESS, "S")` |
+| Outer face of inner shell | G-series | 6" | `compute_inset_path(..., SHELL_THICKNESS + AIR_GAP, "G")` |
 | Inner face of inner shell | W-series | 8" | Existing `inner_segs` |
 
 ### Construction constants
 
-Defined in `walls/constants.py`:
+Defined in `floorplan/constants.py` (re-exported by `walls/constants.py`):
 
 - `SHELL_THICKNESS` = 2/12 ft (2")
 - `AIR_GAP` = 4/12 ft (4")
-- `OPENING_INSIDE_RADIUS` = 1/12 ft (1")
+- `OPENING_INSIDE_RADIUS` = 10/304.8 ft (10mm)
 
 ### Opening U-turn corners
 
 At each opening boundary, the shells connect via 90-degree corner turns:
 
-- **Inside radius** (`R_in`): `OPENING_INSIDE_RADIUS` (1")
-- **Outside radius** (`R_out`): `R_in + SHELL_THICKNESS` (3")
+- **Inside radius** (`R_in`): `OPENING_INSIDE_RADIUS` (10mm)
+- **Outside radius** (`R_out`): `R_in + SHELL_THICKNESS`
 - The turned outside face is flush with the opening boundary
-- `_uturn_polygon()` builds the U-turn as a single closed polygon using quarter-circle arcs
+- `uturn_polygon()` in `shared/wall_shells.py` builds the U-turn as a single closed polygon using quarter-circle arcs
 
 ### Modifying wall constants
 
-1. Edit values in `walls/constants.py`
+1. Edit values in `floorplan/constants.py`
 2. Run `python walls/gen_walls.py` to regenerate
 3. Run `python -m pytest tests/test_gen_walls.py` to verify
 
@@ -268,7 +274,7 @@ After any geometry or layout change, regenerate and inspect all SVGs:
 python gen_all.py
 ```
 
-This captures `git describe --always --dirty=-DEV` once into `.git_describe`, runs all three generators using that cached value, then deletes the cache. This ensures all title blocks embed the same version string even though writing the first SVG dirties the working tree.
+This captures `git describe --always --dirty=-DEV` once into `.git_describe`, runs all six generators (survey, floorplan, walls, and three span scripts) using that cached value, then deletes the cache. This ensures all title blocks embed the same version string even though writing the first SVG dirties the working tree.
 
 Individual scripts can also be run standalone — they fall back to a live `git describe` if the cache file is absent:
 
@@ -276,6 +282,9 @@ Individual scripts can also be run standalone — they fall back to a live `git 
 python survey/gen_path_svg.py
 python floorplan/gen_floorplan.py
 python walls/gen_walls.py
+python span/gen_span.py
+python span/gen_span_minmax.py
+python span/gen_span_min.py
 ```
 
 The floorplan script prints:
@@ -286,7 +295,7 @@ The walls script prints:
 - Shell and gap dimensions
 - Opening corner radius
 
-Open `floorplan/floorplan.svg`, `survey/path_area.svg`, and `walls/walls.svg` to visually inspect.
+Open `floorplan/floorplan.svg`, `survey/path_area.svg`, `walls/walls.svg`, and `span/span.svg` to visually inspect.
 
 ---
 

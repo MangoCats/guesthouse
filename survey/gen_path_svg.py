@@ -409,7 +409,7 @@ def build_outline_cfg(outline_segs, pts, radii):
     """Build outline layer config (needs computed sweep angles and radii)."""
     R = radii
     sw = {i: arc_sweep_deg(outline_segs[i], pts)
-          for i in [0,2,4,6,7,9,10,12,14,16,18]}
+          for i in [0,2,4,6,7,9,10,12,14,16,18,20]}
     return LayerConfig(
         opacity=1.0, fill_color="rgba(200,230,255,0.25)",
         line_stroke="#333", line_width=2.0,
@@ -420,7 +420,8 @@ def build_outline_cfg(outline_segs, pts, radii):
             ("F7","F8"):    ("#333", 2.0),
             ("F8","F9"):    ("#333", 2.0),
             ("F10","F11"):  ("#333", 2.0),
-            ("F11","F12"):  ("#333", 2.0),
+            ("F11","F11a"): ("#333", 2.0),
+            ("F11b","F12"): ("#333", 2.0),
             ("F13","F14"):  ("#333", 2.0),
             ("F15","F16"):  ("#333", 2.0),
             ("F17","F18"):  ("#333", 2.0),
@@ -433,6 +434,8 @@ def build_outline_cfg(outline_segs, pts, radii):
             "F2":   VertexStyle("F2",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
             "F8":   VertexStyle("F8",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
             "F11":  VertexStyle("F11",  "start",   8,  4,  "#d32f2f", 1.75, 10),
+            "F11a": VertexStyle("F11a", "middle",  0, -6,  "#d32f2f", 1.75, 10),
+            "F11b": VertexStyle("F11b", "middle",  0, -6,  "#d32f2f", 1.75, 10),
             "F12":  VertexStyle("F12",  "start",   8,  4,  "#d32f2f", 1.75, 10),
             "F13":  VertexStyle("F13",  "start",   8,  4,  "#d32f2f", 1.75, 10),
             "F14":  VertexStyle("F14",  "start",  10,  4,  "#d32f2f", 1.75, 10),
@@ -453,6 +456,7 @@ def build_outline_cfg(outline_segs, pts, radii):
             ("F4","F5"): BrgDistLabel(18),
             ("F6","F7"): BrgDistLabel(-16),
             ("F9","F10"): BrgDistLabel(-16),
+            ("F11a","F11b"): BrgDistLabel(-16),
             ("F12","F13"): BrgDistLabel(-16),
             ("F14","F15"): BrgDistLabel(-16),
             ("F16","F17"): BrgDistLabel(16),
@@ -472,22 +476,25 @@ def build_outline_cfg(outline_segs, pts, radii):
                 f"{sw[7]:.1f}\u00b0", "end", -10, 14, 11, "#333"),
             ("F10","F11"): ArcLabel(f"Arc R={R['R_a10']*12:.1f}\"",
                 f"{sw[9]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
-            ("F11","F12"): ArcLabel(f"Arc R={R['R_a11']*12:.0f}\"",
-                f"{sw[10]:.1f}\u00b0 CCW", "start", 12, 0, 11, "#333"),
-            ("F13","F14"): ArcLabel(f"Arc R={R['R_a13']*12:.0f}\"",
+            ("F11","F11a"): ArcLabel(f"Arc R={R['R_a11']*12:.0f}\"",
+                f"{sw[10]:.1f}\u00b0", "end", -10, 0, 11, "#333"),
+            ("F11b","F12"): ArcLabel(f"Arc R={R['R_a11']*12:.0f}\"",
                 f"{sw[12]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
+            ("F13","F14"): ArcLabel(f"Arc R={R['R_a13']*12:.0f}\"",
+                f"{sw[14]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
             ("F15","F16"): ArcLabel(f"Arc R={R['R_a15']*12:.0f}\"",
-                f"{sw[14]:.1f}\u00b0", "start", 10, -10, 11, "#333"),
+                f"{sw[16]:.1f}\u00b0", "start", 10, -10, 11, "#333"),
             ("F17","F18"): ArcLabel(f"Arc R={R['R_a17']*12:.0f}\"",
-                f"{sw[16]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
+                f"{sw[18]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
             ("F19","F20"): ArcLabel(f"Arc R={R['R_a19']*12:.0f}\"",
-                f"{sw[18]:.1f}\u00b0", "start", 12, -10, 11, "#333"),
+                f"{sw[20]:.1f}\u00b0", "start", 12, -10, 11, "#333"),
         },
         center_marks=[
             CenterMark("C1", "F1", "#333"), CenterMark("C3", "F3", "#333"),
             CenterMark("C5", "F5", "#333"),
             CenterMark("C7", "F7", "#333"), CenterMark("C8", "F8", "#333"),
-            CenterMark("C10", "F10", "#333"), CenterMark("C11", "F11", "#333"),
+            CenterMark("C10", "F10", "#333"),
+            CenterMark("C11a", "F11", "#333"), CenterMark("C11", "F11b", "#333"),
             CenterMark("C13", "F13", "#333"), CenterMark("C15", "F15", "#333"),
             CenterMark("C17", "F17", "#333"), CenterMark("C19", "F19", "#333"),
         ],
@@ -518,8 +525,10 @@ if __name__ == "__main__":
         ("F6", "arc tangent"), ("F7", "east of F6"),
         ("F8", "C7/C8 arc junction"), ("F9", "arc tangent"),
         ("F10", "arc E-W tangent"),
-        ("F11", "180\u00b0 arc west end / arc N-S tangent"),
-        ("F12", "line / 180\u00b0 arc tangent"),
+        ("F11", "arc tangent C10/C11a"),
+        ("F11a", "top of C11a / flat seg west"),
+        ("F11b", "top of C11 / flat seg east"),
+        ("F12", "line / arc tangent"),
         ("F13", f"{radii['R_a13']*12:.1f}\" arc / line tangent"),
         ("F14", f"{radii['R_a13']*12:.1f}\" arc tangent to N-S line"),
         ("F15", "arc C15, exits North"),
@@ -685,4 +694,4 @@ if __name__ == "__main__":
     print(f"Outer path area: {outer_area:.2f} sq ft (rendered at 20%)")
     print(f"Inset path area: {inset_area:.2f} sq ft (rendered at 20%)")
     print(f"Outline path area: {outline_area:.2f} sq ft (rendered at 100%)")
-    print(f"Outline: F1->ArcC1->F2->F3->ArcC3->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11_180->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->F1")
+    print(f"Outline: F1->ArcC1->F2->F3->ArcC3->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11a->F11a->F11b->ArcC11->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->F1")

@@ -16,7 +16,7 @@ from floorplan.constants import (
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
     IW1_OFFSET_N, WALL_SOUTH_N,
-    O6_E_FROM_F9, F10_O6_CLEARANCE,
+    O6_E_FROM_F9, F10_O6_CLEARANCE, FLAT_SEG_11,
 )
 
 
@@ -33,8 +33,8 @@ class OutlineAnchors(NamedTuple):
 
 class OutlineGeometry(NamedTuple):
     """Complete outline geometry result."""
-    fp_pts: dict[str, Point]     # F1-F20 + C1-C19
-    outline_segs: list[Segment]  # 20 segments with F-series names
+    fp_pts: dict[str, Point]     # F1-F20, F11a, F11b + C1-C19, C11a
+    outline_segs: list[Segment]  # 22 segments with F-series names
     radii: dict[str, float]      # R_a1 through R_a19
 
 
@@ -167,21 +167,27 @@ def _compute_central_region(
     _C13_E, _C13_N = fp_pts["C13"]
     _C11_E = _C13_E + (R_a13 - R_a11 - (_C11_N - _C13_N) * _ny_t) / _nx_t
     fp_pts["C11"] = (_C11_E, _C11_N)
+    # C11a: shifted west by FLAT_SEG_11 for F11-F11a arc
+    _C11a_E = _C11_E - FLAT_SEG_11
+    fp_pts["C11a"] = (_C11a_E, _C11_N)
     # F10: 4" east of O6 east edge (O6 east = F9 + O6_E_FROM_F9)
     _F10_E = fp_pts["F9"][0] + O6_E_FROM_F9 + F10_O6_CLEARANCE
     _F10_N = fp_pts["F9"][1]
     fp_pts["F10"] = (_F10_E, _F10_N)
-    # R_a10: tangent to F11-F12 arc. C10 = (F10_E, F10_N + R_a10).
-    # |C10 - C11| = R_a10 + R_a11  =>  solve for R_a10
-    _dE = _C11_E - _F10_E
+    # R_a10: tangent to F11-F11a arc. C10 = (F10_E, F10_N + R_a10).
+    # |C10 - C11a| = R_a10 + R_a11  =>  solve for R_a10
+    _dE = _C11a_E - _F10_E
     _dN_base = _C11_N - _F10_N
     R_a10 = (_dE**2 + _dN_base**2 - R_a11**2) / (2 * (_dN_base + R_a11))
     fp_pts["C10"] = (_F10_E, _F10_N + R_a10)
-    # F11: tangent point on line C10 -> C11
+    # F11: tangent point on line C10 -> C11a
     _dist_cc = R_a10 + R_a11
     _C10_N = _F10_N + R_a10
-    fp_pts["F11"] = (_F10_E + R_a10 * (_C11_E - _F10_E) / _dist_cc,
+    fp_pts["F11"] = (_F10_E + R_a10 * (_C11a_E - _F10_E) / _dist_cc,
                      _C10_N + R_a10 * (_C11_N - _C10_N) / _dist_cc)
+    # F11a: top of C11a circle, F11b: top of C11 circle
+    fp_pts["F11a"] = (_C11a_E, _C11_N + R_a11)
+    fp_pts["F11b"] = (_C11_E, _C11_N + R_a11)
     # F13, F12: tangent points (unchanged — C11, C13, R_a11, R_a13 unchanged)
     fp_pts["F13"] = (fp_pts["C13"][0] + R_a13 * _nx_t, fp_pts["C13"][1] + R_a13 * _ny_t)
     fp_pts["F12"] = (fp_pts["C11"][0] + R_a11 * _nx_t, fp_pts["C11"][1] + R_a11 * _ny_t)
@@ -275,7 +281,9 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         ArcSeg("F8", "F9", "C8", R_a8, "CCW", 20),
         LineSeg("F9", "F10"),
         ArcSeg("F10", "F11", "C10", R_a10, "CCW", 20),
-        ArcSeg("F11", "F12", "C11", R_a11, "CW", 60),
+        ArcSeg("F11", "F11a", "C11a", R_a11, "CW", 30),
+        LineSeg("F11a", "F11b"),
+        ArcSeg("F11b", "F12", "C11", R_a11, "CW", 30),
         LineSeg("F12", "F13"),
         ArcSeg("F13", "F14", "C13", R_a13, "CW", 60),
         LineSeg("F14", "F15"),
