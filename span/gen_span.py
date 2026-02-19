@@ -23,6 +23,8 @@ from shared.svg import git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import WALL_OUTER, F8F9_INNER_TURN_R
 from floorplan.layout import compute_interior_layout
+from floorplan.roof import compute_roof_geometry
+from roof.gen_roof import _roof_polyline
 
 
 # ── geometry bootstrap ─────────────────────────────────────────
@@ -51,7 +53,9 @@ def _build_geometry():
               if i > i8 and abs(p[0] - w9[0]) < 1e-9 and abs(p[1] - w9[1]) < 1e-9)
     inner_poly[i8:i9 + 1] = w_f8f9
     layout = compute_interior_layout(pts, inner_poly)
-    return pts, geo.outline_segs, outer_poly, inner_poly, layout
+    roof = compute_roof_geometry(pts, geo.radii)
+    roof_poly = _roof_polyline(roof)
+    return pts, geo.outline_segs, outer_poly, inner_poly, layout, roof_poly
 
 
 # ── span computation ───────────────────────────────────────────
@@ -113,8 +117,17 @@ def _compute_spans(inner_poly, layout):
 
 # ── SVG generation ─────────────────────────────────────────────
 
-def _generate_svg(pts, outer_poly, inner_poly, layout):
+def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     eastings, spans, south_spans, north_spans = _compute_spans(inner_poly, layout)
+
+    # roof spans at same eastings
+    roof_spans = []
+    for e in eastings:
+        rns = vert_isects(roof_poly, e)
+        if len(rns) >= 2:
+            roof_spans.append(max(rns) - min(rns))
+        else:
+            roof_spans.append(0.0)
     max_span = max(spans)
     max_span_e = eastings[spans.index(max_span)]
 
@@ -187,6 +200,12 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
         o.append(f'<text x="{x:.1f}" y="{g_bot + 12}" text-anchor="middle"'
                  f' font-family="Arial" font-size="7" fill="#555">{ft}\'</text>')
 
+    # grey curve — roof span
+    rsp = [f"{ex(e):.1f},{sy(s):.1f}" for e, s in zip(eastings, roof_spans) if s > 0]
+    if rsp:
+        o.append(f'<polyline points="{" ".join(rsp)}" fill="none"'
+                 f' stroke="#999" stroke-width="0.8" stroke-linejoin="round"/>')
+
     # green curve — south W surface to IW midline
     grn = [f"{ex(e):.1f},{sy(s):.1f}" for e, s in zip(eastings, south_spans) if s > 0]
     if grn:
@@ -226,6 +245,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
         ("#1565C0", "Total span"),
         ("#2E7D32", "S wall \u2192 IW mid"),
         ("#00ACC1", "IW mid \u2192 N wall"),
+        ("#999", "Roof span"),
     ]):
         ly_i = leg_y + i * 11
         o.append(f'<line x1="{leg_x}" y1="{ly_i}" x2="{leg_x + 14}" y2="{ly_i}"'
@@ -286,8 +306,8 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
 # ── entry point ────────────────────────────────────────────────
 
 def main():
-    pts, _, outer_poly, inner_poly, layout = _build_geometry()
-    svg = _generate_svg(pts, outer_poly, inner_poly, layout)
+    pts, _, outer_poly, inner_poly, layout, roof_poly = _build_geometry()
+    svg = _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly)
     outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "span.svg")
     with open(outpath, 'w', encoding='utf-8') as f:
         f.write(svg)

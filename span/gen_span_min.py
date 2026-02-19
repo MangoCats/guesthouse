@@ -23,6 +23,8 @@ from shared.svg import git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import WALL_OUTER, F8F9_INNER_TURN_R
 from floorplan.layout import compute_interior_layout
+from floorplan.roof import compute_roof_geometry
+from roof.gen_roof import _roof_polyline
 
 
 # ── geometry bootstrap ─────────────────────────────────────────
@@ -51,7 +53,9 @@ def _build_geometry():
               if i > i8 and abs(p[0] - w9[0]) < 1e-9 and abs(p[1] - w9[1]) < 1e-9)
     inner_poly[i8:i9 + 1] = w_f8f9
     layout = compute_interior_layout(pts, inner_poly)
-    return pts, geo.outline_segs, outer_poly, inner_poly, layout
+    roof = compute_roof_geometry(pts, geo.radii)
+    roof_poly = _roof_polyline(roof)
+    return pts, geo.outline_segs, outer_poly, inner_poly, layout, roof_poly
 
 
 # ── IW centerlines ─────────────────────────────────────────────
@@ -154,7 +158,8 @@ def _find_min_span_angle(inner_poly, iw_cls, cx, cy):
 
 # ── full rotation data ─────────────────────────────────────────
 
-def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy):
+def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy,
+                           roof_poly=None):
     """Compute full span data for one rotation angle."""
     rad = math.radians(angle)
     ca, sa = math.cos(rad), math.sin(rad)
@@ -162,6 +167,7 @@ def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy):
     r_inner = _rot_poly(inner_poly, cx, cy, ca, sa)
     r_cls = [(_rot_pt(c[0], cx, cy, ca, sa),
               _rot_pt(c[1], cx, cy, ca, sa)) for c in iw_cls]
+    r_roof = _rot_poly(roof_poly, cx, cy, ca, sa) if roof_poly else None
 
     all_vis = r_outer + r_inner
     e_min = min(p[0] for p in all_vis)
@@ -172,7 +178,7 @@ def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy):
     ie_min = min(p[0] for p in r_inner)
     ie_max = max(p[0] for p in r_inner)
     inch = 1.0 / 12.0
-    eastings, spans, s_spans, n_spans = [], [], [], []
+    eastings, spans, s_spans, n_spans, roof_spans = [], [], [], [], []
     e = ie_min
     while e <= ie_max + 1e-9:
         ns = vert_isects(r_inner, e)
@@ -195,6 +201,10 @@ def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy):
             s_spans.append(span)
             n_spans.append(span)
 
+        if r_roof:
+            rns = vert_isects(r_roof, e)
+            roof_spans.append(max(rns) - min(rns) if len(rns) >= 2 else 0.0)
+
         eastings.append(e)
         e += inch
 
@@ -202,7 +212,7 @@ def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy):
     max_e = eastings[spans.index(max_span)] if spans else 0
     return dict(
         angle=angle, eastings=eastings, spans=spans,
-        s_spans=s_spans, n_spans=n_spans,
+        s_spans=s_spans, n_spans=n_spans, roof_spans=roof_spans,
         r_outer=r_outer, r_inner=r_inner, r_cls=r_cls,
         max_span=max_span, max_e=max_e,
         e_min=e_min, e_max=e_max, n_min=n_min, n_max=n_max,
@@ -211,13 +221,14 @@ def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy):
 
 # ── SVG generation ─────────────────────────────────────────────
 
-def _generate_svg(pts, outer_poly, inner_poly, layout):
+def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     iw_cls = _extract_iw_centerlines(layout)
     cx = sum(p[0] for p in inner_poly) / len(inner_poly)
     cy = sum(p[1] for p in inner_poly) / len(inner_poly)
 
     angle = _find_min_span_angle(inner_poly, iw_cls, cx, cy)
-    d = _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy)
+    d = _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy,
+                               roof_poly)
 
     max_span = d['max_span']
     max_e = d['max_e']
@@ -302,6 +313,14 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
         o.append(f'<text x="{x:.1f}" y="{g_bot + 12}" text-anchor="middle"'
                  f' font-family="Arial" font-size="7" fill="#555">{ft}\'</text>')
 
+    # grey curve -- roof span
+    if d['roof_spans']:
+        rsp = [f"{ex(e):.1f},{sy(s):.1f}"
+               for e, s in zip(d['eastings'], d['roof_spans']) if s > 0]
+        if rsp:
+            o.append(f'<polyline points="{" ".join(rsp)}" fill="none"'
+                     f' stroke="#999" stroke-width="0.8" stroke-linejoin="round"/>')
+
     # green curve -- south W surface to IW midline
     grn = [f"{ex(e):.1f},{sy(s):.1f}"
            for e, s in zip(d['eastings'], d['s_spans']) if s > 0]
@@ -353,11 +372,12 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
         ("#1565C0", "Total span"),
         ("#2E7D32", "Bottom \u2192 nearest IW mid"),
         ("#00ACC1", "Uppermost IW mid \u2192 top"),
+        ("#999", "Roof span"),
         ("#C62828", "Max total span"),
         ("#E65100", "Max unsupported span"),
     ]):
         ly_i = leg_y + i * 11
-        dash = "4,2" if i >= 3 else "none"
+        dash = "4,2" if i >= 4 else "none"
         o.append(f'<line x1="{leg_x}" y1="{ly_i}" x2="{leg_x + 14}" y2="{ly_i}"'
                  f' stroke="{color}" stroke-width="1.2"'
                  f' stroke-dasharray="{dash}"/>')
@@ -399,8 +419,8 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
 # ── entry point ────────────────────────────────────────────────
 
 def main():
-    pts, _, outer_poly, inner_poly, layout = _build_geometry()
-    svg = _generate_svg(pts, outer_poly, inner_poly, layout)
+    pts, _, outer_poly, inner_poly, layout, roof_poly = _build_geometry()
+    svg = _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly)
     outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "span_min.svg")
     with open(outpath, 'w', encoding='utf-8') as f:
