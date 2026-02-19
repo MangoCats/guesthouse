@@ -1010,6 +1010,24 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                f' font-size="6" fill="{APPL_STROKE}">ICE</text>')
     out.append('</a>')
 
+    # Work counter: 60" E-W x 18" N-S, against IW1 north face, 3" east of fridge
+    if not minik and not db:
+        wc_w = fr_e + KITCHEN_APPL_GAP
+        wc_s = layout.iw1_n
+        wc_e = wc_w + 60.0 / 12.0
+        wc_n = wc_s + 18.0 / 12.0
+        wc_sx1, wc_sy1 = to_svg(wc_w, wc_n)
+        wc_sx2, wc_sy2 = to_svg(wc_e, wc_s)
+        wc_sw = wc_sx2 - wc_sx1; wc_sh = wc_sy2 - wc_sy1
+        out.append('<a href="https://www.webstaurantstore.com/table-s-s-18x60-s-s-under/600TS1860S.html" target="_blank">')
+        out.append(f'<rect x="{wc_sx1:.1f}" y="{wc_sy1:.1f}" width="{wc_sw:.1f}" height="{wc_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        wc_cx = (wc_sx1 + wc_sx2) / 2
+        wc_cy = (wc_sy1 + wc_sy2) / 2
+        out.append(f'<text x="{wc_cx:.1f}" y="{wc_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
+        out.append('</a>')
+
     # Kitchen counter: starting at IW2 east face (minik only)
     if minik:
         kc_w = layout.iw2.e
