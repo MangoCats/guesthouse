@@ -64,7 +64,7 @@ class InteriorLayout(NamedTuple):
     iw12_poly: list[Point]  # actual polygon [SW, SE, NE, NW]
     # IW5 (3" thick, horizontal in office)
     iw5: BBox
-    # IW8 (6" thick, horizontal — west extension of IW1, W1-W3 to IW1 west end)
+    # IW8 (6" thick, horizontal — west extension of IW1, W2-W3 to IW1 west end)
     iw8: BBox
     # IW14 (3" thick, parallel to IW12, north of RO2)
     iw14: BBox
@@ -88,15 +88,15 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw1_s = iw1_n - WALL_6IN
     si = horiz_isects(inner_poly, iw1_s)
     ni = horiz_isects(inner_poly, iw1_n)
-    iw1_w = pts["W1"][0] + IW1_WEST_OFFSET_E
+    iw1_w = pts["W2"][0] + IW1_WEST_OFFSET_E
     iw1 = [(iw1_w, iw1_s), (max(si), iw1_s), (max(ni), iw1_n), (iw1_w, iw1_n)]
 
-    iw2_w = pts["W1"][0] + IW2_OFFSET_E
+    iw2_w = pts["W2"][0] + IW2_OFFSET_E
     iw2_e = iw2_w + WALL_6IN
     iw2_s = iw1_n
     iw2_n = pts["W6"][1]
 
-    dryer_w = pts["W1"][0] + APPLIANCE_OFFSET_E
+    dryer_w = pts["W2"][0] + APPLIANCE_OFFSET_E
     dryer_s = pts["W0"][1] + APPLIANCE_OFFSET_N
     dryer_e = dryer_w + APPLIANCE_WIDTH
     dryer_n = dryer_s + APPLIANCE_DEPTH
@@ -275,8 +275,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
             (ctr_w, _ctr_sw_n),
         ]
 
-    # IW8: 6" thick, horizontal, from W1-W3 face to IW1 west end
-    iw8_w = pts["W1"][0]
+    # IW8: 6" thick, horizontal, from W2-W3 face to IW1 west end
+    iw8_w = pts["W2"][0]
     iw8_e = iw1_w
     iw8 = BBox(w=iw8_w, s=iw1_s + IW8_OFFSET_N_IW1, e=iw8_e, n=iw1_n + IW8_OFFSET_N_IW1)
 

@@ -26,7 +26,7 @@ from floorplan.constants import (
 class OuterOpening(NamedTuple):
     """Opening in the outer wall, positioned as a 4-point polygon."""
     name: str
-    seg_start: str       # e.g., "F1" — outline segment start point
+    seg_start: str       # e.g., "F2" — outline segment start point
     seg_end: str         # e.g., "F3" — outline segment end point
     poly: list[Point]    # 4 vertices: [outer_start, outer_end, inner_end, inner_start]
 
@@ -56,11 +56,11 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     """
     openings = []
 
-    # O1: F1-F3, vertical, centered at RO3/IW16 center northing
+    # O1: F2-F3, vertical, centered at RO3/IW16 center northing
     _iw16_ctr_n = (layout.iw16_poly[0][1] + layout.iw16_poly[2][1]) / 2
     o1_n = _iw16_ctr_n + O1_WIDTH / 2
     o1_s = _iw16_ctr_n - O1_WIDTH / 2
-    openings.append(OuterOpening("O1", "F1", "F3", [
+    openings.append(OuterOpening("O1", "F2", "F3", [
         (pts["F3"][0], o1_s), (pts["F3"][0], o1_n),
         (pts["W3"][0], o1_n), (pts["W3"][0], o1_s),
     ]))

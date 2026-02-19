@@ -257,8 +257,8 @@ def compute_inner_walls(
 
     R = radii
     inner_segs = [
-        ArcSeg("W0","W1","C0",R["R_a0"]-wall_t,"CW",20),
-        LineSeg("W1","W3"),
+        ArcSeg("W0","W2","C0",R["R_a0"]-wall_t,"CW",20),
+        LineSeg("W2","W3"),
         ArcSeg("W3","W4","C3",R["R_a3"]-wall_t,"CW",20),
         LineSeg("W4","W5"),
         ArcSeg("W5","W6","C5",R["R_a5"]-wall_t,"CW",20),

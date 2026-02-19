@@ -28,8 +28,8 @@ CLOSET_WIDTH = 30.0 / 12.0        # 30" closet depth (closet 1)
 CLOSET2_WIDTH = 28.0 / 12.0       # 28" closet 2 depth (east)
 CLOSET1_HEIGHT = 6.0              # 6' closet 1 N-S
 IW1_OFFSET_N = 12.0 + 2.0/12.0    # 12'2" IW1 south face above W0
-IW1_WEST_OFFSET_E = 6.5           # 6'6" IW1 west end east of W1
-IW2_OFFSET_E = 6.5                # 6'6" IW2 west face east of W1
+IW1_WEST_OFFSET_E = 6.5           # 6'6" IW1 west end east of W2
+IW2_OFFSET_E = 6.5                # 6'6" IW2 west face east of W2
 IW4_OFFSET_E_IW2 = 224.0 / 12.0   # 18'8" IW4 west face east of IW2 east face
 RO1_OFFSET_E_IW2 = 122.0 / 12.0   # 10'2" RO1 west edge east of IW2 east face
 WALL_SOUTH_N = 2.0 / 12.0         # 2" south end of bedroom walls
@@ -103,7 +103,7 @@ IW6_RO_OFFSET_W = 3.0 / 12.0      # 3" west of IW2 west face
 IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
 # Outer-wall openings (numbered CW around outline)
-# O1 (F1-F3, lower)
+# O1 (F2-F3, lower)
 O1_OFFSET_S = 99.0 / 12.0          # 99" south of F3 to north edge
 O1_WIDTH = 25.0 / 12.0             # 25" opening height
 # O2 (F4-F5, centered at RO4 northing center)
@@ -172,7 +172,7 @@ F15_OFFSET_E = 9.0 + 3.0/12.0     # 9'3" F15 east of iw8_e
 F16_F17_SEG = 5.0                  # 5' F16-F17 segment length
 F18_OFFSET_E = 4.0 / 12.0         # 4" F18 east of IW4 east face
 F18_F19_GAP = 12.0 / 12.0         # 12" F18-F19 distance
-ARC_F19_R = 17.747548595415985    # R_a19: ~213" (set for F1-F3 = 14'11.5")
+ARC_F19_R = 17.747548595415985    # R_a19: ~213" (set for F2-F3 = 14'11.5")
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)

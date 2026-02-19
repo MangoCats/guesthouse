@@ -59,7 +59,7 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
 ### Example (real code)
 
 ```python
-# F1-F3 east face to IW3 west face, 1' north of IW7 north face
+# F2-F3 east face to IW3 west face, 1' north of IW7 north face
 dim_n = layout.ctr.n + layout.iwt3 + 1.0
 dim_line_h(out, pts["W3"][0], dim_n, layout.iw3.w, fmt_dist(layout.iw3.w - pts["W3"][0]), to_svg)
 ```
@@ -72,16 +72,16 @@ Understanding which coordinate to use for "east face of X wall" is the most comm
 
 ### Perimeter walls (8" thick, F-series outer / W-series inner)
 
-The outline traverses CW (as viewed from above): F0 → F1 → ... → F20 → F0. The interior is on the **right** side.
+The outline traverses CW (as viewed from above): F0 → F2 → ... → F20 → F0. The interior is on the **right** side.
 
 | Wall side of building | Outer (exterior) face | Inner (interior) face |
 |-|-|-|
-| **West** (F1-F3, F4-F5) | `pts["F<n>"][0]` (smaller easting) | `pts["W<n>"][0]` (larger easting) |
+| **West** (F2-F3, F4-F5) | `pts["F<n>"][0]` (smaller easting) | `pts["W<n>"][0]` (larger easting) |
 | **East** (F14-F15) | `pts["F<n>"][0]` (larger easting) | `pts["W<n>"][0]` (smaller easting) |
 | **North** (F6-F7) | `pts["F<n>"][1]` (larger northing) | `pts["W<n>"][1]` (smaller northing) |
 | **South** (F18-F19, F21-F0) | `pts["F<n>"][1]` (smaller northing) | `pts["W<n>"][1]` (larger northing) |
 
-**Key insight:** For walls on the west side (like F1-F3), the "east face" is the **inner** face at `pts["W<n>"]`, not the F-series point.
+**Key insight:** For walls on the west side (like F2-F3), the "east face" is the **inner** face at `pts["W<n>"]`, not the F-series point.
 
 ### Interior walls
 
@@ -109,7 +109,7 @@ BBox-type walls (IW2, IW3, IW5) use `.w`, `.s`, `.e`, `.n` accessors. L-shaped w
 | Counter south edge | `layout.ctr.s` | Same as `pts["W0"][1]` |
 | Bedroom center E-W | `layout.bed_cx` or `(layout.iw3.e + layout.iw4_w) / 2` | |
 | Inner south wall | `pts["W0"][1]` | |
-| Inner west wall | `pts["W1"][0]` | |
+| Inner west wall | `pts["W2"][0]` | |
 
 ---
 

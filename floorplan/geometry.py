@@ -23,7 +23,7 @@ from floorplan.constants import (
 class OutlineAnchors(NamedTuple):
     """Anchor points from inset path computation."""
     Pi2: Point       # NW anchor (Po2 alias)
-    Pi3: Point       # NE anchor (sets F1 easting)
+    Pi3: Point       # NE anchor (sets F2 easting)
     Ti3: Point       # F21 northing anchor
     PiX: Point       # south wall line start
     Pi5: Point       # south wall line end
@@ -43,10 +43,10 @@ class OutlineGeometry(NamedTuple):
 # ============================================================
 
 def _compute_ne_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> float:
-    """NE corner arc: F0, F1, C0. Returns R_a0."""
+    """NE corner arc: F0, F2, C0. Returns R_a0."""
     R_a0 = CORNER_NE_R
     fp_pts["C0"] = (anchors.Pi3[0] + R_a0, anchors.Pi3[1] + R_a0)
-    fp_pts["F1"] = (anchors.Pi3[0], fp_pts["C0"][1])
+    fp_pts["F2"] = (anchors.Pi3[0], fp_pts["C0"][1])
     fp_pts["F0"] = (fp_pts["C0"][0], anchors.Pi3[1])
     return R_a0
 
@@ -68,12 +68,12 @@ def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
 
     F3 northing solved from fixed sweep angle ARC_F3_SWEEP and tangent
     constraint (F4-F5 tangent to both arcs F3-F4 and F5-F6).
-    Depends on F1, F6, C5 already in fp_pts.
+    Depends on F2, F6, C5 already in fp_pts.
     """
     R_a3 = ARC_F3_R
     R_a5 = CORNER_NW_R
 
-    F3_E = fp_pts["F1"][0]
+    F3_E = fp_pts["F2"][0]
     C5_E, C5_N = fp_pts["C5"]
 
     # Fixed sweep angle γ = ARC_F3_SWEEP
@@ -123,7 +123,7 @@ def _compute_central_region(
 ) -> tuple[float, float, float, float]:
     """Central region: F10-F16, C10, C11, C13, C15. Returns (R_a10, R_a11, R_a13, R_a15).
 
-    Depends on F0, F1, F9, F16 already in fp_pts.
+    Depends on F0, F2, F9, F16 already in fp_pts.
     """
     R_a11 = ARC_180_R
     R_a13 = ARC_F13_R
@@ -137,7 +137,7 @@ def _compute_central_region(
     L_in = math.sqrt(d_in_po5[0]**2 + d_in_po5[1]**2)
     d_in_u = (d_in_po5[0]/L_in, d_in_po5[1]/L_in)
     # F15 E-coordinate
-    _iw8_e = (fp_pts["F1"][0] + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP
+    _iw8_e = (fp_pts["F2"][0] + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP
               + COUNTER_DEPTH + (WALL_3IN + CLOSET_WIDTH + WALL_4IN
               + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH + WALL_3IN))
     F15_E = _iw8_e + F15_OFFSET_E
@@ -201,7 +201,7 @@ def _compute_south_wall(
     R_a19 = ARC_F19_R
 
     # F18: 4" east of IW4 east face, at SOUTH_WALL_N
-    _iw4_e = (fp_pts["F1"][0] + WALL_OUTER
+    _iw4_e = (fp_pts["F2"][0] + WALL_OUTER
               + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
               + WALL_3IN + CLOSET_WIDTH + WALL_4IN      # closet 1 (IW7-IW3-IW9)
               + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH  # bedroom + closet 2
@@ -248,25 +248,25 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
     R_a17, R_a19 = _compute_south_wall(fp_pts)
 
-    # F0: tangent to line from F20 on arc C0 (CW, radius R_a0, center at F1 northing)
+    # F0: tangent to line from F20 on arc C0 (CW, radius R_a0, center at F2 northing)
     # Exit bearing from F20 (same sweep as C19 arc)
     _sweep = math.asin(1.0 / 9.0)
     _exit_angle = -math.pi - _sweep  # CW tangent at F20: radius_angle - π/2
     _ex = math.cos(_exit_angle)
     _ey = math.sin(_exit_angle)
-    # Solve for F1_N from tangency: F0 on line from F20 and on circle C0
-    _F1_E = fp_pts["F1"][0]
+    # Solve for F2_N from tangency: F0 on line from F20 and on circle C0
+    _F2_E = fp_pts["F2"][0]
     _F20_E, _F20_N = fp_pts["F20"]
-    _dE = _F1_E - _F20_E
-    _F1_N = _F20_N + (_dE + R_a0 * (1 - _ey)) * _ey / _ex - R_a0 * _ex
-    fp_pts["F1"] = (_F1_E, _F1_N)
-    fp_pts["C0"] = (_F1_E + R_a0, _F1_N)
-    fp_pts["F0"] = (_F1_E + R_a0 * (1 - _ey), _F1_N + R_a0 * _ex)
+    _dE = _F2_E - _F20_E
+    _F2_N = _F20_N + (_dE + R_a0 * (1 - _ey)) * _ey / _ex - R_a0 * _ex
+    fp_pts["F2"] = (_F2_E, _F2_N)
+    fp_pts["C0"] = (_F2_E + R_a0, _F2_N)
+    fp_pts["F0"] = (_F2_E + R_a0 * (1 - _ey), _F2_N + R_a0 * _ex)
 
     # --- Build outline segments (F-series) ---
     outline_segs: list[Segment] = [
-        ArcSeg("F0", "F1", "C0", R_a0, "CW", 20),
-        LineSeg("F1", "F3"),
+        ArcSeg("F0", "F2", "C0", R_a0, "CW", 20),
+        LineSeg("F2", "F3"),
         ArcSeg("F3", "F4", "C3", R_a3, "CW", 20),
         LineSeg("F4", "F5"),
         ArcSeg("F5", "F6", "C5", R_a5, "CW", 20),

@@ -50,7 +50,7 @@ No circular dependencies. floorplan/ never imports from survey/ or walls/.
 
 ## Traversal Conventions
 - **Survey traverse** (POB→P2→P3→P4→P5→POB): **CCW** as viewed from above
-- **Construction outline** (F0→F1→...→F20→F0): **CW** as viewed from above (opposite of survey). Interior is on the **right** side of the traversal direction
+- **Construction outline** (F0→F2→...→F20→F0): **CW** as viewed from above (opposite of survey). Interior is on the **right** side of the traversal direction
 - `left_norm(p1, p2)` returns the left perpendicular of the direction p1→p2. For CW traversal, left = exterior. Code uses `_wt = -wall_t` to negate and offset inward
 - Individual arc `direction` ("CW"/"CCW" in `ArcSeg`) refers to each arc's own sweep direction, not the outline traversal. CW arcs (convex corners) get inner radius `R - wall_t`; CCW arcs (concave corners) get `R + wall_t`
 
@@ -60,7 +60,7 @@ No circular dependencies. floorplan/ never imports from survey/ or walls/.
 - Shell boundary points: S-series (`S0`..`S20`) = 2" inset (inner face of outer shell); G-series (`G0`..`G20`) = 6" inset (outer face of inner shell). Computed in `walls/gen_walls.py` via `compute_inner_walls` with custom inset + rename
 - Arc centers: C-series by lower point number (`C0`, `C3`, `C5`, `C7`, `C8`, `C10`, `C11`, `C13`, `C15`, `C17`, `C19`); radii: R_a-series (`R_a0`, `R_a3`, ..., `R_a19`)
 - Traverse arc centers: `TC1`, `TC2`, `TC3` (outer/inset path)
-- `outline_segs`: list of `LineSeg`/`ArcSeg` defining the closed outline path (CW traversal: F0→F1→...→F20→F0)
+- `outline_segs`: list of `LineSeg`/`ArcSeg` defining the closed outline path (CW traversal: F0→F2→...→F20→F0)
 - All radii in `OutlineGeometry.radii` dict; passed to `compute_inner_walls`
 - Arc tangency: `|center1 - center2| = R1 + R2` (external)
 - Physical constants defined once in `floorplan/constants.py` — no magic numbers in geometry/layout code
