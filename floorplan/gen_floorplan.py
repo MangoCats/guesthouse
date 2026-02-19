@@ -825,6 +825,21 @@ def _render_appliances(out, data, layout, minik=False, db=False):
         cx, cy = (sx1 + sx2) / 2, (sy1 + sy2) / 2
         out.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="7" fill="{APPL_STROKE}">{label}</text>')
+        # Door: hinged at NE corner, swings shut to SE corner
+        _door_len = b.n - b.s
+        _hx, _hy = to_svg(b.e, b.n)
+        _tx, _ty = to_svg(b.e + _door_len, b.n)
+        out.append(f'<line x1="{_hx:.1f}" y1="{_hy:.1f}" x2="{_tx:.1f}" y2="{_ty:.1f}"'
+                   f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
+        _arc_pts = []
+        for _i in range(21):
+            _a = -_i * (math.pi / 2) / 20  # 0° to -90°
+            _ae = b.e + _door_len * math.cos(_a)
+            _an = b.n + _door_len * math.sin(_a)
+            _ax, _ay = to_svg(_ae, _an)
+            _arc_pts.append(f"{_ax:.1f},{_ay:.1f}")
+        out.append(f'<polyline points="{" ".join(_arc_pts)}" fill="none"'
+                   f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         if link:
             out.append('</a>')
     washer_n = b.n  # b is washer BBox after loop
