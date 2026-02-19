@@ -807,6 +807,90 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                f' height="{tbl_border_bottom - tbl_border_top:.1f}"'
                f' fill="none" stroke="#999" stroke-width="0.5"/>')
 
+    # --- Interior walls table ---
+    if include_interior:
+        layout = data.layout
+        rough_openings = compute_rough_openings(pts, layout)
+        # Map IW name → list of RO names
+        ro_by_wall: dict[str, list[str]] = {}
+        for ro in rough_openings:
+            ro_by_wall.setdefault(ro.wall_name, []).append(ro.name)
+
+        def _poly_len(poly):
+            """Length of longest edge of a 4-point polygon (the wall length)."""
+            edges = []
+            for i in range(4):
+                j = (i + 1) % 4
+                dx = poly[j][0] - poly[i][0]
+                dy = poly[j][1] - poly[i][1]
+                edges.append(math.sqrt(dx**2 + dy**2))
+            return max(edges)
+
+        def _bbox_len(bb, vertical):
+            return (bb.n - bb.s) if vertical else (bb.e - bb.w)
+
+        # (id, thickness_inches, length_ft, vertical)
+        iw_rows = [
+            ("IW1",  6, _poly_len(layout.iw1), True),
+            ("IW2",  6, _bbox_len(layout.iw2, True), True),
+            ("IW3",  4, _poly_len(layout.iw3_poly), True),
+            ("IW4",  4, layout.iw12_poly[2][1] - layout.iw4_s, True),
+            ("IW5",  3, _bbox_len(layout.iw5, False), False),
+            ("IW6",  1, _poly_len(layout.iw6_poly), False),
+            ("IW7",  4, _poly_len(layout.iw7_poly), False),
+            ("IW8",  6, _bbox_len(layout.iw8, False), False),
+            ("IW9",  4, _poly_len(layout.iw9_poly), True),
+            ("IW11", 4, _poly_len(layout.iw11_poly), True),
+            ("IW12", 4, _poly_len(layout.iw12_poly), False),
+            ("IW14", 3, _poly_len(layout.iw14_poly), False),
+            ("IW15", 4, _bbox_len(layout.iw15, True), True),
+            ("IW16", 4, _poly_len(layout.iw16_poly), True),
+        ]
+
+        iw_tbl_top = tbl_border_bottom + 14
+        iw_row_h = 7.5
+        iw_col = [tbl_left + 20, tbl_left + 48, tbl_left + 82, tbl_left + 128]
+
+        # Table title
+        out.append(f'<text x="{(tbl_left + iw_col[-1]) / 2:.1f}" y="{iw_tbl_top:.1f}"'
+                   f' text-anchor="middle" font-family="Arial" font-size="7"'
+                   f' font-weight="bold" fill="#333">Interior Walls</text>')
+
+        # Column headers
+        iw_hdr_y = iw_tbl_top + 10
+        iw_hdrs = ["ID", "Thick (in)", "Length (in)", "Openings"]
+        iw_hdr_x = [tbl_left + 2, iw_col[1] - 2, iw_col[2] - 2, iw_col[2] + 2]
+        iw_hdr_a = ["start", "end", "end", "start"]
+        for hx, ha, hd in zip(iw_hdr_x, iw_hdr_a, iw_hdrs):
+            out.append(f'<text x="{hx:.1f}" y="{iw_hdr_y:.1f}"'
+                       f' text-anchor="{ha}" font-family="Arial" font-size="6"'
+                       f' font-weight="bold" fill="#333">{hd}</text>')
+
+        # Header underline
+        iw_line_y = iw_hdr_y + 2.5
+        out.append(f'<line x1="{tbl_left:.1f}" y1="{iw_line_y:.1f}"'
+                   f' x2="{iw_col[-1]:.1f}" y2="{iw_line_y:.1f}"'
+                   f' stroke="#999" stroke-width="0.5"/>')
+
+        # Data rows
+        for ri, (iw_id, thick, length_ft, _vert) in enumerate(iw_rows):
+            y = iw_line_y + (ri + 1) * iw_row_h
+            length_in = length_ft * 12
+            ros = ", ".join(ro_by_wall.get(iw_id, []))
+            vals = [iw_id, str(thick), f"{length_in:.1f}", ros]
+            for vx, va, vv in zip(iw_hdr_x, iw_hdr_a, vals):
+                out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
+                           f' text-anchor="{va}" font-family="Arial"'
+                           f' font-size="6" fill="#333">{vv}</text>')
+
+        # Table border
+        iw_border_top = iw_tbl_top - 8.5
+        iw_border_bottom = iw_line_y + len(iw_rows) * iw_row_h + 3
+        out.append(f'<rect x="{tbl_left:.1f}" y="{iw_border_top:.1f}"'
+                   f' width="{iw_col[-1] - tbl_left:.1f}"'
+                   f' height="{iw_border_bottom - iw_border_top:.1f}"'
+                   f' fill="none" stroke="#999" stroke-width="0.5"/>')
+
     out.append('</svg>')
     return "\n".join(out)
 
