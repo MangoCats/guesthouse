@@ -75,7 +75,7 @@ RO1_OFFSET_E_IW9 = 76.0 / 12.0    # 76" east of IW9 east face
 IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
 # IW2 rough opening
-IW2_RO_OFFSET_S = 6.0 / 12.0      # 6" south of IW6 south face
+IW2_RO_OFFSET_S = 12.0 / 12.0     # 12" south of IW6 south face
 IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
 # IW3 (perpendicular to W20-W0, 4" thick)
