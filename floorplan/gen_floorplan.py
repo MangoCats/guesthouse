@@ -1077,6 +1077,42 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' font-size="7" fill="{APPL_STROKE}">COUNTER</text>')
         out.append('</a>')
 
+    # Microwave on 18" counter (non-minik): 19.5" E-W x 16-5/8" N-S
+    if not minik:
+        mw_ew = 19.5 / 12.0
+        mw_ns = 16.625 / 12.0
+        mw_w = wc_w + 2.0 / 12.0
+        mw_e = mw_w + mw_ew
+        mw_s = layout.iw1_n + 2.0 / 12.0
+        mw_n = mw_s + mw_ns
+        mw_sx1, mw_sy1 = to_svg(mw_w, mw_n)
+        mw_sx2, mw_sy2 = to_svg(mw_e, mw_s)
+        mw_sw = mw_sx2 - mw_sx1
+        mw_sh = mw_sy2 - mw_sy1
+        out.append('<a href="https://www.ikea.com/us/en/p/gatebo-microwave-oven-with-air-fryer-function-ikea-500-black-70603506/" target="_blank">')
+        out.append(f'<rect x="{mw_sx1:.1f}" y="{mw_sy1:.1f}" width="{mw_sw:.1f}" height="{mw_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        mw_cx = (mw_sx1 + mw_sx2) / 2
+        mw_cy = (mw_sy1 + mw_sy2) / 2
+        out.append(f'<text x="{mw_cx:.1f}" y="{mw_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="5" fill="{APPL_STROKE}">MICRO</text>')
+        # Door: hinged at SW corner, closes to SE corner
+        _mw_door = mw_e - mw_w
+        _mh_x, _mh_y = to_svg(mw_w, mw_s)
+        _mt_x, _mt_y = to_svg(mw_w, mw_s - _mw_door)
+        out.append(f'<line x1="{_mh_x:.1f}" y1="{_mh_y:.1f}" x2="{_mt_x:.1f}" y2="{_mt_y:.1f}"'
+                   f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
+        _mw_arc = []
+        for _i in range(21):
+            _a = -math.pi / 2 + _i * (math.pi / 2) / 20  # -90° to 0°
+            _ae = mw_w + _mw_door * math.cos(_a)
+            _an = mw_s + _mw_door * math.sin(_a)
+            _ax, _ay = to_svg(_ae, _an)
+            _mw_arc.append(f"{_ax:.1f},{_ay:.1f}")
+        out.append(f'<polyline points="{" ".join(_mw_arc)}" fill="none"'
+                   f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
+        out.append('</a>')
+
     # Kitchen counter: starting at IW2 east face (minik only)
     if minik:
         kc_w = layout.iw2.e
