@@ -176,8 +176,8 @@ PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
 F15_OFFSET_E = 9.0 + 3.0/12.0     # 9'3" F15 east of iw8_e
 F16_F17_SEG = 5.0                  # 5' F16-F17 segment length
 F18_OFFSET_E = 4.0 / 12.0         # 4" F18 east of IW4 east face
-F18_F19_GAP = 12.0 / 12.0         # 12" F18-F19 distance
-ARC_F19_R = 21.897949327825778    # R_a19: ~263" (set for F2 N = 3.0000')
+F18_F19_GAP = 10.0 / 12.0         # 10" F18-F19 distance
+ARC_F19_R = 24.907180184181790    # R_a19: ~299" (set for F2 N = 3.0000')
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)
