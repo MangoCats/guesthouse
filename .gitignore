@@ -1,9 +1,13 @@
 floorplan/floorplan_ref.svg
 floorplan/floorplan.svg
+floorplan/floorplan_db.svg
 floorplan/floorplan_minik.svg
 survey/path_area.svg
 walls/all_walls.svg
 walls/walls.svg
+span/span.svg
+span/span_min.svg
+span/span_minmax.svg
 .coverage
 __pycache__/
 .git_describe

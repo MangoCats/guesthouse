@@ -10,6 +10,8 @@ files=(
     walls/walls.svg
     walls/all_walls.svg
     survey/path_area.svg
+	span/span.svg
+	span/span_min.svg
 )
 
 dest_files=()
