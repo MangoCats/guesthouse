@@ -129,6 +129,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
             roof_spans.append(0.0)
     max_span = max(spans)
     max_span_e = eastings[spans.index(max_span)]
+    max_roof_span = max(roof_spans) if roof_spans else 0.0
 
     # bounding box of all visible geometry
     all_pts = outer_poly + inner_poly
@@ -151,7 +152,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
         graph_h = 200
         outline_h = PH - MT - MB - GAP - graph_h
 
-    y_max_ft = math.ceil(max_span)              # graph Y cap (feet)
+    y_max_ft = math.ceil(max(max_span, max_roof_span))  # graph Y cap (feet)
     ys = graph_h / y_max_ft                     # pt per span-foot
 
     g_top = MT;            g_bot = MT + graph_h
@@ -222,6 +223,15 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     if crv:
         o.append(f'<polyline points="{" ".join(crv)}" fill="none"'
                  f' stroke="#1565C0" stroke-width="1.0" stroke-linejoin="round"/>')
+
+    # max roof span dashed line + label (grey)
+    if max_roof_span > 0:
+        ry = sy(max_roof_span)
+        o.append(f'<line x1="{ML}" y1="{ry:.1f}" x2="{ML + plot_w}" y2="{ry:.1f}"'
+                 f' stroke="#999" stroke-width="0.7" stroke-dasharray="6,3"/>')
+        o.append(f'<text x="{ML + plot_w - 3}" y="{ry + 10:.1f}" text-anchor="end"'
+                 f' font-family="Arial" font-size="8" fill="#999"'
+                 f' font-weight="bold">max roof: {fmt_dist(max_roof_span)}</text>')
 
     # max-span dashed line + label
     my = sy(max_span)

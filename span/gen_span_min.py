@@ -209,11 +209,12 @@ def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy,
 
     max_span = max(spans) if spans else 0
     max_e = eastings[spans.index(max_span)] if spans else 0
+    max_roof_span = max(roof_spans) if roof_spans else 0
     return dict(
         angle=angle, eastings=eastings, spans=spans,
         s_spans=s_spans, n_spans=n_spans, roof_spans=roof_spans,
         r_outer=r_outer, r_inner=r_inner, r_cls=r_cls,
-        max_span=max_span, max_e=max_e,
+        max_span=max_span, max_e=max_e, max_roof_span=max_roof_span,
         e_min=e_min, e_max=e_max, n_min=n_min, n_max=n_max,
     )
 
@@ -234,6 +235,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     max_unsup = max(max(d['s_spans']), max(d['n_spans']))
     max_unsup_e_s = d['eastings'][d['s_spans'].index(max(d['s_spans']))]
     max_unsup_e_n = d['eastings'][d['n_spans'].index(max(d['n_spans']))]
+    max_roof_span = d['max_roof_span']
 
     def _fmt_angle(a):
         if a == int(a):
@@ -262,7 +264,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
         graph_h = 200
         outline_h = PH - MT - MB - GAP - graph_h
 
-    y_max_ft = math.ceil(max_span)                  # graph Y cap (feet)
+    y_max_ft = math.ceil(max(max_span, max_roof_span))  # graph Y cap (feet)
     ys = graph_h / y_max_ft                         # pt per span-foot
 
     g_top = MT;            g_bot = MT + graph_h
@@ -340,6 +342,16 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     if crv:
         o.append(f'<polyline points="{" ".join(crv)}" fill="none"'
                  f' stroke="#1565C0" stroke-width="1.0" stroke-linejoin="round"/>')
+
+    # max roof span dashed line + label (grey)
+    if max_roof_span > 0:
+        ry = sy(max_roof_span)
+        o.append(f'<line x1="{ML}" y1="{ry:.1f}" x2="{ML + plot_w}" y2="{ry:.1f}"'
+                 f' stroke="#999" stroke-width="0.7" stroke-dasharray="6,3"/>')
+        ry_label_y = ry + 10 if ry < sy(max_span) - 6 else ry - 3
+        o.append(f'<text x="{ML + plot_w - 3}" y="{ry_label_y:.1f}" text-anchor="end"'
+                 f' font-family="Arial" font-size="8" fill="#999"'
+                 f' font-weight="bold">max roof: {fmt_dist(max_roof_span)}</text>')
 
     # max total span dashed line + label (red)
     my = sy(max_span)

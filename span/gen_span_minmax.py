@@ -176,11 +176,12 @@ def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy,
 
     max_span = max(spans) if spans else 0
     max_e = eastings[spans.index(max_span)] if spans else 0
+    max_roof_span = max(roof_spans) if roof_spans else 0
     return dict(
         angle=angle, eastings=eastings, spans=spans,
         s_spans=s_spans, n_spans=n_spans, roof_spans=roof_spans,
         r_outer=r_outer, r_inner=r_inner, r_cls=r_cls,
-        max_span=max_span, max_e=max_e,
+        max_span=max_span, max_e=max_e, max_roof_span=max_roof_span,
         e_min=e_min, e_max=e_max, n_min=n_min, n_max=n_max,
     )
 
@@ -240,6 +241,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     g_e_min = min(d['e_min'] for d in all_panels)
     g_e_max = max(d['e_max'] for d in all_panels)
     g_max_span = max(d['max_span'] for d in all_panels)
+    g_max_roof = max(d['max_roof_span'] for d in all_panels)
 
     # page layout (portrait Letter width)
     PW = 612
@@ -249,7 +251,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     gw = g_e_max - g_e_min
     xs = pw / gw                                  # pt per survey-foot
     GH = 140                                      # graph height (pt)
-    y_cap = math.ceil(g_max_span)                 # Y-axis cap (ft)
+    y_cap = math.ceil(max(g_max_span, g_max_roof))  # Y-axis cap (ft)
     ys = GH / y_cap                               # pt per span-foot
 
     # total SVG height (coarse panels + refined panel)
@@ -370,6 +372,13 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
             o.append(f'<polyline points="{" ".join(crv)}" fill="none"'
                      f' stroke="#1565C0" stroke-width="0.8"'
                      f' stroke-linejoin="round"/>')
+
+        if d['max_roof_span'] > 0:
+            ry = gb - d['max_roof_span'] * ys
+            o.append(f'<line x1="{ML}" y1="{ry:.1f}"'
+                     f' x2="{ML + pw}" y2="{ry:.1f}"'
+                     f' stroke="#999" stroke-width="0.5"'
+                     f' stroke-dasharray="4,2"/>')
 
         my = gb - d['max_span'] * ys
         o.append(f'<line x1="{ML}" y1="{my:.1f}"'
