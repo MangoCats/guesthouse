@@ -910,11 +910,10 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         fr_n = back_n - 3.0 / 12.0
         fr_s = fr_n - 35.0 / 12.0
     else:
-        # East edge 6" west of RO1, 2" north of IW1 north face
-        ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
-        fr_e = ro1_w - 6.0 / 12.0
-        fr_s = layout.iw1_n + STD_GAP
-        fr_w = fr_e - 32.75 / 12.0
+        # IW1/IW2 corner, 3" from each wall
+        fr_w = layout.iw2.e + KITCHEN_APPL_GAP
+        fr_s = layout.iw1_n + KITCHEN_APPL_GAP
+        fr_e = fr_w + 32.75 / 12.0
         fr_n = fr_s + 35.0 / 12.0
     sx1, sy1 = to_svg(fr_w, fr_n)
     sx2, sy2 = to_svg(fr_e, fr_s)
@@ -1148,10 +1147,10 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         # Center under SINK west end
         tbl_cx = ks_w
     elif not minik:
-        # Center between fridge west and IW2 east + 1.125" east
-        _ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
-        _fr_w = _ro1_w - 6.0 / 12.0 - 32.75 / 12.0
-        tbl_cx = (_fr_w + layout.iw2.e) / 2 + 1.125 / 12.0
+        # Center between fridge east and IW2 east
+        _fr_w = layout.iw2.e + KITCHEN_APPL_GAP
+        _fr_e = _fr_w + 32.75 / 12.0
+        tbl_cx = (_fr_e + layout.iw2.e) / 2
     else:
         # Center on SINK west end
         _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
