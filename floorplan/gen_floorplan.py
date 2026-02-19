@@ -827,6 +827,35 @@ def _render_appliances(out, data, layout, minik=False, db=False):
                    f' font-size="7" fill="{APPL_STROKE}">{label}</text>')
         if link:
             out.append('</a>')
+    washer_n = b.n  # b is washer BBox after loop
+
+    # Hamper: 31.5" E-W x 19" N-S, 2" N of washer, 2" E of W2-W3
+    hm_ew = 31.5 / 12.0
+    hm_ns = 19.0 / 12.0
+    hm_w = pts["W2"][0] + 2.0 / 12.0
+    hm_e = hm_w + hm_ew
+    hm_s = washer_n + 2.0 / 12.0
+    hm_n = hm_s + hm_ns
+    hm_sx1, hm_sy1 = to_svg(hm_w, hm_n)
+    hm_sx2, hm_sy2 = to_svg(hm_e, hm_s)
+    hm_sw = hm_sx2 - hm_sx1; hm_sh = hm_sy2 - hm_sy1
+    hm_href = "https://www.homedepot.com/p/Casual-Home-Eco-Home-Laundry-Prep-Hamper-761-30/307595219"
+    out.append(f'<a href="{hm_href}" target="_blank">')
+    out.append(f'<rect x="{hm_sx1:.1f}" y="{hm_sy1:.1f}" width="{hm_sw:.1f}" height="{hm_sh:.1f}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    # Dashed basket pull-out to north
+    hm_bo_n = hm_n + hm_ns
+    hm_bx1, hm_by1 = to_svg(hm_w, hm_bo_n)
+    hm_bx2, hm_by2 = to_svg(hm_e, hm_n)
+    hm_bw = hm_bx2 - hm_bx1; hm_bh = hm_by2 - hm_by1
+    out.append(f'<rect x="{hm_bx1:.1f}" y="{hm_by1:.1f}" width="{hm_bw:.1f}" height="{hm_bh:.1f}"'
+               f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"'
+               f' stroke-dasharray="3,2"/>')
+    hm_cx = (hm_sx1 + hm_sx2) / 2
+    hm_cy = (hm_sy1 + hm_sy2) / 2
+    out.append(f'<text x="{hm_cx:.1f}" y="{hm_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="6" fill="{APPL_STROKE}">HAMPER</text>')
+    out.append('</a>')
 
     # Counter: polygon clipped to W20-W0 south edge, IW3/IW16 west face east edge
     ctr_poly_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
