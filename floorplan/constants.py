@@ -147,7 +147,7 @@ O10_HALF_WIDTH = 11.5 / 12.0       # 11.5" half-width
 O11_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width
 O9_OFFSET_IW11 = 6.0 / 12.0       # 6" IW11 SW to O9 SE along F20-F1
 O9_O10_WALL = 86.0 / 12.0         # 86" solid wall between O9 NW and O10 SE
-O10_O11_WALL = 74.0 / 12.0        # 74" solid wall between O10 NW and O11 SE
+O10_O11_WALL = 72.0 / 12.0        # 72" solid wall between O10 NW and O11 SE
 BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 
 # IW5 partition
