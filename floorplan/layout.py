@@ -318,8 +318,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw15_w = iw11_nw[0]
     iw15 = BBox(w=iw15_w, s=iw11_nw[1], e=iw15_w + WALL_4IN, n=iw1_s)
 
-    # Dresser: 34" E-W × 19" N-S, 1" south of IW1, 6" west of IW15
-    dresser_e = iw15_w - 6.0 / 12.0
+    # Dresser: 34" E-W × 19" N-S, 1" south of IW1, 2" west of IW15
+    dresser_e = iw15_w - 2.0 / 12.0
     dresser_w = dresser_e - 34.0 / 12.0
     dresser_n = iw1_s - 1.0 / 12.0
     dresser_s = dresser_n - 19.0 / 12.0
