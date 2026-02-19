@@ -993,7 +993,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     out.append('</a>')
 
     # Work counter: 60" E-W x 18" N-S, against IW1 north face, 3" east of fridge
-    if not minik and not db:
+    if not minik:
         wc_w = fr_e + KITCHEN_APPL_GAP
         wc_s = layout.iw1_n
         wc_e = wc_w + 60.0 / 12.0
