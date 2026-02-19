@@ -858,7 +858,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
 
         # Column headers
         iw_hdr_y = iw_tbl_top + 10
-        iw_hdrs = ["ID", "Thick (in)", "Length (in)", "Openings"]
+        iw_hdrs = ["ID", "Thk", "Length", "Openings"]
         iw_hdr_x = [tbl_left + 2, iw_col[1] - 2, iw_col[2] - 2, iw_col[2] + 2]
         iw_hdr_a = ["start", "end", "end", "start"]
         for hx, ha, hd in zip(iw_hdr_x, iw_hdr_a, iw_hdrs):
@@ -875,9 +875,12 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
         # Data rows
         for ri, (iw_id, thick, length_ft, _vert) in enumerate(iw_rows):
             y = iw_line_y + (ri + 1) * iw_row_h
-            length_in = length_ft * 12
+            total_in = length_ft * 12
+            ft = int(total_in) // 12
+            remain_in = total_in - ft * 12
+            length_str = f"{ft}&#8242; {remain_in:.1f}&#8243;"
             ros = ", ".join(ro_by_wall.get(iw_id, []))
-            vals = [iw_id, str(thick), f"{length_in:.1f}", ros]
+            vals = [iw_id, f'{thick}&#8243;', length_str, ros]
             for vx, va, vv in zip(iw_hdr_x, iw_hdr_a, vals):
                 out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
                            f' text-anchor="{va}" font-family="Arial"'
