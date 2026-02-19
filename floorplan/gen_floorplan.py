@@ -502,7 +502,10 @@ def _render_walls(out, data, layout):
     wall_poly(out, iw1_e_poly, to_svg, stroke=False)
     s_in = iw1_s + half_sw
     n_in = iw1_n - half_sw
-    for a, b in [((iw_sw[0], s_in), (ro1_w, s_in)),
+    # West end outline
+    w_in = iw_sw[0] + half_sw
+    for a, b in [((w_in, iw1_s), (w_in, iw1_n)),
+                 ((iw_sw[0], s_in), (ro1_w, s_in)),
                  ((ro1_e, s_in), (iw_se[0], s_in)),
                  ((iw_nw[0], n_in), (ro1_w, n_in)),
                  ((ro1_e, n_in), (iw_ne[0], n_in))]:
