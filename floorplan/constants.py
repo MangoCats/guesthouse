@@ -160,7 +160,7 @@ UPPER_E_R = 28.0 / 12.0           # R_a7: 28" upper east
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
 ARC_180_R = 28.0 / 12.0           # R_a11: 28" 180-degree arc
 FLAT_SEG_11 = 16.0 / 12.0         # 16" straight segment F11a-F11b
-ARC_F3_R = 68.0 / 12.0             # R_a3: 68" arc radius
+ARC_F3_R = 6.064223608163559        # R_a3: ~72.8" (set for F3 N = 15'10")
 F6_EAST_ADJ = 6.0 / 12.0           # 6" F6 east adjustment
 F6_HEIGHT = 26.0 + 6.0/12.0       # 26'6" F6-F7 line north of F1
 NW_SHIFT = 1.0                    # C5 1' east shift
