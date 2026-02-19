@@ -1144,8 +1144,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
 
     # Position: north side 30" south of space north, centered E-W
     if db:
-        # Center under SINK west end
-        tbl_cx = ks_w
+        # Center under SINK center
+        tbl_cx = (ks_w + ks_e) / 2
     elif not minik:
         # Center under SINK middle
         tbl_cx = (ks_w + ks_e) / 2
