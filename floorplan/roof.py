@@ -116,3 +116,38 @@ def compute_roof_geometry(fp_pts: dict[str, Point],
         r4_radius=r4_r, r4_center=r4_c,
         area=area,
     )
+
+
+def roof_polyline(roof: RoofGeometry, n_arc: int = 30) -> list[Point]:
+    """Build the roof outline as a list of (E,N) points, sampling arcs."""
+    pts = roof.pts
+    poly: list[Point] = [pts["R1"], pts["R2"], pts["R3s"]]
+
+    # R3 arc: CW from R3s to R3e around r3_center
+    r3_c = roof.r3_center
+    r3_r = roof.r3_radius
+    a_start = math.atan2(pts["R3s"][1] - r3_c[1], pts["R3s"][0] - r3_c[0])
+    a_end = math.atan2(pts["R3e"][1] - r3_c[1], pts["R3e"][0] - r3_c[0])
+    if a_end > a_start:
+        a_end -= 2 * math.pi
+    for i in range(1, n_arc):
+        a = a_start + (a_end - a_start) * i / n_arc
+        poly.append((r3_c[0] + r3_r * math.cos(a), r3_c[1] + r3_r * math.sin(a)))
+    poly.append(pts["R3e"])
+
+    poly.append(pts["R4s"])
+
+    # R4 arc: CW from R4s to R4e around r4_center
+    r4_c = roof.r4_center
+    r4_r = roof.r4_radius
+    a_start = math.atan2(pts["R4s"][1] - r4_c[1], pts["R4s"][0] - r4_c[0])
+    a_end = math.atan2(pts["R4e"][1] - r4_c[1], pts["R4e"][0] - r4_c[0])
+    if a_end > a_start:
+        a_end -= 2 * math.pi
+    for i in range(1, n_arc):
+        a = a_start + (a_end - a_start) * i / n_arc
+        poly.append((r4_c[0] + r4_r * math.cos(a), r4_c[1] + r4_r * math.sin(a)))
+    poly.append(pts["R4e"])
+
+    poly.extend([pts["R5"], pts["R6"], pts["R7"]])
+    return poly

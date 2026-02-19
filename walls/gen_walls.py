@@ -898,8 +898,8 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                    f' fill="none" stroke="#999" stroke-width="0.5"/>')
 
     # --- Roof outline (dotted) ---
-    from roof.gen_roof import _roof_polyline
-    roof_poly = _roof_polyline(data.roof)
+    from floorplan.roof import roof_polyline
+    roof_poly = roof_polyline(data.roof)
     roof_svg = " ".join(
         f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in roof_poly)
     out.append(f'<polygon points="{roof_svg}" fill="none"'

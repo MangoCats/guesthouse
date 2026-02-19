@@ -23,8 +23,7 @@ from shared.svg import git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import WALL_OUTER, F8F9_INNER_TURN_R
 from floorplan.layout import compute_interior_layout
-from floorplan.roof import compute_roof_geometry
-from roof.gen_roof import _roof_polyline
+from floorplan.roof import compute_roof_geometry, roof_polyline
 
 
 # ── geometry bootstrap ─────────────────────────────────────────
@@ -54,7 +53,7 @@ def _build_geometry():
     inner_poly[i8:i9 + 1] = w_f8f9
     layout = compute_interior_layout(pts, inner_poly)
     roof = compute_roof_geometry(pts, geo.radii)
-    roof_poly = _roof_polyline(roof)
+    roof_poly = roof_polyline(roof)
     return pts, geo.outline_segs, outer_poly, inner_poly, layout, roof_poly
 
 

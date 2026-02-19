@@ -6,47 +6,12 @@ from datetime import date
 from shared.svg import W, H, git_describe
 from shared.geometry import path_polygon, poly_area, fmt_dist
 from floorplan.gen_floorplan import build_floorplan_data
-from floorplan.roof import compute_roof_geometry
+from floorplan.roof import compute_roof_geometry, roof_polyline
 
 
 def _svg_pts(pts_list, to_svg):
     """Convert a list of (E,N) points to SVG polygon points string."""
     return " ".join(f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in pts_list)
-
-
-def _roof_polyline(roof, n_arc=30):
-    """Build the roof outline as a list of (E,N) points, sampling arcs."""
-    pts = roof.pts
-    poly = [pts["R1"], pts["R2"], pts["R3s"]]
-
-    # R3 arc: CW from R3s to R3e around r3_center
-    r3_c = roof.r3_center
-    r3_r = roof.r3_radius
-    a_start = math.atan2(pts["R3s"][1] - r3_c[1], pts["R3s"][0] - r3_c[0])
-    a_end = math.atan2(pts["R3e"][1] - r3_c[1], pts["R3e"][0] - r3_c[0])
-    if a_end > a_start:
-        a_end -= 2 * math.pi
-    for i in range(1, n_arc):
-        a = a_start + (a_end - a_start) * i / n_arc
-        poly.append((r3_c[0] + r3_r * math.cos(a), r3_c[1] + r3_r * math.sin(a)))
-    poly.append(pts["R3e"])
-
-    poly.append(pts["R4s"])
-
-    # R4 arc: CW from R4s to R4e around r4_center
-    r4_c = roof.r4_center
-    r4_r = roof.r4_radius
-    a_start = math.atan2(pts["R4s"][1] - r4_c[1], pts["R4s"][0] - r4_c[0])
-    a_end = math.atan2(pts["R4e"][1] - r4_c[1], pts["R4e"][0] - r4_c[0])
-    if a_end > a_start:
-        a_end -= 2 * math.pi
-    for i in range(1, n_arc):
-        a = a_start + (a_end - a_start) * i / n_arc
-        poly.append((r4_c[0] + r4_r * math.cos(a), r4_c[1] + r4_r * math.sin(a)))
-    poly.append(pts["R4e"])
-
-    poly.extend([pts["R5"], pts["R6"], pts["R7"]])
-    return poly
 
 
 def render_roof_svg(fp_data, roof):
@@ -58,7 +23,7 @@ def render_roof_svg(fp_data, roof):
     bldg_poly = path_polygon(fp_data.outline_segs, pts)
 
     # Roof outline polygon
-    roof_poly = _roof_polyline(roof)
+    roof_poly = roof_polyline(roof)
 
     # --- Page layout ---
     all_pts = bldg_poly + roof_poly
