@@ -1365,15 +1365,19 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" stroke-dasharray="4,3"/>')
 
     if minik:
-        # SOFA: 73.2" E-W x 24.6" N-S, 6" east of IW4 west, 2" north of IW1
-        sofa_w = layout.iw4_w + 6.0 / 12.0
-        sofa_e = sofa_w + SOFA_WIDTH - 24.0 / 12.0
+        # SOFA: 80.75" E-W x 34.625" N-S, same E-W center as old, 2" north of IW1
+        _old_sofa_w = layout.iw4_w + 6.0 / 12.0
+        _old_sofa_cx = _old_sofa_w + (SOFA_WIDTH - 24.0 / 12.0) / 2
+        _sofa_ew = 80.75 / 12.0
+        _sofa_ns = 34.625 / 12.0
+        sofa_w = _old_sofa_cx - _sofa_ew / 2
+        sofa_e = _old_sofa_cx + _sofa_ew / 2
         sofa_s = layout.iw1_n + 2.0 / 12.0
-        sofa_n = sofa_s + SOFA_DEPTH
+        sofa_n = sofa_s + _sofa_ns
         sf_sx1, sf_sy1 = to_svg(sofa_w, sofa_n)
         sf_sx2, sf_sy2 = to_svg(sofa_e, sofa_s)
         sf_sw = sf_sx2 - sf_sx1; sf_sh = sf_sy2 - sf_sy1
-        out.append('<a href="https://www.homedepot.com/p/AURA-OUTDOOR-4-Piece-Metal-Outdoor-Sectional-Sofa-Set-Patio-Furniture-Set-with-6-in-Olefin-Cushion-Gray-SIS006-GY/335858535" target="_blank">')
+        out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-3-seat-sofa-gunnared-light-green-s89599953/" target="_blank">')
         out.append(f'<rect x="{sf_sx1:.1f}" y="{sf_sy1:.1f}" width="{sf_sw:.1f}" height="{sf_sh:.1f}"'
                    f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
         sf_cx = (sf_sx1 + sf_sx2) / 2
