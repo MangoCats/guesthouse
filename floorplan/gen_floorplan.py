@@ -1099,12 +1099,12 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         # Door: hinged at NE corner, closes to NW corner
         _mw_door = mw_e - mw_w
         _mh_x, _mh_y = to_svg(mw_e, mw_n)
-        _mt_x, _mt_y = to_svg(mw_e + _mw_door, mw_n)
+        _mt_x, _mt_y = to_svg(mw_e, mw_n + _mw_door)
         out.append(f'<line x1="{_mh_x:.1f}" y1="{_mh_y:.1f}" x2="{_mt_x:.1f}" y2="{_mt_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         _mw_arc = []
         for _i in range(21):
-            _a = _i * (math.pi / 2) / 20  # 0° to 90°
+            _a = math.pi / 2 + _i * (math.pi / 2) / 20  # 90° to 180°
             _ae = mw_e + _mw_door * math.cos(_a)
             _an = mw_n + _mw_door * math.sin(_a)
             _ax, _ay = to_svg(_ae, _an)
