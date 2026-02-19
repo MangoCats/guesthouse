@@ -1379,6 +1379,26 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
         out.append('</a>')
 
+        # Coffee maker on 30" counter (7.2" E-W x 9.2" N-S)
+        cm_ew = 7.2 / 12.0
+        cm_ns = 9.2 / 12.0
+        cm_e = nc_e - 2.0 / 12.0
+        cm_w = cm_e - cm_ew
+        cm_n = nc_n - 2.0 / 12.0
+        cm_s = cm_n - cm_ns
+        cm_sx1, cm_sy1 = to_svg(cm_w, cm_n)
+        cm_sx2, cm_sy2 = to_svg(cm_e, cm_s)
+        cm_sw = cm_sx2 - cm_sx1
+        cm_sh = cm_sy2 - cm_sy1
+        out.append('<a href="https://www.amazon.com/Holstein-Housewares-HH-0914701E-5-Cup-Coffee/dp/B08HSRCC4T/?th=1" target="_blank">')
+        out.append(f'<rect x="{cm_sx1:.1f}" y="{cm_sy1:.1f}" width="{cm_sw:.1f}" height="{cm_sh:.1f}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        cm_cx = (cm_sx1 + cm_sx2) / 2
+        cm_cy = (cm_sy1 + cm_sy2) / 2
+        out.append(f'<text x="{cm_cx:.1f}" y="{cm_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="5" fill="{APPL_STROKE}">C</text>')
+        out.append('</a>')
+
 def _render_furniture(out, data, layout, minik=False, db=False):
     """Render furniture: bed, loveseat/sofa, ET, chair, ottoman, room labels."""
     pts = data.pts
