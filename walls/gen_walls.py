@@ -913,7 +913,7 @@ if __name__ == "__main__":
         f.write(svg_content)
     print(f"Wall detail written to {svg_path}")
 
-    all_svg = render_walls_svg(data, title="Walls", include_interior=True)
+    all_svg = render_walls_svg(data, title="All Walls", include_interior=True)
     all_path = os.path.join(_dir, "all_walls.svg")
     with open(all_path, "w", encoding="utf-8") as f:
         f.write(all_svg)
