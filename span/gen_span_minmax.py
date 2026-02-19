@@ -9,6 +9,8 @@ of the rotated x-axis.  Three curves per panel:
 When no IW centerline is intersected, green and cyan equal the full span.
 
 The rotation with the lowest maximum total span is highlighted.
+A fine search (0.5 deg steps, +/-4.5 deg around the coarse minimum) refines
+the exact minimum angle.
 
 Output: span/span_minmax.svg
 """
@@ -94,6 +96,28 @@ def _seg_vert_isect(p1, p2, e):
     return None
 
 
+# ── max-span-at-angle helper ───────────────────────────────────
+
+def _max_span_at_angle(inner_poly, iw_cls, angle, cx, cy):
+    """Return just the max total span for a given rotation angle."""
+    rad = math.radians(angle)
+    ca, sa = math.cos(rad), math.sin(rad)
+    r_inner = _rot_poly(inner_poly, cx, cy, ca, sa)
+    ie_min = min(p[0] for p in r_inner)
+    ie_max = max(p[0] for p in r_inner)
+    inch = 1.0 / 12.0
+    best = 0.0
+    e = ie_min
+    while e <= ie_max + 1e-9:
+        ns = vert_isects(r_inner, e)
+        if len(ns) >= 2:
+            span = max(ns) - min(ns)
+            if span > best:
+                best = span
+        e += inch
+    return best
+
+
 # ── SVG generation ─────────────────────────────────────────────
 
 def _generate_svg(pts, outer_poly, inner_poly, layout):
@@ -157,12 +181,23 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
             e_min=e_min, e_max=e_max, n_min=n_min, n_max=n_max,
         ))
 
-    # global bounds and best angle
+    # global bounds and coarse best angle
     g_e_min = min(d['e_min'] for d in all_data)
     g_e_max = max(d['e_max'] for d in all_data)
     g_max_span = max(d['max_span'] for d in all_data)
     mm_span = min(d['max_span'] for d in all_data)
     mm_angle = next(d['angle'] for d in all_data if d['max_span'] == mm_span)
+
+    # fine search: 0.5 deg steps, +/-4.5 deg around coarse minimum
+    fine_best_span = mm_span
+    fine_best_angle = float(mm_angle)
+    fine_a = mm_angle - 4.5
+    while fine_a <= mm_angle + 4.5 + 1e-9:
+        ms = _max_span_at_angle(inner_poly, iw_cls, fine_a, cx, cy)
+        if ms < fine_best_span:
+            fine_best_span = ms
+            fine_best_angle = fine_a
+        fine_a += 0.5
 
     # page layout (portrait Letter width)
     PW = 612
@@ -188,10 +223,14 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
     o.append('<rect width="100%" height="100%" fill="white"/>')
 
     # title
+    fine_ang_str = (f"{fine_best_angle:.1f}".rstrip('0').rstrip('.')
+                    if fine_best_angle != int(fine_best_angle)
+                    else f"{int(fine_best_angle)}")
     o.append(f'<text x="{PW / 2}" y="{MT - 12}" text-anchor="middle"'
              f' font-family="Arial" font-size="13" font-weight="bold"'
              f' fill="#222">Span vs. Rotation (5\u00b0\u2013175\u00b0)'
-             f' \u2014 min max: {fmt_dist(mm_span)} at {mm_angle}\u00b0</text>')
+             f' \u2014 min max: {fmt_dist(fine_best_span)}'
+             f' at {fine_ang_str}\u00b0</text>')
 
     # legend
     ly = MT + 2
@@ -220,7 +259,11 @@ def _generate_svg(pts, outer_poly, inner_poly, layout):
         yc += 14
         tc = "#C62828" if is_min else "#333"
         tw = "bold" if is_min else "normal"
-        tag = " \u2190 MIN" if is_min else ""
+        if is_min:
+            tag = (f" \u2190 MIN (refined: {fmt_dist(fine_best_span)}"
+                   f" at {fine_ang_str}\u00b0)")
+        else:
+            tag = ""
         o.append(f'<text x="{ML}" y="{yc}" font-family="Arial"'
                  f' font-size="9" fill="{tc}" font-weight="{tw}">'
                  f'{ang}\u00b0  max: {fmt_dist(d["max_span"])}{tag}</text>')
