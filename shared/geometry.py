@@ -226,11 +226,18 @@ def compute_inner_walls(
     Mutates pts adding W-series points.
     Returns inner_segs list.
 
-    radii keys: R_a0, R_a20, R_a19, R_a17, R_a15,
+    radii keys: R_a1, R_a19, R_a17, R_a15,
                 R_a11, R_a8, R_a7, R_a5, R_a13, R_a10
     """
     def _inner_point(seg_b, seg_a):
         _wt = -wall_t  # negated: left_norm points exterior for CW traversal; negate to offset inward
+        if isinstance(seg_b, LineSeg) and isinstance(seg_a, LineSeg):
+            S1, E1 = pts[seg_b.start], pts[seg_b.end]
+            S2, E2 = pts[seg_a.start], pts[seg_a.end]
+            D1 = (E1[0]-S1[0], E1[1]-S1[1])
+            D2 = (E2[0]-S2[0], E2[1]-S2[1])
+            LN1 = left_norm(S1, E1); LN2 = left_norm(S2, E2)
+            return line_isect(off_pt(S1, LN1, _wt), D1, off_pt(S2, LN2, _wt), D2)
         if not isinstance(seg_b, LineSeg) and not isinstance(seg_a, LineSeg):
             c1 = pts[seg_b.center]; c2 = pts[seg_a.center]
             r1 = (seg_b.radius + _wt) if seg_b.direction == "CW" else (seg_b.radius - _wt)
@@ -250,10 +257,9 @@ def compute_inner_walls(
 
     R = radii
     inner_segs = [
-        ArcSeg("W0","W1","C0",R["R_a0"]-wall_t,"CW",20),
-        LineSeg("W1","W2"),
-        ArcSeg("W2","W3","C2",R["R_a2"]-wall_t,"CW",20),
-        ArcSeg("W3","W4","C3",R["R_a3"]+wall_t,"CCW",20),
+        ArcSeg("W1","W2","C1",R["R_a1"]-wall_t,"CW",20),
+        LineSeg("W2","W3"),
+        ArcSeg("W3","W4","C3",R["R_a3"]-wall_t,"CW",20),
         LineSeg("W4","W5"),
         ArcSeg("W5","W6","C5",R["R_a5"]-wall_t,"CW",20),
         LineSeg("W6","W7"),
@@ -261,7 +267,9 @@ def compute_inner_walls(
         ArcSeg("W8","W9","C8",R["R_a8"]+wall_t,"CCW",20),
         LineSeg("W9","W10"),
         ArcSeg("W10","W11","C10",R["R_a10"]+wall_t,"CCW",20),
-        ArcSeg("W11","W12","C11",R["R_a11"]-wall_t,"CW",60),
+        ArcSeg("W11","W11a","C11a",R["R_a11"]-wall_t,"CW",30),
+        LineSeg("W11a","W11b"),
+        ArcSeg("W11b","W12","C11",R["R_a11"]-wall_t,"CW",30),
         LineSeg("W12","W13"),
         ArcSeg("W13","W14","C13",R["R_a13"]-wall_t,"CW",60),
         LineSeg("W14","W15"),
@@ -270,7 +278,6 @@ def compute_inner_walls(
         ArcSeg("W17","W18","C17",R["R_a17"]-wall_t,"CW",20),
         LineSeg("W18","W19"),
         ArcSeg("W19","W20","C19",R["R_a19"]-wall_t,"CW",60),
-        ArcSeg("W20","W21","C20",R["R_a20"]+wall_t,"CCW",60),
-        LineSeg("W21","W0"),
+        LineSeg("W20","W1"),
     ]
     return inner_segs

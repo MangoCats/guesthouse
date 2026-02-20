@@ -40,6 +40,9 @@ Individual scripts can also be run standalone (they fall back to a live `git des
 python survey/gen_path_svg.py        # → survey/path_area.svg
 python floorplan/gen_floorplan.py    # → floorplan/floorplan.svg
 python walls/gen_walls.py            # → walls/walls.svg, walls/all_walls.svg
+python span/gen_span.py              # → span/span.svg
+python span/gen_span_minmax.py       # → span/span_minmax.svg
+python span/gen_span_min.py          # → span/span_min.svg
 ```
 
 ## Tests
@@ -54,6 +57,7 @@ pytest
 shared/              Common types, geometry, survey computation, SVG utilities
 floorplan/           Building design: geometry, layout, constants, SVG renderer
 walls/               Outer wall construction detail drawing
+span/                N-S span measurement and rotation analysis
 survey/              Survey scripts and data
 tests/               Unit tests
 ```

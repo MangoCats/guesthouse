@@ -8,17 +8,17 @@ from typing import NamedTuple
 
 from shared.types import Point, BBox, LineSeg
 from floorplan.constants import (
-    O1_OFFSET_S, O1_WIDTH, O2_OFFSET_S, O2_WIDTH,
-    O3_HALF_WIDTH, O4_HALF_WIDTH,
+    O1_WIDTH, O2_WIDTH,
+    IW2_RO_OFFSET_S, IW2_RO_WIDTH,
+    O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH, O4_OFFSET_W_IW2,
     O5_E_FROM_F7, O5_WIDTH, O6_E_FROM_F9, O6_WIDTH,
     O7_NW_GAP, O7_HALF_WIDTH,
-    O8_HALF_WIDTH, O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
-    IW1_OFFSET_N, IW5_OFFSET_N, WALL_3IN,
-    KITCHEN_CTR_LENGTH, STD_GAP, FRIDGE_SIZE,
-    IW1_RO_OFFSET_E, IW1_RO_WIDTH,
+    O8_HALF_WIDTH,
+    IW5_OFFSET_N, WALL_3IN,
+    STD_GAP,
+    RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
-    IW3_RO_OFFSET_N, IW3_RO_WIDTH,
-    IW4_RO_WIDTH, CLOSET1_HEIGHT, WALL_SOUTH_N,
+    IW4_RO_WIDTH, IW16_RO_WIDTH,
     IW6_THICKNESS, IW6_OFFSET_N, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
@@ -26,17 +26,18 @@ from floorplan.constants import (
 class OuterOpening(NamedTuple):
     """Opening in the outer wall, positioned as a 4-point polygon."""
     name: str
-    seg_start: str       # e.g., "F1" — outline segment start point
-    seg_end: str         # e.g., "F2" — outline segment end point
+    seg_start: str       # e.g., "F2" — outline segment start point
+    seg_end: str         # e.g., "F3" — outline segment end point
     poly: list[Point]    # 4 vertices: [outer_start, outer_end, inner_end, inner_start]
 
 
 class RoughOpening(NamedTuple):
     """Rough opening in an interior wall."""
     name: str
-    bbox: BBox           # w, s, e, n in survey coords
+    bbox: BBox           # w, s, e, n in survey coords (axis-aligned BB)
     wall_name: str       # "IW1", "IW2", etc.
-    orientation: str     # "H" or "V"
+    orientation: str     # "H", "V", or "R" (rotated)
+    poly: list[Point] | None = None  # [SW, SE, NE, NW] for rotated openings
 
 
 class WallOpening(NamedTuple):
@@ -55,31 +56,50 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     """
     openings = []
 
-    # O1: F1-F2, vertical, lower (south of IW1)
-    o1_n = pts["F2"][1] - O1_OFFSET_S
-    o1_s = o1_n - O1_WIDTH
-    openings.append(OuterOpening("O1", "F1", "F2", [
-        (pts["F2"][0], o1_s), (pts["F2"][0], o1_n),
-        (pts["W2"][0], o1_n), (pts["W2"][0], o1_s),
+    # O1: F2-F3, vertical, centered at RO3/IW16 center northing
+    _iw16_ctr_n = (layout.iw16_poly[0][1] + layout.iw16_poly[2][1]) / 2
+    o1_n = _iw16_ctr_n + O1_WIDTH / 2
+    o1_s = _iw16_ctr_n - O1_WIDTH / 2
+    openings.append(OuterOpening("O1", "F2", "F3", [
+        (pts["F3"][0], o1_s), (pts["F3"][0], o1_n),
+        (pts["W3"][0], o1_n), (pts["W3"][0], o1_s),
     ]))
 
-    # O2: F1-F2, vertical, upper (near F2)
-    o2_n = pts["F2"][1] - O2_OFFSET_S
-    o2_s = o2_n - O2_WIDTH
-    openings.append(OuterOpening("O2", "F1", "F2", [
-        (pts["F2"][0], o2_s), (pts["F2"][0], o2_n),
-        (pts["W2"][0], o2_n), (pts["W2"][0], o2_s),
+    # O2: F4-F5, diagonal, centered at RO4 northing center
+    _dE2 = pts["F5"][0] - pts["F4"][0]
+    _dN2 = pts["F5"][1] - pts["F4"][1]
+    _seg2_len = math.sqrt(_dE2**2 + _dN2**2)
+    _ro4_ctr_n = layout.iw6_s - IW2_RO_OFFSET_S - IW2_RO_WIDTH / 2
+    _t2_ctr = (_ro4_ctr_n - pts["F4"][1]) / _dN2
+    _t2_half = (O2_WIDTH / 2) / _seg2_len
+    _t2_start = _t2_ctr - _t2_half
+    _t2_end = _t2_ctr + _t2_half
+    openings.append(OuterOpening("O2", "F4", "F5", [
+        (pts["F4"][0] + _t2_start * _dE2, pts["F4"][1] + _t2_start * _dN2),
+        (pts["F4"][0] + _t2_end * _dE2, pts["F4"][1] + _t2_end * _dN2),
+        (pts["W4"][0] + _t2_end * (pts["W5"][0] - pts["W4"][0]),
+         pts["W4"][1] + _t2_end * (pts["W5"][1] - pts["W4"][1])),
+        (pts["W4"][0] + _t2_start * (pts["W5"][0] - pts["W4"][0]),
+         pts["W4"][1] + _t2_start * (pts["W5"][1] - pts["W4"][1])),
     ]))
 
-    # O3: F4-F5, vertical, centered
-    o3_cn = (pts["F4"][1] + pts["F5"][1]) / 2
+    # O3: F4-F5, diagonal, 4" from F5 along F5-F4 line
+    _dE3 = pts["F5"][0] - pts["F4"][0]
+    _dN3 = pts["F5"][1] - pts["F4"][1]
+    _seg3_len = math.sqrt(_dE3**2 + _dN3**2)
+    _t3_end = 1 - O3_GAP_F5 / _seg3_len       # closer to F5
+    _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg3_len  # farther from F5
     openings.append(OuterOpening("O3", "F4", "F5", [
-        (pts["F4"][0], o3_cn - O3_HALF_WIDTH), (pts["F4"][0], o3_cn + O3_HALF_WIDTH),
-        (pts["W4"][0], o3_cn + O3_HALF_WIDTH), (pts["W4"][0], o3_cn - O3_HALF_WIDTH),
+        (pts["F4"][0] + _t3_start * _dE3, pts["F4"][1] + _t3_start * _dN3),
+        (pts["F4"][0] + _t3_end * _dE3, pts["F4"][1] + _t3_end * _dN3),
+        (pts["W4"][0] + _t3_end * (pts["W5"][0] - pts["W4"][0]),
+         pts["W4"][1] + _t3_end * (pts["W5"][1] - pts["W4"][1])),
+        (pts["W4"][0] + _t3_start * (pts["W5"][0] - pts["W4"][0]),
+         pts["W4"][1] + _t3_start * (pts["W5"][1] - pts["W4"][1])),
     ]))
 
-    # O4: F6-F7, horizontal, centered on midpoint
-    o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
+    # O4: F6-F7, horizontal, relative to IW2 west face
+    o4_mid = layout.iw2.w - O4_OFFSET_W_IW2
     o4_w = o4_mid - O4_HALF_WIDTH
     o4_e = o4_mid + O4_HALF_WIDTH
     openings.append(OuterOpening("O4", "F6", "F7", [
@@ -119,34 +139,26 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O8: F14-F15, vertical — centered between IW5 south face and F15
-    iw5_n = pts["W0"][1] + IW1_OFFSET_N - IW5_OFFSET_N
-    iw5_s = iw5_n - WALL_3IN
-    o8_cn = (iw5_s + pts["F15"][1]) / 2
+    o8_cn = (layout.iw5.s + pts["F15"][1]) / 2
     openings.append(OuterOpening("O8", "F14", "F15", [
         (pts["F15"][0], o8_cn - O8_HALF_WIDTH), (pts["F15"][0], o8_cn + O8_HALF_WIDTH),
         (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
     ]))
 
-    # O9: F18-F19, horizontal — centered between bed east and IW4 west
-    o9_cn = (layout.bed.e + layout.iw4_w) / 2
-    openings.append(OuterOpening("O9", "F18", "F19", [
-        (o9_cn - O9_HALF_WIDTH, pts["F18"][1]), (o9_cn + O9_HALF_WIDTH, pts["F18"][1]),
-        (o9_cn + O9_HALF_WIDTH, pts["W18"][1]), (o9_cn - O9_HALF_WIDTH, pts["W18"][1]),
-    ]))
-
-    # O10: F21-F0, horizontal (bed area) — centered between bed west and IW3 east
-    o10_cn = (layout.bed.w + layout.iw3.e) / 2
-    openings.append(OuterOpening("O10", "F21", "F0", [
-        (o10_cn - O10_HALF_WIDTH, pts["F0"][1]), (o10_cn + O10_HALF_WIDTH, pts["F0"][1]),
-        (o10_cn + O10_HALF_WIDTH, pts["W0"][1]), (o10_cn - O10_HALF_WIDTH, pts["W0"][1]),
-    ]))
-
-    # O11: F21-F0, horizontal (utility area) — centered between dryer and counter
-    o11_cn = (layout.dryer.e + layout.ctr.w) / 2
-    openings.append(OuterOpening("O11", "F21", "F0", [
-        (o11_cn - O11_HALF_WIDTH, pts["F0"][1]), (o11_cn + O11_HALF_WIDTH, pts["F0"][1]),
-        (o11_cn + O11_HALF_WIDTH, pts["W0"][1]), (o11_cn - O11_HALF_WIDTH, pts["W0"][1]),
-    ]))
+    # O9, O10, O11: F20-F1 — parametric positions from layout (single source)
+    _dE9 = pts["F1"][0] - pts["F20"][0]
+    _dN9 = pts["F1"][1] - pts["F20"][1]
+    for _name, _ts, _te in [("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
+                             ("O10", layout.sw_t_o10_start, layout.sw_t_o10_end),
+                             ("O11", layout.sw_t_o11_start, layout.sw_t_o11_end)]:
+        openings.append(OuterOpening(_name, "F20", "F1", [
+            (pts["F20"][0] + _ts * _dE9, pts["F20"][1] + _ts * _dN9),
+            (pts["F20"][0] + _te * _dE9, pts["F20"][1] + _te * _dN9),
+            (pts["W20"][0] + _te * (pts["W1"][0] - pts["W20"][0]),
+             pts["W20"][1] + _te * (pts["W1"][1] - pts["W20"][1])),
+            (pts["W20"][0] + _ts * (pts["W1"][0] - pts["W20"][0]),
+             pts["W20"][1] + _ts * (pts["W1"][1] - pts["W20"][1])),
+        ]))
 
     return openings
 
@@ -159,21 +171,49 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     iw6_s = iw6_n - IW6_THICKNESS
     iw5_n = iw1_s - IW5_OFFSET_N
     iw5_s = iw5_n - WALL_3IN
-    closet1_top = WALL_SOUTH_N + CLOSET1_HEIGHT
-    iw8_n_face = closet1_top + WALL_3IN
 
     # RO1: in IW1, horizontal
-    ro1_w = layout.iw2.e + KITCHEN_CTR_LENGTH + STD_GAP + FRIDGE_SIZE + IW1_RO_OFFSET_E
+    ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
     ro1_e = ro1_w + IW1_RO_WIDTH
 
-    # RO2: in IW4, vertical, centered between IW5 south and IW8 north
-    ro2_center = (iw5_s + iw8_n_face) / 2
-    ro2_s = ro2_center - IW4_RO_WIDTH / 2
-    ro2_n = ro2_center + IW4_RO_WIDTH / 2
+    # RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11
+    _iw11_se, _iw11_ne = layout.iw11_poly[1], layout.iw11_poly[2]
+    _iw11_sw = layout.iw11_poly[0]
+    _dx11 = _iw11_ne[0] - _iw11_se[0]
+    _dy11 = _iw11_ne[1] - _iw11_se[1]
+    _len11 = math.sqrt(_dx11**2 + _dy11**2)
+    _un11 = (_dx11 / _len11, _dy11 / _len11)  # unit along IW11 length (NNE)
+    _dx11t = _iw11_sw[0] - _iw11_se[0]
+    _dy11t = _iw11_sw[1] - _iw11_se[1]
+    _lt11 = math.sqrt(_dx11t**2 + _dy11t**2)
+    _ut11 = (_dx11t / _lt11, _dy11t / _lt11)  # unit along IW11 thickness
+    # IW12 NW corner projected onto IW11 length axis
+    _iw12_nw = layout.iw12_poly[3]
+    _ro2_start_d = ((_iw12_nw[0] - _iw11_se[0]) * _un11[0]
+                    + (_iw12_nw[1] - _iw11_se[1]) * _un11[1]) + 3.0 / 12.0
+    _ro2_end_d = _ro2_start_d + IW4_RO_WIDTH
+    # RO2 polygon [SW, SE, NE, NW] in IW11 coords
+    _ro2_sw = (_iw11_se[0] + _ro2_start_d * _un11[0],
+               _iw11_se[1] + _ro2_start_d * _un11[1])
+    _ro2_se = (_iw11_sw[0] + _ro2_start_d * _un11[0],
+               _iw11_sw[1] + _ro2_start_d * _un11[1])
+    _ro2_ne = (_iw11_sw[0] + _ro2_end_d * _un11[0],
+               _iw11_sw[1] + _ro2_end_d * _un11[1])
+    _ro2_nw = (_iw11_se[0] + _ro2_end_d * _un11[0],
+               _iw11_se[1] + _ro2_end_d * _un11[1])
+    _ro2_poly = [_ro2_sw, _ro2_se, _ro2_ne, _ro2_nw]
+    _ro2_bb = BBox(w=min(p[0] for p in _ro2_poly), s=min(p[1] for p in _ro2_poly),
+                   e=max(p[0] for p in _ro2_poly), n=max(p[1] for p in _ro2_poly))
 
-    # RO3: in IW3, vertical
-    ro3_s = layout.ctr.n + WALL_3IN + IW3_RO_OFFSET_N
-    ro3_n = ro3_s + IW3_RO_WIDTH
+    # RO3: in IW16 (axis-aligned N-S), 38" centered
+    _iw16 = layout.iw16_poly  # [(w,s), (e,s), (e,n), (w,n)]
+    _iw16_w = _iw16[0][0]
+    _iw16_e = _iw16[1][0]
+    _iw16_s = _iw16[0][1]
+    _iw16_n = _iw16[2][1]
+    _iw16_mid_n = (_iw16_s + _iw16_n) / 2
+    ro3_s = _iw16_mid_n - IW16_RO_WIDTH / 2
+    ro3_n = _iw16_mid_n + IW16_RO_WIDTH / 2
 
     # RO4: in IW2, vertical
     ro4_n = iw6_s - IW2_RO_OFFSET_S
@@ -185,8 +225,8 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
 
     return [
         RoughOpening("RO1", BBox(w=ro1_w, s=iw1_s, e=ro1_e, n=iw1_n), "IW1", "H"),
-        RoughOpening("RO2", BBox(w=layout.iw4_w, s=ro2_s, e=layout.iw4_e, n=ro2_n), "IW4", "V"),
-        RoughOpening("RO3", BBox(w=layout.iw3.w, s=ro3_s, e=layout.iw3.e, n=ro3_n), "IW3", "V"),
+        RoughOpening("RO2", _ro2_bb, "IW11", "R", _ro2_poly),
+        RoughOpening("RO3", BBox(w=_iw16_w, s=ro3_s, e=_iw16_e, n=ro3_n), "IW16", "V"),
         RoughOpening("RO4", BBox(w=layout.iw2.w, s=ro4_s, e=layout.iw2.e, n=ro4_n), "IW2", "V"),
         RoughOpening("RO5", BBox(w=ro5_w, s=iw6_s, e=ro5_e, n=iw6_n), "IW6", "H"),
     ]

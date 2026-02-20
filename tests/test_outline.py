@@ -8,28 +8,28 @@ from floorplan.geometry import OutlineGeometry
 
 # Known-good F-series coordinates (regression snapshot)
 _EXPECTED_F = {
-    "F0":  ( 1.3333333333,  0.5000000000),
-    "F1":  ( 0.5000000000,  1.3333333333),
-    "F2":  ( 0.5000000000, 18.0000000000),
-    "F3":  ( 1.0821917808, 19.5525114155),
-    "F4":  ( 1.5000000000, 20.6666666667),
-    "F5":  ( 1.5000000000, 24.0000000000),
-    "F6":  ( 3.8333333333, 26.3333333333),
-    "F7":  ( 9.1666666667, 26.3333333333),
-    "F8":  (11.5000000000, 24.0000000000),
-    "F9":  (11.6666666667, 23.8333333333),
-    "F10": (28.1666666667, 23.8333333333),
-    "F11": (29.1709031708, 24.6039111052),
-    "F12": (33.6785570268, 24.6039111052),
-    "F13": (36.3082644586, 14.7897093608),
-    "F14": (36.5000000000, 13.3333333333),
+    "F1":  ( 1.2413070616,  2.1717635544),
+    "F2":  ( 0.5000000000,  3.0000000000),
+    "F3":  ( 0.5000000000, 15.8333333333),
+    "F4":  ( 0.5921291828, 16.8863747119),
+    "F5":  ( 2.0354485763, 25.0718457479),
+    "F6":  ( 4.3333333333, 27.0000000000),
+    "F7":  ( 9.1666666667, 27.0000000000),
+    "F8":  (11.5000000000, 24.6666666667),
+    "F9":  (11.6666666667, 24.5000000000),
+    "F10": (26.8333333333, 24.5000000000),
+    "F11": (27.8375698374, 25.2705777719),
+    "F11a": (30.0913967654, 27.0000000000),
+    "F11b": (31.4247300988, 27.0000000000),
+    "F12": (33.6785570268, 25.2705777719),
+    "F13": (36.3082644586, 15.4563760275),
+    "F14": (36.5000000000, 14.0000000000),
     "F15": (36.5000000000,  5.0000000000),
     "F16": (35.2633523643,  2.8580634639),
     "F17": (30.9332253454,  0.3580634639),
-    "F18": (27.7308889019, -0.5000000000),
-    "F19": (21.5000000000, -0.5000000000),
-    "F20": (19.9474885845,  0.0821917808),
-    "F21": (18.8333333333,  0.5000000000),
+    "F18": (27.6666666667, -0.5000000000),
+    "F19": (26.3333333333, -0.5000000000),
+    "F20": (24.2474233269, -0.3844715862),
 }
 
 
@@ -38,14 +38,16 @@ class TestOutlineGeometry:
         assert isinstance(outline_geo, OutlineGeometry)
 
     def test_22_points(self, outline_geo):
-        for i in range(22):
+        for i in [j for j in range(21) if j != 0]:
             assert f"F{i}" in outline_geo.fp_pts
+        assert "F11a" in outline_geo.fp_pts
+        assert "F11b" in outline_geo.fp_pts
 
     def test_22_segments(self, outline_geo):
         assert len(outline_geo.outline_segs) == 22
 
-    def test_13_radii(self, outline_geo):
-        assert len(outline_geo.radii) == 13
+    def test_11_radii(self, outline_geo):
+        assert len(outline_geo.radii) == 11
         for key, val in outline_geo.radii.items():
             assert key.startswith("R_a")
             assert val > 0, f"{key} = {val}"
@@ -67,7 +69,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 856.30) < 0.1
+        assert abs(area - 866.42) < 0.1
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):

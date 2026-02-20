@@ -18,6 +18,7 @@ from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import WALL_OUTER
 from floorplan.openings import compute_rough_openings
+from floorplan.roof import compute_roof_geometry
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges,
@@ -136,6 +137,7 @@ class WallData(NamedTuple):
     ft_per_inch: float
     g_f8f9_poly: list      # G-series F8-F9 straight-arc-straight polyline
     w_f8f9_poly: list      # W-series F8-F9 straight-arc-straight polyline
+    roof: object           # RoofGeometry
 
 
 def build_wall_data():
@@ -157,7 +159,8 @@ def build_wall_data():
     w_f8f9_poly = fp_data.w_f8f9_poly
 
     # --- Page layout: 1:72 scale ---
-    _f_svg = [to_svg(*pts[f"F{i}"]) for i in range(22)]
+    _f_names = [f"F{i}" for i in range(21) if i != 0]
+    _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
     _bldg_ymin = min(p[1] for p in _f_svg)
@@ -167,7 +170,7 @@ def build_wall_data():
     _title_y = _bldg_ymin - 49
 
     _tb_w, _tb_h = 130, 80
-    _tb_left = _bldg_xmax + 10
+    _tb_left = _bldg_xmax + 30
     _tb_right = _tb_left + _tb_w
     _tb_top = _title_y - 14 * 0.35
     _tb_bottom = _tb_top + _tb_h
@@ -203,6 +206,7 @@ def build_wall_data():
         ft_per_inch=_ft_per_inch,
         g_f8f9_poly=g_f8f9_poly,
         w_f8f9_poly=w_f8f9_poly,
+        roof=compute_roof_geometry(pts, radii),
     )
 
 
@@ -258,67 +262,146 @@ def _render_interior_walls(out, data):
                    f' dominant-baseline="central" font-family="Arial"'
                    f' font-size="{LABEL_SIZE}" fill="#666"{rot}>{name}</text>')
 
+    rough_openings = compute_rough_openings(pts, layout)
+    ro_map = {ro.name: ro.bbox for ro in rough_openings}
+
     # IW1 (horizontal, 6")
     iw_poly(layout.iw1)
     iw_label("IW1", layout.iw1[0][0], layout.iw1[1][0],
              layout.iw1_s, layout.iw1_n, vertical=False)
 
+    # IW8 (horizontal, 6" — west extension of IW1)
+    iw_rect(layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n)
+    iw_label("IW8", layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n,
+             vertical=False)
+
     # IW2 (vertical, 6")
     iw_rect(layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
-    iw_label("IW2", layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
+    iw_label("IW2", layout.iw2.w, layout.iw2.e, ro_map["RO4"].n, layout.iw2.n)
+
+    # IW3 (rotated, 4" thick, perpendicular to W20-W0)
+    iw_poly(layout.iw3_poly)
+    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
+
+    # IW7 (rotated, 4" thick, parallel to W20-W0)
+    iw_poly(layout.iw7_poly)
+    iw_label("IW7", layout.iw7.w, layout.iw7.e, layout.iw7.s, layout.iw7.n,
+             vertical=False)
+
+    # IW9 (rotated, 4" thick, perpendicular to W20-W0)
+    iw_poly(layout.iw9_poly)
+    iw_label("IW9", layout.iw9.w, layout.iw9.e, layout.iw9.s, layout.iw9.n)
+
+    # IW16 (vertical, 4" — IW3 NW to IW1)
+    iw_poly(layout.iw16_poly)
+    _iw16 = layout.iw16_poly
+    iw_label("IW16", _iw16[0][0], _iw16[1][0], _iw16[0][1], _iw16[2][1])
 
     # IW6 (horizontal, 1" partition)
     iw_poly(layout.iw6_poly)
-    iw_label("IW6", min(layout.iw6_poly[0][0], layout.iw6_poly[3][0]),
-             layout.iw2.w, layout.iw6_s, layout.iw6_n, vertical=False)
+    _ro5_w = ro_map["RO5"].w
+    iw_label("IW6", _ro5_w, _ro5_w, layout.iw6_s, layout.iw6_n, vertical=False)
 
-    # IW7 (L-shaped, 3") — label on vertical arm
-    iw_poly(layout.iw7)
-    iw_label("IW7", layout.iw7[0][0], layout.iw7[1][0],
-             layout.iw7[0][1], layout.iw7[5][1])
+    # IW4 (vertical, 4" — north end at IW12 north face)
+    _iw4_n = layout.iw12_poly[2][1]
+    iw_rect(layout.iw4_w, layout.iw4_e, layout.iw4_s, _iw4_n)
+    iw_label("IW4", layout.iw4_w, layout.iw4_e, layout.iw4_s, _iw4_n)
 
-    # IW3 (vertical, 4") — label shifted 6" south to clear IW7 horizontal leg
-    iw_rect(layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
-    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n,
-             n_shift=-6.0 / 12.0)
+    # IW11 (vertical, 4")
+    iw_poly(layout.iw11_poly)
+    iw_label("IW11", layout.iw11.w, layout.iw11.e, layout.iw11.s, layout.iw11.n)
 
-    # IW4 (vertical, 4")
-    iw_rect(layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)
-    iw_label("IW4", layout.iw4_w, layout.iw4_e, layout.wall_south_n, layout.iw3.n)
+    # IW15 (vertical, 4" — IW11 NW north to IW1 south)
+    iw_rect(layout.iw15.w, layout.iw15.e, layout.iw15.s, layout.iw15.n)
+    iw_label("IW15", layout.iw15.w, layout.iw15.e, layout.iw15.s, layout.iw15.n)
 
-    # IW8 (L-shaped, 3") — label on vertical arm
-    iw_poly(layout.iw8)
-    iw_label("IW8", layout.iw8[3][0], layout.iw8[2][0],
-             layout.iw8[2][1], layout.iw8[1][1])
+    # IW12 (rotated, 4")
+    iw_poly(layout.iw12_poly)
+    iw_label("IW12", layout.iw12.w, layout.iw12.e, layout.iw12.s, layout.iw12.n,
+             vertical=False)
+
+    # IW14 (rotated, 3" — parallel to IW12)
+    iw_poly(layout.iw14_poly)
+    iw_label("IW14", layout.iw14.w, layout.iw14.e, layout.iw14.s, layout.iw14.n,
+             vertical=False)
 
     # IW5 (horizontal, 3")
     iw_rect(layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n)
     iw_label("IW5", layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n,
              vertical=False)
 
-    # Rough openings (RO1-RO5) — dark red outline box with X
-    rough_openings = compute_rough_openings(pts, layout)
+    # Rough openings (RO1-RO5) — dark red outline box with X (5 openings)
     _RO_COLOR = "darkred"
     _RO_SW = "0.5"
     for ro in rough_openings:
-        b = ro.bbox
-        x1, y1 = to_svg(b.w, b.n)  # NW corner (SVG top-left)
-        x2, y2 = to_svg(b.e, b.s)  # SE corner (SVG bottom-right)
-        out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
-                   f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-        out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
-                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-        out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
-                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        if ro.poly is not None:
+            # Rotated opening: draw polygon + diagonals
+            _rp = ro.poly  # [SW, SE, NE, NW]
+            _rp_svg = [(to_svg(*p)) for p in _rp]
+            pts_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in _rp_svg)
+            out.append(f'<polygon points="{pts_str}" fill="none"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+            out.append(f'<line x1="{_rp_svg[0][0]:.1f}" y1="{_rp_svg[0][1]:.1f}"'
+                       f' x2="{_rp_svg[2][0]:.1f}" y2="{_rp_svg[2][1]:.1f}"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+            out.append(f'<line x1="{_rp_svg[1][0]:.1f}" y1="{_rp_svg[1][1]:.1f}"'
+                       f' x2="{_rp_svg[3][0]:.1f}" y2="{_rp_svg[3][1]:.1f}"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        else:
+            b = ro.bbox
+            x1, y1 = to_svg(b.w, b.n)  # NW corner (SVG top-left)
+            x2, y2 = to_svg(b.e, b.s)  # SE corner (SVG bottom-right)
+            out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
+                       f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+            out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+            out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
+                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
 
     # RO labels — same placement convention as IW labels
     for ro in rough_openings:
         b = ro.bbox
-        if ro.orientation == "H":
+        if ro.orientation == "R" and ro.poly is not None:
+            # Rotated opening: label on WNW face of IW11
+            import math as _m
+            _iw11 = layout.iw11_poly  # [SW, SE, NE, NW]
+            # WNW face direction: SW→NW
+            _face_dx = _iw11[3][0] - _iw11[0][0]
+            _face_dy = _iw11[3][1] - _iw11[0][1]
+            _face_len = _m.sqrt(_face_dx**2 + _face_dy**2)
+            _face_ux = _face_dx / _face_len
+            _face_uy = _face_dy / _face_len
+            # Label at center of RO2 poly, offset toward WNW face
+            _rc = (sum(p[0] for p in ro.poly) / 4,
+                   sum(p[1] for p in ro.poly) / 4)
+            # Offset toward west face (SE→SW direction = _iw11_at)
+            _thick_ux = _iw11[0][0] - _iw11[1][0]
+            _thick_uy = _iw11[0][1] - _iw11[1][1]
+            _thick_l = _m.sqrt(_thick_ux**2 + _thick_uy**2)
+            _lpt = (_rc[0] + (_thick_ux / _thick_l) * LABEL_GAP / abs(to_svg(1, 0)[0] - to_svg(0, 0)[0]),
+                    _rc[1] + (_thick_uy / _thick_l) * LABEL_GAP / abs(to_svg(1, 0)[0] - to_svg(0, 0)[0]))
+            lx, ly = to_svg(*_lpt)
+            # SVG rotation: angle of face direction in SVG coords
+            _sx1, _sy1 = to_svg(*_iw11[0])
+            _sx2, _sy2 = to_svg(*_iw11[3])
+            _svg_ang = _m.degrees(_m.atan2(_sy2 - _sy1, _sx2 - _sx1))
+            # Shift 1/3 font height "up" (outward normal to WNW face)
+            _fdx = _sx2 - _sx1; _fdy = _sy2 - _sy1
+            _fl = _m.sqrt(_fdx**2 + _fdy**2)
+            _nudge = float(LABEL_SIZE) / 3.0
+            lx += (_fdy / _fl) * _nudge
+            ly += (-_fdx / _fl) * _nudge
+            rot = f' transform="rotate({_svg_ang:.1f} {lx:.1f} {ly:.1f})"'
+        elif ro.orientation == "H":
             # Horizontal opening: label centered above (north)
             lx, ly = to_svg((b.w + b.e) / 2, b.n)
             ly -= LABEL_GAP
             rot = ""
+        elif ro.name == "RO3":
+            # RO3: label on east side to avoid IW16/IW3 overlap
+            lx, ly = to_svg(b.e, (b.s + b.n) / 2)
+            lx += LABEL_GAP
+            rot = f' transform="rotate(-90 {lx:.1f} {ly:.1f})"'
         else:
             # Vertical opening: label centered left (west)
             lx, ly = to_svg(b.w, (b.s + b.n) / 2)
@@ -459,7 +542,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     OPENING_FILL = "rgb(220,235,255)"
 
     # --- Draw wall sections ---
-    for seg_idx in range(22):
+    for seg_idx in range(len(outline_segs)):
         seg = outline_segs[seg_idx]
         inner_seg = inner_segs[seg_idx]
         s_seg = s_segs[seg_idx]
@@ -474,7 +557,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
             _svg_polygon(out, outer_shell, to_svg, WALL_FILL, stroke="none")
 
             # Inner shell: G-arc to W-arc
-            if seg_idx == 8:
+            if seg_idx == 7:
                 # F8-F9: straight-arc-straight path for inner shell
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
@@ -552,8 +635,8 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                                  stroke="#4682B4", stroke_width="0.5")
 
     # --- Continuous outlines per wall section ---
-    g_overrides = {8: data.g_f8f9_poly}
-    w_overrides = {8: data.w_f8f9_poly}
+    g_overrides = {7: data.g_f8f9_poly}
+    w_overrides = {7: data.w_f8f9_poly}
     sections = enumerate_wall_sections(openings, outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(
@@ -727,6 +810,101 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                f' height="{tbl_border_bottom - tbl_border_top:.1f}"'
                f' fill="none" stroke="#999" stroke-width="0.5"/>')
 
+    # --- Interior walls table ---
+    if include_interior:
+        layout = data.layout
+        rough_openings = compute_rough_openings(pts, layout)
+        # Map IW name → list of RO names
+        ro_by_wall: dict[str, list[str]] = {}
+        for ro in rough_openings:
+            ro_by_wall.setdefault(ro.wall_name, []).append(ro.name)
+
+        def _poly_len(poly):
+            """Length of longest edge of a 4-point polygon (the wall length)."""
+            edges = []
+            for i in range(4):
+                j = (i + 1) % 4
+                dx = poly[j][0] - poly[i][0]
+                dy = poly[j][1] - poly[i][1]
+                edges.append(math.sqrt(dx**2 + dy**2))
+            return max(edges)
+
+        def _bbox_len(bb, vertical):
+            return (bb.n - bb.s) if vertical else (bb.e - bb.w)
+
+        # (id, thickness_inches, length_ft, vertical)
+        iw_rows = [
+            ("IW1",  6, _poly_len(layout.iw1), True),
+            ("IW2",  6, _bbox_len(layout.iw2, True), True),
+            ("IW3",  4, _poly_len(layout.iw3_poly), True),
+            ("IW4",  4, layout.iw12_poly[2][1] - layout.iw4_s, True),
+            ("IW5",  3, _bbox_len(layout.iw5, False), False),
+            ("IW6",  1, _poly_len(layout.iw6_poly), False),
+            ("IW7",  4, _poly_len(layout.iw7_poly), False),
+            ("IW8",  6, _bbox_len(layout.iw8, False), False),
+            ("IW9",  4, _poly_len(layout.iw9_poly), True),
+            ("IW11", 4, _poly_len(layout.iw11_poly), True),
+            ("IW12", 4, _poly_len(layout.iw12_poly), False),
+            ("IW14", 3, _poly_len(layout.iw14_poly), False),
+            ("IW15", 4, _bbox_len(layout.iw15, True), True),
+            ("IW16", 4, _poly_len(layout.iw16_poly), True),
+        ]
+
+        iw_tbl_top = tbl_border_bottom + 14
+        iw_row_h = 7.5
+        iw_col = [tbl_left + 20, tbl_left + 48, tbl_left + 82, tbl_left + 128]
+
+        # Table title
+        out.append(f'<text x="{(tbl_left + iw_col[-1]) / 2:.1f}" y="{iw_tbl_top:.1f}"'
+                   f' text-anchor="middle" font-family="Arial" font-size="7"'
+                   f' font-weight="bold" fill="#333">Interior Walls</text>')
+
+        # Column headers
+        iw_hdr_y = iw_tbl_top + 10
+        iw_hdrs = ["ID", "Thk", "Length", "Openings"]
+        iw_hdr_x = [tbl_left + 2, iw_col[1] - 2, iw_col[2] - 2, iw_col[2] + 2]
+        iw_hdr_a = ["start", "end", "end", "start"]
+        for hx, ha, hd in zip(iw_hdr_x, iw_hdr_a, iw_hdrs):
+            out.append(f'<text x="{hx:.1f}" y="{iw_hdr_y:.1f}"'
+                       f' text-anchor="{ha}" font-family="Arial" font-size="6"'
+                       f' font-weight="bold" fill="#333">{hd}</text>')
+
+        # Header underline
+        iw_line_y = iw_hdr_y + 2.5
+        out.append(f'<line x1="{tbl_left:.1f}" y1="{iw_line_y:.1f}"'
+                   f' x2="{iw_col[-1]:.1f}" y2="{iw_line_y:.1f}"'
+                   f' stroke="#999" stroke-width="0.5"/>')
+
+        # Data rows
+        for ri, (iw_id, thick, length_ft, _vert) in enumerate(iw_rows):
+            y = iw_line_y + (ri + 1) * iw_row_h
+            total_in = length_ft * 12
+            ft = int(total_in) // 12
+            remain_in = total_in - ft * 12
+            length_str = f"{ft}&#8242; {remain_in:.1f}&#8243;"
+            ros = ", ".join(ro_by_wall.get(iw_id, []))
+            vals = [iw_id, f'{thick}&#8243;', length_str, ros]
+            for vx, va, vv in zip(iw_hdr_x, iw_hdr_a, vals):
+                out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
+                           f' text-anchor="{va}" font-family="Arial"'
+                           f' font-size="6" fill="#333">{vv}</text>')
+
+        # Table border
+        iw_border_top = iw_tbl_top - 8.5
+        iw_border_bottom = iw_line_y + len(iw_rows) * iw_row_h + 3
+        out.append(f'<rect x="{tbl_left:.1f}" y="{iw_border_top:.1f}"'
+                   f' width="{iw_col[-1] - tbl_left:.1f}"'
+                   f' height="{iw_border_bottom - iw_border_top:.1f}"'
+                   f' fill="none" stroke="#999" stroke-width="0.5"/>')
+
+    # --- Roof outline (dotted) ---
+    from floorplan.roof import roof_polyline
+    roof_poly = roof_polyline(data.roof)
+    roof_svg = " ".join(
+        f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in roof_poly)
+    out.append(f'<polygon points="{roof_svg}" fill="none"'
+               f' stroke="#333" stroke-width="0.6" stroke-dasharray="3,2"/>')
+
     out.append('</svg>')
     return "\n".join(out)
 
@@ -746,7 +924,7 @@ if __name__ == "__main__":
         f.write(svg_content)
     print(f"Wall detail written to {svg_path}")
 
-    all_svg = render_walls_svg(data, title="Walls", include_interior=True)
+    all_svg = render_walls_svg(data, title="All Walls", include_interior=True)
     all_path = os.path.join(_dir, "all_walls.svg")
     with open(all_path, "w", encoding="utf-8") as f:
         f.write(all_svg)

@@ -18,16 +18,20 @@ APPLIANCE_GAP = 1.0 / 12.0        # 1" gap between dryer and washer
 
 # Counter
 COUNTER_DEPTH = 24.0 / 12.0       # 2' E-W
-COUNTER_LENGTH = 72.0 / 12.0      # 6' N-S
+COUNTER_LENGTH = 70.0 / 12.0      # 5'10" N-S
 COUNTER_NW_RADIUS = 9.0 / 12.0    # 9" rounded corner
 COUNTER_GAP = 36.0 / 12.0         # 3' east of dryer
 
 # Rooms
-BEDROOM_WIDTH = 140.0 / 12.0      # 11'8" E-W
-CLOSET_WIDTH = 30.0 / 12.0        # 30" closet depth
+BEDROOM_WIDTH = 138.0 / 12.0      # 11'6" E-W
+CLOSET_WIDTH = 30.0 / 12.0        # 30" closet depth (closet 1)
+CLOSET2_WIDTH = 28.0 / 12.0       # 28" closet 2 depth (east)
 CLOSET1_HEIGHT = 6.0              # 6' closet 1 N-S
-IW1_OFFSET_N = 11.5               # 11'6" IW1 south face above W0
-IW2_OFFSET_E = 6.5                # 6'6" IW2 west face east of W1
+IW1_OFFSET_N = 12.0 + 2.0/12.0    # 12'2" IW1 south face above W1
+IW1_WEST_OFFSET_E = 6.5           # 6'6" IW1 west end east of W2
+IW2_OFFSET_E = 6.5                # 6'6" IW2 west face east of W2
+IW4_OFFSET_E_IW2 = 224.0 / 12.0   # 18'8" IW4 west face east of IW2 east face
+RO1_OFFSET_E_IW2 = 116.0 / 12.0   # 9'8" RO1 west edge east of IW2 east face
 WALL_SOUTH_N = 2.0 / 12.0         # 2" south end of bedroom walls
 
 # Bed
@@ -66,16 +70,26 @@ EAST_CTR_DEPTH = 42.0 / 12.0       # 42" east counter depth N-S
 EAST_CTR_RADIUS = 12.0 / 12.0      # 12" south corner radius
 
 # IW1 rough opening
-IW1_RO_OFFSET_E = 9.0 / 12.0      # 9" east of fridge east side
+RO1_OFFSET_W_IW4 = 64.0 / 12.0    # 64" west of IW4 west face (legacy)
+RO1_OFFSET_E_IW9 = 76.0 / 12.0    # 76" east of IW9 east face
 IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
 # IW2 rough opening
-IW2_RO_OFFSET_S = 6.0 / 12.0      # 6" south of IW6 south face
+IW2_RO_OFFSET_S = 9.0 / 12.0      # 9" south of IW6 south face
 IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
-# IW3 rough opening
-IW3_RO_OFFSET_N = 2.0 / 12.0      # 2" north of IW7 north face
-IW3_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
+# IW3 (perpendicular to W20-W0, 4" thick)
+IW3_LENGTH = 80.0 / 12.0          # 80" (6'8") length into structure
+IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W20-W0
+
+# IW7 (parallel to W20-W0, 4" thick, between IW3 and IW9)
+
+# IW9 (perpendicular to W20-W0, 4" thick)
+IW9_LENGTH = 80.0 / 12.0            # 80" (6'8") IW9 length, same as IW3
+IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W20-W0
+
+# IW16 rough opening
+IW16_RO_WIDTH = 38.0 / 12.0         # 38" opening width N-S
 
 # IW4 rough opening
 IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
@@ -89,22 +103,23 @@ IW6_RO_OFFSET_W = 3.0 / 12.0      # 3" west of IW2 west face
 IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
 # Outer-wall openings (numbered CW around outline)
-# O1 (F1-F2, lower)
-O1_OFFSET_S = 99.0 / 12.0          # 99" south of F2 to north edge
-O1_WIDTH = 25.0 / 12.0             # 25" opening height
-# O2 (F1-F2, upper)
-O2_OFFSET_S = 4.0 / 12.0           # 4" south of F2 to north edge
-O2_WIDTH = 25.0 / 12.0             # 25" opening height
-# O3 (F4-F5, centered)
-O3_HALF_WIDTH = 16.0 / 12.0        # 16" half-width
+# O1 (F2-F3, lower)
+O1_OFFSET_S = 99.0 / 12.0          # 99" south of F3 to north edge
+O1_WIDTH = 19.0 / 12.0             # 19" opening height
+# O2 (F4-F5, centered at RO4 northing center)
+O2_WIDTH = 19.0 / 12.0             # 19" opening width
+# O3 (F4-F5, 4" from F5)
+O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F4 line
+O3_WIDTH = 32.0 / 12.0             # 32" opening width
 O3_DOOR_WIDTH = 30.0 / 12.0        # 30" door in O3
-# O4 (F6-F7, centered chimney opening)
+# O4 (F6-F7, relative to IW2 west face)
 O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
+O4_OFFSET_W_IW2 = 11.0 / 12.0     # 11" west of IW2 west face
 # O5 (F9-F10)
 O5_E_FROM_F7 = 108.0 / 12.0        # 9' from F7 easting to O5 east edge
 O5_WIDTH = 68.0 / 12.0            # 5'8" opening width
 # O6 (F9-F10)
-O6_E_FROM_F9 = 194.0 / 12.0        # 16'2" from F9 to O6 east edge
+O6_E_FROM_F9 = 178.0 / 12.0        # 14'10" from F9 to O6 east edge
 O6_WIDTH = 44.0 / 12.0             # 44" opening width
 F10_O6_CLEARANCE = 4.0 / 12.0      # 4" from O6 east edge to F10
 O6_DOOR_WIDTH = 42.0 / 12.0        # 42" door, centered in opening
@@ -125,33 +140,44 @@ F8F9_INNER_TURN_R = OPENING_INSIDE_RADIUS + SHELL_THICKNESS  # ~2.56" (10mm + 2"
 O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
 # O8 (F14-F15)
-O8_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
-# O9, O10, O11
-O9_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
-O10_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
-O11_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
+O8_HALF_WIDTH = 11.5 / 12.0        # 11.5" half-width
+# O9, O10, O11 (F20-F1 south wall chain)
+O9_HALF_WIDTH = 11.5 / 12.0        # 11.5" half-width
+O10_HALF_WIDTH = 11.5 / 12.0       # 11.5" half-width
+O11_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width
+O9_OFFSET_IW11 = 6.0 / 12.0       # 6" IW11 SW to O9 SE along F20-F1
+O9_O10_WALL = 86.0 / 12.0         # 86" solid wall between O9 NW and O10 SE
+O10_O11_WALL = 72.0 / 12.0        # 72" solid wall between O10 NW and O11 SE
+BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 
 # IW5 partition
 IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face
 
 # Outline geometry constraints
-CORNER_NE_R = 10.0 / 12.0         # R_a0: 10" corner arc
+CORNER_NE_R = 10.0 / 12.0         # R_a1: 10" corner arc
 CORNER_NW_R = 28.0 / 12.0         # R_a5: 28" NW corner
 UPPER_E_R = 28.0 / 12.0           # R_a7: 28" upper east
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
 ARC_180_R = 28.0 / 12.0           # R_a11: 28" 180-degree arc
-R_a2_a3_DELTA = 8.0 / 12.0        # R_a2 - R_a3 = 8"
-F6_HEIGHT = 26.0 - 2.0/12.0       # 25'10" F6-F7 line north of F0
-NW_SHIFT = 1.0                    # C5/C3 1' east shift
-F1_F2_TARGET = 16.0 + 8.0/12.0    # 16'8" F1-F2 segment target
-F4_F5_DROP = 5.0 + 8.0/12.0       # 5'8" F4 south of C5
-F16_F17_SEG = 5.0                  # 5' segment
-F14_F15_SEG = 8.0 + 4.0/12.0      # 8'4" segment
+FLAT_SEG_11 = 16.0 / 12.0         # 16" straight segment F11a-F11b
+ARC_F3_R = 6.064223608163559        # R_a3: ~72.8" (set for F3 N = 15'10")
+F6_EAST_ADJ = 6.0 / 12.0           # 6" F6 east adjustment
+F6_HEIGHT = 26.0 + 6.0/12.0       # 26'6" F6-F7 line north of F1
+NW_SHIFT = 1.0                    # C5 1' east shift
+IW1_DIST_FROM_NORTH = 11.0              # 11'0" IW1 north face to north inner wall
+IW8_OFFSET_N_IW1 = 22.0 / 12.0    # 22" IW8 north face above IW1 north face
+F3_GAP_N_IW8 = 4.0 / 12.0         # 4" F3 north of IW8 north face (legacy)
+ARC_F3_SWEEP = 10.0                # 10° F3-F4 arc sweep (F5-F6 = 90° - this)
+F14_F15_SEG = 9.0                  # 9'0" segment
 ARC_F13_R = 5.627004870830987      # R_a13: ~67.52" (set for 75° F10-F11 sweep)
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0        # -6" south face wall northing
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
-F15_OFFSET_E = 9.0 + 1.0/12.0     # 9'1" F15 east of iw8_e
+F15_OFFSET_E = 9.0 + 3.0/12.0     # 9'3" F15 east of iw8_e
+F16_F17_SEG = 5.0                  # 5' F16-F17 segment length
+F18_OFFSET_E = 6.0 / 12.0         # 6" F18 east of IW4 east face
+F18_F19_GAP = 16.0 / 12.0         # 16" F18-F19 distance
+ARC_F19_R = 18.888718471469218    # R_a19: ~227" (set for F2 N = 3.0000')
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)
@@ -175,12 +201,15 @@ CHAIR_CORNER_R = 3.0 / 12.0       # 3" rounded corner radius
 CHAIR_ANGLE_DEG = 30.0            # 30° CW rotation
 OTTOMAN_SIZE = 29.0 / 12.0        # 29" square ottoman
 ET_RADIUS_CM = 25.0               # 25 cm endtable radius
+SOFA_WIDTH = 97.2 / 12.0          # 97.2" sofa E-W
+SOFA_DEPTH = 24.6 / 12.0          # 24.6" sofa N-S
 SHELVES_WIDTH = 36.0 / 12.0       # 36" shelves E-W
 SHELVES_DEPTH = 15.0 / 12.0       # 15" shelves N-S
-SHELVES2_WIDTH = 60.0 / 12.0     # 60" shelves E-W (against IW1/IW3)
-SHELVES2_DEPTH = 18.0 / 12.0     # 18" shelves N-S (against IW1/IW3)
 ICE_WIDTH = 17.7 / 12.0           # 17.7" ice maker E-W
 ICE_DEPTH = 15.8 / 12.0           # 15.8" ice maker N-S
-ROCKER_WIDTH = 26.75 / 12.0       # 26.75" rocking chair width
-ROCKER_DEPTH = 37.0 / 12.0        # 37" rocking chair depth
-ROCKER_CORNER_R = 3.0 / 12.0      # 3" corner radius
+ROCKER_WIDTH = 26.75 / 12.0       # 26.75" POANG rocking chair E-W
+ROCKER_DEPTH = 37.0 / 12.0        # 37" POANG rocking chair N-S
+ROCKER_CORNER_R = 3.0 / 12.0      # 3" rounded corner radius
+
+# Roof overhang
+ROOF_OVERHANG = 6.0 / 12.0        # 6" roof overhang beyond wall face

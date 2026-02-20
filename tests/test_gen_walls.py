@@ -113,33 +113,43 @@ class TestBuildWallData:
 
     def test_s_series_points_exist(self, wall_data):
         pts = wall_data.pts
-        for i in range(22):
+        for i in [j for j in range(21) if j != 0]:
             assert f"S{i}" in pts, f"Missing S{i}"
+        for suffix in ["11a", "11b"]:
+            assert f"S{suffix}" in pts, f"Missing S{suffix}"
 
     def test_g_series_points_exist(self, wall_data):
         pts = wall_data.pts
-        for i in range(22):
+        for i in [j for j in range(21) if j != 0]:
             assert f"G{i}" in pts, f"Missing G{i}"
+        for suffix in ["11a", "11b"]:
+            assert f"G{suffix}" in pts, f"Missing G{suffix}"
 
     def test_shell_distances(self, wall_data):
         """Shell boundary distances from F-series should match expected insets."""
         pts = wall_data.pts
-        for i in range(22):
-            f_pt = pts[f"F{i}"]
-            s_pt = pts[f"S{i}"]
-            g_pt = pts[f"G{i}"]
-            w_pt = pts[f"W{i}"]
+        _suffixes = [str(i) for i in range(21) if i != 0] + ["11a", "11b"]
+        # F17: non-tangent junction (line F16-F17 at 60° meets arc C17 with
+        # adjusted radius); inner-wall offset ≠ shell_t at that vertex.
+        _NON_TANGENT = {"17"}
+        for suffix in _suffixes:
+            if suffix in _NON_TANGENT:
+                continue
+            f_pt = pts[f"F{suffix}"]
+            s_pt = pts[f"S{suffix}"]
+            g_pt = pts[f"G{suffix}"]
+            w_pt = pts[f"W{suffix}"]
 
             fs_dist = math.sqrt((f_pt[0] - s_pt[0])**2 + (f_pt[1] - s_pt[1])**2)
             fg_dist = math.sqrt((f_pt[0] - g_pt[0])**2 + (f_pt[1] - g_pt[1])**2)
             fw_dist = math.sqrt((f_pt[0] - w_pt[0])**2 + (f_pt[1] - w_pt[1])**2)
 
             assert fs_dist == pytest.approx(SHELL_THICKNESS, abs=0.01), \
-                f"F{i}-S{i} distance {fs_dist} != {SHELL_THICKNESS}"
+                f"F{suffix}-S{suffix} distance {fs_dist} != {SHELL_THICKNESS}"
             assert fg_dist == pytest.approx(SHELL_THICKNESS + AIR_GAP, abs=0.01), \
-                f"F{i}-G{i} distance {fg_dist} != {SHELL_THICKNESS + AIR_GAP}"
+                f"F{suffix}-G{suffix} distance {fg_dist} != {SHELL_THICKNESS + AIR_GAP}"
             assert fw_dist == pytest.approx(SHELL_THICKNESS * 2 + AIR_GAP, abs=0.01), \
-                f"F{i}-W{i} distance {fw_dist} != {SHELL_THICKNESS * 2 + AIR_GAP}"
+                f"F{suffix}-W{suffix} distance {fw_dist} != {SHELL_THICKNESS * 2 + AIR_GAP}"
 
     def test_22_outline_segments(self, wall_data):
         assert len(wall_data.outline_segs) == 22
@@ -189,7 +199,7 @@ class TestRenderWallsSvgWithInterior:
         assert 'fill="rgba(160,160,160,0.35)"' in rendered_all
 
     def test_iw_labels_present(self, rendered_all):
-        for name in ["IW1", "IW2", "IW3", "IW4", "IW5", "IW6", "IW7", "IW8"]:
+        for name in ["IW1", "IW2", "IW3", "IW4", "IW5", "IW6", "IW7", "IW8", "IW9", "IW11", "IW12", "IW14"]:
             assert f">{name}<" in rendered_all, f"Missing label {name}"
 
     def test_rough_opening_labels_present(self, rendered_all):

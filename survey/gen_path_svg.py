@@ -230,7 +230,7 @@ def compute_all():
     radii = outline_geo.radii
 
     # Derive U-series as aliases (downstream from F-series)
-    for i in range(22):
+    for i in [j for j in range(21) if j != 0]:
         pts[f"U{i}"] = outline_geo.fp_pts[f"F{i}"]
 
     # Inner walls + layout
@@ -272,6 +272,13 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     for a,b in [(iw1[0],iw1[1]),(iw1[3],iw1[2])]:
         s1,s2 = to_svg(*a),to_svg(*b)
         lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
+    # IW8 (west extension of IW1)
+    iw8 = [(L.iw8.w,L.iw8.s),(L.iw8.e,L.iw8.s),(L.iw8.e,L.iw8.n),(L.iw8.w,L.iw8.n)]
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw8)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
+    for a,b in [(iw8[0],iw8[1]),(iw8[3],iw8[2])]:
+        s1,s2 = to_svg(*a),to_svg(*b)
+        lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
     # IW2
     iw2 = [(L.iw2.w,L.iw2.s),(L.iw2.e,L.iw2.s),(L.iw2.e,L.iw2.n),(L.iw2.w,L.iw2.n)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw2)
@@ -279,23 +286,32 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     for ev in [L.iw2.w,L.iw2.e]:
         s1,s2 = to_svg(ev,L.iw2.s),to_svg(ev,L.iw2.n)
         lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
-    # IW7 L-shape
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw7)
+    # IW3 (rotated, 4" thick, perpendicular to W20-W0)
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw3_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW3 (west bedroom wall)
-    iw3_poly = [(L.iw3.w,L.iw3.s),(L.iw3.e,L.iw3.s),(L.iw3.e,L.iw3.n),(L.iw3.w,L.iw3.n)]
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw3_poly)
+    # IW7 (rotated, 4" thick, parallel to W20-W0)
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw7_poly)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # IW9 (rotated, 4" thick, perpendicular to W20-W0)
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw9_poly)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # IW16 (vertical, 4" — IW3 NW to IW1)
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw16_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW4 (east bedroom wall)
     wsn = L.wall_south_n
-    iw4_poly = [(L.iw4_w,wsn),(L.iw4_e,wsn),(L.iw4_e,L.iw1_s),(L.iw4_w,L.iw1_s)]
+    _iw4_n = L.iw12_poly[2][1]
+    iw4_poly = [(L.iw4_w,L.iw4_s),(L.iw4_e,L.iw4_s),(L.iw4_e,_iw4_n),(L.iw4_w,_iw4_n)]
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw4_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW8 L-shape
-    cl1_top = L.cl1_top; iwt3 = L.iwt3; iw8_w = L.iw8_w; iw8_e = L.iw8_e
-    iw8_poly = [(L.iw4_e,cl1_top+iwt3),(iw8_e,cl1_top+iwt3),(iw8_e,wsn),
-                (iw8_w,wsn),(iw8_w,cl1_top),(L.iw4_e,cl1_top)]
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw8_poly)
+    # IW11 N-S wall
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw11_poly)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # IW12 wall
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw12_poly)
+    lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # IW14 wall
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw14_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # Appliances
     for lbl,sw_e,sw_n,ne_e,ne_n in [("DRYER",L.dryer.w,L.dryer.s,L.dryer.e,L.dryer.n),
@@ -316,16 +332,15 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     ccx,ccy = (csw[0]+cse[0])/2,(csw[1]+cne[1])/2
     lines.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
     # King Bed
-    bs,be = to_svg(L.bed.w,L.bed.n),to_svg(L.bed.e,L.bed.s); bw,bh = be[0]-bs[0],be[1]-bs[1]
-    lines.append(f'<rect x="{bs[0]:.1f}" y="{bs[1]:.1f}" width="{bw:.1f}" height="{bh:.1f}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
-    bcx,bly = (bs[0]+be[0])/2,bs[1]+0.765*bh
-    lines.append(f'<text x="{bcx:.1f}" y="{bly+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
+    bp_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.bed_poly)
+    lines.append(f'<polygon points="{bp_svg}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
+    bcx = sum(to_svg(*p)[0] for p in L.bed_poly)/4
+    bcy = sum(to_svg(*p)[1] for p in L.bed_poly)/4
+    lines.append(f'<text x="{bcx:.1f}" y="{bcy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
     # Room labels
-    cx,cy = to_svg((ctr_e+iwt3+L.iw3.w)/2,(ctr_s+ctr_n)/2)
-    lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
-    bx,by = to_svg((L.iw3.e+L.iw4_w)/2,(ctr_s+L.iw1_s)/2)
+    bx,by = to_svg(L.iw2.e + 139.0/12.0,(ctr_s+L.iw1_s)/2)
     lines.append(f'<text x="{bx:.1f}" y="{by+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
-    cx,cy = to_svg((L.iw4_e+iw8_w)/2,(ctr_s+cl1_top)/2)
+    cx,cy = to_svg((L.iw4_e+L.iw4_w)/2,(wsn+wsn+6.0)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     lines.append('</g>')
 
@@ -394,38 +409,38 @@ def build_outline_cfg(outline_segs, pts, radii):
     """Build outline layer config (needs computed sweep angles and radii)."""
     R = radii
     sw = {i: arc_sweep_deg(outline_segs[i], pts)
-          for i in [0,2,3,5,7,8,10,11,13,15,17,19,20]}
+          for i in [0,2,4,6,7,9,10,12,14,16,18,20]}
     return LayerConfig(
         opacity=1.0, fill_color="rgba(200,230,255,0.25)",
         line_stroke="#333", line_width=2.0,
         arc_styles={
-            ("F0","F1"):    ("#333", 2.0),
-            ("F2","F3"):    ("#333", 2.0),
+            ("F1","F2"):    ("#333", 2.0),
             ("F3","F4"):    ("#333", 2.0),
             ("F5","F6"):    ("#333", 2.0),
             ("F7","F8"):    ("#333", 2.0),
             ("F8","F9"):    ("#333", 2.0),
             ("F10","F11"):  ("#333", 2.0),
-            ("F11","F12"):  ("#333", 2.0),
+            ("F11","F11a"): ("#333", 2.0),
+            ("F11b","F12"): ("#333", 2.0),
             ("F13","F14"):  ("#333", 2.0),
             ("F15","F16"):  ("#333", 2.0),
             ("F17","F18"):  ("#333", 2.0),
             ("F19","F20"):  ("#333", 2.0),
-            ("F20","F21"):  ("#333", 2.0),
         },
         vertex_styles={
             "F5":   VertexStyle("F5",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
-            "F4":   VertexStyle("F4",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
-            "F3":   VertexStyle("F3",   "end",   -10,  4,  "#d32f2f", 1.75, 10),
+            "F4":   VertexStyle("F4",   "end",   -10,  4,  "#d32f2f", 1.75, 10),
+            "F3":   VertexStyle("F3",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
             "F2":   VertexStyle("F2",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
-            "F1":   VertexStyle("F1",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
             "F8":   VertexStyle("F8",   "end",    -8,  4,  "#d32f2f", 1.75, 10),
             "F11":  VertexStyle("F11",  "start",   8,  4,  "#d32f2f", 1.75, 10),
+            "F11a": VertexStyle("F11a", "middle",  0, -6,  "#d32f2f", 1.75, 10),
+            "F11b": VertexStyle("F11b", "middle",  0, -6,  "#d32f2f", 1.75, 10),
             "F12":  VertexStyle("F12",  "start",   8,  4,  "#d32f2f", 1.75, 10),
             "F13":  VertexStyle("F13",  "start",   8,  4,  "#d32f2f", 1.75, 10),
             "F14":  VertexStyle("F14",  "start",  10,  4,  "#d32f2f", 1.75, 10),
             "F15":  VertexStyle("F15",  "start",   8,  4,  "#d32f2f", 1.75, 10),
-            "F0":   VertexStyle("F0",   "middle",  0, 10,  "#d32f2f", 1.75, 10),
+            "F1":   VertexStyle("F1",   "middle",  0, 10,  "#d32f2f", 1.75, 10),
             "F6":   VertexStyle("F6",   "middle",  0, -6,  "#d32f2f", 1.75, 10),
             "F7":   VertexStyle("F7",   "middle",  0, -6,  "#d32f2f", 1.75, 10),
             "F9":   VertexStyle("F9",   "middle",  0, 17,  "#d32f2f", 1.75, 10),
@@ -434,56 +449,54 @@ def build_outline_cfg(outline_segs, pts, radii):
             "F18":  VertexStyle("F18",  "middle",  0, 12,  "#d32f2f", 1.75, 10),
             "F19":  VertexStyle("F19",  "middle",  0, 12,  "#d32f2f", 1.75, 10),
             "F20":  VertexStyle("F20",  "middle",  0, 13,  "#d32f2f", 1.75, 10),
-            "F21":  VertexStyle("F21",  "middle",  0, 10,  "#d32f2f", 1.75, 10),
             "F16":  VertexStyle("F16",  "start",   8,  4,  "#d32f2f", 1.75, 10),
         },
         brg_dist_labels={
-            ("F1","F2"): BrgDistLabel(18),
+            ("F2","F3"): BrgDistLabel(18),
             ("F4","F5"): BrgDistLabel(18),
             ("F6","F7"): BrgDistLabel(-16),
             ("F9","F10"): BrgDistLabel(-16),
+            ("F11a","F11b"): BrgDistLabel(-16),
             ("F12","F13"): BrgDistLabel(-16),
             ("F14","F15"): BrgDistLabel(-16),
             ("F16","F17"): BrgDistLabel(16),
             ("F18","F19"): BrgDistLabel(-16),
-            ("F21","F0"): BrgDistLabel(-18),
+            ("F20","F1"): BrgDistLabel(16),
         },
         arc_labels={
-            ("F0","F1"): ArcLabel(f"Arc R={R['R_a0']*12:.0f}\"",
+            ("F1","F2"): ArcLabel(f"Arc R={R['R_a1']*12:.0f}\"",
                 f"{sw[0]:.1f}\u00b0", "end", -10, 14, 11, "#333"),
-            ("F2","F3"): ArcLabel(f"Arc R={R['R_a2']*12:.1f}\"",
-                f"{sw[2]:.1f}\u00b0 CCW", "start", 12, 0, 11, "#333"),
-            ("F3","F4"): ArcLabel(f"Arc R={R['R_a3']*12:.1f}\"",
-                f"{sw[3]:.1f}\u00b0 CW", "end", -10, -10, 11, "#333"),
+            ("F3","F4"): ArcLabel(f"Arc R={R['R_a3']*12:.0f}\"",
+                f"{sw[2]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
             ("F5","F6"): ArcLabel(f"Arc R={R['R_a5']*12:.0f}\"",
-                f"{sw[5]:.1f}\u00b0", "end", -10, -14, 11, "#333"),
+                f"{sw[4]:.1f}\u00b0", "end", -10, -14, 11, "#333"),
             ("F7","F8"): ArcLabel(f"Arc R={R['R_a7']*12:.0f}\"",
-                f"{sw[7]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
+                f"{sw[6]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
             ("F8","F9"): ArcLabel(f"Arc R={R['R_a8']*12:.0f}\"",
-                f"{sw[8]:.1f}\u00b0", "end", -10, 14, 11, "#333"),
+                f"{sw[7]:.1f}\u00b0", "end", -10, 14, 11, "#333"),
             ("F10","F11"): ArcLabel(f"Arc R={R['R_a10']*12:.1f}\"",
-                f"{sw[10]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
-            ("F11","F12"): ArcLabel(f"Arc R={R['R_a11']*12:.0f}\"",
-                f"{sw[11]:.1f}\u00b0 CCW", "start", 12, 0, 11, "#333"),
+                f"{sw[9]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
+            ("F11","F11a"): ArcLabel(f"Arc R={R['R_a11']*12:.0f}\"",
+                f"{sw[10]:.1f}\u00b0", "end", -10, 0, 11, "#333"),
+            ("F11b","F12"): ArcLabel(f"Arc R={R['R_a11']*12:.0f}\"",
+                f"{sw[12]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
             ("F13","F14"): ArcLabel(f"Arc R={R['R_a13']*12:.0f}\"",
-                f"{sw[13]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
+                f"{sw[14]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
             ("F15","F16"): ArcLabel(f"Arc R={R['R_a15']*12:.0f}\"",
-                f"{sw[15]:.1f}\u00b0", "start", 10, -10, 11, "#333"),
+                f"{sw[16]:.1f}\u00b0", "start", 10, -10, 11, "#333"),
             ("F17","F18"): ArcLabel(f"Arc R={R['R_a17']*12:.0f}\"",
-                f"{sw[17]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
-            ("F19","F20"): ArcLabel(f"Arc R={R['R_a19']*12:.1f}\"",
-                f"{sw[19]:.1f}\u00b0", "start", 12, -10, 11, "#333"),
-            ("F20","F21"): ArcLabel(f"Arc R={R['R_a20']*12:.1f}\"",
-                f"{sw[20]:.1f}\u00b0 CW", "start", 12, 4, 11, "#333"),
+                f"{sw[18]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
+            ("F19","F20"): ArcLabel(f"Arc R={R['R_a19']*12:.0f}\"",
+                f"{sw[20]:.1f}\u00b0", "start", 12, -10, 11, "#333"),
         },
         center_marks=[
-            CenterMark("C0", "F0", "#333"), CenterMark("C2", "F2", "#333"),
-            CenterMark("C3", "F3", "#333"), CenterMark("C5", "F5", "#333"),
+            CenterMark("C1", "F1", "#333"), CenterMark("C3", "F3", "#333"),
+            CenterMark("C5", "F5", "#333"),
             CenterMark("C7", "F7", "#333"), CenterMark("C8", "F8", "#333"),
-            CenterMark("C10", "F10", "#333"), CenterMark("C11", "F11", "#333"),
+            CenterMark("C10", "F10", "#333"),
+            CenterMark("C11a", "F11", "#333"), CenterMark("C11", "F11b", "#333"),
             CenterMark("C13", "F13", "#333"), CenterMark("C15", "F15", "#333"),
             CenterMark("C17", "F17", "#333"), CenterMark("C19", "F19", "#333"),
-            CenterMark("C20", "F20", "#333"),
         ],
         traverse_pts=None, traverse_stroke=None,
         brg_decimal=True,
@@ -506,25 +519,25 @@ if __name__ == "__main__":
     print(f"  Inset area: {inset_area:.2f} sq ft")
     print(f'=== OUTLINE PATH ===')
     _pt_notes = [
-        ("F0", "arc tangent"), ("F1", "arc tangent"),
-        ("F2", "same E as F1"), ("F3", "arc tangent point"),
-        ("F4", "5'8\" south of F5"), ("F5", "arc tangent"),
-        ("F6", "arc tangent"), ("F7", "6.0' east of F6"),
+        ("F1", "arc tangent"), ("F2", "arc tangent"),
+        ("F3", "same E as F2"), ("F4", "arc tangent point"),
+        ("F5", "arc tangent"),
+        ("F6", "arc tangent"), ("F7", "east of F6"),
         ("F8", "C7/C8 arc junction"), ("F9", "arc tangent"),
         ("F10", "arc E-W tangent"),
-        ("F11", "180\u00b0 arc west end / arc N-S tangent"),
-        ("F12", "line / 180\u00b0 arc tangent"),
+        ("F11", "arc tangent C10/C11a"),
+        ("F11a", "top of C11a / flat seg west"),
+        ("F11b", "top of C11 / flat seg east"),
+        ("F12", "line / arc tangent"),
         ("F13", f"{radii['R_a13']*12:.1f}\" arc / line tangent"),
         ("F14", f"{radii['R_a13']*12:.1f}\" arc tangent to N-S line"),
         ("F15", "arc C15, exits North"),
         ("F16", "arc C15, incoming tangent"),
         ("F17", "on PiX-Pi5 line"), ("F18", "arc C17 tangent"),
-        ("F19", "arc C19 tangent"), ("F20", "arc junction"),
-        ("F21", "south wall anchor"),
+        ("F19", "arc C19 tangent"), ("F20", "arc C19 exit / line start"),
     ]
     for name, note in _pt_notes:
         print(f"  {name:<5s} ({pts[name][0]:.4f}, {pts[name][1]:.4f})  ({note})")
-    print(f"  C20:  ({pts['C20'][0]:.4f}, {pts['C20'][1]:.4f})  (F20->F21 arc center)")
     print(f"  C19:  ({pts['C19'][0]:.4f}, {pts['C19'][1]:.4f})  (F19->F20 arc center)")
     print(f"  C17:  ({pts['C17'][0]:.4f}, {pts['C17'][1]:.4f})  (F17->F18 arc center)")
     print(f"  F18-F19 segment length = {abs(pts['F18'][0]-pts['F19'][0])*12:.1f}\"")
@@ -641,7 +654,7 @@ if __name__ == "__main__":
     lines.append('</a>')
 
     # Area label centered in outline
-    centroid_names = [f"F{i}" for i in range(22)]
+    centroid_names = [f"F{i}" for i in range(21) if i != 0]
     cx_o = sum(pts[n][0] for n in centroid_names) / len(centroid_names)
     cy_o = sum(pts[n][1] for n in centroid_names) / len(centroid_names)
     sx, sy = to_svg(cx_o, cy_o)
@@ -681,4 +694,4 @@ if __name__ == "__main__":
     print(f"Outer path area: {outer_area:.2f} sq ft (rendered at 20%)")
     print(f"Inset path area: {inset_area:.2f} sq ft (rendered at 20%)")
     print(f"Outline path area: {outline_area:.2f} sq ft (rendered at 100%)")
-    print(f"Outline: F0->ArcC0->F1->F2->ArcC2->F3->ArcC3->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11_180->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->ArcC20->F21->F0")
+    print(f"Outline: F1->ArcC1->F2->F3->ArcC3->F4->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11a->F11a->F11b->ArcC11->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F19->ArcC19->F20->F1")

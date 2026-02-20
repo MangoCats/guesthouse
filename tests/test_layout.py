@@ -25,24 +25,17 @@ class TestInteriorLayout:
     def test_counter_bounds(self, layout):
         assert layout.ctr.e > layout.ctr.w
         assert layout.ctr.n > layout.ctr.s
-        assert layout.ctr_nw_r > 0
+        assert layout.ctr_nw_r == 0
 
     def test_wall_ordering_east(self, layout):
-        """IW3 west of IW4 west of IW8."""
-        assert layout.iw3.w < layout.iw4_w
-        assert layout.iw4_e < layout.iw8_w
+        """IW11 west of IW4."""
+        assert layout.iw11.e < layout.iw4_w
 
-    def test_iw7_polygon(self, layout):
-        assert len(layout.iw7) == 6  # L-shape
-
-    def test_iw8_polygon(self, layout):
-        assert len(layout.iw8) == 6  # L-shape
-
-    def test_bed_bounds(self, layout):
-        assert layout.bed.e > layout.bed.w
-        assert layout.bed.n > layout.bed.s
-        # Bed center between IW3 and IW4
-        assert layout.iw3.e < layout.bed_cx < layout.iw4_w
+    def test_bed_poly(self, layout):
+        assert len(layout.bed_poly) == 4
+        # Bed polygon centroid west of IW11
+        bed_cx = sum(p[0] for p in layout.bed_poly) / 4
+        assert bed_cx < layout.iw11.w
 
     def test_iw5_bounds(self, layout):
         assert layout.iw5.e > layout.iw5.w

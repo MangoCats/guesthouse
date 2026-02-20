@@ -1,12 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cp floorplan/floorplan.svg       ../www/adu/floorplan.svg
-cp floorplan/floorplan_minik.svg ../www/adu/floorplan_minik.svg
-cp floorplan/floorplan_db.svg    ../www/adu/floorplan_db.svg
-cp     walls/walls.svg           ../www/adu/walls.svg
-cp     walls/all_walls.svg       ../www/adu/all_walls.svg
-cp    survey/path_area.svg       ../www/adu/path_area.svg
-git -C ../www add adu/floorplan.svg adu/floorplan_minik.svg adu/floorplan_db.svg adu/walls.svg adu/all_walls.svg adu/path_area.svg
+branch=$(git rev-parse --abbrev-ref HEAD)
+
+files=(
+    floorplan/floorplan.svg
+    floorplan/floorplan_db.svg
+    floorplan/floorplan_bare.svg
+    floorplan/floorplan_minik.svg
+         roof/roof.svg
+         span/span.svg
+         span/span_min.svg
+         site/site_plan.pdf
+         site/site_plan_df.pdf
+       survey/path_area.svg
+        walls/walls.svg
+        walls/all_walls.svg
+)
+
+dest_files=()
+for src in "${files[@]}"; do
+    base=$(basename "$src")
+    if [[ "$branch" != "main" ]]; then
+        name="${base%.*}"
+        ext="${base##*.}"
+        base="${name}_${branch}.${ext}"
+    fi
+    dest="../www/adu/$base"
+    cp "$src" "$dest"
+    dest_files+=("adu/$base")
+done
+
+git -C ../www add "${dest_files[@]}"
 git -C ../www commit -m "update floorplan and related files"
 git -C ../www push

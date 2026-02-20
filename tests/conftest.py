@@ -1,10 +1,23 @@
 """Shared test fixtures for hut2 geometry tests."""
+import importlib.util
+import os
 import pytest
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.geometry import compute_inner_walls, path_polygon
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import WALL_OUTER
+
+_PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _import_from(subdir, module_name):
+    """Import a module from a non-package subdirectory."""
+    path = os.path.join(_PROJECT, subdir, f"{module_name}.py")
+    spec = importlib.util.spec_from_file_location(f"{subdir}.{module_name}", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 @pytest.fixture(scope="session")
@@ -76,3 +89,10 @@ def layout(pts_with_outline, inner_poly):
     """InteriorLayout result."""
     pts, _ = pts_with_outline
     return compute_interior_layout(pts, inner_poly)
+
+
+@pytest.fixture(scope="session")
+def span_geometry():
+    """Full geometry tuple from span _build_geometry()."""
+    mod = _import_from("span", "gen_span")
+    return mod._build_geometry()
