@@ -194,8 +194,8 @@ def main():
     # Place at inner polygon centroid, horizontal (parallel to page bottom)
     _cx = sum(p[0] for p in inner_poly) / len(inner_poly)
     _cy = sum(p[1] for p in inner_poly) / len(inner_poly)
-    label_pdf = building_to_pdf(_cx, _cy + 3.0)  # shift 3' north to clear dim lines
-    label_fs = 9.0
+    label_pdf = building_to_pdf(_cx, _cy + 2.0)  # shift 2' north to clear dim lines
+    label_fs = 8.0
     label_lines = ["PROPOSED", "CONC.", "GUEST", "HOUSE"]
     label_lh = label_fs * 1.15  # line height
     # Total block height; start y so block is vertically centered
