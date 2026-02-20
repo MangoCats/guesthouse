@@ -291,9 +291,9 @@ def main():
     _mid_251_x = (_tl_251[0] + _tr_251[0]) / 2.0
     _mid_251_y = (_tl_251[1] + _tr_251[1]) / 2.0
 
-    # Font size matching PARCEL "A" (~14pt)
-    front_fs = 14.0
-    front_gap = 4.0  # PDF pts above line (similar to 251.53' text spacing)
+    # Font size matching PARCEL "A" (+20%)
+    front_fs = 16.8
+    front_gap = 4.0 + 4.0 * SCALE  # 4 pts base gap + 4' up on page
 
     front_text = "FRONT"
     front_tw = fitz.get_text_length(front_text, fontname="helv", fontsize=front_fs)
