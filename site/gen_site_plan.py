@@ -98,7 +98,7 @@ def main():
 
     # Draw building outline — single line, black pixels inside F boundary
     # Stroke width ≈ 80% of the survey property lines (~1pt → 0.8pt)
-    STROKE_W = 0.8
+    STROKE_W = 1.2
     # Offset path inward by half stroke width so outer edge aligns with F boundary.
     # outer_poly→inner_poly span 8" of wall; we need half_stroke / SCALE feet inward.
     WALL_T = 8.0 / 12.0  # 8" F-to-W gap in feet
