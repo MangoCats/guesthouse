@@ -39,16 +39,17 @@ class TestWallHeight:
 # ── integration test ──────────────────────────────────────────
 
 class TestGenerate:
-    def test_output_contains_boundaries(self):
+    def test_output_contains_wall_sections(self):
         buf = io.StringIO()
         with patch("builtins.open", return_value=buf):
             with patch.object(buf, "close"):  # prevent StringIO close
                 generate()
         content = buf.getvalue()
-        assert "module outer_wall()" in content
-        assert "module inner_wall()" in content
-        assert "module s_boundary()" in content
-        assert "module g_boundary()" in content
+        # 11 wall sections between openings
+        assert "module wall_O11_O1_outer()" in content
+        assert "module wall_O11_O1_cavity()" in content
+        assert "module wall_O1_O2_outer()" in content
+        assert "module wall_O10_O11_outer()" in content
 
     def test_output_contains_assembly(self):
         buf = io.StringIO()
@@ -57,5 +58,7 @@ class TestGenerate:
                 generate()
         content = buf.getvalue()
         assert "linear_extrude" in content
-        assert "outer_shell()" in content
-        assert "inner_shell()" in content
+        assert "union()" in content
+        assert "difference()" in content
+        assert "wall_O11_O1_outer();" in content
+        assert "wall_O11_O1_cavity();" in content
