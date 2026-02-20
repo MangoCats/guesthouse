@@ -2003,10 +2003,17 @@ def _render_dimensions(out, data, layout, bare=False):
     dim_line_v(out, _o11_inner_mid[0], _o11_inner_mid[1], layout.iw8.s,
                fmt_dist(layout.iw8.s - _o11_inner_mid[1]), to_svg)
 
-    # Bare-only: IW2 east face to W14 (E-W dimension at W14 northing)
+    # Bare-only dimensions
     if bare:
+        # IW2 east face to W14 (E-W dimension at W14 northing)
         dim_line_h(out, layout.iw2.e, pts["W14"][1], pts["W14"][0],
                    fmt_dist(pts["W14"][0] - layout.iw2.e), to_svg)
+        # Middle of W11a-W11b to IW1 north face (N-S)
+        _w11a = pts["W11a"]; _w11b = pts["W11b"]
+        _mid_e = (_w11a[0] + _w11b[0]) / 2
+        _mid_n = (_w11a[1] + _w11b[1]) / 2
+        dim_line_v(out, _mid_e, layout.iw1_n, _mid_n,
+                   fmt_dist(_mid_n - layout.iw1_n), to_svg)
 
 
 def _render_openings(out, data, layout, bare=False):
