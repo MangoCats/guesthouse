@@ -2273,8 +2273,11 @@ def _render_title_block(out, data, inner_area):
 # SVG rendering — orchestrator
 # ============================================================
 
-def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False):
-    """Render the complete floorplan SVG. Returns SVG string."""
+def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False):
+    """Render the complete floorplan SVG. Returns SVG string.
+
+    If bare=True, omit appliances, kitchen, and furniture (interior objects).
+    """
     pts = data.pts
     to_svg = data.to_svg
     layout = data.layout
@@ -2291,9 +2294,10 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False)
                f' font-weight="bold">{room_title}</text>')
 
     _render_walls(out, data, layout)
-    _render_appliances(out, data, layout, minik=minik, db=db)
-    _render_kitchen(out, data, layout, minik=minik, db=db)
-    _render_furniture(out, data, layout, minik=minik, db=db)
+    if not bare:
+        _render_appliances(out, data, layout, minik=minik, db=db)
+        _render_kitchen(out, data, layout, minik=minik, db=db)
+        _render_furniture(out, data, layout, minik=minik, db=db)
     out.append('<g opacity="0.5">')
     _render_dimensions(out, data, layout)
     out.append('</g>')
@@ -2336,6 +2340,12 @@ if __name__ == "__main__":
     with open(db_path, "w") as f:
         f.write(db_content)
     print(f"Floorplan (daybed) written to {db_path}")
+
+    bare_content = render_floorplan_svg(data, bare=True)
+    bare_path = os.path.join(base_dir, "floorplan_bare.svg")
+    with open(bare_path, "w") as f:
+        f.write(bare_content)
+    print(f"Floorplan (bare) written to {bare_path}")
 
     print(f"Outer area:    {outer_area:.2f} sq ft")
     print(f"Interior area: {inner_area:.2f} sq ft")
