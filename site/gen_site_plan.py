@@ -394,12 +394,13 @@ def main():
     # Right drainfield (8' right of 10.6' line at right side of residence)
     _draw_drainfield(_df_left, _df_top, _df_right, _df_bot, _df_r)
 
-    # Left drainfield (8' left of residence, centered 12' up from lower-left)
+    # Left drainfield (8' left of residence, centered 10' up from lower-left)
+    # "Lower left" = 18.0' ∩ 32.4' corner; "up" = toward 30.9' line (↓ on page)
     _res_left = 534.0    # left wall of FRAME & STONE RESIDENCE (PDF x)
-    _res_bl_y = 348.0    # lower-left corner y (PDF coords)
+    _res_bl_y = 348.0    # lower-left corner y (18.0' ∩ 32.4', PDF coords)
     _df2_right = _res_left - 8.0 * SCALE
     _df2_left = _df2_right - _df_w
-    _df2_cy = _res_bl_y - 12.0 * SCALE
+    _df2_cy = _res_bl_y + 10.0 * SCALE
     _df2_top = _df2_cy - _df_h / 2.0
     _df2_bot = _df2_cy + _df_h / 2.0
     _draw_drainfield(_df2_left, _df2_top, _df2_right, _df2_bot, _df_r)
