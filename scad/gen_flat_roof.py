@@ -344,12 +344,22 @@ def generate():
     out.append(f"wall_height = {WALL_HEIGHT_FT:.6f};")
     out.append("")
 
-    for label, tpath in section_data:
-        out.append(f"// T-path: wall section {label.replace('_', ' to ')}")
-        out.append(f"t_{label} = [")
+    # Pre-compute data parts to find alignment width
+    all_data_parts = []
+    for _, tpath in section_data:
+        parts = []
         for i, elem in enumerate(tpath):
             comma = "," if i < len(tpath) - 1 else ""
-            out.append(f"  {_scad_seg(elem)}{comma}  {_seg_comment(elem)}")
+            parts.append(f"  {_scad_seg(elem)}{comma}")
+        all_data_parts.append(parts)
+    max_data_width = max(len(p) for parts in all_data_parts for p in parts)
+
+    for (label, tpath), parts in zip(section_data, all_data_parts):
+        out.append(f"// T-path: wall section {label.replace('_', ' to ')}")
+        out.append(f"t_{label} = [")
+        for elem, data_part in zip(tpath, parts):
+            pad = max(1, max_data_width + 1 - len(data_part))
+            out.append(f"{data_part}{' ' * pad}{_seg_comment(elem)}")
         out.append("];")
         out.append("")
 
