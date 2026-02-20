@@ -133,18 +133,24 @@ def main():
     shape.draw_line(fitz.Point(*f15_pdf), fitz.Point(*foot_pdf))
     shape.finish(color=(0, 0, 0), width=0.3)
 
-    # Caption "36.0'" at midpoint, rotated to align with line
-    dim_mid_x = (f15_pdf[0] + foot_pdf[0]) / 2.0
-    dim_mid_y = (f15_pdf[1] + foot_pdf[1]) / 2.0
-    dim_deg = math.degrees(math.atan2(foot_pdf[1] - f15_pdf[1],
-                                      foot_pdf[0] - f15_pdf[0]))
+    # Caption "36.0'" at midpoint, rotated 180° and shifted above the line
+    dim_dx = foot_pdf[0] - f15_pdf[0]
+    dim_dy = foot_pdf[1] - f15_pdf[1]
+    dim_len = math.hypot(dim_dx, dim_dy)
+    dim_deg = math.degrees(math.atan2(dim_dy, dim_dx))
+    # Shift "above" the line from the flipped text's perspective:
+    # reading direction after 180° flip is (-dim_dx, -dim_dy);
+    # "above" = left perp of reading dir = (dim_dy, -dim_dx) normalised
+    dim_shift = 3.0  # PDF pts above line
+    dim_mid_x = (f15_pdf[0] + foot_pdf[0]) / 2.0 + dim_shift * dim_dy / dim_len
+    dim_mid_y = (f15_pdf[1] + foot_pdf[1]) / 2.0 - dim_shift * dim_dx / dim_len
     dim_text = "36.0'"
     dim_fs = 5.0
     dim_tw = fitz.get_text_length(dim_text, fontname="helv", fontsize=dim_fs)
     page.insert_text(
         fitz.Point(dim_mid_x - dim_tw / 2.0, dim_mid_y + dim_fs / 3.0),
         dim_text, fontname="helv", fontsize=dim_fs, color=(0, 0, 0),
-        morph=(fitz.Point(dim_mid_x, dim_mid_y), fitz.Matrix(-dim_deg)))
+        morph=(fitz.Point(dim_mid_x, dim_mid_y), fitz.Matrix(-dim_deg - 180)))
 
     # --- 11.0' setback caption ---
     # Midpoint of F16-F17 in PDF coords
