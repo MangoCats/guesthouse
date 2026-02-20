@@ -395,7 +395,8 @@ def generate():
     out.append("")
 
     out.append("// --- Assembly ---")
-    out.append("union() {")
+    out.append("adobe_beige = [0.82, 0.71, 0.55];")
+    out.append("color(adobe_beige) union() {")
     out.append("  // Lower walls (0 to 80\")")
     for label, _ in section_data:
         out.append(f"  linear_extrude(height = wall_height)")
