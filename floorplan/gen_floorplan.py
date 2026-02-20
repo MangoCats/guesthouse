@@ -1871,8 +1871,11 @@ def _render_dimensions(out, data, layout, bare=False):
                fmt_dist(layout.iw1_s - pts["W18"][1]), to_svg,
                label_n=(layout.iw1_s + pts["W18"][1]) / 2 + 2.5)
     if bare:
-        # Single combined dim: IW8 north face to W6-W7
-        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, pts["W6"][1],
+        # Single combined dim: IW8 north face to W6-W7, at RO4 open-door west extent
+        _ro4 = [r for r in compute_rough_openings(pts, layout) if r.name == "RO4"][0]
+        _ro4_mid_e = (_ro4.bbox.w + _ro4.bbox.e) / 2
+        _ro4_tip_e = _ro4_mid_e - RO4_DOOR_WIDTH
+        dim_line_v(out, _ro4_tip_e, layout.iw8.n, pts["W6"][1],
                    fmt_dist(pts["W6"][1] - layout.iw8.n), to_svg)
     else:
         dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
