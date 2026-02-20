@@ -290,7 +290,7 @@ def generate():
         section_data.append((label, tpath))
 
     out = []
-    out.append("// flat_roof.scad — T-path shell centerline extrusion")
+    out.append("// flat_roof.scad - T-path shell centerline extrusion")
     out.append(f"// Wall height: {WALL_HEIGHT_IN:.0f}\" ({WALL_HEIGHT_FT:.4f} ft)")
     out.append("// Construction: 2\" outer shell / 4\" air gap / 2\" inner shell")
     out.append(f"// {len(section_data)} wall sections between openings")
