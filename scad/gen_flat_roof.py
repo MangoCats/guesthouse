@@ -221,12 +221,12 @@ def _build_tpath(pts, outline_segs, inner_segs, tf_segs, tw_segs,
 
 # ── OpenSCAD output ───────────────────────────────────────────
 
-def _fmt_ft_in(ft):
+def _fmt_ft_in(ft, in_width=8):
     """Format feet as ft' inches\" with 4 decimal places on inches."""
     total_in = ft * 12
     whole_ft = int(total_in // 12)
     remaining_in = total_in - whole_ft * 12
-    return f"{whole_ft:2d}' {remaining_in:8.4f}\""
+    return f"{whole_ft:2d}' {remaining_in:{in_width}.4f}\""
 
 
 def _scad_seg(elem):
@@ -249,7 +249,7 @@ def _seg_comment(elem):
     _, cx, cy, r, a1, a2 = elem
     sweep = a2 - a1
     direction = "CCW" if sweep > 0 else "CW "
-    return f"// {direction} {abs(sweep):8.4f}deg R {_fmt_ft_in(r)}"
+    return f"// {direction} {abs(sweep):8.4f}deg R {_fmt_ft_in(r, 7)}"
 
 
 def generate():
