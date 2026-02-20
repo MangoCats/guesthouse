@@ -335,7 +335,73 @@ def main():
     print(f"Written to {out_path}")
 
     # --- Additional annotations for site_plan_df.pdf ---
-    # (All base content is already on the page; add df-specific items here)
+
+    # Drainfield: dashed rounded rectangle, 30'W x 8'H, 2' corner radius
+    # Centered vertically on 10.6' line center at right side of residence
+    _df_line_x = 661.5   # x of 10.6' line (PDF coords)
+    _df_line_y = 316.0   # vertical center of 10.6' line
+
+    _df_w = 30.0 * SCALE    # 72 pts
+    _df_h = 8.0 * SCALE     # 19.2 pts
+    _df_r = 2.0 * SCALE     # 4.8 pts
+    _df_left = _df_line_x + 8.0 * SCALE
+    _df_top = _df_line_y - _df_h / 2.0
+    _df_right = _df_left + _df_w
+    _df_bot = _df_line_y + _df_h / 2.0
+
+    # Bezier kappa for quarter-circle approximation
+    _k = 0.5522847498
+
+    df_shape = page.new_shape()
+
+    # Top edge
+    df_shape.draw_line(fitz.Point(_df_left + _df_r, _df_top),
+                       fitz.Point(_df_right - _df_r, _df_top))
+    # Top-right corner
+    df_shape.draw_bezier(
+        fitz.Point(_df_right - _df_r, _df_top),
+        fitz.Point(_df_right - _df_r + _df_r * _k, _df_top),
+        fitz.Point(_df_right, _df_top + _df_r - _df_r * _k),
+        fitz.Point(_df_right, _df_top + _df_r))
+    # Right edge
+    df_shape.draw_line(fitz.Point(_df_right, _df_top + _df_r),
+                       fitz.Point(_df_right, _df_bot - _df_r))
+    # Bottom-right corner
+    df_shape.draw_bezier(
+        fitz.Point(_df_right, _df_bot - _df_r),
+        fitz.Point(_df_right, _df_bot - _df_r + _df_r * _k),
+        fitz.Point(_df_right - _df_r + _df_r * _k, _df_bot),
+        fitz.Point(_df_right - _df_r, _df_bot))
+    # Bottom edge
+    df_shape.draw_line(fitz.Point(_df_right - _df_r, _df_bot),
+                       fitz.Point(_df_left + _df_r, _df_bot))
+    # Bottom-left corner
+    df_shape.draw_bezier(
+        fitz.Point(_df_left + _df_r, _df_bot),
+        fitz.Point(_df_left + _df_r - _df_r * _k, _df_bot),
+        fitz.Point(_df_left, _df_bot - _df_r + _df_r * _k),
+        fitz.Point(_df_left, _df_bot - _df_r))
+    # Left edge
+    df_shape.draw_line(fitz.Point(_df_left, _df_bot - _df_r),
+                       fitz.Point(_df_left, _df_top + _df_r))
+    # Top-left corner
+    df_shape.draw_bezier(
+        fitz.Point(_df_left, _df_top + _df_r),
+        fitz.Point(_df_left, _df_top + _df_r - _df_r * _k),
+        fitz.Point(_df_left + _df_r - _df_r * _k, _df_top),
+        fitz.Point(_df_left + _df_r, _df_top))
+
+    df_shape.finish(color=(0, 0, 0), width=0.8, dashes="[4 3]")
+    df_shape.commit()
+
+    # "DRAINFIELD" label centered in rectangle
+    _df_label = "DRAINFIELD"
+    _df_fs = 9.0
+    _df_tw = fitz.get_text_length(_df_label, fontname="helv", fontsize=_df_fs)
+    page.insert_text(
+        fitz.Point((_df_left + _df_right) / 2.0 - _df_tw / 2.0,
+                   (_df_top + _df_bot) / 2.0 + _df_fs / 3.0),
+        _df_label, fontname="helv", fontsize=_df_fs, color=(0, 0, 0))
 
     df_path = os.path.join(os.path.dirname(__file__), "site_plan_df.pdf")
     doc.save(df_path)
