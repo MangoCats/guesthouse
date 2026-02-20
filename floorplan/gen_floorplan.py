@@ -2272,9 +2272,9 @@ def _render_openings(out, data, layout, bare=False):
         _iE = _imid[0] - _omid[0]; _iN = _imid[1] - _omid[1]
         _ilen = math.sqrt(_iE**2 + _iN**2)
         _idir = (_iE / _ilen, _iN / _ilen)
-        # Rotation sign: CCW (+1) or CW (-1) from closed dir toward inward
+        # Rotation sign: swing outward (away from interior)
         _cross = _cdir[0] * _idir[1] - _cdir[1] * _idir[0]
-        _rsign = 1 if _cross > 0 else -1
+        _rsign = -1 if _cross > 0 else 1
         _oa = _rsign * math.pi / 4  # open angle
         # Open tip
         _cos_oa = math.cos(_oa); _sin_oa = math.sin(_oa)
