@@ -190,6 +190,23 @@ def main():
         ns_text, fontname="helv", fontsize=ns_fs, color=(0, 0, 0),
         morph=(fitz.Point(ns_mid_x, ns_mid_y), fitz.Matrix(-ns_deg - 180)))
 
+    # --- "PROPOSED CONC. GUEST HOUSE" label inside outline ---
+    # Place at inner polygon centroid, horizontal (parallel to page bottom)
+    _cx = sum(p[0] for p in inner_poly) / len(inner_poly)
+    _cy = sum(p[1] for p in inner_poly) / len(inner_poly)
+    label_pdf = building_to_pdf(_cx, _cy + 3.0)  # shift 3' north to clear dim lines
+    label_fs = 9.0
+    label_lines = ["PROPOSED", "CONC.", "GUEST", "HOUSE"]
+    label_lh = label_fs * 1.15  # line height
+    # Total block height; start y so block is vertically centered
+    block_h = label_lh * len(label_lines)
+    start_y = label_pdf[1] - block_h / 2.0 + label_fs  # baseline of first line
+    for i, line in enumerate(label_lines):
+        lw = fitz.get_text_length(line, fontname="helv", fontsize=label_fs)
+        page.insert_text(
+            fitz.Point(label_pdf[0] - lw / 2.0, start_y + i * label_lh),
+            line, fontname="helv", fontsize=label_fs, color=(0, 0, 0))
+
     # --- 11.0' setback caption ---
     # Midpoint of F16-F17 in PDF coords
     f16_pdf = building_to_pdf(*f16)
