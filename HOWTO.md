@@ -13,7 +13,8 @@ Step-by-step instructions for common but complex tasks in the Hut2 project. Cons
 7. [Verifying Changes](#7-verifying-changes)
 8. [Adding Text Captions to site_plan.pdf](#8-adding-text-captions-to-site_planpdf)
 9. [Getting Rotation Direction Right](#9-getting-rotation-direction-right)
-10. [Contributing to This Document](#10-contributing-to-this-document)
+10. [Changing Exterior Wall Thickness](#10-changing-exterior-wall-thickness)
+11. [Contributing to This Document](#11-contributing-to-this-document)
 
 ---
 
@@ -72,7 +73,7 @@ dim_line_h(out, pts["W3"][0], dim_n, layout.iw3.w, fmt_dist(layout.iw3.w - pts["
 
 Understanding which coordinate to use for "east face of X wall" is the most common source of confusion.
 
-### Perimeter walls (8" thick, F-series outer / W-series inner)
+### Perimeter walls (WALL_OUTER thick, F-series outer / W-series inner)
 
 The outline traverses CW (as viewed from above): F1 → F2 → ... → F20 → F1. The interior is on the **right** side.
 
@@ -225,26 +226,26 @@ The wall detail drawing (`walls/walls.svg`) shows the double-shell 3D-printed co
 
 ### Wall construction model
 
-- **Outer shell**: 2" thick concrete (F-series to S-series boundary)
-- **Air gap**: 4" between shells
-- **Inner shell**: 2" thick concrete (G-series to W-series boundary)
-- **Total**: 8" (`WALL_OUTER`)
+- **Outer shell**: `SHELL_THICKNESS` (2") concrete (F-series to S-series boundary)
+- **Air gap**: `AIR_GAP` (computed from `WALL_OUTER - 2*SHELL_THICKNESS`)
+- **Inner shell**: `SHELL_THICKNESS` (2") concrete (G-series to W-series boundary)
+- **Total**: `WALL_OUTER` (adjustable 8"–12", see [Section 10](#10-changing-exterior-wall-thickness))
 
 Four concentric boundary paths trace the building perimeter:
 
 | Path | Point series | Inset from F | Description |
 |-|-|-|-|
-| Outer face of outer shell | F-series | 0" | Existing `outline_segs` |
-| Inner face of outer shell | S-series | 2" | `compute_inset_path(..., SHELL_THICKNESS, "S")` |
-| Outer face of inner shell | G-series | 6" | `compute_inset_path(..., SHELL_THICKNESS + AIR_GAP, "G")` |
-| Inner face of inner shell | W-series | 8" | Existing `inner_segs` |
+| Outer face of outer shell | F-series | 0 | Existing `outline_segs` |
+| Inner face of outer shell | S-series | `SHELL_THICKNESS` | `compute_inset_path(..., SHELL_THICKNESS, "S")` |
+| Outer face of inner shell | G-series | `SHELL_THICKNESS + AIR_GAP` | `compute_inset_path(..., SHELL_THICKNESS + AIR_GAP, "G")` |
+| Inner face of inner shell | W-series | `WALL_OUTER` | Existing `inner_segs` |
 
 ### Construction constants
 
 Defined in `floorplan/constants.py` (re-exported by `walls/constants.py`):
 
-- `SHELL_THICKNESS` = 2/12 ft (2")
-- `AIR_GAP` = 4/12 ft (4")
+- `SHELL_THICKNESS` = 2/12 ft (2") — constant regardless of wall thickness
+- `AIR_GAP` = `WALL_OUTER - 2*SHELL_THICKNESS` — computed, increases with wall thickness
 - `OPENING_INSIDE_RADIUS` = 10/304.8 ft (10mm)
 
 ### Opening U-turn corners
@@ -420,7 +421,65 @@ If the cross product of (north, east) = `(0)(0) - (1)(1) = -1` (negative), then 
 
 ---
 
-## 10. Contributing to This Document
+## 10. Changing Exterior Wall Thickness
+
+**File:** `floorplan/constants.py` (line 10)
+
+The exterior wall thickness is parameterized. To change it, edit the single constant `WALL_OUTER` (valid range: 8"–12"). All dependent geometry updates automatically.
+
+### What to change
+
+Edit one line in `floorplan/constants.py`:
+
+```python
+WALL_OUTER = 10.0 / 12.0          # 10" outer wall (adjustable: 8"-12")
+```
+
+Change `10.0` to the desired thickness in inches (e.g., `9.0` for 9").
+
+### What happens automatically
+
+The private constant `_WE = WALL_OUTER - 8.0 / 12.0` (wall extra beyond the 8" baseline) drives 11 derived constants:
+
+| Constant | Formula | Why |
+|-|-|-|
+| `AIR_GAP` | `WALL_OUTER - 2*SHELL_THICKNESS` | Shell thickness is fixed; gap absorbs the change |
+| `CORNER_NE_R` | `10"/12 + _WE` | Arc radii grow to keep arc centers (and W-series) fixed |
+| `CORNER_NW_R` | `28"/12 + _WE` | Same |
+| `UPPER_E_R` | `28"/12 + _WE` | Same |
+| `ARC_180_R` | `28"/12 + _WE` | Same |
+| `ARC_F3_R` | `base + _WE` | Same |
+| `ARC_F13_R` | `base + _WE` | Same |
+| `ARC_F19_R` | `base + _WE` | Same |
+| `F6_HEIGHT` | `base + 2*_WE` | F1 moves south and F6 moves north, so height changes by 2x |
+| `SOUTH_WALL_N` | `base - _WE` | South wall face moves south |
+| `F15_OFFSET_E` | `base + _WE` | East wall moves east |
+
+Additionally, anchor offsets (`_WE` applied to Pi2, Pi3, PiX, Pi5) in `gen_floorplan.py`, `gen_path_svg.py`, and `tests/conftest.py` shift the outline outward while keeping W-series (inner wall) coordinates constant.
+
+### Key invariant
+
+**W-series points do not move** when wall thickness changes. The inner wall geometry is fixed by the survey inset path. Changing `WALL_OUTER` only moves F-series points outward (or inward), preserving all interior dimensions.
+
+### After changing
+
+1. Run tests: `python -m pytest tests/ -x`
+2. **Update regression test expectations** in `tests/test_outline.py` (`_EXPECTED_F` coordinates, area) and `tests/test_gen_walls.py` (wall polygon count) to match the new geometry.
+3. Regenerate SVGs: `python gen_all.py`
+
+### Wall polygon count
+
+The wall polygon count (tested in `test_gen_walls.py::test_wall_polygon_count`) may change at different thicknesses. Wider walls increase the U-turn trim distance (`R_out / seg_len`), which can eliminate small solid wall ranges between openings. To investigate, count polygons per segment:
+
+```python
+from shared.wall_shells import openings_on_seg, solid_ranges
+# For each LineSeg with openings, check if adjusted ranges survive:
+# t_e_adj > t_s_adj + 1e-9 after delta_t = R_out / seg_len trim
+```
+
+---
+
+## 11. Contributing to This Document
 
 **For future agents:** If you encounter a complex task that required significant codebase research and is not already covered here, please add a new section documenting the procedure. Follow the existing format:
 
