@@ -387,11 +387,8 @@ def main():
         _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
                                  _cy + _df_r * math.sin(_a)))
 
-    df_shape = page.new_shape()
-    df_shape.draw_polyline(_rrpts)
-    df_shape.finish(color=(0, 0, 0), width=0.8, dashes="[4 3]",
-                    closePath=True)
-    df_shape.commit()
+    page.draw_polyline(_rrpts, color=(0, 0, 0), width=0.8,
+                       dashes="[4 3] 0", closePath=True)
 
     # "DRAINFIELD" label centered in rectangle
     _df_label = "DRAINFIELD"
