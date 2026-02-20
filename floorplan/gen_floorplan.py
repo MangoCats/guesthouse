@@ -366,7 +366,7 @@ def _svg_wall_poly(out, poly, to_svg):
     out.append(f'<polygon points="{svg}" fill="{WALL_FILL}" stroke="none"/>')
 
 
-def _render_walls(out, data, layout):
+def _render_walls(out, data, layout, bare=False):
     """Render outer wall fill with double-shell detail, outline strokes, and interior walls."""
     pts = data.pts
     to_svg = data.to_svg
@@ -634,31 +634,32 @@ def _render_walls(out, data, layout):
         out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # ---- IW6 with RO5 ----
-    iw6_s, iw6_n = layout.iw6_s, layout.iw6_n
-    iw6_w_s = layout.iw6_poly[0][0]
-    iw6_w_n = layout.iw6_poly[3][0]
-    iw6_e = iw2.w
-    ro5_e, ro5_w = ro["RO5"].e, ro["RO5"].w
+    # ---- IW6 with RO5 ---- (omitted in bare)
+    if not bare:
+        iw6_s, iw6_n = layout.iw6_s, layout.iw6_n
+        iw6_w_s = layout.iw6_poly[0][0]
+        iw6_w_n = layout.iw6_poly[3][0]
+        iw6_e = iw2.w
+        ro5_e, ro5_w = ro["RO5"].e, ro["RO5"].w
 
-    iw6_w_poly = [(iw6_w_s, iw6_s), (ro5_w, iw6_s), (ro5_w, iw6_n), (iw6_w_n, iw6_n)]
-    iw6_e_poly = [(ro5_e, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (ro5_e, iw6_n)]
-    wall_poly(out, iw6_w_poly, to_svg, stroke=False)
-    wall_poly(out, iw6_e_poly, to_svg, stroke=False)
-    iw6_s_in = iw6_s + half_sw
-    iw6_n_in = iw6_n - half_sw
-    for a, b in [((iw6_w_s, iw6_s_in), (ro5_w, iw6_s_in)),
-                 ((ro5_e, iw6_s_in), (iw6_e, iw6_s_in)),
-                 ((iw6_w_n, iw6_n_in), (ro5_w, iw6_n_in)),
-                 ((ro5_e, iw6_n_in), (iw6_e, iw6_n_in))]:
-        sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
-        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
-                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    for jamb_e in [ro5_w, ro5_e - JAMB_WIDTH]:
-        jx1, jy1 = to_svg(jamb_e, iw6_n)
-        jx2, jy2 = to_svg(jamb_e + JAMB_WIDTH, iw6_s)
-        out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
-                   f' fill="{JAMB_COLOR}" stroke="none"/>')
+        iw6_w_poly = [(iw6_w_s, iw6_s), (ro5_w, iw6_s), (ro5_w, iw6_n), (iw6_w_n, iw6_n)]
+        iw6_e_poly = [(ro5_e, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (ro5_e, iw6_n)]
+        wall_poly(out, iw6_w_poly, to_svg, stroke=False)
+        wall_poly(out, iw6_e_poly, to_svg, stroke=False)
+        iw6_s_in = iw6_s + half_sw
+        iw6_n_in = iw6_n - half_sw
+        for a, b in [((iw6_w_s, iw6_s_in), (ro5_w, iw6_s_in)),
+                     ((ro5_e, iw6_s_in), (iw6_e, iw6_s_in)),
+                     ((iw6_w_n, iw6_n_in), (ro5_w, iw6_n_in)),
+                     ((ro5_e, iw6_n_in), (iw6_e, iw6_n_in))]:
+            sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
+            out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                       f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+        for jamb_e in [ro5_w, ro5_e - JAMB_WIDTH]:
+            jx1, jy1 = to_svg(jamb_e, iw6_n)
+            jx2, jy2 = to_svg(jamb_e + JAMB_WIDTH, iw6_s)
+            out.append(f'<rect x="{jx1:.1f}" y="{jy1:.1f}" width="{jx2 - jx1:.1f}" height="{jy2 - jy1:.1f}"'
+                       f' fill="{JAMB_COLOR}" stroke="none"/>')
 
     # ---- IW4 (solid, no opening) — north end at IW12 north face ----
     iw4_n = layout.iw12_poly[2][1]  # IW12 NE northing
@@ -2008,7 +2009,7 @@ def _render_dimensions(out, data, layout, bare=False):
                    fmt_dist(pts["W14"][0] - layout.iw2.e), to_svg)
 
 
-def _render_openings(out, data, layout):
+def _render_openings(out, data, layout, bare=False):
     """Render door swings and jamb blocks for O3, O6, RO1-RO5.
 
     Opening fill polygons are rendered by _render_walls() as part of the
@@ -2202,28 +2203,29 @@ def _render_openings(out, data, layout):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO5 door: 36" door, hinged east, swings north
-    ro5 = [r for r in rough_openings if r.name == "RO5"][0]
-    ro5_mid = (ro5.bbox.s + ro5.bbox.n) / 2
-    ro5_gap = (ro5.bbox.e - ro5.bbox.w - RO5_DOOR_WIDTH) / 2
-    hinge_e, hinge_n = ro5.bbox.e - ro5_gap, ro5_mid
-    hx, hy = to_svg(hinge_e, hinge_n)
-    # Straight line from hinge northward (door in open position)
-    tip_e, tip_n = hinge_e, hinge_n + RO5_DOOR_WIDTH
-    tx, ty = to_svg(tip_e, tip_n)
-    out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
-               f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (north) sweeping 90° to closed (west)
-    n_arc = 20
-    arc_pts = []
-    for i in range(n_arc + 1):
-        angle = math.pi / 2 + i * (math.pi / 2) / n_arc  # 90° to 180°
-        ae = hinge_e + RO5_DOOR_WIDTH * math.cos(angle)
-        an = hinge_n + RO5_DOOR_WIDTH * math.sin(angle)
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
-               f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
+    # RO5 door: 36" door, hinged east, swings north (omitted in bare with IW6)
+    if not bare:
+        ro5 = [r for r in rough_openings if r.name == "RO5"][0]
+        ro5_mid = (ro5.bbox.s + ro5.bbox.n) / 2
+        ro5_gap = (ro5.bbox.e - ro5.bbox.w - RO5_DOOR_WIDTH) / 2
+        hinge_e, hinge_n = ro5.bbox.e - ro5_gap, ro5_mid
+        hx, hy = to_svg(hinge_e, hinge_n)
+        # Straight line from hinge northward (door in open position)
+        tip_e, tip_n = hinge_e, hinge_n + RO5_DOOR_WIDTH
+        tx, ty = to_svg(tip_e, tip_n)
+        out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
+                   f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
+        # Arc from open (north) sweeping 90° to closed (west)
+        n_arc = 20
+        arc_pts = []
+        for i in range(n_arc + 1):
+            angle = math.pi / 2 + i * (math.pi / 2) / n_arc  # 90° to 180°
+            ae = hinge_e + RO5_DOOR_WIDTH * math.cos(angle)
+            an = hinge_n + RO5_DOOR_WIDTH * math.sin(angle)
+            sx, sy = to_svg(ae, an)
+            arc_pts.append(f"{sx:.1f},{sy:.1f}")
+        out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+                   f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # RO3 door: 36" door, hinged north, swings east
     ro3 = [r for r in rough_openings if r.name == "RO3"][0]
@@ -2306,7 +2308,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
     out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
                f' font-weight="bold">{room_title}</text>')
 
-    _render_walls(out, data, layout)
+    _render_walls(out, data, layout, bare=bare)
     if not bare:
         _render_appliances(out, data, layout, minik=minik, db=db)
         _render_kitchen(out, data, layout, minik=minik, db=db)
@@ -2314,7 +2316,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
     out.append('<g opacity="0.5">')
     _render_dimensions(out, data, layout, bare=bare)
     out.append('</g>')
-    _render_openings(out, data, layout)
+    _render_openings(out, data, layout, bare=bare)
 
     inner_area = data.inner_area - compute_iw_area(layout)
     _render_title_block(out, data, inner_area)
