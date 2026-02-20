@@ -349,61 +349,60 @@ def main():
     _df_right = _df_left + _df_w
     _df_bot = _df_line_y + _df_h / 2.0
 
-    # Build rounded rectangle as a single continuous polyline so dashes work
-    _n_arc = 8  # segments per corner arc
-    _rrpts = []
-
-    # Top edge
-    _rrpts.append(fitz.Point(_df_left + _df_r, _df_top))
-    _rrpts.append(fitz.Point(_df_right - _df_r, _df_top))
-    # Top-right corner arc
-    _cx, _cy = _df_right - _df_r, _df_top + _df_r
-    for _i in range(1, _n_arc + 1):
-        _a = -math.pi / 2 + math.pi / 2 * _i / _n_arc
-        _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
-                                 _cy + _df_r * math.sin(_a)))
-    # Right edge
-    _rrpts.append(fitz.Point(_df_right, _df_bot - _df_r))
-    # Bottom-right corner arc
-    _cx, _cy = _df_right - _df_r, _df_bot - _df_r
-    for _i in range(1, _n_arc + 1):
-        _a = math.pi / 2 * _i / _n_arc
-        _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
-                                 _cy + _df_r * math.sin(_a)))
-    # Bottom edge
-    _rrpts.append(fitz.Point(_df_left + _df_r, _df_bot))
-    # Bottom-left corner arc
-    _cx, _cy = _df_left + _df_r, _df_bot - _df_r
-    for _i in range(1, _n_arc + 1):
-        _a = math.pi / 2 + math.pi / 2 * _i / _n_arc
-        _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
-                                 _cy + _df_r * math.sin(_a)))
-    # Left edge
-    _rrpts.append(fitz.Point(_df_left, _df_top + _df_r))
-    # Top-left corner arc (closes back to first point)
-    _cx, _cy = _df_left + _df_r, _df_top + _df_r
-    for _i in range(1, _n_arc + 1):
-        _a = math.pi + math.pi / 2 * _i / _n_arc
-        _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
-                                 _cy + _df_r * math.sin(_a)))
-
-    page.draw_polyline(_rrpts, color=(0, 0, 0), width=0.8,
-                       dashes="[4 3] 0", closePath=True)
-
-    # "EXISTING / DRAINFIELD" label centered in rectangle (two lines)
+    # Helper: draw dashed rounded rect with centered two-line label
     _df_fs = 7.2
-    _df_lh = _df_fs * 1.15  # line height
-    _df_cx = (_df_left + _df_right) / 2.0
-    _df_cy = (_df_top + _df_bot) / 2.0
+    _df_lh = _df_fs * 1.15
     _df_lines = ["EXISTING", "DRAINFIELD"]
-    _df_block_h = _df_lh * len(_df_lines)
-    _df_start_y = _df_cy - _df_block_h / 2.0 + _df_fs  # baseline of first line
-    for _li, _lt in enumerate(_df_lines):
-        _ltw = fitz.get_text_length(_lt, fontname="helv", fontsize=_df_fs)
-        _ly = _df_start_y + _li * _df_lh
-        page.insert_text(
-            fitz.Point(_df_cx - _ltw / 2.0, _ly),
-            _lt, fontname="helv", fontsize=_df_fs, color=(0, 0, 0))
+    _n_arc = 8
+
+    def _draw_drainfield(left, top, right, bot, r):
+        pts = []
+        pts.append(fitz.Point(left + r, top))
+        pts.append(fitz.Point(right - r, top))
+        for i in range(1, _n_arc + 1):
+            a = -math.pi / 2 + math.pi / 2 * i / _n_arc
+            pts.append(fitz.Point(right - r + r * math.cos(a),
+                                  top + r + r * math.sin(a)))
+        pts.append(fitz.Point(right, bot - r))
+        for i in range(1, _n_arc + 1):
+            a = math.pi / 2 * i / _n_arc
+            pts.append(fitz.Point(right - r + r * math.cos(a),
+                                  bot - r + r * math.sin(a)))
+        pts.append(fitz.Point(left + r, bot))
+        for i in range(1, _n_arc + 1):
+            a = math.pi / 2 + math.pi / 2 * i / _n_arc
+            pts.append(fitz.Point(left + r + r * math.cos(a),
+                                  bot - r + r * math.sin(a)))
+        pts.append(fitz.Point(left, top + r))
+        for i in range(1, _n_arc + 1):
+            a = math.pi + math.pi / 2 * i / _n_arc
+            pts.append(fitz.Point(left + r + r * math.cos(a),
+                                  top + r + r * math.sin(a)))
+        page.draw_polyline(pts, color=(0, 0, 0), width=0.8,
+                           dashes="[4 3] 0", closePath=True)
+        # Centered two-line label
+        cx = (left + right) / 2.0
+        cy = (top + bot) / 2.0
+        block_h = _df_lh * len(_df_lines)
+        start_y = cy - block_h / 2.0 + _df_fs
+        for li, lt in enumerate(_df_lines):
+            tw = fitz.get_text_length(lt, fontname="helv", fontsize=_df_fs)
+            page.insert_text(
+                fitz.Point(cx - tw / 2.0, start_y + li * _df_lh),
+                lt, fontname="helv", fontsize=_df_fs, color=(0, 0, 0))
+
+    # Right drainfield (8' right of 10.6' line at right side of residence)
+    _draw_drainfield(_df_left, _df_top, _df_right, _df_bot, _df_r)
+
+    # Left drainfield (8' left of residence, centered 12' up from lower-left)
+    _res_left = 534.0    # left wall of FRAME & STONE RESIDENCE (PDF x)
+    _res_bl_y = 348.0    # lower-left corner y (PDF coords)
+    _df2_right = _res_left - 8.0 * SCALE
+    _df2_left = _df2_right - _df_w
+    _df2_cy = _res_bl_y - 12.0 * SCALE
+    _df2_top = _df2_cy - _df_h / 2.0
+    _df2_bot = _df2_cy + _df_h / 2.0
+    _draw_drainfield(_df2_left, _df2_top, _df2_right, _df2_bot, _df_r)
 
     df_path = os.path.join(os.path.dirname(__file__), "site_plan_df.pdf")
     doc.save(df_path)
