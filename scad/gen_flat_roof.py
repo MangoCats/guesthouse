@@ -11,6 +11,7 @@ import os
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS,
                                   OPENING_INSIDE_RADIUS)
+from floorplan.roof import compute_roof_geometry, roof_polyline
 from shared.wall_shells import compute_inset_path, enumerate_wall_sections, lerp
 from shared.types import ArcSeg
 
@@ -24,6 +25,10 @@ UPPER_BASE_IN = 80.0   # bottom of upper wall band (inches)
 UPPER_TOP_IN = 112.0   # top of upper wall band (inches)
 UPPER_HEIGHT_FT = (UPPER_TOP_IN - UPPER_BASE_IN) / 12.0
 UPPER_BASE_FT = UPPER_BASE_IN / 12.0
+
+ROOF_THICK_IN = 18.0   # roof slab thickness (inches)
+ROOF_THICK_FT = ROOF_THICK_IN / 12.0
+ROOF_BASE_FT = UPPER_TOP_IN / 12.0  # roof sits on top of upper wall
 
 
 # ── element types ────────────────────────────────────────────
@@ -295,6 +300,10 @@ def generate():
         label = f"{start_op.name}_{end_op.name}"
         section_data.append((label, tpath))
 
+    # Roof outline polygon
+    roof_geo = compute_roof_geometry(pts, radii)
+    roof_pts = roof_polyline(roof_geo)
+
     # Full-wall T-path: only O4 retained
     o4_openings = [op for op in openings if op.name == "O4"]
     full_sections = enumerate_wall_sections(o4_openings, outline_segs)
@@ -359,6 +368,8 @@ def generate():
     out.append(f"wall_height = {WALL_HEIGHT_FT:.6f};")
     out.append(f"upper_base = {UPPER_BASE_FT:.6f};")
     out.append(f"upper_height = {UPPER_HEIGHT_FT:.6f};")
+    out.append(f"roof_base = {ROOF_BASE_FT:.6f};")
+    out.append(f"roof_thick = {ROOF_THICK_FT:.6f};")
     out.append("")
 
     # Collect all T-path data (lower sections + full-wall) for alignment
@@ -394,8 +405,18 @@ def generate():
     out.append("];")
     out.append("")
 
+    # Emit roof outline polygon
+    out.append("// Roof outline (R-series, 6\" overhang from F-face)")
+    out.append("roof_outline = [")
+    for i, (e, n) in enumerate(roof_pts):
+        comma = "," if i < len(roof_pts) - 1 else ""
+        out.append(f"  [{e:.8f}, {n:.8f}]{comma}")
+    out.append("];")
+    out.append("")
+
     out.append("// --- Assembly ---")
     out.append("adobe_beige = [0.82, 0.71, 0.55];")
+    out.append("forest_green = [0.13, 0.55, 0.13];")
     out.append("color(adobe_beige) union() {")
     out.append("  // Lower walls (0 to 80\")")
     for label, _ in section_data:
@@ -406,6 +427,11 @@ def generate():
     out.append("    linear_extrude(height = upper_height)")
     out.append("      wall_shell(t_full_O4, half_t);")
     out.append("}")
+    out.append("// Roof slab (112\" to 130\")")
+    out.append("color(forest_green)")
+    out.append("  translate([0, 0, roof_base])")
+    out.append("    linear_extrude(height = roof_thick)")
+    out.append("      polygon(points = roof_outline);")
     out.append("")
 
     with open(_OUT, "w") as f:
