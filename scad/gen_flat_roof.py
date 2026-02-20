@@ -233,9 +233,9 @@ def _scad_seg(elem):
     """Format a T-path element as SCAD array literal."""
     if elem[0] == "line":
         _, x1, y1, x2, y2 = elem
-        return f"[0, {x1:.6f}, {y1:.6f}, {x2:.6f}, {y2:.6f}]"
+        return f"[0, {x1:.8f}, {y1:.8f}, {x2:.8f}, {y2:.8f}]"
     _, cx, cy, r, a1, a2 = elem
-    return f"[1, {cx:.6f}, {cy:.6f}, {r:.6f}, {a1:.3f}, {a2:.3f}]"
+    return f"[1, {cx:.8f}, {cy:.8f}, {r:.8f}, {a1:.6f}, {a2:.6f}]"
 
 
 def _seg_comment(elem):
