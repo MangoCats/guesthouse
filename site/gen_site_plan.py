@@ -197,7 +197,7 @@ def main():
     label_pdf_raw = building_to_pdf(_cx, _cy + 2.0)  # 2' north of centroid
     label_pdf = (label_pdf_raw[0], label_pdf_raw[1] + 5.0 * SCALE)  # then 5' down on page
     label_fs = 8.0
-    label_lines = ["  PROPOSED", "CONC.", "GUEST", "HOUSE"]
+    label_lines = ["     PROPOSED", "CONC.", "GUEST", "HOUSE"]
     label_lh = label_fs * 1.15  # line height
     # Total block height; start y so block is vertically centered
     block_h = label_lh * len(label_lines)
