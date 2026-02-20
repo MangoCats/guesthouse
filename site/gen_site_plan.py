@@ -282,6 +282,51 @@ def main():
         text2, fontname="helv", fontsize=fs2, color=(0, 0, 0),
         morph=(fitz.Point(cap2_x, cap2_y), fitz.Matrix(-perp2_deg)))
 
+    # --- "FRONT ↑" annotation above 251.53' line ---
+    # 251.53' line endpoints (PDF coords, from survey pixel analysis)
+    _tl_251 = (108.0, 174.5)   # upper-left corner of parcel
+    _tr_251 = line_top          # (698.9, 55.2) upper-right corner
+
+    # Midpoint of the 251.53' line
+    _mid_251_x = (_tl_251[0] + _tr_251[0]) / 2.0
+    _mid_251_y = (_tl_251[1] + _tr_251[1]) / 2.0
+
+    # Font size matching PARCEL "A" (~14pt)
+    front_fs = 14.0
+    front_gap = 4.0  # PDF pts above line (similar to 251.53' text spacing)
+
+    front_text = "FRONT"
+    front_tw = fitz.get_text_length(front_text, fontname="helv", fontsize=front_fs)
+
+    # Arrow dimensions proportional to font
+    _arr_space = front_fs * 0.3   # gap between text and arrow shaft
+    _arr_h = front_fs * 0.65      # arrow shaft height (~cap height)
+    _arr_hw = front_fs * 0.15     # arrowhead half-width
+    _arr_ah = front_fs * 0.2      # arrowhead length
+
+    # Total width: text + space to arrow center
+    _total_w = front_tw + _arr_space
+
+    # Center horizontally at midpoint; baseline sits front_gap above line
+    _front_x = _mid_251_x - _total_w / 2.0
+    _front_y = _mid_251_y - front_gap  # baseline above line
+
+    page.insert_text(
+        fitz.Point(_front_x, _front_y),
+        front_text, fontname="helv", fontsize=front_fs, color=(0, 0, 0))
+
+    # Draw up-arrow next to "FRONT"
+    _arr_cx = _front_x + front_tw + _arr_space  # shaft center x
+    _arr_bot = _front_y            # bottom of shaft at text baseline
+    _arr_top = _front_y - _arr_h   # tip of arrow
+
+    shape.draw_line(fitz.Point(_arr_cx, _arr_bot), fitz.Point(_arr_cx, _arr_top))
+    shape.draw_line(fitz.Point(_arr_cx, _arr_top),
+                    fitz.Point(_arr_cx - _arr_hw, _arr_top + _arr_ah))
+    shape.draw_line(fitz.Point(_arr_cx, _arr_top),
+                    fitz.Point(_arr_cx + _arr_hw, _arr_top + _arr_ah))
+    shape.finish(color=(0, 0, 0), width=0.8)
+
     shape.commit()
 
     # --- Save base site_plan.pdf ---
