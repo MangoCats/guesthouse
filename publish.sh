@@ -15,6 +15,7 @@ files=(
          span/span_min.svg
          roof/roof.svg
          site/site_plan.pdf
+         site/site_plan_df.pdf
 )
 
 dest_files=()

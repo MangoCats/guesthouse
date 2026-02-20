@@ -284,11 +284,19 @@ def main():
 
     shape.commit()
 
+    # --- Save base site_plan.pdf ---
     out_path = os.path.join(os.path.dirname(__file__), "site_plan.pdf")
     doc.save(out_path)
+    print(f"Written to {out_path}")
+
+    # --- Additional annotations for site_plan_df.pdf ---
+    # (All base content is already on the page; add df-specific items here)
+
+    df_path = os.path.join(os.path.dirname(__file__), "site_plan_df.pdf")
+    doc.save(df_path)
     doc.close()
     src.close()
-    print(f"Written to {out_path}")
+    print(f"Written to {df_path}")
     print(f"Rotation: {math.degrees(rotation):.1f}° CCW")
     print(f"F15 PDF position: ({f15_pdf_x:.1f}, {f15_pdf_y:.1f})")
 
