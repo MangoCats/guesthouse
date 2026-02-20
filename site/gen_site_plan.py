@@ -145,16 +145,19 @@ def main():
     cap_x = (mid_f16f17_x + proj_x) / 2.0
     cap_y = (mid_f16f17_y + proj_y) / 2.0
 
-    # Rotation angle for text: perpendicular to the 216.73' line
-    perp_angle_deg = math.degrees(math.atan2(ldy, ldx)) + 90  # perpendicular in PDF coords
+    # Rotate text to sit on a perpendicular to the 216.73' line,
+    # matching the survey captions (46.7', 39.5', etc.)
+    perp_deg = math.degrees(math.atan2(proj_y - mid_f16f17_y,
+                                       proj_x - mid_f16f17_x))  # ≈ -13.3°
 
-    font = fitz.Font("helv")
     text = "11.0\u2032"
     fs = 8
-    tw = font.text_length(text, fontsize=fs)
-    # Place horizontal text centered at caption midpoint
-    page.insert_text(fitz.Point(cap_x - tw / 2.0, cap_y + fs / 3.0),
-                     text, fontname="helv", fontsize=fs, color=(0, 0, 0))
+    tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
+    # Place centered at caption point, rotated to match perpendicular
+    page.insert_text(
+        fitz.Point(cap_x - tw / 2.0, cap_y + fs / 3.0),
+        text, fontname="helv", fontsize=fs, color=(0, 0, 0),
+        morph=(fitz.Point(cap_x, cap_y), fitz.Matrix(perp_deg)))
 
     shape.commit()
 
