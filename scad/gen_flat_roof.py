@@ -245,11 +245,11 @@ def _seg_comment(elem):
         dE, dN = x2 - x1, y2 - y1
         length = math.sqrt(dE * dE + dN * dN)
         bearing = math.degrees(math.atan2(dE, dN)) % 360
-        return f"// {_fmt_ft_in(length)} @ {bearing:.4f}\u00b0"
+        return f"// {_fmt_ft_in(length)} @ {bearing:.4f}deg"
     _, cx, cy, r, a1, a2 = elem
     sweep = a2 - a1
     direction = "CCW" if sweep > 0 else "CW"
-    return f"// R {_fmt_ft_in(r)}, {direction} {abs(sweep):.4f}\u00b0"
+    return f"// R {_fmt_ft_in(r)}, {direction} {abs(sweep):.4f}deg"
 
 
 def generate():
