@@ -2257,21 +2257,24 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # Casement windows: O8, O9, O10 (23" openings, 45° swing, hinged at outer face)
+    # Casement windows: O8, O9, O10 (23" openings, 45° swing, hinged at S-series face)
     for oname, hinge_idx, close_idx in [("O8", 0, 1), ("O9", 1, 0), ("O10", 0, 1)]:
         o = [o for o in outer_openings if o.name == oname][0]
-        _hinge = o.poly[hinge_idx]
-        _close = o.poly[close_idx]
-        _dE = _close[0] - _hinge[0]
-        _dN = _close[1] - _hinge[1]
-        _wlen = math.sqrt(_dE**2 + _dN**2)
-        _cdir = (_dE / _wlen, _dN / _wlen)
         # Inward direction (outer face midpoint toward inner face midpoint)
         _omid = ((o.poly[0][0] + o.poly[1][0]) / 2, (o.poly[0][1] + o.poly[1][1]) / 2)
         _imid = ((o.poly[2][0] + o.poly[3][0]) / 2, (o.poly[2][1] + o.poly[3][1]) / 2)
         _iE = _imid[0] - _omid[0]; _iN = _imid[1] - _omid[1]
         _ilen = math.sqrt(_iE**2 + _iN**2)
         _idir = (_iE / _ilen, _iN / _ilen)
+        # Offset hinge/close from outer face inward by SHELL_THICKNESS to S-series
+        _hinge = (o.poly[hinge_idx][0] + SHELL_THICKNESS * _idir[0],
+                  o.poly[hinge_idx][1] + SHELL_THICKNESS * _idir[1])
+        _close = (o.poly[close_idx][0] + SHELL_THICKNESS * _idir[0],
+                  o.poly[close_idx][1] + SHELL_THICKNESS * _idir[1])
+        _dE = _close[0] - _hinge[0]
+        _dN = _close[1] - _hinge[1]
+        _wlen = math.sqrt(_dE**2 + _dN**2)
+        _cdir = (_dE / _wlen, _dN / _wlen)
         # Rotation sign: swing outward (away from interior)
         _cross = _cdir[0] * _idir[1] - _cdir[1] * _idir[0]
         _rsign = -1 if _cross > 0 else 1
