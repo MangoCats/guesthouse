@@ -400,7 +400,7 @@ def main():
     _res_bl_y = 348.0    # lower-left corner y (18.0' ∩ 32.4', PDF coords)
     _df2_right = _res_left - 8.0 * SCALE
     _df2_left = _df2_right - _df_w
-    _df2_cy = _res_bl_y + 10.0 * SCALE
+    _df2_cy = _res_bl_y - 10.0 * SCALE
     _df2_top = _df2_cy - _df_h / 2.0
     _df2_bot = _df2_cy + _df_h / 2.0
     _draw_drainfield(_df2_left, _df2_top, _df2_right, _df2_bot, _df_r)
