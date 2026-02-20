@@ -395,13 +395,13 @@ color(adobe_beige) union() {
   linear_extrude(height = wall_height)
     wall_shell(t_O10_O11, half_t);
   // Upper wall (80" to sloped roof underside, O4 only)
-  intersection() {
+  render() intersection() {
     translate([0, 0, upper_base])
       linear_extrude(height = max_upper_h)
         wall_shell(t_full_O4, half_t);
     multmatrix(roof_shear)
-      translate([-500, -500, -1000])
-        cube([1000, 1000, 1000]);
+      translate([-5, -5, -20])
+        cube([50, 40, 20]);
   }
 }
 // Sloped roof slab (18", 1/4"/ft N, 9' at F18-F19)

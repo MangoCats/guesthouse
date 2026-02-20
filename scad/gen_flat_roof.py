@@ -432,7 +432,7 @@ def generate():
         out.append(f"  linear_extrude(height = wall_height)")
         out.append(f"    wall_shell(t_{label}, half_t);")
     out.append("  // Upper wall (80\" to sloped roof underside, O4 only)")
-    out.append("  intersection() {")
+    out.append("  render() intersection() {")
     out.append("    translate([0, 0, upper_base])")
     out.append("      linear_extrude(height = max_upper_h)")
     out.append("        wall_shell(t_full_O4, half_t);")
