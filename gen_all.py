@@ -5,6 +5,7 @@ written, so that all title blocks show the same version string even
 though writing the first SVG makes the working tree dirty.
 """
 import os, subprocess
+import fitz  # PyMuPDF
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _CACHE = os.path.join(_DIR, ".git_describe")
@@ -43,6 +44,17 @@ def main():
         # 3. Always clean up the cache file
         if os.path.exists(_CACHE):
             os.remove(_CACHE)
+
+    # 4. Render site_plan_df.pdf → site_plan_df.png at 1920px wide
+    pdf_path = os.path.join(_DIR, "site", "site_plan_df.pdf")
+    png_path = os.path.join(_DIR, "site", "site_plan_df.png")
+    doc = fitz.open(pdf_path)
+    page = doc[0]
+    scale = 1920 / page.rect.width
+    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
+    pix.save(png_path)
+    doc.close()
+    print(f"  rendered {os.path.relpath(png_path, _DIR)} ({pix.width}x{pix.height})")
 
     print("done.")
 
