@@ -355,43 +355,59 @@ def main():
     _df_lines_existing = ["EXISTING", "DRAINFIELD"]
     _n_arc = 8
 
-    def _draw_drainfield(left, top, right, bot, r, lines=None):
+    def _draw_drainfield(left, top, right, bot, r, lines=None,
+                         angle_deg=0):
         if lines is None:
             lines = _df_lines_existing
-        pts = []
-        pts.append(fitz.Point(left + r, top))
-        pts.append(fitz.Point(right - r, top))
-        for i in range(1, _n_arc + 1):
-            a = -math.pi / 2 + math.pi / 2 * i / _n_arc
-            pts.append(fitz.Point(right - r + r * math.cos(a),
-                                  top + r + r * math.sin(a)))
-        pts.append(fitz.Point(right, bot - r))
-        for i in range(1, _n_arc + 1):
-            a = math.pi / 2 * i / _n_arc
-            pts.append(fitz.Point(right - r + r * math.cos(a),
-                                  bot - r + r * math.sin(a)))
-        pts.append(fitz.Point(left + r, bot))
-        for i in range(1, _n_arc + 1):
-            a = math.pi / 2 + math.pi / 2 * i / _n_arc
-            pts.append(fitz.Point(left + r + r * math.cos(a),
-                                  bot - r + r * math.sin(a)))
-        pts.append(fitz.Point(left, top + r))
-        for i in range(1, _n_arc + 1):
-            a = math.pi + math.pi / 2 * i / _n_arc
-            pts.append(fitz.Point(left + r + r * math.cos(a),
-                                  top + r + r * math.sin(a)))
-        page.draw_polyline(pts, color=(0, 0, 0), width=0.8,
-                           dashes="[4 3] 0", closePath=True)
-        # Centered two-line label
         cx = (left + right) / 2.0
         cy = (top + bot) / 2.0
+        hw = (right - left) / 2.0  # half width
+        hh = (bot - top) / 2.0     # half height
+
+        # Build rounded-rect points relative to center
+        rel = []
+        rel.append((-hw + r, -hh))
+        rel.append((hw - r, -hh))
+        for i in range(1, _n_arc + 1):
+            a = -math.pi / 2 + math.pi / 2 * i / _n_arc
+            rel.append((hw - r + r * math.cos(a), -hh + r + r * math.sin(a)))
+        rel.append((hw, hh - r))
+        for i in range(1, _n_arc + 1):
+            a = math.pi / 2 * i / _n_arc
+            rel.append((hw - r + r * math.cos(a), hh - r + r * math.sin(a)))
+        rel.append((-hw + r, hh))
+        for i in range(1, _n_arc + 1):
+            a = math.pi / 2 + math.pi / 2 * i / _n_arc
+            rel.append((-hw + r + r * math.cos(a), hh - r + r * math.sin(a)))
+        rel.append((-hw, -hh + r))
+        for i in range(1, _n_arc + 1):
+            a = math.pi + math.pi / 2 * i / _n_arc
+            rel.append((-hw + r + r * math.cos(a), -hh + r + r * math.sin(a)))
+
+        # Rotate and translate to page coords
+        rad = math.radians(angle_deg)
+        cos_r = math.cos(rad)
+        sin_r = math.sin(rad)
+        pts = []
+        for rx, ry in rel:
+            pts.append(fitz.Point(cx + rx * cos_r - ry * sin_r,
+                                  cy + rx * sin_r + ry * cos_r))
+
+        page.draw_polyline(pts, color=(0, 0, 0), width=0.8,
+                           dashes="[4 3] 0", closePath=True)
+
+        # Centered two-line label (morph-rotated if angled)
         block_h = _df_lh * len(lines)
         start_y = cy - block_h / 2.0 + _df_fs
+        morph = None
+        if angle_deg != 0:
+            morph = (fitz.Point(cx, cy), fitz.Matrix(-angle_deg))
         for li, lt in enumerate(lines):
             tw = fitz.get_text_length(lt, fontname="helv", fontsize=_df_fs)
             page.insert_text(
                 fitz.Point(cx - tw / 2.0, start_y + li * _df_lh),
-                lt, fontname="helv", fontsize=_df_fs, color=(0, 0, 0))
+                lt, fontname="helv", fontsize=_df_fs, color=(0, 0, 0),
+                morph=morph)
 
     # Right drainfield (8' right of 10.6' line at right side of residence)
     _draw_drainfield(_df_left, _df_top, _df_right, _df_bot, _df_r)
@@ -407,15 +423,18 @@ def main():
     _df2_bot = _df2_cy + _df_h / 2.0
     _draw_drainfield(_df2_left, _df2_top, _df2_right, _df2_bot, _df_r)
 
-    # New drainfield: midway between F2 (PDF) and 275.08'/216.73' corner
+    # New drainfield: midway between F2 (PDF) and 275.08'/216.73' corner,
+    # rotated so long axis aligns with F2→corner line
     _ndf_cx = (f2_pdf[0] + line_bot[0]) / 2.0
     _ndf_cy = (f2_pdf[1] + line_bot[1]) / 2.0
+    _ndf_angle = math.degrees(math.atan2(line_bot[1] - f2_pdf[1],
+                                         line_bot[0] - f2_pdf[0]))
     _ndf_left = _ndf_cx - _df_w / 2.0
     _ndf_top = _ndf_cy - _df_h / 2.0
     _ndf_right = _ndf_cx + _df_w / 2.0
     _ndf_bot = _ndf_cy + _df_h / 2.0
     _draw_drainfield(_ndf_left, _ndf_top, _ndf_right, _ndf_bot, _df_r,
-                     lines=["NEW", "DRAINFIELD"])
+                     lines=["NEW", "DRAINFIELD"], angle_deg=_ndf_angle)
 
     df_path = os.path.join(os.path.dirname(__file__), "site_plan_df.pdf")
     doc.save(df_path)
