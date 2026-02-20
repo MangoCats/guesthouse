@@ -708,7 +708,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     # Wall construction note
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+76:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7"'
-               f' fill="#999">2&#8243; shell / 6&#8243; gap / 2&#8243; shell</text>')
+               f' fill="#999">{SHELL_THICKNESS*12:.0f}&#8243; shell / {AIR_GAP*12:.0f}&#8243; gap / {SHELL_THICKNESS*12:.0f}&#8243; shell</text>')
 
     # --- Wall segment table ---
     sections = enumerate_wall_sections(openings, outline_segs)

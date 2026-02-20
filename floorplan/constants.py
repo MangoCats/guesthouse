@@ -3,8 +3,13 @@
 All values in feet unless noted. Inches converted via / 12.0.
 """
 
+# Shell construction (constant regardless of wall thickness)
+SHELL_THICKNESS = 2.0 / 12.0         # 2" concrete shell
+
 # Wall thicknesses (feet)
-WALL_OUTER = 10.0 / 12.0          # 10" outer wall
+WALL_OUTER = 10.0 / 12.0          # 10" outer wall (adjustable: 8"-12")
+assert 8.0 / 12.0 <= WALL_OUTER <= 12.0 / 12.0, "WALL_OUTER must be 8\"-12\""
+_WE = WALL_OUTER - 8.0 / 12.0     # wall extra beyond 8" baseline
 WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2)
 WALL_4IN = 4.0 / 12.0             # 4" interior wall (IW3, IW4)
 WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW7, IW8)
@@ -128,9 +133,8 @@ RO2_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO2
 RO3_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO3
 RO4_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO4
 RO5_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO5
-# Shell construction: 2" shell / 6" gap / 2" shell
-SHELL_THICKNESS = 2.0 / 12.0         # 2" concrete shell
-AIR_GAP = 6.0 / 12.0                 # 6" air gap between shells
+# Shell construction: 2" shell / gap / 2" shell
+AIR_GAP = WALL_OUTER - 2 * SHELL_THICKNESS  # air gap between shells
 OPENING_INSIDE_RADIUS = 10.0 / 304.8  # 10mm inside corner radius at openings
 # Door jamb block thickness = wall - 2*(opening_inside_radius + shell_thickness)
 DOOR_FLAT_FACE = WALL_OUTER - 2 * (OPENING_INSIDE_RADIUS + SHELL_THICKNESS)
@@ -154,30 +158,30 @@ BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 IW5_OFFSET_N = 30.0 / 12.0        # 30" south of IW1 south face
 
 # Outline geometry constraints
-CORNER_NE_R = 12.0 / 12.0         # R_a1: 12" corner arc
-CORNER_NW_R = 30.0 / 12.0         # R_a5: 30" NW corner
-UPPER_E_R = 30.0 / 12.0           # R_a7: 30" upper east
+CORNER_NE_R = 10.0 / 12.0 + _WE   # R_a1: corner arc (10" at 8" wall)
+CORNER_NW_R = 28.0 / 12.0 + _WE   # R_a5: NW corner (28" at 8" wall)
+UPPER_E_R = 28.0 / 12.0 + _WE     # R_a7: upper east (28" at 8" wall)
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
-ARC_180_R = 30.0 / 12.0           # R_a11: 30" 180-degree arc
+ARC_180_R = 28.0 / 12.0 + _WE     # R_a11: 180-degree arc (28" at 8" wall)
 FLAT_SEG_11 = 16.0 / 12.0         # 16" straight segment F11a-F11b
-ARC_F3_R = 6.230890274830226        # R_a3: ~74.8" (+2" for wall thickening)
+ARC_F3_R = 6.064223608163559 + _WE  # R_a3: ~72.8" at 8" wall
 F6_EAST_ADJ = 6.0 / 12.0           # 6" F6 east adjustment
-F6_HEIGHT = 26.0 + 10.0/12.0      # 26'10" F6-F7 line north of F1
+F6_HEIGHT = 26.0 + 6.0/12.0 + 2*_WE  # F6-F7 north of F1 (26'6" at 8"; +2*_WE because F1 moves south and F6 north)
 NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_DIST_FROM_NORTH = 11.0              # 11'0" IW1 north face to north inner wall
 IW8_OFFSET_N_IW1 = 22.0 / 12.0    # 22" IW8 north face above IW1 north face
 F3_GAP_N_IW8 = 4.0 / 12.0         # 4" F3 north of IW8 north face (legacy)
 ARC_F3_SWEEP = 10.0                # 10° F3-F4 arc sweep (F5-F6 = 90° - this)
 F14_F15_SEG = 9.0                  # 9'0" segment
-ARC_F13_R = 5.793671537497654      # R_a13: ~69.5" (+2" for wall thickening)
+ARC_F13_R = 5.627004870830987 + _WE  # R_a13: ~67.5" at 8" wall
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
-SOUTH_WALL_N = -8.0 / 12.0        # -8" south face wall northing
+SOUTH_WALL_N = -6.0 / 12.0 - _WE  # south face wall northing (-6" at 8" wall)
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
-F15_OFFSET_E = 9.0 + 5.0/12.0     # 9'5" F15 east of iw8_e
+F15_OFFSET_E = 9.0 + 3.0/12.0 + _WE  # F15 east of iw8_e (9'3" at 8" wall)
 F16_F17_SEG = 5.0                  # 5' F16-F17 segment length
 F18_OFFSET_E = 6.0 / 12.0         # 6" F18 east of IW4 east face
 F18_F19_GAP = 16.0 / 12.0         # 16" F18-F19 distance
-ARC_F19_R = 19.055385138135885    # R_a19: ~229" (+2" for wall thickening)
+ARC_F19_R = 18.888718471469218 + _WE  # R_a19: ~226.7" at 8" wall
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)
