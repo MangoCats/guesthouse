@@ -110,6 +110,7 @@ class TestGenerate:
                 generate()
         content = buf.getvalue()
         assert "t_full_O4 = [" in content
-        assert "upper_height" in content
-        assert "translate([0, 0, upper_base])" in content
+        assert "max_upper_h" in content
+        assert "roof_shear" in content
+        assert "multmatrix(roof_shear)" in content
         assert "wall_shell(t_full_O4, half_t);" in content

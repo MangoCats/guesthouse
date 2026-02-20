@@ -1,6 +1,7 @@
 // flat_roof.scad - T-path shell centerline extrusion
-// Lower walls: 0 to 80" (6.6667 ft)
-// Upper wall:  80" to 112" (O4 only)
+// Lower walls: 0 to 80"
+// Upper wall:  80" to sloped roof underside (O4 only)
+// Roof: 18" slab, 1/4"/ft slope N, 9' at F18-F19
 // Construction: 2" outer shell / 4" air gap / 2" inner shell
 // 11 lower wall sections + 1 upper full-wall section
 // Units: feet
@@ -52,9 +53,12 @@ module wall_shell(path, d) {
 half_t = 0.083333;
 wall_height = 6.666667;
 upper_base = 6.666667;
-upper_height = 2.666667;
-roof_base = 9.333333;
+max_upper_h = 2.916667;
 roof_thick = 1.500000;
+roof_slope = 0.02083333;  // 0.25" per ft
+roof_z_off = 9.01041667;
+roof_shear = [[1,0,0,0], [0,1,0,0],
+              [0, roof_slope, 1, roof_z_off], [0,0,0,1]];
 
 // T-path: wall section O11 to O1
 t_O11_O1 = [
@@ -365,7 +369,7 @@ roof_outline = [
 
 // --- Assembly ---
 adobe_beige = [0.82, 0.71, 0.55];
-forest_green = [0.13, 0.55, 0.13];
+roof_green = [0.065, 0.275, 0.065];
 color(adobe_beige) union() {
   // Lower walls (0 to 80")
   linear_extrude(height = wall_height)
@@ -390,13 +394,18 @@ color(adobe_beige) union() {
     wall_shell(t_O9_O10, half_t);
   linear_extrude(height = wall_height)
     wall_shell(t_O10_O11, half_t);
-  // Upper wall (80" to 112", O4 only)
-  translate([0, 0, upper_base])
-    linear_extrude(height = upper_height)
-      wall_shell(t_full_O4, half_t);
+  // Upper wall (80" to sloped roof underside, O4 only)
+  intersection() {
+    translate([0, 0, upper_base])
+      linear_extrude(height = max_upper_h)
+        wall_shell(t_full_O4, half_t);
+    multmatrix(roof_shear)
+      translate([-500, -500, -1000])
+        cube([1000, 1000, 1000]);
+  }
 }
-// Roof slab (112" to 130")
-color(forest_green)
-  translate([0, 0, roof_base])
+// Sloped roof slab (18", 1/4"/ft N, 9' at F18-F19)
+color(roof_green)
+  multmatrix(roof_shear)
     linear_extrude(height = roof_thick)
       polygon(points = roof_outline);

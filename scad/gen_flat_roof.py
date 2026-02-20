@@ -22,13 +22,13 @@ WALL_HEIGHT_IN = 80.0  # inches
 WALL_HEIGHT_FT = WALL_HEIGHT_IN / 12.0
 
 UPPER_BASE_IN = 80.0   # bottom of upper wall band (inches)
-UPPER_TOP_IN = 112.0   # top of upper wall band (inches)
-UPPER_HEIGHT_FT = (UPPER_TOP_IN - UPPER_BASE_IN) / 12.0
 UPPER_BASE_FT = UPPER_BASE_IN / 12.0
 
 ROOF_THICK_IN = 18.0   # roof slab thickness (inches)
 ROOF_THICK_FT = ROOF_THICK_IN / 12.0
-ROOF_BASE_FT = UPPER_TOP_IN / 12.0  # roof sits on top of upper wall
+ROOF_SLOPE_IN_PER_FT = 0.25   # 1/4" rise per foot of northing
+ROOF_SLOPE = ROOF_SLOPE_IN_PER_FT / 12.0  # ft/ft (rise in Z per ft in Y)
+ROOF_REF_ELEV_FT = 9.0  # 9' roof underside elevation at F18-F19
 
 
 # ── element types ────────────────────────────────────────────
@@ -300,9 +300,14 @@ def generate():
         label = f"{start_op.name}_{end_op.name}"
         section_data.append((label, tpath))
 
-    # Roof outline polygon
+    # Roof outline polygon and slope parameters
     roof_geo = compute_roof_geometry(pts, radii)
     roof_pts = roof_polyline(roof_geo)
+    ref_y = pts["F18"][1]  # F18-F19 northing (south reference)
+    roof_z_offset = ROOF_REF_ELEV_FT - ROOF_SLOPE * ref_y
+    max_roof_y = max(y for _, y in roof_pts)
+    max_roof_z = ROOF_SLOPE * max_roof_y + roof_z_offset
+    max_upper_h = max_roof_z - UPPER_BASE_FT  # generous upper wall height
 
     # Full-wall T-path: only O4 retained
     o4_openings = [op for op in openings if op.name == "O4"]
@@ -314,8 +319,9 @@ def generate():
 
     out = []
     out.append("// flat_roof.scad - T-path shell centerline extrusion")
-    out.append(f"// Lower walls: 0 to {WALL_HEIGHT_IN:.0f}\" ({WALL_HEIGHT_FT:.4f} ft)")
-    out.append(f"// Upper wall:  {UPPER_BASE_IN:.0f}\" to {UPPER_TOP_IN:.0f}\" (O4 only)")
+    out.append(f"// Lower walls: 0 to {WALL_HEIGHT_IN:.0f}\"")
+    out.append(f"// Upper wall:  {UPPER_BASE_IN:.0f}\" to sloped roof underside (O4 only)")
+    out.append(f"// Roof: {ROOF_THICK_IN:.0f}\" slab, 1/4\"/ft slope N, 9' at F18-F19")
     out.append("// Construction: 2\" outer shell / 4\" air gap / 2\" inner shell")
     out.append(f"// {len(section_data)} lower wall sections + 1 upper full-wall section")
     out.append("// Units: feet")
@@ -367,9 +373,12 @@ def generate():
     out.append(f"half_t = {shell_half:.6f};")
     out.append(f"wall_height = {WALL_HEIGHT_FT:.6f};")
     out.append(f"upper_base = {UPPER_BASE_FT:.6f};")
-    out.append(f"upper_height = {UPPER_HEIGHT_FT:.6f};")
-    out.append(f"roof_base = {ROOF_BASE_FT:.6f};")
+    out.append(f"max_upper_h = {max_upper_h:.6f};")
     out.append(f"roof_thick = {ROOF_THICK_FT:.6f};")
+    out.append(f"roof_slope = {ROOF_SLOPE:.8f};  // {ROOF_SLOPE_IN_PER_FT}\" per ft")
+    out.append(f"roof_z_off = {roof_z_offset:.8f};")
+    out.append("roof_shear = [[1,0,0,0], [0,1,0,0],")
+    out.append("              [0, roof_slope, 1, roof_z_off], [0,0,0,1]];")
     out.append("")
 
     # Collect all T-path data (lower sections + full-wall) for alignment
@@ -422,14 +431,19 @@ def generate():
     for label, _ in section_data:
         out.append(f"  linear_extrude(height = wall_height)")
         out.append(f"    wall_shell(t_{label}, half_t);")
-    out.append("  // Upper wall (80\" to 112\", O4 only)")
-    out.append("  translate([0, 0, upper_base])")
-    out.append("    linear_extrude(height = upper_height)")
-    out.append("      wall_shell(t_full_O4, half_t);")
+    out.append("  // Upper wall (80\" to sloped roof underside, O4 only)")
+    out.append("  intersection() {")
+    out.append("    translate([0, 0, upper_base])")
+    out.append("      linear_extrude(height = max_upper_h)")
+    out.append("        wall_shell(t_full_O4, half_t);")
+    out.append("    multmatrix(roof_shear)")
+    out.append("      translate([-500, -500, -1000])")
+    out.append("        cube([1000, 1000, 1000]);")
+    out.append("  }")
     out.append("}")
-    out.append("// Roof slab (112\" to 130\")")
+    out.append("// Sloped roof slab (18\", 1/4\"/ft N, 9' at F18-F19)")
     out.append("color(roof_green)")
-    out.append("  translate([0, 0, roof_base])")
+    out.append("  multmatrix(roof_shear)")
     out.append("    linear_extrude(height = roof_thick)")
     out.append("      polygon(points = roof_outline);")
     out.append("")
