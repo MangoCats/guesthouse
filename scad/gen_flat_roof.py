@@ -226,7 +226,7 @@ def _fmt_ft_in(ft):
     total_in = ft * 12
     whole_ft = int(total_in // 12)
     remaining_in = total_in - whole_ft * 12
-    return f"{whole_ft:2d}' {remaining_in:7.4f}\""
+    return f"{whole_ft:2d}' {remaining_in:8.4f}\""
 
 
 def _scad_seg(elem):
