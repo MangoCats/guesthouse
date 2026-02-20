@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import fitz  # pymupdf
 from floorplan.gen_floorplan import build_floorplan_data
+from shared.geometry import vert_isects
 
 
 def main():
@@ -145,12 +146,49 @@ def main():
     dim_mid_x = (f15_pdf[0] + foot_pdf[0]) / 2.0 + dim_shift * dim_dy / dim_len
     dim_mid_y = (f15_pdf[1] + foot_pdf[1]) / 2.0 - dim_shift * dim_dx / dim_len
     dim_text = "36.0'"
-    dim_fs = 6.0
+    dim_fs = 7.0
     dim_tw = fitz.get_text_length(dim_text, fontname="helv", fontsize=dim_fs)
     page.insert_text(
         fitz.Point(dim_mid_x - dim_tw / 2.0, dim_mid_y + dim_fs / 3.0),
         dim_text, fontname="helv", fontsize=dim_fs, color=(0, 0, 0),
         morph=(fitz.Point(dim_mid_x, dim_mid_y), fitz.Matrix(-dim_deg - 180)))
+
+    # --- N-S Interior Max Span dimension line (perpendicular to 36.0' line) ---
+    # Find the easting where N-S interior span is maximum
+    _inch = 1.0 / 12.0
+    _e_min = min(p[0] for p in inner_poly)
+    _e_max = max(p[0] for p in inner_poly)
+    _best_span, _best_e, _best_s, _best_n = 0, 0, 0, 0
+    _e = _e_min
+    while _e <= _e_max + 1e-9:
+        _ns = vert_isects(inner_poly, _e)
+        if len(_ns) >= 2:
+            _s, _n = min(_ns), max(_ns)
+            if _n - _s > _best_span:
+                _best_span, _best_e, _best_s, _best_n = _n - _s, _e, _s, _n
+        _e += _inch
+
+    # Draw thin vertical line (in building coords) from south to north wall
+    span_s_pdf = building_to_pdf(_best_e, _best_s)
+    span_n_pdf = building_to_pdf(_best_e, _best_n)
+    shape.draw_line(fitz.Point(*span_s_pdf), fitz.Point(*span_n_pdf))
+    shape.finish(color=(0, 0, 0), width=0.3)
+
+    # Caption "27.1'" at midpoint, same style as 36.0' line
+    ns_dx = span_n_pdf[0] - span_s_pdf[0]
+    ns_dy = span_n_pdf[1] - span_s_pdf[1]
+    ns_len = math.hypot(ns_dx, ns_dy)
+    ns_deg = math.degrees(math.atan2(ns_dy, ns_dx))
+    ns_shift = -3.5  # same side convention as 36.0'
+    ns_mid_x = (span_s_pdf[0] + span_n_pdf[0]) / 2.0 + ns_shift * ns_dy / ns_len
+    ns_mid_y = (span_s_pdf[1] + span_n_pdf[1]) / 2.0 - ns_shift * ns_dx / ns_len
+    ns_text = "27.1'"
+    ns_fs = 7.0
+    ns_tw = fitz.get_text_length(ns_text, fontname="helv", fontsize=ns_fs)
+    page.insert_text(
+        fitz.Point(ns_mid_x - ns_tw / 2.0, ns_mid_y + ns_fs / 3.0),
+        ns_text, fontname="helv", fontsize=ns_fs, color=(0, 0, 0),
+        morph=(fitz.Point(ns_mid_x, ns_mid_y), fitz.Matrix(-ns_deg - 180)))
 
     # --- 11.0' setback caption ---
     # Midpoint of F16-F17 in PDF coords
