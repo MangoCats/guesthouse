@@ -146,7 +146,7 @@ def main():
     dim_mid_x = (f15_pdf[0] + foot_pdf[0]) / 2.0 + dim_shift * dim_dy / dim_len
     dim_mid_y = (f15_pdf[1] + foot_pdf[1]) / 2.0 - dim_shift * dim_dx / dim_len
     dim_text = "36.0'"
-    dim_fs = 7.0
+    dim_fs = 6.5
     dim_tw = fitz.get_text_length(dim_text, fontname="helv", fontsize=dim_fs)
     page.insert_text(
         fitz.Point(dim_mid_x - dim_tw / 2.0, dim_mid_y + dim_fs / 3.0),
@@ -183,7 +183,7 @@ def main():
     ns_mid_x = (span_s_pdf[0] + span_n_pdf[0]) / 2.0 + ns_shift * ns_dy / ns_len
     ns_mid_y = (span_s_pdf[1] + span_n_pdf[1]) / 2.0 - ns_shift * ns_dx / ns_len
     ns_text = "27.1'"
-    ns_fs = 7.0
+    ns_fs = 6.5
     ns_tw = fitz.get_text_length(ns_text, fontname="helv", fontsize=ns_fs)
     page.insert_text(
         fitz.Point(ns_mid_x - ns_tw / 2.0, ns_mid_y + ns_fs / 3.0),
