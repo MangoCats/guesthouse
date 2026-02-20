@@ -126,6 +126,26 @@ def main():
     shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
     shape.finish(color=(0, 0, 0), width=STROKE_W)
 
+    # --- F15 to F2-F3 dimension line (perpendicular to F2-F3) ---
+    # F2-F3 is vertical at E=0.5; perpendicular foot from F15 is (0.5, F15.N)
+    f15_pdf = building_to_pdf(*f15)
+    foot_pdf = building_to_pdf(pts["F2"][0], f15[1])  # (0.5, 5.0)
+    shape.draw_line(fitz.Point(*f15_pdf), fitz.Point(*foot_pdf))
+    shape.finish(color=(0, 0, 0), width=0.3)
+
+    # Caption "36.0'" at midpoint, rotated to align with line
+    dim_mid_x = (f15_pdf[0] + foot_pdf[0]) / 2.0
+    dim_mid_y = (f15_pdf[1] + foot_pdf[1]) / 2.0
+    dim_deg = math.degrees(math.atan2(foot_pdf[1] - f15_pdf[1],
+                                      foot_pdf[0] - f15_pdf[0]))
+    dim_text = "36.0'"
+    dim_fs = 5.0
+    dim_tw = fitz.get_text_length(dim_text, fontname="helv", fontsize=dim_fs)
+    page.insert_text(
+        fitz.Point(dim_mid_x - dim_tw / 2.0, dim_mid_y + dim_fs / 3.0),
+        dim_text, fontname="helv", fontsize=dim_fs, color=(0, 0, 0),
+        morph=(fitz.Point(dim_mid_x, dim_mid_y), fitz.Matrix(-dim_deg)))
+
     # --- 11.0' setback caption ---
     # Midpoint of F16-F17 in PDF coords
     f16_pdf = building_to_pdf(*f16)
