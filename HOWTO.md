@@ -11,7 +11,8 @@ Step-by-step instructions for common but complex tasks in the Hut2 project. Cons
 5. [Adding an Appliance or Furniture Item](#5-adding-an-appliance-or-furniture-item)
 6. [Wall Construction Detail Drawing](#6-wall-construction-detail-drawing)
 7. [Verifying Changes](#7-verifying-changes)
-8. [Contributing to This Document](#8-contributing-to-this-document)
+8. [Adding Text Captions to site_plan.pdf](#8-adding-text-captions-to-site_planpdf)
+9. [Contributing to This Document](#9-contributing-to-this-document)
 
 ---
 
@@ -299,7 +300,58 @@ Open `floorplan/floorplan.svg`, `survey/path_area.svg`, `walls/walls.svg`, and `
 
 ---
 
-## 8. Contributing to This Document
+## 8. Adding Text Captions to site_plan.pdf
+
+**File:** `site/gen_site_plan.py`
+
+The site plan overlays the building outline on a copy of `site/site_survey.pdf` using pymupdf (fitz). Adding rotated text captions has several pitfalls.
+
+### Use `page.insert_text` with `morph`, not `TextWriter`
+
+`TextWriter.write_text()` with `morph` produces incorrect positions on pages copied from other PDFs (the text is displaced hundreds of points from the intended location). Use `page.insert_text()` with its `morph` parameter instead — this works correctly on copied pages.
+
+```python
+page.insert_text(
+    fitz.Point(x, y),
+    text, fontname="helv", fontsize=8, color=(0, 0, 0),
+    morph=(fitz.Point(pivot_x, pivot_y), fitz.Matrix(angle_degrees)))
+```
+
+### Morph rotation convention
+
+`fitz.Matrix(angle)` rotates anti-clockwise in the visual (on-screen) sense. On the survey-copied page:
+
+- Positive angle = visually anti-clockwise (text tilts upward to the right)
+- Negative angle = visually clockwise (text tilts downward to the right)
+
+To match the survey's perpendicular-distance captions (46.7', 39.5', etc.), compute the perpendicular direction angle and **negate** it:
+
+```python
+perp_deg = math.degrees(math.atan2(dy_pdf, dx_pdf))  # PDF coords (y-down)
+morph=(pivot, fitz.Matrix(-perp_deg))                 # negate for correct visual rotation
+```
+
+### Centering text at a point
+
+To center text horizontally at `(cx, cy)`:
+
+```python
+tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
+page.insert_text(
+    fitz.Point(cx - tw / 2.0, cy + fs / 3.0),  # offset left by half width, down by ~1/3 font size
+    text, ...,
+    morph=(fitz.Point(cx, cy), fitz.Matrix(angle)))
+```
+
+The morph pivot should be at the intended center `(cx, cy)`. The text origin is offset by half the text width; the morph rotation keeps the center fixed.
+
+### Coordinate system
+
+All positions in `gen_site_plan.py` use PDF coordinates (x-right, y-down from top-left). The survey scale is 2.4 PDF points per foot (72 pts/inch ÷ 30 ft/inch). Building coordinates are transformed via `building_to_pdf()`.
+
+---
+
+## 9. Contributing to This Document
 
 **For future agents:** If you encounter a complex task that required significant codebase research and is not already covered here, please add a new section documenting the procedure. Follow the existing format:
 
