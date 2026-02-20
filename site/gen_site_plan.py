@@ -20,21 +20,21 @@ def main():
     # Scale: 1 inch = 30 ft on the survey; 1 inch = 72 PDF pts
     SCALE = 72.0 / 30.0  # 2.4 PDF pts per foot
 
-    # 216.73' line endpoints (PDF coordinates, estimated from visual inspection)
+    # 216.73' line endpoints (PDF coordinates, from least-squares line fitting)
     # Upper-right corner (251.53' meets 216.73')
-    line_top = (808.0, 52.0)
+    line_top = (698.9, 55.2)
     # Lower-right corner (216.73' meets 275.08')
-    line_bot = (723.0, 592.0)
+    line_bot = (817.9, 557.8)
 
     # Direction of 216.73' line in PDF coords (x-right, y-down)
-    ldx = line_bot[0] - line_top[0]  # -85
-    ldy = line_bot[1] - line_top[1]  # 540
+    ldx = line_bot[0] - line_top[0]  # +119 (slants left going up)
+    ldy = line_bot[1] - line_top[1]  # +502.6
     llen = math.hypot(ldx, ldy)
 
     # In real-world coords (E=x-right, N=y-up), the line direction is:
-    # dE = ldx = -85, dN = -ldy = -540
+    # dE = ldx = +119, dN = -ldy = -502.6
     # Angle of property line from E-axis (real-world):
-    prop_angle = math.atan2(-ldy, ldx)  # atan2(-540, -85) ≈ -99° = 261°
+    prop_angle = math.atan2(-ldy, ldx)  # atan2(-502.6, 119) ≈ -76.7°
 
     # F16→F17 direction in building coords
     f16 = pts["F16"]
@@ -42,7 +42,7 @@ def main():
     f16f17_angle = math.atan2(f17[1] - f16[1], f17[0] - f16[0])  # ≈ -150° = 210°
 
     # Rotation needed: rotate building so F16→F17 is parallel to property line
-    rotation = prop_angle - f16f17_angle  # ≈ 51° CCW
+    rotation = prop_angle - f16f17_angle  # ≈ 73° CCW
 
     # --- Rotation and placement ---
     cos_r = math.cos(rotation)
@@ -59,18 +59,15 @@ def main():
     f15 = pts["F15"]  # (36.5, 5.0)
 
     # Inward perpendicular from 216.73' line (into property = roughly west)
-    # Right perpendicular of line direction (dE, dN) = (dN, -dE) normalized
-    # Line direction real-world: (ldx, -ldy) = (-85, -540)
-    inward_e = -ldy / llen  # -(-540)/llen → pointing mostly W
-    inward_n = -(-ldx) / llen
-    # Actually: right perp of (dE,dN) = (dN, -dE)
+    # Line direction real-world: (dE, dN) = (ldx, -ldy) = (+119, -502.6)
+    # Line goes roughly south with slight east; right perp points west with slight south
     line_de = ldx / llen
     line_dn = -ldy / llen
-    inward_e = line_dn   # component of right perpendicular
+    # Right perp of (dE, dN) = (dN, -dE) → points into property (west)
+    inward_e = line_dn
     inward_n = -line_de
-    # Check: line goes roughly south (-dN), right perp should point west (-dE)
-    # line_de ≈ -0.156, line_dn ≈ -0.988
-    # inward_e = -0.988, inward_n = 0.156 → points roughly west with slight north ✓
+    # line_de ≈ +0.230, line_dn ≈ -0.973
+    # inward_e = -0.973, inward_n = -0.230 → points roughly west with slight south ✓
 
     # Target: F15 placed at the bottom PATIO level on 216.73' line, 11' inside
     # Bottom PATIO is at approximately PDF y ≈ 435
