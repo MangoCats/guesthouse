@@ -2363,7 +2363,7 @@ if __name__ == "__main__":
         f.write(db_content)
     print(f"Floorplan (daybed) written to {db_path}")
 
-    bare_content = render_floorplan_svg(data, bare=True)
+    bare_content = render_floorplan_svg(data, room_title="Room Dimensions", bare=True)
     bare_path = os.path.join(base_dir, "floorplan_bare.svg")
     with open(bare_path, "w") as f:
         f.write(bare_content)
