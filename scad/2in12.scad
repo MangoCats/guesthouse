@@ -1,7 +1,7 @@
 // 2in12.scad - T-path shell centerline extrusion (2:12 slope)
 // Lower walls: 0 to 80"
 // Upper wall:  80" to sloped roof underside (O4 only)
-// Roof: 18" slab, 2:12 slope N, 9' at F18-F19
+// Roof: 18" slab, 2:12 slope N, 7'6" at F18-F19
 // Construction: 2" outer shell / 4" air gap / 2" inner shell
 // 11 lower wall sections + 1 upper full-wall section
 // Units: feet
@@ -53,10 +53,10 @@ module wall_shell(path, d) {
 half_t = 0.083333;
 wall_height = 6.666667;
 upper_base = 6.666667;
-max_upper_h = 7.000000;
+max_upper_h = 5.500000;
 roof_thick = 1.500000;
 roof_slope = 0.16666667;  // 2.0" per ft (2:12)
-roof_z_off = 9.08333333;
+roof_z_off = 7.58333333;
 roof_shear = [[1,0,0,0], [0,1,0,0],
               [0, roof_slope, 1, roof_z_off], [0,0,0,1]];
 
@@ -404,7 +404,7 @@ color(adobe_beige) union() {
         cube([50, 40, 20]);
   }
 }
-// Sloped roof slab (18", 2:12 slope N, 9' at F18-F19)
+// Sloped roof slab (18", 2:12 slope N, 7'6" at F18-F19)
 color(roof_green)
   multmatrix(roof_shear)
     linear_extrude(height = roof_thick)

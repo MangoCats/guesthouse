@@ -28,7 +28,7 @@ ROOF_THICK_IN = 18.0   # roof slab thickness (inches)
 ROOF_THICK_FT = ROOF_THICK_IN / 12.0
 ROOF_SLOPE_IN_PER_FT = 2.0   # 2" rise per foot of northing (2:12)
 ROOF_SLOPE = ROOF_SLOPE_IN_PER_FT / 12.0  # ft/ft (rise in Z per ft in Y)
-ROOF_REF_ELEV_FT = 9.0  # 9' roof underside elevation at F18-F19
+ROOF_REF_ELEV_FT = 7.5  # 7'6" roof underside elevation at F18-F19
 
 
 # ── element types ────────────────────────────────────────────
@@ -321,7 +321,7 @@ def generate():
     out.append("// 2in12.scad - T-path shell centerline extrusion (2:12 slope)")
     out.append(f"// Lower walls: 0 to {WALL_HEIGHT_IN:.0f}\"")
     out.append(f"// Upper wall:  {UPPER_BASE_IN:.0f}\" to sloped roof underside (O4 only)")
-    out.append(f"// Roof: {ROOF_THICK_IN:.0f}\" slab, 2:12 slope N, 9' at F18-F19")
+    out.append(f"// Roof: {ROOF_THICK_IN:.0f}\" slab, 2:12 slope N, 7'6\" at F18-F19")
     out.append("// Construction: 2\" outer shell / 4\" air gap / 2\" inner shell")
     out.append(f"// {len(section_data)} lower wall sections + 1 upper full-wall section")
     out.append("// Units: feet")
@@ -441,7 +441,7 @@ def generate():
     out.append("        cube([50, 40, 20]);")
     out.append("  }")
     out.append("}")
-    out.append("// Sloped roof slab (18\", 2:12 slope N, 9' at F18-F19)")
+    out.append("// Sloped roof slab (18\", 2:12 slope N, 7'6\" at F18-F19)")
     out.append("color(roof_green)")
     out.append("  multmatrix(roof_shear)")
     out.append("    linear_extrude(height = roof_thick)")
