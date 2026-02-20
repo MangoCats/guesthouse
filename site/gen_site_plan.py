@@ -425,10 +425,12 @@ def main():
 
     # New drainfield: midway between F2 (PDF) and 275.08'/216.73' corner,
     # rotated so long axis aligns with F2→corner line
-    _ndf_cx = (f2_pdf[0] + line_bot[0]) / 2.0
-    _ndf_cy = (f2_pdf[1] + line_bot[1]) / 2.0
-    _ndf_angle = math.degrees(math.atan2(line_bot[1] - f2_pdf[1],
-                                         line_bot[0] - f2_pdf[0]))
+    _ndf_dx = line_bot[0] - f2_pdf[0]
+    _ndf_dy = line_bot[1] - f2_pdf[1]
+    _ndf_len = math.hypot(_ndf_dx, _ndf_dy)
+    _ndf_cx = (f2_pdf[0] + line_bot[0]) / 2.0 - 4.0 * SCALE * _ndf_dx / _ndf_len
+    _ndf_cy = (f2_pdf[1] + line_bot[1]) / 2.0 - 4.0 * SCALE * _ndf_dy / _ndf_len
+    _ndf_angle = math.degrees(math.atan2(_ndf_dy, _ndf_dx))
     _ndf_left = _ndf_cx - _df_w / 2.0
     _ndf_top = _ndf_cy - _df_h / 2.0
     _ndf_right = _ndf_cx + _df_w / 2.0
