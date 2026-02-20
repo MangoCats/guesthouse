@@ -8,14 +8,14 @@ files=(
     floorplan/floorplan_db.svg
     floorplan/floorplan_bare.svg
     floorplan/floorplan_minik.svg
-        walls/walls.svg
-        walls/all_walls.svg
-       survey/path_area.svg
+         roof/roof.svg
          span/span.svg
          span/span_min.svg
-         roof/roof.svg
          site/site_plan.pdf
          site/site_plan_df.pdf
+       survey/path_area.svg
+        walls/walls.svg
+        walls/all_walls.svg
 )
 
 dest_files=()
