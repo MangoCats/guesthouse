@@ -1747,7 +1747,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                f' font-size="8" fill="#666">OFFICE</text>')
 
 
-def _render_dimensions(out, data, layout):
+def _render_dimensions(out, data, layout, bare=False):
     """Render all dimension lines (interior and external)."""
     pts = data.pts
     to_svg = data.to_svg
@@ -1993,6 +1993,11 @@ def _render_dimensions(out, data, layout):
                       (_o11.poly[2][1] + _o11.poly[3][1]) / 2)
     dim_line_v(out, _o11_inner_mid[0], _o11_inner_mid[1], layout.iw8.s,
                fmt_dist(layout.iw8.s - _o11_inner_mid[1]), to_svg)
+
+    # Bare-only: IW2 east face to W14 (E-W dimension at W14 northing)
+    if bare:
+        dim_line_h(out, layout.iw2.e, pts["W14"][1], pts["W14"][0],
+                   fmt_dist(pts["W14"][0] - layout.iw2.e), to_svg)
 
 
 def _render_openings(out, data, layout):
@@ -2299,7 +2304,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
         _render_kitchen(out, data, layout, minik=minik, db=db)
         _render_furniture(out, data, layout, minik=minik, db=db)
     out.append('<g opacity="0.5">')
-    _render_dimensions(out, data, layout)
+    _render_dimensions(out, data, layout, bare=bare)
     out.append('</g>')
     _render_openings(out, data, layout)
 
