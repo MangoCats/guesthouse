@@ -226,7 +226,7 @@ def _fmt_ft_in(ft):
     total_in = ft * 12
     whole_ft = int(total_in // 12)
     remaining_in = total_in - whole_ft * 12
-    return f"{whole_ft}' {remaining_in:.4f}\""
+    return f"{whole_ft:2d}' {remaining_in:.4f}\""
 
 
 def _scad_seg(elem):
@@ -248,7 +248,7 @@ def _seg_comment(elem):
         return f"// {_fmt_ft_in(length)} @ {bearing:.4f}deg"
     _, cx, cy, r, a1, a2 = elem
     sweep = a2 - a1
-    direction = "CCW" if sweep > 0 else "CW"
+    direction = "CCW" if sweep > 0 else "CW "
     return f"// {direction} {abs(sweep):.4f}deg R {_fmt_ft_in(r)}"
 
 
