@@ -18,6 +18,7 @@ _SCRIPTS = [
     os.path.join(_DIR, "span", "gen_span_min.py"),
     os.path.join(_DIR, "roof", "gen_roof.py"),
     os.path.join(_DIR, "site", "gen_site_plan.py"),
+    os.path.join(_DIR, "scad", "gen_flat_roof.py"),
 ]
 
 
