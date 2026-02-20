@@ -349,49 +349,48 @@ def main():
     _df_right = _df_left + _df_w
     _df_bot = _df_line_y + _df_h / 2.0
 
-    # Bezier kappa for quarter-circle approximation
-    _k = 0.5522847498
-
-    df_shape = page.new_shape()
+    # Build rounded rectangle as a single continuous polyline so dashes work
+    _n_arc = 8  # segments per corner arc
+    _rrpts = []
 
     # Top edge
-    df_shape.draw_line(fitz.Point(_df_left + _df_r, _df_top),
-                       fitz.Point(_df_right - _df_r, _df_top))
-    # Top-right corner
-    df_shape.draw_bezier(
-        fitz.Point(_df_right - _df_r, _df_top),
-        fitz.Point(_df_right - _df_r + _df_r * _k, _df_top),
-        fitz.Point(_df_right, _df_top + _df_r - _df_r * _k),
-        fitz.Point(_df_right, _df_top + _df_r))
+    _rrpts.append(fitz.Point(_df_left + _df_r, _df_top))
+    _rrpts.append(fitz.Point(_df_right - _df_r, _df_top))
+    # Top-right corner arc
+    _cx, _cy = _df_right - _df_r, _df_top + _df_r
+    for _i in range(1, _n_arc + 1):
+        _a = -math.pi / 2 + math.pi / 2 * _i / _n_arc
+        _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
+                                 _cy + _df_r * math.sin(_a)))
     # Right edge
-    df_shape.draw_line(fitz.Point(_df_right, _df_top + _df_r),
-                       fitz.Point(_df_right, _df_bot - _df_r))
-    # Bottom-right corner
-    df_shape.draw_bezier(
-        fitz.Point(_df_right, _df_bot - _df_r),
-        fitz.Point(_df_right, _df_bot - _df_r + _df_r * _k),
-        fitz.Point(_df_right - _df_r + _df_r * _k, _df_bot),
-        fitz.Point(_df_right - _df_r, _df_bot))
+    _rrpts.append(fitz.Point(_df_right, _df_bot - _df_r))
+    # Bottom-right corner arc
+    _cx, _cy = _df_right - _df_r, _df_bot - _df_r
+    for _i in range(1, _n_arc + 1):
+        _a = math.pi / 2 * _i / _n_arc
+        _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
+                                 _cy + _df_r * math.sin(_a)))
     # Bottom edge
-    df_shape.draw_line(fitz.Point(_df_right - _df_r, _df_bot),
-                       fitz.Point(_df_left + _df_r, _df_bot))
-    # Bottom-left corner
-    df_shape.draw_bezier(
-        fitz.Point(_df_left + _df_r, _df_bot),
-        fitz.Point(_df_left + _df_r - _df_r * _k, _df_bot),
-        fitz.Point(_df_left, _df_bot - _df_r + _df_r * _k),
-        fitz.Point(_df_left, _df_bot - _df_r))
+    _rrpts.append(fitz.Point(_df_left + _df_r, _df_bot))
+    # Bottom-left corner arc
+    _cx, _cy = _df_left + _df_r, _df_bot - _df_r
+    for _i in range(1, _n_arc + 1):
+        _a = math.pi / 2 + math.pi / 2 * _i / _n_arc
+        _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
+                                 _cy + _df_r * math.sin(_a)))
     # Left edge
-    df_shape.draw_line(fitz.Point(_df_left, _df_bot - _df_r),
-                       fitz.Point(_df_left, _df_top + _df_r))
-    # Top-left corner
-    df_shape.draw_bezier(
-        fitz.Point(_df_left, _df_top + _df_r),
-        fitz.Point(_df_left, _df_top + _df_r - _df_r * _k),
-        fitz.Point(_df_left + _df_r - _df_r * _k, _df_top),
-        fitz.Point(_df_left + _df_r, _df_top))
+    _rrpts.append(fitz.Point(_df_left, _df_top + _df_r))
+    # Top-left corner arc (closes back to first point)
+    _cx, _cy = _df_left + _df_r, _df_top + _df_r
+    for _i in range(1, _n_arc + 1):
+        _a = math.pi + math.pi / 2 * _i / _n_arc
+        _rrpts.append(fitz.Point(_cx + _df_r * math.cos(_a),
+                                 _cy + _df_r * math.sin(_a)))
 
-    df_shape.finish(color=(0, 0, 0), width=0.8, dashes="[4 3]")
+    df_shape = page.new_shape()
+    df_shape.draw_polyline(_rrpts)
+    df_shape.finish(color=(0, 0, 0), width=0.8, dashes="[4 3]",
+                    closePath=True)
     df_shape.commit()
 
     # "DRAINFIELD" label centered in rectangle
