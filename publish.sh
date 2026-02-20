@@ -16,6 +16,12 @@ files=(
        survey/path_area.svg
         walls/walls.svg
         walls/all_walls.svg
+         scad/2in12_patio.png
+         scad/2in12_corner.png
+         scad/2in12_bumpout.png
+         scad/flat_roof_patio.png
+         scad/flat_roof_corner.png
+         scad/flat_roof_bumpout.png
 )
 
 dest_files=()
