@@ -416,7 +416,7 @@ def generate():
 
     out.append("// --- Assembly ---")
     out.append("adobe_beige = [0.82, 0.71, 0.55];")
-    out.append("forest_green = [0.13, 0.55, 0.13];")
+    out.append("roof_green = [0.065, 0.275, 0.065];")
     out.append("color(adobe_beige) union() {")
     out.append("  // Lower walls (0 to 80\")")
     for label, _ in section_data:
@@ -428,7 +428,7 @@ def generate():
     out.append("      wall_shell(t_full_O4, half_t);")
     out.append("}")
     out.append("// Roof slab (112\" to 130\")")
-    out.append("color(forest_green)")
+    out.append("color(roof_green)")
     out.append("  translate([0, 0, roof_base])")
     out.append("    linear_extrude(height = roof_thick)")
     out.append("      polygon(points = roof_outline);")
