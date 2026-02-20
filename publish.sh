@@ -13,12 +13,31 @@ files=(
          span/span_min.svg
          site/site_plan.pdf
          site/site_plan_df.pdf
+         site/site_plan_df.png
        survey/path_area.svg
         walls/walls.svg
         walls/all_walls.svg
+         scad/2in12_patio.png
+         scad/2in12_corner.png
+         scad/2in12_bumpout.png
+         scad/flat_roof_patio.png
+         scad/flat_roof_corner.png
+         scad/flat_roof_bumpout.png
+)
+
+# Files that are never branch-suffixed
+fixed_files=(
+    index.html
 )
 
 dest_files=()
+for src in "${fixed_files[@]}"; do
+    base=$(basename "$src")
+    dest="../www/adu/$base"
+    cp "$src" "$dest"
+    dest_files+=("adu/$base")
+done
+
 for src in "${files[@]}"; do
     base=$(basename "$src")
     if [[ "$branch" != "main" ]]; then
