@@ -157,7 +157,7 @@ def main():
     page.insert_text(
         fitz.Point(cap_x - tw / 2.0, cap_y + fs / 3.0),
         text, fontname="helv", fontsize=fs, color=(0, 0, 0),
-        morph=(fitz.Point(cap_x, cap_y), fitz.Matrix(perp_deg)))
+        morph=(fitz.Point(cap_x, cap_y), fitz.Matrix(-perp_deg)))
 
     shape.commit()
 
