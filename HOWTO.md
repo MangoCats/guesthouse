@@ -12,7 +12,8 @@ Step-by-step instructions for common but complex tasks in the Hut2 project. Cons
 6. [Wall Construction Detail Drawing](#6-wall-construction-detail-drawing)
 7. [Verifying Changes](#7-verifying-changes)
 8. [Adding Text Captions to site_plan.pdf](#8-adding-text-captions-to-site_planpdf)
-9. [Contributing to This Document](#9-contributing-to-this-document)
+9. [Getting Rotation Direction Right](#9-getting-rotation-direction-right)
+10. [Contributing to This Document](#10-contributing-to-this-document)
 
 ---
 
@@ -351,7 +352,75 @@ All positions in `gen_site_plan.py` use PDF coordinates (x-right, y-down from to
 
 ---
 
-## 9. Contributing to This Document
+## 9. Getting Rotation Direction Right
+
+Rotation direction errors are common when adding door swings, casement windows, or any arc that should swing "inward" vs "outward" relative to the building. The issue is that the math is correct in isolation but the sign is backwards for the intended physical direction.
+
+### The pattern
+
+A typical swing illustration has:
+
+- **Hinge point** — fixed corner
+- **Closed direction** — unit vector from hinge toward the closed-end corner
+- **Cross direction** — unit vector perpendicular to the wall, pointing inward or outward
+- **Sweep angle** — how far to rotate (90° for doors, 45° for casement windows)
+
+The rotation angle sign determines whether the free end swings inward or outward.
+
+### How to determine the sign
+
+1. Compute the **closed direction** (`c_dir`) and the **target direction** (the direction you want the swing to go — e.g., inward for doors, outward for casements).
+
+2. Take the 2D cross product to find the rotation sense:
+   ```python
+   cross = c_dir[0] * target_dir[1] - c_dir[1] * target_dir[0]
+   ```
+
+3. **Positive cross** → the target is CCW from the closed direction → use `rot_sign = +1`.
+   **Negative cross** → the target is CW → use `rot_sign = -1`.
+
+4. Apply the rotation:
+   ```python
+   angle = rot_sign * sweep_angle
+   open_dir = (c_dir[0] * cos(angle) - c_dir[1] * sin(angle),
+               c_dir[0] * sin(angle) + c_dir[1] * cos(angle))
+   ```
+
+### Common mistake: confusing inward and outward
+
+The "inward direction" is computed as the vector from the outer face midpoint to the inner face midpoint:
+
+```python
+outer_mid = ((poly[0][0] + poly[1][0]) / 2, (poly[0][1] + poly[1][1]) / 2)
+inner_mid = ((poly[2][0] + poly[3][0]) / 2, (poly[2][1] + poly[3][1]) / 2)
+inward_dir = normalize(inner_mid - outer_mid)
+```
+
+- To swing **inward** (into the building, e.g., interior doors): use `inward_dir` as the target direction.
+- To swing **outward** (away from the building, e.g., casement windows): **negate the sign**. Either use `-inward_dir` as the target, or flip the `rot_sign`:
+  ```python
+  rot_sign = -1 if cross > 0 else 1   # outward = opposite of inward
+  ```
+
+### Quick sanity check
+
+Before committing, verify the swing direction by reasoning about one concrete case. For example, on the east wall (F14-F15):
+
+- Closed direction is **north** (along the wall)
+- Inward direction is **west** (toward building center)
+- Outward direction is **east** (away from building)
+- A casement that should swing east: the free end should rotate CW from north → rot_sign should be **-1**
+
+If the cross product of (north, east) = `(0)(0) - (1)(1) = -1` (negative), then the outward formula `rot_sign = -1 if cross > 0 else 1` gives `+1`. But wait — that rotates CCW from north, which goes west (inward), not east. So for outward you need the opposite: `rot_sign = -1 if cross > 0 else 1` applied to the **inward** cross gives the correct outward rotation. The key insight: compute the cross product against the **inward** direction, then negate.
+
+### Existing examples
+
+- **Interior doors** (RO3, RO4, RO5 in `_render_openings`): swing inward, 90° arcs, use `JAMB_COLOR`.
+- **Casement windows** (O8, O9, O10 in `_render_openings`): swing outward, 45° arcs, use `OPENING_STROKE` color. The rotation sign is flipped relative to the inward cross product.
+
+---
+
+## 10. Contributing to This Document
 
 **For future agents:** If you encounter a complex task that required significant codebase research and is not already covered here, please add a new section documenting the procedure. Follow the existing format:
 
