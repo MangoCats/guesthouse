@@ -150,7 +150,7 @@ def main():
     perp_deg = math.degrees(math.atan2(proj_y - mid_f16f17_y,
                                        proj_x - mid_f16f17_x))  # ≈ -13.3°
 
-    text = "11.0\u2032"
+    text = "11.0'"
     fs = 8
     tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
     # Place centered at caption point, rotated to match perpendicular
