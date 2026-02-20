@@ -2257,6 +2257,48 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
+    # Casement windows: O8, O9, O10 (23" openings, 45° swing, hinged at outer face)
+    for oname, hinge_idx, close_idx in [("O8", 0, 1), ("O9", 1, 0), ("O10", 0, 1)]:
+        o = [o for o in outer_openings if o.name == oname][0]
+        _hinge = o.poly[hinge_idx]
+        _close = o.poly[close_idx]
+        _dE = _close[0] - _hinge[0]
+        _dN = _close[1] - _hinge[1]
+        _wlen = math.sqrt(_dE**2 + _dN**2)
+        _cdir = (_dE / _wlen, _dN / _wlen)
+        # Inward direction (outer face midpoint toward inner face midpoint)
+        _omid = ((o.poly[0][0] + o.poly[1][0]) / 2, (o.poly[0][1] + o.poly[1][1]) / 2)
+        _imid = ((o.poly[2][0] + o.poly[3][0]) / 2, (o.poly[2][1] + o.poly[3][1]) / 2)
+        _iE = _imid[0] - _omid[0]; _iN = _imid[1] - _omid[1]
+        _ilen = math.sqrt(_iE**2 + _iN**2)
+        _idir = (_iE / _ilen, _iN / _ilen)
+        # Rotation sign: CCW (+1) or CW (-1) from closed dir toward inward
+        _cross = _cdir[0] * _idir[1] - _cdir[1] * _idir[0]
+        _rsign = 1 if _cross > 0 else -1
+        _oa = _rsign * math.pi / 4  # open angle
+        # Open tip
+        _cos_oa = math.cos(_oa); _sin_oa = math.sin(_oa)
+        _odir = (_cdir[0] * _cos_oa - _cdir[1] * _sin_oa,
+                 _cdir[0] * _sin_oa + _cdir[1] * _cos_oa)
+        _tip = (_hinge[0] + _wlen * _odir[0], _hinge[1] + _wlen * _odir[1])
+        hx, hy = to_svg(*_hinge)
+        tx, ty = to_svg(*_tip)
+        out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
+                   f' stroke="{OPENING_STROKE}" stroke-width="1.0"/>')
+        # Arc from open to closed
+        n_arc = 10
+        _arc_pts = []
+        for i in range(n_arc + 1):
+            _a = _oa * (1 - i / n_arc)
+            _ca = math.cos(_a); _sa = math.sin(_a)
+            _d = (_cdir[0] * _ca - _cdir[1] * _sa,
+                  _cdir[0] * _sa + _cdir[1] * _ca)
+            _pt = (_hinge[0] + _wlen * _d[0], _hinge[1] + _wlen * _d[1])
+            sx, sy = to_svg(*_pt)
+            _arc_pts.append(f"{sx:.1f},{sy:.1f}")
+        out.append(f'<polyline points="{" ".join(_arc_pts)}" fill="none"'
+                   f' stroke="{OPENING_STROKE}" stroke-width="0.5"/>')
+
 
 def _render_title_block(out, data, inner_area):
     """Render north arrow and title block."""
