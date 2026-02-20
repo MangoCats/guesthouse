@@ -151,7 +151,7 @@ def main():
                                        proj_x - mid_f16f17_x))  # ≈ -13.3°
 
     text = "11.0'"
-    fs = 8.8
+    fs = 9.0
     tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
     # Place centered at caption point, rotated to match perpendicular
     page.insert_text(
