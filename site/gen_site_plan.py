@@ -390,14 +390,17 @@ def main():
     page.draw_polyline(_rrpts, color=(0, 0, 0), width=0.8,
                        dashes="[4 3] 0", closePath=True)
 
-    # "DRAINFIELD" label centered in rectangle
-    _df_label = "DRAINFIELD"
+    # "EXISTING / DRAINFIELD" label centered in rectangle (two lines)
     _df_fs = 7.2
-    _df_tw = fitz.get_text_length(_df_label, fontname="helv", fontsize=_df_fs)
-    page.insert_text(
-        fitz.Point((_df_left + _df_right) / 2.0 - _df_tw / 2.0,
-                   (_df_top + _df_bot) / 2.0 + _df_fs / 3.0),
-        _df_label, fontname="helv", fontsize=_df_fs, color=(0, 0, 0))
+    _df_lh = _df_fs * 1.15  # line height
+    _df_cx = (_df_left + _df_right) / 2.0
+    _df_cy = (_df_top + _df_bot) / 2.0
+    for _li, _lt in enumerate(["EXISTING", "DRAINFIELD"]):
+        _ltw = fitz.get_text_length(_lt, fontname="helv", fontsize=_df_fs)
+        _ly = _df_cy - _df_lh / 2.0 + _df_fs + _li * _df_lh
+        page.insert_text(
+            fitz.Point(_df_cx - _ltw / 2.0, _ly),
+            _lt, fontname="helv", fontsize=_df_fs, color=(0, 0, 0))
 
     df_path = os.path.join(os.path.dirname(__file__), "site_plan_df.pdf")
     doc.save(df_path)
