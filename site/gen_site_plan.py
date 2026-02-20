@@ -395,9 +395,12 @@ def main():
     _df_lh = _df_fs * 1.15  # line height
     _df_cx = (_df_left + _df_right) / 2.0
     _df_cy = (_df_top + _df_bot) / 2.0
-    for _li, _lt in enumerate(["EXISTING", "DRAINFIELD"]):
+    _df_lines = ["EXISTING", "DRAINFIELD"]
+    _df_block_h = _df_lh * len(_df_lines)
+    _df_start_y = _df_cy - _df_block_h / 2.0 + _df_fs  # baseline of first line
+    for _li, _lt in enumerate(_df_lines):
         _ltw = fitz.get_text_length(_lt, fontname="helv", fontsize=_df_fs)
-        _ly = _df_cy - _df_lh / 2.0 + _df_fs + _li * _df_lh
+        _ly = _df_start_y + _li * _df_lh
         page.insert_text(
             fitz.Point(_df_cx - _ltw / 2.0, _ly),
             _lt, fontname="helv", fontsize=_df_fs, color=(0, 0, 0))
