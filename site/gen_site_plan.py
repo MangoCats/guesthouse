@@ -141,11 +141,11 @@ def main():
     # Shift "above" the line from the flipped text's perspective:
     # reading direction after 180° flip is (-dim_dx, -dim_dy);
     # "above" = left perp of reading dir = (dim_dy, -dim_dx) normalised
-    dim_shift = 3.0  # PDF pts above line
+    dim_shift = -3.5  # PDF pts; negative = other side of line
     dim_mid_x = (f15_pdf[0] + foot_pdf[0]) / 2.0 + dim_shift * dim_dy / dim_len
     dim_mid_y = (f15_pdf[1] + foot_pdf[1]) / 2.0 - dim_shift * dim_dx / dim_len
     dim_text = "36.0'"
-    dim_fs = 5.0
+    dim_fs = 6.0
     dim_tw = fitz.get_text_length(dim_text, fontname="helv", fontsize=dim_fs)
     page.insert_text(
         fitz.Point(dim_mid_x - dim_tw / 2.0, dim_mid_y + dim_fs / 3.0),
