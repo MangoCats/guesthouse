@@ -71,13 +71,13 @@ def main():
 
     # Target: F15 placed near the bottom PATIO level on 216.73' line, 11' inside
     # Bottom PATIO is at approximately PDF y ≈ 435, shifted 20' up along the line
-    patio_y = 435.0 - 20.0 * SCALE * (ldy / llen)  # move 20' toward upper corner
+    patio_y = 435.0 - 15.0 * SCALE * (ldy / llen)  # move 15' toward upper corner
     # Find point on 216.73' line at this y
     t_patio = (patio_y - line_top[1]) / (line_bot[1] - line_top[1])
     line_at_patio_x = line_top[0] + t_patio * (line_bot[0] - line_top[0])
 
-    # F15 target in PDF coords: 11' inward from property line
-    setback = 11.0  # feet
+    # F15 target in PDF coords: 12.1' inward from property line (11' + 10%)
+    setback = 12.1  # feet
     f15_pdf_x = line_at_patio_x + setback * SCALE * inward_e
     f15_pdf_y = patio_y + setback * SCALE * (-inward_n)  # y-flip for PDF
 
@@ -98,7 +98,7 @@ def main():
 
     # Draw building outline — single line, black pixels inside F boundary
     # Stroke width ≈ 80% of the survey property lines (~1pt → 0.8pt)
-    STROKE_W = 1.5
+    STROKE_W = 1.6
     # Offset path inward by half stroke width so outer edge aligns with F boundary.
     # outer_poly→inner_poly span 8" of wall; we need half_stroke / SCALE feet inward.
     WALL_T = 8.0 / 12.0  # 8" F-to-W gap in feet
