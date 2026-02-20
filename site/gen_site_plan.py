@@ -78,7 +78,7 @@ def main():
     line_at_patio_x = line_top[0] + t_patio * (line_bot[0] - line_top[0])
 
     # F15 target in PDF coords: 11' inward from property line
-    setback = 11.0  # feet
+    setback = 11.5  # feet
     f15_pdf_x = line_at_patio_x + setback * SCALE * inward_e
     f15_pdf_y = patio_y + setback * SCALE * (-inward_n)  # y-flip for PDF
 
@@ -208,7 +208,7 @@ def main():
             fitz.Point(label_pdf[0] - lw / 2.0, start_y + i * label_lh),
             line, fontname="helv", fontsize=label_fs, color=(0, 0, 0))
 
-    # --- 11.0' setback caption ---
+    # --- 11.5' setback caption ---
     # Midpoint of F16-F17 in PDF coords
     f16_pdf = building_to_pdf(*f16)
     f17_pdf = building_to_pdf(*f17)
@@ -232,7 +232,7 @@ def main():
     perp_deg = math.degrees(math.atan2(proj_y - mid_f16f17_y,
                                        proj_x - mid_f16f17_x))  # ≈ -13.3°
 
-    text = "11.0'"
+    text = "11.5'"
     fs = 9.0
     tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
     # Place centered at caption point, rotated to match perpendicular
