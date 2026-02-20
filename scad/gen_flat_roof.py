@@ -221,6 +221,14 @@ def _build_tpath(pts, outline_segs, inner_segs, tf_segs, tw_segs,
 
 # ── OpenSCAD output ───────────────────────────────────────────
 
+def _fmt_ft_in(ft):
+    """Format feet as ft' inches\" with 4 decimal places on inches."""
+    total_in = ft * 12
+    whole_ft = int(total_in // 12)
+    remaining_in = total_in - whole_ft * 12
+    return f"{whole_ft}' {remaining_in:.4f}\""
+
+
 def _scad_seg(elem):
     """Format a T-path element as SCAD array literal."""
     if elem[0] == "line":
@@ -228,6 +236,20 @@ def _scad_seg(elem):
         return f"[0, {x1:.6f}, {y1:.6f}, {x2:.6f}, {y2:.6f}]"
     _, cx, cy, r, a1, a2 = elem
     return f"[1, {cx:.6f}, {cy:.6f}, {r:.6f}, {a1:.3f}, {a2:.3f}]"
+
+
+def _seg_comment(elem):
+    """Generate an inline comment for a T-path element."""
+    if elem[0] == "line":
+        _, x1, y1, x2, y2 = elem
+        dE, dN = x2 - x1, y2 - y1
+        length = math.sqrt(dE * dE + dN * dN)
+        bearing = math.degrees(math.atan2(dE, dN)) % 360
+        return f"// {_fmt_ft_in(length)} @ {bearing:.4f}\u00b0"
+    _, cx, cy, r, a1, a2 = elem
+    sweep = a2 - a1
+    direction = "CCW" if sweep > 0 else "CW"
+    return f"// R {_fmt_ft_in(r)}, {direction} {abs(sweep):.4f}\u00b0"
 
 
 def generate():
@@ -327,7 +349,7 @@ def generate():
         out.append(f"t_{label} = [")
         for i, elem in enumerate(tpath):
             comma = "," if i < len(tpath) - 1 else ""
-            out.append(f"  {_scad_seg(elem)}{comma}")
+            out.append(f"  {_scad_seg(elem)}{comma}  {_seg_comment(elem)}")
         out.append("];")
         out.append("")
 
