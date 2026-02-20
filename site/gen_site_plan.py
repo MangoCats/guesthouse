@@ -71,7 +71,7 @@ def main():
 
     # Target: F15 placed near the bottom PATIO level on 216.73' line, 11' inside
     # Bottom PATIO is at approximately PDF y ≈ 435, shifted 20' up along the line
-    patio_y = 435.0 - 15.0 * SCALE * (ldy / llen)  # move 15' toward upper corner
+    patio_y = 435.0 - 5.0 * SCALE * (ldy / llen)  # move 5' toward upper corner
     # Find point on 216.73' line at this y
     t_patio = (patio_y - line_top[1]) / (line_bot[1] - line_top[1])
     line_at_patio_x = line_top[0] + t_patio * (line_bot[0] - line_top[0])
