@@ -352,10 +352,12 @@ def main():
     # Helper: draw dashed rounded rect with centered two-line label
     _df_fs = 7.2
     _df_lh = _df_fs * 1.15
-    _df_lines = ["EXISTING", "DRAINFIELD"]
+    _df_lines_existing = ["EXISTING", "DRAINFIELD"]
     _n_arc = 8
 
-    def _draw_drainfield(left, top, right, bot, r):
+    def _draw_drainfield(left, top, right, bot, r, lines=None):
+        if lines is None:
+            lines = _df_lines_existing
         pts = []
         pts.append(fitz.Point(left + r, top))
         pts.append(fitz.Point(right - r, top))
@@ -383,9 +385,9 @@ def main():
         # Centered two-line label
         cx = (left + right) / 2.0
         cy = (top + bot) / 2.0
-        block_h = _df_lh * len(_df_lines)
+        block_h = _df_lh * len(lines)
         start_y = cy - block_h / 2.0 + _df_fs
-        for li, lt in enumerate(_df_lines):
+        for li, lt in enumerate(lines):
             tw = fitz.get_text_length(lt, fontname="helv", fontsize=_df_fs)
             page.insert_text(
                 fitz.Point(cx - tw / 2.0, start_y + li * _df_lh),
@@ -404,6 +406,16 @@ def main():
     _df2_top = _df2_cy - _df_h / 2.0
     _df2_bot = _df2_cy + _df_h / 2.0
     _draw_drainfield(_df2_left, _df2_top, _df2_right, _df2_bot, _df_r)
+
+    # New drainfield: midway between F2 (PDF) and 275.08'/216.73' corner
+    _ndf_cx = (f2_pdf[0] + line_bot[0]) / 2.0
+    _ndf_cy = (f2_pdf[1] + line_bot[1]) / 2.0
+    _ndf_left = _ndf_cx - _df_w / 2.0
+    _ndf_top = _ndf_cy - _df_h / 2.0
+    _ndf_right = _ndf_cx + _df_w / 2.0
+    _ndf_bot = _ndf_cy + _df_h / 2.0
+    _draw_drainfield(_ndf_left, _ndf_top, _ndf_right, _ndf_bot, _df_r,
+                     lines=["NEW", "DRAINFIELD"])
 
     df_path = os.path.join(os.path.dirname(__file__), "site_plan_df.pdf")
     doc.save(df_path)
