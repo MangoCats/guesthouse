@@ -44,7 +44,7 @@ class TestRevElem:
 
 class TestWallHeight:
     def test_conversion(self):
-        assert WALL_HEIGHT_FT == pytest.approx(112.0 / 12.0)
+        assert WALL_HEIGHT_FT == pytest.approx(80.0 / 12.0)
 
 
 # ── integration test ──────────────────────────────────────────
@@ -103,16 +103,26 @@ class TestGenerate:
         # T-path approach uses polygon with paths, no difference()
         assert "difference()" not in content
 
+    def test_output_two_tier_walls(self):
+        buf = io.StringIO()
+        with patch("builtins.open", return_value=buf):
+            with patch.object(buf, "close"):
+                generate()
+        content = buf.getvalue()
+        assert "t_full_O4 = [" in content
+        assert "upper_base" in content
+        assert "upper_height" in content
+        assert "wall_shell(t_full_O4, half_t);" in content
+
     def test_output_wedge_roof(self):
         buf = io.StringIO()
         with patch("builtins.open", return_value=buf):
             with patch.object(buf, "close"):
                 generate()
         content = buf.getvalue()
-        assert "translate([0, 0, wall_height])" in content
+        assert "translate([0, 0, upper_base + upper_height])" in content
         assert "polygon(points = roof_outline)" in content
         assert "max_roof_thick" in content
         assert "roof_slope" in content
         assert "roof_z_base" in content
         assert "render() intersection()" in content
-        assert "t_full_O4" not in content
