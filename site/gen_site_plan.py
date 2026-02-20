@@ -71,7 +71,7 @@ def main():
 
     # Target: F15 placed near the bottom PATIO level on 216.73' line, 11' inside
     # Bottom PATIO is at approximately PDF y ≈ 435, shifted 20' up along the line
-    patio_y = 435.0 - 5.0 * SCALE * (ldy / llen)  # move 5' toward upper corner
+    patio_y = 435.0 - 10.0 * SCALE * (ldy / llen)  # move 10' toward upper corner
     # Find point on 216.73' line at this y
     t_patio = (patio_y - line_top[1]) / (line_bot[1] - line_top[1])
     line_at_patio_x = line_top[0] + t_patio * (line_bot[0] - line_top[0])
@@ -125,6 +125,36 @@ def main():
     x1, y1 = building_to_pdf(*draw_poly[0])
     shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
     shape.finish(color=(0, 0, 0), width=STROKE_W)
+
+    # --- 11.0' setback caption ---
+    # Midpoint of F16-F17 in PDF coords
+    f16_pdf = building_to_pdf(*f16)
+    f17_pdf = building_to_pdf(*f17)
+    mid_f16f17_x = (f16_pdf[0] + f17_pdf[0]) / 2.0
+    mid_f16f17_y = (f16_pdf[1] + f17_pdf[1]) / 2.0
+
+    # Project midpoint perpendicularly onto 216.73' line.
+    # Line parameterised as P = line_top + t*(line_bot - line_top).
+    # t = dot(mid - line_top, line_dir) / llen^2
+    t_proj = ((mid_f16f17_x - line_top[0]) * ldx +
+              (mid_f16f17_y - line_top[1]) * ldy) / (llen * llen)
+    proj_x = line_top[0] + t_proj * ldx
+    proj_y = line_top[1] + t_proj * ldy
+
+    # Caption at midpoint between F16-F17 midpoint and its projection on the line
+    cap_x = (mid_f16f17_x + proj_x) / 2.0
+    cap_y = (mid_f16f17_y + proj_y) / 2.0
+
+    # Rotation angle for text: perpendicular to the 216.73' line
+    perp_angle_deg = math.degrees(math.atan2(ldy, ldx)) + 90  # perpendicular in PDF coords
+
+    font = fitz.Font("helv")
+    text = "11.0\u2032"
+    fs = 8
+    tw = font.text_length(text, fontsize=fs)
+    # Place horizontal text centered at caption midpoint
+    page.insert_text(fitz.Point(cap_x - tw / 2.0, cap_y + fs / 3.0),
+                     text, fontname="helv", fontsize=fs, color=(0, 0, 0))
 
     shape.commit()
 
