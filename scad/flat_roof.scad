@@ -1,4 +1,4 @@
-// flat_roof.scad — T-path shell centerline extrusion
+// flat_roof.scad - T-path shell centerline extrusion
 // Wall height: 80" (6.6667 ft)
 // Construction: 2" outer shell / 4" air gap / 2" inner shell
 // 11 wall sections between openings

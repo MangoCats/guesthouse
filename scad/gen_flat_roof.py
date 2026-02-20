@@ -249,7 +249,7 @@ def _seg_comment(elem):
     _, cx, cy, r, a1, a2 = elem
     sweep = a2 - a1
     direction = "CCW" if sweep > 0 else "CW"
-    return f"// R {_fmt_ft_in(r)}, {direction} {abs(sweep):.4f}deg"
+    return f"// {direction} {abs(sweep):.4f}deg {_fmt_ft_in(r)}"
 
 
 def generate():
