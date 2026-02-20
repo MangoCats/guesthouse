@@ -62,6 +62,10 @@ OPENING_STROKE = '#4682B4'
 JAMB_COLOR = 'darkred'
 DIM_COLOR = '#999'
 
+_CASEMENT_NAMES = {"O8", "O9", "O10"}
+_CASEMENT_URL = ("https://brogawindows.com/catalog/1894"
+                 "?srsltid=AfmBOopybpD3TPjfatlYy33Uy4FHGXQocdwR0ZinpJycfhYyLZdzKXc-SSw")
+
 # ============================================================
 # SVG Helpers
 # ============================================================
@@ -465,8 +469,12 @@ def _render_walls(out, data, layout, bare=False):
                     ]
                     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
                                    for p in o_poly)
-                    out.append(f'<polygon points="{svg}" fill="{OPENING_FILL}" '
-                               f'stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
+                    _poly_el = (f'<polygon points="{svg}" fill="{OPENING_FILL}" '
+                                f'stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
+                    if op.name in _CASEMENT_NAMES:
+                        out.append(f'<a href="{_CASEMENT_URL}">{_poly_el}</a>')
+                    else:
+                        out.append(_poly_el)
 
     # --- Continuous section outlines ---
     g_overrides = {7: data.g_f8f9_poly}
@@ -2286,8 +2294,8 @@ def _render_openings(out, data, layout, bare=False):
         _tip = (_hinge[0] + _wlen * _odir[0], _hinge[1] + _wlen * _odir[1])
         hx, hy = to_svg(*_hinge)
         tx, ty = to_svg(*_tip)
-        out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
-                   f' stroke="{OPENING_STROKE}" stroke-width="1.0"/>')
+        _line_el = (f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
+                    f' stroke="{OPENING_STROKE}" stroke-width="1.0"/>')
         # Arc from open to closed
         n_arc = 10
         _arc_pts = []
@@ -2299,8 +2307,9 @@ def _render_openings(out, data, layout, bare=False):
             _pt = (_hinge[0] + _wlen * _d[0], _hinge[1] + _wlen * _d[1])
             sx, sy = to_svg(*_pt)
             _arc_pts.append(f"{sx:.1f},{sy:.1f}")
-        out.append(f'<polyline points="{" ".join(_arc_pts)}" fill="none"'
+        _arc_el = (f'<polyline points="{" ".join(_arc_pts)}" fill="none"'
                    f' stroke="{OPENING_STROKE}" stroke-width="0.5"/>')
+        out.append(f'<a href="{_CASEMENT_URL}">{_line_el}{_arc_el}</a>')
 
 
 def _render_title_block(out, data, inner_area):
