@@ -14,20 +14,25 @@ WALL_HEIGHT_FT = _mod.WALL_HEIGHT_FT
 
 class TestScadPolygon:
     def test_module_declaration(self):
-        result = _scad_polygon("test_wall", [(0.0, 0.0), (1.0, 0.0)])
+        elems = [("pts", [(0.0, 0.0), (1.0, 0.0)])]
+        result = _scad_polygon("test_wall", elems)
         assert "module test_wall()" in result
 
-    def test_polygon_keyword(self):
-        result = _scad_polygon("w", [(0.0, 0.0)])
-        assert "polygon(points =" in result
+    def test_polygon_concat(self):
+        elems = [("pts", [(0.0, 0.0), (1.0, 0.0)])]
+        result = _scad_polygon("w", elems)
+        assert "polygon(points = concat(" in result
 
-    def test_vertex_count_comment(self):
-        pts = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
-        result = _scad_polygon("tri", pts)
-        assert "// 3 vertices" in result
+    def test_arc_element(self):
+        elems = [("pts", [(0.0, 0.0), (1.0, 0.0)]),
+                 ("arc", 1.0, 1.0, 1.0, 0.0, 90.0)]
+        result = _scad_polygon("a", elems)
+        assert "arc_pts(" in result
+        assert "tail(" in result
 
     def test_coordinate_precision(self):
-        result = _scad_polygon("p", [(1.5, 2.5)])
+        elems = [("pts", [(1.5, 2.5)])]
+        result = _scad_polygon("p", elems)
         assert "[1.500000, 2.500000]" in result
 
 
@@ -62,3 +67,22 @@ class TestGenerate:
         assert "difference()" in content
         assert "wall_O11_O1_outer();" in content
         assert "wall_O11_O1_cavity();" in content
+
+    def test_output_contains_helpers(self):
+        buf = io.StringIO()
+        with patch("builtins.open", return_value=buf):
+            with patch.object(buf, "close"):
+                generate()
+        content = buf.getvalue()
+        assert "function arc_pts(" in content
+        assert "function tail(" in content
+
+    def test_output_uses_arcs(self):
+        buf = io.StringIO()
+        with patch("builtins.open", return_value=buf):
+            with patch.object(buf, "close"):
+                generate()
+        content = buf.getvalue()
+        assert "arc_pts(" in content
+        assert "tail(" in content
+        assert "concat(" in content
