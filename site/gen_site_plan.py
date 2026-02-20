@@ -159,6 +159,47 @@ def main():
         text, fontname="helv", fontsize=fs, color=(0, 0, 0),
         morph=(fitz.Point(cap_x, cap_y), fitz.Matrix(-perp_deg)))
 
+    # --- F2 distance to 275.08' line caption ---
+    # 275.08' line endpoints (from least-squares fit on rasterized survey)
+    # Lower-right corner shared with 216.73' line
+    bot_right = line_bot  # (817.9, 557.8)
+    bot_left = (160.0, 561.9)
+
+    # Direction and length of 275.08' line in PDF coords
+    bdx = bot_right[0] - bot_left[0]
+    bdy = bot_right[1] - bot_left[1]
+    blen = math.hypot(bdx, bdy)
+
+    # F2 in PDF coords
+    f2 = pts["F2"]
+    f2_pdf = building_to_pdf(*f2)
+
+    # Project F2 perpendicularly onto 275.08' line
+    t_f2 = ((f2_pdf[0] - bot_left[0]) * bdx +
+            (f2_pdf[1] - bot_left[1]) * bdy) / (blen * blen)
+    proj_f2_x = bot_left[0] + t_f2 * bdx
+    proj_f2_y = bot_left[1] + t_f2 * bdy
+
+    # Distance in feet
+    dist_pts = math.hypot(f2_pdf[0] - proj_f2_x, f2_pdf[1] - proj_f2_y)
+    dist_ft = dist_pts / SCALE
+
+    # Caption at midpoint of perpendicular
+    cap2_x = (f2_pdf[0] + proj_f2_x) / 2.0
+    cap2_y = (f2_pdf[1] + proj_f2_y) / 2.0
+
+    # Rotation: direction from F2 toward 275.08' line, matching 80.6'/74.9' style
+    perp2_deg = math.degrees(math.atan2(proj_f2_y - f2_pdf[1],
+                                        proj_f2_x - f2_pdf[0]))
+
+    text2 = f"{dist_ft:.1f}'"
+    fs2 = 9.0
+    tw2 = fitz.get_text_length(text2, fontname="helv", fontsize=fs2)
+    page.insert_text(
+        fitz.Point(cap2_x - tw2 / 2.0, cap2_y + fs2 / 3.0),
+        text2, fontname="helv", fontsize=fs2, color=(0, 0, 0),
+        morph=(fitz.Point(cap2_x, cap2_y), fitz.Matrix(-perp2_deg)))
+
     shape.commit()
 
     out_path = os.path.join(os.path.dirname(__file__), "site_plan.pdf")
