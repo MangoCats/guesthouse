@@ -1870,10 +1870,15 @@ def _render_dimensions(out, data, layout, bare=False):
     dim_line_v(out, pts["F18"][0], layout.iw1_s, pts["W18"][1],
                fmt_dist(layout.iw1_s - pts["W18"][1]), to_svg,
                label_n=(layout.iw1_s + pts["W18"][1]) / 2 + 2.5)
-    dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
-               fmt_dist(pts["W6"][1] - layout.iw6_n), to_svg)
-    dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, layout.iw6_s,
-               fmt_dist(layout.iw6_s - layout.iw8.n), to_svg)
+    if bare:
+        # Single combined dim: IW8 north face to W6-W7
+        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, pts["W6"][1],
+                   fmt_dist(pts["W6"][1] - layout.iw8.n), to_svg)
+    else:
+        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
+                   fmt_dist(pts["W6"][1] - layout.iw6_n), to_svg)
+        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, layout.iw6_s,
+                   fmt_dist(layout.iw6_s - layout.iw8.n), to_svg)
 
     # External dimensions
     dim_ext_e = pts["F3"][0] - 2.7
