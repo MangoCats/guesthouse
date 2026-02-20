@@ -21,8 +21,10 @@ _OUT = os.path.join(_DIR, "flat_roof.scad")
 WALL_HEIGHT_IN = 112.0  # 9'4" inches
 WALL_HEIGHT_FT = WALL_HEIGHT_IN / 12.0
 
-ROOF_THICK_IN = 18.0   # roof slab thickness (inches)
+ROOF_THICK_IN = 18.0   # minimum roof slab thickness (inches), at south edge
 ROOF_THICK_FT = ROOF_THICK_IN / 12.0
+ROOF_SLOPE_IN_PER_FT = 0.25   # 1/4" rise per foot of northing
+ROOF_SLOPE = ROOF_SLOPE_IN_PER_FT / 12.0  # ft/ft
 
 
 # ── element types ────────────────────────────────────────────
@@ -294,14 +296,23 @@ def generate():
         label = f"{start_op.name}_{end_op.name}"
         section_data.append((label, tpath))
 
-    # Roof outline polygon
+    # Roof outline polygon and wedge parameters
     roof_geo = compute_roof_geometry(pts, radii)
     roof_pts = roof_polyline(roof_geo)
+    roof_y_south = min(y for _, y in roof_pts)
+    roof_y_north = max(y for _, y in roof_pts)
+    # Flat bottom at wall_height; top slopes up toward north
+    # At south edge: thickness = ROOF_THICK_FT (18")
+    # At north edge (R3-R4): thickness = ROOF_THICK_FT + slope * delta_y
+    roof_z_base = ROOF_THICK_FT - ROOF_SLOPE * roof_y_south
+    max_roof_thick = ROOF_THICK_FT + ROOF_SLOPE * (roof_y_north - roof_y_south)
+    max_roof_thick_in = max_roof_thick * 12.0
 
     out = []
     out.append("// flat_roof.scad - T-path shell centerline extrusion")
     out.append(f"// Walls: 0 to {WALL_HEIGHT_IN:.0f}\" (9'4\")")
-    out.append(f"// Roof: {ROOF_THICK_IN:.0f}\" flat slab at {WALL_HEIGHT_IN:.0f}\"")
+    out.append(f"// Roof: {ROOF_THICK_IN:.0f}\"-{max_roof_thick_in:.1f}\" wedge slab "
+               f"(1/4\"/ft slope N, {ROOF_THICK_IN:.0f}\" min at south)")
     out.append("// Construction: 2\" outer shell / 4\" air gap / 2\" inner shell")
     out.append(f"// {len(section_data)} wall sections")
     out.append("// Units: feet")
@@ -353,6 +364,9 @@ def generate():
     out.append(f"half_t = {shell_half:.6f};")
     out.append(f"wall_height = {WALL_HEIGHT_FT:.6f};")
     out.append(f"roof_thick = {ROOF_THICK_FT:.6f};")
+    out.append(f"max_roof_thick = {max_roof_thick:.6f};")
+    out.append(f"roof_slope = {ROOF_SLOPE:.8f};  // {ROOF_SLOPE_IN_PER_FT}\" per ft")
+    out.append(f"roof_z_base = {roof_z_base:.8f};")
     out.append("")
 
     # Pre-compute data parts to find alignment width
@@ -392,11 +406,18 @@ def generate():
         out.append(f"  linear_extrude(height = wall_height)")
         out.append(f"    wall_shell(t_{label}, half_t);")
     out.append("}")
-    out.append(f"// Flat roof slab ({ROOF_THICK_IN:.0f}\" at {WALL_HEIGHT_IN:.0f}\")")
+    out.append(f"// Wedge roof slab ({ROOF_THICK_IN:.0f}\"-{max_roof_thick_in:.1f}\", "
+               f"1/4\"/ft slope N)")
     out.append("color(roof_green)")
     out.append("  translate([0, 0, wall_height])")
-    out.append("    linear_extrude(height = roof_thick)")
-    out.append("      polygon(points = roof_outline);")
+    out.append("    render() intersection() {")
+    out.append("      linear_extrude(height = max_roof_thick + 0.1)")
+    out.append("        polygon(points = roof_outline);")
+    out.append("      multmatrix([[1,0,0,0], [0,1,0,0],")
+    out.append("                  [0, roof_slope, 1, roof_z_base], [0,0,0,1]])")
+    out.append("        translate([-5, -5, -25])")
+    out.append("          cube([50, 40, 25]);")
+    out.append("    }")
     out.append("")
 
     with open(_OUT, "w") as f:

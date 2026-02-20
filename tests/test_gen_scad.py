@@ -103,7 +103,7 @@ class TestGenerate:
         # T-path approach uses polygon with paths, no difference()
         assert "difference()" not in content
 
-    def test_output_flat_roof(self):
+    def test_output_wedge_roof(self):
         buf = io.StringIO()
         with patch("builtins.open", return_value=buf):
             with patch.object(buf, "close"):
@@ -111,6 +111,8 @@ class TestGenerate:
         content = buf.getvalue()
         assert "translate([0, 0, wall_height])" in content
         assert "polygon(points = roof_outline)" in content
+        assert "max_roof_thick" in content
+        assert "roof_slope" in content
+        assert "roof_z_base" in content
+        assert "render() intersection()" in content
         assert "t_full_O4" not in content
-        assert "multmatrix" not in content
-        assert "roof_shear" not in content
