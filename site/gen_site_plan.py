@@ -76,8 +76,8 @@ def main():
     t_patio = (patio_y - line_top[1]) / (line_bot[1] - line_top[1])
     line_at_patio_x = line_top[0] + t_patio * (line_bot[0] - line_top[0])
 
-    # F15 target in PDF coords: 12.1' inward from property line (11' + 10%)
-    setback = 12.1  # feet
+    # F15 target in PDF coords: 11' inward from property line
+    setback = 11.0  # feet
     f15_pdf_x = line_at_patio_x + setback * SCALE * inward_e
     f15_pdf_y = patio_y + setback * SCALE * (-inward_n)  # y-flip for PDF
 
