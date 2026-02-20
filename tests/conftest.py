@@ -3,7 +3,7 @@ import importlib.util
 import os
 import pytest
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
-from shared.geometry import compute_inner_walls, path_polygon
+from shared.geometry import compute_inner_walls, path_polygon, left_norm
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import WALL_OUTER
@@ -58,9 +58,15 @@ def pts_full(pts_base, inset_result):
 @pytest.fixture(scope="session")
 def outline_geo(pts_full, inset_result):
     """OutlineGeometry from compute_outline_geometry."""
+    # Shift anchors outward for 10" wall (2" beyond original 8")
+    _WE = WALL_OUTER - 8.0 / 12.0
+    _ln = left_norm(pts_full["PiX"], pts_full["Pi5"])
     anchors = OutlineAnchors(
-        Pi2=pts_full["Pi2"], Pi3=pts_full["Pi3"], Ti3=pts_full["Ti3"],
-        PiX=pts_full["PiX"], Pi5=pts_full["Pi5"],
+        Pi2=(pts_full["Pi2"][0] - _WE, pts_full["Pi2"][1]),
+        Pi3=(pts_full["Pi3"][0] - _WE, pts_full["Pi3"][1] - _WE),
+        Ti3=pts_full["Ti3"],
+        PiX=(pts_full["PiX"][0] - _WE * _ln[0], pts_full["PiX"][1] - _WE * _ln[1]),
+        Pi5=(pts_full["Pi5"][0] - _WE * _ln[0], pts_full["Pi5"][1] - _WE * _ln[1]),
         TC1=pts_full["TC1"], R1i=inset_result.R1i,
     )
     return compute_outline_geometry(anchors)

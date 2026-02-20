@@ -102,17 +102,24 @@ def _compute_upper_east_arcs(fp_pts: dict[str, Point]) -> tuple[float, float]:
     """Upper east arcs: F7, F8, C7, F9, C8. Returns (R_a7, R_a8).
 
     Depends on F6 already in fp_pts.
+    C8 placed for tangency with C7: |C7-C8| = R_a7 + R_a8.
     """
     # F7: east of F6, adjusted for F6 east shift to keep F7 fixed
     fp_pts["F7"] = (fp_pts["F6"][0] + 5.5 + 6.0/12 - NW_SHIFT + 4.0/12 - F6_EAST_ADJ,
                     fp_pts["F6"][1])
     R_a7 = UPPER_E_R
     fp_pts["C7"] = (fp_pts["F7"][0], fp_pts["F7"][1] - R_a7)
-    fp_pts["F8"] = (fp_pts["C7"][0] + R_a7, fp_pts["C7"][1])
 
-    # F8-F9: small arc (R=2")
+    # F8-F9: small arc (R=2"), C8 via tangency with C7
     R_a8 = SMALL_ARC_R
-    fp_pts["C8"] = (fp_pts["F8"][0] + R_a8, fp_pts["F8"][1])
+    _WE = WALL_OUTER - 8.0 / 12.0
+    _sum_R = R_a7 + R_a8
+    _dE = math.sqrt(_sum_R**2 - _WE**2)
+    fp_pts["C8"] = (fp_pts["C7"][0] + _dE, fp_pts["C7"][1] + _WE)
+    # F8: tangent point on C7→C8 line
+    fp_pts["F8"] = (fp_pts["C7"][0] + R_a7 * _dE / _sum_R,
+                    fp_pts["C7"][1] + R_a7 * _WE / _sum_R)
+    # F9: bottom of C8 circle
     fp_pts["F9"] = (fp_pts["C8"][0], fp_pts["C8"][1] - R_a8)
 
     return R_a7, R_a8
@@ -163,15 +170,17 @@ def _compute_central_region(
     fp_pts["C13"] = (F15_E - R_a13, _F14_N)
     fp_pts["F14"] = (F15_E, _F14_N)
     # C11 from tangent constraint with C13 (position unchanged)
-    _C11_N = fp_pts["F9"][1] + SMALL_ARC_R
+    _C11_N = fp_pts["C7"][1]
     _C13_E, _C13_N = fp_pts["C13"]
     _C11_E = _C13_E + (R_a13 - R_a11 - (_C11_N - _C13_N) * _ny_t) / _nx_t
     fp_pts["C11"] = (_C11_E, _C11_N)
     # C11a: shifted west by FLAT_SEG_11 for F11-F11a arc
     _C11a_E = _C11_E - FLAT_SEG_11
     fp_pts["C11a"] = (_C11a_E, _C11_N)
-    # F10: 4" east of O6 east edge (O6 east = F9 + O6_E_FROM_F9)
-    _F10_E = fp_pts["F9"][0] + O6_E_FROM_F9 + F10_O6_CLEARANCE
+    # F10: 4" east of O6 east edge; use nominal F9_E to preserve F10 position
+    _WE = WALL_OUTER - 8.0 / 12.0
+    _nominal_F9_E = fp_pts["C7"][0] + UPPER_E_R + SMALL_ARC_R - _WE
+    _F10_E = _nominal_F9_E + O6_E_FROM_F9 + F10_O6_CLEARANCE
     _F10_N = fp_pts["F9"][1]
     fp_pts["F10"] = (_F10_E, _F10_N)
     # R_a10: tangent to F11-F11a arc. C10 = (F10_E, F10_N + R_a10).

@@ -8,7 +8,7 @@ from typing import NamedTuple, Any
 
 from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
-    segment_polyline, path_polygon, poly_area,
+    segment_polyline, path_polygon, poly_area, left_norm,
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
     horiz_isects,
 )
@@ -226,9 +226,15 @@ def build_floorplan_data():
     _inset = compute_inset(pts, _arc_info["R1"], _arc_info["R2"], _arc_info["R3"],
                            _arc_info["nE"], _arc_info["nN"])
     pts.update(_inset.pts_update)
+    # Shift anchors outward for 10" wall (2" beyond original 8")
+    _WE = WALL_OUTER - 8.0 / 12.0
+    _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
     _anchors = OutlineAnchors(
-        Pi2=pts["Pi2"], Pi3=pts["Pi3"], Ti3=pts["Ti3"],
-        PiX=pts["PiX"], Pi5=pts["Pi5"],
+        Pi2=(pts["Pi2"][0] - _WE, pts["Pi2"][1]),
+        Pi3=(pts["Pi3"][0] - _WE, pts["Pi3"][1] - _WE),
+        Ti3=pts["Ti3"],
+        PiX=(pts["PiX"][0] - _WE * _ln_pip[0], pts["PiX"][1] - _WE * _ln_pip[1]),
+        Pi5=(pts["Pi5"][0] - _WE * _ln_pip[0], pts["Pi5"][1] - _WE * _ln_pip[1]),
         TC1=pts["TC1"], R1i=_inset.R1i,
     )
     _outline_geo = compute_outline_geometry(_anchors)

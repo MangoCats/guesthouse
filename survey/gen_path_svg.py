@@ -187,12 +187,13 @@ def compute_all():
     # The pivot is chosen so that F15 (after outline geometry) lands at the
     # correct easting — computed here from the pre-rotation dimension chain.
     _R_fp = ARC_180_R
+    _WE = WALL_OUTER - 8.0 / 12.0
     _d_pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
     _L_pip = math.sqrt(_d_pip[0]**2 + _d_pip[1]**2)
     _d_pip_u = (_d_pip[0]/_L_pip, _d_pip[1]/_L_pip)
     _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
     _o_pip = off_pt(pts["PiX"], _ln_pip, _R_fp)
-    _pre_U1_E = pts["Pi3"][0]
+    _pre_U1_E = pts["Pi3"][0] - _WE  # shifted Pi3 easting
     # Dimension chain west→east: outer wall + appliance offset + appliance width
     # + counter gap + counter depth + closet/bedroom/closet walls
     _pre_iw8_e = (_pre_U1_E + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH
@@ -219,9 +220,13 @@ def compute_all():
         pts_rot[_n] = _rot_cw(pts[_n])
 
     # F-series outline geometry (from floorplan)
+    # Shift anchors outward for 10" wall (2" beyond original 8")
     anchors = OutlineAnchors(
-        Pi2=pts["Pi2"], Pi3=pts["Pi3"], Ti3=pts["Ti3"],
-        PiX=pts["PiX"], Pi5=pts["Pi5"],
+        Pi2=(pts["Pi2"][0] - _WE, pts["Pi2"][1]),
+        Pi3=(pts["Pi3"][0] - _WE, pts["Pi3"][1] - _WE),
+        Ti3=pts["Ti3"],
+        PiX=(pts["PiX"][0] - _WE * _ln_pip[0], pts["PiX"][1] - _WE * _ln_pip[1]),
+        Pi5=(pts["Pi5"][0] - _WE * _ln_pip[0], pts["Pi5"][1] - _WE * _ln_pip[1]),
         TC1=pts["TC1"], R1i=inset.R1i,
     )
     outline_geo = compute_outline_geometry(anchors)
