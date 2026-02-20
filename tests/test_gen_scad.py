@@ -102,3 +102,14 @@ class TestGenerate:
         content = buf.getvalue()
         # T-path approach uses polygon with paths, no difference()
         assert "difference()" not in content
+
+    def test_output_contains_full_wall(self):
+        buf = io.StringIO()
+        with patch("builtins.open", return_value=buf):
+            with patch.object(buf, "close"):
+                generate()
+        content = buf.getvalue()
+        assert "t_full_O4 = [" in content
+        assert "upper_height" in content
+        assert "translate([0, 0, upper_base])" in content
+        assert "wall_shell(t_full_O4, half_t);" in content
