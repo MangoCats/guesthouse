@@ -96,28 +96,35 @@ def main():
     doc.insert_pdf(src)
     page = doc[0]
 
-    # Draw F-series outline (outer wall)
-    shape = page.new_shape()
-    x0, y0 = building_to_pdf(*outer_poly[0])
-    shape.draw_line(fitz.Point(x0, y0), fitz.Point(x0, y0))
-    for pt in outer_poly[1:]:
-        x1, y1 = building_to_pdf(*pt)
-        shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
-        x0, y0 = x1, y1
-    # Close
-    x1, y1 = building_to_pdf(*outer_poly[0])
-    shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
-    shape.finish(color=(0, 0, 0), width=1.5)
+    # Draw building outline — single line, black pixels inside F boundary
+    # Stroke width ≈ 80% of the survey property lines (~1pt → 0.8pt)
+    STROKE_W = 0.8
+    # Offset path inward by half stroke width so outer edge aligns with F boundary.
+    # outer_poly→inner_poly span 8" of wall; we need half_stroke / SCALE feet inward.
+    WALL_T = 8.0 / 12.0  # 8" F-to-W gap in feet
+    half_stroke_ft = (STROKE_W / 2.0) / SCALE
+    frac = half_stroke_ft / WALL_T  # fraction of the way from outer to inner
 
-    # Draw W-series outline (inner wall)
-    x0, y0 = building_to_pdf(*inner_poly[0])
-    for pt in inner_poly[1:]:
+    # Interpolate: outer_poly has 350 pts, inner_poly has 352 pts (extra arc samples).
+    # Resample inner_poly to match outer_poly length via nearest-index mapping.
+    n_out = len(outer_poly)
+    n_inn = len(inner_poly)
+    draw_poly = []
+    for i, (oe, on) in enumerate(outer_poly):
+        j = round(i * (n_inn - 1) / (n_out - 1))
+        ie, inn = inner_poly[j]
+        draw_poly.append((oe + frac * (ie - oe), on + frac * (inn - on)))
+
+    shape = page.new_shape()
+    x0, y0 = building_to_pdf(*draw_poly[0])
+    shape.draw_line(fitz.Point(x0, y0), fitz.Point(x0, y0))
+    for pt in draw_poly[1:]:
         x1, y1 = building_to_pdf(*pt)
         shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
         x0, y0 = x1, y1
-    x1, y1 = building_to_pdf(*inner_poly[0])
+    x1, y1 = building_to_pdf(*draw_poly[0])
     shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
-    shape.finish(color=(0, 0, 0), width=0.75)
+    shape.finish(color=(0, 0, 0), width=STROKE_W)
 
     shape.commit()
 
