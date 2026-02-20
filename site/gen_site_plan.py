@@ -341,8 +341,8 @@ def main():
     _df_line_x = 661.5   # x of 10.6' line (PDF coords)
     _df_line_y = 316.0   # vertical center of 10.6' line
 
-    _df_w = 30.0 * SCALE    # 72 pts
-    _df_h = 8.0 * SCALE     # 19.2 pts
+    _df_w = 25.0 * SCALE    # 60 pts
+    _df_h = 10.0 * SCALE    # 24 pts
     _df_r = 2.0 * SCALE     # 4.8 pts
     _df_left = _df_line_x + 8.0 * SCALE
     _df_top = _df_line_y - _df_h / 2.0
@@ -392,7 +392,7 @@ def main():
 
     # "DRAINFIELD" label centered in rectangle
     _df_label = "DRAINFIELD"
-    _df_fs = 9.0
+    _df_fs = 7.2
     _df_tw = fitz.get_text_length(_df_label, fontname="helv", fontsize=_df_fs)
     page.insert_text(
         fitz.Point((_df_left + _df_right) / 2.0 - _df_tw / 2.0,
