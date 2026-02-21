@@ -161,7 +161,6 @@ def render_layer(lines: list, segments: list[Segment], pts: dict, cfg: LayerConf
 def compute_all():
     """Compute all geometry. Returns dict with everything needed for rendering."""
     pts, p3_trav = compute_traverse()
-    to_svg = make_svg_transform(p3_trav)
     arc_info = compute_three_arc(pts)
     R1, R2, R3 = arc_info["R1"], arc_info["R2"], arc_info["R3"]
     nE, nN = arc_info["nE"], arc_info["nN"]
@@ -230,7 +229,14 @@ def compute_all():
         TC1=pts["TC1"], R1i=inset.R1i,
     )
     outline_geo = compute_outline_geometry(anchors)
+    # Translate survey/inset points to F1-centered coordinate system
+    _off = outline_geo.origin_offset
+    for _k in list(pts):
+        pts[_k] = (pts[_k][0] - _off[0], pts[_k][1] - _off[1])
+    for _k in list(pts_rot):
+        pts_rot[_k] = (pts_rot[_k][0] - _off[0], pts_rot[_k][1] - _off[1])
     pts.update(outline_geo.fp_pts)
+    to_svg = make_svg_transform(p3_trav, origin_offset=_off)
     outline_segs = outline_geo.outline_segs
     radii = outline_geo.radii
 

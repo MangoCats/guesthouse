@@ -223,7 +223,6 @@ class FloorplanData(NamedTuple):
 def build_floorplan_data():
     """Compute all geometry needed for the floorplan SVG."""
     pts, _p3_trav = compute_traverse()
-    to_svg = make_svg_transform(_p3_trav)
     _arc_info = compute_three_arc(pts)
     _inset = compute_inset(pts, _arc_info["R1"], _arc_info["R2"], _arc_info["R3"],
                            _arc_info["nE"], _arc_info["nN"])
@@ -240,7 +239,12 @@ def build_floorplan_data():
         TC1=pts["TC1"], R1i=_inset.R1i,
     )
     _outline_geo = compute_outline_geometry(_anchors)
+    # Translate survey/inset points to F1-centered coordinate system
+    _off = _outline_geo.origin_offset
+    for _k in list(pts):
+        pts[_k] = (pts[_k][0] - _off[0], pts[_k][1] - _off[1])
     pts.update(_outline_geo.fp_pts)
+    to_svg = make_svg_transform(_p3_trav, origin_offset=_off)
     outline_segs = _outline_geo.outline_segs
     _radii = _outline_geo.radii
 

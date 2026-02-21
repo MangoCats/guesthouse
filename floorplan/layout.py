@@ -15,7 +15,7 @@ from floorplan.constants import (
     IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E,
     IW3_LENGTH, IW3_OFFSET_IW9,
     IW9_LENGTH, IW9_OFFSET_O10,
-    IW4_OFFSET_E_IW2, WALL_SOUTH_N,
+    IW4_OFFSET_E_IW2,
     IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
     IW4_RO_WIDTH, IW8_OFFSET_N_IW1,
 )
@@ -124,8 +124,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw2_e = iw2_w + WALL_6IN
     iw4_w = iw2_e + IW4_OFFSET_E_IW2
     iw4_e = iw4_w + WALL_4IN
-    iw4_s = WALL_SOUTH_N
-    wall_south_n = WALL_SOUTH_N
+    iw4_s = pts["W19"][1]
+    wall_south_n = pts["W19"][1]
 
     # IW11: 4" thick, normal to W20-W0, 6' long
     # SE corner: circle(IW4_SW, 32") ∩ W20-W0

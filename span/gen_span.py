@@ -39,6 +39,9 @@ def _build_geometry():
         PiX=pts["PiX"], Pi5=pts["Pi5"], TC1=pts["TC1"], R1i=ins.R1i,
     )
     geo = compute_outline_geometry(anch)
+    _off = geo.origin_offset
+    for _k in list(pts):
+        pts[_k] = (pts[_k][0] - _off[0], pts[_k][1] - _off[1])
     pts.update(geo.fp_pts)
     inner_segs = compute_inner_walls(geo.outline_segs, pts, WALL_OUTER, geo.radii)
     outer_poly = path_polygon(geo.outline_segs, pts)

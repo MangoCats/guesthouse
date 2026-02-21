@@ -29,10 +29,17 @@ _s = (_CALIB_X_P3 - _CALIB_X_POB) / _CALIB_DIST  # SVG points per survey foot
 
 _CALIB_Y_P3 = 124.12  # P3 y-position in SVG points
 
-def make_svg_transform(p3_trav: Point) -> Callable[[float, float], tuple[float, float]]:
-    """Create to_svg closure from P3 traverse position."""
-    px = _CALIB_X_P3 + p3_trav[0] * _s
-    py = _CALIB_Y_P3 - p3_trav[1] * _s
+def make_svg_transform(
+    p3_trav: Point,
+    origin_offset: Point = (0.0, 0.0),
+) -> Callable[[float, float], tuple[float, float]]:
+    """Create to_svg closure from P3 traverse position.
+
+    origin_offset is the pre-translation F1 position (P3-centered),
+    used to shift the SVG reference from P3 to F1.
+    """
+    px = _CALIB_X_P3 + (p3_trav[0] + origin_offset[0]) * _s
+    py = _CALIB_Y_P3 - (p3_trav[1] + origin_offset[1]) * _s
     def to_svg(e: float, n: float) -> tuple[float, float]:
         return (px + e * _s, py - n * _s)
     return to_svg

@@ -36,6 +36,7 @@ class OutlineGeometry(NamedTuple):
     fp_pts: dict[str, Point]     # F1-F20, F11a, F11b + C1-C19, C11a
     outline_segs: list[Segment]  # 22 segments with F-series names
     radii: dict[str, float]      # R_a1 through R_a19
+    origin_offset: Point         # pre-translation F1 (for shifting survey pts)
 
 
 # ============================================================
@@ -364,4 +365,10 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         "R_a19": R_a19,
     }
 
-    return OutlineGeometry(fp_pts=fp_pts, outline_segs=outline_segs, radii=radii)
+    # Translate so F1 = origin
+    origin_offset = fp_pts["F1"]
+    fp_pts = {k: (v[0] - origin_offset[0], v[1] - origin_offset[1])
+              for k, v in fp_pts.items()}
+
+    return OutlineGeometry(fp_pts=fp_pts, outline_segs=outline_segs,
+                           radii=radii, origin_offset=origin_offset)

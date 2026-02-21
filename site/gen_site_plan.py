@@ -57,7 +57,7 @@ def main():
                 cn + de * sin_r + dn * cos_r)
 
     # F15 is the reference point for placement
-    f15 = pts["F15"]  # (36.5, 5.0)
+    f15 = pts["F15"]
 
     # Inward perpendicular from 216.73' line (into property = roughly west)
     # Line direction real-world: (dE, dN) = (ldx, -ldy) = (+119, -502.6)
@@ -128,9 +128,9 @@ def main():
     shape.finish(color=(0, 0, 0), width=STROKE_W)
 
     # --- F15 to F2-F3 dimension line (perpendicular to F2-F3) ---
-    # F2-F3 is vertical at E=0.5; perpendicular foot from F15 is (0.5, F15.N)
+    # F2-F3 is vertical; perpendicular foot from F15 is (F2.E, F15.N)
     f15_pdf = building_to_pdf(*f15)
-    foot_pdf = building_to_pdf(pts["F2"][0], f15[1])  # (0.5, 5.0)
+    foot_pdf = building_to_pdf(pts["F2"][0], f15[1])
     shape.draw_line(fitz.Point(*f15_pdf), fitz.Point(*foot_pdf))
     shape.finish(color=(0, 0, 0), width=0.3)
 

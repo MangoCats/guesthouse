@@ -74,8 +74,12 @@ def outline_geo(pts_full, inset_result):
 
 @pytest.fixture(scope="session")
 def pts_with_outline(pts_full, outline_geo):
-    """pts dict with F-series and W-series."""
+    """pts dict with F-series and W-series (F1-centered coordinates)."""
     pts = dict(pts_full)
+    # Translate survey/inset points to F1-centered coordinate system
+    _off = outline_geo.origin_offset
+    for _k in pts:
+        pts[_k] = (pts[_k][0] - _off[0], pts[_k][1] - _off[1])
     pts.update(outline_geo.fp_pts)
     inner_segs = compute_inner_walls(
         outline_geo.outline_segs, pts, WALL_OUTER, outline_geo.radii,

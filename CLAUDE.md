@@ -3,7 +3,7 @@
 Curved-wall building outline geometry and floorplan SVG generation.
 
 ## Coordinate System
-- P3 = origin, Easting (E) / Northing (N), units in feet
+- F1 = origin, Easting (E) / Northing (N), units in feet
 - Dimensions typically specified in inches, converted via `/ 12.0`
 
 ## Project Structure
