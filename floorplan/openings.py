@@ -2,11 +2,14 @@
 
 Single source of truth for all opening positions, consumed by both
 gen_floorplan.py (polygon rendering) and gen_walls.py (parametric wall openings).
+
+All openings are defined as polygons using building axis vectors derived from
+W20→W1 (south wall direction).  No axis-aligned assumptions.
 """
 import math
 from typing import NamedTuple
 
-from shared.types import Point, BBox, LineSeg
+from shared.types import Point
 from floorplan.constants import (
     O1_WIDTH, O2_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
@@ -14,12 +17,9 @@ from floorplan.constants import (
     O5_E_FROM_IW2, O5_WIDTH, O6_WIDTH, O6_GAP_F10,
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH,
-    IW5_OFFSET_N, WALL_3IN,
-    STD_GAP,
     RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
-    IW2_RO_OFFSET_S, IW2_RO_WIDTH,
     IW4_RO_WIDTH, IW9_RO_WIDTH, IW11_RO_WIDTH, IW16_RO_WIDTH,
-    IW6_THICKNESS, IW6_OFFSET_N, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
+    IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
 
@@ -34,10 +34,9 @@ class OuterOpening(NamedTuple):
 class RoughOpening(NamedTuple):
     """Rough opening in an interior wall."""
     name: str
-    bbox: BBox           # w, s, e, n in survey coords (axis-aligned BB)
+    poly: list[Point]    # [SW, SE, NE, NW] — always present
     wall_name: str       # "IW1", "IW2", etc.
     orientation: str     # "H", "V", or "R" (rotated)
-    poly: list[Point] | None = None  # [SW, SE, NE, NW] for rotated openings
 
 
 class WallOpening(NamedTuple):
@@ -52,147 +51,178 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     """Compute all 11 outer-wall opening polygons.
 
     Each polygon has 4 vertices spanning from the F-face (outer) to the W-face (inner).
+    All positions use building axis vectors for rotation independence.
     Returns openings in order: O1, O2, ..., O11.
     """
+    # Building axis vectors
+    _w20, _w1 = pts["W20"], pts["W1"]
+    _dE = _w1[0] - _w20[0]; _dN = _w1[1] - _w20[1]
+    _seg_len = math.sqrt(_dE**2 + _dN**2)
+    _along_E = _dE / _seg_len; _along_N = _dN / _seg_len
+    _norm_E = _along_N; _norm_N = -_along_E
+    _eE = -_along_E; _eN = -_along_N
+
+    def _bn(p):
+        """Building northing (perpendicular distance from south wall)."""
+        return (p[0] - _w1[0]) * _norm_E + (p[1] - _w1[1]) * _norm_N
+
+    def _be(p):
+        """Building easting (distance east along south wall from W1)."""
+        return (p[0] - _w1[0]) * _eE + (p[1] - _w1[1]) * _eN
+
+    def _seg_opening(seg_start, seg_end, t_start, t_end):
+        """Build outer opening polygon from parametric t on F-face and W-face."""
+        f_a, f_b = pts[seg_start], pts[seg_end]
+        w_a, w_b = pts["W" + seg_start[1:]], pts["W" + seg_end[1:]]
+        dF = (f_b[0] - f_a[0], f_b[1] - f_a[1])
+        dW = (w_b[0] - w_a[0], w_b[1] - w_a[1])
+        return [
+            (f_a[0] + t_start * dF[0], f_a[1] + t_start * dF[1]),
+            (f_a[0] + t_end * dF[0],   f_a[1] + t_end * dF[1]),
+            (w_a[0] + t_end * dW[0],   w_a[1] + t_end * dW[1]),
+            (w_a[0] + t_start * dW[0], w_a[1] + t_start * dW[1]),
+        ]
+
+    def _t_from_bn(seg_start, seg_end, bn):
+        """Parametric t on F-segment at given building northing."""
+        return (bn - _bn(pts[seg_start])) / (_bn(pts[seg_end]) - _bn(pts[seg_start]))
+
+    def _t_from_be(seg_start, seg_end, be):
+        """Parametric t on F-segment at given building easting."""
+        return (be - _be(pts[seg_start])) / (_be(pts[seg_end]) - _be(pts[seg_start]))
+
     openings = []
 
-    # O1: F2-F3, vertical, centered at RO3/IW16 center northing
-    _iw16_ctr_n = (layout.iw16_poly[0][1] + layout.iw16_poly[2][1]) / 2
-    o1_n = _iw16_ctr_n + O1_WIDTH / 2
-    o1_s = _iw16_ctr_n - O1_WIDTH / 2
-    openings.append(OuterOpening("O1", "F2", "F3", [
-        (pts["F3"][0], o1_s), (pts["F3"][0], o1_n),
-        (pts["W3"][0], o1_n), (pts["W3"][0], o1_s),
-    ]))
+    # O1: F2→F3, centered at IW16 midpoint building-northing
+    _iw16_ctr_bn = (_bn(layout.iw16_poly[0]) + _bn(layout.iw16_poly[2])) / 2
+    _f2f3_len = math.sqrt((pts["F3"][0] - pts["F2"][0])**2
+                          + (pts["F3"][1] - pts["F2"][1])**2)
+    _t1_ctr = _t_from_bn("F2", "F3", _iw16_ctr_bn)
+    _t1_half = (O1_WIDTH / 2) / _f2f3_len
+    openings.append(OuterOpening("O1", "F2", "F3",
+        _seg_opening("F2", "F3", _t1_ctr - _t1_half, _t1_ctr + _t1_half)))
 
-    # O2: F4-F5, diagonal, centered at RO4 northing center
-    _dE2 = pts["F5"][0] - pts["F4"][0]
-    _dN2 = pts["F5"][1] - pts["F4"][1]
-    _seg2_len = math.sqrt(_dE2**2 + _dN2**2)
-    _ro4_ctr_n = layout.iw6_s - IW2_RO_OFFSET_S - IW2_RO_WIDTH / 2
-    _t2_ctr = (_ro4_ctr_n - pts["F4"][1]) / _dN2
-    _t2_half = (O2_WIDTH / 2) / _seg2_len
-    _t2_start = _t2_ctr - _t2_half
-    _t2_end = _t2_ctr + _t2_half
-    openings.append(OuterOpening("O2", "F4", "F5", [
-        (pts["F4"][0] + _t2_start * _dE2, pts["F4"][1] + _t2_start * _dN2),
-        (pts["F4"][0] + _t2_end * _dE2, pts["F4"][1] + _t2_end * _dN2),
-        (pts["W4"][0] + _t2_end * (pts["W5"][0] - pts["W4"][0]),
-         pts["W4"][1] + _t2_end * (pts["W5"][1] - pts["W4"][1])),
-        (pts["W4"][0] + _t2_start * (pts["W5"][0] - pts["W4"][0]),
-         pts["W4"][1] + _t2_start * (pts["W5"][1] - pts["W4"][1])),
-    ]))
+    # O2: F4→F5, centered at RO4 center building-northing
+    _iw6_s_bn = _bn(layout.iw6_poly[0])
+    _ro4_ctr_bn = _iw6_s_bn - IW2_RO_OFFSET_S - IW2_RO_WIDTH / 2
+    _f4f5_len = math.sqrt((pts["F5"][0] - pts["F4"][0])**2
+                          + (pts["F5"][1] - pts["F4"][1])**2)
+    _t2_ctr = _t_from_bn("F4", "F5", _ro4_ctr_bn)
+    _t2_half = (O2_WIDTH / 2) / _f4f5_len
+    openings.append(OuterOpening("O2", "F4", "F5",
+        _seg_opening("F4", "F5", _t2_ctr - _t2_half, _t2_ctr + _t2_half)))
 
-    # O3: F4-F5, diagonal, 4" from F5 along F5-F4 line
-    _dE3 = pts["F5"][0] - pts["F4"][0]
-    _dN3 = pts["F5"][1] - pts["F4"][1]
-    _seg3_len = math.sqrt(_dE3**2 + _dN3**2)
-    _t3_end = 1 - O3_GAP_F5 / _seg3_len       # closer to F5
-    _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg3_len  # farther from F5
-    openings.append(OuterOpening("O3", "F4", "F5", [
-        (pts["F4"][0] + _t3_start * _dE3, pts["F4"][1] + _t3_start * _dN3),
-        (pts["F4"][0] + _t3_end * _dE3, pts["F4"][1] + _t3_end * _dN3),
-        (pts["W4"][0] + _t3_end * (pts["W5"][0] - pts["W4"][0]),
-         pts["W4"][1] + _t3_end * (pts["W5"][1] - pts["W4"][1])),
-        (pts["W4"][0] + _t3_start * (pts["W5"][0] - pts["W4"][0]),
-         pts["W4"][1] + _t3_start * (pts["W5"][1] - pts["W4"][1])),
-    ]))
+    # O3: F4→F5, O3_GAP_F5 from F5
+    _t3_end = 1 - O3_GAP_F5 / _f4f5_len
+    _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _f4f5_len
+    openings.append(OuterOpening("O3", "F4", "F5",
+        _seg_opening("F4", "F5", _t3_start, _t3_end)))
 
-    # O4: F6-F7, horizontal, centered on segment
-    o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
-    o4_w = o4_mid - O4_HALF_WIDTH
-    o4_e = o4_mid + O4_HALF_WIDTH
-    openings.append(OuterOpening("O4", "F6", "F7", [
-        (o4_w, pts["W6"][1]), (o4_e, pts["W6"][1]),
-        (o4_e, pts["F6"][1]), (o4_w, pts["F6"][1]),
-    ]))
+    # O4: F6→F7, centered on segment
+    _f6f7_len = math.sqrt((pts["F7"][0] - pts["F6"][0])**2
+                          + (pts["F7"][1] - pts["F6"][1])**2)
+    _t4_half = O4_HALF_WIDTH / _f6f7_len
+    openings.append(OuterOpening("O4", "F6", "F7",
+        _seg_opening("F6", "F7", 0.5 - _t4_half, 0.5 + _t4_half)))
 
-    # O5: F9-F10, horizontal
-    o5_e = layout.iw2.e + O5_E_FROM_IW2
-    o5_w = o5_e - O5_WIDTH
-    openings.append(OuterOpening("O5", "F9", "F10", [
-        (o5_w, pts["W9"][1]), (o5_e, pts["W9"][1]),
-        (o5_e, pts["F9"][1]), (o5_w, pts["F9"][1]),
-    ]))
+    # O5: F9→F10, east edge at IW2 east face + O5_E_FROM_IW2
+    _iw2_e_be = _be(layout.iw2_poly[1])
+    _o5_e_be = _iw2_e_be + O5_E_FROM_IW2
+    _o5_w_be = _o5_e_be - O5_WIDTH
+    _t5_e = _t_from_be("F9", "F10", _o5_e_be)
+    _t5_w = _t_from_be("F9", "F10", _o5_w_be)
+    openings.append(OuterOpening("O5", "F9", "F10",
+        _seg_opening("F9", "F10", min(_t5_w, _t5_e), max(_t5_w, _t5_e))))
 
-    # O6: F9-F10, horizontal, 6" west of F10
-    o6_e = pts["F10"][0] - O6_GAP_F10
-    o6_w = o6_e - O6_WIDTH
-    openings.append(OuterOpening("O6", "F9", "F10", [
-        (o6_w, pts["W9"][1]), (o6_e, pts["W9"][1]),
-        (o6_e, pts["F9"][1]), (o6_w, pts["F9"][1]),
-    ]))
+    # O6: F9→F10, east edge O6_GAP_F10 west of F10
+    _f10_be = _be(pts["F10"])
+    _o6_e_be = _f10_be - O6_GAP_F10
+    _o6_w_be = _o6_e_be - O6_WIDTH
+    _t6_e = _t_from_be("F9", "F10", _o6_e_be)
+    _t6_w = _t_from_be("F9", "F10", _o6_w_be)
+    openings.append(OuterOpening("O6", "F9", "F10",
+        _seg_opening("F9", "F10", min(_t6_w, _t6_e), max(_t6_w, _t6_e))))
 
-    # O7: F12-F13, diagonal — NW end 2' from F12, 6' opening
-    dE = pts["F13"][0] - pts["F12"][0]
-    dN = pts["F13"][1] - pts["F12"][1]
-    seg_len = math.sqrt(dE**2 + dN**2)
-    ts = O7_NW_GAP / seg_len
-    te = ts + 2 * O7_HALF_WIDTH / seg_len
-    openings.append(OuterOpening("O7", "F12", "F13", [
-        (pts["F12"][0] + ts * dE, pts["F12"][1] + ts * dN),
-        (pts["F12"][0] + te * dE, pts["F12"][1] + te * dN),
-        (pts["W12"][0] + te * (pts["W13"][0] - pts["W12"][0]),
-         pts["W12"][1] + te * (pts["W13"][1] - pts["W12"][1])),
-        (pts["W12"][0] + ts * (pts["W13"][0] - pts["W12"][0]),
-         pts["W12"][1] + ts * (pts["W13"][1] - pts["W12"][1])),
-    ]))
+    # O7: F12→F13, O7_NW_GAP from F12
+    _f12f13_len = math.sqrt((pts["F13"][0] - pts["F12"][0])**2
+                            + (pts["F13"][1] - pts["F12"][1])**2)
+    _t7_s = O7_NW_GAP / _f12f13_len
+    _t7_e = _t7_s + 2 * O7_HALF_WIDTH / _f12f13_len
+    openings.append(OuterOpening("O7", "F12", "F13",
+        _seg_opening("F12", "F13", _t7_s, _t7_e)))
 
-    # O8: F14-F15, vertical — centered between IW5 south face and F15
-    o8_cn = (layout.iw5.s + pts["F15"][1]) / 2
-    openings.append(OuterOpening("O8", "F14", "F15", [
-        (pts["F15"][0], o8_cn - O8_HALF_WIDTH), (pts["F15"][0], o8_cn + O8_HALF_WIDTH),
-        (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
-    ]))
+    # O8: F14→F15, centered between IW5 south face and F15 building-northing
+    _iw5_s_bn = _bn(layout.iw5_poly[0])
+    _f15_bn = _bn(pts["F15"])
+    _o8_ctr_bn = (_iw5_s_bn + _f15_bn) / 2
+    _f14f15_len = math.sqrt((pts["F15"][0] - pts["F14"][0])**2
+                            + (pts["F15"][1] - pts["F14"][1])**2)
+    _t8_ctr = _t_from_bn("F14", "F15", _o8_ctr_bn)
+    _t8_half = O8_HALF_WIDTH / _f14f15_len
+    openings.append(OuterOpening("O8", "F14", "F15",
+        _seg_opening("F14", "F15", _t8_ctr - _t8_half, _t8_ctr + _t8_half)))
 
-    # O9, O10, O11: F20-F1 — parametric positions from layout (single source)
-    _dE9 = pts["F1"][0] - pts["F20"][0]
-    _dN9 = pts["F1"][1] - pts["F20"][1]
+    # O9, O10, O11: parametric positions from layout
     for _name, _ts, _te in [("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
                              ("O10", layout.sw_t_o10_start, layout.sw_t_o10_end),
                              ("O11", layout.sw_t_o11_start, layout.sw_t_o11_end)]:
-        openings.append(OuterOpening(_name, "F20", "F1", [
-            (pts["F20"][0] + _ts * _dE9, pts["F20"][1] + _ts * _dN9),
-            (pts["F20"][0] + _te * _dE9, pts["F20"][1] + _te * _dN9),
-            (pts["W20"][0] + _te * (pts["W1"][0] - pts["W20"][0]),
-             pts["W20"][1] + _te * (pts["W1"][1] - pts["W20"][1])),
-            (pts["W20"][0] + _ts * (pts["W1"][0] - pts["W20"][0]),
-             pts["W20"][1] + _ts * (pts["W1"][1] - pts["W20"][1])),
-        ]))
+        openings.append(OuterOpening(_name, "F20", "F1",
+            _seg_opening("F20", "F1", _ts, _te)))
 
     return openings
 
 
 def compute_rough_openings(pts, layout) -> list[RoughOpening]:
-    """Compute all 7 interior rough-opening bounding boxes."""
-    iw1_s = layout.iw1_s
-    iw1_n = layout.iw1_n
-    iw6_n = pts["W6"][1] - IW6_OFFSET_N
-    iw6_s = iw6_n - IW6_THICKNESS
-    iw5_n = iw1_s - IW5_OFFSET_N
-    iw5_s = iw5_n - WALL_3IN
+    """Compute all 7 interior rough-opening polygons.
 
-    # RO1: in IW1, horizontal
-    ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
-    ro1_e = ro1_w + IW1_RO_WIDTH
+    All openings are [SW, SE, NE, NW] polygons constructed using building axis
+    vectors.  No axis-aligned BBox assumptions.
+    """
+    # Building axis vectors
+    _w20, _w1 = pts["W20"], pts["W1"]
+    _dE = _w1[0] - _w20[0]; _dN = _w1[1] - _w20[1]
+    _seg_len = math.sqrt(_dE**2 + _dN**2)
+    _along_E = _dE / _seg_len; _along_N = _dN / _seg_len
+    _norm_E = _along_N; _norm_N = -_along_E
+    _eE = -_along_E; _eN = -_along_N
 
-    # RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11
+    def _bn(p):
+        """Building northing (perpendicular distance from south wall)."""
+        return (p[0] - _w1[0]) * _norm_E + (p[1] - _w1[1]) * _norm_N
+
+    def _be(p):
+        """Building easting (distance east along south wall from W1)."""
+        return (p[0] - _w1[0]) * _eE + (p[1] - _w1[1]) * _eN
+
+    def _bp(be, bn):
+        """World-coordinate point from building easting/northing."""
+        return (_w1[0] + be * _eE + bn * _norm_E,
+                _w1[1] + be * _eN + bn * _norm_N)
+
+    # ── RO1: in IW1, E-W wall ───────────────────────────────────
+    _iw1_s_bn = _bn(layout.iw1_poly[0])
+    _iw1_n_bn = _bn(layout.iw1_poly[3])
+    _iw2_e_be = _be(layout.iw2_poly[1])
+    _ro1_w_be = _iw2_e_be + RO1_OFFSET_E_IW2
+    _ro1_e_be = _ro1_w_be + IW1_RO_WIDTH
+    ro1_poly = [
+        _bp(_ro1_w_be, _iw1_s_bn),
+        _bp(_ro1_e_be, _iw1_s_bn),
+        _bp(_ro1_e_be, _iw1_n_bn),
+        _bp(_ro1_w_be, _iw1_n_bn),
+    ]
+
+    # ── RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11 ─
     _iw11_se, _iw11_ne = layout.iw11_poly[1], layout.iw11_poly[2]
     _iw11_sw = layout.iw11_poly[0]
     _dx11 = _iw11_ne[0] - _iw11_se[0]
     _dy11 = _iw11_ne[1] - _iw11_se[1]
     _len11 = math.sqrt(_dx11**2 + _dy11**2)
-    _un11 = (_dx11 / _len11, _dy11 / _len11)  # unit along IW11 length (NNE)
-    _dx11t = _iw11_sw[0] - _iw11_se[0]
-    _dy11t = _iw11_sw[1] - _iw11_se[1]
-    _lt11 = math.sqrt(_dx11t**2 + _dy11t**2)
-    _ut11 = (_dx11t / _lt11, _dy11t / _lt11)  # unit along IW11 thickness
-    # IW12 NW corner projected onto IW11 length axis
+    _un11 = (_dx11 / _len11, _dy11 / _len11)
     _iw12_nw = layout.iw12_poly[3]
     _ro2_start_d = ((_iw12_nw[0] - _iw11_se[0]) * _un11[0]
                     + (_iw12_nw[1] - _iw11_se[1]) * _un11[1]) + 3.0 / 12.0
     _ro2_end_d = _ro2_start_d + IW4_RO_WIDTH
-    # RO2 polygon [SW, SE, NE, NW] in IW11 coords
     _ro2_sw = (_iw11_se[0] + _ro2_start_d * _un11[0],
                _iw11_se[1] + _ro2_start_d * _un11[1])
     _ro2_se = (_iw11_sw[0] + _ro2_start_d * _un11[0],
@@ -201,16 +231,52 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
                _iw11_sw[1] + _ro2_end_d * _un11[1])
     _ro2_nw = (_iw11_se[0] + _ro2_end_d * _un11[0],
                _iw11_se[1] + _ro2_end_d * _un11[1])
-    _ro2_poly = [_ro2_sw, _ro2_se, _ro2_ne, _ro2_nw]
-    _ro2_bb = BBox(w=min(p[0] for p in _ro2_poly), s=min(p[1] for p in _ro2_poly),
-                   e=max(p[0] for p in _ro2_poly), n=max(p[1] for p in _ro2_poly))
+    ro2_poly = [_ro2_sw, _ro2_se, _ro2_ne, _ro2_nw]
 
-    # RO6: in IW11 (rotated), 62" centered between IW12 S face and IW11 S end
-    # IW12 SW corner projected onto IW11 length axis = distance of IW12 south face
+    # ── RO3: in IW16, N-S wall, centered ─────────────────────────
+    _iw16 = layout.iw16_poly
+    _iw16_w_be = _be(_iw16[0])
+    _iw16_e_be = _be(_iw16[1])
+    _iw16_sw_bn = _bn(_iw16[0])
+    _iw16_nw_bn = _bn(_iw16[3])
+    _iw16_mid_bn = (_iw16_sw_bn + _iw16_nw_bn) / 2
+    _ro3_s_bn = _iw16_mid_bn - IW16_RO_WIDTH / 2
+    _ro3_n_bn = _iw16_mid_bn + IW16_RO_WIDTH / 2
+    ro3_poly = [
+        _bp(_iw16_w_be, _ro3_s_bn),
+        _bp(_iw16_e_be, _ro3_s_bn),
+        _bp(_iw16_e_be, _ro3_n_bn),
+        _bp(_iw16_w_be, _ro3_n_bn),
+    ]
+
+    # ── RO4: in IW2, N-S wall ────────────────────────────────────
+    _iw6_s_bn = _bn(layout.iw6_poly[0])
+    _ro4_n_bn = _iw6_s_bn - IW2_RO_OFFSET_S
+    _ro4_s_bn = _ro4_n_bn - IW2_RO_WIDTH
+    _iw2_w_be = _be(layout.iw2_poly[0])
+    ro4_poly = [
+        _bp(_iw2_w_be, _ro4_s_bn),
+        _bp(_iw2_e_be, _ro4_s_bn),
+        _bp(_iw2_e_be, _ro4_n_bn),
+        _bp(_iw2_w_be, _ro4_n_bn),
+    ]
+
+    # ── RO5: in IW6, E-W wall ────────────────────────────────────
+    _ro5_e_be = _iw2_w_be - IW6_RO_OFFSET_W
+    _ro5_w_be = _ro5_e_be - IW6_RO_WIDTH
+    _iw6_n_bn = _bn(layout.iw6_poly[3])
+    ro5_poly = [
+        _bp(_ro5_w_be, _iw6_s_bn),
+        _bp(_ro5_e_be, _iw6_s_bn),
+        _bp(_ro5_e_be, _iw6_n_bn),
+        _bp(_ro5_w_be, _iw6_n_bn),
+    ]
+
+    # ── RO6: in IW11 (rotated), centered between IW12 S face and IW11 S end ─
     _iw12_sw = layout.iw12_poly[0]
     _ro6_iw12_s_d = ((_iw12_sw[0] - _iw11_se[0]) * _un11[0]
                      + (_iw12_sw[1] - _iw11_se[1]) * _un11[1])
-    _ro6_center_d = _ro6_iw12_s_d / 2  # centered between 0 (IW11 S end) and IW12 S face
+    _ro6_center_d = _ro6_iw12_s_d / 2
     _ro6_half = IW11_RO_WIDTH / 2
     _ro6_start_d = _ro6_center_d - _ro6_half
     _ro6_end_d = _ro6_center_d + _ro6_half
@@ -222,22 +288,19 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
                _iw11_sw[1] + _ro6_end_d * _un11[1])
     _ro6_nw = (_iw11_se[0] + _ro6_end_d * _un11[0],
                _iw11_se[1] + _ro6_end_d * _un11[1])
-    _ro6_poly = [_ro6_sw, _ro6_se, _ro6_ne, _ro6_nw]
-    _ro6_bb = BBox(w=min(p[0] for p in _ro6_poly), s=min(p[1] for p in _ro6_poly),
-                   e=max(p[0] for p in _ro6_poly), n=max(p[1] for p in _ro6_poly))
+    ro6_poly = [_ro6_sw, _ro6_se, _ro6_ne, _ro6_nw]
 
-    # RO7: in IW9 (rotated), 62" centered between IW7 S face and IW9 S end
+    # ── RO7: in IW9 (rotated), centered between IW7 S face and IW9 S end ─
     _iw9_se, _iw9_ne = layout.iw9_poly[1], layout.iw9_poly[2]
     _iw9_sw = layout.iw9_poly[0]
     _dx9 = _iw9_ne[0] - _iw9_se[0]
     _dy9 = _iw9_ne[1] - _iw9_se[1]
     _len9 = math.sqrt(_dx9**2 + _dy9**2)
-    _un9 = (_dx9 / _len9, _dy9 / _len9)  # unit along IW9 length (NNE)
-    # IW7 SW corner projected onto IW9 length axis = distance of IW7 south face
+    _un9 = (_dx9 / _len9, _dy9 / _len9)
     _iw7_sw = layout.iw7_poly[0]
     _ro7_iw7_s_d = ((_iw7_sw[0] - _iw9_se[0]) * _un9[0]
                     + (_iw7_sw[1] - _iw9_se[1]) * _un9[1])
-    _ro7_center_d = _ro7_iw7_s_d / 2  # centered between 0 (IW9 S end) and IW7 S face
+    _ro7_center_d = _ro7_iw7_s_d / 2
     _ro7_half = IW9_RO_WIDTH / 2
     _ro7_start_d = _ro7_center_d - _ro7_half
     _ro7_end_d = _ro7_center_d + _ro7_half
@@ -249,36 +312,16 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
                _iw9_sw[1] + _ro7_end_d * _un9[1])
     _ro7_nw = (_iw9_se[0] + _ro7_end_d * _un9[0],
                _iw9_se[1] + _ro7_end_d * _un9[1])
-    _ro7_poly = [_ro7_sw, _ro7_se, _ro7_ne, _ro7_nw]
-    _ro7_bb = BBox(w=min(p[0] for p in _ro7_poly), s=min(p[1] for p in _ro7_poly),
-                   e=max(p[0] for p in _ro7_poly), n=max(p[1] for p in _ro7_poly))
-
-    # RO3: in IW16 (axis-aligned N-S), 38" centered
-    _iw16 = layout.iw16_poly  # [(w,s), (e,s), (e,n), (w,n)]
-    _iw16_w = _iw16[0][0]
-    _iw16_e = _iw16[1][0]
-    _iw16_s = _iw16[0][1]
-    _iw16_n = _iw16[2][1]
-    _iw16_mid_n = (_iw16_s + _iw16_n) / 2
-    ro3_s = _iw16_mid_n - IW16_RO_WIDTH / 2
-    ro3_n = _iw16_mid_n + IW16_RO_WIDTH / 2
-
-    # RO4: in IW2, vertical
-    ro4_n = iw6_s - IW2_RO_OFFSET_S
-    ro4_s = ro4_n - IW2_RO_WIDTH
-
-    # RO5: in IW6, horizontal
-    ro5_e = layout.iw2.w - IW6_RO_OFFSET_W
-    ro5_w = ro5_e - IW6_RO_WIDTH
+    ro7_poly = [_ro7_sw, _ro7_se, _ro7_ne, _ro7_nw]
 
     return [
-        RoughOpening("RO1", BBox(w=ro1_w, s=iw1_s, e=ro1_e, n=iw1_n), "IW1", "H"),
-        RoughOpening("RO2", _ro2_bb, "IW11", "R", _ro2_poly),
-        RoughOpening("RO3", BBox(w=_iw16_w, s=ro3_s, e=_iw16_e, n=ro3_n), "IW16", "V"),
-        RoughOpening("RO4", BBox(w=layout.iw2.w, s=ro4_s, e=layout.iw2.e, n=ro4_n), "IW2", "V"),
-        RoughOpening("RO5", BBox(w=ro5_w, s=iw6_s, e=ro5_e, n=iw6_n), "IW6", "H"),
-        RoughOpening("RO6", _ro6_bb, "IW11", "R", _ro6_poly),
-        RoughOpening("RO7", _ro7_bb, "IW9", "R", _ro7_poly),
+        RoughOpening("RO1", ro1_poly, "IW1", "H"),
+        RoughOpening("RO2", ro2_poly, "IW11", "R"),
+        RoughOpening("RO3", ro3_poly, "IW16", "V"),
+        RoughOpening("RO4", ro4_poly, "IW2", "V"),
+        RoughOpening("RO5", ro5_poly, "IW6", "H"),
+        RoughOpening("RO6", ro6_poly, "IW11", "R"),
+        RoughOpening("RO7", ro7_poly, "IW9", "R"),
     ]
 
 

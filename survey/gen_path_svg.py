@@ -7,7 +7,7 @@ from shared.geometry import (
     circle_circle_isect, line_circle_isect_min_t_gt, line_circle_isect_min_abs_t,
     segment_polyline, path_polygon, arc_sweep_deg,
     brg_dist, fmt_brg, fmt_dist,
-    compute_inner_walls,
+    compute_inner_walls, poly_bbox,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
@@ -285,25 +285,25 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
             sp = " ".join(f"{to_svg(e,n)[0]:.1f},{to_svg(e,n)[1]:.1f}" for e,n in pl)
             lines.append(f'<polyline points="{sp}" fill="none" stroke="#666" stroke-width="1.0" stroke-linecap="round"/>')
     # IW1
-    iw1 = L.iw1
+    iw1 = L.iw1_poly
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw1)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
     for a,b in [(iw1[0],iw1[1]),(iw1[3],iw1[2])]:
         s1,s2 = to_svg(*a),to_svg(*b)
         lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
     # IW8 (west extension of IW1)
-    iw8 = [(L.iw8.w,L.iw8.s),(L.iw8.e,L.iw8.s),(L.iw8.e,L.iw8.n),(L.iw8.w,L.iw8.n)]
+    iw8 = L.iw8_poly
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw8)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
     for a,b in [(iw8[0],iw8[1]),(iw8[3],iw8[2])]:
         s1,s2 = to_svg(*a),to_svg(*b)
         lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
     # IW2
-    iw2 = [(L.iw2.w,L.iw2.s),(L.iw2.e,L.iw2.s),(L.iw2.e,L.iw2.n),(L.iw2.w,L.iw2.n)]
+    iw2 = L.iw2_poly
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw2)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
-    for ev in [L.iw2.w,L.iw2.e]:
-        s1,s2 = to_svg(ev,L.iw2.s),to_svg(ev,L.iw2.n)
+    for ev in [iw2[0][0],iw2[1][0]]:
+        s1,s2 = to_svg(ev,iw2[0][1]),to_svg(ev,iw2[3][1])
         lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
     # IW3 (rotated, 4" thick, perpendicular to W20-W0)
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw3_poly)
@@ -318,10 +318,7 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw16_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW4 (east bedroom wall)
-    wsn = L.wall_south_n
-    _iw4_n = L.iw12_poly[2][1]
-    iw4_poly = [(L.iw4_w,L.iw4_s),(L.iw4_e,L.iw4_s),(L.iw4_e,_iw4_n),(L.iw4_w,_iw4_n)]
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in iw4_poly)
+    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw4_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # IW11 N-S wall
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw11_poly)
@@ -333,14 +330,17 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in L.iw14_poly)
     lines.append(f'<polygon points="{svg}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     # Appliances
-    for lbl,sw_e,sw_n,ne_e,ne_n in [("DRYER",L.dryer.w,L.dryer.s,L.dryer.e,L.dryer.n),
-                                      ("WASHER",L.washer.w,L.washer.s,L.washer.e,L.washer.n)]:
+    _dryer_bb = poly_bbox(L.dryer_poly)
+    _washer_bb = poly_bbox(L.washer_poly)
+    for lbl,sw_e,sw_n,ne_e,ne_n in [("DRYER",_dryer_bb.w,_dryer_bb.s,_dryer_bb.e,_dryer_bb.n),
+                                      ("WASHER",_washer_bb.w,_washer_bb.s,_washer_bb.e,_washer_bb.n)]:
         s1,s2 = to_svg(sw_e,ne_n),to_svg(ne_e,sw_n); w=s2[0]-s1[0]; h=s2[1]-s1[1]
         lines.append(f'<rect x="{s1[0]:.1f}" y="{s1[1]:.1f}" width="{w:.1f}" height="{h:.1f}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
         cx,cy = (s1[0]+s2[0])/2,(s1[1]+s2[1])/2
         lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">{lbl}</text>')
     # Counter with rounded NW corner
-    ctr_w, ctr_e, ctr_s, ctr_n = L.ctr.w, L.ctr.e, L.ctr.s, L.ctr.n
+    _ctr_bb = poly_bbox(L.ctr_poly)
+    ctr_w, ctr_e, ctr_s, ctr_n = _ctr_bb.w, _ctr_bb.e, _ctr_bb.s, _ctr_bb.n
     ctr_nw_r = L.ctr_nw_r
     csw,cse,cne = to_svg(ctr_w,ctr_s),to_svg(ctr_e,ctr_s),to_svg(ctr_e,ctr_n)
     cnas,cnae = to_svg(ctr_w+ctr_nw_r,ctr_n),to_svg(ctr_w,ctr_n-ctr_nw_r)
@@ -357,9 +357,10 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
     bcy = sum(to_svg(*p)[1] for p in L.bed_poly)/4
     lines.append(f'<text x="{bcx:.1f}" y="{bcy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
     # Room labels
-    bx,by = to_svg(L.iw2.e + 139.0/12.0,(ctr_s+L.iw1_s)/2)
+    bx,by = to_svg(L.iw2_poly[1][0] + 139.0/12.0,(ctr_s+L.iw1_poly[0][1])/2)
     lines.append(f'<text x="{bx:.1f}" y="{by+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
-    cx,cy = to_svg((L.iw4_e+L.iw4_w)/2,(wsn+wsn+6.0)/2)
+    _iw4_sw, _iw4_se = L.iw4_poly[0], L.iw4_poly[1]
+    cx,cy = to_svg((_iw4_se[0]+_iw4_sw[0])/2,(_iw4_sw[1]+_iw4_sw[1]+6.0)/2)
     lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
     lines.append('</g>')
 

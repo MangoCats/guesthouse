@@ -13,7 +13,7 @@ from typing import NamedTuple
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from shared.types import LineSeg, ArcSeg
-from shared.geometry import fmt_dist, left_norm
+from shared.geometry import fmt_dist, left_norm, poly_bbox
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import WALL_OUTER
@@ -263,35 +263,40 @@ def _render_interior_walls(out, data):
                    f' font-size="{LABEL_SIZE}" fill="#666"{rot}>{name}</text>')
 
     rough_openings = compute_rough_openings(pts, layout)
-    ro_map = {ro.name: ro.bbox for ro in rough_openings}
+    ro_map = {ro.name: poly_bbox(ro.poly) for ro in rough_openings}
 
     # IW1 (horizontal, 6")
-    iw_poly(layout.iw1)
-    iw_label("IW1", layout.iw1[0][0], layout.iw1[1][0],
-             layout.iw1_s, layout.iw1_n, vertical=False)
+    iw_poly(layout.iw1_poly)
+    iw_label("IW1", layout.iw1_poly[0][0], layout.iw1_poly[1][0],
+             layout.iw1_poly[0][1], layout.iw1_poly[3][1], vertical=False)
 
     # IW8 (horizontal, 6" — west extension of IW1)
-    iw_rect(layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n)
-    iw_label("IW8", layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n,
+    _iw8_bb = poly_bbox(layout.iw8_poly)
+    iw_rect(_iw8_bb.w, _iw8_bb.e, _iw8_bb.s, _iw8_bb.n)
+    iw_label("IW8", _iw8_bb.w, _iw8_bb.e, _iw8_bb.s, _iw8_bb.n,
              vertical=False)
 
     # IW2 (vertical, 6")
-    iw_rect(layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
-    iw_label("IW2", layout.iw2.w, layout.iw2.e, ro_map["RO4"].n, layout.iw2.n)
+    _iw2_bb = poly_bbox(layout.iw2_poly)
+    iw_rect(_iw2_bb.w, _iw2_bb.e, _iw2_bb.s, _iw2_bb.n)
+    iw_label("IW2", _iw2_bb.w, _iw2_bb.e, ro_map["RO4"].n, _iw2_bb.n)
 
     # IW3 (rotated, 4" thick, perpendicular to W20-W0)
     iw_poly(layout.iw3_poly)
-    iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
+    _iw3_bb = poly_bbox(layout.iw3_poly)
+    iw_label("IW3", _iw3_bb.w, _iw3_bb.e, _iw3_bb.s, _iw3_bb.n)
 
     # IW7 (rotated, 4" thick, parallel to W20-W0)
     iw_poly(layout.iw7_poly)
-    iw_label("IW7", layout.iw7.w, layout.iw7.e, layout.iw7.s, layout.iw7.n,
+    _iw7_bb = poly_bbox(layout.iw7_poly)
+    iw_label("IW7", _iw7_bb.w, _iw7_bb.e, _iw7_bb.s, _iw7_bb.n,
              vertical=False)
 
     # IW9 (rotated, 4" thick, perpendicular to W20-W0)
     iw_poly(layout.iw9_poly)
-    iw_label("IW9", layout.iw9.w, layout.iw9.e,
-             (layout.iw9.s + ro_map["RO7"].n) / 2, layout.iw9.n)
+    _iw9_bb = poly_bbox(layout.iw9_poly)
+    iw_label("IW9", _iw9_bb.w, _iw9_bb.e,
+             (_iw9_bb.s + ro_map["RO7"].n) / 2, _iw9_bb.n)
 
     # IW16 (vertical, 4" — IW3 NW to IW1)
     iw_poly(layout.iw16_poly)
@@ -301,67 +306,61 @@ def _render_interior_walls(out, data):
     # IW6 (horizontal, 1" partition)
     iw_poly(layout.iw6_poly)
     _ro5_w = ro_map["RO5"].w
-    iw_label("IW6", _ro5_w, _ro5_w, layout.iw6_s, layout.iw6_n, vertical=False)
+    iw_label("IW6", _ro5_w, _ro5_w, layout.iw6_poly[0][1], layout.iw6_poly[3][1], vertical=False)
 
     # IW4 (vertical, 4" — north end at IW12 north face)
-    _iw4_n = layout.iw12_poly[2][1]
-    iw_rect(layout.iw4_w, layout.iw4_e, layout.iw4_s, _iw4_n)
-    iw_label("IW4", layout.iw4_w, layout.iw4_e, layout.iw4_s, _iw4_n)
+    _iw4_sw, _iw4_se, _iw4_ne, _iw4_nw = layout.iw4_poly
+    iw_rect(_iw4_sw[0], _iw4_se[0], _iw4_sw[1], _iw4_ne[1])
+    iw_label("IW4", _iw4_sw[0], _iw4_se[0], _iw4_sw[1], _iw4_ne[1])
 
     # IW11 (vertical, 4")
     iw_poly(layout.iw11_poly)
-    iw_label("IW11", layout.iw11.w, layout.iw11.e, layout.iw11.s, layout.iw11.n)
+    _iw11_bb = poly_bbox(layout.iw11_poly)
+    iw_label("IW11", _iw11_bb.w, _iw11_bb.e, _iw11_bb.s, _iw11_bb.n)
 
     # IW15 (vertical, 4" — IW11 NW north to IW1 south)
-    iw_rect(layout.iw15.w, layout.iw15.e, layout.iw15.s, layout.iw15.n)
-    iw_label("IW15", layout.iw15.w, layout.iw15.e, layout.iw15.s, layout.iw15.n)
+    _iw15_bb = poly_bbox(layout.iw15_poly)
+    iw_rect(_iw15_bb.w, _iw15_bb.e, _iw15_bb.s, _iw15_bb.n)
+    iw_label("IW15", _iw15_bb.w, _iw15_bb.e, _iw15_bb.s, _iw15_bb.n)
 
     # IW12 (rotated, 4")
     iw_poly(layout.iw12_poly)
-    iw_label("IW12", layout.iw12.w, layout.iw12.e, layout.iw12.s, layout.iw12.n,
+    _iw12_bb = poly_bbox(layout.iw12_poly)
+    iw_label("IW12", _iw12_bb.w, _iw12_bb.e, _iw12_bb.s, _iw12_bb.n,
              vertical=False)
 
     # IW14 (rotated, 3" — parallel to IW12)
     iw_poly(layout.iw14_poly)
-    iw_label("IW14", layout.iw14.w, layout.iw14.e, layout.iw14.s, layout.iw14.n,
+    _iw14_bb = poly_bbox(layout.iw14_poly)
+    iw_label("IW14", _iw14_bb.w, _iw14_bb.e, _iw14_bb.s, _iw14_bb.n,
              vertical=False)
 
     # IW5 (horizontal, 3")
-    iw_rect(layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n)
-    iw_label("IW5", layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n,
+    _iw5_bb = poly_bbox(layout.iw5_poly)
+    iw_rect(_iw5_bb.w, _iw5_bb.e, _iw5_bb.s, _iw5_bb.n)
+    iw_label("IW5", _iw5_bb.w, _iw5_bb.e, _iw5_bb.s, _iw5_bb.n,
              vertical=False)
 
     # Rough openings (RO1-RO7) — dark red outline box with X (7 openings)
     _RO_COLOR = "darkred"
     _RO_SW = "0.5"
     for ro in rough_openings:
-        if ro.poly is not None:
-            # Rotated opening: draw polygon + diagonals
-            _rp = ro.poly  # [SW, SE, NE, NW]
-            _rp_svg = [(to_svg(*p)) for p in _rp]
-            pts_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in _rp_svg)
-            out.append(f'<polygon points="{pts_str}" fill="none"'
-                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-            out.append(f'<line x1="{_rp_svg[0][0]:.1f}" y1="{_rp_svg[0][1]:.1f}"'
-                       f' x2="{_rp_svg[2][0]:.1f}" y2="{_rp_svg[2][1]:.1f}"'
-                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-            out.append(f'<line x1="{_rp_svg[1][0]:.1f}" y1="{_rp_svg[1][1]:.1f}"'
-                       f' x2="{_rp_svg[3][0]:.1f}" y2="{_rp_svg[3][1]:.1f}"'
-                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-        else:
-            b = ro.bbox
-            x1, y1 = to_svg(b.w, b.n)  # NW corner (SVG top-left)
-            x2, y2 = to_svg(b.e, b.s)  # SE corner (SVG bottom-right)
-            out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}" width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
-                       f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-            out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
-                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
-            out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
-                       f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        # Draw polygon + diagonals for all openings
+        _rp = ro.poly  # [SW, SE, NE, NW]
+        _rp_svg = [(to_svg(*p)) for p in _rp]
+        pts_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in _rp_svg)
+        out.append(f'<polygon points="{pts_str}" fill="none"'
+                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        out.append(f'<line x1="{_rp_svg[0][0]:.1f}" y1="{_rp_svg[0][1]:.1f}"'
+                   f' x2="{_rp_svg[2][0]:.1f}" y2="{_rp_svg[2][1]:.1f}"'
+                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+        out.append(f'<line x1="{_rp_svg[1][0]:.1f}" y1="{_rp_svg[1][1]:.1f}"'
+                   f' x2="{_rp_svg[3][0]:.1f}" y2="{_rp_svg[3][1]:.1f}"'
+                   f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
 
     # RO labels — same placement convention as IW labels
     for ro in rough_openings:
-        b = ro.bbox
+        b = poly_bbox(ro.poly)
         if ro.orientation == "R" and ro.poly is not None:
             # Rotated opening: label on WNW face of IW11
             import math as _m
@@ -835,19 +834,19 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
 
         # (id, thickness_inches, length_ft, vertical)
         iw_rows = [
-            ("IW1",  6, _poly_len(layout.iw1), True),
-            ("IW2",  6, _bbox_len(layout.iw2, True), True),
+            ("IW1",  6, _poly_len(layout.iw1_poly), True),
+            ("IW2",  6, _poly_len(layout.iw2_poly), True),
             ("IW3",  4, _poly_len(layout.iw3_poly), True),
-            ("IW4",  4, layout.iw12_poly[2][1] - layout.iw4_s, True),
-            ("IW5",  3, _bbox_len(layout.iw5, False), False),
+            ("IW4",  4, _poly_len(layout.iw4_poly), True),
+            ("IW5",  3, _poly_len(layout.iw5_poly), False),
             ("IW6",  1, _poly_len(layout.iw6_poly), False),
             ("IW7",  4, _poly_len(layout.iw7_poly), False),
-            ("IW8",  6, _bbox_len(layout.iw8, False), False),
+            ("IW8",  6, _poly_len(layout.iw8_poly), False),
             ("IW9",  4, _poly_len(layout.iw9_poly), True),
             ("IW11", 4, _poly_len(layout.iw11_poly), True),
             ("IW12", 4, _poly_len(layout.iw12_poly), False),
             ("IW14", 3, _poly_len(layout.iw14_poly), False),
-            ("IW15", 4, _bbox_len(layout.iw15, True), True),
+            ("IW15", 4, _poly_len(layout.iw15_poly), True),
             ("IW16", 4, _poly_len(layout.iw16_poly), True),
         ]
 

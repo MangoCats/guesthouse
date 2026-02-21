@@ -69,14 +69,14 @@ def _build_geometry():
 
 def _extract_iw_centerlines(layout):
     """Midlines of IW1, IW2, IW8 as line segments [(p1, p2), ...]."""
-    iw1 = layout.iw1
-    mid_n1 = (layout.iw1_s + layout.iw1_n) / 2
+    iw1 = layout.iw1_poly
+    mid_n1 = (iw1[0][1] + iw1[3][1]) / 2
     cl1 = ((iw1[0][0], mid_n1), ((iw1[1][0] + iw1[2][0]) / 2, mid_n1))
-    iw2 = layout.iw2
-    cl2 = (((iw2.w + iw2.e) / 2, iw2.s), ((iw2.w + iw2.e) / 2, iw2.n))
-    iw8 = layout.iw8
-    mid_n8 = (iw8.s + iw8.n) / 2
-    cl8 = ((iw8.w, mid_n8), (iw8.e, mid_n8))
+    iw2 = layout.iw2_poly
+    cl2 = (((iw2[0][0] + iw2[1][0]) / 2, iw2[0][1]), ((iw2[0][0] + iw2[1][0]) / 2, iw2[3][1]))
+    iw8 = layout.iw8_poly
+    mid_n8 = (iw8[0][1] + iw8[3][1]) / 2
+    cl8 = ((iw8[0][0], mid_n8), (iw8[1][0], mid_n8))
     return [cl1, cl2, cl8]
 
 

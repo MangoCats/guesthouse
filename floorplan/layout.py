@@ -1,9 +1,14 @@
-"""Interior layout computation — rooms, walls, appliances, furniture."""
+"""Interior layout computation — rooms, walls, appliances, furniture.
+
+All walls/appliances/furniture use polygon [SW, SE, NE, NW] representations
+constructed from building axis vectors (derived from W20→W1 south wall direction).
+No axis-aligned BBox or scalar coordinate fields.
+"""
 import math
 from typing import NamedTuple
 
-from shared.types import Point, BBox
-from shared.geometry import horiz_isects
+from shared.types import Point
+from shared.geometry import directed_poly_isects, line_isect
 from floorplan.constants import (
     WALL_6IN, WALL_4IN, WALL_3IN,
     APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_E,
@@ -22,119 +27,110 @@ from floorplan.constants import (
 
 
 class InteriorLayout(NamedTuple):
-    """Interior layout positions for walls, appliances, and furniture."""
-    # Interior wall 1 (IW1) — horizontal wall separating utility/bedroom zones
-    iw1: list[Point]
-    iw1_s: float
-    iw1_n: float
-    iwt: float
-    # Interior wall 2 (IW2) — vertical wall west of utility area
-    iw2: BBox
-    # Dryer
-    dryer: BBox
-    # Washer
-    washer: BBox
-    # Counter
-    ctr: BBox
-    ctr_poly: list[Point]  # polygon clipped to W20-W0 and IW3/IW16 west faces
+    """Interior layout positions — all items as [SW, SE, NE, NW] polygons."""
+    # Interior walls
+    iw1_poly:  list[Point]
+    iw2_poly:  list[Point]
+    iw3_poly:  list[Point]
+    iw4_poly:  list[Point]
+    iw5_poly:  list[Point]
+    iw6_poly:  list[Point]
+    iw7_poly:  list[Point]
+    iw8_poly:  list[Point]
+    iw9_poly:  list[Point]
+    iw11_poly: list[Point]
+    iw12_poly: list[Point]
+    iw14_poly: list[Point]
+    iw15_poly: list[Point]
+    iw16_poly: list[Point]
+    # Wall thicknesses (scalar dimensions, not positions)
+    iwt:  float   # 6" (IW1, IW2, IW8)
+    iwt3: float   # 3" (IW5, IW14)
+    iwt4: float   # 4" (IW3, IW4, IW7, IW9, IW11, IW12, IW15, IW16)
+    # Furniture / appliances
+    bed_poly:     list[Point]   # [SW, SE, NE, NW]
+    dresser_poly: list[Point]
+    dryer_poly:   list[Point]
+    washer_poly:  list[Point]
+    ctr_poly:     list[Point]   # counter (irregular polygon)
     ctr_nw_r: float
-    # Interior wall 3 (IW3) — perpendicular to W20-W0, 30" from IW9 W face
-    iw3: BBox
-    iw3_poly: list[Point]  # [SW, SE, NE, NW]
-    # Interior wall 7 (IW7) — parallel to W20-W0, between IW3 and IW9
-    iw7: BBox
-    iw7_poly: list[Point]  # [SW, SE, NE, NW]
-    # Interior wall 9 (IW9) — perpendicular to W20-W0, 8" past O10
-    iw9: BBox
-    iw9_poly: list[Point]  # [SW, SE, NE, NW]
-    # Wall thicknesses
-    iwt3: float
-    iwt4: float
-    # Interior wall 4 (IW4) — east bedroom wall
-    iw4_w: float
-    iw4_e: float
-    iw4_s: float
-    wall_south_n: float
-    # Bed (rotated polygon, long sides perpendicular to W20-W0)
-    bed_poly: list[Point]  # [SW, SE, NE, NW]
-    # IW11 (4" thick, N-S — south extension below IW4)
-    iw11: BBox         # bounding box (for labels/dimensions)
-    iw11_poly: list[Point]  # actual polygon (SE corner on W20-W0)
-    # IW12 (4" thick, perpendicular to IW11 — connects IW11 NW to IW4 west)
-    iw12: BBox
-    iw12_poly: list[Point]  # actual polygon [SW, SE, NE, NW]
-    # IW5 (3" thick, horizontal in office)
-    iw5: BBox
-    # IW8 (6" thick, horizontal — west extension of IW1, W2-W3 to IW1 west end)
-    iw8: BBox
-    # IW14 (3" thick, parallel to IW12, north of RO2)
-    iw14: BBox
-    iw14_poly: list[Point]  # [SW, SE, NE, NW]
-    # IW15 (4" thick, N-S, west face at IW11 NW easting, IW11 north to IW1 south)
-    iw15: BBox
-    # Dresser (34" E-W × 19" N-S, 1" south of IW1, 6" west of IW15)
-    dresser: BBox
-    # IW16 (4" thick, N-S, west face at IW3 NW easting, IW1 to IW3 end)
-    iw16_poly: list[Point]  # [SW, SE, NE, NW]
-    # IW6 (1" thick, horizontal above kitchen)
-    iw6_poly: list[Point]
-    iw6_n: float
-    iw6_s: float
     # South wall opening anchors (parametric t along F20→F1)
-    sw_t_o9_start: float
-    sw_t_o9_end: float
+    sw_t_o9_start:  float
+    sw_t_o9_end:    float
     sw_t_o10_start: float
-    sw_t_o10_end: float
+    sw_t_o10_end:   float
     sw_t_o11_start: float
-    sw_t_o11_end: float
+    sw_t_o11_end:   float
 
 
 def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     """Compute interior layout positions.
 
     pts must contain W-series (W1-W20) and F-series (F1-F20).
+    All geometry uses building axis vectors from W20→W1 (south wall).
     """
-    iw1_n = pts["W9"][1] - IW1_DIST_FROM_NORTH
-    iw1_s = iw1_n - WALL_6IN
-    si = horiz_isects(inner_poly, iw1_s)
-    ni = horiz_isects(inner_poly, iw1_n)
-    iw1_w = pts["W2"][0] + IW1_WEST_OFFSET_E
-    iw1 = [(iw1_w, iw1_s), (max(si), iw1_s), (max(ni), iw1_n), (iw1_w, iw1_n)]
-
-    iw2_w = pts["W2"][0] + IW2_OFFSET_E
-    iw2_e = iw2_w + WALL_6IN
-    iw2_s = iw1_n
-    iw2_n = pts["W6"][1]
-
-    dryer_w = pts["W2"][0] + APPLIANCE_OFFSET_E
-    dryer_s = pts["W1"][1] + APPLIANCE_OFFSET_N
-    dryer_e = dryer_w + APPLIANCE_WIDTH
-    dryer_n = dryer_s + APPLIANCE_DEPTH
-    washer_w = dryer_w
-    washer_s = dryer_n + APPLIANCE_GAP
-    washer_e = dryer_e
-    washer_n = washer_s + APPLIANCE_DEPTH
-
-    ctr_w = dryer_e + COUNTER_GAP
-    ctr_e = ctr_w + COUNTER_DEPTH
-    ctr_s = pts["W1"][1]
-    ctr_n = ctr_s + 6.0  # 6' north of W20-W0 south face
-    ctr_nw_r = 0
-
-    iw2_e = iw2_w + WALL_6IN
-    iw4_w = iw2_e + IW4_OFFSET_E_IW2
-    iw4_e = iw4_w + WALL_4IN
-    iw4_s = pts["W19"][1]
-    wall_south_n = pts["W19"][1]
-
-    # IW11: 4" thick, normal to W20-W0, 6' long
-    # SE corner: circle(IW4_SW, 32") ∩ W20-W0
-    _iw4_sw = (iw4_w, iw4_s)
-    _w20 = pts["W20"]
-    _w1 = pts["W1"]
+    # ── Building axis vectors ──────────────────────────────────
+    _w20, _w1 = pts["W20"], pts["W1"]
     _dE = _w1[0] - _w20[0]
     _dN = _w1[1] - _w20[1]
     _seg_len = math.sqrt(_dE**2 + _dN**2)
+    _along_E = _dE / _seg_len    # unit along south wall (W20→W1 ≈ westward)
+    _along_N = _dN / _seg_len
+    _norm_E = _along_N            # right normal = into building (≈ northward)
+    _norm_N = -_along_E
+    _eE = -_along_E               # building east unit vector
+    _eN = -_along_N
+
+    # Helpers: building northing/easting relative to W1 on the south wall line
+    def _bn(p):
+        """Building northing (perpendicular distance from south wall)."""
+        return (p[0] - _w1[0]) * _norm_E + (p[1] - _w1[1]) * _norm_N
+
+    def _be(p):
+        """Building easting (distance east along south wall from W1)."""
+        return (p[0] - _w1[0]) * _eE + (p[1] - _w1[1]) * _eN
+
+    def _bp(be, bn):
+        """World-coordinate point from building easting/northing."""
+        return (_w1[0] + be * _eE + bn * _norm_E,
+                _w1[1] + be * _eN + bn * _norm_N)
+
+    # ── IW1: E-W wall, 6" thick, separating utility/bedroom zones ──
+    _w9_bn = _bn(pts["W9"])
+    _iw1_n_bn = _w9_bn - IW1_DIST_FROM_NORTH
+    _iw1_s_bn = _iw1_n_bn - WALL_6IN
+    _w2_be = _be(pts["W2"])
+    _iw1_w_be = _w2_be + IW1_WEST_OFFSET_E
+    iw1_nw = _bp(_iw1_w_be, _iw1_n_bn)
+    iw1_sw = _bp(_iw1_w_be, _iw1_s_bn)
+    # East ends: ray east from corners, intersect inner_poly
+    _ne_ts = directed_poly_isects(inner_poly, iw1_nw, (_eE, _eN))
+    _se_ts = directed_poly_isects(inner_poly, iw1_sw, (_eE, _eN))
+    _ne_t = max(t for t in _ne_ts if t > 0)
+    _se_t = max(t for t in _se_ts if t > 0)
+    iw1_ne = (iw1_nw[0] + _ne_t * _eE, iw1_nw[1] + _ne_t * _eN)
+    iw1_se = (iw1_sw[0] + _se_t * _eE, iw1_sw[1] + _se_t * _eN)
+    iw1_poly = [iw1_sw, iw1_se, iw1_ne, iw1_nw]
+
+    # ── IW2: N-S wall, 6" thick, west of utility area ─────────
+    _iw2_w_be = _w2_be + IW2_OFFSET_E
+    _iw2_e_be = _iw2_w_be + WALL_6IN
+    _w6_bn = _bn(pts["W6"])
+    iw2_poly = [
+        _bp(_iw2_w_be, _iw1_n_bn),   # SW
+        _bp(_iw2_e_be, _iw1_n_bn),   # SE
+        _bp(_iw2_e_be, _w6_bn),      # NE
+        _bp(_iw2_w_be, _w6_bn),      # NW
+    ]
+
+    # ── IW4: N-S wall, 4" thick, east bedroom wall (partial) ──
+    _iw4_w_be = _iw2_e_be + IW4_OFFSET_E_IW2
+    _iw4_e_be = _iw4_w_be + WALL_4IN
+    _w19_bn = _bn(pts["W19"])
+    _iw4_sw = _bp(_iw4_w_be, _w19_bn)
+
+    # ── IW11: 4" thick, perpendicular to W20-W0 ───────────────
+    # SE corner: circle(IW4_SW, 32") ∩ W20-W0
     _uE = _w20[0] - _iw4_sw[0]
     _uN = _w20[1] - _iw4_sw[1]
     _r = 32.0 / 12.0
@@ -142,50 +138,42 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _qb = 2 * (_uE * _dE + _uN * _dN)
     _qc = _uE**2 + _uN**2 - _r**2
     _disc = _qb**2 - 4 * _qa * _qc
-    _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)  # westward along W20-W0
+    _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)
     iw11_se = (_w20[0] + _t * _dE, _w20[1] + _t * _dN)
-    # Unit vectors: along W20-W0 and inward normal
-    _along_E = _dE / _seg_len
-    _along_N = _dN / _seg_len
-    _norm_E = _along_N    # right normal = inward
-    _norm_N = -_along_E
-    _iw11_thick = WALL_4IN
     _iw14_d = 6.0 + WALL_4IN + 3.0 / 12.0 + IW4_RO_WIDTH + 3.0 / 12.0
-    _iw11_len = _iw14_d + WALL_3IN  # extend to IW14 north face
-    iw11_sw = (iw11_se[0] + _iw11_thick * _along_E,
-               iw11_se[1] + _iw11_thick * _along_N)
+    _iw11_len = _iw14_d + WALL_3IN
+    iw11_sw = (iw11_se[0] + WALL_4IN * _along_E,
+               iw11_se[1] + WALL_4IN * _along_N)
     iw11_ne = (iw11_se[0] + _iw11_len * _norm_E,
                iw11_se[1] + _iw11_len * _norm_N)
     iw11_nw = (iw11_sw[0] + _iw11_len * _norm_E,
                iw11_sw[1] + _iw11_len * _norm_N)
     iw11_poly = [iw11_sw, iw11_se, iw11_ne, iw11_nw]
-    # Bounding box (for IW12 connection and labels)
-    iw11_w = min(p[0] for p in iw11_poly)
-    iw11_e = max(p[0] for p in iw11_poly)
-    iw11_s = min(p[1] for p in iw11_poly)
-    iw11_n = max(p[1] for p in iw11_poly)
 
-    # IW12: 4" thick, perpendicular to IW11, from IW11 NW corner to IW4 west face
+    # ── IW12: 4" thick, perpendicular to IW11 ─────────────────
     _iw12_shorten = 4.0 / 12.0
     _iw12_base = (iw11_sw[0] + 6.0 * _norm_E, iw11_sw[1] + 6.0 * _norm_N)
     iw12_sw = (_iw12_base[0] - _iw12_shorten * _along_E,
                _iw12_base[1] - _iw12_shorten * _along_N)
-    # IW12 east end: SE and NE at iw4_w easting
-    # South edge: line from iw12_sw in -_along direction, solve for easting = iw4_w
-    _t_se = (iw4_w - iw12_sw[0]) / (-_along_E)
-    iw12_se = (iw4_w, iw12_sw[1] - _t_se * _along_N)
+    # SE: south face line (-_along) meets IW4 west face line (_norm through _iw4_sw)
+    iw12_se = line_isect(iw12_sw, (-_along_E, -_along_N),
+                         _iw4_sw, (_norm_E, _norm_N))
     iw12_nw = (iw12_sw[0] + WALL_4IN * _norm_E,
                iw12_sw[1] + WALL_4IN * _norm_N)
-    iw12_ne = (iw4_w, iw12_nw[1] + (iw12_se[1] - iw12_sw[1]))
+    iw12_ne = (iw12_se[0] + WALL_4IN * _norm_E,
+               iw12_se[1] + WALL_4IN * _norm_N)
     iw12_poly = [iw12_sw, iw12_se, iw12_ne, iw12_nw]
-    # Bounding box (for RO2 center, dimension lines, labels)
-    iw12_w = min(p[0] for p in iw12_poly)
-    iw12_e = max(p[0] for p in iw12_poly)
-    iw12_s = min(p[1] for p in iw12_poly)
-    iw12_n = max(p[1] for p in iw12_poly)
 
-    # Bed: rotated, long sides perpendicular to W20-W0
-    # SE corner = 1" past O9 NW corner along W20-W0, 2" from wall
+    # ── IW4 complete: north end at IW12 NE building-northing ───
+    _iw12_ne_bn = _bn(iw12_ne)
+    iw4_poly = [
+        _bp(_iw4_w_be, _w19_bn),      # SW
+        _bp(_iw4_e_be, _w19_bn),      # SE
+        _bp(_iw4_e_be, _iw12_ne_bn),  # NE
+        _bp(_iw4_w_be, _iw12_ne_bn),  # NW
+    ]
+
+    # ── Bed: rotated, long sides perpendicular to W20-W0 ──────
     _dE9 = pts["F1"][0] - pts["F20"][0]
     _dN9 = pts["F1"][1] - pts["F20"][1]
     _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
@@ -206,15 +194,16 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
               bed_sw[1] + BED_LENGTH * _norm_N)
     bed_poly = [bed_sw, bed_se, bed_ne, bed_nw]
 
-    # IW9: 4" thick, perpendicular to W20-W0, past O10 along inner wall
+    # ── Opening t-values along F20→F1 ─────────────────────────
     _ts10 = _te9 + O9_O10_WALL / _seg9_len
     _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
     _ts11 = _te10 + O10_O11_WALL / _seg9_len
     _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
+
+    # ── IW9: 4" thick, perpendicular to W20-W0 ────────────────
     _o10_end = (_w20[0] + _te10 * _dE, _w20[1] + _te10 * _dN)
-    iw9_base = (_o10_end[0] + IW9_OFFSET_O10 * _along_E,
-                _o10_end[1] + IW9_OFFSET_O10 * _along_N)
-    iw9_se = iw9_base
+    iw9_se = (_o10_end[0] + IW9_OFFSET_O10 * _along_E,
+              _o10_end[1] + IW9_OFFSET_O10 * _along_N)
     iw9_sw = (iw9_se[0] + WALL_4IN * _along_E,
               iw9_se[1] + WALL_4IN * _along_N)
     iw9_ne = (iw9_se[0] + IW9_LENGTH * _norm_E,
@@ -222,12 +211,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw9_nw = (iw9_sw[0] + IW9_LENGTH * _norm_E,
               iw9_sw[1] + IW9_LENGTH * _norm_N)
     iw9_poly = [iw9_sw, iw9_se, iw9_ne, iw9_nw]
-    iw9_w = min(p[0] for p in iw9_poly)
-    iw9_e = max(p[0] for p in iw9_poly)
-    iw9_s = min(p[1] for p in iw9_poly)
-    iw9_n = max(p[1] for p in iw9_poly)
 
-    # IW3: 4" thick, perpendicular to W20-W0, E face 30" from IW9 W face
+    # ── IW3: 4" thick, perpendicular to W20-W0 ────────────────
     iw3_se = (iw9_sw[0] + IW3_OFFSET_IW9 * _along_E,
               iw9_sw[1] + IW3_OFFSET_IW9 * _along_N)
     iw3_sw = (iw3_se[0] + WALL_4IN * _along_E,
@@ -237,12 +222,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw3_nw = (iw3_sw[0] + IW3_LENGTH * _norm_E,
               iw3_sw[1] + IW3_LENGTH * _norm_N)
     iw3_poly = [iw3_sw, iw3_se, iw3_ne, iw3_nw]
-    iw3_w = min(p[0] for p in iw3_poly)
-    iw3_e = max(p[0] for p in iw3_poly)
-    iw3_s = min(p[1] for p in iw3_poly)
-    iw3_n = max(p[1] for p in iw3_poly)
 
-    # IW7: 4" thick, parallel to W20-W0, NW corner at IW3 NE, spans to IW9
+    # ── IW7: 4" thick, parallel to W20-W0 ─────────────────────
     iw7_nw = iw3_ne
     iw7_ne = (iw7_nw[0] - IW3_OFFSET_IW9 * _along_E,
               iw7_nw[1] - IW3_OFFSET_IW9 * _along_N)
@@ -251,114 +232,149 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw7_se = (iw7_ne[0] - WALL_4IN * _norm_E,
               iw7_ne[1] - WALL_4IN * _norm_N)
     iw7_poly = [iw7_sw, iw7_se, iw7_ne, iw7_nw]
-    iw7_w = min(p[0] for p in iw7_poly)
-    iw7_e = max(p[0] for p in iw7_poly)
-    iw7_s = min(p[1] for p in iw7_poly)
-    iw7_n = max(p[1] for p in iw7_poly)
 
-    # IW16: 4" thick, N-S, west face at IW3 NW easting, IW1 south to IW3 NW northing
-    iw16_w = iw3_nw[0]
-    iw16_e = iw16_w + WALL_4IN
-    iw16_n = iw1_s
-    iw16_s = iw3_nw[1]
-    iw16_poly = [(iw16_w, iw16_s), (iw16_e, iw16_s),
-                 (iw16_e, iw16_n), (iw16_w, iw16_n)]
+    # ── IW16: N-S wall, 4" thick, west face at IW3 NW ─────────
+    _iw3_nw_be = _be(iw3_nw)
+    _iw3_nw_bn = _bn(iw3_nw)
+    iw16_poly = [
+        iw3_nw,                                            # SW (= IW3 NW)
+        (iw3_nw[0] - WALL_4IN * _along_E,                 # SE
+         iw3_nw[1] - WALL_4IN * _along_N),
+        _bp(_iw3_nw_be + WALL_4IN, _iw1_s_bn),            # NE
+        _bp(_iw3_nw_be, _iw1_s_bn),                       # NW
+    ]
 
-    # Counter polygon: south edge follows W20-W0, east edge clipped at IW3/IW16
-    _t_ctr_w = (ctr_w - _w20[0]) / (_w1[0] - _w20[0])
-    _ctr_sw_n = _w20[1] + _t_ctr_w * (_w1[1] - _w20[1])
-    if ctr_n > iw3_nw[1]:
-        # Counter top above IW3 NW: clip at IW16 west face then IW3 west face
+    # ── Counter polygon ────────────────────────────────────────
+    _dryer_e_be = _w2_be + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH
+    _ctr_w_be = _dryer_e_be + COUNTER_GAP
+    _ctr_n_bn = 6.0  # 6' north of south wall
+    ctr_nw = _bp(_ctr_w_be, _ctr_n_bn)
+    ctr_sw = _bp(_ctr_w_be, 0)
+    if _ctr_n_bn > _iw3_nw_bn:
+        # Counter top above IW3 NW: clip at IW16 west then IW3 west
         ctr_poly = [
-            (ctr_w, ctr_n),
-            (iw16_w, ctr_n),
+            ctr_nw,
+            _bp(_iw3_nw_be, _ctr_n_bn),     # at IW16 west face, counter top
             iw3_nw,
             iw3_sw,
-            (ctr_w, _ctr_sw_n),
+            ctr_sw,
         ]
     else:
-        # Counter top below IW3 NW: clip at IW3 west face only
-        _t_face = (ctr_n - iw3_sw[1]) / (iw3_nw[1] - iw3_sw[1])
-        _ctr_ne_e = iw3_sw[0] + _t_face * (iw3_nw[0] - iw3_sw[0])
+        # Counter top below IW3 NW: clip at IW3 west face
+        _iw3_sw_bn = _bn(iw3_sw)
+        _t_face = (_ctr_n_bn - _iw3_sw_bn) / (_iw3_nw_bn - _iw3_sw_bn)
+        _ctr_ne = (iw3_sw[0] + _t_face * (iw3_nw[0] - iw3_sw[0]),
+                   iw3_sw[1] + _t_face * (iw3_nw[1] - iw3_sw[1]))
         ctr_poly = [
-            (ctr_w, ctr_n),
-            (_ctr_ne_e, ctr_n),
+            ctr_nw,
+            _ctr_ne,
             iw3_sw,
-            (ctr_w, _ctr_sw_n),
+            ctr_sw,
         ]
 
-    # IW8: 6" thick, horizontal, from W2-W3 face to IW1 west end
-    iw8_w = pts["W2"][0]
-    iw8_e = iw1_w
-    iw8 = BBox(w=iw8_w, s=iw1_s + IW8_OFFSET_N_IW1, e=iw8_e, n=iw1_n + IW8_OFFSET_N_IW1)
-
-    # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
-    iw5_n = iw1_s - IW5_OFFSET_N
-    iw5_s = iw5_n - WALL_3IN
-    iw5_e = pts["W15"][0]
-
-    # IW14: 3" thick, parallel to IW12, 3" past RO2 north edge along IW11
-    # _iw14_d computed earlier (used for IW11 length)
+    # ── IW14: 3" thick, parallel to IW12 ──────────────────────
     iw14_sw = (iw11_se[0] + _iw14_d * _norm_E,
                iw11_se[1] + _iw14_d * _norm_N)
     iw14_nw = (iw14_sw[0] + WALL_3IN * _norm_E,
                iw14_sw[1] + WALL_3IN * _norm_N)
-    # SE corner: south face line (-_along direction) hits iw4_w easting
-    _t14 = (iw4_w - iw14_sw[0]) / (-_along_E)
-    iw14_se = (iw14_sw[0] - _t14 * _along_E,
-               iw14_sw[1] - _t14 * _along_N)
+    # SE: south face line (-_along) meets IW4 west face line
+    iw14_se = line_isect(iw14_sw, (-_along_E, -_along_N),
+                         _iw4_sw, (_norm_E, _norm_N))
     iw14_ne = (iw14_se[0] + WALL_3IN * _norm_E,
                iw14_se[1] + WALL_3IN * _norm_N)
     iw14_poly = [iw14_sw, iw14_se, iw14_ne, iw14_nw]
-    iw14_w = min(p[0] for p in iw14_poly)
-    iw14_e = max(p[0] for p in iw14_poly)
-    iw14_s = min(p[1] for p in iw14_poly)
-    iw14_n = max(p[1] for p in iw14_poly)
 
-    # IW15: 4" thick, N-S, west face at IW11 NW easting, IW11 north to IW1 south
-    iw15_w = iw11_nw[0]
-    iw15 = BBox(w=iw15_w, s=iw11_nw[1], e=iw15_w + WALL_4IN, n=iw1_s)
+    # ── IW5: E-W wall, 3" thick ───────────────────────────────
+    _iw5_n_bn = _iw1_s_bn - IW5_OFFSET_N
+    _iw5_s_bn = _iw5_n_bn - WALL_3IN
+    _w15_be = _be(pts["W15"])
+    _iw14_se_be = _be(iw14_se)
+    iw5_poly = [
+        _bp(_iw14_se_be, _iw5_s_bn),  # SW
+        _bp(_w15_be, _iw5_s_bn),      # SE
+        _bp(_w15_be, _iw5_n_bn),      # NE
+        _bp(_iw14_se_be, _iw5_n_bn),  # NW
+    ]
 
-    # Dresser: 34" E-W × 19" N-S, 1" south of IW1, 2" west of IW15
-    dresser_e = iw15_w - 2.0 / 12.0
-    dresser_w = dresser_e - 34.0 / 12.0
-    dresser_n = iw1_s - 1.0 / 12.0
-    dresser_s = dresser_n - 19.0 / 12.0
-    dresser = BBox(w=dresser_w, s=dresser_s, e=dresser_e, n=dresser_n)
+    # ── IW15: N-S wall, 4" thick ──────────────────────────────
+    _iw11_nw_be = _be(iw11_nw)
+    _iw11_nw_bn = _bn(iw11_nw)
+    iw15_poly = [
+        _bp(_iw11_nw_be, _iw11_nw_bn),              # SW
+        _bp(_iw11_nw_be + WALL_4IN, _iw11_nw_bn),   # SE
+        _bp(_iw11_nw_be + WALL_4IN, _iw1_s_bn),     # NE
+        _bp(_iw11_nw_be, _iw1_s_bn),                # NW
+    ]
 
-    # IW5 west end: meets IW14 SE corner
-    iw5_w = iw14_se[0]
+    # ── IW8: E-W wall, 6" thick ───────────────────────────────
+    _iw8_n_bn = _iw1_n_bn + IW8_OFFSET_N_IW1
+    _iw8_s_bn = _iw1_s_bn + IW8_OFFSET_N_IW1
+    iw8_poly = [
+        _bp(_w2_be, _iw8_s_bn),      # SW
+        _bp(_iw1_w_be, _iw8_s_bn),   # SE
+        _bp(_iw1_w_be, _iw8_n_bn),   # NE
+        _bp(_w2_be, _iw8_n_bn),      # NW
+    ]
 
-    # IW6: IW6_THICKNESS thick, south face IW6_OFFSET_N south of W6
-    iw6_n = pts["W6"][1] - IW6_OFFSET_N
-    iw6_s = iw6_n - IW6_THICKNESS
-    _iw6_n_ints = horiz_isects(inner_poly, iw6_n)
-    _iw6_s_ints = horiz_isects(inner_poly, iw6_s)
-    iw6_w_n = min(_iw6_n_ints)
-    iw6_w_s = min(_iw6_s_ints)
-    iw6_e = iw2_w
-    iw6_poly = [(iw6_w_s, iw6_s), (iw6_e, iw6_s), (iw6_e, iw6_n), (iw6_w_n, iw6_n)]
+    # ── IW6: E-W wall, thin ───────────────────────────────────
+    _iw6_n_bn = _w6_bn - IW6_OFFSET_N
+    _iw6_s_bn = _iw6_n_bn - IW6_THICKNESS
+    _iw6_ne = _bp(_iw2_w_be, _iw6_n_bn)
+    _iw6_se = _bp(_iw2_w_be, _iw6_s_bn)
+    # West ends: ray westward, intersect inner_poly
+    _iw6_nw_ts = directed_poly_isects(inner_poly, _iw6_ne, (_along_E, _along_N))
+    _iw6_sw_ts = directed_poly_isects(inner_poly, _iw6_se, (_along_E, _along_N))
+    _iw6_nw_t = min(t for t in _iw6_nw_ts if t > 0)
+    _iw6_sw_t = min(t for t in _iw6_sw_ts if t > 0)
+    iw6_nw = (_iw6_ne[0] + _iw6_nw_t * _along_E,
+              _iw6_ne[1] + _iw6_nw_t * _along_N)
+    iw6_sw = (_iw6_se[0] + _iw6_sw_t * _along_E,
+              _iw6_se[1] + _iw6_sw_t * _along_N)
+    iw6_poly = [iw6_sw, _iw6_se, _iw6_ne, iw6_nw]
+
+    # ── Dryer ──────────────────────────────────────────────────
+    _dryer_w_be = _w2_be + APPLIANCE_OFFSET_E
+    _dryer_s_bn = APPLIANCE_OFFSET_N  # offset from south wall (W1 bn = 0)
+    _dryer_n_bn = _dryer_s_bn + APPLIANCE_DEPTH
+    dryer_poly = [
+        _bp(_dryer_w_be, _dryer_s_bn),   # SW
+        _bp(_dryer_e_be, _dryer_s_bn),   # SE
+        _bp(_dryer_e_be, _dryer_n_bn),   # NE
+        _bp(_dryer_w_be, _dryer_n_bn),   # NW
+    ]
+
+    # ── Washer ─────────────────────────────────────────────────
+    _washer_s_bn = _dryer_n_bn + APPLIANCE_GAP
+    _washer_n_bn = _washer_s_bn + APPLIANCE_DEPTH
+    washer_poly = [
+        _bp(_dryer_w_be, _washer_s_bn),  # SW
+        _bp(_dryer_e_be, _washer_s_bn),  # SE
+        _bp(_dryer_e_be, _washer_n_bn),  # NE
+        _bp(_dryer_w_be, _washer_n_bn),  # NW
+    ]
+
+    # ── Dresser ────────────────────────────────────────────────
+    _dresser_e_be = _iw11_nw_be - 2.0 / 12.0  # 2" west of IW15 west face
+    _dresser_w_be = _dresser_e_be - 34.0 / 12.0
+    _dresser_n_bn = _iw1_s_bn - 1.0 / 12.0
+    _dresser_s_bn = _dresser_n_bn - 19.0 / 12.0
+    dresser_poly = [
+        _bp(_dresser_w_be, _dresser_s_bn),  # SW
+        _bp(_dresser_e_be, _dresser_s_bn),  # SE
+        _bp(_dresser_e_be, _dresser_n_bn),  # NE
+        _bp(_dresser_w_be, _dresser_n_bn),  # NW
+    ]
 
     return InteriorLayout(
-        iw1=iw1, iw1_s=iw1_s, iw1_n=iw1_n, iwt=WALL_6IN,
-        iw2=BBox(w=iw2_w, s=iw2_s, e=iw2_e, n=iw2_n),
-        iw3=BBox(w=iw3_w, s=iw3_s, e=iw3_e, n=iw3_n), iw3_poly=iw3_poly,
-        iw7=BBox(w=iw7_w, s=iw7_s, e=iw7_e, n=iw7_n), iw7_poly=iw7_poly,
-        iw9=BBox(w=iw9_w, s=iw9_s, e=iw9_e, n=iw9_n), iw9_poly=iw9_poly,
-        dryer=BBox(w=dryer_w, s=dryer_s, e=dryer_e, n=dryer_n),
-        washer=BBox(w=washer_w, s=washer_s, e=washer_e, n=washer_n),
-        ctr=BBox(w=ctr_w, s=ctr_s, e=ctr_e, n=ctr_n), ctr_poly=ctr_poly, ctr_nw_r=ctr_nw_r,
-        iwt3=WALL_3IN, iwt4=WALL_4IN,
-        iw4_w=iw4_w, iw4_e=iw4_e, iw4_s=iw4_s, wall_south_n=wall_south_n,
-        iw11=BBox(w=iw11_w, s=iw11_s, e=iw11_e, n=iw11_n), iw11_poly=iw11_poly,
-        iw12=BBox(w=iw12_w, s=iw12_s, e=iw12_e, n=iw12_n), iw12_poly=iw12_poly,
-        bed_poly=bed_poly,
-        iw8=iw8,
-        iw5=BBox(w=iw5_w, s=iw5_s, e=iw5_e, n=iw5_n),
-        iw14=BBox(w=iw14_w, s=iw14_s, e=iw14_e, n=iw14_n), iw14_poly=iw14_poly,
-        iw15=iw15, dresser=dresser,
-        iw16_poly=iw16_poly,
-        iw6_poly=iw6_poly, iw6_n=iw6_n, iw6_s=iw6_s,
+        iw1_poly=iw1_poly, iw2_poly=iw2_poly, iw3_poly=iw3_poly,
+        iw4_poly=iw4_poly, iw5_poly=iw5_poly, iw6_poly=iw6_poly,
+        iw7_poly=iw7_poly, iw8_poly=iw8_poly, iw9_poly=iw9_poly,
+        iw11_poly=iw11_poly, iw12_poly=iw12_poly, iw14_poly=iw14_poly,
+        iw15_poly=iw15_poly, iw16_poly=iw16_poly,
+        iwt=WALL_6IN, iwt3=WALL_3IN, iwt4=WALL_4IN,
+        bed_poly=bed_poly, dresser_poly=dresser_poly,
+        dryer_poly=dryer_poly, washer_poly=washer_poly,
+        ctr_poly=ctr_poly, ctr_nw_r=0,
         sw_t_o9_start=_ts9, sw_t_o9_end=_te9,
         sw_t_o10_start=_ts10, sw_t_o10_end=_te10,
         sw_t_o11_start=_ts11, sw_t_o11_end=_te11,

@@ -176,6 +176,41 @@ def vert_isects(poly: list[Point], e_val: float) -> list[float]:
             t = (e_val-e1)/(e2-e1); r.append(poly[i][1]+t*(poly[j][1]-poly[i][1]))
     return r
 
+
+def poly_bbox(poly: list[Point]) -> 'BBox':
+    """Axis-aligned bounding box from polygon vertices."""
+    from shared.types import BBox
+    xs = [p[0] for p in poly]
+    ys = [p[1] for p in poly]
+    return BBox(w=min(xs), s=min(ys), e=max(xs), n=max(ys))
+
+
+def directed_poly_isects(poly: list[Point], origin: Point,
+                         direction: Point) -> list[float]:
+    """Parameter values t where ray origin + t*direction crosses polygon edges.
+
+    For each polygon edge A→B, solve origin + t*dir = A + s*(B-A).
+    Returns t values for solutions where 0 ≤ s < 1.
+    """
+    dx, dy = direction
+    result = []
+    for i in range(len(poly)):
+        j = (i + 1) % len(poly)
+        ax, ay = poly[i]
+        bx, by = poly[j]
+        ex, ey = bx - ax, by - ay          # edge vector
+        denom = dx * ey - dy * ex
+        if abs(denom) < 1e-15:
+            continue                        # parallel
+        ox, oy = ax - origin[0], ay - origin[1]
+        s = (dx * oy - dy * ox) / denom
+        if s < -1e-12 or s >= 1.0 - 1e-12:
+            continue                        # outside edge
+        t = (ex * oy - ey * ox) / denom
+        result.append(t)
+    return result
+
+
 # ============================================================
 # F8-F9 Corner Override
 # ============================================================
