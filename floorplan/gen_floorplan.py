@@ -690,7 +690,7 @@ def _render_walls(out, data, layout, bare=False):
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ---- IW11 with RO2 (rotated rectangle, split by opening) ----
+    # ---- IW11 with RO6 and RO2 (rotated rectangle, split by two openings) ----
     _iw11_sw, _iw11_se, _iw11_ne, _iw11_nw = layout.iw11_poly
     # Unit vectors from polygon corners
     _iw11_dx_t = _iw11_sw[0] - _iw11_se[0]  # thickness direction (along)
@@ -702,22 +702,36 @@ def _render_walls(out, data, layout, bare=False):
     _iw11_ln = math.sqrt(_iw11_dx_n**2 + _iw11_dy_n**2)
     _iw11_an = (_iw11_dx_n / _iw11_ln, _iw11_dy_n / _iw11_ln)  # unit normal
 
-    # RO2 polygon corners on IW11
+    # RO6 and RO2 polygon corners on IW11
+    ro6_ro = [r for r in rough_openings if r.name == "RO6"][0]
+    _ro6p = ro6_ro.poly  # [SW, SE, NE, NW]
     ro2_ro = [r for r in rough_openings if r.name == "RO2"][0]
     _ro2p = ro2_ro.poly  # [SW, SE, NE, NW]
 
-    # South segment: IW11 south end to RO2 south edge
-    iw11_s_poly = [_iw11_sw, _iw11_se, _ro2p[0], _ro2p[1]]
+    # South segment: IW11 south end to RO6 south edge
+    iw11_s_poly = [_iw11_sw, _iw11_se, _ro6p[0], _ro6p[1]]
     wall_poly(out, iw11_s_poly, to_svg, stroke=False)
+    # Middle segment: RO6 north edge to RO2 south edge
+    iw11_m_poly = [_ro6p[2], _ro6p[3], _ro2p[0], _ro2p[1]]
+    wall_poly(out, iw11_m_poly, to_svg, stroke=False)
     # North segment: RO2 north edge to IW11 north end
     iw11_n_poly = [_ro2p[2], _ro2p[3], _iw11_ne, _iw11_nw]
     wall_poly(out, iw11_n_poly, to_svg, stroke=False)
 
     # Inset stroke lines for south segment
     for (p1, p2), (ox, oy) in [
-        ((_iw11_se, _ro2p[0]), _iw11_at),     # east face south
-        ((_iw11_sw, _ro2p[1]), (-_iw11_at[0], -_iw11_at[1])),  # west face south
+        ((_iw11_se, _ro6p[0]), _iw11_at),     # east face south
+        ((_iw11_sw, _ro6p[1]), (-_iw11_at[0], -_iw11_at[1])),  # west face south
         ((_iw11_sw, _iw11_se), _iw11_an),      # south end
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    # Inset stroke lines for middle segment
+    for (p1, p2), (ox, oy) in [
+        ((_ro6p[3], _ro2p[0]), _iw11_at),     # east face middle
+        ((_ro6p[2], _ro2p[1]), (-_iw11_at[0], -_iw11_at[1])),  # west face middle
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
@@ -733,9 +747,15 @@ def _render_walls(out, data, layout, bare=False):
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    # Jambs at RO6 edges
+    for (j1, j2) in [(_ro6p[0], _ro6p[1]), (_ro6p[3], _ro6p[2])]:
+        _jn = (_iw11_an[0] * JAMB_WIDTH, _iw11_an[1] * JAMB_WIDTH)
+        j_poly = [j1, j2, (j2[0] + _jn[0], j2[1] + _jn[1]),
+                  (j1[0] + _jn[0], j1[1] + _jn[1])]
+        jp = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in j_poly)
+        out.append(f'<polygon points="{jp}" fill="{JAMB_COLOR}" stroke="none"/>')
     # Jambs at RO2 edges
     for (j1, j2) in [(_ro2p[0], _ro2p[1]), (_ro2p[3], _ro2p[2])]:
-        # Jamb is JAMB_WIDTH wide along the opening direction
         _jn = (_iw11_an[0] * JAMB_WIDTH, _iw11_an[1] * JAMB_WIDTH)
         j_poly = [j1, j2, (j2[0] + _jn[0], j2[1] + _jn[1]),
                   (j1[0] + _jn[0], j1[1] + _jn[1])]
@@ -2031,7 +2051,7 @@ def _render_dimensions(out, data, layout, bare=False):
 
 
 def _render_openings(out, data, layout, bare=False):
-    """Render door swings and jamb blocks for O3, O6, RO1-RO5.
+    """Render door swings and jamb blocks for O3, O6, RO1-RO6.
 
     Opening fill polygons are rendered by _render_walls() as part of the
     double-shell wall section loop.

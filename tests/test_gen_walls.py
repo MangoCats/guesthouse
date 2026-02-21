@@ -198,14 +198,14 @@ class TestRenderWallsSvgWithInterior:
             assert f">{name}<" in rendered_all, f"Missing label {name}"
 
     def test_rough_opening_labels_present(self, rendered_all):
-        for name in ["RO1", "RO2", "RO3", "RO4", "RO5"]:
+        for name in ["RO1", "RO2", "RO3", "RO4", "RO5", "RO6"]:
             assert f">{name}<" in rendered_all, f"Missing label {name}"
 
     def test_rough_opening_rects(self, rendered_all):
         import re
         ro_strokes = re.findall(r'stroke="darkred"', rendered_all)
-        # 5 ROs x 3 elements each (rect + 2 diag lines) = 15 darkred strokes
-        assert len(ro_strokes) >= 15
+        # 6 ROs x 3 elements each (rect + 2 diag lines) = 18 darkred strokes
+        assert len(ro_strokes) >= 18
 
     def test_opening_dim_lines_present(self, rendered_all):
         assert "#4682B4" in rendered_all

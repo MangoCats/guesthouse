@@ -18,7 +18,7 @@ from floorplan.constants import (
     STD_GAP,
     RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
-    IW4_RO_WIDTH, IW16_RO_WIDTH,
+    IW4_RO_WIDTH, IW11_RO_WIDTH, IW16_RO_WIDTH,
     IW6_THICKNESS, IW6_OFFSET_N, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
@@ -164,7 +164,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
 
 
 def compute_rough_openings(pts, layout) -> list[RoughOpening]:
-    """Compute all 5 interior rough-opening bounding boxes."""
+    """Compute all 6 interior rough-opening bounding boxes."""
     iw1_s = layout.iw1_s
     iw1_n = layout.iw1_n
     iw6_n = pts["W6"][1] - IW6_OFFSET_N
@@ -205,6 +205,27 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     _ro2_bb = BBox(w=min(p[0] for p in _ro2_poly), s=min(p[1] for p in _ro2_poly),
                    e=max(p[0] for p in _ro2_poly), n=max(p[1] for p in _ro2_poly))
 
+    # RO6: in IW11 (rotated), 62" centered between IW12 S face and IW11 S end
+    # IW12 SW corner projected onto IW11 length axis = distance of IW12 south face
+    _iw12_sw = layout.iw12_poly[0]
+    _ro6_iw12_s_d = ((_iw12_sw[0] - _iw11_se[0]) * _un11[0]
+                     + (_iw12_sw[1] - _iw11_se[1]) * _un11[1])
+    _ro6_center_d = _ro6_iw12_s_d / 2  # centered between 0 (IW11 S end) and IW12 S face
+    _ro6_half = IW11_RO_WIDTH / 2
+    _ro6_start_d = _ro6_center_d - _ro6_half
+    _ro6_end_d = _ro6_center_d + _ro6_half
+    _ro6_sw = (_iw11_se[0] + _ro6_start_d * _un11[0],
+               _iw11_se[1] + _ro6_start_d * _un11[1])
+    _ro6_se = (_iw11_sw[0] + _ro6_start_d * _un11[0],
+               _iw11_sw[1] + _ro6_start_d * _un11[1])
+    _ro6_ne = (_iw11_sw[0] + _ro6_end_d * _un11[0],
+               _iw11_sw[1] + _ro6_end_d * _un11[1])
+    _ro6_nw = (_iw11_se[0] + _ro6_end_d * _un11[0],
+               _iw11_se[1] + _ro6_end_d * _un11[1])
+    _ro6_poly = [_ro6_sw, _ro6_se, _ro6_ne, _ro6_nw]
+    _ro6_bb = BBox(w=min(p[0] for p in _ro6_poly), s=min(p[1] for p in _ro6_poly),
+                   e=max(p[0] for p in _ro6_poly), n=max(p[1] for p in _ro6_poly))
+
     # RO3: in IW16 (axis-aligned N-S), 38" centered
     _iw16 = layout.iw16_poly  # [(w,s), (e,s), (e,n), (w,n)]
     _iw16_w = _iw16[0][0]
@@ -229,6 +250,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
         RoughOpening("RO3", BBox(w=_iw16_w, s=ro3_s, e=_iw16_e, n=ro3_n), "IW16", "V"),
         RoughOpening("RO4", BBox(w=layout.iw2.w, s=ro4_s, e=layout.iw2.e, n=ro4_n), "IW2", "V"),
         RoughOpening("RO5", BBox(w=ro5_w, s=iw6_s, e=ro5_e, n=iw6_n), "IW6", "H"),
+        RoughOpening("RO6", _ro6_bb, "IW11", "R", _ro6_poly),
     ]
 
 

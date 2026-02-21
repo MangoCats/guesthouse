@@ -99,6 +99,9 @@ IW16_RO_WIDTH = 38.0 / 12.0         # 38" opening width N-S
 # IW4 rough opening
 IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
+# IW11 rough opening (RO6)
+IW11_RO_WIDTH = 62.0 / 12.0       # 62" opening width along IW11
+
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition
 IW6_OFFSET_N = 5.5                 # 5'6" south of F6-F7 south face
