@@ -10,7 +10,7 @@ from floorplan.constants import (
     ARC_F3_R, ARC_F3_SWEEP, F6_EAST_ADJ,
     F6_HEIGHT, NW_SHIFT,
     F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
-    SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, F16_F17_SEG,
+    SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
     F18_OFFSET_E, F18_F19_GAP, ARC_F19_R,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
@@ -224,18 +224,21 @@ def _compute_south_wall(
     F18_E = _iw4_e + F18_OFFSET_E
     fp_pts["F18"] = (F18_E, SOUTH_WALL_N)
 
-    # F17: fixed 5' from F16 along PiX-Pi5 bearing
+    # F17: tangent point where F16→F17 line meets arc C17.
+    # C17 at (F18_E, SOUTH_WALL_N + R_a17), directly above F18.
+    # Tangency: perpendicular distance from C17 to line = R_a17.
     _brg = math.radians(PIX_PI5_TARGET_BRG)
     _sin_b = math.sin(_brg)
     _cos_b = math.cos(_brg)
-    fp_pts["F17"] = (fp_pts["F16"][0] - F16_F17_SEG * _sin_b,
-                     fp_pts["F16"][1] - F16_F17_SEG * _cos_b)
-
-    # R_a17: arc from F17 to F18, center C17 directly above F18
-    _dx17 = F18_E - fp_pts["F17"][0]
-    _dy17 = SOUTH_WALL_N - fp_pts["F17"][1]
-    R_a17 = -(_dx17**2 + _dy17**2) / (2 * _dy17)
+    # Right normal of direction (-sin_b, -cos_b) = (-cos_b, sin_b) (interior for CW)
+    _alpha = F18_E - fp_pts["F16"][0]
+    _beta = SOUTH_WALL_N - fp_pts["F16"][1]
+    R_a17 = (-_alpha * _cos_b + _beta * _sin_b) / (1.0 - _sin_b)
     fp_pts["C17"] = (F18_E, SOUTH_WALL_N + R_a17)
+    # F17 = foot of perpendicular from C17 to line through F16
+    _t17 = _alpha * (-_sin_b) + (_beta + R_a17) * (-_cos_b)
+    fp_pts["F17"] = (fp_pts["F16"][0] + _t17 * (-_sin_b),
+                     fp_pts["F16"][1] + _t17 * (-_cos_b))
     # F19: 12" west of F18
     F19_E = fp_pts["F18"][0] - F18_F19_GAP
     fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
