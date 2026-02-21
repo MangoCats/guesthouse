@@ -2392,10 +2392,10 @@ def _render_openings(out, data, layout, bare=False):
     ts6x, ts6y = to_svg(*tip_s6)
     out.append(f'<line x1="{hs6x:.1f}" y1="{hs6y:.1f}" x2="{ts6x:.1f}" y2="{ts6y:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from west (open) sweeping CCW to NNE (closed toward center)
+    # Arc from west (open) sweeping CW to NNE (closed toward center)
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = _west_ang + i * (math.pi / 2) / n_arc
+        angle = _west_ang - i * (math.pi / 2) / n_arc
         ae = h_s6[0] + RO6_DOOR_WIDTH * math.cos(angle)
         an = h_s6[1] + RO6_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
@@ -2411,10 +2411,10 @@ def _render_openings(out, data, layout, bare=False):
     tn6x, tn6y = to_svg(*tip_n6)
     out.append(f'<line x1="{hn6x:.1f}" y1="{hn6y:.1f}" x2="{tn6x:.1f}" y2="{tn6y:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from west (open) sweeping CW to SSW (closed toward center)
+    # Arc from west (open) sweeping CCW to SSW (closed toward center)
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = _west_ang - i * (math.pi / 2) / n_arc
+        angle = _west_ang + i * (math.pi / 2) / n_arc
         ae = h_n6[0] + RO6_DOOR_WIDTH * math.cos(angle)
         an = h_n6[1] + RO6_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
