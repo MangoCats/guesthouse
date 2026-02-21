@@ -7,7 +7,7 @@ from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
-    ARC_F3_R, ARC_F3_PLACEMENT_SWEEP, F6_EAST_ADJ,
+    ARC_F3_R, F3_OFFSET_N_IW8, F6_EAST_ADJ,
     F6_HEIGHT, NW_SHIFT,
     F14_F15_SEG, F14_F15_DIST, ARC_F13_R_BASELINE, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, ARC_F17_SWEEP, F16_F17_MIN,
@@ -15,7 +15,7 @@ from floorplan.constants import (
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
-    IW1_OFFSET_N, IW1_DIST_FROM_NORTH, F14_OFFSET_N_IW1, WALL_SOUTH_N,
+    IW1_OFFSET_N, IW1_DIST_FROM_NORTH, IW8_OFFSET_N_IW1, F14_OFFSET_N_IW1, WALL_SOUTH_N,
     F10_OFFSET_E_F9, FLAT_SEG_11, F11AB_TARGET,
 )
 
@@ -66,7 +66,9 @@ def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
 def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
     """West wall: F3, F4, F5, C3; update C5, F6. Returns R_a3.
 
-    F3 northing fixed by original C5 + historical placement sweep (10°).
+    F3 northing = 2" north of IW8 north face.
+    IW8_N = IW1_N + IW8_OFFSET_N_IW1, IW1_N = W9_N - IW1_DIST_FROM_NORTH,
+    W9_N = F9_N - WALL_OUTER, F9_N = F6_N - (UPPER_E_R + SMALL_ARC_R - _WE).
     F3-F4 arc sweep = arctan(1/9).  C5 easting (and F6) solved from
     tangency constraint with F3 fixed.
     Depends on F2, F6, C5 already in fp_pts.
@@ -75,12 +77,15 @@ def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
     R_a5 = CORNER_NW_R
 
     F3_E = fp_pts["F2"][0]
-    C5_E_orig, C5_N = fp_pts["C5"]
+    _, C5_N = fp_pts["C5"]
 
-    # F3_N from original C5 and historical placement sweep (keeps F3 fixed)
-    _gamma_place = math.radians(ARC_F3_PLACEMENT_SWEEP)
-    _dE_orig = C5_E_orig - F3_E - R_a3
-    F3_N = C5_N - (R_a3 - R_a5 + _dE_orig * math.cos(_gamma_place)) / math.sin(_gamma_place)
+    # F3_N: 2" north of IW8 north face
+    # F9_N = F6_N - UPPER_E_R - SMALL_ARC_R + _WE (arcs cancel _WE)
+    _F9_N = fp_pts["F6"][1] - (UPPER_E_R + SMALL_ARC_R) + (WALL_OUTER - 8.0 / 12.0)
+    _W9_N = _F9_N - WALL_OUTER
+    _IW1_n = _W9_N - IW1_DIST_FROM_NORTH
+    _IW8_n = _IW1_n + IW8_OFFSET_N_IW1
+    F3_N = _IW8_n + F3_OFFSET_N_IW8
 
     fp_pts["F3"] = (F3_E, F3_N)
     fp_pts["C3"] = (F3_E + R_a3, F3_N)
