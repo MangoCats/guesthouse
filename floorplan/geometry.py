@@ -9,7 +9,7 @@ from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
     ARC_F3_R, ARC_F3_SWEEP, F6_EAST_ADJ,
     F6_HEIGHT, NW_SHIFT,
-    F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
+    F14_F15_SEG, ARC_F13_R, ARC_F13_R_BASELINE, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, ARC_F17_SWEEP, F16_F17_MIN,
     F18_OFFSET_E, F19_OFFSET_E, ARC_F19_R,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
@@ -169,11 +169,13 @@ def _compute_central_region(
     _ny_t = math.sin(_brg_off)
     fp_pts["C13"] = (F15_E - R_a13, _F14_N)
     fp_pts["F14"] = (F15_E, _F14_N)
-    # C11a: keep F11a fixed using reference F14_N (original design baseline)
+    # C11a: keep F11a fixed using baseline R_a13 and F14_N (original design)
     _C11_N = fp_pts["C7"][1]
     _C13_E = F15_E - R_a13
     _F14_N_ref = fp_pts["F1"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN + WALL_SOUTH_N
-    _C11_E_ref = _C13_E + (R_a13 - R_a11 - (_C11_N - _F14_N_ref) * _ny_t) / _nx_t
+    _R_a13_base = ARC_F13_R_BASELINE
+    _C13_E_base = F15_E - _R_a13_base
+    _C11_E_ref = _C13_E_base + (_R_a13_base - R_a11 - (_C11_N - _F14_N_ref) * _ny_t) / _nx_t
     _C11a_E = _C11_E_ref - FLAT_SEG_11
     fp_pts["C11a"] = (_C11a_E, _C11_N)
     # F10: 15'2" east of nominal F9 easting
