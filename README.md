@@ -63,3 +63,7 @@ tests/               Unit tests
 ```
 
 See `CLAUDE.md` for detailed file descriptions, dependency graph, and naming conventions.
+
+## Branch Note
+
+Abandoned branch, agent keeps jumping to bad reference points and cannot correct errors introduced in rotation. Going back and collecting reference points before performing rotation.
