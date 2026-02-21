@@ -10,7 +10,7 @@ from shared.types import Point, BBox, LineSeg
 from floorplan.constants import (
     O1_WIDTH, O2_WIDTH,
     IW2_RO_OFFSET_S, IW2_RO_WIDTH,
-    O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH, O4_OFFSET_W_IW2,
+    O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH,
     O5_E_FROM_IW2, O5_WIDTH, O6_WIDTH, O6_GAP_F10,
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH,
@@ -98,8 +98,8 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W4"][1] + _t3_start * (pts["W5"][1] - pts["W4"][1])),
     ]))
 
-    # O4: F6-F7, horizontal, relative to IW2 west face
-    o4_mid = layout.iw2.w - O4_OFFSET_W_IW2
+    # O4: F6-F7, horizontal, centered on segment
+    o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
     o4_w = o4_mid - O4_HALF_WIDTH
     o4_e = o4_mid + O4_HALF_WIDTH
     openings.append(OuterOpening("O4", "F6", "F7", [
