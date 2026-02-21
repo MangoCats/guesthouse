@@ -290,7 +290,7 @@ def _render_interior_walls(out, data):
 
     # IW9 (rotated, 4" thick, perpendicular to W20-W0)
     iw_poly(layout.iw9_poly)
-    iw_label("IW9", layout.iw9.w, layout.iw9.e, layout.iw9.s, layout.iw9.n)
+    iw_label("IW9", layout.iw9.w, layout.iw9.e, ro_map["RO7"].n, layout.iw9.n)
 
     # IW16 (vertical, 4" — IW3 NW to IW1)
     iw_poly(layout.iw16_poly)
@@ -330,7 +330,7 @@ def _render_interior_walls(out, data):
     iw_label("IW5", layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n,
              vertical=False)
 
-    # Rough openings (RO1-RO6) — dark red outline box with X (6 openings)
+    # Rough openings (RO1-RO7) — dark red outline box with X (7 openings)
     _RO_COLOR = "darkred"
     _RO_SW = "0.5"
     for ro in rough_openings:

@@ -598,9 +598,8 @@ def _render_walls(out, data, layout, bare=False):
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ---- IW9 (solid, no opening, rotated perpendicular to W20-W0) ----
+    # ---- IW9 with RO7 (rotated rectangle, split by opening) ----
     _iw9_sw, _iw9_se, _iw9_ne, _iw9_nw = layout.iw9_poly
-    wall_poly(out, layout.iw9_poly, to_svg, stroke=False)
     # Thickness unit vector: SW - SE direction
     _iw9_dx_t = _iw9_sw[0] - _iw9_se[0]
     _iw9_dy_t = _iw9_sw[1] - _iw9_se[1]
@@ -611,15 +610,45 @@ def _render_walls(out, data, layout, bare=False):
     _iw9_dy_n = _iw9_ne[1] - _iw9_se[1]
     _iw9_ln = math.sqrt(_iw9_dx_n**2 + _iw9_dy_n**2)
     _iw9_an = (_iw9_dx_n / _iw9_ln, _iw9_dy_n / _iw9_ln)
+
+    # RO7 polygon corners on IW9
+    ro7_ro = [r for r in rough_openings if r.name == "RO7"][0]
+    _ro7p = ro7_ro.poly  # [SW, SE, NE, NW]
+
+    # South segment: IW9 south end to RO7 south edge
+    iw9_s_poly = [_iw9_sw, _iw9_se, _ro7p[0], _ro7p[1]]
+    wall_poly(out, iw9_s_poly, to_svg, stroke=False)
+    # North segment: RO7 north edge to IW9 north end
+    iw9_n_poly = [_ro7p[2], _ro7p[3], _iw9_ne, _iw9_nw]
+    wall_poly(out, iw9_n_poly, to_svg, stroke=False)
+
+    # Inset stroke lines for south segment
     for (p1, p2), (ox, oy) in [
-        ((_iw9_se, _iw9_ne), _iw9_at),                            # east face
-        ((_iw9_sw, _iw9_nw), (-_iw9_at[0], -_iw9_at[1])),        # west face
-        ((_iw9_ne, _iw9_nw), (-_iw9_an[0], -_iw9_an[1])),        # north end
+        ((_iw9_se, _ro7p[0]), _iw9_at),     # east face south
+        ((_iw9_sw, _ro7p[1]), (-_iw9_at[0], -_iw9_at[1])),  # west face south
+        ((_iw9_sw, _iw9_se), _iw9_an),      # south end
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    # Inset stroke lines for north segment
+    for (p1, p2), (ox, oy) in [
+        ((_ro7p[3], _iw9_ne), _iw9_at),     # east face north
+        ((_ro7p[2], _iw9_nw), (-_iw9_at[0], -_iw9_at[1])),  # west face north
+        ((_iw9_ne, _iw9_nw), (-_iw9_an[0], -_iw9_an[1])),  # north end
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    # Jambs at RO7 edges
+    for (j1, j2) in [(_ro7p[0], _ro7p[1]), (_ro7p[3], _ro7p[2])]:
+        _jn = (_iw9_an[0] * JAMB_WIDTH, _iw9_an[1] * JAMB_WIDTH)
+        j_poly = [j1, j2, (j2[0] + _jn[0], j2[1] + _jn[1]),
+                  (j1[0] + _jn[0], j1[1] + _jn[1])]
+        jp = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in j_poly)
+        out.append(f'<polygon points="{jp}" fill="{JAMB_COLOR}" stroke="none"/>')
 
     # ---- IW16 with RO3 ----
     _iw16 = layout.iw16_poly
@@ -2051,7 +2080,7 @@ def _render_dimensions(out, data, layout, bare=False):
 
 
 def _render_openings(out, data, layout, bare=False):
-    """Render door swings and jamb blocks for O3, O6, RO1-RO6.
+    """Render door swings and jamb blocks for O3, O6, RO1-RO7.
 
     Opening fill polygons are rendered by _render_walls() as part of the
     double-shell wall section loop.
