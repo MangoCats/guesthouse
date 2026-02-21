@@ -16,7 +16,7 @@ from floorplan.constants import (
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
     IW1_OFFSET_N, IW1_DIST_FROM_NORTH, F14_OFFSET_N_IW1, WALL_SOUTH_N,
-    F10_OFFSET_E_F9, FLAT_SEG_11,
+    F10_OFFSET_E_F9, FLAT_SEG_11, F11AB_TARGET,
 )
 
 
@@ -135,9 +135,8 @@ def _compute_central_region(
     R_a11 = ARC_180_R
     R_a13 = ARC_F13_R
 
-    # F14 Northing: 2" north of IW1 north face
-    # IW1_n = W9_N - IW1_DIST_FROM_NORTH; W9_N ≈ F9_N - WALL_OUTER
-    _F14_N = fp_pts["F9"][1] - WALL_OUTER - IW1_DIST_FROM_NORTH + F14_OFFSET_N_IW1
+    # R_a15 baseline: use existing F14_N formula to keep F15/F16 fixed
+    _F14_N_R15 = fp_pts["F9"][1] - WALL_OUTER - IW1_DIST_FROM_NORTH + F14_OFFSET_N_IW1
 
     # Arc at Po5 corner (exits North)
     d_in_po5 = (anchors.Pi5[0] - anchors.PiX[0], anchors.Pi5[1] - anchors.PiX[1])
@@ -150,10 +149,10 @@ def _compute_central_region(
     F15_E = _iw8_e + F15_OFFSET_E
     ln_in_po5 = left_norm(anchors.PiX, anchors.Pi5)
 
-    # R_a15 from constraint: F14-F15 segment length
+    # R_a15 from baseline F14_N (keeps F15/F16 fixed)
     _A_15 = anchors.PiX[1] + (F15_E - anchors.PiX[0]) * d_in_u[1] / d_in_u[0]
     _B_15 = ln_in_po5[1] - (1.0 + ln_in_po5[0]) * d_in_u[1] / d_in_u[0]
-    R_a15 = (_F14_N - F14_F15_SEG - _A_15) / _B_15
+    R_a15 = (_F14_N_R15 - F14_F15_SEG - _A_15) / _B_15
     o_in_po5 = off_pt(anchors.PiX, ln_in_po5, R_a15)
     t_cf4 = (F15_E - R_a15 - o_in_po5[0]) / d_in_u[0]
     fp_pts["C15"] = (F15_E - R_a15, o_in_po5[1] + t_cf4 * d_in_u[1])
@@ -163,15 +162,13 @@ def _compute_central_region(
     fp_pts["F16"] = (fp_pts["C15"][0] + R_a15 * math.cos(_brg_f4),
                      fp_pts["C15"][1] - R_a15 * math.sin(_brg_f4))
 
-    # F13-F14 arc: R_a13 is a fixed constant, bearing F13->F12 = 345°
+    # F13-F14 arc direction: bearing F13->F12 = 345°
     _brg_off = math.radians(360.0 - F13_EXIT_BRG)
     _nx_t = math.cos(_brg_off)
     _ny_t = math.sin(_brg_off)
-    fp_pts["C13"] = (F15_E - R_a13, _F14_N)
-    fp_pts["F14"] = (F15_E, _F14_N)
+    _C13_E = F15_E - R_a13
     # C11a: keep F11a fixed using baseline R_a13 and F14_N (original design)
     _C11_N = fp_pts["C7"][1]
-    _C13_E = F15_E - R_a13
     _F14_N_ref = fp_pts["F1"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN + WALL_SOUTH_N
     _R_a13_base = ARC_F13_R_BASELINE
     _C13_E_base = F15_E - _R_a13_base
@@ -195,7 +192,12 @@ def _compute_central_region(
     fp_pts["F11"] = (_F10_E + R_a10 * (_C11a_E - _F10_E) / _dist_cc,
                      _C10_N + R_a10 * (_C11_N - _C10_N) / _dist_cc)
     fp_pts["F11a"] = (_C11a_E, _C11_N + R_a11)
-    # C11 from actual C13 tangent constraint (F11b, F12 change easting)
+    # Solve F14_N from F11a-F11b target distance constraint
+    _target_E = fp_pts["F11a"][0] + F11AB_TARGET
+    _F14_N = _C11_N - (R_a13 - R_a11 - (_target_E - _C13_E) * _nx_t) / _ny_t
+    # Place F14, C13, C11, F11b, F12, F13
+    fp_pts["C13"] = (_C13_E, _F14_N)
+    fp_pts["F14"] = (F15_E, _F14_N)
     _C11_E = _C13_E + (R_a13 - R_a11 - (_C11_N - _F14_N) * _ny_t) / _nx_t
     fp_pts["C11"] = (_C11_E, _C11_N)
     fp_pts["F11b"] = (_C11_E, _C11_N + R_a11)
