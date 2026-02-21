@@ -176,7 +176,7 @@ F3_GAP_N_IW8 = 4.0 / 12.0         # 4" F3 north of IW8 north face (legacy)
 ARC_F3_SWEEP = 10.0                # 10° F3-F4 arc sweep (F5-F6 = 90° - this)
 F14_OFFSET_N_IW1 = 2.0 / 12.0     # 2" F14 north of IW1 north face
 F14_F15_SEG = 8.5                  # 8'6" segment
-ARC_F13_R = 28.0 / 12.0 + _WE        # R_a13: 28" at 8" wall
+F14_F15_DIST = 8.0 + 8.0 / 12.0       # 8'8" F14-F15 target distance
 ARC_F13_R_BASELINE = 5.627004870830987 + _WE  # C11a anchor baseline (original R_a13)
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_N = -6.0 / 12.0 - _WE  # south face wall northing (-6" at 8" wall)

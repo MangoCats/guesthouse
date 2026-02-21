@@ -9,7 +9,7 @@ from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
     ARC_F3_R, ARC_F3_SWEEP, F6_EAST_ADJ,
     F6_HEIGHT, NW_SHIFT,
-    F14_F15_SEG, ARC_F13_R, ARC_F13_R_BASELINE, F13_EXIT_BRG,
+    F14_F15_SEG, F14_F15_DIST, ARC_F13_R_BASELINE, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, ARC_F17_SWEEP, F16_F17_MIN,
     F18_OFFSET_E, F19_OFFSET_E, ARC_F19_R,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
@@ -133,7 +133,6 @@ def _compute_central_region(
     Depends on F0, F2, F9, F16 already in fp_pts.
     """
     R_a11 = ARC_180_R
-    R_a13 = ARC_F13_R
 
     # R_a15 baseline: use existing F14_N formula to keep F15/F16 fixed
     _F14_N_R15 = fp_pts["F9"][1] - WALL_OUTER - IW1_DIST_FROM_NORTH + F14_OFFSET_N_IW1
@@ -166,7 +165,6 @@ def _compute_central_region(
     _brg_off = math.radians(360.0 - F13_EXIT_BRG)
     _nx_t = math.cos(_brg_off)
     _ny_t = math.sin(_brg_off)
-    _C13_E = F15_E - R_a13
     # C11a: keep F11a fixed using baseline R_a13 and F14_N (original design)
     _C11_N = fp_pts["C7"][1]
     _F14_N_ref = fp_pts["F1"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN + WALL_SOUTH_N
@@ -192,10 +190,12 @@ def _compute_central_region(
     fp_pts["F11"] = (_F10_E + R_a10 * (_C11a_E - _F10_E) / _dist_cc,
                      _C10_N + R_a10 * (_C11_N - _C10_N) / _dist_cc)
     fp_pts["F11a"] = (_C11a_E, _C11_N + R_a11)
-    # Solve F14_N from F11a-F11b target distance constraint
+    # Solve R_a13 from two constraints: F11a-F11b = F11AB_TARGET, F14-F15 = F14_F15_DIST
     _target_E = fp_pts["F11a"][0] + F11AB_TARGET
-    _F14_N = _C11_N - (R_a13 - R_a11 - (_target_E - _C13_E) * _nx_t) / _ny_t
+    _F14_N = fp_pts["F15"][1] + F14_F15_DIST
+    R_a13 = (R_a11 + (_C11_N - _F14_N) * _ny_t - (F15_E - _target_E) * _nx_t) / (1 - _nx_t)
     # Place F14, C13, C11, F11b, F12, F13
+    _C13_E = F15_E - R_a13
     fp_pts["C13"] = (_C13_E, _F14_N)
     fp_pts["F14"] = (F15_E, _F14_N)
     _C11_E = _C13_E + (R_a13 - R_a11 - (_C11_N - _F14_N) * _ny_t) / _nx_t
