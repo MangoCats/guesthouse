@@ -145,7 +145,7 @@ def main():
     dim_shift = -3.5  # PDF pts; negative = other side of line
     dim_mid_x = (f15_pdf[0] + foot_pdf[0]) / 2.0 + dim_shift * dim_dy / dim_len
     dim_mid_y = (f15_pdf[1] + foot_pdf[1]) / 2.0 - dim_shift * dim_dx / dim_len
-    dim_text = "36.0'"
+    dim_text = f"{pts['F15'][0] - pts['F2'][0]:.1f}'"
     dim_fs = 6.0
     dim_tw = fitz.get_text_length(dim_text, fontname="helv", fontsize=dim_fs)
     page.insert_text(
@@ -182,7 +182,7 @@ def main():
     ns_shift = -3.5  # same side convention as 36.0'
     ns_mid_x = (span_s_pdf[0] + span_n_pdf[0]) / 2.0 + ns_shift * ns_dy / ns_len
     ns_mid_y = (span_s_pdf[1] + span_n_pdf[1]) / 2.0 - ns_shift * ns_dx / ns_len
-    ns_text = "27.1'"
+    ns_text = f"{pts['F6'][1] - pts['F18'][1]:.1f}'"
     ns_fs = 6.0
     ns_tw = fitz.get_text_length(ns_text, fontname="helv", fontsize=ns_fs)
     page.insert_text(
