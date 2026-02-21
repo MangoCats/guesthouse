@@ -461,7 +461,7 @@ def build_outline_cfg(outline_segs, pts, radii):
             ("F4","F5"): BrgDistLabel(18),
             ("F6","F7"): BrgDistLabel(-16),
             ("F9","F10"): BrgDistLabel(-16),
-            ("F11a","F11b"): BrgDistLabel(-16),
+            ("F11a","F11b"): BrgDistLabel(-28),
             ("F12","F13"): BrgDistLabel(-16),
             ("F14","F15"): BrgDistLabel(-16),
             ("F16","F17"): BrgDistLabel(16),
