@@ -482,7 +482,7 @@ def build_outline_cfg(outline_segs, pts, radii):
             ("F10","F11"): ArcLabel(f"Arc R={R['R_a10']*12:.1f}\"",
                 f"{sw[9]:.1f}\u00b0", "end", -10, -10, 11, "#333"),
             ("F11","F11a"): ArcLabel(f"Arc R={R['R_a11']*12:.0f}\"",
-                f"{sw[10]:.1f}\u00b0", "end", -10, 0, 11, "#333"),
+                f"{sw[10]:.1f}\u00b0", "end", -10, -20, 11, "#333"),
             ("F11b","F12"): ArcLabel(f"Arc R={R['R_a11']*12:.0f}\"",
                 f"{sw[12]:.1f}\u00b0", "start", 12, 0, 11, "#333"),
             ("F13","F14"): ArcLabel(f"Arc R={R['R_a13']*12:.0f}\"",
