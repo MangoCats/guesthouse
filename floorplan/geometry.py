@@ -7,7 +7,7 @@ from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
-    ARC_F3_R, F3_OFFSET_N_IW8, F6_EAST_ADJ,
+    F6_F7_LENGTH, F3_OFFSET_N_IW8, F6_EAST_ADJ,
     F6_HEIGHT, NW_SHIFT,
     F14_F15_SEG, F14_F15_DIST, ARC_F13_R_BASELINE, F13_EXIT_BRG,
     SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, ARC_F17_SWEEP, F16_F17_MIN,
@@ -63,17 +63,16 @@ def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
     return R_a5
 
 
-def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
+def _compute_west_wall(
+    fp_pts: dict[str, Point], anchors: OutlineAnchors,
+) -> float:
     """West wall: F3, F4, F5, C3; update C5, F6. Returns R_a3.
 
     F3 northing = 2" north of IW8 north face.
-    IW8_N = IW1_N + IW8_OFFSET_N_IW1, IW1_N = W9_N - IW1_DIST_FROM_NORTH,
-    W9_N = F9_N - WALL_OUTER, F9_N = F6_N - (UPPER_E_R + SMALL_ARC_R - _WE).
-    F3-F4 arc sweep = arctan(1/9).  C5 easting (and F6) solved from
-    tangency constraint with F3 fixed.
+    F3-F4 arc sweep = arctan(1/9).  R_a3 solved from F6-F7 target length,
+    then C5 easting (and F6) solved from tangency constraint.
     Depends on F2, F6, C5 already in fp_pts.
     """
-    R_a3 = ARC_F3_R
     R_a5 = CORNER_NW_R
 
     F3_E = fp_pts["F2"][0]
@@ -88,14 +87,26 @@ def _compute_west_wall(fp_pts: dict[str, Point]) -> float:
     F3_N = _IW8_n + F3_OFFSET_N_IW8
 
     fp_pts["F3"] = (F3_E, F3_N)
-    fp_pts["C3"] = (F3_E + R_a3, F3_N)
 
-    # Actual F3-F4 arc sweep: arctan(1/9)
+    # F3-F4 arc sweep: arctan(1/9)
     _gamma = math.atan(1.0 / 9.0)
+    _cos_g = math.cos(_gamma)
+    _tan_g = math.tan(_gamma)
+
+    # Solve R_a3 from F6-F7 target length:
+    # F7_E (independent of F6 easting) - C5_E = F6_F7_LENGTH
+    # C5_E = F3_E + R_a3 + ((C5_N - F3_N)*sin(γ) - (R_a3 - R_a5)) / cos(γ)
+    # Combining: R_a3 = _K / (1 - 1/cos(γ))
+    F7_E = anchors.Pi2[0] + CORNER_NW_R + 5.5 + 10.0 / 12.0
+    _K = (F7_E - F6_F7_LENGTH - F3_E
+          - (C5_N - F3_N) * _tan_g - R_a5 / _cos_g)
+    R_a3 = _K / (1.0 - 1.0 / _cos_g)
+
+    fp_pts["C3"] = (F3_E + R_a3, F3_N)
 
     # Solve C5_E from tangency with F3 fixed:
     # (C5_N - F3_N)·sin(γ) - (C5_E - F3_E - R_a3)·cos(γ) = R_a3 - R_a5
-    C5_E = F3_E + R_a3 + ((C5_N - F3_N) * math.sin(_gamma) - (R_a3 - R_a5)) / math.cos(_gamma)
+    C5_E = F3_E + R_a3 + ((C5_N - F3_N) * math.sin(_gamma) - (R_a3 - R_a5)) / _cos_g
     fp_pts["C5"] = (C5_E, C5_N)
     fp_pts["F6"] = (C5_E, C5_N + R_a5)
 
@@ -300,7 +311,7 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
 
     R_a1 = _compute_ne_corner(fp_pts, anchors)
     R_a5 = _compute_nw_corner(fp_pts, anchors)
-    R_a3 = _compute_west_wall(fp_pts)
+    R_a3 = _compute_west_wall(fp_pts, anchors)
     R_a7, R_a8 = _compute_upper_east_arcs(fp_pts, anchors)
     R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
     R_a17, R_a19 = _compute_south_wall(fp_pts)
