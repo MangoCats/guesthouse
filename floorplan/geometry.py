@@ -15,7 +15,7 @@ from floorplan.constants import (
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
-    IW1_OFFSET_N, WALL_SOUTH_N,
+    IW1_OFFSET_N, IW1_DIST_FROM_NORTH, F14_OFFSET_N_IW1, WALL_SOUTH_N,
     F10_OFFSET_E_F9, FLAT_SEG_11,
 )
 
@@ -135,9 +135,9 @@ def _compute_central_region(
     R_a11 = ARC_180_R
     R_a13 = ARC_F13_R
 
-    # F14 Northing from IW1 constraint
-    _iw1_n_face = fp_pts["F1"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN
-    _F14_N = _iw1_n_face + WALL_SOUTH_N
+    # F14 Northing: 2" north of IW1 north face
+    # IW1_n = W9_N - IW1_DIST_FROM_NORTH; W9_N ≈ F9_N - WALL_OUTER
+    _F14_N = fp_pts["F9"][1] - WALL_OUTER - IW1_DIST_FROM_NORTH + F14_OFFSET_N_IW1
 
     # Arc at Po5 corner (exits North)
     d_in_po5 = (anchors.Pi5[0] - anchors.PiX[0], anchors.Pi5[1] - anchors.PiX[1])
@@ -169,13 +169,12 @@ def _compute_central_region(
     _ny_t = math.sin(_brg_off)
     fp_pts["C13"] = (F15_E - R_a13, _F14_N)
     fp_pts["F14"] = (F15_E, _F14_N)
-    # C11 from tangent constraint with C13 (position unchanged)
+    # C11a: keep F11a fixed using reference F14_N (original design baseline)
     _C11_N = fp_pts["C7"][1]
-    _C13_E, _C13_N = fp_pts["C13"]
-    _C11_E = _C13_E + (R_a13 - R_a11 - (_C11_N - _C13_N) * _ny_t) / _nx_t
-    fp_pts["C11"] = (_C11_E, _C11_N)
-    # C11a: shifted west by FLAT_SEG_11 for F11-F11a arc
-    _C11a_E = _C11_E - FLAT_SEG_11
+    _C13_E = F15_E - R_a13
+    _F14_N_ref = fp_pts["F1"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN + WALL_SOUTH_N
+    _C11_E_ref = _C13_E + (R_a13 - R_a11 - (_C11_N - _F14_N_ref) * _ny_t) / _nx_t
+    _C11a_E = _C11_E_ref - FLAT_SEG_11
     fp_pts["C11a"] = (_C11a_E, _C11_N)
     # F10: 15'2" east of nominal F9 easting
     _nominal_F9_E = fp_pts["C7"][0] + UPPER_E_R + SMALL_ARC_R - (WALL_OUTER - 8.0 / 12.0)
@@ -193,12 +192,13 @@ def _compute_central_region(
     _C10_N = _F10_N + R_a10
     fp_pts["F11"] = (_F10_E + R_a10 * (_C11a_E - _F10_E) / _dist_cc,
                      _C10_N + R_a10 * (_C11_N - _C10_N) / _dist_cc)
-    # F11a: top of C11a circle, F11b: top of C11 circle
     fp_pts["F11a"] = (_C11a_E, _C11_N + R_a11)
+    # C11 from actual C13 tangent constraint (F11b, F12 change easting)
+    _C11_E = _C13_E + (R_a13 - R_a11 - (_C11_N - _F14_N) * _ny_t) / _nx_t
+    fp_pts["C11"] = (_C11_E, _C11_N)
     fp_pts["F11b"] = (_C11_E, _C11_N + R_a11)
-    # F13, F12: tangent points (unchanged — C11, C13, R_a11, R_a13 unchanged)
-    fp_pts["F13"] = (fp_pts["C13"][0] + R_a13 * _nx_t, fp_pts["C13"][1] + R_a13 * _ny_t)
-    fp_pts["F12"] = (fp_pts["C11"][0] + R_a11 * _nx_t, fp_pts["C11"][1] + R_a11 * _ny_t)
+    fp_pts["F13"] = (_C13_E + R_a13 * _nx_t, _F14_N + R_a13 * _ny_t)
+    fp_pts["F12"] = (_C11_E + R_a11 * _nx_t, _C11_N + R_a11 * _ny_t)
 
     return R_a10, R_a11, R_a13, R_a15
 
