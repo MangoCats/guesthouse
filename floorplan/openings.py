@@ -70,6 +70,11 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         """Building easting (distance east along south wall from W1)."""
         return (p[0] - _w1[0]) * _eE + (p[1] - _w1[1]) * _eN
 
+    def _bp(be, bn):
+        """World-coordinate point from building easting/northing."""
+        return (_w1[0] + be * _eE + bn * _norm_E,
+                _w1[1] + be * _eN + bn * _norm_N)
+
     def _seg_opening(seg_start, seg_end, t_start, t_end):
         """Build outer opening polygon from parametric t on F-face and W-face."""
         f_a, f_b = pts[seg_start], pts[seg_end]
@@ -87,20 +92,18 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
         """Parametric t on F-segment at given building northing."""
         return (bn - _bn(pts[seg_start])) / (_bn(pts[seg_end]) - _bn(pts[seg_start]))
 
-    def _t_from_be(seg_start, seg_end, be):
-        """Parametric t on F-segment at given building easting."""
-        return (be - _be(pts[seg_start])) / (_be(pts[seg_end]) - _be(pts[seg_start]))
-
     openings = []
 
-    # O1: F2→F3, centered at IW16 midpoint building-northing
+    # O1: F2→F3, building-axis rectangle centered at IW16 midpoint northing
     _iw16_ctr_bn = (_bn(layout.iw16_poly[0]) + _bn(layout.iw16_poly[2])) / 2
-    _f2f3_len = math.sqrt((pts["F3"][0] - pts["F2"][0])**2
-                          + (pts["F3"][1] - pts["F2"][1])**2)
-    _t1_ctr = _t_from_bn("F2", "F3", _iw16_ctr_bn)
-    _t1_half = (O1_WIDTH / 2) / _f2f3_len
-    openings.append(OuterOpening("O1", "F2", "F3",
-        _seg_opening("F2", "F3", _t1_ctr - _t1_half, _t1_ctr + _t1_half)))
+    _o1_s_bn = _iw16_ctr_bn - O1_WIDTH / 2
+    _o1_n_bn = _iw16_ctr_bn + O1_WIDTH / 2
+    _f3_be = _be(pts["F3"])
+    _w3_be = _be(pts["W3"])
+    openings.append(OuterOpening("O1", "F2", "F3", [
+        _bp(_f3_be, _o1_s_bn), _bp(_f3_be, _o1_n_bn),
+        _bp(_w3_be, _o1_n_bn), _bp(_w3_be, _o1_s_bn),
+    ]))
 
     # O2: F4→F5, centered at RO4 center building-northing
     _iw6_s_bn = _bn(layout.iw6_poly[0])
@@ -118,30 +121,38 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     openings.append(OuterOpening("O3", "F4", "F5",
         _seg_opening("F4", "F5", _t3_start, _t3_end)))
 
-    # O4: F6→F7, centered on segment
-    _f6f7_len = math.sqrt((pts["F7"][0] - pts["F6"][0])**2
-                          + (pts["F7"][1] - pts["F6"][1])**2)
-    _t4_half = O4_HALF_WIDTH / _f6f7_len
-    openings.append(OuterOpening("O4", "F6", "F7",
-        _seg_opening("F6", "F7", 0.5 - _t4_half, 0.5 + _t4_half)))
+    # O4: F6→F7, building-axis rectangle centered on F6-F7 midpoint easting
+    _f6_be = _be(pts["F6"])
+    _f7_be = _be(pts["F7"])
+    _o4_mid_be = (_f6_be + _f7_be) / 2
+    _o4_w_be = _o4_mid_be - O4_HALF_WIDTH
+    _o4_e_be = _o4_mid_be + O4_HALF_WIDTH
+    _w6_bn = _bn(pts["W6"])
+    _f6_bn = _bn(pts["F6"])
+    openings.append(OuterOpening("O4", "F6", "F7", [
+        _bp(_o4_w_be, _w6_bn), _bp(_o4_e_be, _w6_bn),
+        _bp(_o4_e_be, _f6_bn), _bp(_o4_w_be, _f6_bn),
+    ]))
 
-    # O5: F9→F10, east edge at IW2 east face + O5_E_FROM_IW2
+    # O5: F9→F10, building-axis rectangle, east edge at IW2 east + O5_E_FROM_IW2
     _iw2_e_be = _be(layout.iw2_poly[1])
     _o5_e_be = _iw2_e_be + O5_E_FROM_IW2
     _o5_w_be = _o5_e_be - O5_WIDTH
-    _t5_e = _t_from_be("F9", "F10", _o5_e_be)
-    _t5_w = _t_from_be("F9", "F10", _o5_w_be)
-    openings.append(OuterOpening("O5", "F9", "F10",
-        _seg_opening("F9", "F10", min(_t5_w, _t5_e), max(_t5_w, _t5_e))))
+    _w9_bn = _bn(pts["W9"])
+    _f9_bn = _bn(pts["F9"])
+    openings.append(OuterOpening("O5", "F9", "F10", [
+        _bp(_o5_w_be, _w9_bn), _bp(_o5_e_be, _w9_bn),
+        _bp(_o5_e_be, _f9_bn), _bp(_o5_w_be, _f9_bn),
+    ]))
 
-    # O6: F9→F10, east edge O6_GAP_F10 west of F10
+    # O6: F9→F10, building-axis rectangle, east edge O6_GAP_F10 west of F10
     _f10_be = _be(pts["F10"])
     _o6_e_be = _f10_be - O6_GAP_F10
     _o6_w_be = _o6_e_be - O6_WIDTH
-    _t6_e = _t_from_be("F9", "F10", _o6_e_be)
-    _t6_w = _t_from_be("F9", "F10", _o6_w_be)
-    openings.append(OuterOpening("O6", "F9", "F10",
-        _seg_opening("F9", "F10", min(_t6_w, _t6_e), max(_t6_w, _t6_e))))
+    openings.append(OuterOpening("O6", "F9", "F10", [
+        _bp(_o6_w_be, _w9_bn), _bp(_o6_e_be, _w9_bn),
+        _bp(_o6_e_be, _f9_bn), _bp(_o6_w_be, _f9_bn),
+    ]))
 
     # O7: F12→F13, O7_NW_GAP from F12
     _f12f13_len = math.sqrt((pts["F13"][0] - pts["F12"][0])**2
@@ -151,16 +162,18 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     openings.append(OuterOpening("O7", "F12", "F13",
         _seg_opening("F12", "F13", _t7_s, _t7_e)))
 
-    # O8: F14→F15, centered between IW5 south face and F15 building-northing
+    # O8: F14→F15, building-axis rectangle centered between IW5 south and F15
     _iw5_s_bn = _bn(layout.iw5_poly[0])
     _f15_bn = _bn(pts["F15"])
     _o8_ctr_bn = (_iw5_s_bn + _f15_bn) / 2
-    _f14f15_len = math.sqrt((pts["F15"][0] - pts["F14"][0])**2
-                            + (pts["F15"][1] - pts["F14"][1])**2)
-    _t8_ctr = _t_from_bn("F14", "F15", _o8_ctr_bn)
-    _t8_half = O8_HALF_WIDTH / _f14f15_len
-    openings.append(OuterOpening("O8", "F14", "F15",
-        _seg_opening("F14", "F15", _t8_ctr - _t8_half, _t8_ctr + _t8_half)))
+    _f15_be = _be(pts["F15"])
+    _w15_be = _be(pts["W15"])
+    openings.append(OuterOpening("O8", "F14", "F15", [
+        _bp(_f15_be, _o8_ctr_bn - O8_HALF_WIDTH),
+        _bp(_f15_be, _o8_ctr_bn + O8_HALF_WIDTH),
+        _bp(_w15_be, _o8_ctr_bn + O8_HALF_WIDTH),
+        _bp(_w15_be, _o8_ctr_bn - O8_HALF_WIDTH),
+    ]))
 
     # O9, O10, O11: parametric positions from layout
     for _name, _ts, _te in [("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
