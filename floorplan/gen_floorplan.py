@@ -36,7 +36,8 @@ from floorplan.constants import (
     RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
     O3_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH,
-    RO3_DOOR_WIDTH, RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, IW4_RO_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
+    RO3_DOOR_WIDTH, RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, RO7_DOOR_WIDTH,
+    IW4_RO_WIDTH, IW9_RO_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
 )
 from floorplan.layout import compute_interior_layout
 from floorplan.openings import (
@@ -2315,6 +2316,60 @@ def _render_openings(out, data, layout, bare=False):
         angle = math.pi + i * (math.pi / 2) / n_arc  # π to 3π/2 (west to south)
         ae = hinge_e + RO3_DOOR_WIDTH * math.cos(angle)
         an = hinge_n + RO3_DOOR_WIDTH * math.sin(angle)
+        sx, sy = to_svg(ae, an)
+        arc_pts.append(f"{sx:.1f},{sy:.1f}")
+    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+               f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
+
+    # RO7 double door: 2×30" doors in IW9 (rotated), hinged at outer edges, open east
+    ro7 = [r for r in rough_openings if r.name == "RO7"][0]
+    _ro7p = ro7.poly  # [SW, SE, NE, NW]
+    # IW9 unit vectors
+    _i9_sw, _i9_se, _i9_ne, _i9_nw = layout.iw9_poly
+    _i9_dx_n = _i9_ne[0] - _i9_se[0]; _i9_dy_n = _i9_ne[1] - _i9_se[1]
+    _i9_ln = math.sqrt(_i9_dx_n**2 + _i9_dy_n**2)
+    _i9_an = (_i9_dx_n / _i9_ln, _i9_dy_n / _i9_ln)  # NNE (along length)
+    _i9_dx_t = _i9_sw[0] - _i9_se[0]; _i9_dy_t = _i9_sw[1] - _i9_se[1]
+    _i9_lt = math.sqrt(_i9_dx_t**2 + _i9_dy_t**2)
+    _i9_at = (_i9_dx_t / _i9_lt, _i9_dy_t / _i9_lt)  # SE→SW (across thickness)
+    _ro7_gap = (IW9_RO_WIDTH - 2 * RO7_DOOR_WIDTH) / 2
+    # East direction = -_i9_at
+    _east_ang = math.atan2(-_i9_at[1], -_i9_at[0])
+    n_arc = 20
+    # South door: hinged at south edge (east face), swings east
+    _ro7_s_ctr = ((_ro7p[0][0] + _ro7p[1][0]) / 2, (_ro7p[0][1] + _ro7p[1][1]) / 2)
+    h_s = (_ro7_s_ctr[0] + _ro7_gap * _i9_an[0], _ro7_s_ctr[1] + _ro7_gap * _i9_an[1])
+    hsx, hsy = to_svg(*h_s)
+    # Open position: east
+    tip_s = (h_s[0] - RO7_DOOR_WIDTH * _i9_at[0], h_s[1] - RO7_DOOR_WIDTH * _i9_at[1])
+    tsx, tsy = to_svg(*tip_s)
+    out.append(f'<line x1="{hsx:.1f}" y1="{hsy:.1f}" x2="{tsx:.1f}" y2="{tsy:.1f}"'
+               f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
+    # Arc from east (open) sweeping CCW to NNE (closed toward center)
+    arc_pts = []
+    for i in range(n_arc + 1):
+        angle = _east_ang + i * (math.pi / 2) / n_arc
+        ae = h_s[0] + RO7_DOOR_WIDTH * math.cos(angle)
+        an = h_s[1] + RO7_DOOR_WIDTH * math.sin(angle)
+        sx, sy = to_svg(ae, an)
+        arc_pts.append(f"{sx:.1f},{sy:.1f}")
+    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+               f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
+    # North door: hinged at north edge (east face), swings east
+    _ro7_n_ctr = ((_ro7p[3][0] + _ro7p[2][0]) / 2, (_ro7p[3][1] + _ro7p[2][1]) / 2)
+    h_n = (_ro7_n_ctr[0] - _ro7_gap * _i9_an[0], _ro7_n_ctr[1] - _ro7_gap * _i9_an[1])
+    hnx, hny = to_svg(*h_n)
+    # Open position: east
+    tip_n = (h_n[0] - RO7_DOOR_WIDTH * _i9_at[0], h_n[1] - RO7_DOOR_WIDTH * _i9_at[1])
+    tnx, tny = to_svg(*tip_n)
+    out.append(f'<line x1="{hnx:.1f}" y1="{hny:.1f}" x2="{tnx:.1f}" y2="{tny:.1f}"'
+               f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
+    # Arc from east (open) sweeping CW to SSW (closed toward center)
+    arc_pts = []
+    for i in range(n_arc + 1):
+        angle = _east_ang - i * (math.pi / 2) / n_arc
+        ae = h_n[0] + RO7_DOOR_WIDTH * math.cos(angle)
+        an = h_n[1] + RO7_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
         arc_pts.append(f"{sx:.1f},{sy:.1f}")
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'

@@ -138,6 +138,7 @@ RO2_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO2
 RO3_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO3
 RO4_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO4
 RO5_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO5
+RO7_DOOR_WIDTH = 30.0 / 12.0       # 30" door leaf in RO7 (double door, 2×30")
 # Shell construction: 2" shell / gap / 2" shell
 AIR_GAP = WALL_OUTER - 2 * SHELL_THICKNESS  # air gap between shells
 OPENING_INSIDE_RADIUS = 10.0 / 304.8  # 10mm inside corner radius at openings
