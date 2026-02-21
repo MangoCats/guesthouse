@@ -199,7 +199,7 @@ def directed_poly_isects(poly: list[Point], origin: Point,
         ax, ay = poly[i]
         bx, by = poly[j]
         ex, ey = bx - ax, by - ay          # edge vector
-        denom = dx * ey - dy * ex
+        denom = dy * ex - dx * ey
         if abs(denom) < 1e-15:
             continue                        # parallel
         ox, oy = ax - origin[0], ay - origin[1]
