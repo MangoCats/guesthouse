@@ -7,7 +7,7 @@ All values in feet unless noted. Inches converted via / 12.0.
 SHELL_THICKNESS = 2.0 / 12.0         # 2" concrete shell
 
 # Wall thicknesses (feet)
-WALL_OUTER = 10.0 / 12.0          # 10" outer wall (adjustable: 8"-12")
+WALL_OUTER = 8.0 / 12.0           # 8" outer wall (adjustable: 8"-12")
 assert 8.0 / 12.0 <= WALL_OUTER <= 12.0 / 12.0, "WALL_OUTER must be 8\"-12\""
 _WE = WALL_OUTER - 8.0 / 12.0     # wall extra beyond 8" baseline
 WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2)

@@ -233,7 +233,7 @@ class TestRenderWallsSvg:
     def test_wall_polygon_count(self, rendered):
         import re
         wall_fills = re.findall(r'fill="rgba\(180,180,180,0\.5\)"', rendered)
-        assert len(wall_fills) == 86
+        assert len(wall_fills) == 88
 
     def test_opening_polygon_count(self, rendered):
         import re
