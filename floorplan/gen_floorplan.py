@@ -1049,8 +1049,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         out.append('</a>')
 
     if db:
-        # ICE: 6" east of D/W, 3" south of W9-W10 wall
-        ice_w = dw_e + 6.0 / 12.0
+        # ICE: 2" east of D/W, 3" south of W9-W10 wall
+        ice_w = dw_e + 2.0 / 12.0
         ice_s = back_n - KITCHEN_APPL_GAP - ICE_DEPTH
     elif minik:
         # ICE: 3" east of fridge, against W9-W10 wall (3" south)
