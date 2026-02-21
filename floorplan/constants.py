@@ -124,9 +124,10 @@ O4_OFFSET_W_IW2 = 11.0 / 12.0     # 11" west of IW2 west face
 O5_E_FROM_IW2 = 120.0 / 12.0       # 10' from IW2 east face to O5 east edge
 O5_WIDTH = 68.0 / 12.0            # 5'8" opening width
 # O6 (F9-F10)
-O6_E_FROM_F9 = 178.0 / 12.0        # 14'10" from F9 to O6 east edge
 O6_WIDTH = 44.0 / 12.0             # 44" opening width
-F10_O6_CLEARANCE = 4.0 / 12.0      # 4" from O6 east edge to F10
+O6_GAP_F10 = 6.0 / 12.0            # 6" from O6 east edge to F10
+# F10 easting: 15'2" east of nominal F9
+F10_OFFSET_E_F9 = 182.0 / 12.0     # 15'2" from nominal F9 to F10
 O6_DOOR_WIDTH = 42.0 / 12.0        # 42" door, centered in opening
 RO1_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO1
 RO2_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO2

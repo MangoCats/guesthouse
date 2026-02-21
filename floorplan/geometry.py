@@ -16,7 +16,7 @@ from floorplan.constants import (
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
     IW1_OFFSET_N, WALL_SOUTH_N,
-    O6_E_FROM_F9, F10_O6_CLEARANCE, FLAT_SEG_11,
+    F10_OFFSET_E_F9, FLAT_SEG_11,
 )
 
 
@@ -177,10 +177,9 @@ def _compute_central_region(
     # C11a: shifted west by FLAT_SEG_11 for F11-F11a arc
     _C11a_E = _C11_E - FLAT_SEG_11
     fp_pts["C11a"] = (_C11a_E, _C11_N)
-    # F10: 4" east of O6 east edge; use nominal F9_E to preserve F10 position
-    _WE = WALL_OUTER - 8.0 / 12.0
-    _nominal_F9_E = fp_pts["C7"][0] + UPPER_E_R + SMALL_ARC_R - _WE
-    _F10_E = _nominal_F9_E + O6_E_FROM_F9 + F10_O6_CLEARANCE
+    # F10: 15'2" east of nominal F9 easting
+    _nominal_F9_E = fp_pts["C7"][0] + UPPER_E_R + SMALL_ARC_R - (WALL_OUTER - 8.0 / 12.0)
+    _F10_E = _nominal_F9_E + F10_OFFSET_E_F9
     _F10_N = fp_pts["F9"][1]
     fp_pts["F10"] = (_F10_E, _F10_N)
     # R_a10: tangent to F11-F11a arc. C10 = (F10_E, F10_N + R_a10).
