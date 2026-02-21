@@ -1900,8 +1900,8 @@ def _render_dimensions(out, data, layout, bare=False):
 
     # External dimensions
     dim_ext_e = pts["F3"][0] - 2.7
-    dim_line_v(out, dim_ext_e, pts["F1"][1], pts["F6"][1],
-               fmt_dist(pts["F6"][1] - pts["F1"][1]), to_svg)
+    dim_line_v(out, dim_ext_e, pts["F18"][1], pts["F6"][1],
+               fmt_dist(pts["F6"][1] - pts["F18"][1]), to_svg)
 
     # Top exterior dim: endpoints on arcs F7-F8 and F11-F12, 4" south of F7
     _dim_n_arc = pts["F7"][1] - 4.0 / 12.0
