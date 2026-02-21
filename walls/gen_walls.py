@@ -290,7 +290,8 @@ def _render_interior_walls(out, data):
 
     # IW9 (rotated, 4" thick, perpendicular to W20-W0)
     iw_poly(layout.iw9_poly)
-    iw_label("IW9", layout.iw9.w, layout.iw9.e, ro_map["RO7"].n, layout.iw9.n)
+    iw_label("IW9", layout.iw9.w, layout.iw9.e,
+             (layout.iw9.s + ro_map["RO7"].n) / 2, layout.iw9.n)
 
     # IW16 (vertical, 4" — IW3 NW to IW1)
     iw_poly(layout.iw16_poly)
