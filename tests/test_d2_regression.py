@@ -10,8 +10,11 @@ Values must match within +/- 0.000001 (in feet-squared).
 import math
 import pytest
 from shared.types import BBox
+from shared.geometry import f8f9_corner_polyline
 from floorplan.openings import compute_outer_openings, compute_rough_openings
 from floorplan.constants import (
+    WALL_OUTER, SHELL_THICKNESS, AIR_GAP,
+    F8F9_INNER_TURN_R, OPENING_INSIDE_RADIUS,
     O3_DOOR_WIDTH, O6_DOOR_WIDTH, O6_WIDTH,
     RO1_DOOR_WIDTH, RO2_DOOR_WIDTH, RO3_DOOR_WIDTH,
     RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, RO6_DOOR_WIDTH, RO7_DOOR_WIDTH,
@@ -116,6 +119,9 @@ def _collect_all_points(pts, layout):
 
     # ---- Door tips ----
     result.extend(_compute_door_tips(pts, layout, outer_openings, rough_openings))
+
+    # ---- W8-W9 shell polyline special points ----
+    result.extend(_collect_f8f9_shell_points(pts))
 
     return result
 
@@ -233,6 +239,34 @@ def _compute_door_tips(pts, layout, outer_openings, rough_openings):
                   h_n7[1] - RO7_DOOR_WIDTH * _i9_at[1])))
 
     return tips
+
+
+def _collect_f8f9_shell_points(pts):
+    """Collect special points of the W8-W9 interior shell polylines.
+
+    For both the W-series (WALL_OUTER inset) and G-series (SHELL+GAP inset)
+    polylines: start, arc tangent entry, arc center, arc tangent exit, end.
+    """
+    F8 = pts["F8"]
+    C8 = pts["C8"]
+    R_a8 = C8[0] - F8[0]
+    result = []
+
+    for prefix, inset, R_turn in [
+        ("w_f8f9", WALL_OUTER, F8F9_INNER_TURN_R),
+        ("g_f8f9", SHELL_THICKNESS + AIR_GAP, OPENING_INSIDE_RADIUS),
+    ]:
+        poly = f8f9_corner_polyline(pts, inset, R_turn)
+        d = R_a8 + inset - R_turn
+        arc_cx = F8[0] - inset + R_turn
+        arc_cy = F8[1] - d
+        result.append((f"{prefix}_start", poly[0]))
+        result.append((f"{prefix}_arc_entry", poly[1]))
+        result.append((f"{prefix}_arc_center", (arc_cx, arc_cy)))
+        result.append((f"{prefix}_arc_exit", poly[-2]))
+        result.append((f"{prefix}_end", poly[-1]))
+
+    return result
 
 
 # Expected distance-squared values: (name, d2_F1, d2_F6, d2_F12, d2_F15)
@@ -397,6 +431,18 @@ EXPECTED = [
     ("RO6_door_tip_N", 451.288076449551, 791.462755150572, 514.527262173737, 207.704402640848),
     ("RO7_door_tip_S", 170.660052631259, 755.008227347813, 924.652382017689, 501.271422970377),
     ("RO7_door_tip_N", 208.993385964592, 538.653897929176, 692.988094201433, 472.558661607250),
+    # W8-W9 shell polyline special points (W-series: inner wall face)
+    ("w_f8f9_start", 620.772537138294, 53.284722222222, 507.149916208683, 1065.472222222222),
+    ("w_f8f9_arc_entry", 592.023294535794, 56.644503775119, 508.317280606279, 1040.308381727875),
+    ("w_f8f9_arc_center", 595.889824977499, 59.443699151287, 499.375949294599, 1030.108451994682),
+    ("w_f8f9_arc_exit", 587.008673504063, 60.667250931724, 499.909547850179, 1022.355625822363),
+    ("w_f8f9_end", 599.823297959684, 70.090277777778, 472.025506339452, 990.472222222222),
+    # W8-W9 shell polyline special points (G-series: outer face of inner shell)
+    ("g_f8f9_start", 623.997657006648, 55.618055555556, 499.673730533090, 1056.944444444445),
+    ("g_f8f9_arc_entry", 595.248414404148, 58.977837108452, 500.841094930686, 1031.780603950097),
+    ("g_f8f9_arc_center", 595.889824977499, 59.443699151287, 499.375949294599, 1030.108451994682),
+    ("g_f8f9_arc_exit", 594.423641208139, 59.639473153946, 499.458244148433, 1028.827848044585),
+    ("g_f8f9_end", 607.238265663760, 69.062500000000, 471.574202637706, 996.944444444445),
 ]
 
 REF_NAMES = ["F1", "F6", "F12", "F15"]
