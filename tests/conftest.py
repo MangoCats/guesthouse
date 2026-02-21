@@ -1,5 +1,6 @@
 """Shared test fixtures for hut2 geometry tests."""
 import importlib.util
+import math
 import os
 import pytest
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
@@ -76,10 +77,15 @@ def outline_geo(pts_full, inset_result):
 def pts_with_outline(pts_full, outline_geo):
     """pts dict with F-series and W-series (F1-centered coordinates)."""
     pts = dict(pts_full)
-    # Translate survey/inset points to F1-centered coordinate system
+    # Translate and rotate survey/inset points to F1-centered coordinate system
     _off = outline_geo.origin_offset
     for _k in pts:
         pts[_k] = (pts[_k][0] - _off[0], pts[_k][1] - _off[1])
+    _cos_r = math.cos(outline_geo.rotation_angle)
+    _sin_r = math.sin(outline_geo.rotation_angle)
+    for _k in pts:
+        _e, _n = pts[_k]
+        pts[_k] = (_e * _cos_r - _n * _sin_r, _e * _sin_r + _n * _cos_r)
     pts.update(outline_geo.fp_pts)
     inner_segs = compute_inner_walls(
         outline_geo.outline_segs, pts, WALL_OUTER, outline_geo.radii,

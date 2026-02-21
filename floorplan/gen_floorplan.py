@@ -239,10 +239,15 @@ def build_floorplan_data():
         TC1=pts["TC1"], R1i=_inset.R1i,
     )
     _outline_geo = compute_outline_geometry(_anchors)
-    # Translate survey/inset points to F1-centered coordinate system
+    # Translate and rotate survey/inset points to F1-centered coordinate system
     _off = _outline_geo.origin_offset
     for _k in list(pts):
         pts[_k] = (pts[_k][0] - _off[0], pts[_k][1] - _off[1])
+    _cos_r = math.cos(_outline_geo.rotation_angle)
+    _sin_r = math.sin(_outline_geo.rotation_angle)
+    for _k in list(pts):
+        _e, _n = pts[_k]
+        pts[_k] = (_e * _cos_r - _n * _sin_r, _e * _sin_r + _n * _cos_r)
     pts.update(_outline_geo.fp_pts)
     to_svg = make_svg_transform(_p3_trav, origin_offset=_off)
     outline_segs = _outline_geo.outline_segs
@@ -959,11 +964,15 @@ def _render_appliances(out, data, layout, minik=False, db=False):
     out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
 
-    # Water heater: 28" diameter circle
-    wh_e = layout.iw2.e + WH_RADIUS
+    # Water heater: 28" diameter circle, tangent to inner C7 arc toward IW2
     wh_tangent_r = (data.radii["R_a7"] - data.wall_t) - WH_RADIUS
-    wh_dE = wh_e - pts["C7"][0]
-    wh_n = pts["C7"][1] + math.sqrt(wh_tangent_r**2 - wh_dE**2)
+    _c7 = pts["C7"]
+    _wh_target = (layout.iw2.e + WH_RADIUS, (layout.iw2.s + layout.iw2.n) / 2)
+    _wh_dx = _wh_target[0] - _c7[0]
+    _wh_dy = _wh_target[1] - _c7[1]
+    _wh_d = math.sqrt(_wh_dx**2 + _wh_dy**2)
+    wh_e = _c7[0] + wh_tangent_r * _wh_dx / _wh_d
+    wh_n = _c7[1] + wh_tangent_r * _wh_dy / _wh_d
     wh_sx, wh_sy = to_svg(wh_e, wh_n)
     wh_r_svg = (to_svg(WH_RADIUS, 0)[0] - to_svg(0, 0)[0])
     out.append(f'<circle cx="{wh_sx:.1f}" cy="{wh_sy:.1f}" r="{wh_r_svg:.1f}"'
@@ -1662,7 +1671,12 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         lv_se_n = lv_s + lv_width * math.sin(lv_angle)
         et_gap = et_r + STD_GAP
         et_cy = layout.iw1_n + STD_GAP + et_r
-        et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
+        _disc = et_gap**2 - (et_cy - lv_se_n)**2
+        if _disc >= 0:
+            et_cx = lv_se_e + math.sqrt(_disc)
+        else:
+            # N-offset exceeds gap; place ET east with 2" clearance
+            et_cx = lv_se_e + STD_GAP + et_r
 
         lv_e = lv_w + lv_width
         lv_n = lv_s + lv_height
@@ -1907,7 +1921,11 @@ def _render_dimensions(out, data, layout, bare=False):
     # Utility: W2 to IW3 west face, at northing where distance = 8'
     _iw3_sw, _iw3_nw = layout.iw3_poly[0], layout.iw3_poly[3]
     _target_dist = 8.0
-    _t_iw3 = (_target_dist - (_iw3_sw[0] - pts["W2"][0])) / (_iw3_nw[0] - _iw3_sw[0])
+    _denom = _iw3_nw[0] - _iw3_sw[0]
+    if abs(_denom) > 1e-9:
+        _t_iw3 = (_target_dist - (_iw3_sw[0] - pts["W2"][0])) / _denom
+    else:
+        _t_iw3 = 0.5
     _dim_n = _iw3_sw[1] + _t_iw3 * (_iw3_nw[1] - _iw3_sw[1])
     _dim_e = _iw3_sw[0] + _t_iw3 * (_iw3_nw[0] - _iw3_sw[0])
     dim_line_h(out, pts["W2"][0], _dim_n, _dim_e,

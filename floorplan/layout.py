@@ -303,9 +303,10 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
                iw11_se[1] + _iw14_d * _norm_N)
     iw14_nw = (iw14_sw[0] + WALL_3IN * _norm_E,
                iw14_sw[1] + WALL_3IN * _norm_N)
-    # SE corner: south face line (-_along direction) hits iw5_s northing
-    _t14 = (iw14_sw[1] - iw5_s) / _along_N
-    iw14_se = (iw14_sw[0] - _t14 * _along_E, iw5_s)
+    # SE corner: south face line (-_along direction) hits iw4_w easting
+    _t14 = (iw4_w - iw14_sw[0]) / (-_along_E)
+    iw14_se = (iw14_sw[0] - _t14 * _along_E,
+               iw14_sw[1] - _t14 * _along_N)
     iw14_ne = (iw14_se[0] + WALL_3IN * _norm_E,
                iw14_se[1] + WALL_3IN * _norm_N)
     iw14_poly = [iw14_sw, iw14_se, iw14_ne, iw14_nw]

@@ -3,7 +3,7 @@
 Curved-wall building outline geometry and floorplan SVG generation.
 
 ## Coordinate System
-- F1 = origin, Easting (E) / Northing (N), units in feet
+- F1 = origin, E / N axes, units in feet; rotated ~6.34° from survey E/N so bearing F20→F1 = 270°
 - Dimensions typically specified in inches, converted via `/ 12.0`
 
 ## Project Structure

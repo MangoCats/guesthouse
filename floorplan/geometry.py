@@ -37,6 +37,7 @@ class OutlineGeometry(NamedTuple):
     outline_segs: list[Segment]  # 22 segments with F-series names
     radii: dict[str, float]      # R_a1 through R_a19
     origin_offset: Point         # pre-translation F1 (for shifting survey pts)
+    rotation_angle: float        # radians CCW to make bearing F20→F1 = 270°
 
 
 # ============================================================
@@ -370,5 +371,15 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
     fp_pts = {k: (v[0] - origin_offset[0], v[1] - origin_offset[1])
               for k, v in fp_pts.items()}
 
+    # Rotate so bearing F20→F1 = 270° (F20 on positive E-axis)
+    _f20 = fp_pts["F20"]
+    rotation_angle = -math.atan2(_f20[1], _f20[0])
+    _cos_r = math.cos(rotation_angle)
+    _sin_r = math.sin(rotation_angle)
+    fp_pts = {k: (v[0] * _cos_r - v[1] * _sin_r,
+                  v[0] * _sin_r + v[1] * _cos_r)
+              for k, v in fp_pts.items()}
+
     return OutlineGeometry(fp_pts=fp_pts, outline_segs=outline_segs,
-                           radii=radii, origin_offset=origin_offset)
+                           radii=radii, origin_offset=origin_offset,
+                           rotation_angle=rotation_angle)

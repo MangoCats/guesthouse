@@ -229,12 +229,20 @@ def compute_all():
         TC1=pts["TC1"], R1i=inset.R1i,
     )
     outline_geo = compute_outline_geometry(anchors)
-    # Translate survey/inset points to F1-centered coordinate system
+    # Translate and rotate survey/inset points to F1-centered coordinate system
     _off = outline_geo.origin_offset
     for _k in list(pts):
         pts[_k] = (pts[_k][0] - _off[0], pts[_k][1] - _off[1])
     for _k in list(pts_rot):
         pts_rot[_k] = (pts_rot[_k][0] - _off[0], pts_rot[_k][1] - _off[1])
+    _cos_r = math.cos(outline_geo.rotation_angle)
+    _sin_r = math.sin(outline_geo.rotation_angle)
+    for _k in list(pts):
+        _e, _n = pts[_k]
+        pts[_k] = (_e * _cos_r - _n * _sin_r, _e * _sin_r + _n * _cos_r)
+    for _k in list(pts_rot):
+        _e, _n = pts_rot[_k]
+        pts_rot[_k] = (_e * _cos_r - _n * _sin_r, _e * _sin_r + _n * _cos_r)
     pts.update(outline_geo.fp_pts)
     to_svg = make_svg_transform(p3_trav, origin_offset=_off)
     outline_segs = outline_geo.outline_segs

@@ -42,6 +42,11 @@ def _build_geometry():
     _off = geo.origin_offset
     for _k in list(pts):
         pts[_k] = (pts[_k][0] - _off[0], pts[_k][1] - _off[1])
+    _cos_r = math.cos(geo.rotation_angle)
+    _sin_r = math.sin(geo.rotation_angle)
+    for _k in list(pts):
+        _e, _n = pts[_k]
+        pts[_k] = (_e * _cos_r - _n * _sin_r, _e * _sin_r + _n * _cos_r)
     pts.update(geo.fp_pts)
     inner_segs = compute_inner_walls(geo.outline_segs, pts, WALL_OUTER, geo.radii)
     outer_poly = path_polygon(geo.outline_segs, pts)
