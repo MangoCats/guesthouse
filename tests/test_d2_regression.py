@@ -23,6 +23,96 @@ from floorplan.constants import (
 
 TOL = 1e-6  # tolerance in ft^2
 
+# ============================================================
+# F-series outline chain definition
+# ============================================================
+# Starting point and initial bearing
+_F2_E = 0.500000000000
+_F2_N = 3.000000000000
+_INITIAL_BRG = 0.0  # bearing 0 = north
+
+# Sweep angle constants
+_A19 = math.atan(1.0 / 9.0)   # arctan(1/9) for F3-F4, F19-F20
+_A9 = math.atan(9.0)           # arctan(9) for F5-F6, F1-F2
+_PI_2 = math.pi / 2            # 90 deg
+_5PI_12 = 5 * math.pi / 12    # 75 deg
+_PI_12 = math.pi / 12          # 15 deg
+_PI_3 = math.pi / 3            # 60 deg
+_PI_6 = math.pi / 6            # 30 deg
+
+# Chain: ("L", distance) | ("CW", radius, sweep) | ("CCW", radius, sweep)
+# Starting at F2, bearing north, traversing CW to produce:
+# F3, F4, F5, F6, F7, F8, F9, F10, F11, F11a, F11b, F12, F13, F14, F15,
+# F16, F17, F18, F19, F20, F1, and closing back to F2.
+_CHAIN = [
+    ("L",   12.083333333333),                       # F2->F3
+    ("CW",   8.351795046046, _A19),                 # F3->F4
+    ("L",    9.476667232982),                        # F4->F5
+    ("CW",   2.333333333333, _A9),                  # F5->F6
+    ("L",    5.250000000000),                        # F6->F7
+    ("CW",   2.333333333333, _PI_2),                # F7->F8
+    ("CCW",  0.166666666667, _PI_2),                 # F8->F9
+    ("L",   15.166666666667),                        # F9->F10
+    ("CCW",  1.039662132188, _5PI_12),               # F10->F11
+    ("CW",   2.333333333333, _5PI_12),               # F11->F11a
+    ("L",    1.000000000000),                        # F11a->F11b
+    ("CW",   2.333333333333, _5PI_12),               # F11b->F12
+    ("L",   11.858994000010),                        # F12->F13
+    ("CW",   2.507553207938, _PI_12),                # F13->F14
+    ("L",    8.666666666667),                        # F14->F15
+    ("CW",   2.473295271375, _PI_3),                 # F15->F16
+    ("L",    5.000000000000),                        # F16->F17
+    ("CW",   6.404672887007, _PI_6),                 # F17->F18
+    ("L",    1.397555568554),                        # F18->F19
+    ("CW",  18.888718471469, _A19),                  # F19->F20
+    ("L",   23.147693701700),                        # F20->F1
+    ("CW",   0.833333333333, _A9),                   # F1->F2
+]
+
+# Point names produced by the chain (one per segment, in order)
+_CHAIN_NAMES = [
+    "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11",
+    "F11a", "F11b", "F12", "F13", "F14", "F15", "F16", "F17",
+    "F18", "F19", "F20", "F1", "F2",
+]
+
+
+def _reconstruct_f_points():
+    """Walk the chain to reconstruct all F-series coordinates.
+
+    Returns dict mapping point name to (E, N).
+    """
+    E, N = _F2_E, _F2_N
+    brg = _INITIAL_BRG
+    pts = {"F2": (E, N)}
+
+    for seg, name in zip(_CHAIN, _CHAIN_NAMES):
+        if seg[0] == "L":
+            d = seg[1]
+            E += d * math.sin(brg)
+            N += d * math.cos(brg)
+        elif seg[0] == "CW":
+            R, sweep = seg[1], seg[2]
+            cx = E + R * math.cos(brg)
+            cy = N - R * math.sin(brg)
+            alpha = math.atan2(N - cy, E - cx)
+            alpha -= sweep
+            E = cx + R * math.cos(alpha)
+            N = cy + R * math.sin(alpha)
+            brg += sweep
+        elif seg[0] == "CCW":
+            R, sweep = seg[1], seg[2]
+            cx = E - R * math.cos(brg)
+            cy = N + R * math.sin(brg)
+            alpha = math.atan2(N - cy, E - cx)
+            alpha += sweep
+            E = cx + R * math.cos(alpha)
+            N = cy + R * math.sin(alpha)
+            brg -= sweep
+        pts[name] = (E, N)
+
+    return pts
+
 
 def _dist_sq(a, b):
     return (a[0] - b[0])**2 + (a[1] - b[1])**2
@@ -41,10 +131,11 @@ def _collect_all_points(pts, layout):
     rough_openings = compute_rough_openings(pts, layout)
     result = []
 
-    # ---- F-series outline points ----
+    # ---- F-series outline points (from chain definition) ----
+    chain_pts = _reconstruct_f_points()
     f_names = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b"]
     for name in f_names:
-        result.append((name, pts[name]))
+        result.append((name, chain_pts[name]))
 
     # ---- IW walls ----
     # IW1: polygon
@@ -501,6 +592,21 @@ class TestDistanceSquaredRegression:
         actual_names = [name for name, _ in all_pts]
         expected_names = [name for name, *_ in EXPECTED]
         assert actual_names == expected_names
+
+    _F_NAMES = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b"]
+
+    @pytest.mark.parametrize("fname", _F_NAMES)
+    def test_chain_matches_geometry(self, pts_with_outline, fname):
+        """Chain-reconstructed F points must match geometry-computed ones."""
+        pts, _ = pts_with_outline
+        chain_pts = _reconstruct_f_points()
+        geo_pt = pts[fname]
+        chain_pt = chain_pts[fname]
+        # 1e-9 ft positional tolerance (~0.000012 inches)
+        assert abs(chain_pt[0] - geo_pt[0]) < 1e-9, (
+            f"{fname} E: chain={chain_pt[0]:.12f}, geo={geo_pt[0]:.12f}")
+        assert abs(chain_pt[1] - geo_pt[1]) < 1e-9, (
+            f"{fname} N: chain={chain_pt[1]:.12f}, geo={geo_pt[1]:.12f}")
 
     @pytest.mark.parametrize("idx", range(len(EXPECTED)),
                              ids=[e[0] for e in EXPECTED])
