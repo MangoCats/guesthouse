@@ -10,8 +10,8 @@ from floorplan.constants import (
     ARC_F3_R, ARC_F3_SWEEP, F6_EAST_ADJ,
     F6_HEIGHT, NW_SHIFT,
     F14_F15_SEG, ARC_F13_R, F13_EXIT_BRG,
-    SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E,
-    F18_OFFSET_E, F18_F19_GAP, ARC_F19_R,
+    SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, ARC_F17_SWEEP, F16_F17_MIN,
+    F18_OFFSET_E, F19_OFFSET_E, ARC_F19_R,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
@@ -210,43 +210,62 @@ def _compute_south_wall(
     """South wall: F17-F20, C17, C19. Returns (R_a17, R_a19).
 
     Depends on F16 already in fp_pts.
-    F19-F20: CW arc (C19). F20 exit bearing used by caller for tangency to F0.
+
+    F19, F20 are fixed (layout-determined).  The F16→F17 ray and the
+    horizontal through F19 meet at point P at 150°.  The F17-F18 arc
+    is the largest fillet of that corner (30° CW sweep, tangent to both
+    lines) subject to:
+      - F16-F17 ≥ F16_F17_MIN  (5')
+      - F18 ≥ F18_OFFSET_E east of IW4 east face
     """
-    _sweep = math.atan(1.0 / 9.0)  # arctan(1/9)
+    _sweep19 = math.atan(1.0 / 9.0)  # arctan(1/9) for F19-F20 arc
     R_a19 = ARC_F19_R
 
-    # F18: 4" east of IW4 east face, at SOUTH_WALL_N
+    # IW4 east face
     _iw4_e = (fp_pts["F2"][0] + WALL_OUTER
               + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
               + WALL_3IN + CLOSET_WIDTH + WALL_4IN      # closet 1 (IW7-IW3-IW9)
               + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH  # bedroom + closet 2
               + WALL_4IN)                                 # IW4 thickness
-    F18_E = _iw4_e + F18_OFFSET_E
-    fp_pts["F18"] = (F18_E, SOUTH_WALL_N)
 
-    # F17: tangent point where F16→F17 line meets arc C17.
-    # C17 at (F18_E, SOUTH_WALL_N + R_a17), directly above F18.
-    # Tangency: perpendicular distance from C17 to line = R_a17.
-    _brg = math.radians(PIX_PI5_TARGET_BRG)
-    _sin_b = math.sin(_brg)
-    _cos_b = math.cos(_brg)
-    # Right normal of direction (-sin_b, -cos_b) = (-cos_b, sin_b) (interior for CW)
-    _alpha = F18_E - fp_pts["F16"][0]
-    _beta = SOUTH_WALL_N - fp_pts["F16"][1]
-    R_a17 = (-_alpha * _cos_b + _beta * _sin_b) / (1.0 - _sin_b)
-    fp_pts["C17"] = (F18_E, SOUTH_WALL_N + R_a17)
-    # F17 = foot of perpendicular from C17 to line through F16
-    _t17 = _alpha * (-_sin_b) + (_beta + R_a17) * (-_cos_b)
-    fp_pts["F17"] = (fp_pts["F16"][0] + _t17 * (-_sin_b),
-                     fp_pts["F16"][1] + _t17 * (-_cos_b))
-    # F19: 12" west of F18
-    F19_E = fp_pts["F18"][0] - F18_F19_GAP
+    # ── F19, F20 (fixed, independent of F17-F18 fillet) ──
+    F19_E = _iw4_e + F19_OFFSET_E
     fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
     fp_pts["C19"] = (F19_E, SOUTH_WALL_N + R_a19)
-    # F20: CW arc from F19 with sweep = arctan(1/9)
-    _theta_f20 = -math.pi / 2 - _sweep  # F19 at -π/2, sweep CW
+    _theta_f20 = -math.pi / 2 - _sweep19  # F19 at -π/2, sweep CW
     fp_pts["F20"] = (fp_pts["C19"][0] + R_a19 * math.cos(_theta_f20),
                      fp_pts["C19"][1] + R_a19 * math.sin(_theta_f20))
+
+    # ── F17-F18 fillet ──
+    # Intersection P of F16→F17 ray with horizontal at SOUTH_WALL_N
+    _brg = math.radians(PIX_PI5_TARGET_BRG)
+    _sin_b, _cos_b = math.sin(_brg), math.cos(_brg)
+    _t_P = (fp_pts["F16"][1] - SOUTH_WALL_N) / _cos_b   # parametric dist F16→P
+    _P_E = fp_pts["F16"][0] - _t_P * _sin_b
+
+    # Tangency requires sweep + bearing = 90°
+    assert abs(ARC_F17_SWEEP + PIX_PI5_TARGET_BRG - 90.0) < 1e-9, \
+        f"sweep {ARC_F17_SWEEP}° + bearing {PIX_PI5_TARGET_BRG}° != 90°"
+
+    # Fillet tangent length d = R / tan(half_angle), half_angle = (180° - sweep)/2
+    _sw_rad = math.radians(ARC_F17_SWEEP)
+    _tan_ha = math.tan((math.pi - _sw_rad) / 2)
+
+    # Max d from each constraint (larger d → larger R → shorter F16-F17, F18 more west)
+    F18_min_E = _iw4_e + F18_OFFSET_E
+    _d_max_seg = _t_P - F16_F17_MIN          # F16-F17 ≥ 5'
+    _d_max_F18 = _P_E - F18_min_E            # F18_E ≥ min
+    _d = min(_d_max_seg, _d_max_F18)
+    assert _d > 0, f"Cannot fit fillet: d_seg={_d_max_seg:.4f}, d_F18={_d_max_F18:.4f}"
+    R_a17 = _d * _tan_ha
+
+    # F17: at tangent length d from P, back toward F16 on the ray
+    fp_pts["F17"] = (_P_E + _d * _sin_b, SOUTH_WALL_N + _d * _cos_b)
+    # F18: at tangent length d from P, west on horizontal
+    F18_E = _P_E - _d
+    fp_pts["F18"] = (F18_E, SOUTH_WALL_N)
+    # C17: directly above F18 (perpendicular to horizontal → tangent at F18)
+    fp_pts["C17"] = (F18_E, SOUTH_WALL_N + R_a17)
 
     return R_a17, R_a19
 
