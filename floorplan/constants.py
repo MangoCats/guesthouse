@@ -179,7 +179,7 @@ NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_DIST_FROM_NORTH = 11.0              # 11'0" IW1 north face to north inner wall
 IW8_OFFSET_N_IW1 = 19.0 / 12.0    # 19" IW8 north face above IW1 north face
 F3_GAP_N_IW8 = 4.0 / 12.0         # 4" F3 north of IW8 north face (legacy)
-ARC_F3_SWEEP = 10.0                # 10° F3-F4 arc sweep (F5-F6 = 90° - this)
+ARC_F3_PLACEMENT_SWEEP = 10.0      # historical 10° sweep for F3 northing placement
 F14_OFFSET_N_IW1 = 2.0 / 12.0     # 2" F14 north of IW1 north face
 F14_F15_SEG = 8.5                  # 8'6" segment
 F14_F15_DIST = 8.0 + 8.0 / 12.0       # 8'8" F14-F15 target distance
