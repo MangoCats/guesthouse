@@ -1,9 +1,7 @@
 """Tests for scad/gen_2in12.py OpenSCAD generation (2:12 slope)."""
-import io
 import re
 import pytest
-from unittest.mock import patch
-from conftest import _import_from
+from conftest import _import_from, generate_scad_content
 
 _mod = _import_from("scad", "gen_2in12")
 generate = _mod.generate
@@ -24,11 +22,7 @@ class TestConstants:
 
 @pytest.fixture(scope="module")
 def scad_content():
-    buf = io.StringIO()
-    with patch("builtins.open", return_value=buf):
-        with patch.object(buf, "close"):
-            generate()
-    return buf.getvalue()
+    return generate_scad_content(generate)
 
 
 class TestGenerate2in12:

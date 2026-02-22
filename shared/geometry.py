@@ -20,6 +20,11 @@ def off_pt(p: Point, n: Point, d: float) -> Point:
     """Offset point p by distance d along unit direction n."""
     return (p[0]+d*n[0], p[1]+d*n[1])
 
+def seg_vec(p1: Point, p2: Point) -> tuple[float, float, float]:
+    """Return (dE, dN, length) from p1 to p2."""
+    dE = p2[0]-p1[0]; dN = p2[1]-p1[1]
+    return dE, dN, math.hypot(dE, dN)
+
 def line_isect(p1: Point, d1: Point, p2: Point, d2: Point) -> Point:
     """Intersection of two lines (p1+t*d1) and (p2+s*d2). Raises GeometryError if parallel."""
     det = d1[0]*d2[1]-d1[1]*d2[0]

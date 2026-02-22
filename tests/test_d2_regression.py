@@ -114,8 +114,7 @@ def _reconstruct_f_points():
     return pts
 
 
-def _dist_sq(a, b):
-    return (a[0] - b[0])**2 + (a[1] - b[1])**2
+from conftest import dist_sq as _dist_sq
 
 
 def _bbox_corners(bbox):
@@ -137,19 +136,17 @@ def _collect_all_points(pts, layout):
     for name in f_names:
         result.append((name, chain_pts[name]))
 
-    # ---- IW walls (all Wall type with .poly) ----
-    for prefix, wall in [("IW1", layout.iw1), ("IW2", layout.iw2),
-                         ("IW3", layout.iw3), ("IW4", layout.iw4),
-                         ("IW5", layout.iw5), ("IW6", layout.iw6),
-                         ("IW7", layout.iw7), ("IW8", layout.iw8),
-                         ("IW9", layout.iw9), ("IW11", layout.iw11),
-                         ("IW12", layout.iw12), ("IW14", layout.iw14),
-                         ("IW15", layout.iw15), ("IW16", layout.iw16)]:
-        for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-            result.append((f"{prefix}_{label}", wall.poly[i]))
-
-    # ---- Appliances (all Wall type with .poly) ----
-    for prefix, wall in [("dryer", layout.dryer), ("washer", layout.washer)]:
+    # ---- IW walls, appliances, furniture (all Wall type with .poly) ----
+    for prefix, wall in [
+        ("IW1", layout.iw1), ("IW2", layout.iw2),
+        ("IW3", layout.iw3), ("IW4", layout.iw4),
+        ("IW5", layout.iw5), ("IW6", layout.iw6),
+        ("IW7", layout.iw7), ("IW8", layout.iw8),
+        ("IW9", layout.iw9), ("IW11", layout.iw11),
+        ("IW12", layout.iw12), ("IW14", layout.iw14),
+        ("IW15", layout.iw15), ("IW16", layout.iw16),
+        ("dryer", layout.dryer), ("washer", layout.washer),
+    ]:
         for i, label in enumerate(["SW", "SE", "NE", "NW"]):
             result.append((f"{prefix}_{label}", wall.poly[i]))
 
@@ -157,7 +154,7 @@ def _collect_all_points(pts, layout):
     for i, p in enumerate(layout.ctr_clip):
         result.append((f"ctr_poly_{i}", p))
 
-    # ---- Furniture (all Wall type with .poly) ----
+    # ---- Furniture (bed, dresser) ----
     for prefix, wall in [("bed", layout.bed), ("dresser", layout.dresser)]:
         for i, label in enumerate(["SW", "SE", "NE", "NW"]):
             result.append((f"{prefix}_{label}", wall.poly[i]))

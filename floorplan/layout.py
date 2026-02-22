@@ -3,7 +3,7 @@ import math
 from typing import NamedTuple
 
 from shared.types import Point, Wall
-from shared.geometry import line_isect
+from shared.geometry import line_isect, seg_vec
 from floorplan.constants import (
     WALL_6IN, WALL_4IN, WALL_3IN,
     APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_FROM_W2,
@@ -106,16 +106,82 @@ class InteriorLayout(NamedTuple):
     sw_t_o11_end: float
 
 
+def _compute_segment_vectors(pts):
+    """Compute along/inward unit vectors for the 4 reference wall segments.
+
+    Returns ((w2w3_al, w2w3_in), (w6w7_al, w6w7_in),
+             (w9w10_al, w9w10_in), (w20w1_al, w20w1_in)).
+    """
+    return (
+        _seg_vecs(pts["W2"], pts["W3"]),    # along≈(0,1), inward≈(1,0)
+        _seg_vecs(pts["W6"], pts["W7"]),    # along≈(1,0), inward≈(0,-1)
+        _seg_vecs(pts["W9"], pts["W10"]),   # along≈(1,0), inward≈(0,-1)
+        _seg_vecs(pts["W20"], pts["W1"]),
+    )
+
+
+def _compute_south_walls(pts, w20w1, iw4_sw, iw11_sw, iw11_se):
+    """Compute walls along the south (W20-W1) wall: bed, IW9, IW3, IW7.
+
+    Returns (bed, iw9, iw3, iw7, opening_params) where opening_params is
+    (ts9, te9, ts10, te10, ts11, te11) — parametric positions on F20-F1.
+    """
+    w20w1_al, w20w1_in = w20w1
+    _dE, _dN, _seg_len = seg_vec(pts["W20"], pts["W1"])
+
+    # --- Bed ---
+    _dE9, _dN9, _seg9_len = seg_vec(pts["F20"], pts["F1"])
+    _t_sw9 = ((iw11_sw[0] - pts["F20"][0]) * _dE9
+              + (iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
+    _ts9 = _t_sw9 + O9_OFFSET_IW11 / _seg9_len
+    _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
+    _bed_t = _te9 + BED_GAP_O9 / _seg_len
+    _bed_se_wall = _offset(pts["W20"], _bed_t, (_dE, _dN))
+    bed_se = _offset(_bed_se_wall, BED_WALL_GAP, w20w1_in)
+    bed_sw = _offset(bed_se, BED_WIDTH, w20w1_al)
+    bed_ne = _offset(bed_se, BED_LENGTH, w20w1_in)
+    bed_nw = _offset(bed_sw, BED_LENGTH, w20w1_in)
+
+    # --- IW9 ---
+    _ts10 = _te9 + O9_O10_WALL / _seg9_len
+    _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
+    _ts11 = _te10 + O10_O11_WALL / _seg9_len
+    _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
+    _o10_end = _offset(pts["W20"], _te10, (_dE, _dN))
+    iw9_se = _offset(_o10_end, IW9_OFFSET_O10, w20w1_al)
+    iw9_sw = _offset(iw9_se, WALL_4IN, w20w1_al)
+    iw9_ne = _offset(iw9_se, IW9_LENGTH, w20w1_in)
+    iw9_nw = _offset(iw9_sw, IW9_LENGTH, w20w1_in)
+
+    # --- IW3 ---
+    iw3_se = _offset(iw9_sw, IW3_OFFSET_IW9, w20w1_al)
+    iw3_sw = _offset(iw3_se, WALL_4IN, w20w1_al)
+    iw3_ne = _offset(iw3_se, IW3_LENGTH, w20w1_in)
+    iw3_nw = _offset(iw3_sw, IW3_LENGTH, w20w1_in)
+
+    # --- IW7 ---
+    iw7_nw = iw3_ne
+    iw7_ne = _offset(iw7_nw, -IW3_OFFSET_IW9, w20w1_al)
+    iw7_sw = _offset(iw7_nw, -WALL_4IN, w20w1_in)
+    iw7_se = _offset(iw7_ne, -WALL_4IN, w20w1_in)
+
+    return (
+        _make_wall([bed_sw, bed_se, bed_ne, bed_nw]),
+        _make_wall([iw9_sw, iw9_se, iw9_ne, iw9_nw]),
+        _make_wall([iw3_sw, iw3_se, iw3_ne, iw3_nw]),
+        _make_wall([iw7_sw, iw7_se, iw7_ne, iw7_nw]),
+        (_ts9, _te9, _ts10, _te10, _ts11, _te11),
+    )
+
+
 def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     """Compute interior layout positions.
 
     pts must contain W-series (W1-W20) and F-series (F1-F20).
     """
     # Segment vectors for wall segments
-    _w2w3_al, _w2w3_in = _seg_vecs(pts["W2"], pts["W3"])   # along=(0,1), inward=(1,0)
-    _w6w7_al, _w6w7_in = _seg_vecs(pts["W6"], pts["W7"])   # along=(1,0), inward=(0,-1)
-    _w9w10_al, _w9w10_in = _seg_vecs(pts["W9"], pts["W10"])  # along=(1,0), inward=(0,-1)
-    _w20w1_al, _w20w1_in = _seg_vecs(pts["W20"], pts["W1"])
+    ((_w2w3_al, _w2w3_in), (_w6w7_al, _w6w7_in),
+     (_w9w10_al, _w9w10_in), (_w20w1_al, _w20w1_in)) = _compute_segment_vectors(pts)
     _neg_w20w1_al = (-_w20w1_al[0], -_w20w1_al[1])
     _neg_w6w7_al = (-_w6w7_al[0], -_w6w7_al[1])
 
@@ -173,9 +239,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # SE corner: circle(IW4_SW, IW11_RADIUS_FROM_IW4) intersect W20-W1
     _w20 = pts["W20"]
     _w1 = pts["W1"]
-    _dE = _w1[0] - _w20[0]
-    _dN = _w1[1] - _w20[1]
-    _seg_len = math.sqrt(_dE**2 + _dN**2)
+    _dE, _dN, _seg_len = seg_vec(_w20, _w1)
     _uE = _w20[0] - iw4_sw[0]
     _uN = _w20[1] - iw4_sw[1]
     _qa = _dE**2 + _dN**2
@@ -197,43 +261,11 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw12_se = line_isect(iw12_sw, _neg_w20w1_al, iw4_sw, _w2w3_al)
     iw12_ne = line_isect(iw12_nw, _neg_w20w1_al, iw4_sw, _w2w3_al)
 
-    # --- Bed ---
-    _dE9 = pts["F1"][0] - pts["F20"][0]
-    _dN9 = pts["F1"][1] - pts["F20"][1]
-    _seg9_len = math.sqrt(_dE9**2 + _dN9**2)
-    _t_sw9 = ((iw11_sw[0] - pts["F20"][0]) * _dE9
-              + (iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
-    _ts9 = _t_sw9 + O9_OFFSET_IW11 / _seg9_len
-    _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
-    _bed_t = _te9 + BED_GAP_O9 / _seg_len
-    _bed_se_wall = _offset(_w20, _bed_t, (_dE, _dN))
-    bed_se = _offset(_bed_se_wall, BED_WALL_GAP, _w20w1_in)
-    bed_sw = _offset(bed_se, BED_WIDTH, _w20w1_al)
-    bed_ne = _offset(bed_se, BED_LENGTH, _w20w1_in)
-    bed_nw = _offset(bed_sw, BED_LENGTH, _w20w1_in)
-
-    # --- IW9 ---
-    _ts10 = _te9 + O9_O10_WALL / _seg9_len
-    _te10 = _ts10 + 2 * O10_HALF_WIDTH / _seg9_len
-    _ts11 = _te10 + O10_O11_WALL / _seg9_len
-    _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
-    _o10_end = _offset(_w20, _te10, (_dE, _dN))
-    iw9_se = _offset(_o10_end, IW9_OFFSET_O10, _w20w1_al)
-    iw9_sw = _offset(iw9_se, WALL_4IN, _w20w1_al)
-    iw9_ne = _offset(iw9_se, IW9_LENGTH, _w20w1_in)
-    iw9_nw = _offset(iw9_sw, IW9_LENGTH, _w20w1_in)
-
-    # --- IW3 ---
-    iw3_se = _offset(iw9_sw, IW3_OFFSET_IW9, _w20w1_al)
-    iw3_sw = _offset(iw3_se, WALL_4IN, _w20w1_al)
-    iw3_ne = _offset(iw3_se, IW3_LENGTH, _w20w1_in)
-    iw3_nw = _offset(iw3_sw, IW3_LENGTH, _w20w1_in)
-
-    # --- IW7 ---
-    iw7_nw = iw3_ne
-    iw7_ne = _offset(iw7_nw, -IW3_OFFSET_IW9, _w20w1_al)
-    iw7_sw = _offset(iw7_nw, -WALL_4IN, _w20w1_in)
-    iw7_se = _offset(iw7_ne, -WALL_4IN, _w20w1_in)
+    # --- Bed, IW9, IW3, IW7 (south wall chain) ---
+    (bed, iw9, iw3, iw7,
+     (_ts9, _te9, _ts10, _te10, _ts11, _te11)) = _compute_south_walls(
+        pts, (_w20w1_al, _w20w1_in), iw4_sw, iw11_sw, iw11_se)
+    iw3_sw, iw3_nw = iw3.poly[0], iw3.poly[3]
 
     # --- IW16 ---
     _iw16_w_anchor = iw3_nw
@@ -307,13 +339,13 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     return InteriorLayout(
         iw1=_make_wall([iw1_sw, iw1_se, iw1_ne, iw1_nw]),
         iw2=_make_wall([iw2_sw, iw2_se, iw2_ne, iw2_nw]),
-        iw3=_make_wall([iw3_sw, iw3_se, iw3_ne, iw3_nw]),
+        iw3=iw3,
         iw4=_make_wall([iw4_sw, iw4_se, iw4_ne, iw4_nw]),
         iw5=_make_wall([iw5_sw, iw5_se, iw5_ne, iw5_nw]),
         iw6=_make_wall([iw6_sw, iw6_se, iw6_ne, iw6_nw]),
-        iw7=_make_wall([iw7_sw, iw7_se, iw7_ne, iw7_nw]),
+        iw7=iw7,
         iw8=_make_wall([iw8_sw, iw8_se, iw8_ne, iw8_nw]),
-        iw9=_make_wall([iw9_sw, iw9_se, iw9_ne, iw9_nw]),
+        iw9=iw9,
         iw11=_make_wall([iw11_sw, iw11_se, iw11_ne, iw11_nw]),
         iw12=_make_wall([iw12_sw, iw12_se, iw12_ne, iw12_nw]),
         iw14=_make_wall([iw14_sw, iw14_se, iw14_ne, iw14_nw]),
@@ -325,7 +357,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         ctr_clip=ctr_clip,
         ctr_nw_r=ctr_nw_r,
         dresser=_make_wall([dresser_sw, dresser_se, dresser_ne, dresser_nw]),
-        bed=_make_wall([bed_sw, bed_se, bed_ne, bed_nw]),
+        bed=bed,
         sw_t_o9_start=_ts9, sw_t_o9_end=_te9,
         sw_t_o10_start=_ts10, sw_t_o10_end=_te10,
         sw_t_o11_start=_ts11, sw_t_o11_end=_te11,

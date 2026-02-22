@@ -3,10 +3,10 @@
 Single source of truth for all opening positions, consumed by both
 gen_floorplan.py (polygon rendering) and gen_walls.py (parametric wall openings).
 """
-import math
 from typing import NamedTuple
 
 from shared.types import Point, BBox, LineSeg
+from shared.geometry import seg_vec
 from floorplan.constants import (
     O1_WIDTH, O2_WIDTH,
     O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH,
@@ -64,9 +64,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O2: F4-F5, diagonal, centered at RO4 northing center
-    _dE2 = pts["F5"][0] - pts["F4"][0]
-    _dN2 = pts["F5"][1] - pts["F4"][1]
-    _seg2_len = math.sqrt(_dE2**2 + _dN2**2)
+    _dE2, _dN2, _seg2_len = seg_vec(pts["F4"], pts["F5"])
     _ro4_ctr_n = layout.iw6.s - IW2_RO_OFFSET_FROM_IW6 - IW2_RO_WIDTH / 2
     _t2_ctr = (_ro4_ctr_n - pts["F4"][1]) / _dN2
     _t2_half = (O2_WIDTH / 2) / _seg2_len
@@ -82,14 +80,12 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O3: F4-F5, diagonal, 4" from F5 along F5-F4 line
-    _dE3 = pts["F5"][0] - pts["F4"][0]
-    _dN3 = pts["F5"][1] - pts["F4"][1]
-    _seg3_len = math.sqrt(_dE3**2 + _dN3**2)
-    _t3_end = 1 - O3_GAP_F5 / _seg3_len       # closer to F5
-    _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg3_len  # farther from F5
+    # reuse _dE2, _dN2, _seg2_len from O2 (same segment F4-F5)
+    _t3_end = 1 - O3_GAP_F5 / _seg2_len       # closer to F5
+    _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg2_len  # farther from F5
     openings.append(OuterOpening("O3", "F4", "F5", [
-        (pts["F4"][0] + _t3_start * _dE3, pts["F4"][1] + _t3_start * _dN3),
-        (pts["F4"][0] + _t3_end * _dE3, pts["F4"][1] + _t3_end * _dN3),
+        (pts["F4"][0] + _t3_start * _dE2, pts["F4"][1] + _t3_start * _dN2),
+        (pts["F4"][0] + _t3_end * _dE2, pts["F4"][1] + _t3_end * _dN2),
         (pts["W4"][0] + _t3_end * (pts["W5"][0] - pts["W4"][0]),
          pts["W4"][1] + _t3_end * (pts["W5"][1] - pts["W4"][1])),
         (pts["W4"][0] + _t3_start * (pts["W5"][0] - pts["W4"][0]),
@@ -122,9 +118,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O7: F12-F13, diagonal — NW end 2' from F12, 6' opening
-    dE = pts["F13"][0] - pts["F12"][0]
-    dN = pts["F13"][1] - pts["F12"][1]
-    seg_len = math.sqrt(dE**2 + dN**2)
+    dE, dN, seg_len = seg_vec(pts["F12"], pts["F13"])
     ts = O7_NW_GAP / seg_len
     te = ts + 2 * O7_HALF_WIDTH / seg_len
     openings.append(OuterOpening("O7", "F12", "F13", [
@@ -144,8 +138,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O9, O10, O11: F20-F1 — parametric positions from layout (single source)
-    _dE9 = pts["F1"][0] - pts["F20"][0]
-    _dN9 = pts["F1"][1] - pts["F20"][1]
+    _dE9, _dN9, _ = seg_vec(pts["F20"], pts["F1"])
     for _name, _ts, _te in [("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
                              ("O10", layout.sw_t_o10_start, layout.sw_t_o10_end),
                              ("O11", layout.sw_t_o11_start, layout.sw_t_o11_end)]:
@@ -175,13 +168,9 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     # RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11
     _iw11_se, _iw11_ne = layout.iw11.poly[1], layout.iw11.poly[2]
     _iw11_sw = layout.iw11.poly[0]
-    _dx11 = _iw11_ne[0] - _iw11_se[0]
-    _dy11 = _iw11_ne[1] - _iw11_se[1]
-    _len11 = math.sqrt(_dx11**2 + _dy11**2)
+    _dx11, _dy11, _len11 = seg_vec(_iw11_se, _iw11_ne)
     _un11 = (_dx11 / _len11, _dy11 / _len11)  # unit along IW11 length (NNE)
-    _dx11t = _iw11_sw[0] - _iw11_se[0]
-    _dy11t = _iw11_sw[1] - _iw11_se[1]
-    _lt11 = math.sqrt(_dx11t**2 + _dy11t**2)
+    _dx11t, _dy11t, _lt11 = seg_vec(_iw11_se, _iw11_sw)
     _ut11 = (_dx11t / _lt11, _dy11t / _lt11)  # unit along IW11 thickness
     # IW12 NW corner projected onto IW11 length axis
     _iw12_nw = layout.iw12.poly[3]
@@ -225,9 +214,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     # RO7: in IW9 (rotated), 62" centered between IW7 S face and IW9 S end
     _iw9_se, _iw9_ne = layout.iw9.poly[1], layout.iw9.poly[2]
     _iw9_sw = layout.iw9.poly[0]
-    _dx9 = _iw9_ne[0] - _iw9_se[0]
-    _dy9 = _iw9_ne[1] - _iw9_se[1]
-    _len9 = math.sqrt(_dx9**2 + _dy9**2)
+    _dx9, _dy9, _len9 = seg_vec(_iw9_se, _iw9_ne)
     _un9 = (_dx9 / _len9, _dy9 / _len9)  # unit along IW9 length (NNE)
     # IW7 SW corner projected onto IW9 length axis = distance of IW7 south face
     _iw7_sw = layout.iw7.poly[0]

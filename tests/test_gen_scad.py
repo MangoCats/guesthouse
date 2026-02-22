@@ -1,10 +1,8 @@
 """Tests for scad/gen_flat_roof.py OpenSCAD generation (T-path approach)."""
-import io
 import math
 import re
 import pytest
-from unittest.mock import patch
-from conftest import _import_from
+from conftest import _import_from, generate_scad_content
 
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.roof import compute_roof_geometry, roof_segments, roof_polyline
@@ -223,11 +221,7 @@ class TestRoofSegments:
 class TestTpathStructure:
     @pytest.fixture(scope="class")
     def scad_content(self):
-        buf = io.StringIO()
-        with patch("builtins.open", return_value=buf):
-            with patch.object(buf, "close"):
-                generate()
-        return buf.getvalue()
+        return generate_scad_content(generate)
 
     def test_eleven_lower_sections(self, scad_content):
         matches = re.findall(r'^t_O\d+_O\d+ = \[', scad_content, re.M)
@@ -258,79 +252,48 @@ class TestTpathStructure:
 # ── integration test ──────────────────────────────────────────
 
 class TestGenerate:
-    def test_output_contains_tpath_data(self):
-        buf = io.StringIO()
-        with patch("builtins.open", return_value=buf):
-            with patch.object(buf, "close"):  # prevent StringIO close
-                generate()
-        content = buf.getvalue()
+    @pytest.fixture(scope="class")
+    def scad_content(self):
+        return generate_scad_content(generate)
+
+    def test_output_contains_tpath_data(self, scad_content):
         # 11 wall sections, each with a T-path variable
-        assert "t_O11_O1 = [" in content
-        assert "t_O1_O2 = [" in content
-        assert "t_O10_O11 = [" in content
+        assert "t_O11_O1 = [" in scad_content
+        assert "t_O1_O2 = [" in scad_content
+        assert "t_O10_O11 = [" in scad_content
 
-    def test_output_contains_assembly(self):
-        buf = io.StringIO()
-        with patch("builtins.open", return_value=buf):
-            with patch.object(buf, "close"):
-                generate()
-        content = buf.getvalue()
-        assert "linear_extrude" in content
-        assert "union()" in content
-        assert "wall_shell(t_O11_O1, half_t);" in content
+    def test_output_contains_assembly(self, scad_content):
+        assert "linear_extrude" in scad_content
+        assert "union()" in scad_content
+        assert "wall_shell(t_O11_O1, half_t);" in scad_content
 
-    def test_output_contains_helpers(self):
-        buf = io.StringIO()
-        with patch("builtins.open", return_value=buf):
-            with patch.object(buf, "close"):
-                generate()
-        content = buf.getvalue()
-        assert "function shell_pts(" in content
-        assert "function seg_pts(" in content
-        assert "function line_pts(" in content
-        assert "function arc_off_pts(" in content
-        assert "function tail(" in content
-        assert "module wall_shell(" in content
+    def test_output_contains_helpers(self, scad_content):
+        assert "function shell_pts(" in scad_content
+        assert "function seg_pts(" in scad_content
+        assert "function line_pts(" in scad_content
+        assert "function arc_off_pts(" in scad_content
+        assert "function tail(" in scad_content
+        assert "module wall_shell(" in scad_content
 
-    def test_output_has_segment_types(self):
-        buf = io.StringIO()
-        with patch("builtins.open", return_value=buf):
-            with patch.object(buf, "close"):
-                generate()
-        content = buf.getvalue()
+    def test_output_has_segment_types(self, scad_content):
         # Lines start with [0, and arcs with [1,
-        assert "[0, " in content
-        assert "[1, " in content
+        assert "[0, " in scad_content
+        assert "[1, " in scad_content
 
-    def test_no_difference_in_assembly(self):
-        buf = io.StringIO()
-        with patch("builtins.open", return_value=buf):
-            with patch.object(buf, "close"):
-                generate()
-        content = buf.getvalue()
+    def test_no_difference_in_assembly(self, scad_content):
         # T-path approach uses polygon with paths, no difference()
-        assert "difference()" not in content
+        assert "difference()" not in scad_content
 
-    def test_output_two_tier_walls(self):
-        buf = io.StringIO()
-        with patch("builtins.open", return_value=buf):
-            with patch.object(buf, "close"):
-                generate()
-        content = buf.getvalue()
-        assert "t_full_O4 = [" in content
-        assert "upper_base" in content
-        assert "upper_height" in content
-        assert "wall_shell(t_full_O4, half_t);" in content
+    def test_output_two_tier_walls(self, scad_content):
+        assert "t_full_O4 = [" in scad_content
+        assert "upper_base" in scad_content
+        assert "upper_height" in scad_content
+        assert "wall_shell(t_full_O4, half_t);" in scad_content
 
-    def test_output_wedge_roof(self):
-        buf = io.StringIO()
-        with patch("builtins.open", return_value=buf):
-            with patch.object(buf, "close"):
-                generate()
-        content = buf.getvalue()
-        assert "translate([0, 0, upper_base + upper_height])" in content
-        assert "polygon(points = shell_pts(roof_outline, 0))" in content
-        assert "max_roof_thick" in content
-        assert "roof_slope" in content
-        assert "roof_z_base" in content
-        assert "render() intersection()" in content
+    def test_output_wedge_roof(self, scad_content):
+        assert "translate([0, 0, upper_base + upper_height])" in scad_content
+        assert "polygon(points = shell_pts(roof_outline, 0))" in scad_content
+        assert "max_roof_thick" in scad_content
+        assert "roof_slope" in scad_content
+        assert "roof_z_base" in scad_content
+        assert "render() intersection()" in scad_content

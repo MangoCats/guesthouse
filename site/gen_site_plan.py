@@ -36,6 +36,21 @@ RESIDENCE_LR = (661.35, 380.80)
 
 COLOR_PROPOSED = (0, 0, 0.6)  # dark blue for proposed/new construction
 
+# Property line vectors (precomputed from corner coordinates)
+_LINE_216_DX = LINE_BOT[0] - LINE_TOP[0]
+_LINE_216_DY = LINE_BOT[1] - LINE_TOP[1]
+_LINE_216_LEN = math.hypot(_LINE_216_DX, _LINE_216_DY)
+_LINE_275_DX = LINE_BOT[0] - BOT_LEFT[0]
+_LINE_275_DY = LINE_BOT[1] - BOT_LEFT[1]
+_LINE_275_LEN = math.hypot(_LINE_275_DX, _LINE_275_DY)
+
+# Rendering constants
+DIM_LABEL_FS = 6.0
+DIM_LABEL_OFFSET = -3.5
+SETBACK_LABEL_FS = 9.0
+OUTLINE_STROKE_W = 1.6
+BLDG_LABEL_FS = 8.0
+
 SitePlanData = namedtuple("SitePlanData", [
     "pts",              # building points dict
     "building_to_pdf",  # transform function (E,N) → (pdf_x, pdf_y)
@@ -70,9 +85,7 @@ def build_site_plan_data():
     SCALE = 72.0 / 30.0  # 2.4 PDF pts per foot
 
     # Direction of 216.73' line in PDF coords (x-right, y-down)
-    ldx = LINE_BOT[0] - LINE_TOP[0]  # +119 (slants left going up)
-    ldy = LINE_BOT[1] - LINE_TOP[1]  # +502.6
-    llen = math.hypot(ldx, ldy)
+    ldx, ldy, llen = _LINE_216_DX, _LINE_216_DY, _LINE_216_LEN
 
     # In real-world coords (E=x-right, N=y-up), the line direction is:
     # dE = ldx = +119, dN = -ldy = -502.6
@@ -120,9 +133,7 @@ def build_site_plan_data():
 
     # Constraint B: FC is FC_DIST_275 inside the 275.08' line.
     # Direction BOT_LEFT→LINE_BOT; interior is to the right.
-    bdx = LINE_BOT[0] - BOT_LEFT[0]
-    bdy = LINE_BOT[1] - BOT_LEFT[1]
-    blen = math.hypot(bdx, bdy)
+    bdx, bdy, blen = _LINE_275_DX, _LINE_275_DY, _LINE_275_LEN
     a2 = bdy / blen
     b2 = -bdx / blen
     c2 = (FC_DIST_275 * SCALE
@@ -141,9 +152,8 @@ def build_site_plan_data():
         return pdf_x, pdf_y
 
     # --- Build drawing polygon (outline offset inward by half stroke width) ---
-    STROKE_W = 1.6
     WALL_T = 8.0 / 12.0
-    half_stroke_ft = (STROKE_W / 2.0) / SCALE
+    half_stroke_ft = (OUTLINE_STROKE_W / 2.0) / SCALE
     frac = half_stroke_ft / WALL_T
 
     n_out = len(outer_poly)
@@ -228,6 +238,45 @@ def build_site_plan_data():
     )
 
 
+def _draw_dim_line(shape, page, pt1, pt2, label, color,
+                   fs=DIM_LABEL_FS, offset=DIM_LABEL_OFFSET):
+    """Draw a dimension line between pt1 and pt2 with centered rotated label."""
+    shape.draw_line(fitz.Point(*pt1), fitz.Point(*pt2))
+    shape.finish(color=color, width=0.3)
+    dx = pt2[0] - pt1[0]
+    dy = pt2[1] - pt1[1]
+    length = math.hypot(dx, dy)
+    deg = math.degrees(math.atan2(dy, dx))
+    mid_x = (pt1[0] + pt2[0]) / 2.0 + offset * dy / length
+    mid_y = (pt1[1] + pt2[1]) / 2.0 - offset * dx / length
+    tw = fitz.get_text_length(label, fontname="helv", fontsize=fs)
+    page.insert_text(
+        fitz.Point(mid_x - tw / 2.0, mid_y + fs / 3.0),
+        label, fontname="helv", fontsize=fs, color=color,
+        morph=(fitz.Point(mid_x, mid_y), fitz.Matrix(-deg - 180)))
+
+
+def _draw_setback_label(page, pt_pdf, line_p1, line_p2, value_ft, color,
+                        fs=SETBACK_LABEL_FS):
+    """Draw a label midway between pt and its perpendicular projection onto a line."""
+    ldx = line_p2[0] - line_p1[0]
+    ldy = line_p2[1] - line_p1[1]
+    llen_sq = ldx * ldx + ldy * ldy
+    t_proj = ((pt_pdf[0] - line_p1[0]) * ldx +
+              (pt_pdf[1] - line_p1[1]) * ldy) / llen_sq
+    proj_x = line_p1[0] + t_proj * ldx
+    proj_y = line_p1[1] + t_proj * ldy
+    cap_x = (pt_pdf[0] + proj_x) / 2.0
+    cap_y = (pt_pdf[1] + proj_y) / 2.0
+    perp_deg = math.degrees(math.atan2(proj_y - pt_pdf[1], proj_x - pt_pdf[0]))
+    text = f"{value_ft:.1f}'"
+    tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
+    page.insert_text(
+        fitz.Point(cap_x - tw / 2.0, cap_y + fs / 3.0),
+        text, fontname="helv", fontsize=fs, color=color,
+        morph=(fitz.Point(cap_x, cap_y), fitz.Matrix(-perp_deg)))
+
+
 def render_site_plan(sp, corners=True):
     """Render base site plan PDF overlay. Returns unsaved fitz.Document."""
     src = fitz.open("site/site_survey.pdf")
@@ -241,7 +290,6 @@ def render_site_plan(sp, corners=True):
     building_to_pdf = sp.building_to_pdf
 
     # --- Draw building outline ---
-    STROKE_W = 1.6
     shape = page.new_shape()
     x0, y0 = building_to_pdf(*sp.draw_poly[0])
     shape.draw_line(fitz.Point(x0, y0), fitz.Point(x0, y0))
@@ -251,7 +299,7 @@ def render_site_plan(sp, corners=True):
         x0, y0 = x1, y1
     x1, y1 = building_to_pdf(*sp.draw_poly[0])
     shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
-    shape.finish(color=COLOR_PROPOSED, width=STROKE_W)
+    shape.finish(color=COLOR_PROPOSED, width=OUTLINE_STROKE_W)
 
     # --- Parcel corner circles (2' radius) ---
     if corners:
@@ -265,115 +313,39 @@ def render_site_plan(sp, corners=True):
     f15 = pts["F15"]
     f15_pdf = building_to_pdf(*f15)
     foot_pdf = building_to_pdf(pts["F2"][0], f15[1])
-    shape.draw_line(fitz.Point(*f15_pdf), fitz.Point(*foot_pdf))
-    shape.finish(color=COLOR_PROPOSED, width=0.3)
-
-    # Caption "36.0'"
-    dim_dx = foot_pdf[0] - f15_pdf[0]
-    dim_dy = foot_pdf[1] - f15_pdf[1]
-    dim_len = math.hypot(dim_dx, dim_dy)
-    dim_deg = math.degrees(math.atan2(dim_dy, dim_dx))
-    dim_shift = -3.5
-    dim_mid_x = (f15_pdf[0] + foot_pdf[0]) / 2.0 + dim_shift * dim_dy / dim_len
-    dim_mid_y = (f15_pdf[1] + foot_pdf[1]) / 2.0 - dim_shift * dim_dx / dim_len
-    dim_text = f"{sp.ew_dim_ft:.1f}'"
-    dim_fs = 6.0
-    dim_tw = fitz.get_text_length(dim_text, fontname="helv", fontsize=dim_fs)
-    page.insert_text(
-        fitz.Point(dim_mid_x - dim_tw / 2.0, dim_mid_y + dim_fs / 3.0),
-        dim_text, fontname="helv", fontsize=dim_fs, color=COLOR_PROPOSED,
-        morph=(fitz.Point(dim_mid_x, dim_mid_y), fitz.Matrix(-dim_deg - 180)))
+    _draw_dim_line(shape, page, f15_pdf, foot_pdf,
+                   f"{sp.ew_dim_ft:.1f}'", COLOR_PROPOSED)
 
     # --- N-S Interior Max Span dimension line ---
-    shape.draw_line(fitz.Point(*sp.span_s_pdf), fitz.Point(*sp.span_n_pdf))
-    shape.finish(color=COLOR_PROPOSED, width=0.3)
-
-    # Caption
-    ns_dx = sp.span_n_pdf[0] - sp.span_s_pdf[0]
-    ns_dy = sp.span_n_pdf[1] - sp.span_s_pdf[1]
-    ns_len = math.hypot(ns_dx, ns_dy)
-    ns_deg = math.degrees(math.atan2(ns_dy, ns_dx))
-    ns_shift = -3.5
-    ns_mid_x = (sp.span_s_pdf[0] + sp.span_n_pdf[0]) / 2.0 + ns_shift * ns_dy / ns_len
-    ns_mid_y = (sp.span_s_pdf[1] + sp.span_n_pdf[1]) / 2.0 - ns_shift * ns_dx / ns_len
-    ns_text = f"{sp.ns_dim_ft:.1f}'"
-    ns_fs = 6.0
-    ns_tw = fitz.get_text_length(ns_text, fontname="helv", fontsize=ns_fs)
-    page.insert_text(
-        fitz.Point(ns_mid_x - ns_tw / 2.0, ns_mid_y + ns_fs / 3.0),
-        ns_text, fontname="helv", fontsize=ns_fs, color=COLOR_PROPOSED,
-        morph=(fitz.Point(ns_mid_x, ns_mid_y), fitz.Matrix(-ns_deg - 180)))
+    _draw_dim_line(shape, page, sp.span_s_pdf, sp.span_n_pdf,
+                   f"{sp.ns_dim_ft:.1f}'", COLOR_PROPOSED)
 
     # --- "PROPOSED CONC. GUEST HOUSE" label ---
     _cx = sum(p[0] for p in sp.inner_poly) / len(sp.inner_poly)
     _cy = sum(p[1] for p in sp.inner_poly) / len(sp.inner_poly)
     label_pdf_raw = building_to_pdf(_cx, _cy + 2.0)
     label_pdf = (label_pdf_raw[0], label_pdf_raw[1] + 5.0 * SCALE)
-    label_fs = 8.0
     label_lines = ["     PROPOSED", "CONC.", "GUEST", "HOUSE"]
-    label_lh = label_fs * 1.15
+    label_lh = BLDG_LABEL_FS * 1.15
     block_h = label_lh * len(label_lines)
-    start_y = label_pdf[1] - block_h / 2.0 + label_fs
+    start_y = label_pdf[1] - block_h / 2.0 + BLDG_LABEL_FS
     for i, line in enumerate(label_lines):
-        lw = fitz.get_text_length(line, fontname="helv", fontsize=label_fs)
+        lw = fitz.get_text_length(line, fontname="helv", fontsize=BLDG_LABEL_FS)
         page.insert_text(
             fitz.Point(label_pdf[0] - lw / 2.0, start_y + i * label_lh),
-            line, fontname="helv", fontsize=label_fs, color=COLOR_PROPOSED)
+            line, fontname="helv", fontsize=BLDG_LABEL_FS, color=COLOR_PROPOSED)
 
-    # --- 11.5' setback caption ---
-    f16 = pts["F16"]
-    f17 = pts["F17"]
-    f16_pdf = building_to_pdf(*f16)
-    f17_pdf = building_to_pdf(*f17)
-    mid_f16f17_x = (f16_pdf[0] + f17_pdf[0]) / 2.0
-    mid_f16f17_y = (f16_pdf[1] + f17_pdf[1]) / 2.0
-
-    ldx = LINE_BOT[0] - LINE_TOP[0]
-    ldy = LINE_BOT[1] - LINE_TOP[1]
-    llen = math.hypot(ldx, ldy)
-
-    t_proj = ((mid_f16f17_x - LINE_TOP[0]) * ldx +
-              (mid_f16f17_y - LINE_TOP[1]) * ldy) / (llen * llen)
-    proj_x = LINE_TOP[0] + t_proj * ldx
-    proj_y = LINE_TOP[1] + t_proj * ldy
-
-    cap_x = (mid_f16f17_x + proj_x) / 2.0
-    cap_y = (mid_f16f17_y + proj_y) / 2.0
-
-    perp_deg = math.degrees(math.atan2(proj_y - mid_f16f17_y,
-                                       proj_x - mid_f16f17_x))
-
-    text = f"{sp.min_setback_216:.1f}'"
-    fs = 9.0
-    tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
-    page.insert_text(
-        fitz.Point(cap_x - tw / 2.0, cap_y + fs / 3.0),
-        text, fontname="helv", fontsize=fs, color=COLOR_PROPOSED,
-        morph=(fitz.Point(cap_x, cap_y), fitz.Matrix(-perp_deg)))
+    # --- 11.5' setback caption (from 216.73' line) ---
+    f16_pdf = building_to_pdf(*pts["F16"])
+    f17_pdf = building_to_pdf(*pts["F17"])
+    mid_f16f17 = ((f16_pdf[0] + f17_pdf[0]) / 2.0,
+                  (f16_pdf[1] + f17_pdf[1]) / 2.0)
+    _draw_setback_label(page, mid_f16f17, LINE_TOP, LINE_BOT,
+                        sp.min_setback_216, COLOR_PROPOSED)
 
     # --- Min setback from 275.08' line caption ---
-    bdx = LINE_BOT[0] - BOT_LEFT[0]
-    bdy = LINE_BOT[1] - BOT_LEFT[1]
-    blen = math.hypot(bdx, bdy)
-
-    t_f2 = ((sp.f2_pdf[0] - BOT_LEFT[0]) * bdx +
-            (sp.f2_pdf[1] - BOT_LEFT[1]) * bdy) / (blen * blen)
-    proj_f2_x = BOT_LEFT[0] + t_f2 * bdx
-    proj_f2_y = BOT_LEFT[1] + t_f2 * bdy
-
-    cap2_x = (sp.f2_pdf[0] + proj_f2_x) / 2.0
-    cap2_y = (sp.f2_pdf[1] + proj_f2_y) / 2.0
-
-    perp2_deg = math.degrees(math.atan2(proj_f2_y - sp.f2_pdf[1],
-                                        proj_f2_x - sp.f2_pdf[0]))
-
-    text2 = f"{sp.min_setback_275:.1f}'"
-    fs2 = 9.0
-    tw2 = fitz.get_text_length(text2, fontname="helv", fontsize=fs2)
-    page.insert_text(
-        fitz.Point(cap2_x - tw2 / 2.0, cap2_y + fs2 / 3.0),
-        text2, fontname="helv", fontsize=fs2, color=COLOR_PROPOSED,
-        morph=(fitz.Point(cap2_x, cap2_y), fitz.Matrix(-perp2_deg)))
+    _draw_setback_label(page, sp.f2_pdf, BOT_LEFT, LINE_BOT,
+                        sp.min_setback_275, COLOR_PROPOSED)
 
     # --- Distance from residence corner to closest F point ---
     _res_pt = sp.f_series_pdf[sp.residence_closest]

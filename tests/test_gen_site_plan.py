@@ -211,8 +211,7 @@ class TestRenderSitePlanDf:
 # d² regression tests — F-series PDF positions vs parcel corners
 # ============================================================
 
-def _dist_sq(a, b):
-    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
+from conftest import dist_sq as _dist_sq
 
 
 _REF_NAMES = ["CORNER_NW", "CORNER_NE", "CORNER_SE", "CORNER_SW"]
@@ -253,6 +252,18 @@ EXPECTED_D2 = [
 ]
 
 
+def _assert_d2_row(data_dict, idx, expected_list):
+    """Check d² from data_dict[name] to each parcel corner against expected."""
+    name, exp_nw, exp_ne, exp_se, exp_sw = expected_list[idx]
+    pt = data_dict[name]
+    expected = [exp_nw, exp_ne, exp_se, exp_sw]
+    for i, rn in enumerate(_REF_NAMES):
+        actual = _dist_sq(pt, _REF_PTS[rn])
+        assert abs(actual - expected[i]) < TOL, (
+            f"{name} -> {rn}: d² = {actual:.6f}, "
+            f"expected {expected[i]:.6f}, delta {actual - expected[i]:.2e}")
+
+
 class TestSitePlanD2Regression:
     """Verify F-series PDF positions via d² to parcel corners."""
 
@@ -271,14 +282,7 @@ class TestSitePlanD2Regression:
     @pytest.mark.parametrize("idx", range(len(EXPECTED_D2)),
                              ids=[e[0] for e in EXPECTED_D2])
     def test_d2(self, f_pdf, idx):
-        name, exp_nw, exp_ne, exp_se, exp_sw = EXPECTED_D2[idx]
-        pt = f_pdf[name]
-        expected = [exp_nw, exp_ne, exp_se, exp_sw]
-        for i, rn in enumerate(_REF_NAMES):
-            actual = _dist_sq(pt, _REF_PTS[rn])
-            assert abs(actual - expected[i]) < TOL, (
-                f"{name} -> {rn}: d² = {actual:.6f}, "
-                f"expected {expected[i]:.6f}, delta {actual - expected[i]:.2e}")
+        _assert_d2_row(f_pdf, idx, EXPECTED_D2)
 
 
 # ============================================================
@@ -385,11 +389,4 @@ class TestPSeriesD2Regression:
     @pytest.mark.parametrize("idx", range(len(EXPECTED_P_D2)),
                              ids=[e[0] for e in EXPECTED_P_D2])
     def test_d2(self, p_pdf, idx):
-        name, exp_nw, exp_ne, exp_se, exp_sw = EXPECTED_P_D2[idx]
-        pt = p_pdf[name]
-        expected = [exp_nw, exp_ne, exp_se, exp_sw]
-        for i, rn in enumerate(_REF_NAMES):
-            actual = _dist_sq(pt, _REF_PTS[rn])
-            assert abs(actual - expected[i]) < TOL, (
-                f"{name} -> {rn}: d² = {actual:.6f}, "
-                f"expected {expected[i]:.6f}, delta {actual - expected[i]:.2e}")
+        _assert_d2_row(p_pdf, idx, EXPECTED_P_D2)

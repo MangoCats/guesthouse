@@ -12,7 +12,7 @@ from floorplan.constants import (
     F14_F15_SEG, F14_F15_DIST, ARC_F13_R_BASELINE, F13_EXIT_BRG,
     SOUTH_WALL_FACE, PIX_PI5_TARGET_BRG, F15_OFFSET_FROM_IW8, ARC_F17_SWEEP, F16_F17_MIN,
     F18_OFFSET_FROM_IW4, F19_OFFSET_FROM_IW4, ARC_F19_R,
-    WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
+    WALL_OUTER, WALL_EXTRA, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_FROM_W2,
     IW1_OFFSET_FROM_W1, IW1_OFFSET_FROM_W9, IW8_OFFSET_FROM_IW1, F14_OFFSET_FROM_IW1,
@@ -79,8 +79,8 @@ def _compute_west_wall(
     _, C5_N = fp_pts["C5"]
 
     # F3_N: 2" north of IW8 north face
-    # F9_N = F6_N - UPPER_E_R - SMALL_ARC_R + _WE (arcs cancel _WE)
-    _F9_N = fp_pts["F6"][1] - (UPPER_E_R + SMALL_ARC_R) + (WALL_OUTER - 8.0 / 12.0)
+    # F9_N = F6_N - UPPER_E_R - SMALL_ARC_R + WALL_EXTRA (arcs cancel WALL_EXTRA)
+    _F9_N = fp_pts["F6"][1] - (UPPER_E_R + SMALL_ARC_R) + WALL_EXTRA
     _W9_N = _F9_N - WALL_OUTER
     _IW1_n = _W9_N - IW1_OFFSET_FROM_W9
     _IW8_n = _IW1_n + IW8_OFFSET_FROM_IW1
@@ -140,13 +140,12 @@ def _compute_upper_east_arcs(
 
     # F8-F9: small arc (R=2"), C8 via tangency with C7
     R_a8 = SMALL_ARC_R
-    _WE = WALL_OUTER - 8.0 / 12.0
     _sum_R = R_a7 + R_a8
-    _dE = math.sqrt(_sum_R**2 - _WE**2)
-    fp_pts["C8"] = (fp_pts["C7"][0] + _dE, fp_pts["C7"][1] + _WE)
+    _dE = math.sqrt(_sum_R**2 - WALL_EXTRA**2)
+    fp_pts["C8"] = (fp_pts["C7"][0] + _dE, fp_pts["C7"][1] + WALL_EXTRA)
     # F8: tangent point on C7→C8 line
     fp_pts["F8"] = (fp_pts["C7"][0] + R_a7 * _dE / _sum_R,
-                    fp_pts["C7"][1] + R_a7 * _WE / _sum_R)
+                    fp_pts["C7"][1] + R_a7 * WALL_EXTRA / _sum_R)
     # F9: bottom of C8 circle
     fp_pts["F9"] = (fp_pts["C8"][0], fp_pts["C8"][1] - R_a8)
 
@@ -202,7 +201,7 @@ def _compute_central_region(
     _C11a_E = _C11_E_ref - FLAT_SEG_11
     fp_pts["C11a"] = (_C11a_E, _C11_N)
     # F10: 15'2" east of nominal F9 easting
-    _nominal_F9_E = fp_pts["C7"][0] + UPPER_E_R + SMALL_ARC_R - (WALL_OUTER - 8.0 / 12.0)
+    _nominal_F9_E = fp_pts["C7"][0] + UPPER_E_R + SMALL_ARC_R - WALL_EXTRA
     _F10_E = _nominal_F9_E + F10_OFFSET_FROM_F9
     _F10_N = fp_pts["F9"][1]
     fp_pts["F10"] = (_F10_E, _F10_N)

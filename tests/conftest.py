@@ -1,12 +1,14 @@
 """Shared test fixtures for hut2 geometry tests."""
 import importlib.util
+import io
 import os
 import pytest
+from unittest.mock import patch
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.geometry import compute_inner_walls, path_polygon, left_norm
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
-from floorplan.constants import WALL_OUTER
+from floorplan.constants import WALL_OUTER, WALL_EXTRA
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -18,6 +20,20 @@ def _import_from(subdir, module_name):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def dist_sq(a, b):
+    """Squared distance between two 2D points."""
+    return (a[0] - b[0])**2 + (a[1] - b[1])**2
+
+
+def generate_scad_content(generate_fn):
+    """Capture SCAD generator output to string."""
+    buf = io.StringIO()
+    with patch("builtins.open", return_value=buf):
+        with patch.object(buf, "close"):
+            generate_fn()
+    return buf.getvalue()
 
 
 @pytest.fixture(scope="session")
@@ -59,14 +75,13 @@ def pts_full(pts_base, inset_result):
 def outline_geo(pts_full, inset_result):
     """OutlineGeometry from compute_outline_geometry."""
     # Shift anchors outward for 10" wall (2" beyond original 8")
-    _WE = WALL_OUTER - 8.0 / 12.0
     _ln = left_norm(pts_full["PiX"], pts_full["Pi5"])
     anchors = OutlineAnchors(
-        Pi2=(pts_full["Pi2"][0] - _WE, pts_full["Pi2"][1]),
-        Pi3=(pts_full["Pi3"][0] - _WE, pts_full["Pi3"][1] - _WE),
+        Pi2=(pts_full["Pi2"][0] - WALL_EXTRA, pts_full["Pi2"][1]),
+        Pi3=(pts_full["Pi3"][0] - WALL_EXTRA, pts_full["Pi3"][1] - WALL_EXTRA),
         Ti3=pts_full["Ti3"],
-        PiX=(pts_full["PiX"][0] - _WE * _ln[0], pts_full["PiX"][1] - _WE * _ln[1]),
-        Pi5=(pts_full["Pi5"][0] - _WE * _ln[0], pts_full["Pi5"][1] - _WE * _ln[1]),
+        PiX=(pts_full["PiX"][0] - WALL_EXTRA * _ln[0], pts_full["PiX"][1] - WALL_EXTRA * _ln[1]),
+        Pi5=(pts_full["Pi5"][0] - WALL_EXTRA * _ln[0], pts_full["Pi5"][1] - WALL_EXTRA * _ln[1]),
         TC1=pts_full["TC1"], R1i=inset_result.R1i,
     )
     return compute_outline_geometry(anchors)

@@ -33,6 +33,19 @@ def _isect(oL_a: tuple[Point, Point], oL_b: tuple[Point, Point]) -> Point:
     return line_isect(a1, d1, b1, d2)
 
 
+def _sample_arc_cw(center: Point, radius: float,
+                   start_pt: Point, end_pt: Point, n: int = 30) -> list[Point]:
+    """Sample CW arc interior points from start_pt to end_pt around center."""
+    cx, cy = center
+    a_start = math.atan2(start_pt[1] - cy, start_pt[0] - cx)
+    a_end = math.atan2(end_pt[1] - cy, end_pt[0] - cx)
+    if a_end > a_start:
+        a_end -= 2 * math.pi
+    return [(cx + radius * math.cos(a_start + (a_end - a_start) * i / n),
+             cy + radius * math.sin(a_start + (a_end - a_start) * i / n))
+            for i in range(1, n)]
+
+
 def _arc_tangent_pt(center: Point, tangent_pt: Point,
                     orig_r: float, new_r: float) -> Point:
     """Point on circle(center, new_r) in the direction of tangent_pt."""
@@ -83,27 +96,15 @@ def compute_roof_geometry(fp_pts: dict[str, Point],
     poly: list[Point] = [pts["R1"], pts["R2"], pts["R3s"]]
 
     # R3 arc: CW from R3s to R3e around r3_c
-    a3_start = math.atan2(pts["R3s"][1] - r3_c[1], pts["R3s"][0] - r3_c[0])
-    a3_end = math.atan2(pts["R3e"][1] - r3_c[1], pts["R3e"][0] - r3_c[0])
-    if a3_end > a3_start:
-        a3_end -= 2 * math.pi
     n_arc = 30
-    for i in range(1, n_arc):
-        a = a3_start + (a3_end - a3_start) * i / n_arc
-        poly.append((r3_c[0] + r3_r * math.cos(a), r3_c[1] + r3_r * math.sin(a)))
+    poly.extend(_sample_arc_cw(r3_c, r3_r, pts["R3s"], pts["R3e"], n_arc))
     poly.append(pts["R3e"])
 
     # Straight segment across the top (R3e to R4s)
     poly.append(pts["R4s"])
 
     # R4 arc: CW from R4s to R4e around r4_c
-    a4_start = math.atan2(pts["R4s"][1] - r4_c[1], pts["R4s"][0] - r4_c[0])
-    a4_end = math.atan2(pts["R4e"][1] - r4_c[1], pts["R4e"][0] - r4_c[0])
-    if a4_end > a4_start:
-        a4_end -= 2 * math.pi
-    for i in range(1, n_arc):
-        a = a4_start + (a4_end - a4_start) * i / n_arc
-        poly.append((r4_c[0] + r4_r * math.cos(a), r4_c[1] + r4_r * math.sin(a)))
+    poly.extend(_sample_arc_cw(r4_c, r4_r, pts["R4s"], pts["R4e"], n_arc))
     poly.append(pts["R4e"])
 
     poly.extend([pts["R5"], pts["R6"], pts["R7"]])
@@ -158,29 +159,15 @@ def roof_polyline(roof: RoofGeometry, n_arc: int = 30) -> list[Point]:
     poly: list[Point] = [pts["R1"], pts["R2"], pts["R3s"]]
 
     # R3 arc: CW from R3s to R3e around r3_center
-    r3_c = roof.r3_center
-    r3_r = roof.r3_radius
-    a_start = math.atan2(pts["R3s"][1] - r3_c[1], pts["R3s"][0] - r3_c[0])
-    a_end = math.atan2(pts["R3e"][1] - r3_c[1], pts["R3e"][0] - r3_c[0])
-    if a_end > a_start:
-        a_end -= 2 * math.pi
-    for i in range(1, n_arc):
-        a = a_start + (a_end - a_start) * i / n_arc
-        poly.append((r3_c[0] + r3_r * math.cos(a), r3_c[1] + r3_r * math.sin(a)))
+    poly.extend(_sample_arc_cw(roof.r3_center, roof.r3_radius,
+                               pts["R3s"], pts["R3e"], n_arc))
     poly.append(pts["R3e"])
 
     poly.append(pts["R4s"])
 
     # R4 arc: CW from R4s to R4e around r4_center
-    r4_c = roof.r4_center
-    r4_r = roof.r4_radius
-    a_start = math.atan2(pts["R4s"][1] - r4_c[1], pts["R4s"][0] - r4_c[0])
-    a_end = math.atan2(pts["R4e"][1] - r4_c[1], pts["R4e"][0] - r4_c[0])
-    if a_end > a_start:
-        a_end -= 2 * math.pi
-    for i in range(1, n_arc):
-        a = a_start + (a_end - a_start) * i / n_arc
-        poly.append((r4_c[0] + r4_r * math.cos(a), r4_c[1] + r4_r * math.sin(a)))
+    poly.extend(_sample_arc_cw(roof.r4_center, roof.r4_radius,
+                               pts["R4s"], pts["R4e"], n_arc))
     poly.append(pts["R4e"])
 
     poly.extend([pts["R5"], pts["R6"], pts["R7"]])

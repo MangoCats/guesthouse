@@ -14,6 +14,7 @@ files=(
          site/site_plan.pdf
          site/site_plan_df.pdf
          site/site_plan_df.png
+         site/site_plan_fs.pdf
        survey/path_area.svg
         walls/walls.svg
         walls/all_walls.svg

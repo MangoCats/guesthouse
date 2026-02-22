@@ -29,6 +29,19 @@ _s = (_CALIB_X_P3 - _CALIB_X_POB) / _CALIB_DIST  # SVG points per survey foot
 
 _CALIB_Y_P3 = 124.12  # P3 y-position in SVG points
 
+def svg_polygon_pts(points, to_svg, prec=1) -> str:
+    """Format polygon points string from (E,N) coords via to_svg transform."""
+    fmt = f".{prec}f"
+    return " ".join(f"{to_svg(*p)[0]:{fmt}},{to_svg(*p)[1]:{fmt}}" for p in points)
+
+def normalize_svg_angle(deg: float) -> float:
+    """Normalize angle to [-90, 90] range for readable SVG text rotation."""
+    if deg > 90:
+        deg -= 180
+    elif deg < -90:
+        deg += 180
+    return deg
+
 def make_svg_transform(p3_trav: Point) -> Callable[[float, float], tuple[float, float]]:
     """Create to_svg closure from P3 traverse position."""
     px = _CALIB_X_P3 + p3_trav[0] * _s

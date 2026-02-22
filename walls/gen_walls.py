@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import fmt_dist, left_norm
-from shared.svg import make_svg_transform, W, H, git_describe
+from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import WALL_OUTER
 from floorplan.openings import compute_rough_openings
@@ -216,7 +216,7 @@ def build_wall_data():
 
 def _svg_polygon(out, poly, to_svg, fill, stroke="#666", stroke_width="0.5"):
     """Render a polygon as an SVG element."""
-    svg = " ".join(f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in poly)
+    svg = svg_polygon_pts(poly, to_svg, prec=2)
     out.append(f'<polygon points="{svg}" fill="{fill}" '
                f'stroke="{stroke}" stroke-width="{stroke_width}"/>')
 
@@ -235,7 +235,7 @@ def _render_interior_walls(out, data):
     LABEL_GAP = 3.0  # SVG px from wall face to label center
 
     def iw_poly(poly):
-        svg = " ".join(f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in poly)
+        svg = svg_polygon_pts(poly, to_svg, prec=2)
         out.append(f'<polygon points="{svg}" fill="{IW_FILL}" '
                    f'stroke="{IW_STROKE}" stroke-width="{IW_SW}"/>')
 
@@ -499,11 +499,7 @@ def _render_opening_dims(out, data):
         my = (sy1 + sy2) / 2 + eny * LABEL_OFFSET
 
         # Rotation: text parallel to dim line, kept readable
-        svg_angle = math.degrees(math.atan2(udy, udx))
-        if svg_angle > 90:
-            svg_angle -= 180
-        elif svg_angle < -90:
-            svg_angle += 180
+        svg_angle = normalize_svg_angle(math.degrees(math.atan2(udy, udx)))
         rot = (f' transform="rotate({svg_angle:.1f},{mx:.1f},{my:.1f})"'
                if abs(svg_angle) > 0.1 else "")
 
@@ -513,8 +509,8 @@ def _render_opening_dims(out, data):
                    f'{label}</text>')
 
 
-def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
-    """Render the wall detail SVG. Returns SVG string."""
+def _render_wall_segments(out, data):
+    """Render wall section fills (arcs, lines, openings, U-turns)."""
     pts = data.pts
     to_svg = data.to_svg
     outline_segs = data.outline_segs
@@ -527,22 +523,9 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     R_in = OPENING_INSIDE_RADIUS
     R_out = R_in + shell_t
 
-    out = []
-    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}"'
-               f' viewBox="{data.vb_x:.2f} {data.vb_y:.2f}'
-               f' {data.vb_w:.2f} {data.vb_h:.2f}">')
-    out.append(f'<rect x="{data.vb_x:.2f}" y="{data.vb_y:.2f}"'
-               f' width="{data.vb_w:.2f}" height="{data.vb_h:.2f}" fill="white"/>')
-
-    # Title
-    out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}"'
-               f' text-anchor="middle" font-family="Arial" font-size="14"'
-               f' font-weight="bold">{title}</text>')
-
     WALL_FILL = "rgba(180,180,180,0.5)"
     OPENING_FILL = "rgb(220,235,255)"
 
-    # --- Draw wall sections ---
     for seg_idx in range(len(outline_segs)):
         seg = outline_segs[seg_idx]
         inner_seg = inner_segs[seg_idx]
@@ -635,28 +618,36 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                     _svg_polygon(out, o_poly, to_svg, OPENING_FILL,
                                  stroke="#4682B4", stroke_width="0.5")
 
-    # --- Continuous outlines per wall section ---
+
+def _render_section_outlines(out, data):
+    """Render continuous outlines per wall section."""
+    pts = data.pts
+    to_svg = data.to_svg
+    shell_t = SHELL_THICKNESS
+    R_in = OPENING_INSIDE_RADIUS
+
     g_overrides = {7: data.g_f8f9_poly}
     w_overrides = {7: data.w_f8f9_poly}
-    sections = enumerate_wall_sections(openings, outline_segs)
+    sections = enumerate_wall_sections(data.openings, data.outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(
-            pts, outline_segs, inner_segs, s_segs, g_segs,
+            pts, data.outline_segs, data.inner_segs, data.s_segs, data.g_segs,
             start_op, end_op, shell_t, R_in, WALL_OUTER,
             g_seg_overrides=g_overrides, w_seg_overrides=w_overrides)
         for path in [outer_path, cavity_path]:
-            svg_pts = " ".join(
-                f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in path)
+            svg_pts = svg_polygon_pts(path, to_svg, prec=2)
             out.append(f'<polygon points="{svg_pts}" fill="none" '
                        f'stroke="#999" stroke-width="0.3"/>')
 
-    # --- Interior walls (optional) ---
-    if include_interior:
-        _render_interior_walls(out, data)
-        _render_opening_dims(out, data)
 
-    # --- Opening labels ---
-    for op in openings:
+def _render_opening_labels(out, data):
+    """Render opening name labels on the wall face."""
+    pts = data.pts
+    to_svg = data.to_svg
+    outline_segs = data.outline_segs
+    inner_segs = data.inner_segs
+
+    for op in data.openings:
         seg = outline_segs[op.seg_idx]
         inner_seg = inner_segs[op.seg_idx]
         t_mid = (op.t_start + op.t_end) / 2
@@ -667,11 +658,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
         cx, cn = (f_mid[0] + w_mid[0]) / 2, (f_mid[1] + w_mid[1]) / 2
         sx, sy = to_svg(cx, cn)
         dE, dN = F_B[0] - F_A[0], F_B[1] - F_A[1]
-        svg_angle = -math.degrees(math.atan2(dN, dE))
-        if svg_angle > 90:
-            svg_angle -= 180
-        elif svg_angle < -90:
-            svg_angle += 180
+        svg_angle = normalize_svg_angle(-math.degrees(math.atan2(dN, dE)))
         rot = (f' transform="rotate({svg_angle:.1f},{sx:.1f},{sy:.1f})"'
                if abs(svg_angle) > 0.1 else "")
         out.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="middle"'
@@ -679,7 +666,9 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                    f' font-size="5" fill="#4682B4" font-weight="bold"'
                    f'{rot}>{op.name}</text>')
 
-    # --- Title block ---
+
+def _render_title_block(out, data):
+    """Render the title block with area, scale, timestamp."""
     out.append(f'<rect x="{data.tb_left:.1f}" y="{data.tb_top:.1f}"'
                f' width="{data.tb_w}" height="{data.tb_h}"'
                f' fill="white" stroke="#333" stroke-width="1"/>')
@@ -711,7 +700,17 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                f' text-anchor="middle" font-family="Arial" font-size="7"'
                f' fill="#999">{SHELL_THICKNESS*12:.0f}&#8243; shell / {AIR_GAP*12:.0f}&#8243; gap / {SHELL_THICKNESS*12:.0f}&#8243; shell</text>')
 
-    # --- Wall segment table ---
+
+def _render_wall_table(out, data):
+    """Render the wall segment measurement table. Returns table bottom y."""
+    pts = data.pts
+    outline_segs = data.outline_segs
+    openings = data.openings
+
+    shell_t = SHELL_THICKNESS
+    R_in = OPENING_INSIDE_RADIUS
+    R_out = R_in + shell_t
+
     sections = enumerate_wall_sections(openings, outline_segs)
     # Rotate so O11-O1 (last section) comes first
     sections = sections[-1:] + sections[:-1]
@@ -811,98 +810,134 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
                f' height="{tbl_border_bottom - tbl_border_top:.1f}"'
                f' fill="none" stroke="#999" stroke-width="0.5"/>')
 
-    # --- Interior walls table ---
+    return tbl_border_bottom
+
+
+def _render_interior_walls_table(out, data, tbl_border_bottom):
+    """Render the interior walls summary table."""
+    pts = data.pts
+    layout = data.layout
+    tbl_left = data.tb_left
+
+    rough_openings = compute_rough_openings(pts, layout)
+    # Map IW name → list of RO names
+    ro_by_wall: dict[str, list[str]] = {}
+    for ro in rough_openings:
+        ro_by_wall.setdefault(ro.wall_name, []).append(ro.name)
+
+    def _poly_len(poly):
+        """Length of longest edge of a 4-point polygon (the wall length)."""
+        edges = []
+        for i in range(4):
+            j = (i + 1) % 4
+            dx = poly[j][0] - poly[i][0]
+            dy = poly[j][1] - poly[i][1]
+            edges.append(math.sqrt(dx**2 + dy**2))
+        return max(edges)
+
+    def _bbox_len(bb, vertical):
+        return (bb.n - bb.s) if vertical else (bb.e - bb.w)
+
+    # (id, thickness_inches, length_ft, vertical)
+    iw_rows = [
+        ("IW1",  6, _poly_len(layout.iw1.poly), True),
+        ("IW2",  6, _bbox_len(layout.iw2, True), True),
+        ("IW3",  4, _poly_len(layout.iw3.poly), True),
+        ("IW4",  4, layout.iw12.poly[2][1] - layout.iw4.s, True),
+        ("IW5",  3, _bbox_len(layout.iw5, False), False),
+        ("IW6",  1, _poly_len(layout.iw6.poly), False),
+        ("IW7",  4, _poly_len(layout.iw7.poly), False),
+        ("IW8",  6, _bbox_len(layout.iw8, False), False),
+        ("IW9",  4, _poly_len(layout.iw9.poly), True),
+        ("IW11", 4, _poly_len(layout.iw11.poly), True),
+        ("IW12", 4, _poly_len(layout.iw12.poly), False),
+        ("IW14", 3, _poly_len(layout.iw14.poly), False),
+        ("IW15", 4, _bbox_len(layout.iw15, True), True),
+        ("IW16", 4, _poly_len(layout.iw16.poly), True),
+    ]
+
+    iw_tbl_top = tbl_border_bottom + 14
+    iw_row_h = 7.5
+    iw_col = [tbl_left + 20, tbl_left + 48, tbl_left + 82, tbl_left + 128]
+
+    # Table title
+    out.append(f'<text x="{(tbl_left + iw_col[-1]) / 2:.1f}" y="{iw_tbl_top:.1f}"'
+               f' text-anchor="middle" font-family="Arial" font-size="7"'
+               f' font-weight="bold" fill="#333">Interior Walls</text>')
+
+    # Column headers
+    iw_hdr_y = iw_tbl_top + 10
+    iw_hdrs = ["ID", "Thk", "Length", "Openings"]
+    iw_hdr_x = [tbl_left + 2, iw_col[1] - 2, iw_col[2] - 2, iw_col[2] + 2]
+    iw_hdr_a = ["start", "end", "end", "start"]
+    for hx, ha, hd in zip(iw_hdr_x, iw_hdr_a, iw_hdrs):
+        out.append(f'<text x="{hx:.1f}" y="{iw_hdr_y:.1f}"'
+                   f' text-anchor="{ha}" font-family="Arial" font-size="6"'
+                   f' font-weight="bold" fill="#333">{hd}</text>')
+
+    # Header underline
+    iw_line_y = iw_hdr_y + 2.5
+    out.append(f'<line x1="{tbl_left:.1f}" y1="{iw_line_y:.1f}"'
+               f' x2="{iw_col[-1]:.1f}" y2="{iw_line_y:.1f}"'
+               f' stroke="#999" stroke-width="0.5"/>')
+
+    # Data rows
+    for ri, (iw_id, thick, length_ft, _vert) in enumerate(iw_rows):
+        y = iw_line_y + (ri + 1) * iw_row_h
+        total_in = length_ft * 12
+        ft = int(total_in) // 12
+        remain_in = total_in - ft * 12
+        length_str = f"{ft}&#8242; {remain_in:.1f}&#8243;"
+        ros = ", ".join(ro_by_wall.get(iw_id, []))
+        vals = [iw_id, f'{thick}&#8243;', length_str, ros]
+        for vx, va, vv in zip(iw_hdr_x, iw_hdr_a, vals):
+            out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
+                       f' text-anchor="{va}" font-family="Arial"'
+                       f' font-size="6" fill="#333">{vv}</text>')
+
+    # Table border
+    iw_border_top = iw_tbl_top - 8.5
+    iw_border_bottom = iw_line_y + len(iw_rows) * iw_row_h + 3
+    out.append(f'<rect x="{tbl_left:.1f}" y="{iw_border_top:.1f}"'
+               f' width="{iw_col[-1] - tbl_left:.1f}"'
+               f' height="{iw_border_bottom - iw_border_top:.1f}"'
+               f' fill="none" stroke="#999" stroke-width="0.5"/>')
+
+
+def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
+    """Render the wall detail SVG. Returns SVG string."""
+    to_svg = data.to_svg
+
+    out = []
+    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}"'
+               f' viewBox="{data.vb_x:.2f} {data.vb_y:.2f}'
+               f' {data.vb_w:.2f} {data.vb_h:.2f}">')
+    out.append(f'<rect x="{data.vb_x:.2f}" y="{data.vb_y:.2f}"'
+               f' width="{data.vb_w:.2f}" height="{data.vb_h:.2f}" fill="white"/>')
+
+    # Title
+    out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}"'
+               f' text-anchor="middle" font-family="Arial" font-size="14"'
+               f' font-weight="bold">{title}</text>')
+
+    _render_wall_segments(out, data)
+    _render_section_outlines(out, data)
+
     if include_interior:
-        layout = data.layout
-        rough_openings = compute_rough_openings(pts, layout)
-        # Map IW name → list of RO names
-        ro_by_wall: dict[str, list[str]] = {}
-        for ro in rough_openings:
-            ro_by_wall.setdefault(ro.wall_name, []).append(ro.name)
+        _render_interior_walls(out, data)
+        _render_opening_dims(out, data)
 
-        def _poly_len(poly):
-            """Length of longest edge of a 4-point polygon (the wall length)."""
-            edges = []
-            for i in range(4):
-                j = (i + 1) % 4
-                dx = poly[j][0] - poly[i][0]
-                dy = poly[j][1] - poly[i][1]
-                edges.append(math.sqrt(dx**2 + dy**2))
-            return max(edges)
+    _render_opening_labels(out, data)
+    _render_title_block(out, data)
+    tbl_bottom = _render_wall_table(out, data)
 
-        def _bbox_len(bb, vertical):
-            return (bb.n - bb.s) if vertical else (bb.e - bb.w)
-
-        # (id, thickness_inches, length_ft, vertical)
-        iw_rows = [
-            ("IW1",  6, _poly_len(layout.iw1.poly), True),
-            ("IW2",  6, _bbox_len(layout.iw2, True), True),
-            ("IW3",  4, _poly_len(layout.iw3.poly), True),
-            ("IW4",  4, layout.iw12.poly[2][1] - layout.iw4.s, True),
-            ("IW5",  3, _bbox_len(layout.iw5, False), False),
-            ("IW6",  1, _poly_len(layout.iw6.poly), False),
-            ("IW7",  4, _poly_len(layout.iw7.poly), False),
-            ("IW8",  6, _bbox_len(layout.iw8, False), False),
-            ("IW9",  4, _poly_len(layout.iw9.poly), True),
-            ("IW11", 4, _poly_len(layout.iw11.poly), True),
-            ("IW12", 4, _poly_len(layout.iw12.poly), False),
-            ("IW14", 3, _poly_len(layout.iw14.poly), False),
-            ("IW15", 4, _bbox_len(layout.iw15, True), True),
-            ("IW16", 4, _poly_len(layout.iw16.poly), True),
-        ]
-
-        iw_tbl_top = tbl_border_bottom + 14
-        iw_row_h = 7.5
-        iw_col = [tbl_left + 20, tbl_left + 48, tbl_left + 82, tbl_left + 128]
-
-        # Table title
-        out.append(f'<text x="{(tbl_left + iw_col[-1]) / 2:.1f}" y="{iw_tbl_top:.1f}"'
-                   f' text-anchor="middle" font-family="Arial" font-size="7"'
-                   f' font-weight="bold" fill="#333">Interior Walls</text>')
-
-        # Column headers
-        iw_hdr_y = iw_tbl_top + 10
-        iw_hdrs = ["ID", "Thk", "Length", "Openings"]
-        iw_hdr_x = [tbl_left + 2, iw_col[1] - 2, iw_col[2] - 2, iw_col[2] + 2]
-        iw_hdr_a = ["start", "end", "end", "start"]
-        for hx, ha, hd in zip(iw_hdr_x, iw_hdr_a, iw_hdrs):
-            out.append(f'<text x="{hx:.1f}" y="{iw_hdr_y:.1f}"'
-                       f' text-anchor="{ha}" font-family="Arial" font-size="6"'
-                       f' font-weight="bold" fill="#333">{hd}</text>')
-
-        # Header underline
-        iw_line_y = iw_hdr_y + 2.5
-        out.append(f'<line x1="{tbl_left:.1f}" y1="{iw_line_y:.1f}"'
-                   f' x2="{iw_col[-1]:.1f}" y2="{iw_line_y:.1f}"'
-                   f' stroke="#999" stroke-width="0.5"/>')
-
-        # Data rows
-        for ri, (iw_id, thick, length_ft, _vert) in enumerate(iw_rows):
-            y = iw_line_y + (ri + 1) * iw_row_h
-            total_in = length_ft * 12
-            ft = int(total_in) // 12
-            remain_in = total_in - ft * 12
-            length_str = f"{ft}&#8242; {remain_in:.1f}&#8243;"
-            ros = ", ".join(ro_by_wall.get(iw_id, []))
-            vals = [iw_id, f'{thick}&#8243;', length_str, ros]
-            for vx, va, vv in zip(iw_hdr_x, iw_hdr_a, vals):
-                out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
-                           f' text-anchor="{va}" font-family="Arial"'
-                           f' font-size="6" fill="#333">{vv}</text>')
-
-        # Table border
-        iw_border_top = iw_tbl_top - 8.5
-        iw_border_bottom = iw_line_y + len(iw_rows) * iw_row_h + 3
-        out.append(f'<rect x="{tbl_left:.1f}" y="{iw_border_top:.1f}"'
-                   f' width="{iw_col[-1] - tbl_left:.1f}"'
-                   f' height="{iw_border_bottom - iw_border_top:.1f}"'
-                   f' fill="none" stroke="#999" stroke-width="0.5"/>')
+    if include_interior:
+        _render_interior_walls_table(out, data, tbl_bottom)
 
     # --- Roof outline (dotted) ---
     from floorplan.roof import roof_polyline
     roof_poly = roof_polyline(data.roof)
-    roof_svg = " ".join(
-        f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in roof_poly)
+    roof_svg = svg_polygon_pts(roof_poly, to_svg, prec=2)
     out.append(f'<polygon points="{roof_svg}" fill="none"'
                f' stroke="#333" stroke-width="0.6" stroke-dasharray="3,2"/>')
 

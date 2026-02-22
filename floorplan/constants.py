@@ -9,7 +9,7 @@ SHELL_THICKNESS = 2.0 / 12.0         # 2" concrete shell
 # Wall thicknesses (feet)
 WALL_OUTER = 8.0 / 12.0           # 8" outer wall (adjustable: 8"-12")
 assert 8.0 / 12.0 <= WALL_OUTER <= 12.0 / 12.0, "WALL_OUTER must be 8\"-12\""
-_WE = WALL_OUTER - 8.0 / 12.0     # wall extra beyond 8" baseline
+WALL_EXTRA = WALL_OUTER - 8.0 / 12.0     # wall extra beyond 8" baseline
 WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2)
 WALL_4IN = 4.0 / 12.0             # 4" interior wall (IW3, IW4)
 WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW7, IW8)
@@ -178,16 +178,16 @@ BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
 
 # Outline geometry constraints
-CORNER_NE_R = 10.0 / 12.0 + _WE   # R_a1: corner arc (10" at 8" wall)
-CORNER_NW_R = 28.0 / 12.0 + _WE   # R_a5: NW corner (28" at 8" wall)
-UPPER_E_R = 28.0 / 12.0 + _WE     # R_a7: upper east (28" at 8" wall)
+CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: corner arc (10" at 8" wall)
+CORNER_NW_R = 28.0 / 12.0 + WALL_EXTRA   # R_a5: NW corner (28" at 8" wall)
+UPPER_E_R = 28.0 / 12.0 + WALL_EXTRA     # R_a7: upper east (28" at 8" wall)
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
-ARC_180_R = 28.0 / 12.0 + _WE     # R_a11: 180-degree arc (28" at 8" wall)
+ARC_180_R = 28.0 / 12.0 + WALL_EXTRA     # R_a11: 180-degree arc (28" at 8" wall)
 FLAT_SEG_11 = 16.0 / 12.0         # 16" C11a baseline offset (design reference)
 F11AB_TARGET = 1.0                 # 1'0" target F11a-F11b distance
 F6_F7_LENGTH = 5.0 + 3.0 / 12.0     # 5'3" F6-F7 segment target length
 F6_OFFSET_ADJ = 6.0 / 12.0           # 6" F6 position adjustment
-F6_HEIGHT = 27.0 + 2*_WE  # F6-F7 north of F1 (27'0" at 8"; +2*_WE because F1 moves south and F6 north)
+F6_HEIGHT = 27.0 + 2*WALL_EXTRA  # F6-F7 north of F1 (27'0" at 8"; +2*WALL_EXTRA because F1 moves south and F6 north)
 NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_OFFSET_FROM_W9 = 11.0              # 11'0" from W9, CW-normal to W9-W10
 IW8_OFFSET_FROM_IW1 = 19.0 / 12.0    # 19" from IW1, toward W9-W10
@@ -195,16 +195,16 @@ F3_OFFSET_FROM_IW8 = 2.0 / 12.0      # 2" from IW8, toward W9-W10
 F14_OFFSET_FROM_IW1 = 2.0 / 12.0     # 2" from IW1, toward W9-W10
 F14_F15_SEG = 8.5                  # 8'6" segment
 F14_F15_DIST = 8.0 + 8.0 / 12.0       # 8'8" F14-F15 target distance
-ARC_F13_R_BASELINE = 5.627004870830987 + _WE  # C11a anchor baseline (original R_a13)
+ARC_F13_R_BASELINE = 5.627004870830987 + WALL_EXTRA  # C11a anchor baseline (original R_a13)
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
-SOUTH_WALL_FACE = -6.0 / 12.0 - _WE  # south wall face northing (-6" at 8" wall)
+SOUTH_WALL_FACE = -6.0 / 12.0 - WALL_EXTRA  # south wall face northing (-6" at 8" wall)
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
-F15_OFFSET_FROM_IW8 = 9.0 + 3.0/12.0 + _WE  # F15 from IW8, CW-normal to W2-W3 (9'3" at 8" wall)
+F15_OFFSET_FROM_IW8 = 9.0 + 3.0/12.0 + WALL_EXTRA  # F15 from IW8, CW-normal to W2-W3 (9'3" at 8" wall)
 ARC_F17_SWEEP = 30.0               # 30° sweep for F17-F18 arc (CW)
 F16_F17_MIN = 5.0                  # minimum 5' F16-F17 segment length
 F18_OFFSET_FROM_IW4 = 2.0 / 12.0         # 2" from IW4, CW-normal to W2-W3
 F19_OFFSET_FROM_IW4 = -10.0 / 12.0       # F19 10" from IW4 (negative = opposite CW-normal)
-ARC_F19_R = 18.888718471469218 + _WE  # R_a19: ~226.7" at 8" wall
+ARC_F19_R = 18.888718471469218 + WALL_EXTRA  # R_a19: ~226.7" at 8" wall
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)

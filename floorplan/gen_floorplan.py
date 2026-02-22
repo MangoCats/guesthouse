@@ -16,7 +16,7 @@ from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import (
-    WALL_OUTER, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
+    WALL_OUTER, WALL_EXTRA, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
     WH_RADIUS,
     SINK_RX, SINK_RY,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
@@ -229,14 +229,13 @@ def build_floorplan_data():
                            _arc_info["nE"], _arc_info["nN"])
     pts.update(_inset.pts_update)
     # Shift anchors outward for 10" wall (2" beyond original 8")
-    _WE = WALL_OUTER - 8.0 / 12.0
     _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
     _anchors = OutlineAnchors(
-        Pi2=(pts["Pi2"][0] - _WE, pts["Pi2"][1]),
-        Pi3=(pts["Pi3"][0] - _WE, pts["Pi3"][1] - _WE),
+        Pi2=(pts["Pi2"][0] - WALL_EXTRA, pts["Pi2"][1]),
+        Pi3=(pts["Pi3"][0] - WALL_EXTRA, pts["Pi3"][1] - WALL_EXTRA),
         Ti3=pts["Ti3"],
-        PiX=(pts["PiX"][0] - _WE * _ln_pip[0], pts["PiX"][1] - _WE * _ln_pip[1]),
-        Pi5=(pts["Pi5"][0] - _WE * _ln_pip[0], pts["Pi5"][1] - _WE * _ln_pip[1]),
+        PiX=(pts["PiX"][0] - WALL_EXTRA * _ln_pip[0], pts["PiX"][1] - WALL_EXTRA * _ln_pip[1]),
+        Pi5=(pts["Pi5"][0] - WALL_EXTRA * _ln_pip[0], pts["Pi5"][1] - WALL_EXTRA * _ln_pip[1]),
         TC1=pts["TC1"], R1i=_inset.R1i,
     )
     _outline_geo = compute_outline_geometry(_anchors)
