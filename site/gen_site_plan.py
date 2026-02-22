@@ -201,7 +201,7 @@ def build_site_plan_data():
     )
 
 
-def render_site_plan(sp):
+def render_site_plan(sp, corners=True):
     """Render base site plan PDF overlay. Returns unsaved fitz.Document."""
     src = fitz.open("site/site_survey.pdf")
     doc = fitz.open()
@@ -227,10 +227,11 @@ def render_site_plan(sp):
     shape.finish(color=(0, 0, 0), width=STROKE_W)
 
     # --- Parcel corner circles (2' radius) ---
-    _corner_r = 2.0 * SCALE
-    for cx, cy in (CORNER_NW, CORNER_NE, CORNER_SE, CORNER_SW):
-        shape.draw_circle(fitz.Point(cx, cy), _corner_r)
-    shape.finish(color=(0, 0, 0), width=0.5, fill=None)
+    if corners:
+        _corner_r = 2.0 * SCALE
+        for cx, cy in (CORNER_NW, CORNER_NE, CORNER_SE, CORNER_SW):
+            shape.draw_circle(fitz.Point(cx, cy), _corner_r)
+        shape.finish(color=(0, 0, 0), width=0.5, fill=None)
 
     # --- F15 to F2-F3 dimension line ---
     f15 = pts["F15"]
@@ -505,17 +506,19 @@ def render_site_plan_df(doc, sp):
 def main():
     sp = build_site_plan_data()
 
-    # --- Base site_plan.pdf ---
+    # --- Base site_plan.pdf (includes corner circles) ---
     doc = render_site_plan(sp)
     out_path = os.path.join(os.path.dirname(__file__), "site_plan.pdf")
     doc.save(out_path)
+    doc.close()
     print(f"Written to {out_path}")
 
-    # --- site_plan_df.pdf (with drainfield annotations) ---
-    render_site_plan_df(doc, sp)
+    # --- site_plan_df.pdf (fresh render without corner circles) ---
+    doc_df = render_site_plan(sp, corners=False)
+    render_site_plan_df(doc_df, sp)
     df_path = os.path.join(os.path.dirname(__file__), "site_plan_df.pdf")
-    doc.save(df_path)
-    doc.close()
+    doc_df.save(df_path)
+    doc_df.close()
     print(f"Written to {df_path}")
     print(f"Rotation: {sp.rotation_deg:.1f}\u00b0 CCW")
     print(f"F15 PDF position: ({sp.f15_pdf[0]:.1f}, {sp.f15_pdf[1]:.1f})")

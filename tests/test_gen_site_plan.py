@@ -174,7 +174,7 @@ class TestRenderSitePlan:
 
 @pytest.fixture(scope="module")
 def df_doc(sp_data):
-    doc = render_site_plan(sp_data)
+    doc = render_site_plan(sp_data, corners=False)
     render_site_plan_df(doc, sp_data)
     yield doc
     doc.close()
