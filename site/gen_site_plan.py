@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import fitz  # pymupdf
 from floorplan.gen_floorplan import build_floorplan_data
-from shared.geometry import vert_isects, path_polygon, segment_polyline
+from shared.geometry import vert_isects, path_polygon, segment_polyline, left_norm, off_pt
+from floorplan.constants import ARC_180_R
 from shared.types import LineSeg, ArcSeg
 from shared.svg import git_describe
 
@@ -201,8 +202,8 @@ def build_site_plan_data():
             _res_best_dist, _res_best_name = d, n
     residence_dist_ft = _res_best_dist / SCALE
 
-    # --- P-series PDF coordinates (angularly corrected + distance-constrained) ---
-    _corrected_bld = _correct_p_series(pts, building_to_pdf)
+    # --- P-series PDF coordinates (angularly corrected, path_area.svg pivot) ---
+    _corrected_bld = _correct_p_series(pts)
     p_series_pdf = {n: building_to_pdf(*p) for n, p in _corrected_bld.items()}
 
     return SitePlanData(
@@ -549,17 +550,13 @@ def render_site_plan_df(doc, sp):
 COLOR_OUTER_PATH = (0, 0.4, 0)  # dark green for survey outer path
 
 
-OUTER_PATH_DIST_216 = 11.0  # PX-P4-P5 distance from 216.73' line (field-verified)
-
-
-def _correct_p_series(pts, building_to_pdf):
-    """Correct P-series points by rotation about a solved pivot.
+def _correct_p_series(pts):
+    """Correct P-series points by rotation about the path_area.svg pivot.
 
     The rotation angle aligns PX→P5 with F17→F16 (both parallel to the
-    216.73' property line, field-verified).  The pivot is the unique point
-    satisfying two simultaneous constraints:
-      1. |P3' - F2| = |P3 - F2|  (P3-F2 distance preserved)
-      2. PX' is OUTER_PATH_DIST_216 from the 216.73' line
+    216.73' property line, field-verified).  The pivot matches
+    gen_path_svg.py: projection of the C15 arc center onto the PiX→Pi5
+    line, using F15 easting to locate C15.
 
     Returns dict of corrected building-coord points for the 13 P-series names.
     """
@@ -571,49 +568,26 @@ def _correct_p_series(pts, building_to_pdf):
     cos_c = math.cos(corr)
     sin_c = math.sin(corr)
 
-    p3 = pts["P3"]
-    f2 = pts["F2"]
-    px = pts["PX"]
-    target_d2 = (f2[0] - p3[0]) ** 2 + (f2[1] - p3[1]) ** 2
-
-    SCALE = 72.0 / 30.0
-    ldx = LINE_BOT[0] - LINE_TOP[0]
-    ldy = LINE_BOT[1] - LINE_TOP[1]
-    llen = math.hypot(ldx, ldy)
-
-    def _rot(pt, a, b):
-        dx, dy = pt[0] - a, pt[1] - b
-        return (a + dx * cos_c - dy * sin_c, b + dx * sin_c + dy * cos_c)
-
-    def _residuals(a, b):
-        p3r = _rot(p3, a, b)
-        eq1 = (p3r[0] - f2[0]) ** 2 + (p3r[1] - f2[1]) ** 2 - target_d2
-        pxr_pdf = building_to_pdf(*_rot(px, a, b))
-        eq2 = (((pxr_pdf[0] - LINE_TOP[0]) * (-ldy)
-                + (pxr_pdf[1] - LINE_TOP[1]) * ldx) / (llen * SCALE)
-               - OUTER_PATH_DIST_216)
-        return eq1, eq2
-
-    # Newton iteration (converges in ~5 steps from F17 initial guess)
-    a, b = pts["F17"]
-    eps = 1e-10
-    for _ in range(20):
-        r1, r2 = _residuals(a, b)
-        if abs(r1) < 1e-20 and abs(r2) < 1e-20:
-            break
-        j11 = (_residuals(a + eps, b)[0] - r1) / eps
-        j12 = (_residuals(a, b + eps)[0] - r1) / eps
-        j21 = (_residuals(a + eps, b)[1] - r2) / eps
-        j22 = (_residuals(a, b + eps)[1] - r2) / eps
-        det = j11 * j22 - j12 * j21
-        da = -(r1 * j22 - r2 * j12) / det
-        db = -(j11 * r2 - j21 * r1) / det
-        a += da
-        b += db
+    # Pivot: same as gen_path_svg.py — project C15 arc-center estimate onto
+    # the PiX→Pi5 line, where C15.E = F15.E - ARC_180_R.
+    d_pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
+    L_pip = math.hypot(*d_pip)
+    d_pip_u = (d_pip[0] / L_pip, d_pip[1] / L_pip)
+    ln_pip = left_norm(pts["PiX"], pts["Pi5"])
+    o_pip = off_pt(pts["PiX"], ln_pip, ARC_180_R)
+    f15_e = pts["F15"][0]
+    t_cf = (f15_e - ARC_180_R - o_pip[0]) / d_pip_u[0]
+    cf = (f15_e - ARC_180_R, o_pip[1] + t_cf * d_pip_u[1])
+    t_piv = ((cf[0] - pts["PiX"][0]) * d_pip[0]
+             + (cf[1] - pts["PiX"][1]) * d_pip[1]) / (d_pip[0] ** 2 + d_pip[1] ** 2)
+    a = pts["PiX"][0] + t_piv * d_pip[0]
+    b = pts["PiX"][1] + t_piv * d_pip[1]
 
     names = ["POB", "P2", "P3", "P4", "P5",
              "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
-    return {name: _rot(pts[name], a, b) for name in names}
+    return {name: (a + (pts[name][0] - a) * cos_c - (pts[name][1] - b) * sin_c,
+                   b + (pts[name][0] - a) * sin_c + (pts[name][1] - b) * cos_c)
+            for name in names}
 
 
 def render_site_plan_fs(doc, sp):
@@ -634,7 +608,7 @@ def render_site_plan_fs(doc, sp):
 
     # Corrected building coords → polygon → PDF coords
     corrected_pts = dict(sp.pts)
-    corrected_pts.update(_correct_p_series(sp.pts, building_to_pdf))
+    corrected_pts.update(_correct_p_series(sp.pts))
     poly_bld = path_polygon(outer_segs, corrected_pts)
     poly_pdf = [fitz.Point(*building_to_pdf(*p)) for p in poly_bld]
 
