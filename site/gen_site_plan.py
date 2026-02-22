@@ -250,7 +250,8 @@ def render_site_plan(sp, corners=True):
         _corner_r = 2.0 * SCALE
         for cx, cy in (CORNER_NW, CORNER_NE, CORNER_SE, CORNER_SW):
             shape.draw_circle(fitz.Point(cx, cy), _corner_r)
-        shape.finish(color=(0, 0, 0), width=0.5, fill=None)
+        shape.finish(color=(1, 0, 0), width=0.5, fill=None,
+                     stroke_opacity=0.4)
 
     # --- F15 to F2-F3 dimension line ---
     f15 = pts["F15"]
