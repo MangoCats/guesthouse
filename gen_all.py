@@ -22,6 +22,7 @@ _SCRIPTS = [
     os.path.join(_DIR, "scad", "gen_flat_roof.py"),
     os.path.join(_DIR, "scad", "gen_2in12.py"),
     os.path.join(_DIR, "scad", "gen_views.py"),
+    os.path.join(_DIR, "scad", "gen_line_drawings.py"),
 ]
 
 
