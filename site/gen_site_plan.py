@@ -553,54 +553,69 @@ OUTER_PATH_DIST_216 = 11.0  # PX-P4-P5 distance from 216.73' line (field-verifie
 
 
 def _correct_p_series(pts, building_to_pdf):
-    """Correct P-series points for angular mismatch and distance constraint.
+    """Correct P-series points by rotation about a solved pivot.
 
-    1. Rotate about F17 to align PX→P5 with F17→F16 (both parallel to 216.73').
-    2. Translate perpendicular to the south wall so PX-P4-P5 is exactly
-       OUTER_PATH_DIST_216 from the 216.73' property line (field-verified).
+    The rotation angle aligns PX→P5 with F17→F16 (both parallel to the
+    216.73' property line, field-verified).  The pivot is the unique point
+    satisfying two simultaneous constraints:
+      1. |P3' - F2| = |P3 - F2|  (P3-F2 distance preserved)
+      2. PX' is OUTER_PATH_DIST_216 from the 216.73' line
 
     Returns dict of corrected building-coord points for the 13 P-series names.
     """
-    # --- Step 1: angular correction ---
     pxp5_angle = math.atan2(pts["P5"][1] - pts["PX"][1],
                             pts["P5"][0] - pts["PX"][0])
     f17f16_angle = math.atan2(pts["F16"][1] - pts["F17"][1],
                               pts["F16"][0] - pts["F17"][0])
     corr = f17f16_angle - pxp5_angle
-    piv = pts["F17"]
     cos_c = math.cos(corr)
     sin_c = math.sin(corr)
-    names = ["POB", "P2", "P3", "P4", "P5",
-             "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
-    result = {}
-    for name in names:
-        dx = pts[name][0] - piv[0]
-        dy = pts[name][1] - piv[1]
-        result[name] = (piv[0] + dx * cos_c - dy * sin_c,
-                        piv[1] + dx * sin_c + dy * cos_c)
 
-    # --- Step 2: perpendicular distance correction ---
-    # Measure PX's current distance from 216.73' line after angular correction.
+    p3 = pts["P3"]
+    f2 = pts["F2"]
+    px = pts["PX"]
+    target_d2 = (f2[0] - p3[0]) ** 2 + (f2[1] - p3[1]) ** 2
+
     SCALE = 72.0 / 30.0
     ldx = LINE_BOT[0] - LINE_TOP[0]
     ldy = LINE_BOT[1] - LINE_TOP[1]
     llen = math.hypot(ldx, ldy)
-    px_pdf = building_to_pdf(*result["PX"])
-    current_dist = ((px_pdf[0] - LINE_TOP[0]) * (-ldy)
-                    + (px_pdf[1] - LINE_TOP[1]) * ldx) / (llen * SCALE)
 
-    # Shift along left normal of F17→F16 (perpendicular to 216.73', into parcel).
-    # Ratio of building-coord shift to 216-distance change is exactly 1.0.
-    dx_f = pts["F16"][0] - pts["F17"][0]
-    dy_f = pts["F16"][1] - pts["F17"][1]
-    L_f = math.hypot(dx_f, dy_f)
-    ln_e, ln_n = -dy_f / L_f, dx_f / L_f
-    shift = OUTER_PATH_DIST_216 - current_dist
-    for name in result:
-        result[name] = (result[name][0] + shift * ln_e,
-                        result[name][1] + shift * ln_n)
+    def _rot(pt, a, b):
+        dx, dy = pt[0] - a, pt[1] - b
+        return (a + dx * cos_c - dy * sin_c, b + dx * sin_c + dy * cos_c)
 
-    return result
+    def _residuals(a, b):
+        p3r = _rot(p3, a, b)
+        eq1 = (p3r[0] - f2[0]) ** 2 + (p3r[1] - f2[1]) ** 2 - target_d2
+        pxr_pdf = building_to_pdf(*_rot(px, a, b))
+        eq2 = (((pxr_pdf[0] - LINE_TOP[0]) * (-ldy)
+                + (pxr_pdf[1] - LINE_TOP[1]) * ldx) / (llen * SCALE)
+               - OUTER_PATH_DIST_216)
+        return eq1, eq2
+
+    # Newton iteration (converges in ~5 steps from F17 initial guess)
+    a, b = pts["F17"]
+    eps = 1e-10
+    for _ in range(20):
+        r1, r2 = _residuals(a, b)
+        if abs(r1) < 1e-20 and abs(r2) < 1e-20:
+            break
+        j11 = (_residuals(a + eps, b)[0] - r1) / eps
+        j12 = (_residuals(a, b + eps)[0] - r1) / eps
+        j21 = (_residuals(a + eps, b)[1] - r1) / eps  # wrong, should use r2
+        j22 = (_residuals(a, b + eps)[1] - r2) / eps
+        # Fix j21
+        j21 = (_residuals(a + eps, b)[1] - r2) / eps
+        det = j11 * j22 - j12 * j21
+        da = -(r1 * j22 - r2 * j12) / det
+        db = -(j11 * r2 - j21 * r1) / det
+        a += da
+        b += db
+
+    names = ["POB", "P2", "P3", "P4", "P5",
+             "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
+    return {name: _rot(pts[name], a, b) for name in names}
 
 
 def render_site_plan_fs(doc, sp):
