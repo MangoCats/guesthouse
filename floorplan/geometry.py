@@ -357,6 +357,12 @@ def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
         LineSeg("F20", "F1"),
     ]
 
+    # FC: center of outline — halfway between each pair of parallel segments
+    fp_pts["FC"] = (
+        (fp_pts["F2"][0] + fp_pts["F14"][0]) / 2,   # midpoint of F2-F3 / F14-F15 eastings
+        (fp_pts["F6"][1] + fp_pts["F18"][1]) / 2,   # midpoint of F6-F7 / F18-F19 northings
+    )
+
     radii = {
         "R_a1": R_a1, "R_a3": R_a3, "R_a5": R_a5,
         "R_a7": R_a7, "R_a8": R_a8, "R_a10": R_a10, "R_a11": R_a11,

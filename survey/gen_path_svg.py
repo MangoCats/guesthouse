@@ -106,6 +106,10 @@ def render_layer(lines: list, segments: list[Segment], pts: dict, cfg: LayerConf
     for seg in segments:
         if seg.start not in seen: vertex_names.append(seg.start); seen.add(seg.start)
         if seg.end not in seen: vertex_names.append(seg.end); seen.add(seg.end)
+    # Include styled vertices not on any segment (e.g. FC)
+    for vname in cfg.vertex_styles:
+        if vname not in seen and vname in pts:
+            vertex_names.append(vname)
     for vname in vertex_names:
         if vname not in cfg.vertex_styles: continue
         vs = cfg.vertex_styles[vname]
@@ -454,6 +458,7 @@ def build_outline_cfg(outline_segs, pts, radii):
             "F19":  VertexStyle("F19",  "middle",  0, 12,  "#d32f2f", 1.75, 10),
             "F20":  VertexStyle("F20",  "middle",  0, 13,  "#d32f2f", 1.75, 10),
             "F16":  VertexStyle("F16",  "start",   8,  4,  "#d32f2f", 1.75, 10),
+            "FC":   VertexStyle("FC",   "start",   4,  -2, "#d32f2f", 1.75, 10),
         },
         brg_dist_labels={
             ("F2","F3"): BrgDistLabel(18),
