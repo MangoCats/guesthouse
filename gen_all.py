@@ -45,16 +45,17 @@ def main():
         if os.path.exists(_CACHE):
             os.remove(_CACHE)
 
-    # 4. Render site_plan_df.pdf → site_plan_df.png at 1920px wide
-    pdf_path = os.path.join(_DIR, "site", "site_plan_df.pdf")
-    png_path = os.path.join(_DIR, "site", "site_plan_df.png")
-    doc = fitz.open(pdf_path)
-    page = doc[0]
-    scale = 1920 / page.rect.width
-    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
-    pix.save(png_path)
-    doc.close()
-    print(f"  rendered {os.path.relpath(png_path, _DIR)} ({pix.width}x{pix.height})")
+    # 4. Render site plan PDFs → PNGs at 1920px wide
+    for pdf_name in ("site_plan_df.pdf", "site_plan_fs.pdf"):
+        pdf_path = os.path.join(_DIR, "site", pdf_name)
+        png_path = pdf_path.replace(".pdf", ".png")
+        doc = fitz.open(pdf_path)
+        page = doc[0]
+        scale = 1920 / page.rect.width
+        pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
+        pix.save(png_path)
+        doc.close()
+        print(f"  rendered {os.path.relpath(png_path, _DIR)} ({pix.width}x{pix.height})")
 
     print("done.")
 

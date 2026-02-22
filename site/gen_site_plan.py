@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import fitz  # pymupdf
 from floorplan.gen_floorplan import build_floorplan_data
-from shared.geometry import vert_isects
+from shared.geometry import vert_isects, path_polygon, segment_polyline
+from shared.types import LineSeg, ArcSeg
 from shared.svg import git_describe
 
 # Survey coordinate calibration constants (PDF coords from least-squares fitting)
@@ -539,6 +540,37 @@ def render_site_plan_df(doc, sp):
     return doc
 
 
+COLOR_OUTER_PATH = (0, 0.4, 0)  # dark green for survey outer path
+
+
+def render_site_plan_fs(doc, sp):
+    """Add outer survey path (P-series traverse) overlay to an existing site plan."""
+    page = doc[0]
+    pts = sp.pts
+    building_to_pdf = sp.building_to_pdf
+
+    # Outer path segments (same definition as survey/gen_path_svg.py)
+    R1, R2, R3 = 10.0, 12.5, 11.0
+    outer_segs = [
+        LineSeg("POB", "P2"), LineSeg("P2", "P3"), LineSeg("P3", "T3"),
+        ArcSeg("T3", "PX", "TC3", R3, "CW", 60),
+        LineSeg("PX", "P4"), LineSeg("P4", "P5"), LineSeg("P5", "T1"),
+        ArcSeg("T1", "PA", "TC1", R1, "CW", 60),
+        ArcSeg("PA", "T2", "TC2", R2, "CW", 60),
+        LineSeg("T2", "POB"),
+    ]
+
+    # Convert to polygon in building coords, then transform to PDF coords
+    poly_bld = path_polygon(outer_segs, pts)
+    poly_pdf = [fitz.Point(*building_to_pdf(*p)) for p in poly_bld]
+
+    # Draw closed polyline: 40% opaque dark green
+    page.draw_polyline(poly_pdf, color=COLOR_OUTER_PATH, width=1.2,
+                       closePath=True, stroke_opacity=0.4)
+
+    return doc
+
+
 def main():
     sp = build_site_plan_data()
 
@@ -556,6 +588,16 @@ def main():
     doc_df.save(df_path)
     doc_df.close()
     print(f"Written to {df_path}")
+
+    # --- site_plan_fs.pdf (df content + outer survey path) ---
+    doc_fs = render_site_plan(sp, corners=False)
+    render_site_plan_df(doc_fs, sp)
+    render_site_plan_fs(doc_fs, sp)
+    fs_path = os.path.join(os.path.dirname(__file__), "site_plan_fs.pdf")
+    doc_fs.save(fs_path)
+    doc_fs.close()
+    print(f"Written to {fs_path}")
+
     print(f"Rotation: {sp.rotation_deg:.1f}\u00b0 CCW")
     print(f"F15 PDF position: ({sp.f15_pdf[0]:.1f}, {sp.f15_pdf[1]:.1f})")
 
