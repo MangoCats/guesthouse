@@ -29,6 +29,9 @@ CORNER_SW = BOT_LEFT   # 275.08' meets 163.69'
 FC_DIST_216 = 29.097863567855153  # FC distance from 216.73' line
 FC_DIST_275 = 45.786428974476834  # FC distance from 275.08' line
 
+# Existing FRAME & STONE RESIDENCE lower-right corner (14.4'/28.2' wall midline isect)
+RESIDENCE_LR = (661.35, 380.80)
+
 SitePlanData = namedtuple("SitePlanData", [
     "pts",              # building points dict
     "building_to_pdf",  # transform function (E,N) → (pdf_x, pdf_y)
@@ -45,6 +48,8 @@ SitePlanData = namedtuple("SitePlanData", [
     "f2_pdf",           # F2 position in PDF coords
     "SCALE",            # PDF pts per foot (2.4)
     "f_series_pdf",     # dict of F-series + FC points in PDF coords
+    "residence_dist_ft", # distance from RESIDENCE_LR to closest F point (ft)
+    "residence_closest",  # name of closest F point to RESIDENCE_LR
 ])
 
 
@@ -183,6 +188,15 @@ def build_site_plan_data():
         / (blen * SCALE)
         for pt in (f_series_pdf[n] for n in _f_struct))
 
+    # --- Distance from existing residence corner to closest F point ---
+    _res_best_name, _res_best_dist = None, float("inf")
+    for n in _f_struct:
+        pt = f_series_pdf[n]
+        d = math.hypot(pt[0] - RESIDENCE_LR[0], pt[1] - RESIDENCE_LR[1])
+        if d < _res_best_dist:
+            _res_best_dist, _res_best_name = d, n
+    residence_dist_ft = _res_best_dist / SCALE
+
     return SitePlanData(
         pts=pts,
         building_to_pdf=building_to_pdf,
@@ -199,6 +213,8 @@ def build_site_plan_data():
         f2_pdf=f2_pdf,
         SCALE=SCALE,
         f_series_pdf=f_series_pdf,
+        residence_dist_ft=residence_dist_ft,
+        residence_closest=_res_best_name,
     )
 
 
@@ -347,6 +363,20 @@ def render_site_plan(sp, corners=True):
         fitz.Point(cap2_x - tw2 / 2.0, cap2_y + fs2 / 3.0),
         text2, fontname="helv", fontsize=fs2, color=(0, 0, 0),
         morph=(fitz.Point(cap2_x, cap2_y), fitz.Matrix(-perp2_deg)))
+
+    # --- Distance from residence corner to closest F point ---
+    _res_pt = sp.f_series_pdf[sp.residence_closest]
+    _res_mid_x = (RESIDENCE_LR[0] + _res_pt[0]) / 2.0
+    _res_mid_y = (RESIDENCE_LR[1] + _res_pt[1]) / 2.0
+    _res_deg = math.degrees(math.atan2(
+        _res_pt[1] - RESIDENCE_LR[1], _res_pt[0] - RESIDENCE_LR[0]))
+    _res_text = f"{sp.residence_dist_ft:.1f}'"
+    _res_fs = 9.0
+    _res_tw = fitz.get_text_length(_res_text, fontname="helv", fontsize=_res_fs)
+    page.insert_text(
+        fitz.Point(_res_mid_x - _res_tw / 2.0, _res_mid_y + _res_fs / 3.0),
+        _res_text, fontname="helv", fontsize=_res_fs, color=(0, 0, 0),
+        morph=(fitz.Point(_res_mid_x, _res_mid_y), fitz.Matrix(-_res_deg)))
 
     # --- "FRONT ↑" annotation above 251.53' line ---
     _mid_251_x = (TL_251[0] + LINE_TOP[0]) / 2.0
