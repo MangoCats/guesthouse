@@ -118,6 +118,40 @@ def compute_roof_geometry(fp_pts: dict[str, Point],
     )
 
 
+def roof_segments(roof: RoofGeometry) -> list:
+    """Build the roof outline as line/arc segment elements.
+
+    Returns list of ("line", x1, y1, x2, y2) and
+    ("arc", cx, cy, r, a1_deg, a2_deg) tuples — same format as T-path
+    elements.  The outline is CW (R1→R2→R3 arc→...→R7→R1).
+    """
+    pts = roof.pts
+    r3_c, r3_r = roof.r3_center, roof.r3_radius
+    r4_c, r4_r = roof.r4_center, roof.r4_radius
+
+    def _line(a, b):
+        return ("line", a[0], a[1], b[0], b[1])
+
+    def _arc_cw(center, radius, sp, ep):
+        a1 = math.degrees(math.atan2(sp[1] - center[1], sp[0] - center[0]))
+        a2 = math.degrees(math.atan2(ep[1] - center[1], ep[0] - center[0]))
+        sweep = (a1 - a2) % 360
+        a2 = a1 - sweep
+        return ("arc", center[0], center[1], radius, a1, a2)
+
+    return [
+        _line(pts["R1"], pts["R2"]),
+        _line(pts["R2"], pts["R3s"]),
+        _arc_cw(r3_c, r3_r, pts["R3s"], pts["R3e"]),
+        _line(pts["R3e"], pts["R4s"]),
+        _arc_cw(r4_c, r4_r, pts["R4s"], pts["R4e"]),
+        _line(pts["R4e"], pts["R5"]),
+        _line(pts["R5"], pts["R6"]),
+        _line(pts["R6"], pts["R7"]),
+        _line(pts["R7"], pts["R1"]),
+    ]
+
+
 def roof_polyline(roof: RoofGeometry, n_arc: int = 30) -> list[Point]:
     """Build the roof outline as a list of (E,N) points, sampling arcs."""
     pts = roof.pts

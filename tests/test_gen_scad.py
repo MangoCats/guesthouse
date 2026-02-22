@@ -121,7 +121,7 @@ class TestGenerate:
                 generate()
         content = buf.getvalue()
         assert "translate([0, 0, upper_base + upper_height])" in content
-        assert "polygon(points = roof_outline)" in content
+        assert "polygon(points = shell_pts(roof_outline, 0))" in content
         assert "max_roof_thick" in content
         assert "roof_slope" in content
         assert "roof_z_base" in content

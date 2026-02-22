@@ -1,5 +1,6 @@
 """Generate site_plan.pdf: building outline overlaid on site survey."""
 
+import datetime
 import math
 import sys
 import os
@@ -9,6 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import fitz  # pymupdf
 from floorplan.gen_floorplan import build_floorplan_data
 from shared.geometry import vert_isects
+from shared.svg import git_describe
 
 
 def main():
@@ -326,6 +328,21 @@ def main():
     shape.draw_line(fitz.Point(_arr_cx, _arr_top),
                     fitz.Point(_arr_cx + _arr_hw, _arr_top + _arr_ah))
     shape.finish(color=(0, 0, 0), width=0.8)
+
+    # --- Git describe / timestamp caption (right of GRAPHIC SCALE) ---
+    # GRAPHIC SCALE text right edge ≈ x=550, y≈635; scale bar at y≈655;
+    # 275.08' line at y≈560.  Place caption between 275.08' and scale bar,
+    # to the right of the GRAPHIC SCALE label.
+    _cap_x = 680.0   # right of GRAPHIC SCALE text
+    _cap_y = 600.0   # between 275.08' line and scale bar
+    _cap_fs = 5.5
+    _cap_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _cap_git = git_describe()
+    _cap_text = f"Generated {_cap_now}  {_cap_git}"
+    _cap_tw = fitz.get_text_length(_cap_text, fontname="helv", fontsize=_cap_fs)
+    page.insert_text(
+        fitz.Point(_cap_x - _cap_tw / 2.0, _cap_y),
+        _cap_text, fontname="helv", fontsize=_cap_fs, color=(0.4, 0.4, 0.4))
 
     shape.commit()
 

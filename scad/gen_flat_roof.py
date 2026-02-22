@@ -11,7 +11,7 @@ import os
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS,
                                   OPENING_INSIDE_RADIUS)
-from floorplan.roof import compute_roof_geometry, roof_polyline
+from floorplan.roof import compute_roof_geometry, roof_polyline, roof_segments
 from shared.wall_shells import compute_inset_path, enumerate_wall_sections, lerp
 from shared.types import ArcSeg
 
@@ -385,7 +385,10 @@ def generate():
     out.append(f"roof_z_base = {roof_z_base:.8f};")
     out.append("")
 
-    # Collect all T-path data (lower sections + full-wall) for alignment
+    # Roof outline as vector/arc segments
+    roof_elems = roof_segments(roof_geo)
+
+    # Collect all T-path data (lower sections + full-wall + roof) for alignment
     all_entries = list(section_data) + [("full_O4", full_tpath)]
 
     # Pre-compute data parts to find alignment width
@@ -396,7 +399,12 @@ def generate():
             comma = "," if i < len(tpath) - 1 else ""
             parts.append(f"  {_scad_seg(elem)}{comma}")
         all_data_parts.append(parts)
-    max_data_width = max(len(p) for parts in all_data_parts for p in parts)
+    roof_parts = []
+    for i, elem in enumerate(roof_elems):
+        comma = "," if i < len(roof_elems) - 1 else ""
+        roof_parts.append(f"  {_scad_seg(elem)}{comma}")
+    max_data_width = max(len(p) for parts in all_data_parts + [roof_parts]
+                         for p in parts)
 
     # Emit lower wall section T-paths
     for (label, tpath), parts in zip(section_data, all_data_parts):
@@ -418,12 +426,12 @@ def generate():
     out.append("];")
     out.append("")
 
-    # Emit roof outline polygon
+    # Emit roof outline as vector/arc segments
     out.append("// Roof outline (R-series, 6\" overhang from F-face)")
     out.append("roof_outline = [")
-    for i, (e, n) in enumerate(roof_pts):
-        comma = "," if i < len(roof_pts) - 1 else ""
-        out.append(f"  [{e:.8f}, {n:.8f}]{comma}")
+    for elem, data_part in zip(roof_elems, roof_parts):
+        pad = max(1, max_data_width + 1 - len(data_part))
+        out.append(f"{data_part}{' ' * pad}{_seg_comment(elem)}")
     out.append("];")
     out.append("")
 
@@ -446,7 +454,7 @@ def generate():
     out.append(f"  translate([0, 0, upper_base + upper_height])")
     out.append("    render() intersection() {")
     out.append("      linear_extrude(height = max_roof_thick + 0.1)")
-    out.append("        polygon(points = roof_outline);")
+    out.append("        polygon(points = shell_pts(roof_outline, 0));")
     out.append("      multmatrix([[1,0,0,0], [0,1,0,0],")
     out.append("                  [0, roof_slope, 1, roof_z_base], [0,0,0,1]])")
     out.append("        translate([-5, -5, -25])")
