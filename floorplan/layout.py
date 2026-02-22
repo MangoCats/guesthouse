@@ -3,7 +3,7 @@ import math
 from typing import NamedTuple
 
 from shared.types import Point, Wall
-from shared.geometry import line_isect, seg_vec
+from shared.geometry import line_isect, seg_vec, seg_vecs, offset_pt
 from floorplan.constants import (
     WALL_6IN, WALL_4IN, WALL_3IN,
     APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_FROM_W2,
@@ -23,18 +23,8 @@ from floorplan.constants import (
 )
 
 
-def _seg_vecs(p1, p2):
-    """Along-direction and CW-inward normal for segment p1->p2."""
-    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-    length = math.sqrt(dx * dx + dy * dy)
-    along = (dx / length, dy / length)
-    inward = (dy / length, -dx / length)  # right perp = CW inward
-    return along, inward
-
-
-def _offset(origin, dist, direction):
-    """Offset point by dist along direction vector."""
-    return (origin[0] + dist * direction[0], origin[1] + dist * direction[1])
+_seg_vecs = seg_vecs
+_offset = offset_pt
 
 
 def _dot(a, b):

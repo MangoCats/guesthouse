@@ -25,6 +25,23 @@ def seg_vec(p1: Point, p2: Point) -> tuple[float, float, float]:
     dE = p2[0]-p1[0]; dN = p2[1]-p1[1]
     return dE, dN, math.hypot(dE, dN)
 
+def seg_vecs(p1: Point, p2: Point) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Along-direction and CW-inward normal unit vectors for segment p1→p2.
+
+    Returns (along, inward) where:
+    - along: unit vector from p1 toward p2
+    - inward: right perpendicular of along (CW-inward for CW outline traversal)
+    """
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    length = math.sqrt(dx * dx + dy * dy)
+    along = (dx / length, dy / length)
+    inward = (dy / length, -dx / length)
+    return along, inward
+
+def offset_pt(origin: Point, dist: float, direction: tuple[float, float]) -> Point:
+    """Offset point by dist along direction vector."""
+    return (origin[0] + dist * direction[0], origin[1] + dist * direction[1])
+
 def line_isect(p1: Point, d1: Point, p2: Point, d2: Point) -> Point:
     """Intersection of two lines (p1+t*d1) and (p2+s*d2). Raises GeometryError if parallel."""
     det = d1[0]*d2[1]-d1[1]*d2[0]

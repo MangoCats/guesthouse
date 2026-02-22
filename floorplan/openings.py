@@ -54,13 +54,22 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     """
     openings = []
 
-    # O1: F2-F3, vertical, centered at RO3/IW16 center northing
-    _iw16_ctr_n = (layout.iw16.poly[0][1] + layout.iw16.poly[2][1]) / 2
-    o1_n = _iw16_ctr_n + O1_WIDTH / 2
-    o1_s = _iw16_ctr_n - O1_WIDTH / 2
+    # O1: F2-F3, centered at IW16 midpoint projected onto segment
+    _dE1, _dN1, _seg1_len = seg_vec(pts["F2"], pts["F3"])
+    _iw16_ctr = ((layout.iw16.poly[0][0] + layout.iw16.poly[2][0]) / 2,
+                 (layout.iw16.poly[0][1] + layout.iw16.poly[2][1]) / 2)
+    _t1_ctr = ((_iw16_ctr[0] - pts["F2"][0]) * _dE1
+               + (_iw16_ctr[1] - pts["F2"][1]) * _dN1) / (_dE1**2 + _dN1**2)
+    _t1_half = (O1_WIDTH / 2) / _seg1_len
+    _t1_start = _t1_ctr - _t1_half
+    _t1_end = _t1_ctr + _t1_half
     openings.append(OuterOpening("O1", "F2", "F3", [
-        (pts["F3"][0], o1_s), (pts["F3"][0], o1_n),
-        (pts["W3"][0], o1_n), (pts["W3"][0], o1_s),
+        (pts["F2"][0] + _t1_start * _dE1, pts["F2"][1] + _t1_start * _dN1),
+        (pts["F2"][0] + _t1_end * _dE1, pts["F2"][1] + _t1_end * _dN1),
+        (pts["W2"][0] + _t1_end * (pts["W3"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t1_end * (pts["W3"][1] - pts["W2"][1])),
+        (pts["W2"][0] + _t1_start * (pts["W3"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t1_start * (pts["W3"][1] - pts["W2"][1])),
     ]))
 
     # O2: F4-F5, diagonal, centered at RO4 northing center
@@ -92,29 +101,49 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W4"][1] + _t3_start * (pts["W5"][1] - pts["W4"][1])),
     ]))
 
-    # O4: F6-F7, horizontal, centered on segment
-    o4_mid = (pts["F6"][0] + pts["F7"][0]) / 2
-    o4_w = o4_mid - O4_HALF_WIDTH
-    o4_e = o4_mid + O4_HALF_WIDTH
+    # O4: F6-F7, centered on segment at t=0.5
+    _dE4, _dN4, _seg4_len = seg_vec(pts["F6"], pts["F7"])
+    _t4_half = O4_HALF_WIDTH / _seg4_len
+    _t4_start = 0.5 - _t4_half
+    _t4_end = 0.5 + _t4_half
     openings.append(OuterOpening("O4", "F6", "F7", [
-        (o4_w, pts["W6"][1]), (o4_e, pts["W6"][1]),
-        (o4_e, pts["F6"][1]), (o4_w, pts["F6"][1]),
+        (pts["W6"][0] + _t4_start * (pts["W7"][0] - pts["W6"][0]),
+         pts["W6"][1] + _t4_start * (pts["W7"][1] - pts["W6"][1])),
+        (pts["W6"][0] + _t4_end * (pts["W7"][0] - pts["W6"][0]),
+         pts["W6"][1] + _t4_end * (pts["W7"][1] - pts["W6"][1])),
+        (pts["F6"][0] + _t4_end * _dE4, pts["F6"][1] + _t4_end * _dN4),
+        (pts["F6"][0] + _t4_start * _dE4, pts["F6"][1] + _t4_start * _dN4),
     ]))
 
-    # O5: F9-F10, horizontal
-    o5_e = layout.iw2.e + O5_OFFSET_FROM_IW2
-    o5_w = o5_e - O5_WIDTH
+    # O5 and O6 share segment F9-F10
+    _dE56, _dN56, _seg56_len = seg_vec(pts["F9"], pts["F10"])
+
+    # O5: F9-F10, anchored at IW2 east face projection + offset
+    _iw2_e_mid = ((layout.iw2.poly[1][0] + layout.iw2.poly[2][0]) / 2,
+                  (layout.iw2.poly[1][1] + layout.iw2.poly[2][1]) / 2)
+    _t5_ref = ((_iw2_e_mid[0] - pts["F9"][0]) * _dE56
+               + (_iw2_e_mid[1] - pts["F9"][1]) * _dN56) / (_dE56**2 + _dN56**2)
+    _t5_end = _t5_ref + O5_OFFSET_FROM_IW2 / _seg56_len
+    _t5_start = _t5_end - O5_WIDTH / _seg56_len
     openings.append(OuterOpening("O5", "F9", "F10", [
-        (o5_w, pts["W9"][1]), (o5_e, pts["W9"][1]),
-        (o5_e, pts["F9"][1]), (o5_w, pts["F9"][1]),
+        (pts["W9"][0] + _t5_start * (pts["W10"][0] - pts["W9"][0]),
+         pts["W9"][1] + _t5_start * (pts["W10"][1] - pts["W9"][1])),
+        (pts["W9"][0] + _t5_end * (pts["W10"][0] - pts["W9"][0]),
+         pts["W9"][1] + _t5_end * (pts["W10"][1] - pts["W9"][1])),
+        (pts["F9"][0] + _t5_end * _dE56, pts["F9"][1] + _t5_end * _dN56),
+        (pts["F9"][0] + _t5_start * _dE56, pts["F9"][1] + _t5_start * _dN56),
     ]))
 
-    # O6: F9-F10, horizontal, 6" west of F10
-    o6_e = pts["F10"][0] - O6_GAP_F10
-    o6_w = o6_e - O6_WIDTH
+    # O6: F9-F10, offset from F10 end by O6_GAP_F10
+    _t6_end = 1.0 - O6_GAP_F10 / _seg56_len
+    _t6_start = _t6_end - O6_WIDTH / _seg56_len
     openings.append(OuterOpening("O6", "F9", "F10", [
-        (o6_w, pts["W9"][1]), (o6_e, pts["W9"][1]),
-        (o6_e, pts["F9"][1]), (o6_w, pts["F9"][1]),
+        (pts["W9"][0] + _t6_start * (pts["W10"][0] - pts["W9"][0]),
+         pts["W9"][1] + _t6_start * (pts["W10"][1] - pts["W9"][1])),
+        (pts["W9"][0] + _t6_end * (pts["W10"][0] - pts["W9"][0]),
+         pts["W9"][1] + _t6_end * (pts["W10"][1] - pts["W9"][1])),
+        (pts["F9"][0] + _t6_end * _dE56, pts["F9"][1] + _t6_end * _dN56),
+        (pts["F9"][0] + _t6_start * _dE56, pts["F9"][1] + _t6_start * _dN56),
     ]))
 
     # O7: F12-F13, diagonal — NW end 2' from F12, 6' opening
@@ -130,11 +159,23 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W12"][1] + ts * (pts["W13"][1] - pts["W12"][1])),
     ]))
 
-    # O8: F14-F15, vertical — centered between IW5 south face and F15
-    o8_cn = (layout.iw5.s + pts["F15"][1]) / 2
+    # O8: F14-F15, centered between IW5 south face projection and F15
+    _dE8, _dN8, _seg8_len = seg_vec(pts["F14"], pts["F15"])
+    _iw5_s_mid = ((layout.iw5.poly[0][0] + layout.iw5.poly[1][0]) / 2,
+                  (layout.iw5.poly[0][1] + layout.iw5.poly[1][1]) / 2)
+    _t8_iw5 = ((_iw5_s_mid[0] - pts["F14"][0]) * _dE8
+               + (_iw5_s_mid[1] - pts["F14"][1]) * _dN8) / (_dE8**2 + _dN8**2)
+    _t8_ctr = (_t8_iw5 + 1.0) / 2
+    _t8_half = O8_HALF_WIDTH / _seg8_len
+    _t8_start = _t8_ctr - _t8_half   # toward F14
+    _t8_end = _t8_ctr + _t8_half     # toward F15
     openings.append(OuterOpening("O8", "F14", "F15", [
-        (pts["F15"][0], o8_cn - O8_HALF_WIDTH), (pts["F15"][0], o8_cn + O8_HALF_WIDTH),
-        (pts["W15"][0], o8_cn + O8_HALF_WIDTH), (pts["W15"][0], o8_cn - O8_HALF_WIDTH),
+        (pts["F14"][0] + _t8_end * _dE8, pts["F14"][1] + _t8_end * _dN8),
+        (pts["F14"][0] + _t8_start * _dE8, pts["F14"][1] + _t8_start * _dN8),
+        (pts["W14"][0] + _t8_start * (pts["W15"][0] - pts["W14"][0]),
+         pts["W14"][1] + _t8_start * (pts["W15"][1] - pts["W14"][1])),
+        (pts["W14"][0] + _t8_end * (pts["W15"][0] - pts["W14"][0]),
+         pts["W14"][1] + _t8_end * (pts["W15"][1] - pts["W14"][1])),
     ]))
 
     # O9, O10, O11: F20-F1 — parametric positions from layout (single source)
@@ -155,15 +196,31 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
 
 
 def compute_rough_openings(pts, layout) -> list[RoughOpening]:
-    """Compute all 7 interior rough-opening bounding boxes."""
-    iw1_s = layout.iw1.s
-    iw1_n = layout.iw1.n
-    iw6_n = layout.iw6.n
-    iw6_s = layout.iw6.s
+    """Compute all 7 interior rough-opening polygons and bounding boxes."""
 
-    # RO1: in IW1, horizontal
-    ro1_w = layout.iw2.e + RO1_OFFSET_FROM_IW2
-    ro1_e = ro1_w + IW1_RO_WIDTH
+    # RO1: in IW1, positioned relative to IW2 east face along IW1 length
+    _iw1_sw, _iw1_se = layout.iw1.poly[0], layout.iw1.poly[1]
+    _iw1_nw = layout.iw1.poly[3]
+    _dx1r, _dy1r, _len1r = seg_vec(_iw1_sw, _iw1_se)
+    _un1_al = (_dx1r / _len1r, _dy1r / _len1r)  # unit along IW1 length
+    # IW2 east face midpoint projected onto IW1 along-axis
+    _iw2_e_mid_r = ((layout.iw2.poly[1][0] + layout.iw2.poly[2][0]) / 2,
+                    (layout.iw2.poly[1][1] + layout.iw2.poly[2][1]) / 2)
+    _ro1_ref_d = ((_iw2_e_mid_r[0] - _iw1_sw[0]) * _un1_al[0]
+                  + (_iw2_e_mid_r[1] - _iw1_sw[1]) * _un1_al[1])
+    _ro1_start_d = _ro1_ref_d + RO1_OFFSET_FROM_IW2
+    _ro1_end_d = _ro1_start_d + IW1_RO_WIDTH
+    _ro1_sw = (_iw1_sw[0] + _ro1_start_d * _un1_al[0],
+               _iw1_sw[1] + _ro1_start_d * _un1_al[1])
+    _ro1_se = (_iw1_sw[0] + _ro1_end_d * _un1_al[0],
+               _iw1_sw[1] + _ro1_end_d * _un1_al[1])
+    _ro1_ne = (_iw1_nw[0] + _ro1_end_d * _un1_al[0],
+               _iw1_nw[1] + _ro1_end_d * _un1_al[1])
+    _ro1_nw = (_iw1_nw[0] + _ro1_start_d * _un1_al[0],
+               _iw1_nw[1] + _ro1_start_d * _un1_al[1])
+    _ro1_poly = [_ro1_sw, _ro1_se, _ro1_ne, _ro1_nw]
+    _ro1_bb = BBox(w=min(p[0] for p in _ro1_poly), s=min(p[1] for p in _ro1_poly),
+                   e=max(p[0] for p in _ro1_poly), n=max(p[1] for p in _ro1_poly))
 
     # RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11
     _iw11_se, _iw11_ne = layout.iw11.poly[1], layout.iw11.poly[2]
@@ -236,30 +293,90 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     _ro7_bb = BBox(w=min(p[0] for p in _ro7_poly), s=min(p[1] for p in _ro7_poly),
                    e=max(p[0] for p in _ro7_poly), n=max(p[1] for p in _ro7_poly))
 
-    # RO3: in IW16 (axis-aligned N-S), 38" centered
-    _iw16 = layout.iw16.poly  # [(w,s), (e,s), (e,n), (w,n)]
-    _iw16_w = _iw16[0][0]
-    _iw16_e = _iw16[1][0]
-    _iw16_s = _iw16[0][1]
-    _iw16_n = _iw16[2][1]
-    _iw16_mid_n = (_iw16_s + _iw16_n) / 2
-    ro3_s = _iw16_mid_n - IW16_RO_WIDTH / 2
-    ro3_n = _iw16_mid_n + IW16_RO_WIDTH / 2
+    # RO3: in IW16, centered along IW16 length
+    _iw16_sw, _iw16_se = layout.iw16.poly[0], layout.iw16.poly[1]
+    _iw16_nw = layout.iw16.poly[3]
+    _dx16, _dy16, _len16 = seg_vec(_iw16_sw, _iw16_nw)
+    _un16_al = (_dx16 / _len16, _dy16 / _len16)  # unit along IW16 length
+    _ro3_center_d = _len16 / 2
+    _ro3_half = IW16_RO_WIDTH / 2
+    _ro3_start_d = _ro3_center_d - _ro3_half
+    _ro3_end_d = _ro3_center_d + _ro3_half
+    _ro3_sw = (_iw16_sw[0] + _ro3_start_d * _un16_al[0],
+               _iw16_sw[1] + _ro3_start_d * _un16_al[1])
+    _ro3_se = (_iw16_se[0] + _ro3_start_d * _un16_al[0],
+               _iw16_se[1] + _ro3_start_d * _un16_al[1])
+    _ro3_ne = (_iw16_se[0] + _ro3_end_d * _un16_al[0],
+               _iw16_se[1] + _ro3_end_d * _un16_al[1])
+    _ro3_nw = (_iw16_sw[0] + _ro3_end_d * _un16_al[0],
+               _iw16_sw[1] + _ro3_end_d * _un16_al[1])
+    _ro3_poly = [_ro3_sw, _ro3_se, _ro3_ne, _ro3_nw]
+    _ro3_bb = BBox(w=min(p[0] for p in _ro3_poly), s=min(p[1] for p in _ro3_poly),
+                   e=max(p[0] for p in _ro3_poly), n=max(p[1] for p in _ro3_poly))
 
-    # RO4: in IW2, vertical
-    ro4_n = iw6_s - IW2_RO_OFFSET_FROM_IW6
-    ro4_s = ro4_n - IW2_RO_WIDTH
+    # RO4: in IW2, positioned relative to IW6 south face along IW2 length
+    _iw2_sw, _iw2_se = layout.iw2.poly[0], layout.iw2.poly[1]
+    _iw2_nw = layout.iw2.poly[3]
+    _dx2r, _dy2r, _len2r = seg_vec(_iw2_sw, _iw2_nw)
+    _un2_al = (_dx2r / _len2r, _dy2r / _len2r)  # unit along IW2 length
+    # IW6 south face midpoint projected onto IW2 along-axis
+    _iw6_s_mid = ((layout.iw6.poly[0][0] + layout.iw6.poly[1][0]) / 2,
+                  (layout.iw6.poly[0][1] + layout.iw6.poly[1][1]) / 2)
+    _ro4_ref_d = ((_iw6_s_mid[0] - _iw2_sw[0]) * _un2_al[0]
+                  + (_iw6_s_mid[1] - _iw2_sw[1]) * _un2_al[1])
+    _ro4_end_d = _ro4_ref_d - IW2_RO_OFFSET_FROM_IW6
+    _ro4_start_d = _ro4_end_d - IW2_RO_WIDTH
+    _ro4_sw = (_iw2_sw[0] + _ro4_start_d * _un2_al[0],
+               _iw2_sw[1] + _ro4_start_d * _un2_al[1])
+    _ro4_se = (_iw2_se[0] + _ro4_start_d * _un2_al[0],
+               _iw2_se[1] + _ro4_start_d * _un2_al[1])
+    _ro4_ne = (_iw2_se[0] + _ro4_end_d * _un2_al[0],
+               _iw2_se[1] + _ro4_end_d * _un2_al[1])
+    _ro4_nw = (_iw2_sw[0] + _ro4_end_d * _un2_al[0],
+               _iw2_sw[1] + _ro4_end_d * _un2_al[1])
+    _ro4_poly = [_ro4_sw, _ro4_se, _ro4_ne, _ro4_nw]
+    _ro4_bb = BBox(w=min(p[0] for p in _ro4_poly), s=min(p[1] for p in _ro4_poly),
+                   e=max(p[0] for p in _ro4_poly), n=max(p[1] for p in _ro4_poly))
 
-    # RO5: in IW6, horizontal
-    ro5_e = layout.iw2.w - IW6_RO_OFFSET_W
-    ro5_w = ro5_e - IW6_RO_WIDTH
+    # RO5: in IW6, positioned relative to IW2 west face
+    # IW6 is trapezoidal (west end meets inner polygon at slightly different
+    # points on each face), so compute each face independently.
+    _iw6_sw, _iw6_se = layout.iw6.poly[0], layout.iw6.poly[1]
+    _iw6_ne, _iw6_nw = layout.iw6.poly[2], layout.iw6.poly[3]
+    _iw2_w_mid = ((layout.iw2.poly[0][0] + layout.iw2.poly[3][0]) / 2,
+                  (layout.iw2.poly[0][1] + layout.iw2.poly[3][1]) / 2)
+    # South face (SW→SE)
+    _dx6s, _dy6s, _len6s = seg_vec(_iw6_sw, _iw6_se)
+    _un6s = (_dx6s / _len6s, _dy6s / _len6s)
+    _ref6s = ((_iw2_w_mid[0] - _iw6_sw[0]) * _un6s[0]
+              + (_iw2_w_mid[1] - _iw6_sw[1]) * _un6s[1])
+    _end6s = _ref6s - IW6_RO_OFFSET_W
+    _start6s = _end6s - IW6_RO_WIDTH
+    # North face (NW→NE)
+    _dx6n, _dy6n, _len6n = seg_vec(_iw6_nw, _iw6_ne)
+    _un6n = (_dx6n / _len6n, _dy6n / _len6n)
+    _ref6n = ((_iw2_w_mid[0] - _iw6_nw[0]) * _un6n[0]
+              + (_iw2_w_mid[1] - _iw6_nw[1]) * _un6n[1])
+    _end6n = _ref6n - IW6_RO_OFFSET_W
+    _start6n = _end6n - IW6_RO_WIDTH
+    _ro5_sw = (_iw6_sw[0] + _start6s * _un6s[0],
+               _iw6_sw[1] + _start6s * _un6s[1])
+    _ro5_se = (_iw6_sw[0] + _end6s * _un6s[0],
+               _iw6_sw[1] + _end6s * _un6s[1])
+    _ro5_ne = (_iw6_nw[0] + _end6n * _un6n[0],
+               _iw6_nw[1] + _end6n * _un6n[1])
+    _ro5_nw = (_iw6_nw[0] + _start6n * _un6n[0],
+               _iw6_nw[1] + _start6n * _un6n[1])
+    _ro5_poly = [_ro5_sw, _ro5_se, _ro5_ne, _ro5_nw]
+    _ro5_bb = BBox(w=min(p[0] for p in _ro5_poly), s=min(p[1] for p in _ro5_poly),
+                   e=max(p[0] for p in _ro5_poly), n=max(p[1] for p in _ro5_poly))
 
     return [
-        RoughOpening("RO1", BBox(w=ro1_w, s=iw1_s, e=ro1_e, n=iw1_n), "IW1", "H"),
+        RoughOpening("RO1", _ro1_bb, "IW1", "H", _ro1_poly),
         RoughOpening("RO2", _ro2_bb, "IW11", "R", _ro2_poly),
-        RoughOpening("RO3", BBox(w=_iw16_w, s=ro3_s, e=_iw16_e, n=ro3_n), "IW16", "V"),
-        RoughOpening("RO4", BBox(w=layout.iw2.w, s=ro4_s, e=layout.iw2.e, n=ro4_n), "IW2", "V"),
-        RoughOpening("RO5", BBox(w=ro5_w, s=iw6_s, e=ro5_e, n=iw6_n), "IW6", "H"),
+        RoughOpening("RO3", _ro3_bb, "IW16", "V", _ro3_poly),
+        RoughOpening("RO4", _ro4_bb, "IW2", "V", _ro4_poly),
+        RoughOpening("RO5", _ro5_bb, "IW6", "H", _ro5_poly),
         RoughOpening("RO6", _ro6_bb, "IW11", "R", _ro6_poly),
         RoughOpening("RO7", _ro7_bb, "IW9", "R", _ro7_poly),
     ]
