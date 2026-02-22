@@ -603,10 +603,8 @@ def _correct_p_series(pts, building_to_pdf):
             break
         j11 = (_residuals(a + eps, b)[0] - r1) / eps
         j12 = (_residuals(a, b + eps)[0] - r1) / eps
-        j21 = (_residuals(a + eps, b)[1] - r1) / eps  # wrong, should use r2
-        j22 = (_residuals(a, b + eps)[1] - r2) / eps
-        # Fix j21
         j21 = (_residuals(a + eps, b)[1] - r2) / eps
+        j22 = (_residuals(a, b + eps)[1] - r2) / eps
         det = j11 * j22 - j12 * j21
         da = -(r1 * j22 - r2 * j12) / det
         db = -(j11 * r2 - j21 * r1) / det

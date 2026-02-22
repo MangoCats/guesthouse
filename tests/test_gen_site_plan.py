@@ -315,6 +315,40 @@ class TestPSeriesDist216:
 # d² regression tests — P-series PDF positions vs parcel corners
 # ============================================================
 
+# ============================================================
+# P-series to F-series cross-system distance tests
+# ============================================================
+
+EXPECTED_PF_DIST = [
+    # (P-name, F-name, distance in feet)
+    ("P3", "F2", 3.041381265149),
+    ("P2", "F6", 4.787288387006),
+    ("POB", "F11", 11.167322386603),
+    ("P5", "F15", 4.931322653473),
+]
+
+
+class TestPFCrossDistances:
+    """Verify distances between corrected P-series and F-series points."""
+
+    @pytest.fixture(scope="class")
+    def p_pdf(self, sp_data):
+        return sp_data.p_series_pdf
+
+    @pytest.fixture(scope="class")
+    def f_pdf(self, sp_data):
+        return sp_data.f_series_pdf
+
+    @pytest.mark.parametrize("idx", range(len(EXPECTED_PF_DIST)),
+                             ids=[f"{e[0]}-{e[1]}" for e in EXPECTED_PF_DIST])
+    def test_pf_dist(self, p_pdf, f_pdf, sp_data, idx):
+        pname, fname, exp_ft = EXPECTED_PF_DIST[idx]
+        pp = p_pdf[pname]
+        fp = f_pdf[fname]
+        d_ft = math.hypot(pp[0] - fp[0], pp[1] - fp[1]) / sp_data.SCALE
+        assert d_ft == pytest.approx(exp_ft, abs=1e-9)
+
+
 EXPECTED_P_D2 = [
     ("POB", 390162.483010, 143753.410195, 35451.065525, 283030.550417),
     ("P2", 408507.176890, 181323.117250, 28103.234874, 266203.763271),
