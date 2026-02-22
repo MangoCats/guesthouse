@@ -11,6 +11,10 @@ LINE_TOP = _mod.LINE_TOP
 LINE_BOT = _mod.LINE_BOT
 BOT_LEFT = _mod.BOT_LEFT
 TL_251 = _mod.TL_251
+CORNER_NW = _mod.CORNER_NW
+CORNER_NE = _mod.CORNER_NE
+CORNER_SE = _mod.CORNER_SE
+CORNER_SW = _mod.CORNER_SW
 
 
 @pytest.fixture(scope="module")
@@ -30,7 +34,7 @@ class TestBuildSitePlanData:
         assert sp_data.rotation_deg == pytest.approx(73.3, abs=0.5)
 
     def test_f15_pdf_x(self, sp_data):
-        assert sp_data.f15_pdf[0] == pytest.approx(755.2, abs=2.0)
+        assert sp_data.f15_pdf[0] == pytest.approx(752.2, abs=2.0)
 
     def test_f15_pdf_y(self, sp_data):
         assert sp_data.f15_pdf[1] == pytest.approx(413.0, abs=2.0)
@@ -41,9 +45,9 @@ class TestBuildSitePlanData:
     def test_ns_dimension(self, sp_data):
         assert sp_data.ns_dim_ft == pytest.approx(28.0, abs=0.1)
 
-    def test_f2_distance_reasonable(self, sp_data):
-        """F2 to 275.08' line should be between 15' and 40'."""
-        assert 15.0 < sp_data.f2_275_dist_ft < 40.0
+    def test_f2_distance_exact(self, sp_data):
+        """F2 to 275.08' line should be exactly 25.5'."""
+        assert sp_data.f2_275_dist_ft == pytest.approx(25.5, abs=0.001)
 
     def test_draw_poly_count(self, sp_data):
         """draw_poly should have same point count as outer_poly."""
@@ -88,6 +92,36 @@ class TestBuildSitePlanData:
         px, py = sp_data.f2_pdf
         assert 100.0 < px < 850.0
         assert 30.0 < py < 600.0
+
+    def test_f16_setback_216(self, sp_data):
+        """F16 should be exactly 11.5' from the 216.73' line."""
+        f16_pdf = sp_data.building_to_pdf(*sp_data.pts["F16"])
+        ldx = LINE_BOT[0] - LINE_TOP[0]
+        ldy = LINE_BOT[1] - LINE_TOP[1]
+        llen = math.hypot(ldx, ldy)
+        dist = ((f16_pdf[0] - LINE_TOP[0]) * (-ldy)
+                + (f16_pdf[1] - LINE_TOP[1]) * ldx) / llen
+        assert dist / sp_data.SCALE == pytest.approx(11.5, abs=1e-9)
+
+    def test_f17_setback_216(self, sp_data):
+        """F17 should also be exactly 11.5' from the 216.73' line."""
+        f17_pdf = sp_data.building_to_pdf(*sp_data.pts["F17"])
+        ldx = LINE_BOT[0] - LINE_TOP[0]
+        ldy = LINE_BOT[1] - LINE_TOP[1]
+        llen = math.hypot(ldx, ldy)
+        dist = ((f17_pdf[0] - LINE_TOP[0]) * (-ldy)
+                + (f17_pdf[1] - LINE_TOP[1]) * ldx) / llen
+        assert dist / sp_data.SCALE == pytest.approx(11.5, abs=1e-9)
+
+    def test_f_series_pdf_count(self, sp_data):
+        assert len(sp_data.f_series_pdf) == 23
+
+    def test_f_series_pdf_f15_matches(self, sp_data):
+        """f_series_pdf['F15'] should match f15_pdf."""
+        assert sp_data.f_series_pdf["F15"][0] == pytest.approx(
+            sp_data.f15_pdf[0], abs=1e-9)
+        assert sp_data.f_series_pdf["F15"][1] == pytest.approx(
+            sp_data.f15_pdf[1], abs=1e-9)
 
 
 # ============================================================
@@ -165,3 +199,77 @@ class TestRenderSitePlanDf:
         """Drainfield variant should still have all base annotations."""
         assert "PROPOSED" in df_text
         assert "FRONT" in df_text
+
+
+# ============================================================
+# d² regression tests — F-series PDF positions vs parcel corners
+# ============================================================
+
+def _dist_sq(a, b):
+    return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
+
+
+_REF_NAMES = ["CORNER_NW", "CORNER_NE", "CORNER_SE", "CORNER_SW"]
+_REF_PTS = {
+    "CORNER_NW": CORNER_NW,
+    "CORNER_NE": CORNER_NE,
+    "CORNER_SE": CORNER_SE,
+    "CORNER_SW": CORNER_SW,
+}
+
+TOL = 1e-6  # PDF pts²
+
+# (name, d²_to_NW, d²_to_NE, d²_to_SE, d²_to_SW)
+EXPECTED_D2 = [
+    ("F1", 495758.724788, 195566.312671, 10788.874732, 334295.794657),
+    ("F2", 493469.543377, 196401.427622, 11059.052875, 331379.314322),
+    ("F3", 454270.385227, 188046.499836, 17682.499038, 301518.299484),
+    ("F4", 451315.617775, 187376.418083, 18265.366822, 299363.629143),
+    ("F5", 421381.381621, 180058.602840, 24869.798677, 278497.459882),
+    ("F6", 413677.994621, 174493.602663, 26856.865388, 276362.933826),
+    ("F7", 410768.383616, 164430.246001, 28065.427317, 282428.944627),
+    ("F8", 416681.835777, 161208.128405, 26960.675659, 290528.334362),
+    ("F9", 417109.025217, 160982.777148, 26886.564826, 291111.662200),
+    ("F10", 410923.882312, 134131.257903, 32598.365956, 310856.093403),
+    ("F11", 408253.158362, 132059.139820, 33637.576064, 310497.766249),
+    ("F12", 406726.664017, 123027.815980, 36431.361918, 318387.389629),
+    ("F13", 441736.354190, 124615.079378, 30409.197733, 349792.052827),
+    ("F14", 443786.850272, 124892.488840, 30065.558876, 351487.068686),
+    ("F15", 471872.988532, 130855.868769, 25285.829214, 372875.504156),
+    ("F16", 479215.113099, 134415.509128, 23535.225201, 376448.089720),
+    ("F17", 488614.452569, 143333.593667, 20057.414058, 376512.431444),
+    ("F18", 492422.160115, 149314.548123, 18099.202816, 374182.167689),
+    ("F19", 492866.808770, 151663.531460, 17447.589468, 372237.496300),
+    ("F20", 493184.914665, 155118.837164, 16567.587221, 369078.724049),
+    ("F11a", 402326.402224, 127475.846123, 36037.094910, 309760.765859),
+    ("F11b", 402049.243495, 125836.069173, 36544.350073, 311193.249378),
+    ("FC", 449948.697478, 155156.026350, 21475.920097, 326746.553435),
+]
+
+
+class TestSitePlanD2Regression:
+    """Verify F-series PDF positions via d² to parcel corners."""
+
+    @pytest.fixture(scope="class")
+    def f_pdf(self, sp_data):
+        return sp_data.f_series_pdf
+
+    def test_point_count(self, f_pdf):
+        assert len(f_pdf) == len(EXPECTED_D2)
+
+    def test_point_names_match(self, f_pdf):
+        actual = list(f_pdf.keys())
+        expected = [e[0] for e in EXPECTED_D2]
+        assert actual == expected
+
+    @pytest.mark.parametrize("idx", range(len(EXPECTED_D2)),
+                             ids=[e[0] for e in EXPECTED_D2])
+    def test_d2(self, f_pdf, idx):
+        name, exp_nw, exp_ne, exp_se, exp_sw = EXPECTED_D2[idx]
+        pt = f_pdf[name]
+        expected = [exp_nw, exp_ne, exp_se, exp_sw]
+        for i, rn in enumerate(_REF_NAMES):
+            actual = _dist_sq(pt, _REF_PTS[rn])
+            assert abs(actual - expected[i]) < TOL, (
+                f"{name} -> {rn}: d² = {actual:.6f}, "
+                f"expected {expected[i]:.6f}, delta {actual - expected[i]:.2e}")

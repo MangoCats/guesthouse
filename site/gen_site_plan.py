@@ -19,6 +19,16 @@ LINE_BOT = (817.9, 557.8)    # 216.73' meets 275.08' (lower-right corner)
 BOT_LEFT = (160.0, 561.9)    # 275.08' left endpoint
 TL_251 = (108.0, 174.5)      # 251.53' upper-left corner of parcel
 
+# Named corner aliases (intersections of the four labeled property lines)
+CORNER_NW = TL_251     # 251.53' meets 163.69'
+CORNER_NE = LINE_TOP   # 251.53' meets 216.73'
+CORNER_SE = LINE_BOT   # 216.73' meets 275.08'
+CORNER_SW = BOT_LEFT   # 275.08' meets 163.69'
+
+# Setback distances (feet) from property lines
+SETBACK_216 = 11.5     # F16-F17 distance from 216.73' line
+SETBACK_275 = 25.5     # F2 distance from 275.08' line
+
 SitePlanData = namedtuple("SitePlanData", [
     "pts",              # building points dict
     "building_to_pdf",  # transform function (E,N) → (pdf_x, pdf_y)
@@ -33,6 +43,7 @@ SitePlanData = namedtuple("SitePlanData", [
     "span_n_pdf",       # N-S span north endpoint in PDF coords
     "f2_pdf",           # F2 position in PDF coords
     "SCALE",            # PDF pts per foot (2.4)
+    "f_series_pdf",     # dict of F-series + FC points in PDF coords
 ])
 
 
@@ -78,23 +89,40 @@ def build_site_plan_data():
 
     # F15 is the reference point for placement
     f15 = pts["F15"]
+    f16 = pts["F16"]
+    f2 = pts["F2"]
 
-    # Inward perpendicular from 216.73' line (into property = roughly west)
-    line_de = ldx / llen
-    line_dn = -ldy / llen
-    # Right perp of (dE, dN) = (dN, -dE) → points into property (west)
-    inward_e = line_dn
-    inward_n = -line_de
+    # --- Constraint-based placement (2×2 linear system) ---
+    # After rotation, each building point has a fixed PDF offset from F15.
+    # Unknowns: f15_pdf_x, f15_pdf_y (F15's position on the PDF page).
 
-    # Target: F15 placed near the bottom PATIO level on 216.73' line, 11' inside
-    patio_y = 435.0 - 12.15 * SCALE * (ldy / llen)
-    t_patio = (patio_y - LINE_TOP[1]) / (LINE_BOT[1] - LINE_TOP[1])
-    line_at_patio_x = LINE_TOP[0] + t_patio * (LINE_BOT[0] - LINE_TOP[0])
+    # PDF offsets of F16 and F2 from F15 (fixed after rotation)
+    off16x = ((f16[0] - f15[0]) * cos_r - (f16[1] - f15[1]) * sin_r) * SCALE
+    off16y = -((f16[0] - f15[0]) * sin_r + (f16[1] - f15[1]) * cos_r) * SCALE
+    off2x = ((f2[0] - f15[0]) * cos_r - (f2[1] - f15[1]) * sin_r) * SCALE
+    off2y = -((f2[0] - f15[0]) * sin_r + (f2[1] - f15[1]) * cos_r) * SCALE
 
-    # F15 target in PDF coords: 11.5' inward from property line
-    setback = 11.5  # feet
-    f15_pdf_x = line_at_patio_x + setback * SCALE * inward_e
-    f15_pdf_y = patio_y + setback * SCALE * (-inward_n)  # y-flip for PDF
+    # Constraint A: F16 is SETBACK_216 inside the 216.73' line.
+    # Signed distance to left of LINE_TOP→LINE_BOT = property interior.
+    a1 = -ldy / llen
+    b1 = ldx / llen
+    c1 = (SETBACK_216 * SCALE
+          + a1 * (LINE_TOP[0] - off16x) + b1 * (LINE_TOP[1] - off16y))
+
+    # Constraint B: F2 is SETBACK_275 inside the 275.08' line.
+    # Direction BOT_LEFT→LINE_BOT; interior is to the right.
+    bdx = LINE_BOT[0] - BOT_LEFT[0]
+    bdy = LINE_BOT[1] - BOT_LEFT[1]
+    blen = math.hypot(bdx, bdy)
+    a2 = bdy / blen
+    b2 = -bdx / blen
+    c2 = (SETBACK_275 * SCALE
+          + a2 * (BOT_LEFT[0] - off2x) + b2 * (BOT_LEFT[1] - off2y))
+
+    # Solve: a1*fx + b1*fy = c1,  a2*fx + b2*fy = c2
+    det = a1 * b2 - a2 * b1
+    f15_pdf_x = (c1 * b2 - c2 * b1) / det
+    f15_pdf_y = (a1 * c2 - a2 * c1) / det
 
     def building_to_pdf(e, n):
         """Transform building coords (E,N) → PDF coords (x,y)."""
@@ -139,10 +167,6 @@ def build_site_plan_data():
     span_n_pdf = building_to_pdf(_best_e, _best_n)
 
     # --- F2 distance to 275.08' line ---
-    bdx = LINE_BOT[0] - BOT_LEFT[0]
-    bdy = LINE_BOT[1] - BOT_LEFT[1]
-    blen = math.hypot(bdx, bdy)
-
     f2_pdf = building_to_pdf(*pts["F2"])
 
     t_f2 = ((f2_pdf[0] - BOT_LEFT[0]) * bdx +
@@ -154,6 +178,10 @@ def build_site_plan_data():
     f2_275_dist_ft = dist_pts / SCALE
 
     f15_pdf = (f15_pdf_x, f15_pdf_y)
+
+    # --- F-series PDF coordinates ---
+    _f_names = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b", "FC"]
+    f_series_pdf = {name: building_to_pdf(*pts[name]) for name in _f_names}
 
     return SitePlanData(
         pts=pts,
@@ -169,6 +197,7 @@ def build_site_plan_data():
         span_n_pdf=span_n_pdf,
         f2_pdf=f2_pdf,
         SCALE=SCALE,
+        f_series_pdf=f_series_pdf,
     )
 
 
