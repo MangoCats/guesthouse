@@ -560,8 +560,29 @@ def render_site_plan_fs(doc, sp):
         LineSeg("T2", "POB"),
     ]
 
-    # Convert to polygon in building coords, then transform to PDF coords
-    poly_bld = path_polygon(outer_segs, pts)
+    # Angular correction: PX→P5 and F17→F16 should both be parallel to the
+    # 216.73' property line (field-verified), but differ by 3.39° in the
+    # un-rotated coordinate system.  Pre-rotate P-series points to align
+    # PX→P5 with F17→F16 before applying building_to_pdf.
+    pxp5_angle = math.atan2(pts["P5"][1] - pts["PX"][1],
+                            pts["P5"][0] - pts["PX"][0])
+    f17f16_angle = math.atan2(pts["F16"][1] - pts["F17"][1],
+                              pts["F16"][0] - pts["F17"][0])
+    correction = f17f16_angle - pxp5_angle
+    pivot = pts["F17"]  # F17 lies on PiX-Pi5 inset line (south wall reference)
+    cos_c = math.cos(correction)
+    sin_c = math.sin(correction)
+
+    corrected_pts = dict(pts)
+    for name in ["POB", "P2", "P3", "P4", "P5",
+                 "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]:
+        dx = pts[name][0] - pivot[0]
+        dy = pts[name][1] - pivot[1]
+        corrected_pts[name] = (pivot[0] + dx * cos_c - dy * sin_c,
+                               pivot[1] + dx * sin_c + dy * cos_c)
+
+    # Convert to polygon using corrected points, then transform to PDF coords
+    poly_bld = path_polygon(outer_segs, corrected_pts)
     poly_pdf = [fitz.Point(*building_to_pdf(*p)) for p in poly_bld]
 
     # Draw closed polyline: 40% opaque dark green
