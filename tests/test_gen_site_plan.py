@@ -15,6 +15,8 @@ CORNER_NW = _mod.CORNER_NW
 CORNER_NE = _mod.CORNER_NE
 CORNER_SE = _mod.CORNER_SE
 CORNER_SW = _mod.CORNER_SW
+FC_DIST_216 = _mod.FC_DIST_216
+FC_DIST_275 = _mod.FC_DIST_275
 
 
 @pytest.fixture(scope="module")
@@ -45,9 +47,13 @@ class TestBuildSitePlanData:
     def test_ns_dimension(self, sp_data):
         assert sp_data.ns_dim_ft == pytest.approx(28.0, abs=0.1)
 
-    def test_f2_distance_exact(self, sp_data):
-        """F2 to 275.08' line should be exactly 25.5'."""
-        assert sp_data.f2_275_dist_ft == pytest.approx(25.5, abs=0.001)
+    def test_min_setback_216(self, sp_data):
+        """Min F-point distance from 216.73' line should be 11.5'."""
+        assert sp_data.min_setback_216 == pytest.approx(11.5, abs=1e-9)
+
+    def test_min_setback_275(self, sp_data):
+        """Min F-point distance from 275.08' line should be 25.5'."""
+        assert sp_data.min_setback_275 == pytest.approx(25.5, abs=1e-9)
 
     def test_draw_poly_count(self, sp_data):
         """draw_poly should have same point count as outer_poly."""
@@ -93,25 +99,25 @@ class TestBuildSitePlanData:
         assert 100.0 < px < 850.0
         assert 30.0 < py < 600.0
 
-    def test_f16_setback_216(self, sp_data):
-        """F16 should be exactly 11.5' from the 216.73' line."""
-        f16_pdf = sp_data.building_to_pdf(*sp_data.pts["F16"])
+    def test_fc_setback_216(self, sp_data):
+        """FC should be exactly FC_DIST_216 from the 216.73' line."""
+        fc_pdf = sp_data.f_series_pdf["FC"]
         ldx = LINE_BOT[0] - LINE_TOP[0]
         ldy = LINE_BOT[1] - LINE_TOP[1]
         llen = math.hypot(ldx, ldy)
-        dist = ((f16_pdf[0] - LINE_TOP[0]) * (-ldy)
-                + (f16_pdf[1] - LINE_TOP[1]) * ldx) / llen
-        assert dist / sp_data.SCALE == pytest.approx(11.5, abs=1e-9)
+        dist = ((fc_pdf[0] - LINE_TOP[0]) * (-ldy)
+                + (fc_pdf[1] - LINE_TOP[1]) * ldx) / llen
+        assert dist / sp_data.SCALE == pytest.approx(FC_DIST_216, abs=1e-9)
 
-    def test_f17_setback_216(self, sp_data):
-        """F17 should also be exactly 11.5' from the 216.73' line."""
-        f17_pdf = sp_data.building_to_pdf(*sp_data.pts["F17"])
-        ldx = LINE_BOT[0] - LINE_TOP[0]
-        ldy = LINE_BOT[1] - LINE_TOP[1]
-        llen = math.hypot(ldx, ldy)
-        dist = ((f17_pdf[0] - LINE_TOP[0]) * (-ldy)
-                + (f17_pdf[1] - LINE_TOP[1]) * ldx) / llen
-        assert dist / sp_data.SCALE == pytest.approx(11.5, abs=1e-9)
+    def test_fc_setback_275(self, sp_data):
+        """FC should be exactly FC_DIST_275 from the 275.08' line."""
+        fc_pdf = sp_data.f_series_pdf["FC"]
+        bdx = LINE_BOT[0] - BOT_LEFT[0]
+        bdy = LINE_BOT[1] - BOT_LEFT[1]
+        blen = math.hypot(bdx, bdy)
+        dist = ((fc_pdf[0] - BOT_LEFT[0]) * bdy
+                - (fc_pdf[1] - BOT_LEFT[1]) * bdx) / blen
+        assert dist / sp_data.SCALE == pytest.approx(FC_DIST_275, abs=1e-9)
 
     def test_f_series_pdf_count(self, sp_data):
         assert len(sp_data.f_series_pdf) == 23

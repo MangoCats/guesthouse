@@ -25,9 +25,9 @@ CORNER_NE = LINE_TOP   # 251.53' meets 216.73'
 CORNER_SE = LINE_BOT   # 216.73' meets 275.08'
 CORNER_SW = BOT_LEFT   # 275.08' meets 163.69'
 
-# Setback distances (feet) from property lines
-SETBACK_216 = 11.5     # F16-F17 distance from 216.73' line
-SETBACK_275 = 25.5     # F2 distance from 275.08' line
+# FC (building center) distances from property lines (feet)
+FC_DIST_216 = 29.097863567855153  # FC distance from 216.73' line
+FC_DIST_275 = 45.786428974476834  # FC distance from 275.08' line
 
 SitePlanData = namedtuple("SitePlanData", [
     "pts",              # building points dict
@@ -36,7 +36,8 @@ SitePlanData = namedtuple("SitePlanData", [
     "f15_pdf",          # F15 position in PDF coords
     "ew_dim_ft",        # E-W dimension (F15.E - F2.E)
     "ns_dim_ft",        # N-S dimension (F6.N - F18.N)
-    "f2_275_dist_ft",   # perpendicular distance from F2 to 275.08' line
+    "min_setback_216",  # min perpendicular dist of any F point from 216.73' line (ft)
+    "min_setback_275",  # min perpendicular dist of any F point from 275.08' line (ft)
     "draw_poly",        # interpolated building outline (building coords)
     "inner_poly",       # inner wall polygon
     "span_s_pdf",       # N-S span south endpoint in PDF coords
@@ -89,35 +90,33 @@ def build_site_plan_data():
 
     # F15 is the reference point for placement
     f15 = pts["F15"]
-    f16 = pts["F16"]
-    f2 = pts["F2"]
+    fc = pts["FC"]
 
     # --- Constraint-based placement (2×2 linear system) ---
     # After rotation, each building point has a fixed PDF offset from F15.
     # Unknowns: f15_pdf_x, f15_pdf_y (F15's position on the PDF page).
+    # Constraints use FC (building center) distances from property lines.
 
-    # PDF offsets of F16 and F2 from F15 (fixed after rotation)
-    off16x = ((f16[0] - f15[0]) * cos_r - (f16[1] - f15[1]) * sin_r) * SCALE
-    off16y = -((f16[0] - f15[0]) * sin_r + (f16[1] - f15[1]) * cos_r) * SCALE
-    off2x = ((f2[0] - f15[0]) * cos_r - (f2[1] - f15[1]) * sin_r) * SCALE
-    off2y = -((f2[0] - f15[0]) * sin_r + (f2[1] - f15[1]) * cos_r) * SCALE
+    # PDF offset of FC from F15 (fixed after rotation)
+    off_fc_x = ((fc[0] - f15[0]) * cos_r - (fc[1] - f15[1]) * sin_r) * SCALE
+    off_fc_y = -((fc[0] - f15[0]) * sin_r + (fc[1] - f15[1]) * cos_r) * SCALE
 
-    # Constraint A: F16 is SETBACK_216 inside the 216.73' line.
+    # Constraint A: FC is FC_DIST_216 inside the 216.73' line.
     # Signed distance to left of LINE_TOP→LINE_BOT = property interior.
     a1 = -ldy / llen
     b1 = ldx / llen
-    c1 = (SETBACK_216 * SCALE
-          + a1 * (LINE_TOP[0] - off16x) + b1 * (LINE_TOP[1] - off16y))
+    c1 = (FC_DIST_216 * SCALE
+          + a1 * (LINE_TOP[0] - off_fc_x) + b1 * (LINE_TOP[1] - off_fc_y))
 
-    # Constraint B: F2 is SETBACK_275 inside the 275.08' line.
+    # Constraint B: FC is FC_DIST_275 inside the 275.08' line.
     # Direction BOT_LEFT→LINE_BOT; interior is to the right.
     bdx = LINE_BOT[0] - BOT_LEFT[0]
     bdy = LINE_BOT[1] - BOT_LEFT[1]
     blen = math.hypot(bdx, bdy)
     a2 = bdy / blen
     b2 = -bdx / blen
-    c2 = (SETBACK_275 * SCALE
-          + a2 * (BOT_LEFT[0] - off2x) + b2 * (BOT_LEFT[1] - off2y))
+    c2 = (FC_DIST_275 * SCALE
+          + a2 * (BOT_LEFT[0] - off_fc_x) + b2 * (BOT_LEFT[1] - off_fc_y))
 
     # Solve: a1*fx + b1*fy = c1,  a2*fx + b2*fy = c2
     det = a1 * b2 - a2 * b1
@@ -166,22 +165,23 @@ def build_site_plan_data():
     span_s_pdf = building_to_pdf(_best_e, _best_s)
     span_n_pdf = building_to_pdf(_best_e, _best_n)
 
-    # --- F2 distance to 275.08' line ---
     f2_pdf = building_to_pdf(*pts["F2"])
-
-    t_f2 = ((f2_pdf[0] - BOT_LEFT[0]) * bdx +
-            (f2_pdf[1] - BOT_LEFT[1]) * bdy) / (blen * blen)
-    proj_f2_x = BOT_LEFT[0] + t_f2 * bdx
-    proj_f2_y = BOT_LEFT[1] + t_f2 * bdy
-
-    dist_pts = math.hypot(f2_pdf[0] - proj_f2_x, f2_pdf[1] - proj_f2_y)
-    f2_275_dist_ft = dist_pts / SCALE
-
     f15_pdf = (f15_pdf_x, f15_pdf_y)
 
     # --- F-series PDF coordinates ---
     _f_names = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b", "FC"]
     f_series_pdf = {name: building_to_pdf(*pts[name]) for name in _f_names}
+
+    # --- Min setback distances (F-points only, excluding FC) ---
+    _f_struct = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b"]
+    min_setback_216 = min(
+        ((pt[0] - LINE_TOP[0]) * (-ldy) + (pt[1] - LINE_TOP[1]) * ldx)
+        / (llen * SCALE)
+        for pt in (f_series_pdf[n] for n in _f_struct))
+    min_setback_275 = min(
+        ((pt[0] - BOT_LEFT[0]) * bdy - (pt[1] - BOT_LEFT[1]) * bdx)
+        / (blen * SCALE)
+        for pt in (f_series_pdf[n] for n in _f_struct))
 
     return SitePlanData(
         pts=pts,
@@ -190,7 +190,8 @@ def build_site_plan_data():
         f15_pdf=f15_pdf,
         ew_dim_ft=ew_dim_ft,
         ns_dim_ft=ns_dim_ft,
-        f2_275_dist_ft=f2_275_dist_ft,
+        min_setback_216=min_setback_216,
+        min_setback_275=min_setback_275,
         draw_poly=draw_poly,
         inner_poly=inner_poly,
         span_s_pdf=span_s_pdf,
@@ -315,7 +316,7 @@ def render_site_plan(sp, corners=True):
     perp_deg = math.degrees(math.atan2(proj_y - mid_f16f17_y,
                                        proj_x - mid_f16f17_x))
 
-    text = "11.5'"
+    text = f"{sp.min_setback_216:.1f}'"
     fs = 9.0
     tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
     page.insert_text(
@@ -323,7 +324,7 @@ def render_site_plan(sp, corners=True):
         text, fontname="helv", fontsize=fs, color=(0, 0, 0),
         morph=(fitz.Point(cap_x, cap_y), fitz.Matrix(-perp_deg)))
 
-    # --- F2 distance to 275.08' line caption ---
+    # --- Min setback from 275.08' line caption ---
     bdx = LINE_BOT[0] - BOT_LEFT[0]
     bdy = LINE_BOT[1] - BOT_LEFT[1]
     blen = math.hypot(bdx, bdy)
@@ -339,7 +340,7 @@ def render_site_plan(sp, corners=True):
     perp2_deg = math.degrees(math.atan2(proj_f2_y - sp.f2_pdf[1],
                                         proj_f2_x - sp.f2_pdf[0]))
 
-    text2 = f"{sp.f2_275_dist_ft:.1f}'"
+    text2 = f"{sp.min_setback_275:.1f}'"
     fs2 = 9.0
     tw2 = fitz.get_text_length(text2, fontname="helv", fontsize=fs2)
     page.insert_text(
