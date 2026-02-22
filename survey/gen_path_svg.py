@@ -662,10 +662,10 @@ if __name__ == "__main__":
     lines.append('</g>')
     lines.append('</a>')
 
-    # Area label centered in outline
-    centroid_names = [f"F{i}" for i in range(21) if i != 0]
-    cx_o = sum(pts[n][0] for n in centroid_names) / len(centroid_names)
-    cy_o = sum(pts[n][1] for n in centroid_names) / len(centroid_names)
+    # Area label: halfway between FC and midpoint of W9-W10
+    _w9w10_mid = ((pts["W9"][0] + pts["W10"][0]) / 2, (pts["W9"][1] + pts["W10"][1]) / 2)
+    cx_o = (pts["FC"][0] + _w9w10_mid[0]) / 2
+    cy_o = (pts["FC"][1] + _w9w10_mid[1]) / 2
     sx, sy = to_svg(cx_o, cy_o)
     lines.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="middle" font-family="Arial"'
                  f' font-size="12" fill="#333" font-weight="bold">{outline_area:.2f} sq ft</text>')
