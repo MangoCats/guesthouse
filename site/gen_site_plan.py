@@ -53,6 +53,7 @@ SitePlanData = namedtuple("SitePlanData", [
     "f_series_pdf",     # dict of F-series + FC points in PDF coords
     "residence_dist_ft", # distance from RESIDENCE_LR to closest F point (ft)
     "residence_closest",  # name of closest F point to RESIDENCE_LR
+    "p_series_pdf",     # dict of angularly-corrected P-series points in PDF coords
 ])
 
 
@@ -200,6 +201,10 @@ def build_site_plan_data():
             _res_best_dist, _res_best_name = d, n
     residence_dist_ft = _res_best_dist / SCALE
 
+    # --- P-series PDF coordinates (angularly corrected + distance-constrained) ---
+    _corrected_bld = _correct_p_series(pts, building_to_pdf)
+    p_series_pdf = {n: building_to_pdf(*p) for n, p in _corrected_bld.items()}
+
     return SitePlanData(
         pts=pts,
         building_to_pdf=building_to_pdf,
@@ -218,6 +223,7 @@ def build_site_plan_data():
         f_series_pdf=f_series_pdf,
         residence_dist_ft=residence_dist_ft,
         residence_closest=_res_best_name,
+        p_series_pdf=p_series_pdf,
     )
 
 
@@ -543,10 +549,63 @@ def render_site_plan_df(doc, sp):
 COLOR_OUTER_PATH = (0, 0.4, 0)  # dark green for survey outer path
 
 
+OUTER_PATH_DIST_216 = 11.0  # PX-P4-P5 distance from 216.73' line (field-verified)
+
+
+def _correct_p_series(pts, building_to_pdf):
+    """Correct P-series points for angular mismatch and distance constraint.
+
+    1. Rotate about F17 to align PX→P5 with F17→F16 (both parallel to 216.73').
+    2. Translate perpendicular to the south wall so PX-P4-P5 is exactly
+       OUTER_PATH_DIST_216 from the 216.73' property line (field-verified).
+
+    Returns dict of corrected building-coord points for the 13 P-series names.
+    """
+    # --- Step 1: angular correction ---
+    pxp5_angle = math.atan2(pts["P5"][1] - pts["PX"][1],
+                            pts["P5"][0] - pts["PX"][0])
+    f17f16_angle = math.atan2(pts["F16"][1] - pts["F17"][1],
+                              pts["F16"][0] - pts["F17"][0])
+    corr = f17f16_angle - pxp5_angle
+    piv = pts["F17"]
+    cos_c = math.cos(corr)
+    sin_c = math.sin(corr)
+    names = ["POB", "P2", "P3", "P4", "P5",
+             "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
+    result = {}
+    for name in names:
+        dx = pts[name][0] - piv[0]
+        dy = pts[name][1] - piv[1]
+        result[name] = (piv[0] + dx * cos_c - dy * sin_c,
+                        piv[1] + dx * sin_c + dy * cos_c)
+
+    # --- Step 2: perpendicular distance correction ---
+    # Measure PX's current distance from 216.73' line after angular correction.
+    SCALE = 72.0 / 30.0
+    ldx = LINE_BOT[0] - LINE_TOP[0]
+    ldy = LINE_BOT[1] - LINE_TOP[1]
+    llen = math.hypot(ldx, ldy)
+    px_pdf = building_to_pdf(*result["PX"])
+    current_dist = ((px_pdf[0] - LINE_TOP[0]) * (-ldy)
+                    + (px_pdf[1] - LINE_TOP[1]) * ldx) / (llen * SCALE)
+
+    # Shift along left normal of F17→F16 (perpendicular to 216.73', into parcel).
+    # Ratio of building-coord shift to 216-distance change is exactly 1.0.
+    dx_f = pts["F16"][0] - pts["F17"][0]
+    dy_f = pts["F16"][1] - pts["F17"][1]
+    L_f = math.hypot(dx_f, dy_f)
+    ln_e, ln_n = -dy_f / L_f, dx_f / L_f
+    shift = OUTER_PATH_DIST_216 - current_dist
+    for name in result:
+        result[name] = (result[name][0] + shift * ln_e,
+                        result[name][1] + shift * ln_n)
+
+    return result
+
+
 def render_site_plan_fs(doc, sp):
     """Add outer survey path (P-series traverse) overlay to an existing site plan."""
     page = doc[0]
-    pts = sp.pts
     building_to_pdf = sp.building_to_pdf
 
     # Outer path segments (same definition as survey/gen_path_svg.py)
@@ -560,28 +619,9 @@ def render_site_plan_fs(doc, sp):
         LineSeg("T2", "POB"),
     ]
 
-    # Angular correction: PX→P5 and F17→F16 should both be parallel to the
-    # 216.73' property line (field-verified), but differ by 3.39° in the
-    # un-rotated coordinate system.  Pre-rotate P-series points to align
-    # PX→P5 with F17→F16 before applying building_to_pdf.
-    pxp5_angle = math.atan2(pts["P5"][1] - pts["PX"][1],
-                            pts["P5"][0] - pts["PX"][0])
-    f17f16_angle = math.atan2(pts["F16"][1] - pts["F17"][1],
-                              pts["F16"][0] - pts["F17"][0])
-    correction = f17f16_angle - pxp5_angle
-    pivot = pts["F17"]  # F17 lies on PiX-Pi5 inset line (south wall reference)
-    cos_c = math.cos(correction)
-    sin_c = math.sin(correction)
-
-    corrected_pts = dict(pts)
-    for name in ["POB", "P2", "P3", "P4", "P5",
-                 "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]:
-        dx = pts[name][0] - pivot[0]
-        dy = pts[name][1] - pivot[1]
-        corrected_pts[name] = (pivot[0] + dx * cos_c - dy * sin_c,
-                               pivot[1] + dx * sin_c + dy * cos_c)
-
-    # Convert to polygon using corrected points, then transform to PDF coords
+    # Corrected building coords → polygon → PDF coords
+    corrected_pts = dict(sp.pts)
+    corrected_pts.update(_correct_p_series(sp.pts, building_to_pdf))
     poly_bld = path_polygon(outer_segs, corrected_pts)
     poly_pdf = [fitz.Point(*building_to_pdf(*p)) for p in poly_bld]
 

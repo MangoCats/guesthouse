@@ -17,6 +17,7 @@ CORNER_SE = _mod.CORNER_SE
 CORNER_SW = _mod.CORNER_SW
 FC_DIST_216 = _mod.FC_DIST_216
 FC_DIST_275 = _mod.FC_DIST_275
+OUTER_PATH_DIST_216 = _mod.OUTER_PATH_DIST_216
 
 
 @pytest.fixture(scope="module")
@@ -273,6 +274,84 @@ class TestSitePlanD2Regression:
     def test_d2(self, f_pdf, idx):
         name, exp_nw, exp_ne, exp_se, exp_sw = EXPECTED_D2[idx]
         pt = f_pdf[name]
+        expected = [exp_nw, exp_ne, exp_se, exp_sw]
+        for i, rn in enumerate(_REF_NAMES):
+            actual = _dist_sq(pt, _REF_PTS[rn])
+            assert abs(actual - expected[i]) < TOL, (
+                f"{name} -> {rn}: d² = {actual:.6f}, "
+                f"expected {expected[i]:.6f}, delta {actual - expected[i]:.2e}")
+
+
+# ============================================================
+# P-series outer path — distance from 216.73' line
+# ============================================================
+
+class TestPSeriesDist216:
+    """PX, P4, P5 should be exactly OUTER_PATH_DIST_216 from the 216.73' line."""
+
+    @pytest.fixture(scope="class")
+    def p_pdf(self, sp_data):
+        return sp_data.p_series_pdf
+
+    @pytest.fixture(scope="class")
+    def dist_216_params(self, sp_data):
+        ldx = LINE_BOT[0] - LINE_TOP[0]
+        ldy = LINE_BOT[1] - LINE_TOP[1]
+        llen = math.hypot(ldx, ldy)
+        return ldx, ldy, llen, sp_data.SCALE
+
+    def _dist_216(self, pt, params):
+        ldx, ldy, llen, SCALE = params
+        return ((pt[0] - LINE_TOP[0]) * (-ldy)
+                + (pt[1] - LINE_TOP[1]) * ldx) / (llen * SCALE)
+
+    @pytest.mark.parametrize("name", ["PX", "P4", "P5"])
+    def test_dist_216(self, p_pdf, dist_216_params, name):
+        dist = self._dist_216(p_pdf[name], dist_216_params)
+        assert dist == pytest.approx(OUTER_PATH_DIST_216, abs=1e-9)
+
+
+# ============================================================
+# d² regression tests — P-series PDF positions vs parcel corners
+# ============================================================
+
+EXPECTED_P_D2 = [
+    ("POB", 386481.529296, 140266.326755, 36957.584307, 283110.137020),
+    ("P2", 404405.819458, 177415.630093, 29189.349939, 265862.946157),
+    ("P3", 496875.450648, 198326.366094, 10531.636677, 333027.332641),
+    ("P4", 488922.438710, 142249.817033, 20369.980399, 377964.737118),
+    ("P5", 464802.707708, 119401.401141, 30267.388933, 378504.958493),
+    ("T1", 444561.419817, 123158.692990, 30595.033078, 354132.616273),
+    ("T2", 398396.529692, 135867.053014, 34889.790739, 297833.434971),
+    ("T3", 490964.701030, 165347.500987, 14628.016595, 356865.931999),
+    ("PA", 407803.230760, 117415.800419, 38063.447576, 325366.465374),
+    ("PX", 502107.097224, 154780.770964, 16063.176836, 378469.357636),
+    ("TC1", 423350.283030, 107626.945688, 39521.248420, 351036.613065),
+    ("TC2", 372062.608708, 116632.368886, 46227.559915, 294143.430961),
+    ("TC3", 528573.788723, 175813.559470, 10085.352945, 384876.478596),
+]
+
+
+class TestPSeriesD2Regression:
+    """Verify P-series PDF positions via d² to parcel corners."""
+
+    @pytest.fixture(scope="class")
+    def p_pdf(self, sp_data):
+        return sp_data.p_series_pdf
+
+    def test_point_count(self, p_pdf):
+        assert len(p_pdf) == len(EXPECTED_P_D2)
+
+    def test_point_names_match(self, p_pdf):
+        actual = list(p_pdf.keys())
+        expected = [e[0] for e in EXPECTED_P_D2]
+        assert actual == expected
+
+    @pytest.mark.parametrize("idx", range(len(EXPECTED_P_D2)),
+                             ids=[e[0] for e in EXPECTED_P_D2])
+    def test_d2(self, p_pdf, idx):
+        name, exp_nw, exp_ne, exp_se, exp_sw = EXPECTED_P_D2[idx]
+        pt = p_pdf[name]
         expected = [exp_nw, exp_ne, exp_se, exp_sw]
         for i, rn in enumerate(_REF_NAMES):
             actual = _dist_sq(pt, _REF_PTS[rn])
