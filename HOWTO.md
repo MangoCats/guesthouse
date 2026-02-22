@@ -15,6 +15,7 @@ Step-by-step instructions for common but complex tasks in the Hut2 project. Cons
 9. [Getting Rotation Direction Right](#9-getting-rotation-direction-right)
 10. [Changing Exterior Wall Thickness](#10-changing-exterior-wall-thickness)
 11. [Contributing to This Document](#11-contributing-to-this-document)
+12. [Rotation-Invariant Placement](#12-rotation-invariant-placement)
 
 ---
 
@@ -204,24 +205,35 @@ Opening tests are in `tests/test_gen_floorplan.py` and `tests/test_gen_walls.py`
 
 **File:** `floorplan/gen_floorplan.py` (appliances section)
 
+**Important:** All positions must be defined relative to wall segments using direction vectors, never using raw coordinate indexing (`pts[...][0]`, `pts[...][1]`) or hardcoded angles. See [Section 12](#12-rotation-invariant-placement) for the full pattern.
+
 ### Rectangle items (washer, dryer, bed)
 
-1. Compute bounding box in survey coords: `item_w`, `item_e`, `item_s`, `item_n`.
-2. Convert to SVG and render:
+1. Compute the item's anchor point using `seg_vecs()` + `offset_pt()` relative to the nearest wall segment or interior wall polygon face.
+2. Build the bounding box from the anchor using direction vectors:
    ```python
-   sx1, sy1 = to_svg(item_w, item_n)   # SVG top-left = survey NW corner
-   sx2, sy2 = to_svg(item_e, item_s)   # SVG bottom-right = survey SE corner
+   item_nw = offset_pt(anchor, depth, wall_inward)
+   item_se = offset_pt(anchor, -width, wall_along)
+   ```
+3. Convert to SVG and render:
+   ```python
+   sx1, sy1 = to_svg(item_nw[0], item_nw[1])
+   sx2, sy2 = to_svg(item_se[0], item_se[1])
    sw = sx2 - sx1; sh = sy2 - sy1
    out.append(f'<rect x="{sx1:.1f}" y="{sy1:.1f}" width="{sw:.1f}" height="{sh:.1f}"'
               f' fill="rgba(100,150,200,0.2)" stroke="#4682B4" stroke-width="0.8"/>')
    ```
-3. Add a centered label.
+4. Add a centered label.
 
 **Note:** SVG y-axis is inverted from northing. `to_svg(e, n)` handles this, but the NW corner (max northing) maps to the SVG top-left (min y).
 
 ### Circular items (water heater)
 
 Use `<circle>` with `cx`, `cy` from `to_svg()` and radius converted via the scale factor.
+
+### Rotated items (chair, loveseat, rocker)
+
+Compute the SVG rotation angle from a wall direction vector using `_svg_angle()`, then apply an SVG `rotate()` transform. See [Section 12](#12-rotation-invariant-placement) for details.
 
 ---
 
@@ -483,6 +495,98 @@ from shared.wall_shells import openings_on_seg, solid_ranges
 # For each LineSeg with openings, check if adjusted ranges survive:
 # t_e_adj > t_s_adj + 1e-9 after delta_t = R_out / seg_len trim
 ```
+
+---
+
+## 12. Rotation-Invariant Placement
+
+All positions in the floorplan are defined relative to wall segments using direction vectors. This ensures geometry remains correct if the building outline is rotated or if wall angles change.
+
+### Core functions (`shared/geometry.py`)
+
+```python
+def seg_vecs(p1, p2):
+    """Along-direction and CW-inward normal for segment p1->p2."""
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    length = math.sqrt(dx*dx + dy*dy)
+    along = (dx/length, dy/length)
+    inward = (dy/length, -dx/length)    # CW-right perpendicular
+    return along, inward
+
+def offset_pt(origin, dist, direction):
+    """Offset point by dist along direction vector."""
+    return (origin[0] + dist*direction[0], origin[1] + dist*direction[1])
+```
+
+- `seg_vecs(p1, p2)` returns two unit vectors: `along` (direction from p1 to p2) and `inward` (CW-right perpendicular, which points into the building for the CW outline traversal).
+- `offset_pt(origin, dist, direction)` moves a point by `dist` feet along a direction vector.
+- `line_isect(p1, d1, p2, d2)` finds the intersection of two lines defined by point + direction.
+
+### Positioning pattern
+
+**Step 1: Get wall direction vectors**
+
+```python
+# From W-series perimeter wall points:
+w9w10_al, w9w10_in = seg_vecs(pts["W9"], pts["W10"])   # north wall
+
+# From interior wall polygon faces:
+_iw4_w_al, _iw4_w_out = seg_vecs(layout.iw4.poly[3], layout.iw4.poly[0])  # IW4 west face
+```
+
+Interior wall polygons are ordered `[SW, SE, NE, NW]`. Face vectors:
+- **West face**: `seg_vecs(poly[3], poly[0])` — NW to SW, outward = west
+- **East face**: `seg_vecs(poly[1], poly[2])` — SE to NE, outward = east
+- **North face**: `seg_vecs(poly[3], poly[2])` — NW to NE, CW = south; negate for outward = north
+- **South face**: `seg_vecs(poly[0], poly[1])` — SW to SE, CW = north; negate for outward = south
+
+**Step 2: Position using offsets**
+
+```python
+# Single-wall anchor: offset from a wall point
+hamper_pos = offset_pt(pts["W2"], 2.0/12.0, w2w3_in)    # 2" inward from W2
+
+# Two-wall anchor: offset from wall intersection corner
+corner = line_isect(layout.iw4.poly[3], _iw4_w_al,
+                    layout.iw1.poly[3], _iw1_n_al)
+item_pos = offset_pt(offset_pt(corner, d_w, _iw4_w_out), d_n, _iw1_n_out)
+```
+
+**Step 3: Compute SVG rotation from wall direction**
+
+```python
+def _svg_angle(along):
+    """SVG rotation angle (degrees, CW) for a direction vector."""
+    return -math.degrees(math.atan2(along[1], along[0]))
+
+desk_angle = _svg_angle(w16w17_al)   # desk aligns with W16-W17 wall
+```
+
+### Local anchor helpers
+
+Each render function defines local helpers for its reference walls:
+
+- `_render_kitchen` uses `_iwp(d_along, d_inward)` — offset from IW1/W9 intersection along the north wall.
+- `_render_furniture` uses `_lwp(d_w, d_n)` — offset from IW4/IW1 corner along their outward directions; and `_nwp(d_along, d_inward)` — offset from W9 along the north wall.
+- `_render_appliances` uses direct `offset_pt` calls from wall polygon faces.
+
+### What NOT to do
+
+- **Raw coordinate indexing**: `pts["W9"][0]`, `pts["W9"][1]` — fragile if walls are not axis-aligned.
+- **Hardcoded angles**: `rotate(30, ...)` — derive from `_svg_angle(wall_along)` instead.
+- **BBox face references for positioning**: `layout.iw5.w`, `layout.iw5.n` — use `seg_vecs` on the polygon face instead. BBox fields are fine for dimension lines and non-critical annotations.
+- **Cardinal direction arithmetic**: `item_e = wall_e + gap` — use `offset_pt(wall_pt, gap, wall_outward)`.
+
+### Existing examples
+
+| Item | Reference wall | Pattern |
+|------|---------------|---------|
+| Kitchen appliances | W9-W10 (north wall) | `_iwp(d_along, d_inward)` from IW1/W9 corner |
+| Sofa, loveseat | IW4 west + IW1 north | `_lwp(d_w, d_n)` from IW4/IW1 corner |
+| Desk | W16-W17 | `_svg_angle(w16w17_al)` for rotation |
+| Chair | W11-W12 chord | `_svg_angle(w12w13_al) - 45` for rotation |
+| Water heater | IW2 east face | Line-circle intersection along `_iw2_e_al` |
+| Washer/dryer | W2-W3 + W9-W10 | `offset_pt` along wall vectors |
 
 ---
 
