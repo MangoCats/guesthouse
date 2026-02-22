@@ -9,17 +9,15 @@ from typing import NamedTuple
 from shared.types import Point, BBox, LineSeg
 from floorplan.constants import (
     O1_WIDTH, O2_WIDTH,
-    IW2_RO_OFFSET_FROM_IW6, IW2_RO_WIDTH,
     O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH,
     O5_OFFSET_FROM_IW2, O5_WIDTH, O6_WIDTH, O6_GAP_F10,
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH,
-    IW5_OFFSET_FROM_IW1, WALL_3IN,
     STD_GAP,
     RO1_OFFSET_FROM_IW2, IW1_RO_WIDTH,
     IW2_RO_OFFSET_FROM_IW6, IW2_RO_WIDTH,
     IW4_RO_WIDTH, IW9_RO_WIDTH, IW11_RO_WIDTH, IW16_RO_WIDTH,
-    IW6_THICKNESS, IW6_OFFSET_FROM_W6, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
+    IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
 
@@ -167,10 +165,8 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     """Compute all 7 interior rough-opening bounding boxes."""
     iw1_s = layout.iw1_s
     iw1_n = layout.iw1_n
-    iw6_n = pts["W6"][1] - IW6_OFFSET_FROM_W6
-    iw6_s = iw6_n - IW6_THICKNESS
-    iw5_n = iw1_s - IW5_OFFSET_FROM_IW1
-    iw5_s = iw5_n - WALL_3IN
+    iw6_n = layout.iw6_n
+    iw6_s = layout.iw6_s
 
     # RO1: in IW1, horizontal
     ro1_w = layout.iw2.e + RO1_OFFSET_FROM_IW2
