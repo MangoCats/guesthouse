@@ -10,7 +10,7 @@ from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area, left_norm,
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
-    horiz_isects,
+    horiz_isects, seg_vecs,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
@@ -26,9 +26,9 @@ from floorplan.constants import (
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     JAMB_WIDTH, STD_GAP, KITCHEN_APPL_GAP,
     LOVESEAT_NW_E, LOVESEAT_NW_N,
-    LOVESEAT_WIDTH, LOVESEAT_LENGTH, LOVESEAT_ANGLE_DEG,
+    LOVESEAT_WIDTH, LOVESEAT_LENGTH,
     DESK_WIDTH, DESK_DEPTH, DESK_CHAIR_WIDTH, DESK_CHAIR_DEPTH, DESK_CHAIR_GAP,
-    CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R, CHAIR_ANGLE_DEG,
+    CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R,
     OTTOMAN_SIZE, ET_RADIUS_CM,
     SOFA_WIDTH, SOFA_DEPTH,
     ICE_WIDTH, ICE_DEPTH,
@@ -71,6 +71,14 @@ _CASEMENT_URL = ("https://brogawindows.com/catalog/1894"
 # ============================================================
 # SVG Helpers
 # ============================================================
+
+def _svg_angle(along):
+    """SVG rotation angle (degrees, CW-positive) for a direction vector.
+
+    Aligns the SVG width axis (positive-X) with the given survey direction.
+    """
+    return -math.degrees(math.atan2(along[1], along[0]))
+
 
 def dim_line_h(out, e1, n, e2, label, to_svg, label_offset_e=0.0):
     """Horizontal (E-W) dimension line with vertical tick marks."""
@@ -1455,6 +1463,8 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     """Render furniture: bed, loveseat/sofa, ET, chair, ottoman, room labels."""
     pts = data.pts
     to_svg = data.to_svg
+    # Reference wall direction vectors for rotation-invariant angles
+    w12w13_al, _ = seg_vecs(pts["W12"], pts["W13"])
     # Bed (rotated polygon)
     _bp = layout.bed.poly
     _bp_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _bp)
@@ -1540,7 +1550,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         rk_sx2, rk_sy2 = to_svg(rk_cx + rk_hw, rk_cy - rk_hh)
         rk_sw = rk_sx2 - rk_sx1; rk_sh = rk_sy2 - rk_sy1
         rk_sr = abs(to_svg(rk_r, 0)[0] - to_svg(0, 0)[0])
-        rk_angle = -15.0  # 15° CCW in plan = -15° in SVG (Y-axis flipped)
+        rk_angle = _svg_angle(w12w13_al) - 90  # height axis parallel to W12-W13
         out.append(f'<a href="https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/" target="_blank">')
         out.append(f'<g transform="rotate({rk_angle:.1f},{rk_scx:.1f},{rk_scy:.1f})">')
         out.append(f'<rect x="{rk_sx1:.1f}" y="{rk_sy1:.1f}" width="{rk_sw:.1f}" height="{rk_sh:.1f}"'
@@ -1618,7 +1628,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         rk_sx2, rk_sy2 = to_svg(rk_cx + rk_hw, rk_cy - rk_hh)
         rk_sw = rk_sx2 - rk_sx1; rk_sh = rk_sy2 - rk_sy1
         rk_sr = abs(to_svg(rk_r, 0)[0] - to_svg(0, 0)[0])
-        rk_angle = -15.0  # 15° CCW in plan = -15° in SVG (Y-axis flipped)
+        rk_angle = _svg_angle(w12w13_al) - 90  # height axis parallel to W12-W13
         out.append(f'<a href="https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/" target="_blank">')
         out.append(f'<g transform="rotate({rk_angle:.1f},{rk_scx:.1f},{rk_scy:.1f})">')
         out.append(f'<rect x="{rk_sx1:.1f}" y="{rk_sy1:.1f}" width="{rk_sw:.1f}" height="{rk_sh:.1f}"'
@@ -1632,7 +1642,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
         lv_width = LOVESEAT_WIDTH
         lv_height = LOVESEAT_LENGTH
-        lv_angle = math.radians(LOVESEAT_ANGLE_DEG)
+        lv_angle = math.atan2(w12w13_al[0], -w12w13_al[1])  # from W12-W13 wall
         lv_nw_e = LOVESEAT_NW_E
         lv_nw_n = LOVESEAT_NW_N
         lv_w = lv_nw_e + lv_height * math.sin(lv_angle)
@@ -1654,7 +1664,8 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         lv_rot_x = lv_sx1
         lv_rot_y = lv_sy2
         out.append(f'<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
-        out.append(f'<g transform="rotate({int(-LOVESEAT_ANGLE_DEG)},{lv_rot_x:.1f},{lv_rot_y:.1f})">')
+        _lv_svg_rot = _svg_angle(w12w13_al) - 90  # height axis parallel to W12-W13
+        out.append(f'<g transform="rotate({_lv_svg_rot:.1f},{lv_rot_x:.1f},{lv_rot_y:.1f})">')
         out.append(f'<rect x="{lv_sx1:.1f}" y="{lv_sy1:.1f}" width="{lv_sw:.1f}" height="{lv_sh:.1f}"'
                    f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
         lv_cx = (lv_sx1 + lv_sx2) / 2
@@ -1692,7 +1703,8 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         out.append('</a>')
 
     # CHAIR: 32" E-W x 37" N-S, rounded corners 3", centered between W11 and W12
-    ch_angle = math.radians(CHAIR_ANGLE_DEG)
+    _ch_svg_deg = _svg_angle(w12w13_al) - 45  # 45° to W12-W13 wall
+    ch_angle = math.radians(_ch_svg_deg)
     ch_cx = ((pts["W11"][0] + pts["W12"][0]) / 2
              - 4.0 / 12.0 * math.sin(ch_angle)
              - 1.0 / 12.0)
@@ -1707,7 +1719,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     ch_sw = ch_sx2 - ch_sx1; ch_sh = ch_sy2 - ch_sy1
     ch_r_svg = abs(to_svg(CHAIR_CORNER_R, 0)[0] - to_svg(0, 0)[0])
     ch_rot_x, ch_rot_y = to_svg(ch_cx, ch_cy)
-    out.append(f'<g transform="rotate({int(CHAIR_ANGLE_DEG)},{ch_rot_x:.1f},{ch_rot_y:.1f})">')
+    out.append(f'<g transform="rotate({_ch_svg_deg:.1f},{ch_rot_x:.1f},{ch_rot_y:.1f})">')
     out.append('<a href="https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/" target="_blank">')
     out.append(f'<rect x="{ch_sx1:.1f}" y="{ch_sy1:.1f}" width="{ch_sw:.1f}" height="{ch_sh:.1f}"'
                f' rx="{ch_r_svg:.1f}" ry="{ch_r_svg:.1f}"'
@@ -1732,7 +1744,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     ot_sw = ot_sx2 - ot_sx1; ot_sh = ot_sy2 - ot_sy1
     ot_r_svg = ch_r_svg  # same 3" corner radius
     ot_rot_x, ot_rot_y = to_svg(ot_cx, ot_cy)
-    out.append(f'<g transform="rotate({int(CHAIR_ANGLE_DEG)},{ot_rot_x:.1f},{ot_rot_y:.1f})">')
+    out.append(f'<g transform="rotate({_ch_svg_deg:.1f},{ot_rot_x:.1f},{ot_rot_y:.1f})">')
     out.append('<a href="https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/" target="_blank">')
     out.append(f'<rect x="{ot_sx1:.1f}" y="{ot_sy1:.1f}" width="{ot_sw:.1f}" height="{ot_sh:.1f}"'
                f' rx="{ot_r_svg:.1f}" ry="{ot_r_svg:.1f}"'
@@ -1744,7 +1756,9 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     out.append('</a>')
     out.append('</g>')
 
-    # DESK: 60" x 30", along W16-W17 wall (30° from horizontal)
+    # DESK: 60" x 30", along W16-W17 wall
+    w17w16_al, _ = seg_vecs(pts["W17"], pts["W16"])
+    _dk_svg_rot = _svg_angle(w17w16_al)  # width axis along W17→W16
     dk_w17 = pts["W17"]
     dk_sw_e = dk_w17[0]
     dk_sw_n = dk_w17[1]
@@ -1755,7 +1769,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     dk_sw = dk_sx2 - dk_sx1; dk_sh = dk_sy2 - dk_sy1
     dk_rot_x = dk_sx1
     dk_rot_y = dk_sy2
-    out.append(f'<g transform="rotate(-30,{dk_rot_x:.1f},{dk_rot_y:.1f})">')
+    out.append(f'<g transform="rotate({_dk_svg_rot:.1f},{dk_rot_x:.1f},{dk_rot_y:.1f})">')
     out.append(f'<rect x="{dk_sx1:.1f}" y="{dk_sy1:.1f}" width="{dk_sw:.1f}" height="{dk_sh:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     dk_cx = (dk_sx1 + dk_sx2) / 2
@@ -1773,7 +1787,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     dc_sx2, dc_sy2 = to_svg(dc_e, dc_s)
     dc_sw = dc_sx2 - dc_sx1; dc_sh = dc_sy2 - dc_sy1
     dc_r_svg = abs(to_svg(CHAIR_CORNER_R, 0)[0] - to_svg(0, 0)[0])
-    out.append(f'<g transform="rotate(-30,{dk_rot_x:.1f},{dk_rot_y:.1f})">')
+    out.append(f'<g transform="rotate({_dk_svg_rot:.1f},{dk_rot_x:.1f},{dk_rot_y:.1f})">')
     out.append('<a href="https://www.amazon.com/BESTFAIR-Ergonomic-Office-Chair-Adjustable/dp/B0FDQDMP2D?th=1" target="_blank">')
     out.append(f'<rect x="{dc_sx1:.1f}" y="{dc_sy1:.1f}" width="{dc_sw:.1f}" height="{dc_sh:.1f}"'
                f' rx="{dc_r_svg:.1f}" ry="{dc_r_svg:.1f}"'
