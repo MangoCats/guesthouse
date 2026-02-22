@@ -137,66 +137,30 @@ def _collect_all_points(pts, layout):
     for name in f_names:
         result.append((name, chain_pts[name]))
 
-    # ---- IW walls ----
-    # IW1: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW1_{label}", layout.iw1[i]))
-    # IW2: bbox
-    for label, pt in zip(["SW", "SE", "NE", "NW"], _bbox_corners(layout.iw2)):
-        result.append((f"IW2_{label}", pt))
-    # IW3: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW3_{label}", layout.iw3_poly[i]))
-    # IW4: constructed from individual fields
-    iw4_bbox = BBox(w=layout.iw4_w, s=layout.iw4_s, e=layout.iw4_e, n=layout.iw1_s)
-    for label, pt in zip(["SW", "SE", "NE", "NW"], _bbox_corners(iw4_bbox)):
-        result.append((f"IW4_{label}", pt))
-    # IW5: bbox
-    for label, pt in zip(["SW", "SE", "NE", "NW"], _bbox_corners(layout.iw5)):
-        result.append((f"IW5_{label}", pt))
-    # IW6: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW6_{label}", layout.iw6_poly[i]))
-    # IW7: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW7_{label}", layout.iw7_poly[i]))
-    # IW8: bbox
-    for label, pt in zip(["SW", "SE", "NE", "NW"], _bbox_corners(layout.iw8)):
-        result.append((f"IW8_{label}", pt))
-    # IW9: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW9_{label}", layout.iw9_poly[i]))
-    # IW11: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW11_{label}", layout.iw11_poly[i]))
-    # IW12: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW12_{label}", layout.iw12_poly[i]))
-    # IW14: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW14_{label}", layout.iw14_poly[i]))
-    # IW15: bbox
-    for label, pt in zip(["SW", "SE", "NE", "NW"], _bbox_corners(layout.iw15)):
-        result.append((f"IW15_{label}", pt))
-    # IW16: polygon
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"IW16_{label}", layout.iw16_poly[i]))
+    # ---- IW walls (all Wall type with .poly) ----
+    for prefix, wall in [("IW1", layout.iw1), ("IW2", layout.iw2),
+                         ("IW3", layout.iw3), ("IW4", layout.iw4),
+                         ("IW5", layout.iw5), ("IW6", layout.iw6),
+                         ("IW7", layout.iw7), ("IW8", layout.iw8),
+                         ("IW9", layout.iw9), ("IW11", layout.iw11),
+                         ("IW12", layout.iw12), ("IW14", layout.iw14),
+                         ("IW15", layout.iw15), ("IW16", layout.iw16)]:
+        for i, label in enumerate(["SW", "SE", "NE", "NW"]):
+            result.append((f"{prefix}_{label}", wall.poly[i]))
 
-    # ---- Appliances ----
-    for label, pt in zip(["SW", "SE", "NE", "NW"], _bbox_corners(layout.dryer)):
-        result.append((f"dryer_{label}", pt))
-    for label, pt in zip(["SW", "SE", "NE", "NW"], _bbox_corners(layout.washer)):
-        result.append((f"washer_{label}", pt))
+    # ---- Appliances (all Wall type with .poly) ----
+    for prefix, wall in [("dryer", layout.dryer), ("washer", layout.washer)]:
+        for i, label in enumerate(["SW", "SE", "NE", "NW"]):
+            result.append((f"{prefix}_{label}", wall.poly[i]))
 
-    # ---- Counter polygon (4 or 5 pts) ----
-    for i, p in enumerate(layout.ctr_poly):
+    # ---- Counter clip polygon (4 or 5 pts) ----
+    for i, p in enumerate(layout.ctr_clip):
         result.append((f"ctr_poly_{i}", p))
 
-    # ---- Furniture ----
-    for i, label in enumerate(["SW", "SE", "NE", "NW"]):
-        result.append((f"bed_{label}", layout.bed_poly[i]))
-    for label, pt in zip(["SW", "SE", "NE", "NW"], _bbox_corners(layout.dresser)):
-        result.append((f"dresser_{label}", pt))
+    # ---- Furniture (all Wall type with .poly) ----
+    for prefix, wall in [("bed", layout.bed), ("dresser", layout.dresser)]:
+        for i, label in enumerate(["SW", "SE", "NE", "NW"]):
+            result.append((f"{prefix}_{label}", wall.poly[i]))
 
     # ---- Rough openings ----
     for ro in rough_openings:
@@ -257,7 +221,7 @@ def _compute_door_tips(pts, layout, outer_openings, rough_openings):
 
     # RO2 door tip
     ro2 = [r for r in rough_openings if r.name == "RO2"][0]
-    _i11_sw, _i11_se, _i11_ne, _i11_nw = layout.iw11_poly
+    _i11_sw, _i11_se, _i11_ne, _i11_nw = layout.iw11.poly
     _i11_dx_n = _i11_ne[0] - _i11_se[0]; _i11_dy_n = _i11_ne[1] - _i11_se[1]
     _i11_ln = math.sqrt(_i11_dx_n**2 + _i11_dy_n**2)
     _i11_an = (_i11_dx_n / _i11_ln, _i11_dy_n / _i11_ln)
@@ -311,7 +275,7 @@ def _compute_door_tips(pts, layout, outer_openings, rough_openings):
 
     # RO7 double door tips (south and north leaves)
     ro7 = [r for r in rough_openings if r.name == "RO7"][0]
-    _i9_sw, _i9_se, _i9_ne, _i9_nw = layout.iw9_poly
+    _i9_sw, _i9_se, _i9_ne, _i9_nw = layout.iw9.poly
     _i9_dx_n = _i9_ne[0] - _i9_se[0]; _i9_dy_n = _i9_ne[1] - _i9_se[1]
     _i9_ln = math.sqrt(_i9_dx_n**2 + _i9_dy_n**2)
     _i9_an = (_i9_dx_n / _i9_ln, _i9_dy_n / _i9_ln)
@@ -410,7 +374,7 @@ EXPECTED = [
     ("IW5_SW", 707.074771949109, 819.142843680960, 291.211352112973, 123.297572800617),
     ("IW5_SE", 1259.201217950312, 1322.013888888889, 252.280327655635, 26.284722222222),
     ("IW5_NE", 1263.219502839759, 1313.368055555556, 244.499205436349, 28.888888888889),
-    ("IW5_NW", 711.093056838556, 810.497010347627, 283.430229893687, 125.901739467284),
+    ("IW5_NW", 712.504197709980, 811.759520129881, 283.057819841120, 125.354064064353),
     ("IW6_SW", 364.296357839032, 43.523501719796, 1015.249196364029, 1467.836174220158),
     ("IW6_SE", 405.264351927112, 53.125000000000, 679.823914369314, 1095.423611111111),
     ("IW6_NE", 408.451002445817, 52.090277777778, 679.077429185108, 1098.138888888889),

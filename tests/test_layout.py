@@ -1,6 +1,7 @@
 """Tests for floorplan/layout.py — interior layout."""
 import pytest
 from floorplan.layout import InteriorLayout
+from floorplan.constants import WALL_6IN, WALL_3IN, WALL_4IN
 
 
 class TestInteriorLayout:
@@ -8,8 +9,8 @@ class TestInteriorLayout:
         assert isinstance(layout, InteriorLayout)
 
     def test_iw1_polygon(self, layout):
-        assert len(layout.iw1) == 4
-        assert layout.iw1_n > layout.iw1_s
+        assert len(layout.iw1.poly) == 4
+        assert layout.iw1.n > layout.iw1.s
 
     def test_iw2_bounds(self, layout):
         assert layout.iw2.e > layout.iw2.w
@@ -29,12 +30,12 @@ class TestInteriorLayout:
 
     def test_wall_ordering_east(self, layout):
         """IW11 west of IW4."""
-        assert layout.iw11.e < layout.iw4_w
+        assert layout.iw11.e < layout.iw4.w
 
     def test_bed_poly(self, layout):
-        assert len(layout.bed_poly) == 4
+        assert len(layout.bed.poly) == 4
         # Bed polygon centroid west of IW11
-        bed_cx = sum(p[0] for p in layout.bed_poly) / 4
+        bed_cx = sum(p[0] for p in layout.bed.poly) / 4
         assert bed_cx < layout.iw11.w
 
     def test_iw5_bounds(self, layout):
@@ -42,10 +43,10 @@ class TestInteriorLayout:
         assert layout.iw5.n > layout.iw5.s
 
     def test_iw6_polygon(self, layout):
-        assert len(layout.iw6_poly) == 4
-        assert layout.iw6_n > layout.iw6_s
+        assert len(layout.iw6.poly) == 4
+        assert layout.iw6.n > layout.iw6.s
 
     def test_wall_thicknesses(self, layout):
-        assert abs(layout.iwt - 6.0 / 12.0) < 1e-12    # 6" = 0.5'
-        assert abs(layout.iwt3 - 3.0 / 12.0) < 1e-12   # 3" = 0.25'
-        assert abs(layout.iwt4 - 4.0 / 12.0) < 1e-12   # 4" ≈ 0.333'
+        assert abs(WALL_6IN - 6.0 / 12.0) < 1e-12    # 6" = 0.5'
+        assert abs(WALL_3IN - 3.0 / 12.0) < 1e-12   # 3" = 0.25'
+        assert abs(WALL_4IN - 4.0 / 12.0) < 1e-12   # 4" ≈ 0.333'

@@ -55,7 +55,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     openings = []
 
     # O1: F2-F3, vertical, centered at RO3/IW16 center northing
-    _iw16_ctr_n = (layout.iw16_poly[0][1] + layout.iw16_poly[2][1]) / 2
+    _iw16_ctr_n = (layout.iw16.poly[0][1] + layout.iw16.poly[2][1]) / 2
     o1_n = _iw16_ctr_n + O1_WIDTH / 2
     o1_s = _iw16_ctr_n - O1_WIDTH / 2
     openings.append(OuterOpening("O1", "F2", "F3", [
@@ -67,7 +67,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     _dE2 = pts["F5"][0] - pts["F4"][0]
     _dN2 = pts["F5"][1] - pts["F4"][1]
     _seg2_len = math.sqrt(_dE2**2 + _dN2**2)
-    _ro4_ctr_n = layout.iw6_s - IW2_RO_OFFSET_FROM_IW6 - IW2_RO_WIDTH / 2
+    _ro4_ctr_n = layout.iw6.s - IW2_RO_OFFSET_FROM_IW6 - IW2_RO_WIDTH / 2
     _t2_ctr = (_ro4_ctr_n - pts["F4"][1]) / _dN2
     _t2_half = (O2_WIDTH / 2) / _seg2_len
     _t2_start = _t2_ctr - _t2_half
@@ -163,18 +163,18 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
 
 def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     """Compute all 7 interior rough-opening bounding boxes."""
-    iw1_s = layout.iw1_s
-    iw1_n = layout.iw1_n
-    iw6_n = layout.iw6_n
-    iw6_s = layout.iw6_s
+    iw1_s = layout.iw1.s
+    iw1_n = layout.iw1.n
+    iw6_n = layout.iw6.n
+    iw6_s = layout.iw6.s
 
     # RO1: in IW1, horizontal
     ro1_w = layout.iw2.e + RO1_OFFSET_FROM_IW2
     ro1_e = ro1_w + IW1_RO_WIDTH
 
     # RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11
-    _iw11_se, _iw11_ne = layout.iw11_poly[1], layout.iw11_poly[2]
-    _iw11_sw = layout.iw11_poly[0]
+    _iw11_se, _iw11_ne = layout.iw11.poly[1], layout.iw11.poly[2]
+    _iw11_sw = layout.iw11.poly[0]
     _dx11 = _iw11_ne[0] - _iw11_se[0]
     _dy11 = _iw11_ne[1] - _iw11_se[1]
     _len11 = math.sqrt(_dx11**2 + _dy11**2)
@@ -184,7 +184,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     _lt11 = math.sqrt(_dx11t**2 + _dy11t**2)
     _ut11 = (_dx11t / _lt11, _dy11t / _lt11)  # unit along IW11 thickness
     # IW12 NW corner projected onto IW11 length axis
-    _iw12_nw = layout.iw12_poly[3]
+    _iw12_nw = layout.iw12.poly[3]
     _ro2_start_d = ((_iw12_nw[0] - _iw11_se[0]) * _un11[0]
                     + (_iw12_nw[1] - _iw11_se[1]) * _un11[1]) + 3.0 / 12.0
     _ro2_end_d = _ro2_start_d + IW4_RO_WIDTH
@@ -203,7 +203,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
 
     # RO6: in IW11 (rotated), 62" centered between IW12 S face and IW11 S end
     # IW12 SW corner projected onto IW11 length axis = distance of IW12 south face
-    _iw12_sw = layout.iw12_poly[0]
+    _iw12_sw = layout.iw12.poly[0]
     _ro6_iw12_s_d = ((_iw12_sw[0] - _iw11_se[0]) * _un11[0]
                      + (_iw12_sw[1] - _iw11_se[1]) * _un11[1])
     _ro6_center_d = _ro6_iw12_s_d / 2  # centered between 0 (IW11 S end) and IW12 S face
@@ -223,14 +223,14 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
                    e=max(p[0] for p in _ro6_poly), n=max(p[1] for p in _ro6_poly))
 
     # RO7: in IW9 (rotated), 62" centered between IW7 S face and IW9 S end
-    _iw9_se, _iw9_ne = layout.iw9_poly[1], layout.iw9_poly[2]
-    _iw9_sw = layout.iw9_poly[0]
+    _iw9_se, _iw9_ne = layout.iw9.poly[1], layout.iw9.poly[2]
+    _iw9_sw = layout.iw9.poly[0]
     _dx9 = _iw9_ne[0] - _iw9_se[0]
     _dy9 = _iw9_ne[1] - _iw9_se[1]
     _len9 = math.sqrt(_dx9**2 + _dy9**2)
     _un9 = (_dx9 / _len9, _dy9 / _len9)  # unit along IW9 length (NNE)
     # IW7 SW corner projected onto IW9 length axis = distance of IW7 south face
-    _iw7_sw = layout.iw7_poly[0]
+    _iw7_sw = layout.iw7.poly[0]
     _ro7_iw7_s_d = ((_iw7_sw[0] - _iw9_se[0]) * _un9[0]
                     + (_iw7_sw[1] - _iw9_se[1]) * _un9[1])
     _ro7_center_d = _ro7_iw7_s_d / 2  # centered between 0 (IW9 S end) and IW7 S face
@@ -250,7 +250,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
                    e=max(p[0] for p in _ro7_poly), n=max(p[1] for p in _ro7_poly))
 
     # RO3: in IW16 (axis-aligned N-S), 38" centered
-    _iw16 = layout.iw16_poly  # [(w,s), (e,s), (e,n), (w,n)]
+    _iw16 = layout.iw16.poly  # [(w,s), (e,s), (e,n), (w,n)]
     _iw16_w = _iw16[0][0]
     _iw16_e = _iw16[1][0]
     _iw16_s = _iw16[0][1]

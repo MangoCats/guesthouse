@@ -68,11 +68,8 @@ def _compute_spans(inner_poly, layout):
       north_spans — IW midline to north W surface (cyan curve)
     When no IW is intersected, south_spans = north_spans = spans.
     """
-    iw1_poly = layout.iw1                          # 4-vertex polygon
-    iw8_poly = [(layout.iw8.w, layout.iw8.s),      # convert BBox → polygon
-                (layout.iw8.e, layout.iw8.s),
-                (layout.iw8.e, layout.iw8.n),
-                (layout.iw8.w, layout.iw8.n)]
+    iw1_poly = layout.iw1.poly
+    iw8_poly = layout.iw8.poly
 
     e_min = min(p[0] for p in inner_poly)
     e_max = max(p[0] for p in inner_poly)
@@ -273,9 +270,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
              f' stroke="#1565C0" stroke-width="0.6"/>')
 
     # IW1 and IW8 in the outline (show the dividing walls)
-    for wall_poly in [layout.iw1,
-                      [(layout.iw8.w, layout.iw8.s), (layout.iw8.e, layout.iw8.s),
-                       (layout.iw8.e, layout.iw8.n), (layout.iw8.w, layout.iw8.n)]]:
+    for wall_poly in [layout.iw1.poly, layout.iw8.poly]:
         wpts = " ".join(f"{ex(p[0]):.1f},{ny(p[1]):.1f}" for p in wall_poly)
         o.append(f'<polygon points="{wpts}" fill="rgba(100,100,100,0.25)"'
                  f' stroke="#666" stroke-width="0.4"/>')

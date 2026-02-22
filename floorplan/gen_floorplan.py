@@ -16,7 +16,7 @@ from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import (
-    WALL_OUTER, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
+    WALL_OUTER, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
     WH_RADIUS,
     SINK_RX, SINK_RY,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
@@ -352,23 +352,13 @@ def build_floorplan_data():
 
 def compute_iw_area(layout):
     """Compute total interior wall area from layout polygons."""
-    iw2 = layout.iw2
-    iw5 = layout.iw5
-    iw2_poly = [(iw2.w, iw2.s), (iw2.e, iw2.s), (iw2.e, iw2.n), (iw2.w, iw2.n)]
-    iw3_poly = layout.iw3_poly
-    iw7_poly = layout.iw7_poly
-    iw9_poly = layout.iw9_poly
-    _iw4_n_area = layout.iw12_poly[2][1]  # IW12 NE northing
-    iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
-                (layout.iw4_e, _iw4_n_area), (layout.iw4_w, _iw4_n_area)]
-    iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
-    iw8 = layout.iw8
-    iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
-    iw15 = layout.iw15
-    iw15_poly = [(iw15.w, iw15.s), (iw15.e, iw15.s), (iw15.e, iw15.n), (iw15.w, iw15.n)]
-    iw_polys = [layout.iw1, iw8_poly, iw2_poly, iw3_poly, iw7_poly, iw9_poly, layout.iw6_poly,
-                iw4_poly, layout.iw11_poly, layout.iw12_poly,
-                layout.iw14_poly, iw5_poly, layout.iw16_poly, iw15_poly]
+    _iw4_n_area = layout.iw12.poly[2][1]  # IW12 NE northing
+    iw4_poly = [(layout.iw4.w, layout.iw4.s), (layout.iw4.e, layout.iw4.s),
+                (layout.iw4.e, _iw4_n_area), (layout.iw4.w, _iw4_n_area)]
+    iw_polys = [layout.iw1.poly, layout.iw8.poly, layout.iw2.poly,
+                layout.iw3.poly, layout.iw7.poly, layout.iw9.poly, layout.iw6.poly,
+                iw4_poly, layout.iw11.poly, layout.iw12.poly,
+                layout.iw14.poly, layout.iw5.poly, layout.iw16.poly, layout.iw15.poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -508,8 +498,8 @@ def _render_walls(out, data, layout, bare=False):
     ro = {r.name: r.bbox for r in rough_openings}
 
     # ---- IW1 with RO1 ----
-    iw_sw, iw_se, iw_ne, iw_nw = layout.iw1
-    iw1_s, iw1_n = layout.iw1_s, layout.iw1_n
+    iw_sw, iw_se, iw_ne, iw_nw = layout.iw1.poly
+    iw1_s, iw1_n = layout.iw1.s, layout.iw1.n
     ro1_w, ro1_e = ro["RO1"].w, ro["RO1"].e
 
     iw1_w_poly = [iw_sw, (ro1_w, iw1_s), (ro1_w, iw1_n), iw_nw]
@@ -536,8 +526,7 @@ def _render_walls(out, data, layout, bare=False):
 
     # ---- IW8 (no openings) ----
     iw8 = layout.iw8
-    iw8_poly = [(iw8.w, iw8.s), (iw8.e, iw8.s), (iw8.e, iw8.n), (iw8.w, iw8.n)]
-    wall_poly(out, iw8_poly, to_svg, stroke=False)
+    wall_poly(out, iw8.poly, to_svg, stroke=False)
     for n_val in [iw8.s + half_sw, iw8.n - half_sw]:
         sx1, sy1 = to_svg(iw8.w, n_val)
         sx2, sy2 = to_svg(iw8.e, n_val)
@@ -568,8 +557,8 @@ def _render_walls(out, data, layout, bare=False):
                    f' fill="{JAMB_COLOR}" stroke="none"/>')
 
     # ---- IW3 (solid, no opening, rotated perpendicular to W20-W0) ----
-    _iw3_sw, _iw3_se, _iw3_ne, _iw3_nw = layout.iw3_poly
-    wall_poly(out, layout.iw3_poly, to_svg, stroke=False)
+    _iw3_sw, _iw3_se, _iw3_ne, _iw3_nw = layout.iw3.poly
+    wall_poly(out, layout.iw3.poly, to_svg, stroke=False)
     _iw3_dx_t = _iw3_sw[0] - _iw3_se[0]
     _iw3_dy_t = _iw3_sw[1] - _iw3_se[1]
     _iw3_lt = math.sqrt(_iw3_dx_t**2 + _iw3_dy_t**2)
@@ -584,8 +573,8 @@ def _render_walls(out, data, layout, bare=False):
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW7 (solid, no opening, rotated parallel to W20-W0) ----
-    _iw7_sw, _iw7_se, _iw7_ne, _iw7_nw = layout.iw7_poly
-    wall_poly(out, layout.iw7_poly, to_svg, stroke=False)
+    _iw7_sw, _iw7_se, _iw7_ne, _iw7_nw = layout.iw7.poly
+    wall_poly(out, layout.iw7.poly, to_svg, stroke=False)
     # Thickness unit vector: NW - SW direction (norm direction)
     _iw7_dx_t = _iw7_nw[0] - _iw7_sw[0]
     _iw7_dy_t = _iw7_nw[1] - _iw7_sw[1]
@@ -601,7 +590,7 @@ def _render_walls(out, data, layout, bare=False):
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW9 with RO7 (rotated rectangle, split by opening) ----
-    _iw9_sw, _iw9_se, _iw9_ne, _iw9_nw = layout.iw9_poly
+    _iw9_sw, _iw9_se, _iw9_ne, _iw9_nw = layout.iw9.poly
     # Thickness unit vector: SW - SE direction
     _iw9_dx_t = _iw9_sw[0] - _iw9_se[0]
     _iw9_dy_t = _iw9_sw[1] - _iw9_se[1]
@@ -653,7 +642,7 @@ def _render_walls(out, data, layout, bare=False):
         out.append(f'<polygon points="{jp}" fill="{JAMB_COLOR}" stroke="none"/>')
 
     # ---- IW16 with RO3 ----
-    _iw16 = layout.iw16_poly
+    _iw16 = layout.iw16.poly
     ro3_n, ro3_s = ro["RO3"].n, ro["RO3"].s
     _iw16_w = _iw16[0][0]
     _iw16_e = _iw16[1][0]
@@ -681,9 +670,9 @@ def _render_walls(out, data, layout, bare=False):
 
     # ---- IW6 with RO5 ---- (omitted in bare)
     if not bare:
-        iw6_s, iw6_n = layout.iw6_s, layout.iw6_n
-        iw6_w_s = layout.iw6_poly[0][0]
-        iw6_w_n = layout.iw6_poly[3][0]
+        iw6_s, iw6_n = layout.iw6.s, layout.iw6.n
+        iw6_w_s = layout.iw6.poly[0][0]
+        iw6_w_n = layout.iw6.poly[3][0]
         iw6_e = iw2.w
         ro5_e, ro5_w = ro["RO5"].e, ro["RO5"].w
 
@@ -707,22 +696,22 @@ def _render_walls(out, data, layout, bare=False):
                        f' fill="{JAMB_COLOR}" stroke="none"/>')
 
     # ---- IW4 (solid, no opening) — north end at IW12 north face ----
-    iw4_n = layout.iw12_poly[2][1]  # IW12 NE northing
-    iw4_poly = [(layout.iw4_w, layout.iw4_s), (layout.iw4_e, layout.iw4_s),
-                (layout.iw4_e, iw4_n), (layout.iw4_w, iw4_n)]
+    iw4_n = layout.iw12.poly[2][1]  # IW12 NE northing
+    iw4_poly = [(layout.iw4.w, layout.iw4.s), (layout.iw4.e, layout.iw4.s),
+                (layout.iw4.e, iw4_n), (layout.iw4.w, iw4_n)]
     wall_poly(out, iw4_poly, to_svg, stroke=False)
-    w_in = layout.iw4_w + half_sw
-    e_in = layout.iw4_e - half_sw
+    w_in = layout.iw4.w + half_sw
+    e_in = layout.iw4.e - half_sw
     n_in4 = iw4_n - half_sw
-    for a, b in [((w_in, layout.iw4_s), (w_in, iw4_n)),
-                 ((e_in, layout.iw4_s), (e_in, iw4_n)),
-                 ((layout.iw4_w, n_in4), (layout.iw4_e, n_in4))]:
+    for a, b in [((w_in, layout.iw4.s), (w_in, iw4_n)),
+                 ((e_in, layout.iw4.s), (e_in, iw4_n)),
+                 ((layout.iw4.w, n_in4), (layout.iw4.e, n_in4))]:
         sx1, sy1 = to_svg(*a); sx2, sy2 = to_svg(*b)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW11 with RO6 and RO2 (rotated rectangle, split by two openings) ----
-    _iw11_sw, _iw11_se, _iw11_ne, _iw11_nw = layout.iw11_poly
+    _iw11_sw, _iw11_se, _iw11_ne, _iw11_nw = layout.iw11.poly
     # Unit vectors from polygon corners
     _iw11_dx_t = _iw11_sw[0] - _iw11_se[0]  # thickness direction (along)
     _iw11_dy_t = _iw11_sw[1] - _iw11_se[1]
@@ -794,8 +783,8 @@ def _render_walls(out, data, layout, bare=False):
         out.append(f'<polygon points="{jp}" fill="{JAMB_COLOR}" stroke="none"/>')
 
     # ---- IW12 (rotated rectangle) ----
-    wall_poly(out, layout.iw12_poly, to_svg, stroke=False)
-    _iw12_sw, _iw12_se, _iw12_ne, _iw12_nw = layout.iw12_poly
+    wall_poly(out, layout.iw12.poly, to_svg, stroke=False)
+    _iw12_sw, _iw12_se, _iw12_ne, _iw12_nw = layout.iw12.poly
     _iw12_dx_t = _iw12_se[0] - _iw12_sw[0]  # length direction (-along)
     _iw12_dy_t = _iw12_se[1] - _iw12_sw[1]
     _iw12_lt = math.sqrt(_iw12_dx_t**2 + _iw12_dy_t**2)
@@ -816,8 +805,8 @@ def _render_walls(out, data, layout, bare=False):
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW14 (rotated rectangle, 3" thick, parallel to IW12) ----
-    wall_poly(out, layout.iw14_poly, to_svg, stroke=False)
-    _iw14_sw, _iw14_se, _iw14_ne, _iw14_nw = layout.iw14_poly
+    wall_poly(out, layout.iw14.poly, to_svg, stroke=False)
+    _iw14_sw, _iw14_se, _iw14_ne, _iw14_nw = layout.iw14.poly
     _iw14_dx_t = _iw14_se[0] - _iw14_sw[0]  # length direction (-along)
     _iw14_dy_t = _iw14_se[1] - _iw14_sw[1]
     _iw14_lt = math.sqrt(_iw14_dx_t**2 + _iw14_dy_t**2)
@@ -839,8 +828,7 @@ def _render_walls(out, data, layout, bare=False):
 
     # ---- IW15 (no openings, N-S from IW11 north to IW1 south) ----
     iw15 = layout.iw15
-    iw15_poly = [(iw15.w, iw15.s), (iw15.e, iw15.s), (iw15.e, iw15.n), (iw15.w, iw15.n)]
-    wall_poly(out, iw15_poly, to_svg, stroke=False)
+    wall_poly(out, iw15.poly, to_svg, stroke=False)
     for e_val in [iw15.w + half_sw, iw15.e - half_sw]:
         sx1, sy1 = to_svg(e_val, iw15.s)
         sx2, sy2 = to_svg(e_val, iw15.n)
@@ -849,8 +837,7 @@ def _render_walls(out, data, layout, bare=False):
 
     # ---- IW5 ----
     iw5 = layout.iw5
-    iw5_poly = [(iw5.w, iw5.s), (iw5.e, iw5.s), (iw5.e, iw5.n), (iw5.w, iw5.n)]
-    wall_poly(out, iw5_poly, to_svg, stroke=False)
+    wall_poly(out, iw5.poly, to_svg, stroke=False)
     for n_val in [iw5.s + half_sw, iw5.n - half_sw]:
         sx1, sy1 = to_svg(iw5.w, n_val)
         sx2, sy2 = to_svg(iw5.e, n_val)
@@ -946,11 +933,11 @@ def _render_appliances(out, data, layout, minik=False, db=False):
 
     # Counter: polygon clipped to W20-W0 south edge, IW3/IW16 west face east edge
     ctr_poly_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
-                            for p in layout.ctr_poly)
+                            for p in layout.ctr_clip)
     out.append(f'<polygon points="{ctr_poly_svg}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _ctr_cx = sum(p[0] for p in layout.ctr_poly) / len(layout.ctr_poly)
-    _ctr_cy = sum(p[1] for p in layout.ctr_poly) / len(layout.ctr_poly)
+    _ctr_cx = sum(p[0] for p in layout.ctr_clip) / len(layout.ctr_clip)
+    _ctr_cy = sum(p[1] for p in layout.ctr_clip) / len(layout.ctr_clip)
     ccx, ccy = to_svg(_ctr_cx, _ctr_cy)
     out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
@@ -1039,13 +1026,13 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     elif db:
         # IW1/IW2 corner, 3" from each wall
         fr_w = layout.iw2.e + KITCHEN_APPL_GAP
-        fr_s = layout.iw1_n + KITCHEN_APPL_GAP
+        fr_s = layout.iw1.n + KITCHEN_APPL_GAP
         fr_e = fr_w + 32.75 / 12.0
         fr_n = fr_s + 35.0 / 12.0
     else:
         # IW1/IW2 corner, 3" from each wall
         fr_w = layout.iw2.e + KITCHEN_APPL_GAP
-        fr_s = layout.iw1_n + KITCHEN_APPL_GAP
+        fr_s = layout.iw1.n + KITCHEN_APPL_GAP
         fr_e = fr_w + 32.75 / 12.0
         fr_n = fr_s + 35.0 / 12.0
     sx1, sy1 = to_svg(fr_w, fr_n)
@@ -1128,7 +1115,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     # Work counter: 60" E-W x 18" N-S, against IW1 north face, 3" east of fridge
     if not minik:
         wc_w = fr_e + KITCHEN_APPL_GAP
-        wc_s = layout.iw1_n
+        wc_s = layout.iw1.n
         wc_e = wc_w + 60.0 / 12.0
         wc_n = wc_s + 18.0 / 12.0
         wc_sx1, wc_sy1 = to_svg(wc_w, wc_n)
@@ -1145,7 +1132,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         mw_ns = 16.625 / 12.0
         mw_w = wc_w + 2.0 / 12.0
         mw_e = mw_w + mw_ew
-        mw_s = layout.iw1_n + 2.0 / 12.0
+        mw_s = layout.iw1.n + 2.0 / 12.0
         mw_n = mw_s + mw_ns
         mw_sx1, mw_sy1 = to_svg(mw_w, mw_n)
         mw_sx2, mw_sy2 = to_svg(mw_e, mw_s)
@@ -1310,7 +1297,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     # Oscar triangle dining set centered between north wall, IW1, IW2, RO1
     ro1_w_pos = layout.iw2.e + RO1_OFFSET_FROM_IW2
     space_w = layout.iw2.e
-    space_s = layout.iw1_n
+    space_s = layout.iw1.n
     space_e = ro1_w_pos
     space_n = kc_s if minik else back_n
     space_cx = (space_w + space_e) / 2
@@ -1470,7 +1457,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     pts = data.pts
     to_svg = data.to_svg
     # Bed (rotated polygon)
-    _bp = layout.bed_poly
+    _bp = layout.bed.poly
     _bp_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _bp)
     out.append(f'<polygon points="{_bp_svg}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     _bp_cx = sum(p[0] for p in _bp) / 4
@@ -1487,7 +1474,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     _ucx = _bp_cx - _w20b[0]; _ucy = _bp_cy - _w20b[1]
     _tw = (_ucx * _dEwb + _ucy * _dNwb) / (_dEwb**2 + _dNwb**2)
     _wb = (_w20b[0] + _tw * _dEwb, _w20b[1] + _tw * _dNwb)
-    _d_iw1 = (layout.iw1_s - _wb[1]) / _nNb
+    _d_iw1 = (layout.iw1.s - _wb[1]) / _nNb
     _lbl_e = _wb[0] + _d_iw1 / 2 * _nEb
     _lbl_n = _wb[1] + _d_iw1 / 2 * _nNb
     _bsx, _bsy = to_svg(_lbl_e, _lbl_n)
@@ -1516,13 +1503,13 @@ def _render_furniture(out, data, layout, minik=False, db=False):
 
     if minik:
         # SOFA: 80.75" E-W x 34.625" N-S, same E-W center as old, 2" north of IW1
-        _old_sofa_w = layout.iw4_w + 6.0 / 12.0
+        _old_sofa_w = layout.iw4.w + 6.0 / 12.0
         _old_sofa_cx = _old_sofa_w + (SOFA_WIDTH - 24.0 / 12.0) / 2
         _sofa_ew = 80.75 / 12.0
         _sofa_ns = 34.625 / 12.0
         sofa_w = _old_sofa_cx - _sofa_ew / 2
         sofa_e = _old_sofa_cx + _sofa_ew / 2
-        sofa_s = layout.iw1_n + 2.0 / 12.0
+        sofa_s = layout.iw1.n + 2.0 / 12.0
         sofa_n = sofa_s + _sofa_ns
         sf_sx1, sf_sy1 = to_svg(sofa_w, sofa_n)
         sf_sx2, sf_sy2 = to_svg(sofa_e, sofa_s)
@@ -1567,7 +1554,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     elif db:
         # DB variant: no loveseats; ET shifted east to 2" from W-series wall
         et_r = (ET_RADIUS_CM / 2.54) / 12.0
-        et_cy = layout.iw1_n + STD_GAP + et_r
+        et_cy = layout.iw1.n + STD_GAP + et_r
         # Find easternmost W-series wall easting at ET's northing
         wall_e = max(horiz_isects(data.inner_poly, et_cy))
         et_cx = wall_e - STD_GAP - et_r
@@ -1585,7 +1572,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         # DAYBED: 86" E-W x 43" N-S, 2" N of IW1, 3" W of ET
         db_ew = 86.0 / 12.0
         db_ns = 43.0 / 12.0
-        db_s = layout.iw1_n + STD_GAP
+        db_s = layout.iw1.n + STD_GAP
         db_n = db_s + db_ns
         db_e = et_cx - et_r - 3.0 / 12.0
         db_w = db_e - db_ew
@@ -1623,7 +1610,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         _dw_e = _ks_e + KITCHEN_APPL_GAP + DW_WIDTH
         _fr_s = pts["W9"][1] - 3.0 / 12.0 - 35.0 / 12.0
         _fr_door_s = _fr_s - 32.75 / 12.0
-        rk_cy = (layout.iw1_n + _fr_door_s) / 2 + 8.0 / 12.0 + 18.0 / 12.0
+        rk_cy = (layout.iw1.n + _fr_door_s) / 2 + 8.0 / 12.0 + 18.0 / 12.0
         rk_hw = ROCKER_DEPTH / 2   # half E-W (rotated 90°)
         rk_hh = ROCKER_WIDTH / 2   # half N-S (rotated 90°)
         rk_r = ROCKER_CORNER_R
@@ -1657,7 +1644,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         lv_se_e = lv_w + lv_width * math.cos(lv_angle)
         lv_se_n = lv_s + lv_width * math.sin(lv_angle)
         et_gap = et_r + STD_GAP
-        et_cy = layout.iw1_n + STD_GAP + et_r
+        et_cy = layout.iw1.n + STD_GAP + et_r
         et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
 
         lv_e = lv_w + lv_width
@@ -1690,7 +1677,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
 
         # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
         lv2_w = et_cx + et_r + STD_GAP
-        lv2_s = layout.iw1_n + STD_GAP
+        lv2_s = layout.iw1.n + STD_GAP
         lv2_e = lv2_w + lv_height  # 65" E-W
         lv2_n = lv2_s + lv_width   # 35" N-S
         lv2_sx1, lv2_sy1 = to_svg(lv2_w, lv2_n)
@@ -1801,13 +1788,13 @@ def _render_furniture(out, data, layout, minik=False, db=False):
 
     # Room labels
     bd_cx = layout.iw2.e + 139.0 / 12.0  # 11'7" east of IW2 east face
-    bd_cy = (layout.ctr.s + layout.iw1_s) / 2
+    bd_cy = (layout.ctr.s + layout.iw1.s) / 2
     bdx, bdy = to_svg(bd_cx, bd_cy)
     out.append(f'<text x="{bdx:.1f}" y="{bdy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">BEDROOM</text>')
 
-    of_cx = (layout.iw4_e + pts["W15"][0]) / 2
-    of_cy = (layout.ctr.s + 5.0 + layout.iwt3 + layout.iw1_s) / 2 - 2.0 + 8.0 / 12.0
+    of_cx = (layout.iw4.e + pts["W15"][0]) / 2
+    of_cy = (layout.ctr.s + 5.0 + WALL_3IN + layout.iw1.s) / 2 - 2.0 + 8.0 / 12.0
     ofx, ofy = to_svg(of_cx, of_cy)
     out.append(f'<text x="{ofx:.1f}" y="{ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">OFFICE</text>')
@@ -1819,7 +1806,7 @@ def _render_dimensions(out, data, layout, bare=False):
     to_svg = data.to_svg
 
     # IW1-north → F9-F11 south face dimension
-    iw1_n = layout.iw1_n
+    iw1_n = layout.iw1.n
     dim_e = (pts["F9"][0] + pts["F11"][0]) / 2 + 12.0 / 12.0
     dim_line_v(out, dim_e, iw1_n, pts["W9"][1], fmt_dist(pts["W9"][1] - iw1_n), to_svg)
 
@@ -1832,12 +1819,12 @@ def _render_dimensions(out, data, layout, bare=False):
                label_offset_e=-4.0)
 
     # East closet (rotated dimension, parallel to IW11)
-    _iw12_sw = layout.iw12_poly[0]
-    _iw12_se = layout.iw12_poly[1]
+    _iw12_sw = layout.iw12.poly[0]
+    _iw12_se = layout.iw12.poly[1]
     _dim_s = ((_iw12_sw[0] + _iw12_se[0]) / 2,
               (_iw12_sw[1] + _iw12_se[1]) / 2)
-    _dn = (layout.iw11_poly[2][0] - layout.iw11_poly[1][0],
-           layout.iw11_poly[2][1] - layout.iw11_poly[1][1])
+    _dn = (layout.iw11.poly[2][0] - layout.iw11.poly[1][0],
+           layout.iw11.poly[2][1] - layout.iw11.poly[1][1])
     _dl = math.sqrt(_dn[0]**2 + _dn[1]**2)
     _nrm = (_dn[0] / _dl, _dn[1] / _dl)
     # Ray-line intersection: ray from _dim_s in direction -_nrm hits W20-W0
@@ -1867,12 +1854,12 @@ def _render_dimensions(out, data, layout, bare=False):
                f'CLOSET {fmt_dist(_t_line)}</text>')
 
     # West closet (rotated dimension, perpendicular to IW7 south face)
-    _iw7_sw7 = layout.iw7_poly[0]
-    _iw7_se7 = layout.iw7_poly[1]
+    _iw7_sw7 = layout.iw7.poly[0]
+    _iw7_se7 = layout.iw7.poly[1]
     _dim7_s = ((_iw7_sw7[0] + _iw7_se7[0]) / 2,
                (_iw7_sw7[1] + _iw7_se7[1]) / 2)
-    _dn7 = (layout.iw7_poly[3][0] - _iw7_sw7[0],
-            layout.iw7_poly[3][1] - _iw7_sw7[1])
+    _dn7 = (layout.iw7.poly[3][0] - _iw7_sw7[0],
+            layout.iw7.poly[3][1] - _iw7_sw7[1])
     _dl7 = math.sqrt(_dn7[0]**2 + _dn7[1]**2)
     _nrm7 = (_dn7[0] / _dl7, _dn7[1] / _dl7)
     _w20 = pts["W20"]; _w0 = pts["W1"]
@@ -1901,18 +1888,18 @@ def _render_dimensions(out, data, layout, bare=False):
                f'CLOSET {fmt_dist(_t7)}</text>')
 
     # Utility: W2 to IW3 west face, at northing where distance = 8'
-    _iw3_sw, _iw3_nw = layout.iw3_poly[0], layout.iw3_poly[3]
+    _iw3_sw, _iw3_nw = layout.iw3.poly[0], layout.iw3.poly[3]
     _target_dist = 8.0
     _t_iw3 = (_target_dist - (_iw3_sw[0] - pts["W2"][0])) / (_iw3_nw[0] - _iw3_sw[0])
     _dim_n = _iw3_sw[1] + _t_iw3 * (_iw3_nw[1] - _iw3_sw[1])
     _dim_e = _iw3_sw[0] + _t_iw3 * (_iw3_nw[0] - _iw3_sw[0])
     dim_line_h(out, pts["W2"][0], _dim_n, _dim_e,
                fmt_dist(_dim_e - pts["W2"][0]), to_svg)
-    dim_line_h(out, layout.iw4_e, 5.0, pts["W15"][0],
-               fmt_dist(pts["W15"][0] - layout.iw4_e), to_svg)
+    dim_line_h(out, layout.iw4.e, 5.0, pts["W15"][0],
+               fmt_dist(pts["W15"][0] - layout.iw4.e), to_svg)
 
     # Storage — west end at IW15 east face
-    _stor_n = (layout.iw5.n + layout.iw1_s) / 2
+    _stor_n = (layout.iw5.n + layout.iw1.s) / 2
     _stor_w = layout.iw15.e
     dim_line_h(out, _stor_w, _stor_n, pts["W15"][0],
                f"STORAGE {fmt_dist(pts['W15'][0] - _stor_w)}", to_svg)
@@ -1933,9 +1920,9 @@ def _render_dimensions(out, data, layout, bare=False):
                fmt_dist(layout.iw2.w - pts["W5"][0]), to_svg)
 
     # Office/bedroom verticals
-    dim_line_v(out, pts["F18"][0], layout.iw1_s, pts["W18"][1],
-               fmt_dist(layout.iw1_s - pts["W18"][1]), to_svg,
-               label_n=(layout.iw1_s + pts["W18"][1]) / 2 + 2.5)
+    dim_line_v(out, pts["F18"][0], layout.iw1.s, pts["W18"][1],
+               fmt_dist(layout.iw1.s - pts["W18"][1]), to_svg,
+               label_n=(layout.iw1.s + pts["W18"][1]) / 2 + 2.5)
     if bare:
         # Single combined dim: IW8 north face to W6-W7, at RO4 open-door west extent
         _ro4 = [r for r in compute_rough_openings(pts, layout) if r.name == "RO4"][0]
@@ -1944,10 +1931,10 @@ def _render_dimensions(out, data, layout, bare=False):
         dim_line_v(out, _ro4_tip_e, layout.iw8.n, pts["W6"][1],
                    fmt_dist(pts["W6"][1] - layout.iw8.n), to_svg)
     else:
-        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6_n, pts["W6"][1],
-                   fmt_dist(pts["W6"][1] - layout.iw6_n), to_svg)
-        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, layout.iw6_s,
-                   fmt_dist(layout.iw6_s - layout.iw8.n), to_svg)
+        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6.n, pts["W6"][1],
+                   fmt_dist(pts["W6"][1] - layout.iw6.n), to_svg)
+        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, layout.iw6.s,
+                   fmt_dist(layout.iw6.s - layout.iw8.n), to_svg)
 
     # External dimensions
     dim_ext_e = pts["F3"][0] - 2.7
@@ -1979,8 +1966,8 @@ def _render_dimensions(out, data, layout, bare=False):
     _dNw = pts["W1"][1] - pts["W20"][1]
     _wlen = math.sqrt(_dEw**2 + _dNw**2)
     _nrmE = _dNw / _wlen; _nrmN = -_dEw / _wlen  # inward normal (NNE)
-    _t_iw1 = (layout.iw1_s - _o9_ic[1]) / _nrmN
-    _dim_end = (_o9_ic[0] + _t_iw1 * _nrmE, layout.iw1_s)
+    _t_iw1 = (layout.iw1.s - _o9_ic[1]) / _nrmN
+    _dim_end = (_o9_ic[0] + _t_iw1 * _nrmE, layout.iw1.s)
     _dim_len = abs(_t_iw1)
     _dsx1, _dsy1 = to_svg(*_o9_ic)
     _dsx2, _dsy2 = to_svg(*_dim_end)
@@ -2005,8 +1992,8 @@ def _render_dimensions(out, data, layout, bare=False):
     _o10_open = compute_outer_openings(pts, layout)[9]  # O10
     _o10_ic = ((_o10_open.poly[2][0] + _o10_open.poly[3][0]) / 2,
                (_o10_open.poly[2][1] + _o10_open.poly[3][1]) / 2)
-    _t_iw1_10 = (layout.iw1_s - _o10_ic[1]) / _nrmN
-    _dim_end10 = (_o10_ic[0] + _t_iw1_10 * _nrmE, layout.iw1_s)
+    _t_iw1_10 = (layout.iw1.s - _o10_ic[1]) / _nrmN
+    _dim_end10 = (_o10_ic[0] + _t_iw1_10 * _nrmE, layout.iw1.s)
     _dim_len10 = abs(_t_iw1_10)
     _dsx1, _dsy1 = to_svg(*_o10_ic)
     _dsx2, _dsy2 = to_svg(*_dim_end10)
@@ -2027,15 +2014,15 @@ def _render_dimensions(out, data, layout, bare=False):
                f'{fmt_dist(_dim_len10)}</text>')
 
     # IW9 east face to IW11 west face, perpendicular to IW9 east face
-    _iw9_se9 = layout.iw9_poly[1]
-    _iw9_ne9 = layout.iw9_poly[2]
+    _iw9_se9 = layout.iw9.poly[1]
+    _iw9_ne9 = layout.iw9.poly[2]
     _dim3_s = ((_iw9_se9[0] + _iw9_ne9[0]) / 2,
                (_iw9_se9[1] + _iw9_ne9[1]) / 2)
     _fd3 = (_iw9_ne9[0] - _iw9_se9[0], _iw9_ne9[1] - _iw9_se9[1])
     _fd3_len = math.sqrt(_fd3[0]**2 + _fd3[1]**2)
     _perp3 = (_fd3[1] / _fd3_len, -_fd3[0] / _fd3_len)  # CW perp, toward IW11
-    _iw11_sw3 = layout.iw11_poly[0]
-    _iw11_nw3 = layout.iw11_poly[3]
+    _iw11_sw3 = layout.iw11.poly[0]
+    _iw11_nw3 = layout.iw11.poly[3]
     _dw11f = (_iw11_nw3[0] - _iw11_sw3[0], _iw11_nw3[1] - _iw11_sw3[1])
     _dx3 = _iw11_sw3[0] - _dim3_s[0]
     _dy3 = _iw11_sw3[1] - _dim3_s[1]
@@ -2077,8 +2064,8 @@ def _render_dimensions(out, data, layout, bare=False):
         _w11a = pts["W11a"]; _w11b = pts["W11b"]
         _mid_e = (_w11a[0] + _w11b[0]) / 2
         _mid_n = (_w11a[1] + _w11b[1]) / 2
-        dim_line_v(out, _mid_e, layout.iw1_n, _mid_n,
-                   fmt_dist(_mid_n - layout.iw1_n), to_svg)
+        dim_line_v(out, _mid_e, layout.iw1.n, _mid_n,
+                   fmt_dist(_mid_n - layout.iw1.n), to_svg)
 
 
 def _render_openings(out, data, layout, bare=False):
@@ -2219,7 +2206,7 @@ def _render_openings(out, data, layout, bare=False):
     ro2 = [r for r in rough_openings if r.name == "RO2"][0]
     _ro2p = ro2.poly  # [SW, SE, NE, NW]
     # IW11 unit vectors (recompute from polygon)
-    _i11_sw, _i11_se, _i11_ne, _i11_nw = layout.iw11_poly
+    _i11_sw, _i11_se, _i11_ne, _i11_nw = layout.iw11.poly
     _i11_dx_n = _i11_ne[0] - _i11_se[0]; _i11_dy_n = _i11_ne[1] - _i11_se[1]
     _i11_ln = math.sqrt(_i11_dx_n**2 + _i11_dy_n**2)
     _i11_an = (_i11_dx_n / _i11_ln, _i11_dy_n / _i11_ln)  # NNE (along length)
@@ -2326,7 +2313,7 @@ def _render_openings(out, data, layout, bare=False):
     ro7 = [r for r in rough_openings if r.name == "RO7"][0]
     _ro7p = ro7.poly  # [SW, SE, NE, NW]
     # IW9 unit vectors
-    _i9_sw, _i9_se, _i9_ne, _i9_nw = layout.iw9_poly
+    _i9_sw, _i9_se, _i9_ne, _i9_nw = layout.iw9.poly
     _i9_dx_n = _i9_ne[0] - _i9_se[0]; _i9_dy_n = _i9_ne[1] - _i9_se[1]
     _i9_ln = math.sqrt(_i9_dx_n**2 + _i9_dy_n**2)
     _i9_an = (_i9_dx_n / _i9_ln, _i9_dy_n / _i9_ln)  # NNE (along length)

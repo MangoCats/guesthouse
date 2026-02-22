@@ -66,8 +66,8 @@ def _extract_iw_centerlines(layout):
     """Midlines of IW1, IW2, IW8 as line segments [(p1, p2), ...]."""
     # IW1: polygon [SW, SE, NE, NW]; midline across the middle
     iw1 = layout.iw1
-    mid_n1 = (layout.iw1_s + layout.iw1_n) / 2
-    cl1 = ((iw1[0][0], mid_n1), ((iw1[1][0] + iw1[2][0]) / 2, mid_n1))
+    mid_n1 = (iw1.s + iw1.n) / 2
+    cl1 = ((iw1.poly[0][0], mid_n1), ((iw1.poly[1][0] + iw1.poly[2][0]) / 2, mid_n1))
     # IW2: vertical BBox; midline is a vertical segment
     iw2 = layout.iw2
     cl2 = (((iw2.w + iw2.e) / 2, iw2.s), ((iw2.w + iw2.e) / 2, iw2.n))

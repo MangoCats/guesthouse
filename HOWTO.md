@@ -42,7 +42,7 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
 1. **Identify the two endpoints** in survey coordinates:
    - Perimeter wall outer face: `pts["F<n>"][0]` (easting) or `pts["F<n>"][1]` (northing)
    - Perimeter wall inner face: `pts["W<n>"][0]` or `pts["W<n>"][1]`
-   - Interior wall faces: use `layout.<field>` (e.g., `layout.iw3.w`, `layout.iw3.e`, `layout.iw4_w`, `layout.iw1_s`)
+   - Interior wall faces: use `layout.<field>` (e.g., `layout.iw3.w`, `layout.iw3.e`, `layout.iw4.w`, `layout.iw1.s`)
 
 2. **Determine the offset position** (where the line is placed, perpendicular to the measurement):
    - For `dim_line_h`: choose a northing `n` (e.g., `layout.ctr.n + layout.iwt3 + 1.0` for "1' north of IW7 north face")
@@ -88,26 +88,34 @@ The outline traverses CW (as viewed from above): F1 → F2 → ... → F20 → F
 
 ### Interior walls
 
-Interior wall positions are computed in `floorplan/layout.py` and returned in the `InteriorLayout` NamedTuple. Access them via `layout.<field>`:
+Interior wall positions are computed in `floorplan/layout.py` and returned in the `InteriorLayout` NamedTuple. Every wall, appliance, and furniture item is a `Wall` NamedTuple (defined in `shared/types.py`) with both polygon corners and axis-aligned bounding box:
 
-| Wall | Type | West face | East face | South face | North face |
-|-|-|-|-|-|-|
-| **IW1** (horizontal, 6") | polygon | — | — | `layout.iw1_s` | `layout.iw1_n` |
-| **IW2** (vertical, 6") | BBox | `layout.iw2.w` | `layout.iw2.e` | `layout.iw2.s` | `layout.iw2.n` |
-| **IW3** (perpendicular to W20-W1, 4") | BBox+poly | `layout.iw3.w` | `layout.iw3.e` | `layout.iw3.s` | `layout.iw3.n` |
-| **IW4** (vertical, 4") | scalars | `layout.iw4_w` | `layout.iw4_e` | `layout.wall_south_n` | `layout.iw1_s` |
-| **IW5** (horizontal, 3") | BBox | `layout.iw5.w` | `layout.iw5.e` | `layout.iw5.s` | `layout.iw5.n` |
-| **IW6** (horizontal, 1") | polygon | — | — | `layout.iw6_s` | `layout.iw6_n` |
-| **IW7** (parallel to W20-W1, 3") | BBox+poly | `layout.iw7.w` | `layout.iw7.e` | `layout.iw7.s` | `layout.iw7.n` |
-| **IW8** (horizontal, 6") | BBox | `layout.iw8.w` | `layout.iw8.e` | `layout.iw8.s` | `layout.iw8.n` |
-| **IW9** (perpendicular to W20-W1, 3") | BBox+poly | `layout.iw9.w` | `layout.iw9.e` | `layout.iw9.s` | `layout.iw9.n` |
-| **IW11** (N-S, 4") | BBox+poly | `layout.iw11.w` | `layout.iw11.e` | `layout.iw11.s` | `layout.iw11.n` |
-| **IW12** (perpendicular to IW11, 4") | BBox+poly | `layout.iw12.w` | `layout.iw12.e` | `layout.iw12.s` | `layout.iw12.n` |
-| **IW14** (parallel to IW12, 3") | BBox+poly | `layout.iw14.w` | `layout.iw14.e` | `layout.iw14.s` | `layout.iw14.n` |
-| **IW15** (N-S, 4") | BBox | `layout.iw15.w` | `layout.iw15.e` | `layout.iw15.s` | `layout.iw15.n` |
-| **IW16** (N-S, 4") | polygon | — | — | — | — |
+```python
+class Wall(NamedTuple):
+    poly: list[Point]  # [SW, SE, NE, NW] corners
+    w: float; s: float; e: float; n: float  # axis-aligned bounding box
+```
 
-BBox-type walls use `.w`, `.s`, `.e`, `.n` accessors. "BBox+poly" walls have both a `BBox` field and a `_poly` field (`list[Point]`) for the actual polygon (which may differ from the BBox on curved walls). IW1 and IW6 are pure polygon walls. IW4 uses individual scalar fields.
+Access via `layout.<field>.w`, `.s`, `.e`, `.n` for bounding box, or `layout.<field>.poly` for the corner polygon.
+
+| Wall | Thickness | West face | East face | South face | North face | Polygon |
+|-|-|-|-|-|-|-|
+| **IW1** (horizontal) | 6" | `layout.iw1.w` | `layout.iw1.e` | `layout.iw1.s` | `layout.iw1.n` | `layout.iw1.poly` |
+| **IW2** (vertical) | 6" | `layout.iw2.w` | `layout.iw2.e` | `layout.iw2.s` | `layout.iw2.n` | `layout.iw2.poly` |
+| **IW3** (perp. to W20-W1) | 4" | `layout.iw3.w` | `layout.iw3.e` | `layout.iw3.s` | `layout.iw3.n` | `layout.iw3.poly` |
+| **IW4** (vertical) | 4" | `layout.iw4.w` | `layout.iw4.e` | `layout.iw4.s` | `layout.iw4.n` | `layout.iw4.poly` |
+| **IW5** (horizontal) | 3" | `layout.iw5.w` | `layout.iw5.e` | `layout.iw5.s` | `layout.iw5.n` | `layout.iw5.poly` |
+| **IW6** (horizontal) | 1" | `layout.iw6.w` | `layout.iw6.e` | `layout.iw6.s` | `layout.iw6.n` | `layout.iw6.poly` |
+| **IW7** (par. to W20-W1) | 3" | `layout.iw7.w` | `layout.iw7.e` | `layout.iw7.s` | `layout.iw7.n` | `layout.iw7.poly` |
+| **IW8** (horizontal) | 6" | `layout.iw8.w` | `layout.iw8.e` | `layout.iw8.s` | `layout.iw8.n` | `layout.iw8.poly` |
+| **IW9** (perp. to W20-W1) | 3" | `layout.iw9.w` | `layout.iw9.e` | `layout.iw9.s` | `layout.iw9.n` | `layout.iw9.poly` |
+| **IW11** (N-S) | 4" | `layout.iw11.w` | `layout.iw11.e` | `layout.iw11.s` | `layout.iw11.n` | `layout.iw11.poly` |
+| **IW12** (perp. to IW11) | 4" | `layout.iw12.w` | `layout.iw12.e` | `layout.iw12.s` | `layout.iw12.n` | `layout.iw12.poly` |
+| **IW14** (par. to IW12) | 3" | `layout.iw14.w` | `layout.iw14.e` | `layout.iw14.s` | `layout.iw14.n` | `layout.iw14.poly` |
+| **IW15** (N-S) | 4" | `layout.iw15.w` | `layout.iw15.e` | `layout.iw15.s` | `layout.iw15.n` | `layout.iw15.poly` |
+| **IW16** (N-S) | 4" | `layout.iw16.w` | `layout.iw16.e` | `layout.iw16.s` | `layout.iw16.n` | `layout.iw16.poly` |
+
+Appliances and furniture also use `Wall`: `layout.dryer`, `layout.washer`, `layout.ctr`, `layout.dresser`, `layout.bed`.
 
 ### Room-relative references
 
@@ -116,7 +124,7 @@ BBox-type walls use `.w`, `.s`, `.e`, `.n` accessors. "BBox+poly" walls have bot
 | Counter east edge | `layout.ctr.e` | |
 | Counter north edge | `layout.ctr.n` | |
 | Counter south edge | `layout.ctr.s` | Same as `pts["W1"][1]` |
-| Bedroom center E-W | `(layout.iw3.e + layout.iw4_w) / 2` | |
+| Bedroom center E-W | `(layout.iw3.e + layout.iw4.w) / 2` | |
 | Inner south wall | `pts["W1"][1]` | |
 | Inner west wall | `pts["W2"][0]` | |
 
@@ -130,25 +138,24 @@ Interior wall positions are computed in `floorplan/layout.py` and rendered in `f
 
 1. **Add a constant** for any new offset/dimension in `floorplan/constants.py`.
 
-2. **Add fields** to the `InteriorLayout` NamedTuple in `floorplan/layout.py`:
+2. **Add a field** to the `InteriorLayout` NamedTuple in `floorplan/layout.py`:
    ```python
-   mywall: BBox   # for rectangular walls
-   # or
-   mywall: list[Point]  # for L-shaped or irregular walls
+   mywall: Wall
    ```
 
-3. **Compute the position** in `compute_interior_layout()` in `layout.py`:
+3. **Compute the position** in `compute_interior_layout()` in `layout.py` using `_make_wall`:
    ```python
-   mywall_w = <west face easting>
-   mywall_e = mywall_w + WALL_3IN  # use named constants
-   mywall_s = <south face northing>
-   mywall_n = <north face northing>
+   mywall_sw = <southwest corner>
+   mywall_se = <southeast corner>
+   mywall_ne = <northeast corner>
+   mywall_nw = <northwest corner>
+   # _make_wall computes the bounding box automatically
    ```
+   Then in the return statement: `mywall=_make_wall([mywall_sw, mywall_se, mywall_ne, mywall_nw])`
 
 4. **Render** in `_render_walls()` in `gen_floorplan.py`:
    ```python
-   wall_poly(out, [(mywall.w, mywall.s), (mywall.e, mywall.s),
-                   (mywall.e, mywall.n), (mywall.w, mywall.n)], to_svg)
+   wall_poly(out, layout.mywall.poly, to_svg)
    ```
 
 5. **Add the polygon to `compute_iw_area()`** in `gen_floorplan.py` so its area is subtracted from the interior area.
@@ -157,10 +164,10 @@ Interior wall positions are computed in `floorplan/layout.py` and rendered in `f
 
 ### Wall thickness constants
 
-Accessed via layout fields or from `floorplan/constants.py`:
-- `WALL_3IN` = 3" (0.25') — also `layout.iwt3`
-- `WALL_4IN` = 4" (0.333') — also `layout.iwt4`
-- `WALL_6IN` = 6" (0.5') — also `layout.iwt`
+Import from `floorplan/constants.py`:
+- `WALL_3IN` = 3" (0.25')
+- `WALL_4IN` = 4" (1/3')
+- `WALL_6IN` = 6" (0.5')
 
 ---
 

@@ -23,7 +23,7 @@ APPLIANCE_GAP = 1.0 / 12.0        # 1" gap between dryer and washer
 
 # Counter
 COUNTER_DEPTH = 24.0 / 12.0       # 2' E-W
-COUNTER_LENGTH = 70.0 / 12.0      # 5'10" N-S
+COUNTER_LENGTH = 6.0              # 6' N-S
 COUNTER_NW_RADIUS = 9.0 / 12.0    # 9" rounded corner
 COUNTER_GAP = 36.0 / 12.0         # 3' east of dryer
 
@@ -42,6 +42,13 @@ RO1_OFFSET_FROM_IW2 = 116.0 / 12.0   # 9'8" from IW2 east face, CW-normal to W2-
 BED_WIDTH = 76.0 / 12.0           # 76" king bed
 BED_LENGTH = 94.0 / 12.0          # 94" (incl. frame)
 BED_OFFSET_N = 2.0 / 12.0         # 2" from south wall
+BED_WALL_GAP = 2.0 / 12.0         # 2" bed-to-outer-wall inward gap
+
+# Dresser
+DRESSER_WIDTH = 34.0 / 12.0       # 34" E-W
+DRESSER_DEPTH = 19.0 / 12.0       # 19" N-S
+DRESSER_GAP_IW15 = 2.0 / 12.0     # 2" west of IW15
+DRESSER_GAP_IW1 = 1.0 / 12.0      # 1" south of IW1
 
 # Water heater
 WH_RADIUS = 14.0 / 12.0           # 14" radius (28" diameter)
@@ -91,6 +98,13 @@ IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W20-W0
 # IW9 (perpendicular to W20-W0, 4" thick)
 IW9_LENGTH = 80.0 / 12.0            # 80" (6'8") IW9 length, same as IW3
 IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W20-W0
+
+# IW11 (4" thick, N-S)
+IW11_RADIUS_FROM_IW4 = 32.0 / 12.0  # 32" circle-line radius for SE corner
+
+# IW12 (4" thick, perpendicular to IW11)
+IW12_OFFSET_IW11 = 6.0              # 6' from IW11 SW to IW12 base
+IW12_SHORTEN = 4.0 / 12.0           # 4" IW12 west-end setback
 IW9_RO_WIDTH = 62.0 / 12.0          # 62" opening width along IW9 (RO7)
 
 # IW16 rough opening
