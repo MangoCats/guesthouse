@@ -33,7 +33,7 @@ from floorplan.constants import (
     SOFA_WIDTH, SOFA_DEPTH,
     ICE_WIDTH, ICE_DEPTH,
     ROCKER_WIDTH, ROCKER_DEPTH, ROCKER_CORNER_R,
-    RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
+    RO1_OFFSET_FROM_IW2, IW1_RO_WIDTH,
     O3_WIDTH, O3_DOOR_WIDTH,
     O6_WIDTH, O6_DOOR_WIDTH, RO1_DOOR_WIDTH, RO2_DOOR_WIDTH,
     RO3_DOOR_WIDTH, RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, RO6_DOOR_WIDTH,
@@ -1308,7 +1308,7 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         out.append('</a>')
 
     # Oscar triangle dining set centered between north wall, IW1, IW2, RO1
-    ro1_w_pos = layout.iw2.e + RO1_OFFSET_E_IW2
+    ro1_w_pos = layout.iw2.e + RO1_OFFSET_FROM_IW2
     space_w = layout.iw2.e
     space_s = layout.iw1_n
     space_e = ro1_w_pos
@@ -1612,7 +1612,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
 
         # ROCKER: center E-W between DAYBED and RO1,
         #         center N-S between IW1 and fridge door arc southern extent
-        _ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
+        _ro1_w = layout.iw2.e + RO1_OFFSET_FROM_IW2
         _ro1_e = _ro1_w + IW1_RO_WIDTH
         rk_cx = (db_w + _ro1_e) / 2 - 8.0 / 12.0
         # Recompute fridge door arc southern extent

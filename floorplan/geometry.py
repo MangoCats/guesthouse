@@ -7,16 +7,16 @@ from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
-    F6_F7_LENGTH, F3_OFFSET_N_IW8, F6_EAST_ADJ,
+    F6_F7_LENGTH, F3_OFFSET_FROM_IW8, F6_OFFSET_ADJ,
     F6_HEIGHT, NW_SHIFT,
     F14_F15_SEG, F14_F15_DIST, ARC_F13_R_BASELINE, F13_EXIT_BRG,
-    SOUTH_WALL_N, PIX_PI5_TARGET_BRG, F15_OFFSET_E, ARC_F17_SWEEP, F16_F17_MIN,
-    F18_OFFSET_E, F19_OFFSET_E, ARC_F19_R,
+    SOUTH_WALL_FACE, PIX_PI5_TARGET_BRG, F15_OFFSET_FROM_IW8, ARC_F17_SWEEP, F16_F17_MIN,
+    F18_OFFSET_FROM_IW4, F19_OFFSET_FROM_IW4, ARC_F19_R,
     WALL_OUTER, WALL_6IN, WALL_3IN, WALL_4IN,
     APPLIANCE_WIDTH, COUNTER_GAP, COUNTER_DEPTH,
-    CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_E,
-    IW1_OFFSET_N, IW1_DIST_FROM_NORTH, IW8_OFFSET_N_IW1, F14_OFFSET_N_IW1, WALL_SOUTH_N,
-    F10_OFFSET_E_F9, FLAT_SEG_11, F11AB_TARGET,
+    CLOSET_WIDTH, CLOSET2_WIDTH, BEDROOM_WIDTH, APPLIANCE_OFFSET_FROM_W2,
+    IW1_OFFSET_FROM_W1, IW1_OFFSET_FROM_W9, IW8_OFFSET_FROM_IW1, F14_OFFSET_FROM_IW1,
+    F10_OFFSET_FROM_F9, FLAT_SEG_11, F11AB_TARGET,
 )
 
 
@@ -58,7 +58,7 @@ def _compute_nw_corner(fp_pts: dict[str, Point], anchors: OutlineAnchors) -> flo
     """
     R_a5 = CORNER_NW_R
     corner2_N = fp_pts["F1"][1] + F6_HEIGHT
-    fp_pts["C5"] = (anchors.Pi2[0] + NW_SHIFT + R_a5 + F6_EAST_ADJ, corner2_N - R_a5)
+    fp_pts["C5"] = (anchors.Pi2[0] + NW_SHIFT + R_a5 + F6_OFFSET_ADJ, corner2_N - R_a5)
     fp_pts["F6"] = (fp_pts["C5"][0], corner2_N)
     return R_a5
 
@@ -82,9 +82,9 @@ def _compute_west_wall(
     # F9_N = F6_N - UPPER_E_R - SMALL_ARC_R + _WE (arcs cancel _WE)
     _F9_N = fp_pts["F6"][1] - (UPPER_E_R + SMALL_ARC_R) + (WALL_OUTER - 8.0 / 12.0)
     _W9_N = _F9_N - WALL_OUTER
-    _IW1_n = _W9_N - IW1_DIST_FROM_NORTH
-    _IW8_n = _IW1_n + IW8_OFFSET_N_IW1
-    F3_N = _IW8_n + F3_OFFSET_N_IW8
+    _IW1_n = _W9_N - IW1_OFFSET_FROM_W9
+    _IW8_n = _IW1_n + IW8_OFFSET_FROM_IW1
+    F3_N = _IW8_n + F3_OFFSET_FROM_IW8
 
     fp_pts["F3"] = (F3_E, F3_N)
 
@@ -130,9 +130,9 @@ def _compute_upper_east_arcs(
     C8 placed for tangency with C7: |C7-C8| = R_a7 + R_a8.
     """
     # F7: computed from anchors (independent of F6 easting shift).
-    # Original: F6_E + 5.5 + 6/12 - NW_SHIFT + 4/12 - F6_EAST_ADJ
-    # where F6_E = Pi2[0] + NW_SHIFT + R_a5 + F6_EAST_ADJ;
-    # NW_SHIFT and F6_EAST_ADJ cancel, leaving:
+    # Original: F6_E + 5.5 + 6/12 - NW_SHIFT + 4/12 - F6_OFFSET_ADJ
+    # where F6_E = Pi2[0] + NW_SHIFT + R_a5 + F6_OFFSET_ADJ;
+    # NW_SHIFT and F6_OFFSET_ADJ cancel, leaving:
     F7_E = anchors.Pi2[0] + CORNER_NW_R + 5.5 + 10.0/12.0
     fp_pts["F7"] = (F7_E, fp_pts["F6"][1])
     R_a7 = UPPER_E_R
@@ -163,17 +163,17 @@ def _compute_central_region(
     R_a11 = ARC_180_R
 
     # R_a15 baseline: use existing F14_N formula to keep F15/F16 fixed
-    _F14_N_R15 = fp_pts["F9"][1] - WALL_OUTER - IW1_DIST_FROM_NORTH + F14_OFFSET_N_IW1
+    _F14_N_R15 = fp_pts["F9"][1] - WALL_OUTER - IW1_OFFSET_FROM_W9 + F14_OFFSET_FROM_IW1
 
     # Arc at Po5 corner (exits North)
     d_in_po5 = (anchors.Pi5[0] - anchors.PiX[0], anchors.Pi5[1] - anchors.PiX[1])
     L_in = math.sqrt(d_in_po5[0]**2 + d_in_po5[1]**2)
     d_in_u = (d_in_po5[0]/L_in, d_in_po5[1]/L_in)
     # F15 E-coordinate
-    _iw8_e = (fp_pts["F2"][0] + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP
+    _iw8_e = (fp_pts["F2"][0] + WALL_OUTER + APPLIANCE_OFFSET_FROM_W2 + APPLIANCE_WIDTH + COUNTER_GAP
               + COUNTER_DEPTH + (WALL_3IN + CLOSET_WIDTH + WALL_4IN
               + BEDROOM_WIDTH + WALL_4IN + CLOSET_WIDTH + WALL_3IN))
-    F15_E = _iw8_e + F15_OFFSET_E
+    F15_E = _iw8_e + F15_OFFSET_FROM_IW8
     ln_in_po5 = left_norm(anchors.PiX, anchors.Pi5)
 
     # R_a15 from baseline F14_N (keeps F15/F16 fixed)
@@ -195,7 +195,7 @@ def _compute_central_region(
     _ny_t = math.sin(_brg_off)
     # C11a: keep F11a fixed using baseline R_a13 and F14_N (original design)
     _C11_N = fp_pts["C7"][1]
-    _F14_N_ref = fp_pts["F1"][1] + WALL_OUTER + IW1_OFFSET_N + WALL_6IN + WALL_SOUTH_N
+    _F14_N_ref = fp_pts["F1"][1] + WALL_OUTER + IW1_OFFSET_FROM_W1 + WALL_6IN + (SOUTH_WALL_FACE + WALL_OUTER)
     _R_a13_base = ARC_F13_R_BASELINE
     _C13_E_base = F15_E - _R_a13_base
     _C11_E_ref = _C13_E_base + (_R_a13_base - R_a11 - (_C11_N - _F14_N_ref) * _ny_t) / _nx_t
@@ -203,7 +203,7 @@ def _compute_central_region(
     fp_pts["C11a"] = (_C11a_E, _C11_N)
     # F10: 15'2" east of nominal F9 easting
     _nominal_F9_E = fp_pts["C7"][0] + UPPER_E_R + SMALL_ARC_R - (WALL_OUTER - 8.0 / 12.0)
-    _F10_E = _nominal_F9_E + F10_OFFSET_E_F9
+    _F10_E = _nominal_F9_E + F10_OFFSET_FROM_F9
     _F10_N = fp_pts["F9"][1]
     fp_pts["F10"] = (_F10_E, _F10_N)
     # R_a10: tangent to F11-F11a arc. C10 = (F10_E, F10_N + R_a10).
@@ -247,31 +247,31 @@ def _compute_south_wall(
     is the largest fillet of that corner (30° CW sweep, tangent to both
     lines) subject to:
       - F16-F17 ≥ F16_F17_MIN  (5')
-      - F18 ≥ F18_OFFSET_E east of IW4 east face
+      - F18 ≥ F18_OFFSET_FROM_IW4 east of IW4 east face
     """
     _sweep19 = math.atan(1.0 / 9.0)  # arctan(1/9) for F19-F20 arc
     R_a19 = ARC_F19_R
 
     # IW4 east face
     _iw4_e = (fp_pts["F2"][0] + WALL_OUTER
-              + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
+              + APPLIANCE_OFFSET_FROM_W2 + APPLIANCE_WIDTH + COUNTER_GAP + COUNTER_DEPTH
               + WALL_3IN + CLOSET_WIDTH + WALL_4IN      # closet 1 (IW7-IW3-IW9)
               + BEDROOM_WIDTH + WALL_4IN + CLOSET2_WIDTH  # bedroom + closet 2
               + WALL_4IN)                                 # IW4 thickness
 
     # ── F19, F20 (fixed, independent of F17-F18 fillet) ──
-    F19_E = _iw4_e + F19_OFFSET_E
-    fp_pts["F19"] = (F19_E, SOUTH_WALL_N)
-    fp_pts["C19"] = (F19_E, SOUTH_WALL_N + R_a19)
+    F19_E = _iw4_e + F19_OFFSET_FROM_IW4
+    fp_pts["F19"] = (F19_E, SOUTH_WALL_FACE)
+    fp_pts["C19"] = (F19_E, SOUTH_WALL_FACE + R_a19)
     _theta_f20 = -math.pi / 2 - _sweep19  # F19 at -π/2, sweep CW
     fp_pts["F20"] = (fp_pts["C19"][0] + R_a19 * math.cos(_theta_f20),
                      fp_pts["C19"][1] + R_a19 * math.sin(_theta_f20))
 
     # ── F17-F18 fillet ──
-    # Intersection P of F16→F17 ray with horizontal at SOUTH_WALL_N
+    # Intersection P of F16→F17 ray with horizontal at SOUTH_WALL_FACE
     _brg = math.radians(PIX_PI5_TARGET_BRG)
     _sin_b, _cos_b = math.sin(_brg), math.cos(_brg)
-    _t_P = (fp_pts["F16"][1] - SOUTH_WALL_N) / _cos_b   # parametric dist F16→P
+    _t_P = (fp_pts["F16"][1] - SOUTH_WALL_FACE) / _cos_b   # parametric dist F16→P
     _P_E = fp_pts["F16"][0] - _t_P * _sin_b
 
     # Tangency requires sweep + bearing = 90°
@@ -283,7 +283,7 @@ def _compute_south_wall(
     _tan_ha = math.tan((math.pi - _sw_rad) / 2)
 
     # Max d from each constraint (larger d → larger R → shorter F16-F17, F18 more west)
-    F18_min_E = _iw4_e + F18_OFFSET_E
+    F18_min_E = _iw4_e + F18_OFFSET_FROM_IW4
     _d_max_seg = _t_P - F16_F17_MIN          # F16-F17 ≥ 5'
     _d_max_F18 = _P_E - F18_min_E            # F18_E ≥ min
     _d = min(_d_max_seg, _d_max_F18)
@@ -291,12 +291,12 @@ def _compute_south_wall(
     R_a17 = _d * _tan_ha
 
     # F17: at tangent length d from P, back toward F16 on the ray
-    fp_pts["F17"] = (_P_E + _d * _sin_b, SOUTH_WALL_N + _d * _cos_b)
+    fp_pts["F17"] = (_P_E + _d * _sin_b, SOUTH_WALL_FACE + _d * _cos_b)
     # F18: at tangent length d from P, west on horizontal
     F18_E = _P_E - _d
-    fp_pts["F18"] = (F18_E, SOUTH_WALL_N)
+    fp_pts["F18"] = (F18_E, SOUTH_WALL_FACE)
     # C17: directly above F18 (perpendicular to horizontal → tangent at F18)
-    fp_pts["C17"] = (F18_E, SOUTH_WALL_N + R_a17)
+    fp_pts["C17"] = (F18_E, SOUTH_WALL_FACE + R_a17)
 
     return R_a17, R_a19
 

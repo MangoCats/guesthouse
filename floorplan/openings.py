@@ -9,17 +9,17 @@ from typing import NamedTuple
 from shared.types import Point, BBox, LineSeg
 from floorplan.constants import (
     O1_WIDTH, O2_WIDTH,
-    IW2_RO_OFFSET_S, IW2_RO_WIDTH,
+    IW2_RO_OFFSET_FROM_IW6, IW2_RO_WIDTH,
     O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH,
-    O5_E_FROM_IW2, O5_WIDTH, O6_WIDTH, O6_GAP_F10,
+    O5_OFFSET_FROM_IW2, O5_WIDTH, O6_WIDTH, O6_GAP_F10,
     O7_NW_GAP, O7_HALF_WIDTH,
     O8_HALF_WIDTH,
-    IW5_OFFSET_N, WALL_3IN,
+    IW5_OFFSET_FROM_IW1, WALL_3IN,
     STD_GAP,
-    RO1_OFFSET_E_IW2, IW1_RO_WIDTH,
-    IW2_RO_OFFSET_S, IW2_RO_WIDTH,
+    RO1_OFFSET_FROM_IW2, IW1_RO_WIDTH,
+    IW2_RO_OFFSET_FROM_IW6, IW2_RO_WIDTH,
     IW4_RO_WIDTH, IW9_RO_WIDTH, IW11_RO_WIDTH, IW16_RO_WIDTH,
-    IW6_THICKNESS, IW6_OFFSET_N, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
+    IW6_THICKNESS, IW6_OFFSET_FROM_W6, IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
 
 
@@ -69,7 +69,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     _dE2 = pts["F5"][0] - pts["F4"][0]
     _dN2 = pts["F5"][1] - pts["F4"][1]
     _seg2_len = math.sqrt(_dE2**2 + _dN2**2)
-    _ro4_ctr_n = layout.iw6_s - IW2_RO_OFFSET_S - IW2_RO_WIDTH / 2
+    _ro4_ctr_n = layout.iw6_s - IW2_RO_OFFSET_FROM_IW6 - IW2_RO_WIDTH / 2
     _t2_ctr = (_ro4_ctr_n - pts["F4"][1]) / _dN2
     _t2_half = (O2_WIDTH / 2) / _seg2_len
     _t2_start = _t2_ctr - _t2_half
@@ -108,7 +108,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     ]))
 
     # O5: F9-F10, horizontal
-    o5_e = layout.iw2.e + O5_E_FROM_IW2
+    o5_e = layout.iw2.e + O5_OFFSET_FROM_IW2
     o5_w = o5_e - O5_WIDTH
     openings.append(OuterOpening("O5", "F9", "F10", [
         (o5_w, pts["W9"][1]), (o5_e, pts["W9"][1]),
@@ -167,13 +167,13 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     """Compute all 7 interior rough-opening bounding boxes."""
     iw1_s = layout.iw1_s
     iw1_n = layout.iw1_n
-    iw6_n = pts["W6"][1] - IW6_OFFSET_N
+    iw6_n = pts["W6"][1] - IW6_OFFSET_FROM_W6
     iw6_s = iw6_n - IW6_THICKNESS
-    iw5_n = iw1_s - IW5_OFFSET_N
+    iw5_n = iw1_s - IW5_OFFSET_FROM_IW1
     iw5_s = iw5_n - WALL_3IN
 
     # RO1: in IW1, horizontal
-    ro1_w = layout.iw2.e + RO1_OFFSET_E_IW2
+    ro1_w = layout.iw2.e + RO1_OFFSET_FROM_IW2
     ro1_e = ro1_w + IW1_RO_WIDTH
 
     # RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11
@@ -264,7 +264,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     ro3_n = _iw16_mid_n + IW16_RO_WIDTH / 2
 
     # RO4: in IW2, vertical
-    ro4_n = iw6_s - IW2_RO_OFFSET_S
+    ro4_n = iw6_s - IW2_RO_OFFSET_FROM_IW6
     ro4_s = ro4_n - IW2_RO_WIDTH
 
     # RO5: in IW6, horizontal

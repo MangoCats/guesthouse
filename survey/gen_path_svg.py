@@ -15,10 +15,10 @@ from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import (
     WALL_OUTER, WALL_3IN, WALL_4IN,
-    APPLIANCE_OFFSET_E, APPLIANCE_WIDTH,
+    APPLIANCE_OFFSET_FROM_W2, APPLIANCE_WIDTH,
     COUNTER_GAP, COUNTER_DEPTH,
     CLOSET_WIDTH, BEDROOM_WIDTH,
-    ARC_180_R, F15_OFFSET_E, PIX_PI5_TARGET_BRG,
+    ARC_180_R, F15_OFFSET_FROM_IW8, PIX_PI5_TARGET_BRG,
 )
 
 # ============================================================
@@ -196,11 +196,11 @@ def compute_all():
     _pre_U1_E = pts["Pi3"][0] - _WE  # shifted Pi3 easting
     # Dimension chain west→east: outer wall + appliance offset + appliance width
     # + counter gap + counter depth + closet/bedroom/closet walls
-    _pre_iw8_e = (_pre_U1_E + WALL_OUTER + APPLIANCE_OFFSET_E + APPLIANCE_WIDTH
+    _pre_iw8_e = (_pre_U1_E + WALL_OUTER + APPLIANCE_OFFSET_FROM_W2 + APPLIANCE_WIDTH
                  + COUNTER_GAP + COUNTER_DEPTH
                  + WALL_3IN + CLOSET_WIDTH + WALL_4IN + BEDROOM_WIDTH
                  + WALL_4IN + CLOSET_WIDTH + WALL_3IN)
-    _pre_F15_E = _pre_iw8_e + F15_OFFSET_E
+    _pre_F15_E = _pre_iw8_e + F15_OFFSET_FROM_IW8
     _t_cf4 = (_pre_F15_E - _R_fp - _o_pip[0]) / _d_pip_u[0]
     _cf4 = (_pre_F15_E - _R_fp, _o_pip[1] + _t_cf4 * _d_pip_u[1])
     _t_o12 = ((_cf4[0]-pts["PiX"][0])*_d_pip[0] + (_cf4[1]-pts["PiX"][1])*_d_pip[1]) \

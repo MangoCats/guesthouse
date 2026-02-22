@@ -6,19 +6,33 @@ from shared.types import Point, BBox
 from shared.geometry import horiz_isects
 from floorplan.constants import (
     WALL_6IN, WALL_4IN, WALL_3IN,
-    APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_E,
-    APPLIANCE_OFFSET_N, APPLIANCE_GAP,
+    APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_FROM_W2,
+    APPLIANCE_OFFSET_FROM_W1, APPLIANCE_GAP,
     COUNTER_DEPTH, COUNTER_GAP,
     BED_WIDTH, BED_LENGTH,
     O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
     O9_OFFSET_IW11, O9_O10_WALL, O10_O11_WALL, BED_GAP_O9,
-    IW1_DIST_FROM_NORTH, IW1_WEST_OFFSET_E, IW2_OFFSET_E,
+    IW1_OFFSET_FROM_W9, IW1_OFFSET_FROM_W2, IW2_OFFSET_FROM_W2,
     IW3_LENGTH, IW3_OFFSET_IW9,
     IW9_LENGTH, IW9_OFFSET_O10,
-    IW4_OFFSET_E_IW2, WALL_SOUTH_N,
-    IW5_OFFSET_N, IW6_THICKNESS, IW6_OFFSET_N,
-    IW4_RO_WIDTH, IW8_OFFSET_N_IW1,
+    IW4_OFFSET_FROM_IW2,
+    IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
+    IW4_RO_WIDTH, IW8_OFFSET_FROM_IW1,
 )
+
+
+def _seg_vecs(p1, p2):
+    """Along-direction and CW-inward normal for segment p1->p2."""
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    length = math.sqrt(dx * dx + dy * dy)
+    along = (dx / length, dy / length)
+    inward = (dy / length, -dx / length)  # right perp = CW inward
+    return along, inward
+
+
+def _offset(origin, dist, direction):
+    """Offset point by dist along direction vector."""
+    return (origin[0] + dist * direction[0], origin[1] + dist * direction[1])
 
 
 class InteriorLayout(NamedTuple):
@@ -94,20 +108,25 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     pts must contain W-series (W1-W20) and F-series (F1-F20).
     """
-    iw1_n = pts["W9"][1] - IW1_DIST_FROM_NORTH
+    # Segment vectors for axis-aligned wall segments
+    _w2w3_al, _w2w3_in = _seg_vecs(pts["W2"], pts["W3"])   # along=(0,1), inward=(1,0)
+    _w6w7_al, _w6w7_in = _seg_vecs(pts["W6"], pts["W7"])   # along=(1,0), inward=(0,-1)
+    _w9w10_al, _w9w10_in = _seg_vecs(pts["W9"], pts["W10"])  # along=(1,0), inward=(0,-1)
+
+    iw1_n = _offset(pts["W9"], IW1_OFFSET_FROM_W9, _w9w10_in)[1]
     iw1_s = iw1_n - WALL_6IN
     si = horiz_isects(inner_poly, iw1_s)
     ni = horiz_isects(inner_poly, iw1_n)
-    iw1_w = pts["W2"][0] + IW1_WEST_OFFSET_E
+    iw1_w = _offset(pts["W2"], IW1_OFFSET_FROM_W2, _w2w3_in)[0]
     iw1 = [(iw1_w, iw1_s), (max(si), iw1_s), (max(ni), iw1_n), (iw1_w, iw1_n)]
 
-    iw2_w = pts["W2"][0] + IW2_OFFSET_E
+    iw2_w = _offset(pts["W2"], IW2_OFFSET_FROM_W2, _w2w3_in)[0]
     iw2_e = iw2_w + WALL_6IN
     iw2_s = iw1_n
     iw2_n = pts["W6"][1]
 
-    dryer_w = pts["W2"][0] + APPLIANCE_OFFSET_E
-    dryer_s = pts["W1"][1] + APPLIANCE_OFFSET_N
+    dryer_w = _offset(pts["W2"], APPLIANCE_OFFSET_FROM_W2, _w2w3_in)[0]
+    dryer_s = _offset(pts["W1"], APPLIANCE_OFFSET_FROM_W1, _w2w3_al)[1]
     dryer_e = dryer_w + APPLIANCE_WIDTH
     dryer_n = dryer_s + APPLIANCE_DEPTH
     washer_w = dryer_w
@@ -118,14 +137,14 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_w = dryer_e + COUNTER_GAP
     ctr_e = ctr_w + COUNTER_DEPTH
     ctr_s = pts["W1"][1]
-    ctr_n = ctr_s + 6.0  # 6' north of W20-W0 south face
+    ctr_n = ctr_s + 6.0  # 6' along W2-W3 from W20-W0 south face
     ctr_nw_r = 0
 
     iw2_e = iw2_w + WALL_6IN
-    iw4_w = iw2_e + IW4_OFFSET_E_IW2
+    iw4_w = iw2_e + IW4_OFFSET_FROM_IW2
     iw4_e = iw4_w + WALL_4IN
-    iw4_s = WALL_SOUTH_N
-    wall_south_n = WALL_SOUTH_N
+    iw4_s = pts["W19"][1]
+    wall_south_n = pts["W19"][1]
 
     # IW11: 4" thick, normal to W20-W0, 6' long
     # SE corner: circle(IW4_SW, 32") ∩ W20-W0
@@ -290,12 +309,12 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # IW8: 6" thick, horizontal, from W2-W3 face to IW1 west end
     iw8_w = pts["W2"][0]
     iw8_e = iw1_w
-    iw8 = BBox(w=iw8_w, s=iw1_s + IW8_OFFSET_N_IW1, e=iw8_e, n=iw1_n + IW8_OFFSET_N_IW1)
+    iw8 = BBox(w=iw8_w, s=iw1_s + IW8_OFFSET_FROM_IW1, e=iw8_e, n=iw1_n + IW8_OFFSET_FROM_IW1)
 
-    # IW5: 3" thick, north face IW5_OFFSET_N south of IW1 south face
-    iw5_n = iw1_s - IW5_OFFSET_N
+    # IW5: 3" thick, north face IW5_OFFSET_FROM_IW1 from IW1, CW-normal to W9-W10
+    iw5_n = iw1_s - IW5_OFFSET_FROM_IW1
     iw5_s = iw5_n - WALL_3IN
-    iw5_e = pts["W15"][0]
+    iw5_e = pts["W15"][0]  # east at W15
 
     # IW14: 3" thick, parallel to IW12, 3" past RO2 north edge along IW11
     # _iw14_d computed earlier (used for IW11 length)
@@ -328,8 +347,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # IW5 west end: meets IW14 SE corner
     iw5_w = iw14_se[0]
 
-    # IW6: IW6_THICKNESS thick, south face IW6_OFFSET_N south of W6
-    iw6_n = pts["W6"][1] - IW6_OFFSET_N
+    # IW6: IW6_THICKNESS thick, IW6_OFFSET_FROM_W6 from W6, CW-normal to W6-W7
+    iw6_n = _offset(pts["W6"], IW6_OFFSET_FROM_W6, _w6w7_in)[1]
     iw6_s = iw6_n - IW6_THICKNESS
     _iw6_n_ints = horiz_isects(inner_poly, iw6_n)
     _iw6_s_ints = horiz_isects(inner_poly, iw6_s)
