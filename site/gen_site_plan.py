@@ -32,6 +32,8 @@ FC_DIST_275 = 45.786428974476834  # FC distance from 275.08' line
 # Existing FRAME & STONE RESIDENCE lower-right corner (14.4'/28.2' wall midline isect)
 RESIDENCE_LR = (661.35, 380.80)
 
+COLOR_PROPOSED = (0, 0, 0.6)  # dark blue for proposed/new construction
+
 SitePlanData = namedtuple("SitePlanData", [
     "pts",              # building points dict
     "building_to_pdf",  # transform function (E,N) → (pdf_x, pdf_y)
@@ -241,7 +243,7 @@ def render_site_plan(sp, corners=True):
         x0, y0 = x1, y1
     x1, y1 = building_to_pdf(*sp.draw_poly[0])
     shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
-    shape.finish(color=(0, 0, 0), width=STROKE_W)
+    shape.finish(color=COLOR_PROPOSED, width=STROKE_W)
 
     # --- Parcel corner circles (2' radius) ---
     if corners:
@@ -255,7 +257,7 @@ def render_site_plan(sp, corners=True):
     f15_pdf = building_to_pdf(*f15)
     foot_pdf = building_to_pdf(pts["F2"][0], f15[1])
     shape.draw_line(fitz.Point(*f15_pdf), fitz.Point(*foot_pdf))
-    shape.finish(color=(0, 0, 0), width=0.3)
+    shape.finish(color=COLOR_PROPOSED, width=0.3)
 
     # Caption "36.0'"
     dim_dx = foot_pdf[0] - f15_pdf[0]
@@ -270,12 +272,12 @@ def render_site_plan(sp, corners=True):
     dim_tw = fitz.get_text_length(dim_text, fontname="helv", fontsize=dim_fs)
     page.insert_text(
         fitz.Point(dim_mid_x - dim_tw / 2.0, dim_mid_y + dim_fs / 3.0),
-        dim_text, fontname="helv", fontsize=dim_fs, color=(0, 0, 0),
+        dim_text, fontname="helv", fontsize=dim_fs, color=COLOR_PROPOSED,
         morph=(fitz.Point(dim_mid_x, dim_mid_y), fitz.Matrix(-dim_deg - 180)))
 
     # --- N-S Interior Max Span dimension line ---
     shape.draw_line(fitz.Point(*sp.span_s_pdf), fitz.Point(*sp.span_n_pdf))
-    shape.finish(color=(0, 0, 0), width=0.3)
+    shape.finish(color=COLOR_PROPOSED, width=0.3)
 
     # Caption
     ns_dx = sp.span_n_pdf[0] - sp.span_s_pdf[0]
@@ -290,7 +292,7 @@ def render_site_plan(sp, corners=True):
     ns_tw = fitz.get_text_length(ns_text, fontname="helv", fontsize=ns_fs)
     page.insert_text(
         fitz.Point(ns_mid_x - ns_tw / 2.0, ns_mid_y + ns_fs / 3.0),
-        ns_text, fontname="helv", fontsize=ns_fs, color=(0, 0, 0),
+        ns_text, fontname="helv", fontsize=ns_fs, color=COLOR_PROPOSED,
         morph=(fitz.Point(ns_mid_x, ns_mid_y), fitz.Matrix(-ns_deg - 180)))
 
     # --- "PROPOSED CONC. GUEST HOUSE" label ---
@@ -307,7 +309,7 @@ def render_site_plan(sp, corners=True):
         lw = fitz.get_text_length(line, fontname="helv", fontsize=label_fs)
         page.insert_text(
             fitz.Point(label_pdf[0] - lw / 2.0, start_y + i * label_lh),
-            line, fontname="helv", fontsize=label_fs, color=(0, 0, 0))
+            line, fontname="helv", fontsize=label_fs, color=COLOR_PROPOSED)
 
     # --- 11.5' setback caption ---
     f16 = pts["F16"]
@@ -337,7 +339,7 @@ def render_site_plan(sp, corners=True):
     tw = fitz.get_text_length(text, fontname="helv", fontsize=fs)
     page.insert_text(
         fitz.Point(cap_x - tw / 2.0, cap_y + fs / 3.0),
-        text, fontname="helv", fontsize=fs, color=(0, 0, 0),
+        text, fontname="helv", fontsize=fs, color=COLOR_PROPOSED,
         morph=(fitz.Point(cap_x, cap_y), fitz.Matrix(-perp_deg)))
 
     # --- Min setback from 275.08' line caption ---
@@ -361,7 +363,7 @@ def render_site_plan(sp, corners=True):
     tw2 = fitz.get_text_length(text2, fontname="helv", fontsize=fs2)
     page.insert_text(
         fitz.Point(cap2_x - tw2 / 2.0, cap2_y + fs2 / 3.0),
-        text2, fontname="helv", fontsize=fs2, color=(0, 0, 0),
+        text2, fontname="helv", fontsize=fs2, color=COLOR_PROPOSED,
         morph=(fitz.Point(cap2_x, cap2_y), fitz.Matrix(-perp2_deg)))
 
     # --- Distance from residence corner to closest F point ---
@@ -375,7 +377,7 @@ def render_site_plan(sp, corners=True):
     _res_tw = fitz.get_text_length(_res_text, fontname="helv", fontsize=_res_fs)
     page.insert_text(
         fitz.Point(_res_mid_x - _res_tw / 2.0, _res_mid_y + _res_fs / 3.0),
-        _res_text, fontname="helv", fontsize=_res_fs, color=(0, 0, 0),
+        _res_text, fontname="helv", fontsize=_res_fs, color=COLOR_PROPOSED,
         morph=(fitz.Point(_res_mid_x, _res_mid_y), fitz.Matrix(-_res_deg)))
 
     # --- "FRONT ↑" annotation above 251.53' line ---
@@ -453,7 +455,8 @@ def render_site_plan_df(doc, sp):
     _df_lines_existing = ["EXISTING", "DRAINFIELD"]
     _n_arc = 8
 
-    def _draw_drainfield(left, top, right, bot, r, lines=None, angle_deg=0):
+    def _draw_drainfield(left, top, right, bot, r, lines=None, angle_deg=0,
+                         color=(0, 0, 0)):
         if lines is None:
             lines = _df_lines_existing
         cx = (left + right) / 2.0
@@ -488,7 +491,7 @@ def render_site_plan_df(doc, sp):
             pts.append(fitz.Point(cx + rx * cos_r - ry * sin_r,
                                   cy + rx * sin_r + ry * cos_r))
 
-        page.draw_polyline(pts, color=(0, 0, 0), width=0.8,
+        page.draw_polyline(pts, color=color, width=0.8,
                            dashes="[4 3] 0", closePath=True)
 
         block_h = _df_lh * len(lines)
@@ -500,7 +503,7 @@ def render_site_plan_df(doc, sp):
             tw = fitz.get_text_length(lt, fontname="helv", fontsize=_df_fs)
             page.insert_text(
                 fitz.Point(cx - tw / 2.0, start_y + li * _df_lh),
-                lt, fontname="helv", fontsize=_df_fs, color=(0, 0, 0),
+                lt, fontname="helv", fontsize=_df_fs, color=color,
                 morph=morph)
 
     # Right drainfield
@@ -529,7 +532,8 @@ def render_site_plan_df(doc, sp):
     _ndf_right = _ndf_cx + _df_w / 2.0
     _ndf_bot = _ndf_cy + _df_h / 2.0
     _draw_drainfield(_ndf_left, _ndf_top, _ndf_right, _ndf_bot, _df_r,
-                     lines=["NEW", "DRAINFIELD"], angle_deg=_ndf_angle)
+                     lines=["NEW", "DRAINFIELD"], angle_deg=_ndf_angle,
+                     color=COLOR_PROPOSED)
 
     return doc
 
