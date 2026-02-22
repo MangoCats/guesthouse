@@ -24,6 +24,7 @@ files=(
          scad/flat_roof_patio.png
          scad/flat_roof_corner.png
          scad/flat_roof_bumpout.png
+		      3views.pdf
 )
 
 # Files that are never branch-suffixed

@@ -12,6 +12,7 @@ span/span_minmax.svg
 survey/path_area.svg
 walls/all_walls.svg
 walls/walls.svg
+3views.pdf
 *.png
 .coverage
 __pycache__/
