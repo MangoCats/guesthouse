@@ -226,6 +226,12 @@ def render_site_plan(sp):
     shape.draw_line(fitz.Point(x0, y0), fitz.Point(x1, y1))
     shape.finish(color=(0, 0, 0), width=STROKE_W)
 
+    # --- Parcel corner circles (2' radius) ---
+    _corner_r = 2.0 * SCALE
+    for cx, cy in (CORNER_NW, CORNER_NE, CORNER_SE, CORNER_SW):
+        shape.draw_circle(fitz.Point(cx, cy), _corner_r)
+    shape.finish(color=(0, 0, 0), width=0.5, fill=None)
+
     # --- F15 to F2-F3 dimension line ---
     f15 = pts["F15"]
     f15_pdf = building_to_pdf(*f15)
