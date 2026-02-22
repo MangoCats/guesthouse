@@ -214,9 +214,6 @@ KITCHEN_APPL_GAP = 3.0 / 12.0     # 3" gap (kitchen appliance spacing/setback)
 # Furniture dimensions
 LOVESEAT_WIDTH = 35.0 / 12.0      # 35" loveseat short side
 LOVESEAT_LENGTH = 65.0 / 12.0     # 65" loveseat long side
-LOVESEAT_ANGLE_DEG = 15.0         # 15° CCW rotation
-LOVESEAT_NW_E = 22.310591617230667  # NW corner easting (fixed position) -- DEPRECATED
-LOVESEAT_NW_N = 18.94278790189982   # NW corner northing (fixed position) -- DEPRECATED
 LOVESEAT_OFFSET_IW4 = 4.522741716102669  # feet along IW4 outward from IW4/IW1 corner
 LOVESEAT_OFFSET_IW1 = 5.609454568566491  # feet along IW1 outward from IW4/IW1 corner
 DESK_WIDTH = 60.0 / 12.0          # 60" desk (along wall)
@@ -227,7 +224,6 @@ DESK_CHAIR_GAP = 12.0 / 12.0     # 12" gap between desk and chair
 CHAIR_WIDTH = 32.0 / 12.0         # 32" chair E-W
 CHAIR_DEPTH = 37.0 / 12.0         # 37" chair N-S
 CHAIR_CORNER_R = 3.0 / 12.0       # 3" rounded corner radius
-CHAIR_ANGLE_DEG = 30.0            # 30° CW rotation
 OTTOMAN_SIZE = 29.0 / 12.0        # 29" square ottoman
 ET_RADIUS_CM = 25.0               # 25 cm endtable radius
 SOFA_WIDTH = 97.2 / 12.0          # 97.2" sofa E-W
