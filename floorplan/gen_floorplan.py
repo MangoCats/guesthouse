@@ -353,6 +353,143 @@ def build_floorplan_data():
         layout=layout,
     )
 
+def compute_placement_points(pts, layout, radii):
+    """Compute key appliance/furniture placement points for regression testing.
+
+    Returns list of (name, (E, N)) tuples for the standard (non-minik, non-db)
+    floorplan variant.
+    """
+    result = []
+    wall_t = WALL_OUTER
+
+    # ---- Utility room appliances ----
+    w2w3_al, w2w3_in = seg_vecs(pts["W2"], pts["W3"])
+    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+
+    # Water heater center (line-circle intersection)
+    _wh_ref = offset_pt(layout.iw2.poly[2], WH_RADIUS, _iw2_e_out)
+    wh_tangent_r = (radii["R_a7"] - wall_t) - WH_RADIUS
+    _c7 = pts["C7"]
+    _wh_d = (_wh_ref[0] - _c7[0], _wh_ref[1] - _c7[1])
+    _wh_d_al = _wh_d[0] * _iw2_e_al[0] + _wh_d[1] * _iw2_e_al[1]
+    _wh_d2 = _wh_d[0]**2 + _wh_d[1]**2
+    _wh_t = -_wh_d_al + math.sqrt(wh_tangent_r**2 - _wh_d2 + _wh_d_al**2)
+    wh_center = offset_pt(_wh_ref, _wh_t, _iw2_e_al)
+    result.append(("wh_center", wh_center))
+
+    # ---- Kitchen appliances ----
+    w9w10_al, w9w10_in = seg_vecs(pts["W9"], pts["W10"])
+    _wall_anchor = pts["W9"]
+    _iw2_ne = layout.iw2.poly[2]
+    _iw2_d = ((_iw2_ne[0] - _wall_anchor[0]) * w9w10_al[0] +
+              (_iw2_ne[1] - _wall_anchor[1]) * w9w10_al[1])
+
+    def _nwp(d_along, d_inward=0):
+        return offset_pt(offset_pt(_wall_anchor, d_along, w9w10_al),
+                         d_inward, w9w10_in)
+
+    _st_d = _iw2_d + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+    _ks_d = _st_d + STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0
+    _dw_d = _ks_d + KITCHEN_SINK_WIDTH + KITCHEN_APPL_GAP
+
+    # SINK NW/SE
+    result.append(("sink_NW", _nwp(_ks_d, 0)))
+    result.append(("sink_SE", _nwp(_ks_d + KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH)))
+    # STOVE NW/SE
+    result.append(("stove_NW", _nwp(_st_d, KITCHEN_APPL_GAP)))
+    result.append(("stove_SE", _nwp(_st_d + STOVE_WIDTH, KITCHEN_APPL_GAP + STOVE_DEPTH)))
+    # D/W NW/SE
+    result.append(("dw_NW", _nwp(_dw_d, 0)))
+    result.append(("dw_SE", _nwp(_dw_d + DW_WIDTH, DW_DEPTH)))
+
+    # Fridge NW/SE (standard variant: IW1/IW2 corner)
+    _iw1_n_al, _iw1_n_cw = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
+    _iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])
+    _iw12_corner = line_isect(layout.iw2.poly[1], _iw2_e_al,
+                              layout.iw1.poly[3], _iw1_n_al)
+    def _iwp(d_e, d_n=0):
+        return offset_pt(offset_pt(_iw12_corner, d_e, _iw2_e_out),
+                         d_n, _iw1_n_out)
+    _fr_w2 = 32.75 / 12.0
+    _fr_h1 = 35.0 / 12.0
+    result.append(("fridge_NW", _iwp(KITCHEN_APPL_GAP, KITCHEN_APPL_GAP + _fr_h1)))
+    result.append(("fridge_SE", _iwp(KITCHEN_APPL_GAP + _fr_w2, KITCHEN_APPL_GAP)))
+
+    # ICE NW/SE (standard variant)
+    _ice_d = _dw_d + DW_WIDTH + 6.0 / 12.0
+    _ice_i = KITCHEN_APPL_GAP
+    result.append(("ice_NW", _nwp(_ice_d, _ice_i)))
+    result.append(("ice_SE", _nwp(_ice_d + ICE_WIDTH, _ice_i + ICE_DEPTH)))
+
+    # North counter NW/SE (standard variant)
+    result.append(("nctr_NW", _nwp(_iw2_d, 0)))
+    result.append(("nctr_SE", _nwp(_iw2_d + NORTH_CTR_LENGTH, NORTH_CTR_DEPTH)))
+
+    # Work counter NW/SE
+    _wc_d2 = KITCHEN_APPL_GAP + _fr_w2 + KITCHEN_APPL_GAP
+    result.append(("wctr_NW", _iwp(_wc_d2, 18.0 / 12.0)))
+    result.append(("wctr_SE", _iwp(_wc_d2 + 60.0 / 12.0, 0)))
+
+    # ---- Living room furniture ----
+    _iw4_w_al, _iw4_w_out = seg_vecs(layout.iw4.poly[3], layout.iw4.poly[0])
+    _iw41_corner = line_isect(layout.iw4.poly[3], _iw4_w_al,
+                              layout.iw1.poly[3], _iw1_n_al)
+    def _lwp(d_w=0, d_n=0):
+        return offset_pt(offset_pt(_iw41_corner, d_w, _iw4_w_out),
+                         d_n, _iw1_n_out)
+
+    w12w13_al, _ = seg_vecs(pts["W12"], pts["W13"])
+    w11w12_al, w11w12_in = seg_vecs(pts["W11"], pts["W12"])
+
+    # Loveseat NW corner (rotation anchor)
+    lv_nw = _lwp(LOVESEAT_OFFSET_IW4, LOVESEAT_OFFSET_IW1)
+    result.append(("loveseat_NW", lv_nw))
+
+    # ET center (from loveseat SE corner geometry)
+    lv_angle = math.atan2(w12w13_al[0], -w12w13_al[1])
+    lv_w = lv_nw[0] + LOVESEAT_LENGTH * math.sin(lv_angle)
+    lv_s = lv_nw[1] - LOVESEAT_LENGTH * math.cos(lv_angle)
+    lv_se_e = lv_w + LOVESEAT_WIDTH * math.cos(lv_angle)
+    lv_se_n = lv_s + LOVESEAT_WIDTH * math.sin(lv_angle)
+    et_r = (ET_RADIUS_CM / 2.54) / 12.0
+    et_gap = et_r + STD_GAP
+    _et_from_iw1 = offset_pt(layout.iw1.poly[3], STD_GAP + et_r, _iw1_n_out)
+    et_cy = _et_from_iw1[1]
+    et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
+    result.append(("et_center", (et_cx, et_cy)))
+
+    # Loveseat2 NW/SE
+    lv2_w = et_cx + et_r + STD_GAP
+    _lv2_s_ref = offset_pt(layout.iw1.poly[3], STD_GAP, _iw1_n_out)
+    lv2_s = _lv2_s_ref[1]
+    lv2_e = lv2_w + LOVESEAT_LENGTH
+    lv2_n = lv2_s + LOVESEAT_WIDTH
+    result.append(("loveseat2_NW", (lv2_w, lv2_n)))
+    result.append(("loveseat2_SE", (lv2_e, lv2_s)))
+
+    # Chair center
+    _ch_svg_deg = _svg_angle(w12w13_al) - 45
+    ch_angle = math.radians(_ch_svg_deg)
+    _ch_mid = ((pts["W11"][0] + pts["W12"][0]) / 2,
+               (pts["W11"][1] + pts["W12"][1]) / 2)
+    _ch_base = offset_pt(offset_pt(_ch_mid, -1.0 / 12.0, w11w12_al),
+                         8.0 / 12.0, w11w12_in)
+    ch_cx = _ch_base[0] - 4.0 / 12.0 * math.sin(ch_angle)
+    ch_cy = _ch_base[1] - 4.0 / 12.0 * math.cos(ch_angle)
+    result.append(("chair_center", (ch_cx, ch_cy)))
+
+    # Ottoman center
+    ot_dist = 39.0 / 12.0
+    ot_cx = ch_cx - ot_dist * math.sin(ch_angle)
+    ot_cy = ch_cy - ot_dist * math.cos(ch_angle)
+    result.append(("ottoman_center", (ot_cx, ot_cy)))
+
+    # Desk SW corner (rotation anchor at W17)
+    result.append(("desk_SW", pts["W17"]))
+
+    return result
+
+
 # ============================================================
 # Render sub-functions
 # ============================================================

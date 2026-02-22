@@ -12,6 +12,7 @@ import pytest
 from shared.types import BBox
 from shared.geometry import f8f9_corner_polyline
 from floorplan.openings import compute_outer_openings, compute_rough_openings
+from floorplan.gen_floorplan import compute_placement_points
 from floorplan.constants import (
     WALL_OUTER, SHELL_THICKNESS, AIR_GAP,
     F8F9_INNER_TURN_R, OPENING_INSIDE_RADIUS,
@@ -121,7 +122,7 @@ def _bbox_corners(bbox):
     return [(bbox.w, bbox.s), (bbox.e, bbox.s), (bbox.e, bbox.n), (bbox.w, bbox.n)]
 
 
-def _collect_all_points(pts, layout):
+def _collect_all_points(pts, layout, radii):
     """Collect all named points from layout, openings, and door tips.
 
     Returns list of (name, point) tuples.
@@ -179,6 +180,9 @@ def _collect_all_points(pts, layout):
 
     # ---- W8-W9 shell polyline special points ----
     result.extend(_collect_f8f9_shell_points(pts))
+
+    # ---- Appliance/furniture placement points (standard variant) ----
+    result.extend(compute_placement_points(pts, layout, radii))
 
     return result
 
@@ -524,6 +528,29 @@ EXPECTED = [
     ("g_f8f9_arc_center", 595.889824977499, 59.443699151287, 499.375949294599, 1030.108451994682),
     ("g_f8f9_arc_exit", 594.423641208139, 59.639473153946, 499.458244148433, 1028.827848044585),
     ("g_f8f9_end", 607.238265663760, 69.062500000000, 471.574202637706, 996.944444444445),
+    # Appliance/furniture placement points (standard variant)
+    ("wh_center", 616.148483109841, 32.807056680753, 576.588436660906, 1163.957760116350),
+    ("sink_NW", 662.536326964461, 118.534722222222, 363.517646641083, 865.138888888889),
+    ("sink_SE", 690.142744886850, 227.388888888889, 244.739946694542, 639.618055555556),
+    ("stove_NW", 583.654833267706, 67.923611111111, 483.708407072127, 993.347222222222),
+    ("stove_SE", 547.242067287991, 132.111111111111, 392.970721911816, 793.368055555556),
+    ("dw_NW", 783.272537138294, 217.868055555555, 227.422523760197, 703.805555555556),
+    ("dw_SE", 773.815206845781, 309.902777777778, 174.341579831034, 542.534722222222),
+    ("fridge_NW", 256.784145101873, 141.250000000000, 707.376567662254, 920.923611111111),
+    ("fridge_SE", 228.323565485953, 245.934461805556, 641.341859366100, 716.507378472222),
+    ("ice_NW", 877.136845566422, 309.236111111111, 151.164045049966, 599.284722222222),
+    ("ice_SE", 882.125425428044, 373.030069444444, 123.589614953658, 507.707847222222),
+    ("nctr_NW", 539.095780724248, 28.090277777778, 636.025405526895, 1176.555555555556),
+    ("nctr_SE", 485.090089460148, 84.673611111111, 507.390285559093, 925.138888888889),
+    ("wctr_NW", 263.429753069054, 216.382378472222, 601.399053089613, 726.913628472222),
+    ("wctr_SE", 354.240306449661, 356.424045138889, 441.966882804222, 473.621961805556),
+    ("loveseat_NW", 725.182009349091, 411.562353978853, 168.381819566357, 395.740644730369),
+    ("et_center", 837.414810155168, 730.159887902934, 165.208353220285, 167.759731831266),
+    ("loveseat2_NW", 945.561122162513, 726.826598480381, 111.041670425669, 194.455532522449),
+    ("loveseat2_SE", 1195.537581097756, 1095.568040959889, 150.885448784538, 78.960863890846),
+    ("chair_center", 1351.757753422278, 706.430581568510, 10.295107173487, 423.763661902386),
+    ("ottoman_center", 1141.252406754551, 647.196978884183, 36.969111534094, 343.769677247918),
+    ("desk_SW", 863.455071173630, 1417.671758363440, 624.322218874274, 51.332135790304),
 ]
 
 REF_NAMES = ["F1", "F6", "F12", "F15"]
@@ -534,9 +561,9 @@ class TestDistanceSquaredRegression:
     from F1, F6, F12, F15 (within +/- 0.000001 ft^2)."""
 
     @pytest.fixture(scope="class")
-    def all_pts(self, pts_with_outline, layout):
+    def all_pts(self, pts_with_outline, layout, outline_geo):
         pts, _ = pts_with_outline
-        return _collect_all_points(pts, layout)
+        return _collect_all_points(pts, layout, outline_geo.radii)
 
     @pytest.fixture(scope="class")
     def ref_pts(self, pts_with_outline):
