@@ -10,7 +10,7 @@ from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area, left_norm,
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
-    horiz_isects, seg_vecs,
+    horiz_isects, seg_vecs, offset_pt, line_isect,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
@@ -25,7 +25,7 @@ from floorplan.constants import (
     KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH,
     NORTH_CTR_LENGTH, NORTH_CTR_DEPTH,
     JAMB_WIDTH, STD_GAP, KITCHEN_APPL_GAP,
-    LOVESEAT_NW_E, LOVESEAT_NW_N,
+    LOVESEAT_OFFSET_IW4, LOVESEAT_OFFSET_IW1,
     LOVESEAT_WIDTH, LOVESEAT_LENGTH,
     DESK_WIDTH, DESK_DEPTH, DESK_CHAIR_WIDTH, DESK_CHAIR_DEPTH, DESK_CHAIR_GAP,
     CHAIR_WIDTH, CHAIR_DEPTH, CHAIR_CORNER_R,
@@ -136,15 +136,15 @@ _TOILET_SVG = [
 _SVG_TO_FT = 10.0 / 30.48
 
 
-def draw_toilet(out, center_e, back_n, face_north, to_svg):
+def draw_toilet(out, center, facing, width, to_svg):
     """Draw a toilet plan view against a wall.
 
-    center_e: easting of toilet center
-    back_n: northing of the wall face the tank sits against
-    face_north: True = bowl faces north (+N), False = bowl faces south (-N)
+    center: (e, n) point on wall face at toilet center-line
+    facing: unit vector from wall toward bowl
+    width: unit vector along toilet width (perpendicular to facing)
     """
-    sign = 1 if face_north else -1
-    pts_survey = [(center_e + dx * _SVG_TO_FT, back_n + sign * dy * _SVG_TO_FT)
+    pts_survey = [(center[0] + dx * _SVG_TO_FT * width[0] + dy * _SVG_TO_FT * facing[0],
+                   center[1] + dx * _SVG_TO_FT * width[1] + dy * _SVG_TO_FT * facing[1])
                   for dx, dy in _TOILET_SVG]
     svg_pts = " ".join(f"{to_svg(e, n)[0]:.1f},{to_svg(e, n)[1]:.1f}"
                        for e, n in pts_survey)
@@ -836,18 +836,30 @@ def _render_walls(out, data, layout, bare=False):
     # ---- IW15 (no openings, N-S from IW11 north to IW1 south) ----
     iw15 = layout.iw15
     wall_poly(out, iw15.poly, to_svg, stroke=False)
-    for e_val in [iw15.w + half_sw, iw15.e - half_sw]:
-        sx1, sy1 = to_svg(e_val, iw15.s)
-        sx2, sy2 = to_svg(e_val, iw15.n)
+    # Stroke lines: inset half_sw from west and east faces (poly-based)
+    for (p_start, p_end) in [(iw15.poly[3], iw15.poly[0]),   # west face NW→SW
+                              (iw15.poly[1], iw15.poly[2])]:  # east face SE→NE
+        _al, _out = seg_vecs(p_start, p_end)
+        _inw = (-_out[0], -_out[1])
+        _p1 = offset_pt(p_start, half_sw, _inw)
+        _p2 = offset_pt(p_end, half_sw, _inw)
+        sx1, sy1 = to_svg(*_p1)
+        sx2, sy2 = to_svg(*_p2)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
     # ---- IW5 ----
     iw5 = layout.iw5
     wall_poly(out, iw5.poly, to_svg, stroke=False)
-    for n_val in [iw5.s + half_sw, iw5.n - half_sw]:
-        sx1, sy1 = to_svg(iw5.w, n_val)
-        sx2, sy2 = to_svg(iw5.e, n_val)
+    # Stroke lines: inset half_sw from south and north faces (poly-based)
+    for (p_start, p_end) in [(iw5.poly[0], iw5.poly[1]),   # south face SW→SE
+                              (iw5.poly[3], iw5.poly[2])]:  # north face NW→NE
+        _al, _out = seg_vecs(p_start, p_end)
+        _inw = (-_out[0], -_out[1])
+        _p1 = offset_pt(p_start, half_sw, _inw)
+        _p2 = offset_pt(p_end, half_sw, _inw)
+        sx1, sy1 = to_svg(*_p1)
+        sx2, sy2 = to_svg(*_p2)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
@@ -857,22 +869,27 @@ def _render_appliances(out, data, layout, minik=False, db=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
     pts = data.pts
     to_svg = data.to_svg
+    # West wall (W2-W3) direction vectors for wall-relative placement
+    w2w3_al, w2w3_in = seg_vecs(pts["W2"], pts["W3"])
+    # IW2 east face: along=north, outward=east
+    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
 
     # Dryer and washer
-    minik_appl_w = 32.0 / 12.0   # 32" E-W in minik
-    minik_appl_d = 27.0 / 12.0   # 27" N-S in minik
+    minik_appl_w = 32.0 / 12.0   # 32" along w2w3_in in minik
+    minik_appl_d = 27.0 / 12.0   # 27" along w2w3_al in minik
     minik_appl_links = {
         "DRYER": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377",
         "WASHER": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375",
     }
-    _appl_shift_e = 4.0 / 12.0   # 4" east of layout position
-    _appl_shift_s = -2.0 / 12.0  # 2" south of layout position
+    # Standard shift: 4" inward from W2-W3, 2" opposite along-wall
+    _shift = (4.0 / 12.0 * w2w3_in[0] + (-2.0 / 12.0) * w2w3_al[0],
+              4.0 / 12.0 * w2w3_in[1] + (-2.0 / 12.0) * w2w3_al[1])
     minik_dryer_n = None
     _small_wd = minik or db
     for label, b in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
         if not _small_wd:
-            b = BBox(w=b.w + _appl_shift_e, s=b.s + _appl_shift_s,
-                     e=b.e + _appl_shift_e, n=b.n + _appl_shift_s)
+            b = BBox(w=b.w + _shift[0], s=b.s + _shift[1],
+                     e=b.e + _shift[0], n=b.n + _shift[1])
         if _small_wd:
             if label == "DRYER":
                 b = BBox(w=b.w, s=b.s, e=b.w + minik_appl_w, n=b.s + minik_appl_d)
@@ -891,17 +908,19 @@ def _render_appliances(out, data, layout, minik=False, db=False):
         cx, cy = (sx1 + sx2) / 2, (sy1 + sy2) / 2
         out.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="7" fill="{APPL_STROKE}">{label}</text>')
-        # Door: hinged at NE corner, swings shut to SE corner
+        # Door: hinged at inward/along corner, swings from inward to -along
         _door_len = b.n - b.s
-        _hx, _hy = to_svg(b.e, b.n)
-        _tx, _ty = to_svg(b.e + _door_len, b.n)
+        _hinge = (b.e, b.n)
+        _hx, _hy = to_svg(*_hinge)
+        _tip = offset_pt(_hinge, _door_len, w2w3_in)
+        _tx, _ty = to_svg(*_tip)
         out.append(f'<line x1="{_hx:.1f}" y1="{_hy:.1f}" x2="{_tx:.1f}" y2="{_ty:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         _arc_pts = []
         for _i in range(21):
-            _a = -_i * (math.pi / 2) / 20  # 0° to -90°
-            _ae = b.e + _door_len * math.cos(_a)
-            _an = b.n + _door_len * math.sin(_a)
+            _t = _i * (math.pi / 2) / 20
+            _ae = _hinge[0] + _door_len * (math.cos(_t) * w2w3_in[0] - math.sin(_t) * w2w3_al[0])
+            _an = _hinge[1] + _door_len * (math.cos(_t) * w2w3_in[1] - math.sin(_t) * w2w3_al[1])
             _ax, _ay = to_svg(_ae, _an)
             _arc_pts.append(f"{_ax:.1f},{_ay:.1f}")
         out.append(f'<polyline points="{" ".join(_arc_pts)}" fill="none"'
@@ -910,10 +929,11 @@ def _render_appliances(out, data, layout, minik=False, db=False):
             out.append('</a>')
     washer_n = b.n  # b is washer BBox after loop
 
-    # Hamper: 31.5" E-W x 19" N-S, 2" N of washer, 2" E of W2-W3
+    # Hamper: 31.5" x 19", 2" along wall from washer, 2" inward from W2-W3
     hm_ew = 31.5 / 12.0
     hm_ns = 19.0 / 12.0
-    hm_w = pts["W2"][0] + 2.0 / 12.0
+    _hm_off = offset_pt(pts["W2"], 2.0 / 12.0, w2w3_in)
+    hm_w = _hm_off[0]
     hm_e = hm_w + hm_ew
     hm_s = washer_n + 2.0 / 12.0
     hm_n = hm_s + hm_ns
@@ -949,11 +969,17 @@ def _render_appliances(out, data, layout, minik=False, db=False):
     out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
 
-    # Water heater: 28" diameter circle
-    wh_e = layout.iw2.e + WH_RADIUS
+    # Water heater: 28" diameter circle, tangent to inner arc at C7
+    # WH center lies on IW2 east face line at WH_RADIUS from face
+    _wh_ref = offset_pt(layout.iw2.poly[2], WH_RADIUS, _iw2_e_out)
     wh_tangent_r = (data.radii["R_a7"] - data.wall_t) - WH_RADIUS
-    wh_dE = wh_e - pts["C7"][0]
-    wh_n = pts["C7"][1] + math.sqrt(wh_tangent_r**2 - wh_dE**2)
+    _c7 = pts["C7"]
+    _wh_d = (_wh_ref[0] - _c7[0], _wh_ref[1] - _c7[1])
+    _wh_d_al = _wh_d[0] * _iw2_e_al[0] + _wh_d[1] * _iw2_e_al[1]
+    _wh_d2 = _wh_d[0]**2 + _wh_d[1]**2
+    _wh_t = -_wh_d_al + math.sqrt(wh_tangent_r**2 - _wh_d2 + _wh_d_al**2)
+    wh_center = offset_pt(_wh_ref, _wh_t, _iw2_e_al)
+    wh_e, wh_n = wh_center
     wh_sx, wh_sy = to_svg(wh_e, wh_n)
     wh_r_svg = (to_svg(WH_RADIUS, 0)[0] - to_svg(0, 0)[0])
     out.append(f'<circle cx="{wh_sx:.1f}" cy="{wh_sy:.1f}" r="{wh_r_svg:.1f}"'
@@ -961,40 +987,70 @@ def _render_appliances(out, data, layout, minik=False, db=False):
     out.append(f'<text x="{wh_sx:.1f}" y="{wh_sy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">WH</text>')
 
-    # Toilets and sinks
+    # Toilets and sinks — oriented relative to IW8 wall direction
+    _iw8_al, _iw8_in = seg_vecs(layout.iw8.poly[0], layout.iw8.poly[1])
     toilet_e = (layout.dryer.w + layout.dryer.e) / 2
     sink_e = (layout.dryer.e + layout.ctr.w) / 2
-    draw_toilet(out, toilet_e, layout.iw8.s, face_north=False, to_svg=to_svg)
-    draw_sink(out, sink_e, layout.iw8.s - SINK_RY, to_svg=to_svg)
-    draw_toilet(out, toilet_e, layout.iw8.n, face_north=True, to_svg=to_svg)
-    draw_sink(out, sink_e, layout.iw8.n + SINK_RY, to_svg=to_svg)
+    # South toilet: faces along _iw8_in (away from IW8 south face)
+    draw_toilet(out, (toilet_e, layout.iw8.s), _iw8_in, _iw8_al, to_svg)
+    _sk_s = offset_pt((sink_e, layout.iw8.s), SINK_RY, _iw8_in)
+    draw_sink(out, _sk_s[0], _sk_s[1], to_svg=to_svg)
+    # North toilet: faces opposite of _iw8_in (away from IW8 north face)
+    _iw8_out = (-_iw8_in[0], -_iw8_in[1])
+    draw_toilet(out, (toilet_e, layout.iw8.n), _iw8_out, _iw8_al, to_svg)
+    _sk_n = offset_pt((sink_e, layout.iw8.n), SINK_RY, _iw8_out)
+    draw_sink(out, _sk_n[0], _sk_n[1], to_svg=to_svg)
 
 
 def _render_kitchen(out, data, layout, minik=False, db=False):
     """Render kitchen: D/W, sink, stove, shelves, fridge, counters."""
     pts = data.pts
     to_svg = data.to_svg
-    back_n = pts["W9"][1]
+    # North wall (W9-W10) direction vectors for wall-relative placement
+    w9w10_al, w9w10_in = seg_vecs(pts["W9"], pts["W10"])
+    _wall_anchor = pts["W9"]
+    # Distance from W9 to IW2 east face along wall
+    _iw2_ne = layout.iw2.poly[2]
+    _iw2_d = ((_iw2_ne[0] - _wall_anchor[0]) * w9w10_al[0] +
+              (_iw2_ne[1] - _wall_anchor[1]) * w9w10_al[1])
 
-    # Kitchen appliances
-    st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
-    st_e = st_w + STOVE_WIDTH
-    ks_w = st_e + KITCHEN_APPL_GAP + 2.0 / 12.0
-    ks_e = ks_w + KITCHEN_SINK_WIDTH
-    dw_w = ks_e + KITCHEN_APPL_GAP
-    dw_e = dw_w + DW_WIDTH
+    def _nwp(d_along, d_inward=0):
+        """Point on north wall at d_along from W9, d_inward into room."""
+        return offset_pt(offset_pt(_wall_anchor, d_along, w9w10_al),
+                         d_inward, w9w10_in)
+
+    # Kitchen appliance chain distances along wall from W9
+    _st_d = _iw2_d + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+    _ks_d = _st_d + STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0
+    _dw_d = _ks_d + KITCHEN_SINK_WIDTH + KITCHEN_APPL_GAP
+    # IW1/IW2 corner: for items in the fridge/counter/table area
+    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+    _iw1_n_al, _iw1_n_cw = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
+    _iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])  # outward from IW1 north face
+    _iw12_corner = line_isect(layout.iw2.poly[1], _iw2_e_al,
+                              layout.iw1.poly[3], _iw1_n_al)
+
+    def _iwp(d_e, d_n=0):
+        """Point from IW1/IW2 corner: d_e along IW2-outward, d_n along IW1-outward."""
+        return offset_pt(offset_pt(_iw12_corner, d_e, _iw2_e_out),
+                         d_n, _iw1_n_out)
+
+
+    # (label, along_start, along_width, inward_start, inward_depth, href)
     appliances = [
-        ("SINK",  ks_w, back_n - KITCHEN_SINK_DEPTH, ks_e, back_n,
+        ("SINK",  _ks_d, KITCHEN_SINK_WIDTH, 0, KITCHEN_SINK_DEPTH,
          "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html"),
-        ("STOVE", st_w, back_n - KITCHEN_APPL_GAP - STOVE_DEPTH, st_e, back_n - KITCHEN_APPL_GAP, None),
-        ("D/W",   dw_w, back_n - DW_DEPTH,           dw_e, back_n, None),
+        ("STOVE", _st_d, STOVE_WIDTH, KITCHEN_APPL_GAP, KITCHEN_APPL_GAP + STOVE_DEPTH, None),
+        ("D/W",   _dw_d, DW_WIDTH, 0, DW_DEPTH, None),
     ]
     if minik:
-        appliances = [(l, w, s, e, n, h) for l, w, s, e, n, h in appliances
+        appliances = [(l, da, aw, di0, di1, h) for l, da, aw, di0, di1, h in appliances
                       if l not in ("STOVE", "D/W")]
-    for label, sw_e, sw_n, ne_e, ne_n, href in appliances:
-        sx1, sy1 = to_svg(sw_e, ne_n)
-        sx2, sy2 = to_svg(ne_e, sw_n)
+    for label, da, aw, di0, di1, href in appliances:
+        nw = _nwp(da, di0)
+        se = _nwp(da + aw, di1)
+        sx1, sy1 = to_svg(*nw)
+        sx2, sy2 = to_svg(*se)
         sw = sx2 - sx1; sh = sy2 - sy1
         if href:
             out.append(f'<a href="{href}" target="_blank">')
@@ -1008,42 +1064,40 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         # Dashed door/drawer extension rectangles
         if label == "STOVE":
             _ext = 24.0 / 12.0
-            _dx1, _dy1 = to_svg(sw_e, sw_n)
-            _dx2, _dy2 = to_svg(ne_e, sw_n - _ext)
+            _ex_nw = _nwp(da, di1)
+            _ex_se = _nwp(da + aw, di1 + _ext)
+            _dx1, _dy1 = to_svg(*_ex_nw)
+            _dx2, _dy2 = to_svg(*_ex_se)
             _dw = _dx2 - _dx1; _dh = _dy2 - _dy1
             out.append(f'<rect x="{_dx1:.1f}" y="{_dy1:.1f}" width="{_dw:.1f}" height="{_dh:.1f}"'
                        f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"'
                        f' stroke-dasharray="4,3"/>')
         elif label == "D/W":
             _ext = 31.0 / 12.0
-            _dx1, _dy1 = to_svg(sw_e, sw_n)
-            _dx2, _dy2 = to_svg(ne_e, sw_n - _ext)
+            _ex_nw = _nwp(da, di1)
+            _ex_se = _nwp(da + aw, di1 + _ext)
+            _dx1, _dy1 = to_svg(*_ex_nw)
+            _dx2, _dy2 = to_svg(*_ex_se)
             _dw = _dx2 - _dx1; _dh = _dy2 - _dy1
             out.append(f'<rect x="{_dx1:.1f}" y="{_dy1:.1f}" width="{_dw:.1f}" height="{_dh:.1f}"'
                        f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"'
                        f' stroke-dasharray="4,3"/>')
 
-    # Fridge
+    # Fridge — positioned relative to wall/IW vectors
+    _fr_w2 = 32.75 / 12.0   # std/db fridge width along IW2-outward
+    _fr_h1 = 35.0 / 12.0    # std/db fridge depth along IW1-outward
     if minik:
-        # 3" east of SINK, 3" south of W9-W10 inner face
-        fr_w = ks_e + 3.0 / 12.0
-        fr_e = fr_w + MINIK_FRIDGE_W
-        fr_n = back_n - 3.0 / 12.0
-        fr_s = fr_n - MINIK_FRIDGE_D
-    elif db:
-        # IW1/IW2 corner, 3" from each wall
-        fr_w = layout.iw2.e + KITCHEN_APPL_GAP
-        fr_s = layout.iw1.n + KITCHEN_APPL_GAP
-        fr_e = fr_w + 32.75 / 12.0
-        fr_n = fr_s + 35.0 / 12.0
+        # 3" along wall past SINK, 3" inward from north wall
+        _fr_mk_d = _ks_d + KITCHEN_SINK_WIDTH + 3.0 / 12.0
+        _fr_mk_i = 3.0 / 12.0
+        fr_nw = _nwp(_fr_mk_d, _fr_mk_i)
+        fr_se = _nwp(_fr_mk_d + MINIK_FRIDGE_W, _fr_mk_i + MINIK_FRIDGE_D)
     else:
-        # IW1/IW2 corner, 3" from each wall
-        fr_w = layout.iw2.e + KITCHEN_APPL_GAP
-        fr_s = layout.iw1.n + KITCHEN_APPL_GAP
-        fr_e = fr_w + 32.75 / 12.0
-        fr_n = fr_s + 35.0 / 12.0
-    sx1, sy1 = to_svg(fr_w, fr_n)
-    sx2, sy2 = to_svg(fr_e, fr_s)
+        # IW1/IW2 corner, gap from each wall face
+        fr_nw = _iwp(KITCHEN_APPL_GAP, KITCHEN_APPL_GAP + _fr_h1)
+        fr_se = _iwp(KITCHEN_APPL_GAP + _fr_w2, KITCHEN_APPL_GAP)
+    sx1, sy1 = to_svg(*fr_nw)
+    sx2, sy2 = to_svg(*fr_se)
     sw = sx2 - sx1; sh = sy2 - sy1
     if minik:
         out.append('<a href="https://www.ikea.com/us/en/p/bergsnaes-bottom-freezer-refrigerator-stainless-steel-color-60607883/" target="_blank">')
@@ -1057,58 +1111,66 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     out.append(f'<text x="{fr_cx:.1f}" y="{fr_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="{fr_fs}" fill="{APPL_STROKE}">FRIDGE</text>')
     if minik:
-        # Door arc: hinged at SE corner, 23.375" door, sweeps from south (open) to west (closed)
+        # Door arc: hinged at SE corner, sweeps from closed (back-along-wall) to open (inward)
         fr_door = MINIK_FRIDGE_W
-        hx, hy = to_svg(fr_e, fr_s)
-        tip_x, tip_y = to_svg(fr_e, fr_s - fr_door)
+        _close_dir = (-w9w10_al[0], -w9w10_al[1])  # back along wall
+        _open_dir = w9w10_in                         # inward
+        hx, hy = to_svg(*fr_se)
+        tip = offset_pt(fr_se, fr_door, _open_dir)
+        tip_x, tip_y = to_svg(*tip)
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         n_arc = 20
         arc_pts = []
         for i in range(n_arc + 1):
-            angle = math.pi + i * (math.pi / 2) / n_arc  # 180° to 270°
-            ae = fr_e + fr_door * math.cos(angle)
-            an = fr_s + fr_door * math.sin(angle)
+            t = i / n_arc
+            ct = math.cos(t * math.pi / 2)
+            st = math.sin(t * math.pi / 2)
+            ae = fr_se[0] + fr_door * (ct * _close_dir[0] + st * _open_dir[0])
+            an = fr_se[1] + fr_door * (ct * _close_dir[1] + st * _open_dir[1])
             ax, ay = to_svg(ae, an)
             arc_pts.append(f"{ax:.1f},{ay:.1f}")
         out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
     if db or (not minik):
-        # Door arc: hinged at NW corner, 32.75" door, sweeps from north to east
-        fr_door = 32.75 / 12.0
-        hx, hy = to_svg(fr_w, fr_n)
-        tip_x, tip_y = to_svg(fr_w, fr_n + fr_door)
+        # Door arc: hinged at NW corner, sweeps from open (along IW2) to closed (outward IW2)
+        fr_door = _fr_w2
+        _open_dir = _iw2_e_al    # along IW2 east face (northward)
+        _close_dir = _iw2_e_out  # outward from IW2 (eastward)
+        hx, hy = to_svg(*fr_nw)
+        tip = offset_pt(fr_nw, fr_door, _open_dir)
+        tip_x, tip_y = to_svg(*tip)
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         n_arc = 20
         arc_pts = []
         for i in range(n_arc + 1):
-            angle = math.pi / 2 - i * (math.pi / 2) / n_arc  # 90° to 0°
-            ae = fr_w + fr_door * math.cos(angle)
-            an = fr_n + fr_door * math.sin(angle)
+            t = i / n_arc
+            ct = math.cos(t * math.pi / 2)
+            st = math.sin(t * math.pi / 2)
+            ae = fr_nw[0] + fr_door * (ct * _open_dir[0] + st * _close_dir[0])
+            an = fr_nw[1] + fr_door * (ct * _open_dir[1] + st * _close_dir[1])
             ax, ay = to_svg(ae, an)
             arc_pts.append(f"{ax:.1f},{ay:.1f}")
         out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
 
+    # ICE — positioned along north wall
     if db:
-        # ICE: 2" east of D/W, 3" south of W9-W10 wall
-        ice_w = dw_e + 2.0 / 12.0
-        ice_s = back_n - KITCHEN_APPL_GAP - ICE_DEPTH
+        _ice_d = _dw_d + DW_WIDTH + 2.0 / 12.0    # 2" along wall past D/W
+        _ice_i = KITCHEN_APPL_GAP                   # 3" inward from wall
     elif minik:
-        # ICE: 3" east of fridge, against W9-W10 wall (3" south)
-        ice_w = fr_e + 3.0 / 12.0
-        ice_s = back_n - 3.0 / 12.0 - ICE_DEPTH
+        _ice_d = _ks_d + KITCHEN_SINK_WIDTH + 3.0 / 12.0 + MINIK_FRIDGE_W + 3.0 / 12.0
+        _ice_i = 3.0 / 12.0
     else:
-        # ICE: 6" east of D/W, 3" south of W9-W10 wall
-        ice_w = dw_e + 6.0 / 12.0
-        ice_s = back_n - KITCHEN_APPL_GAP - ICE_DEPTH
-    ice_e = ice_w + ICE_WIDTH
-    ice_n = ice_s + ICE_DEPTH
-    ix1, iy1 = to_svg(ice_w, ice_n)
-    ix2, iy2 = to_svg(ice_e, ice_s)
+        _ice_d = _dw_d + DW_WIDTH + 6.0 / 12.0    # 6" along wall past D/W
+        _ice_i = KITCHEN_APPL_GAP
+    ice_nw = _nwp(_ice_d, _ice_i)
+    ice_se = _nwp(_ice_d + ICE_WIDTH, _ice_i + ICE_DEPTH)
+    ix1, iy1 = to_svg(*ice_nw)
+    ix2, iy2 = to_svg(*ice_se)
     isw = ix2 - ix1; ish = iy2 - iy1
     out.append('<a href="https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876" target="_blank">')
     out.append(f'<rect x="{ix1:.1f}" y="{iy1:.1f}" width="{isw:.1f}" height="{ish:.1f}"'
@@ -1119,30 +1181,29 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                f' font-size="6" fill="{APPL_STROKE}">ICE</text>')
     out.append('</a>')
 
-    # Work counter: 60" E-W x 18" N-S, against IW1 north face, 3" east of fridge
+    # Work counter: 60" along IW2-outward x 18" along IW1-outward, against IW1
+    _wc_d2 = KITCHEN_APPL_GAP + _fr_w2 + KITCHEN_APPL_GAP  # gap + fridge + gap from IW2
     if not minik:
-        wc_w = fr_e + KITCHEN_APPL_GAP
-        wc_s = layout.iw1.n
-        wc_e = wc_w + 60.0 / 12.0
-        wc_n = wc_s + 18.0 / 12.0
-        wc_sx1, wc_sy1 = to_svg(wc_w, wc_n)
-        wc_sx2, wc_sy2 = to_svg(wc_e, wc_s)
+        wc_nw = _iwp(_wc_d2, 18.0 / 12.0)
+        wc_se = _iwp(_wc_d2 + 60.0 / 12.0, 0)
+        wc_sx1, wc_sy1 = to_svg(*wc_nw)
+        wc_sx2, wc_sy2 = to_svg(*wc_se)
         wc_sw = wc_sx2 - wc_sx1; wc_sh = wc_sy2 - wc_sy1
         out.append('<a href="https://www.webstaurantstore.com/table-s-s-18x60-s-s-under/600TS1860S.html" target="_blank">')
         out.append(f'<rect x="{wc_sx1:.1f}" y="{wc_sy1:.1f}" width="{wc_sw:.1f}" height="{wc_sh:.1f}"'
                    f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
         out.append('</a>')
 
-    # Microwave on 18" counter (non-minik): 19.5" E-W x 16-5/8" N-S
+    # Microwave on 18" counter (non-minik): 19.5" along IW2 x 16-5/8" along IW1
     if not minik:
         mw_ew = 19.5 / 12.0
         mw_ns = 16.625 / 12.0
-        mw_w = wc_w + 2.0 / 12.0
-        mw_e = mw_w + mw_ew
-        mw_s = layout.iw1.n + 2.0 / 12.0
-        mw_n = mw_s + mw_ns
-        mw_sx1, mw_sy1 = to_svg(mw_w, mw_n)
-        mw_sx2, mw_sy2 = to_svg(mw_e, mw_s)
+        _mw_d2 = _wc_d2 + 2.0 / 12.0   # 2" from work counter start
+        _mw_d1 = 2.0 / 12.0             # 2" from IW1 face
+        mw_nw = _iwp(_mw_d2, _mw_d1 + mw_ns)
+        mw_se = _iwp(_mw_d2 + mw_ew, _mw_d1)
+        mw_sx1, mw_sy1 = to_svg(*mw_nw)
+        mw_sx2, mw_sy2 = to_svg(*mw_se)
         mw_sw = mw_sx2 - mw_sx1
         mw_sh = mw_sy2 - mw_sy1
         out.append('<a href="https://www.ikea.com/us/en/p/gatebo-microwave-oven-with-air-fryer-function-ikea-500-black-70603506/" target="_blank">')
@@ -1152,48 +1213,51 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         mw_cy = (mw_sy1 + mw_sy2) / 2
         out.append(f'<text x="{mw_cx:.1f}" y="{mw_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="5" fill="{APPL_STROKE}">MICRO</text>')
-        # Door: hinged at NE corner, closes to NW corner
-        _mw_door = mw_e - mw_w
-        _mh_x, _mh_y = to_svg(mw_e, mw_n)
-        _mt_x, _mt_y = to_svg(mw_e, mw_n + _mw_door)
+        # Door: hinged at NE corner, sweeps from open (along IW1-outward) to closed (back along IW2)
+        _mw_door = mw_ew
+        _mw_hinge = _iwp(_mw_d2 + mw_ew, _mw_d1 + mw_ns)  # NE corner
+        _mw_open = _iw1_n_out                                # northward
+        _mw_close = (-_iw2_e_out[0], -_iw2_e_out[1])         # westward
+        _mh_x, _mh_y = to_svg(*_mw_hinge)
+        _mt = offset_pt(_mw_hinge, _mw_door, _mw_open)
+        _mt_x, _mt_y = to_svg(*_mt)
         out.append(f'<line x1="{_mh_x:.1f}" y1="{_mh_y:.1f}" x2="{_mt_x:.1f}" y2="{_mt_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         _mw_arc = []
         for _i in range(21):
-            _a = math.pi / 2 + _i * (math.pi / 2) / 20  # 90° to 180°
-            _ae = mw_e + _mw_door * math.cos(_a)
-            _an = mw_n + _mw_door * math.sin(_a)
+            _t = _i / 20
+            _ct = math.cos(_t * math.pi / 2)
+            _st = math.sin(_t * math.pi / 2)
+            _ae = _mw_hinge[0] + _mw_door * (_ct * _mw_open[0] + _st * _mw_close[0])
+            _an = _mw_hinge[1] + _mw_door * (_ct * _mw_open[1] + _st * _mw_close[1])
             _ax, _ay = to_svg(_ae, _an)
             _mw_arc.append(f"{_ax:.1f},{_ay:.1f}")
         out.append(f'<polyline points="{" ".join(_mw_arc)}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
 
-    # Kitchen counter: starting at IW2 east face (minik only)
+    # Kitchen counter: along north wall from IW2 east face (minik only)
     if minik:
-        kc_w = layout.iw2.e
-        kc_e = kc_w + KITCHEN_CTR_LENGTH
-        # Against W9-W10 (north wall) and IW2
-        kc_n = pts["W9"][1]
-        kc_s = kc_n - KITCHEN_CTR_DEPTH
-        kc_sx1, kc_sy1 = to_svg(kc_w, kc_n)
-        kc_sx2, kc_sy2 = to_svg(kc_e, kc_s)
+        kc_nw = _nwp(_iw2_d, 0)
+        kc_se = _nwp(_iw2_d + KITCHEN_CTR_LENGTH, KITCHEN_CTR_DEPTH)
+        kc_sx1, kc_sy1 = to_svg(*kc_nw)
+        kc_sx2, kc_sy2 = to_svg(*kc_se)
         kc_sw = kc_sx2 - kc_sx1; kc_sh = kc_sy2 - kc_sy1
         out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-72-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3072S.html" target="_blank">')
         out.append(f'<rect x="{kc_sx1:.1f}" y="{kc_sy1:.1f}" width="{kc_sw:.1f}" height="{kc_sh:.1f}"'
                    f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
         out.append('</a>')
 
-    # Minik: microwave on counter (19.5" E-W x 16-5/8" N-S)
+    # Minik: microwave on counter (19.5" along wall x 16-5/8" inward)
     if minik:
         mw_ew = 19.5 / 12.0
         mw_ns = 16.625 / 12.0
-        mw_w = kc_w + 2.0 / 12.0
-        mw_e = mw_w + mw_ew
-        mw_n = kc_n - 3.0 / 12.0
-        mw_s = mw_n - mw_ns
-        mw_sx1, mw_sy1 = to_svg(mw_w, mw_n)
-        mw_sx2, mw_sy2 = to_svg(mw_e, mw_s)
+        _mw_mk_d = _iw2_d + 2.0 / 12.0   # 2" along wall from counter start
+        _mw_mk_i = 3.0 / 12.0             # 3" inward from wall
+        mw_nw = _nwp(_mw_mk_d, _mw_mk_i)
+        mw_se = _nwp(_mw_mk_d + mw_ew, _mw_mk_i + mw_ns)
+        mw_sx1, mw_sy1 = to_svg(*mw_nw)
+        mw_sx2, mw_sy2 = to_svg(*mw_se)
         mw_sw = mw_sx2 - mw_sx1
         mw_sh = mw_sy2 - mw_sy1
         out.append('<a href="https://www.ikea.com/us/en/p/gatebo-microwave-oven-with-air-fryer-function-ikea-500-black-70603506/" target="_blank">')
@@ -1203,33 +1267,39 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         mw_cy = (mw_sy1 + mw_sy2) / 2
         out.append(f'<text x="{mw_cx:.1f}" y="{mw_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="5" fill="{APPL_STROKE}">MICRO</text>')
-        # Door: hinged at SW corner, closes to SE corner
-        _mw_door = mw_e - mw_w
-        _mh_x, _mh_y = to_svg(mw_w, mw_s)
-        _mt_x, _mt_y = to_svg(mw_w, mw_s - _mw_door)
+        # Door: hinged at wall-start/inward corner, sweeps from open (inward) to closed (along wall)
+        _mw_door = mw_ew
+        _mw_hinge = _nwp(_mw_mk_d, _mw_mk_i + mw_ns)
+        _mw_open = w9w10_in                                   # inward
+        _mw_close = w9w10_al                                   # along wall
+        _mh_x, _mh_y = to_svg(*_mw_hinge)
+        _mt = offset_pt(_mw_hinge, _mw_door, _mw_open)
+        _mt_x, _mt_y = to_svg(*_mt)
         out.append(f'<line x1="{_mh_x:.1f}" y1="{_mh_y:.1f}" x2="{_mt_x:.1f}" y2="{_mt_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         _mw_arc = []
         for _i in range(21):
-            _a = -math.pi / 2 + _i * (math.pi / 2) / 20  # -90° to 0°
-            _ae = mw_w + _mw_door * math.cos(_a)
-            _an = mw_s + _mw_door * math.sin(_a)
+            _t = _i / 20
+            _ct = math.cos(_t * math.pi / 2)
+            _st = math.sin(_t * math.pi / 2)
+            _ae = _mw_hinge[0] + _mw_door * (_ct * _mw_open[0] + _st * _mw_close[0])
+            _an = _mw_hinge[1] + _mw_door * (_ct * _mw_open[1] + _st * _mw_close[1])
             _ax, _ay = to_svg(_ae, _an)
             _mw_arc.append(f"{_ax:.1f},{_ay:.1f}")
         out.append(f'<polyline points="{" ".join(_mw_arc)}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
 
-    # Minik: coffee maker on counter (7.2" E-W x 9.2" N-S)
+    # Minik: coffee maker on counter (7.2" along wall x 9.2" inward)
     if minik:
         cm_ew = 7.2 / 12.0
         cm_ns = 9.2 / 12.0
-        cm_w = mw_e + 3.0 / 12.0
-        cm_e = cm_w + cm_ew
-        cm_n = kc_n - 3.0 / 12.0
-        cm_s = cm_n - cm_ns
-        cm_sx1, cm_sy1 = to_svg(cm_w, cm_n)
-        cm_sx2, cm_sy2 = to_svg(cm_e, cm_s)
+        _cm_d = _mw_mk_d + mw_ew + 3.0 / 12.0  # 3" along wall past microwave
+        _cm_i = 3.0 / 12.0                       # 3" inward from wall
+        cm_nw = _nwp(_cm_d, _cm_i)
+        cm_se = _nwp(_cm_d + cm_ew, _cm_i + cm_ns)
+        cm_sx1, cm_sy1 = to_svg(*cm_nw)
+        cm_sx2, cm_sy2 = to_svg(*cm_se)
         cm_sw = cm_sx2 - cm_sx1
         cm_sh = cm_sy2 - cm_sy1
         out.append('<a href="https://www.amazon.com/Holstein-Housewares-HH-0914701E-5-Cup-Coffee/dp/B08HSRCC4T/?th=1" target="_blank">')
@@ -1241,18 +1311,17 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' font-size="5" fill="{APPL_STROKE}">C</text>')
         out.append('</a>')
 
-    # Minik: induction cooktop on counter (rotated: 13.4" E-W x 20.5" N-S)
+    # Minik: induction cooktop on counter (13.4" along wall x 20.5" inward)
     if minik:
         cp_ew = 13.4 / 12.0
         cp_ns = 20.5 / 12.0
-        cp_w = cm_e + 3.0 / 12.0
-        cp_e = cp_w + cp_ew
-        cp_cx_e = (cp_w + cp_e) / 2
-        cp_s = kc_s + 2.0 / 12.0
-        cp_n = cp_s + cp_ns
-        cp_cy_n = (cp_s + cp_n) / 2
-        cp_sx1, cp_sy1 = to_svg(cp_w, cp_n)
-        cp_sx2, cp_sy2 = to_svg(cp_e, cp_s)
+        _cp_d = _cm_d + cm_ew + 3.0 / 12.0                 # 3" along wall past coffee maker
+        _cp_i_far = KITCHEN_CTR_DEPTH - 2.0 / 12.0          # south edge: 2" from counter south
+        _cp_i_near = _cp_i_far - cp_ns                      # north edge
+        cp_nw = _nwp(_cp_d, _cp_i_near)
+        cp_se = _nwp(_cp_d + cp_ew, _cp_i_far)
+        cp_sx1, cp_sy1 = to_svg(*cp_nw)
+        cp_sx2, cp_sy2 = to_svg(*cp_se)
         cp_sw = cp_sx2 - cp_sx1
         cp_sh = cp_sy2 - cp_sy1
         cp_r = abs(to_svg(1.0 / 12.0, 0)[0] - to_svg(0, 0)[0])  # 1" corner radius
@@ -1260,53 +1329,52 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         out.append(f'<rect x="{cp_sx1:.1f}" y="{cp_sy1:.1f}" width="{cp_sw:.1f}" height="{cp_sh:.1f}"'
                    f' rx="{cp_r:.1f}" ry="{cp_r:.1f}"'
                    f' fill="#222" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-        # Two burner circles (6" diameter each), spaced evenly N-S
+        # Two burner circles (6" diameter each), spaced along inward direction
         burner_r_ft = 3.0 / 12.0
         burner_r_svg = abs(to_svg(burner_r_ft, 0)[0] - to_svg(0, 0)[0])
+        _cp_center = _nwp(_cp_d + cp_ew / 2, (_cp_i_near + _cp_i_far) / 2)
+        _outward = (-w9w10_in[0], -w9w10_in[1])
         for sign in (-1, 1):
-            bx = cp_cx_e
-            by = cp_cy_n + sign * cp_ns / 4
-            bsx, bsy = to_svg(bx, by)
+            bp = offset_pt(_cp_center, sign * cp_ns / 4, _outward)
+            bsx, bsy = to_svg(*bp)
             out.append(f'<circle cx="{bsx:.1f}" cy="{bsy:.1f}" r="{burner_r_svg:.1f}"'
                        f' fill="none" stroke="#666" stroke-width="0.3"/>')
         out.append('</a>')
 
-    # Minik: toaster 3" east of cooktop, 3" south of W9-W10 (13.7" E-W x 12.5" N-S)
+    # Minik: toaster 3" along wall past cooktop, 3" inward (13.7" x 12.5")
     if minik:
         ts_ew = 13.7 / 12.0
         ts_ns = 12.5 / 12.0
-        ts_w = cp_e + 3.0 / 12.0
-        ts_e = ts_w + ts_ew
-        ts_n = kc_n - 3.0 / 12.0
-        ts_s = ts_n - ts_ns
-        ts_sx1, ts_sy1 = to_svg(ts_w, ts_n)
-        ts_sx2, ts_sy2 = to_svg(ts_e, ts_s)
+        _ts_d = _cp_d + cp_ew + 3.0 / 12.0  # 3" along wall past cooktop
+        _ts_i = 3.0 / 12.0                   # 3" inward from wall
+        ts_nw = _nwp(_ts_d, _ts_i)
+        ts_se = _nwp(_ts_d + ts_ew, _ts_i + ts_ns)
+        ts_sx1, ts_sy1 = to_svg(*ts_nw)
+        ts_sx2, ts_sy2 = to_svg(*ts_se)
         ts_sw = ts_sx2 - ts_sx1
         ts_sh = ts_sy2 - ts_sy1
         out.append('<a href="https://www.amazon.com/Roter-Mond-Stainless-Independent-Removable/dp/B0CGTQZTDZ?th=1" target="_blank">')
         out.append(f'<rect x="{ts_sx1:.1f}" y="{ts_sy1:.1f}" width="{ts_sw:.1f}" height="{ts_sh:.1f}"'
                    f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-        # Four toast slot lines (1.5" wide slots, evenly spaced E-W)
-        slot_len_ft = 5.5 / 12.0  # 5.5" slot length
-        ts_cx_e = (ts_w + ts_e) / 2
-        ts_cy_n = (ts_s + ts_n) / 2
-        slot_spacing = ts_ew / 5.0  # 5 gaps for 4 slots
+        # Four toast slot lines, evenly spaced along wall
+        slot_len_ft = 5.5 / 12.0
+        slot_spacing = ts_ew / 5.0
         for i in range(4):
-            sl_e = ts_w + slot_spacing * (i + 1)
-            sl_n = ts_cy_n + slot_len_ft / 2
-            sl_s = ts_cy_n - slot_len_ft / 2
-            sl_sx, sl_sy1 = to_svg(sl_e, sl_n)
-            _, sl_sy2 = to_svg(sl_e, sl_s)
-            out.append(f'<line x1="{sl_sx:.1f}" y1="{sl_sy1:.1f}" x2="{sl_sx:.1f}" y2="{sl_sy2:.1f}"'
+            _sl_c = _nwp(_ts_d + slot_spacing * (i + 1), _ts_i + ts_ns / 2)
+            _sl_n = offset_pt(_sl_c, slot_len_ft / 2, _outward)
+            _sl_s = offset_pt(_sl_c, slot_len_ft / 2, w9w10_in)
+            sl_sx1, sl_sy1 = to_svg(*_sl_n)
+            sl_sx2, sl_sy2 = to_svg(*_sl_s)
+            out.append(f'<line x1="{sl_sx1:.1f}" y1="{sl_sy1:.1f}" x2="{sl_sx2:.1f}" y2="{sl_sy2:.1f}"'
                        f' stroke="#666" stroke-width="0.4"/>')
         out.append('</a>')
 
     # Oscar triangle dining set centered between north wall, IW1, IW2, RO1
-    ro1_w_pos = layout.iw2.e + RO1_OFFSET_FROM_IW2
-    space_w = layout.iw2.e
-    space_s = layout.iw1.n
-    space_e = ro1_w_pos
-    space_n = kc_s if minik else back_n
+    # Space bounds from wall-relative references
+    space_w = _iw12_corner[0]
+    space_s = _iw12_corner[1]
+    space_e = _iwp(RO1_OFFSET_FROM_IW2)[0]
+    space_n = _nwp(0, KITCHEN_CTR_DEPTH)[1] if minik else _nwp(0, 0)[1]
     space_cx = (space_w + space_e) / 2
     space_cy = (space_s + space_n) / 2
 
@@ -1316,17 +1384,13 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     apex_r = 12.0 / 12.0    # 24" diameter arc at apex
     fillet_r = 6.0 / 12.0   # 6" corner fillets
 
-    # Position: north side 30" south of space north, centered E-W
-    if db:
-        # Center under SINK center
-        tbl_cx = (ks_w + ks_e) / 2
-    elif not minik:
-        # Center under SINK middle
-        tbl_cx = (ks_w + ks_e) / 2
+    # Position: north side 30" south of space north, centered along wall
+    if minik:
+        # Center on SINK west end (chain distance)
+        tbl_cx = _nwp(_st_d + STOVE_WIDTH + KITCHEN_APPL_GAP)[0]
     else:
-        # Center on SINK west end
-        _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
-        tbl_cx = _st_w + STOVE_WIDTH + KITCHEN_APPL_GAP
+        # Center under SINK center
+        tbl_cx = _nwp(_ks_d + KITCHEN_SINK_WIDTH / 2)[0]
     tbl_n = space_n - 30.0 / 12.0 - (28.0 / 12.0 if not minik else 0)
     tbl_s_y = tbl_n - tbl_h
 
@@ -1346,8 +1410,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                 arc_c[1] + apex_r * math.sin(alpha_r))
     t_left = (2 * tbl_cx - t_right[0], t_right[1])
 
-    # NE fillet between base (west) and tangent line (toward t_right)
-    d_base_ne = (-1.0, 0.0)
+    # NE fillet between base direction (along IW1 face) and tangent line
+    d_base_ne = (-_iw1_n_al[0], -_iw1_n_al[1])  # base runs NE→NW = reverse of IW1 along
     dtr = (t_right[0] - ne[0], t_right[1] - ne[1])
     dtr_len = math.sqrt(dtr[0]**2 + dtr[1]**2)
     d_tang_ne = (dtr[0] / dtr_len, dtr[1] / dtr_len)
@@ -1421,14 +1485,12 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f'stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
         out.append('</a>')
 
-    # North wall counter: south side against W9-W10, starting at IW2 east face
+    # North wall counter: along north wall from IW2 east face
     if not minik:
-        nc_w = layout.iw2.e
-        nc_e = nc_w + NORTH_CTR_LENGTH
-        nc_n = pts["W9"][1]
-        nc_s = nc_n - NORTH_CTR_DEPTH
-        nc_sx1, nc_sy1 = to_svg(nc_w, nc_n)
-        nc_sx2, nc_sy2 = to_svg(nc_e, nc_s)
+        nc_nw = _nwp(_iw2_d, 0)
+        nc_se = _nwp(_iw2_d + NORTH_CTR_LENGTH, NORTH_CTR_DEPTH)
+        nc_sx1, nc_sy1 = to_svg(*nc_nw)
+        nc_sx2, nc_sy2 = to_svg(*nc_se)
         nc_sw = nc_sx2 - nc_sx1; nc_sh = nc_sy2 - nc_sy1
         out.append('<a href="https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html" target="_blank">')
         out.append(f'<rect x="{nc_sx1:.1f}" y="{nc_sy1:.1f}" width="{nc_sw:.1f}" height="{nc_sh:.1f}"'
@@ -1439,15 +1501,16 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' font-size="6" fill="{APPL_STROKE}">COUNTER</text>')
         out.append('</a>')
 
-        # Coffee maker on 30" counter (7.2" E-W x 9.2" N-S)
+        # Coffee maker on counter (7.2" along wall x 9.2" inward)
         cm_ew = 7.2 / 12.0
         cm_ns = 9.2 / 12.0
-        cm_e = nc_e - 2.0 / 12.0
-        cm_w = cm_e - cm_ew
-        cm_n = nc_n - 2.0 / 12.0
-        cm_s = cm_n - cm_ns
-        cm_sx1, cm_sy1 = to_svg(cm_w, cm_n)
-        cm_sx2, cm_sy2 = to_svg(cm_e, cm_s)
+        # 2" from counter east end, 2" inward from wall
+        _cm_d = _iw2_d + NORTH_CTR_LENGTH - 2.0 / 12.0 - cm_ew
+        _cm_i = 2.0 / 12.0
+        cm_nw = _nwp(_cm_d, _cm_i)
+        cm_se = _nwp(_cm_d + cm_ew, _cm_i + cm_ns)
+        cm_sx1, cm_sy1 = to_svg(*cm_nw)
+        cm_sx2, cm_sy2 = to_svg(*cm_se)
         cm_sw = cm_sx2 - cm_sx1
         cm_sh = cm_sy2 - cm_sy1
         out.append('<a href="https://www.amazon.com/Holstein-Housewares-HH-0914701E-5-Cup-Coffee/dp/B08HSRCC4T/?th=1" target="_blank">')
@@ -1463,8 +1526,34 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     """Render furniture: bed, loveseat/sofa, ET, chair, ottoman, room labels."""
     pts = data.pts
     to_svg = data.to_svg
-    # Reference wall direction vectors for rotation-invariant angles
+    # Reference wall direction vectors for rotation-invariant placement
     w12w13_al, _ = seg_vecs(pts["W12"], pts["W13"])
+    w9w10_al, w9w10_in = seg_vecs(pts["W9"], pts["W10"])
+    w11w12_al, w11w12_in = seg_vecs(pts["W11"], pts["W12"])
+    # IW4 west face: along=south, outward=west
+    _iw4_w_al, _iw4_w_out = seg_vecs(layout.iw4.poly[3], layout.iw4.poly[0])
+    # IW1 north face: along=east, CW-inward=south, outward=north
+    _iw1_n_al, _iw1_n_cw = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
+    _iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])
+    # IW2 east face: along=north, outward=east
+    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+    # IW4/IW1 corner: intersection of IW4 west face and IW1 north face
+    _iw41_corner = line_isect(layout.iw4.poly[3], _iw4_w_al,
+                              layout.iw1.poly[3], _iw1_n_al)
+    def _lwp(d_w=0, d_n=0):
+        """Point offset from IW4/IW1 corner: d_w along IW4-outward, d_n along IW1-outward."""
+        return offset_pt(offset_pt(_iw41_corner, d_w, _iw4_w_out),
+                         d_n, _iw1_n_out)
+    # North wall helper: from W9 anchor along W9-W10 wall
+    _nw_anchor = pts["W9"]
+    def _nwp(d_along, d_inward=0):
+        """Point from W9 along north wall: d_along toward W10, d_inward from wall."""
+        return offset_pt(offset_pt(_nw_anchor, d_along, w9w10_al),
+                         d_inward, w9w10_in)
+    # IW2 east face distance from W9 along north wall
+    _iw2_d = ((layout.iw2.poly[2][0] - _nw_anchor[0]) * w9w10_al[0] +
+              (layout.iw2.poly[2][1] - _nw_anchor[1]) * w9w10_al[1])
+
     # Bed (rotated polygon)
     _bp = layout.bed.poly
     _bp_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _bp)
@@ -1511,17 +1600,15 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                f' fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" stroke-dasharray="4,3"/>')
 
     if minik:
-        # SOFA: 80.75" E-W x 34.625" N-S, same E-W center as old, 2" north of IW1
-        _old_sofa_w = layout.iw4.w + 6.0 / 12.0
-        _old_sofa_cx = _old_sofa_w + (SOFA_WIDTH - 24.0 / 12.0) / 2
+        # SOFA: 80.75" E-W x 34.625" N-S, centered on old sofa, 2" N of IW1
         _sofa_ew = 80.75 / 12.0
         _sofa_ns = 34.625 / 12.0
-        sofa_w = _old_sofa_cx - _sofa_ew / 2
-        sofa_e = _old_sofa_cx + _sofa_ew / 2
-        sofa_s = layout.iw1.n + 2.0 / 12.0
-        sofa_n = sofa_s + _sofa_ns
-        sf_sx1, sf_sy1 = to_svg(sofa_w, sofa_n)
-        sf_sx2, sf_sy2 = to_svg(sofa_e, sofa_s)
+        # Old sofa center was 6" + half-overlap east of IW4 west face
+        _cx_d = -(6.0 / 12.0 + (SOFA_WIDTH - 24.0 / 12.0) / 2)  # neg = east of IW4
+        sofa_nw = _lwp(_cx_d + _sofa_ew / 2, 2.0 / 12.0 + _sofa_ns)
+        sofa_se = _lwp(_cx_d - _sofa_ew / 2, 2.0 / 12.0)
+        sf_sx1, sf_sy1 = to_svg(*sofa_nw)
+        sf_sx2, sf_sy2 = to_svg(*sofa_se)
         sf_sw = sf_sx2 - sf_sx1; sf_sh = sf_sy2 - sf_sy1
         out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-3-seat-sofa-gunnared-light-green-s89599953/" target="_blank">')
         out.append(f'<rect x="{sf_sx1:.1f}" y="{sf_sy1:.1f}" width="{sf_sw:.1f}" height="{sf_sh:.1f}"'
@@ -1533,15 +1620,16 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         out.append('</a>')
 
         # ROCKER: midpoint between ICE SE corner and SOFA NW corner
-        # Recompute ICE SE: fridge_e = ks_e + 3" + MINIK_FRIDGE_W
-        _st_e = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP + STOVE_WIDTH
-        _ks_e = _st_e + KITCHEN_APPL_GAP + KITCHEN_SINK_WIDTH
-        _fr_e = _ks_e + 3.0 / 12.0 + MINIK_FRIDGE_W
-        _ice_e = _fr_e + 3.0 / 12.0 + ICE_WIDTH
-        _back_n = pts["W9"][1]
-        _ice_s = _back_n - 3.0 / 12.0 - ICE_DEPTH
-        rk_cx = (_ice_e + sofa_w) / 2
-        rk_cy = (_ice_s + sofa_n) / 2 - 18.0 / 12.0
+        # Recompute ICE SE via north wall chain from IW2
+        _st_d = _iw2_d + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+        _ks_d = _st_d + STOVE_WIDTH + KITCHEN_APPL_GAP
+        _fr_mk_d = _ks_d + KITCHEN_SINK_WIDTH + 3.0 / 12.0
+        _ice_d = _fr_mk_d + MINIK_FRIDGE_W + 3.0 / 12.0
+        _ice_se = _nwp(_ice_d + ICE_WIDTH, 3.0 / 12.0 + ICE_DEPTH)
+        _rk_mid = ((sofa_nw[0] + _ice_se[0]) / 2,
+                    (sofa_nw[1] + _ice_se[1]) / 2)
+        rk_center = offset_pt(_rk_mid, 18.0 / 12.0, w9w10_in)
+        rk_cx, rk_cy = rk_center
         rk_hw = ROCKER_DEPTH / 2   # half E-W (rotated 90°)
         rk_hh = ROCKER_WIDTH / 2   # half N-S (rotated 90°)
         rk_r = ROCKER_CORNER_R
@@ -1563,7 +1651,8 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     elif db:
         # DB variant: no loveseats; ET shifted east to 2" from W-series wall
         et_r = (ET_RADIUS_CM / 2.54) / 12.0
-        et_cy = layout.iw1.n + STD_GAP + et_r
+        _et_from_iw1 = offset_pt(layout.iw1.poly[3], STD_GAP + et_r, _iw1_n_out)
+        et_cy = _et_from_iw1[1]  # scalar for horiz_isects
         # Find easternmost W-series wall easting at ET's northing
         wall_e = max(horiz_isects(data.inner_poly, et_cy))
         et_cx = wall_e - STD_GAP - et_r
@@ -1578,10 +1667,11 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                    f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
         out.append('</a>')
 
-        # DAYBED: 86" E-W x 43" N-S, 2" N of IW1, 3" W of ET
+        # DAYBED: 86" E-W x 43" N-S, STD_GAP N of IW1, 3" W of ET
         db_ew = 86.0 / 12.0
         db_ns = 43.0 / 12.0
-        db_s = layout.iw1.n + STD_GAP
+        _db_s_ref = offset_pt(layout.iw1.poly[3], STD_GAP, _iw1_n_out)
+        db_s = _db_s_ref[1]  # scalar for axis-aligned rect
         db_n = db_s + db_ns
         db_e = et_cx - et_r - 3.0 / 12.0
         db_w = db_e - db_ew
@@ -1608,18 +1698,12 @@ def _render_furniture(out, data, layout, minik=False, db=False):
 
         # ROCKER: center E-W between DAYBED and RO1,
         #         center N-S between IW1 and fridge door arc southern extent
-        _ro1_w = layout.iw2.e + RO1_OFFSET_FROM_IW2
-        _ro1_e = _ro1_w + IW1_RO_WIDTH
-        rk_cx = (db_w + _ro1_e) / 2 - 8.0 / 12.0
-        # Recompute fridge door arc southern extent
-        _st_w = layout.iw2.e + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
-        _st_e = _st_w + STOVE_WIDTH
-        _ks_w = _st_e + KITCHEN_APPL_GAP + 2.0 / 12.0
-        _ks_e = _ks_w + KITCHEN_SINK_WIDTH
-        _dw_e = _ks_e + KITCHEN_APPL_GAP + DW_WIDTH
-        _fr_s = pts["W9"][1] - 3.0 / 12.0 - 35.0 / 12.0
-        _fr_door_s = _fr_s - 32.75 / 12.0
-        rk_cy = (layout.iw1.n + _fr_door_s) / 2 + 8.0 / 12.0 + 18.0 / 12.0
+        _ro1_e_pt = _nwp(_iw2_d + RO1_OFFSET_FROM_IW2 + IW1_RO_WIDTH, 0)
+        rk_cx = (db_w + _ro1_e_pt[0]) / 2 - 8.0 / 12.0
+        # Fridge south edge: 3" + 35" inward from north wall
+        _fr_s_pt = _nwp(0, 3.0 / 12.0 + 35.0 / 12.0)
+        _fr_door_s_pt = offset_pt(_fr_s_pt, 32.75 / 12.0, w9w10_in)
+        rk_cy = (layout.iw1.poly[3][1] + _fr_door_s_pt[1]) / 2 + 26.0 / 12.0
         rk_hw = ROCKER_DEPTH / 2   # half E-W (rotated 90°)
         rk_hh = ROCKER_WIDTH / 2   # half N-S (rotated 90°)
         rk_r = ROCKER_CORNER_R
@@ -1639,21 +1723,21 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         out.append('</g>')
         out.append('</a>')
     else:
-        # Loveseat: 35" E-W x 65" N-S, rotated 15° CCW about SW corner
+        # Loveseat: 35" E-W x 65" N-S, rotated about SW corner
         lv_width = LOVESEAT_WIDTH
         lv_height = LOVESEAT_LENGTH
         lv_angle = math.atan2(w12w13_al[0], -w12w13_al[1])  # from W12-W13 wall
-        lv_nw_e = LOVESEAT_NW_E
-        lv_nw_n = LOVESEAT_NW_N
-        lv_w = lv_nw_e + lv_height * math.sin(lv_angle)
-        lv_s = lv_nw_n - lv_height * math.cos(lv_angle)
+        lv_nw = _lwp(LOVESEAT_OFFSET_IW4, LOVESEAT_OFFSET_IW1)
+        lv_w = lv_nw[0] + lv_height * math.sin(lv_angle)
+        lv_s = lv_nw[1] - lv_height * math.cos(lv_angle)
 
-        # ET position: 2" N of IW1, 2" from loveseat SE corner
+        # ET position: STD_GAP N of IW1, STD_GAP from loveseat SE corner
         et_r = (ET_RADIUS_CM / 2.54) / 12.0
         lv_se_e = lv_w + lv_width * math.cos(lv_angle)
         lv_se_n = lv_s + lv_width * math.sin(lv_angle)
         et_gap = et_r + STD_GAP
-        et_cy = layout.iw1.n + STD_GAP + et_r
+        _et_from_iw1 = offset_pt(layout.iw1.poly[3], STD_GAP + et_r, _iw1_n_out)
+        et_cy = _et_from_iw1[1]  # scalar for circle geometry
         et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
 
         lv_e = lv_w + lv_width
@@ -1687,7 +1771,8 @@ def _render_furniture(out, data, layout, minik=False, db=False):
 
         # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
         lv2_w = et_cx + et_r + STD_GAP
-        lv2_s = layout.iw1.n + STD_GAP
+        _lv2_s_ref = offset_pt(layout.iw1.poly[3], STD_GAP, _iw1_n_out)
+        lv2_s = _lv2_s_ref[1]  # scalar for axis-aligned rect
         lv2_e = lv2_w + lv_height  # 65" E-W
         lv2_n = lv2_s + lv_width   # 35" N-S
         lv2_sx1, lv2_sy1 = to_svg(lv2_w, lv2_n)
@@ -1705,11 +1790,14 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     # CHAIR: 32" E-W x 37" N-S, rounded corners 3", centered between W11 and W12
     _ch_svg_deg = _svg_angle(w12w13_al) - 45  # 45° to W12-W13 wall
     ch_angle = math.radians(_ch_svg_deg)
-    ch_cx = ((pts["W11"][0] + pts["W12"][0]) / 2
-             - 4.0 / 12.0 * math.sin(ch_angle)
-             - 1.0 / 12.0)
-    ch_cy = ((pts["W11"][1] + pts["W12"][1]) / 2 - 8.0 / 12.0
-             - 4.0 / 12.0 * math.cos(ch_angle))
+    # Base position: midpoint of W11-W12 chord, offset 1" back along chord and 8" inward
+    _ch_mid = ((pts["W11"][0] + pts["W12"][0]) / 2,
+               (pts["W11"][1] + pts["W12"][1]) / 2)
+    _ch_base = offset_pt(offset_pt(_ch_mid, -1.0 / 12.0, w11w12_al),
+                         8.0 / 12.0, w11w12_in)
+    # Rotational 4" offset in chair facing direction
+    ch_cx = _ch_base[0] - 4.0 / 12.0 * math.sin(ch_angle)
+    ch_cy = _ch_base[1] - 4.0 / 12.0 * math.cos(ch_angle)
     ch_w = ch_cx - CHAIR_WIDTH / 2
     ch_e = ch_cx + CHAIR_WIDTH / 2
     ch_s = ch_cy - CHAIR_DEPTH / 2
