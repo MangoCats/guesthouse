@@ -3,9 +3,7 @@ from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import (
-    poly_area, line_isect, arc_poly,
-    circle_circle_isect, line_circle_isect_min_t_gt, line_circle_isect_min_abs_t,
-    segment_polyline, path_polygon, arc_sweep_deg,
+    poly_area, segment_polyline, path_polygon, arc_sweep_deg,
     brg_dist, fmt_brg, fmt_dist,
     compute_inner_walls,
 )
@@ -222,70 +220,10 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
         else:
             pl = segment_polyline(seg, pts)
             lines.append(f'<polyline points="{svg_polygon_pts(pl, to_svg)}" fill="none" stroke="#666" stroke-width="1.0" stroke-linecap="round"/>')
-    # IW1
-    iw1 = L.iw1.poly
-    lines.append(f'<polygon points="{svg_polygon_pts(iw1, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
-    for a,b in [(iw1[0],iw1[1]),(iw1[3],iw1[2])]:
-        s1,s2 = to_svg(*a),to_svg(*b)
-        lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
-    # IW8 (west extension of IW1)
-    iw8 = L.iw8.poly
-    lines.append(f'<polygon points="{svg_polygon_pts(iw8, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
-    for a,b in [(iw8[0],iw8[1]),(iw8[3],iw8[2])]:
-        s1,s2 = to_svg(*a),to_svg(*b)
-        lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
-    # IW2
-    lines.append(f'<polygon points="{svg_polygon_pts(L.iw2.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="none"/>')
-    for ev in [L.iw2.w,L.iw2.e]:
-        s1,s2 = to_svg(ev,L.iw2.s),to_svg(ev,L.iw2.n)
-        lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
-    # IW3 (rotated, 4" thick, perpendicular to W20-W0)
-    lines.append(f'<polygon points="{svg_polygon_pts(L.iw3.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW7 (rotated, 4" thick, parallel to W20-W0)
-    lines.append(f'<polygon points="{svg_polygon_pts(L.iw7.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW9 (rotated, 4" thick, perpendicular to W20-W0)
-    lines.append(f'<polygon points="{svg_polygon_pts(L.iw9.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW16 (vertical, 4" — IW3 NW to IW1)
-    lines.append(f'<polygon points="{svg_polygon_pts(L.iw16.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW4 (east bedroom wall)
-    wsn = L.iw4.s
-    _iw4_n = L.iw12.poly[2][1]
-    iw4_poly = [(L.iw4.w,L.iw4.s),(L.iw4.e,L.iw4.s),(L.iw4.e,_iw4_n),(L.iw4.w,_iw4_n)]
-    lines.append(f'<polygon points="{svg_polygon_pts(iw4_poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW11 N-S wall
-    lines.append(f'<polygon points="{svg_polygon_pts(L.iw11.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW12 wall
-    lines.append(f'<polygon points="{svg_polygon_pts(L.iw12.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # IW14 wall
-    lines.append(f'<polygon points="{svg_polygon_pts(L.iw14.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
-    # Appliances
-    for lbl,sw_e,sw_n,ne_e,ne_n in [("DRYER",L.dryer.w,L.dryer.s,L.dryer.e,L.dryer.n),
-                                      ("WASHER",L.washer.w,L.washer.s,L.washer.e,L.washer.n)]:
-        s1,s2 = to_svg(sw_e,ne_n),to_svg(ne_e,sw_n); w=s2[0]-s1[0]; h=s2[1]-s1[1]
-        lines.append(f'<rect x="{s1[0]:.1f}" y="{s1[1]:.1f}" width="{w:.1f}" height="{h:.1f}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
-        cx,cy = (s1[0]+s2[0])/2,(s1[1]+s2[1])/2
-        lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">{lbl}</text>')
-    # Counter with rounded NW corner
-    ctr_w, ctr_e, ctr_s, ctr_n = L.ctr.w, L.ctr.e, L.ctr.s, L.ctr.n
-    ctr_nw_r = L.ctr_nw_r
-    csw,cse,cne = to_svg(ctr_w,ctr_s),to_svg(ctr_e,ctr_s),to_svg(ctr_e,ctr_n)
-    cnas,cnae = to_svg(ctr_w+ctr_nw_r,ctr_n),to_svg(ctr_w,ctr_n-ctr_nw_r)
-    rsv = abs(cnas[0]-to_svg(ctr_w,ctr_n)[0])
-    cd = (f'M {csw[0]:.1f},{csw[1]:.1f} L {cse[0]:.1f},{cse[1]:.1f} L {cne[0]:.1f},{cne[1]:.1f} '
-          f'L {cnas[0]:.1f},{cnas[1]:.1f} A {rsv:.1f} {rsv:.1f} 0 0 0 {cnae[0]:.1f},{cnae[1]:.1f} Z')
-    lines.append(f'<path d="{cd}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
-    ccx,ccy = (csw[0]+cse[0])/2,(csw[1]+cne[1])/2
-    lines.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
-    # King Bed
-    lines.append(f'<polygon points="{svg_polygon_pts(L.bed.poly, to_svg)}" fill="rgba(100,150,200,0.3)" stroke="#4682B4" stroke-width="0.8"/>')
-    bcx = sum(to_svg(*p)[0] for p in L.bed.poly)/4
-    bcy = sum(to_svg(*p)[1] for p in L.bed.poly)/4
-    lines.append(f'<text x="{bcx:.1f}" y="{bcy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#4682B4">KING BED</text>')
-    # Room labels
-    bx,by = to_svg(L.iw2.e + 139.0/12.0,(ctr_s+L.iw1.s)/2)
-    lines.append(f'<text x="{bx:.1f}" y="{by+3:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
-    cx,cy = to_svg((L.iw4.e+L.iw4.w)/2,(wsn+wsn+6.0)/2)
-    lines.append(f'<text x="{cx:.1f}" y="{cy+3:.1f}" text-anchor="middle" font-family="Arial" font-size="7" fill="#666" transform="rotate(-90,{cx:.1f},{cy+3:.1f})">CLOSET</text>')
+    # Interior walls (all IW structures from layout)
+    for iw in [L.iw1, L.iw2, L.iw3, L.iw4, L.iw5, L.iw6, L.iw7, L.iw8,
+               L.iw9, L.iw11, L.iw12, L.iw14, L.iw15, L.iw16]:
+        lines.append(f'<polygon points="{svg_polygon_pts(iw.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     lines.append('</g>')
 
 # ============================================================

@@ -109,27 +109,7 @@ class TestRenderFloorplan:
         joined = "\n".join(lines)
         assert 'fill-rule="evenodd"' in joined
 
-    def test_appliance_labels(self, all_data):
-        lines = []
-        render_floorplan(
-            lines, all_data["to_svg"], all_data["pts"],
-            all_data["outer_poly"], all_data["inner_poly"],
-            all_data["inner_segs"], all_data["layout"])
-        joined = "\n".join(lines)
-        for label in ["DRYER", "WASHER", "COUNTER", "KING BED"]:
-            assert label in joined, f"Missing label {label}"
-
-    def test_room_labels(self, all_data):
-        lines = []
-        render_floorplan(
-            lines, all_data["to_svg"], all_data["pts"],
-            all_data["outer_poly"], all_data["inner_poly"],
-            all_data["inner_segs"], all_data["layout"])
-        joined = "\n".join(lines)
-        assert "CLOSET" in joined
-        assert "BEDROOM" in joined
-
-    def test_iw_polygons(self, all_data):
+    def test_all_iw_polygons(self, all_data):
         import re
         lines = []
         render_floorplan(
@@ -137,5 +117,6 @@ class TestRenderFloorplan:
             all_data["outer_poly"], all_data["inner_poly"],
             all_data["inner_segs"], all_data["layout"])
         joined = "\n".join(lines)
-        iw_fills = re.findall(r'fill="rgba\(160,160,160,0\.5\)"', joined)
-        assert len(iw_fills) >= 6
+        # 14 IW polygons + 1 wall band path = 15 uses of the wall fill
+        iw_polys = re.findall(r'<polygon[^>]*fill="rgba\(160,160,160,0\.5\)"', joined)
+        assert len(iw_polys) == 14
