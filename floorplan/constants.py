@@ -17,8 +17,8 @@ WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW7, IW8)
 # Appliance dimensions (feet)
 APPLIANCE_WIDTH = 35.0 / 12.0     # 35" washer/dryer width
 APPLIANCE_DEPTH = 30.0 / 12.0     # 30" washer/dryer depth
-APPLIANCE_OFFSET_FROM_W2 = 6.0 / 12.0   # 6" from W2, CW-normal to W2-W3
-APPLIANCE_OFFSET_FROM_W1 = 4.0 / 12.0   # 4" from W1, along W2-W3 direction
+APPLIANCE_OFFSET_FROM_W2 = 6.0 / 12.0   # 6" from W2, CW-normal to W2-W5
+APPLIANCE_OFFSET_FROM_W1 = 4.0 / 12.0   # 4" from W1, along W2-W5 direction
 APPLIANCE_GAP = 1.0 / 12.0        # 1" gap between dryer and washer
 
 # Counter
@@ -32,11 +32,11 @@ BEDROOM_WIDTH = 138.0 / 12.0      # 11'6" E-W
 CLOSET_WIDTH = 30.0 / 12.0        # 30" closet depth (closet 1)
 CLOSET2_WIDTH = 28.0 / 12.0       # 28" closet 2 depth (east)
 CLOSET1_HEIGHT = 6.0              # 6' closet 1 N-S
-IW1_OFFSET_FROM_W1 = 12.0 + 8.0/12.0    # 12'8" from W1, along W2-W3 direction
-IW1_OFFSET_FROM_W2 = 6.5           # 6'6" from W2, CW-normal to W2-W3
-IW2_OFFSET_FROM_W2 = 6.5                # 6'6" from W2, CW-normal to W2-W3
-IW4_OFFSET_FROM_IW2 = 224.0 / 12.0   # 18'8" from IW2 east face, CW-normal to W2-W3
-RO1_OFFSET_FROM_IW2 = 116.0 / 12.0   # 9'8" from IW2 east face, CW-normal to W2-W3
+IW1_OFFSET_FROM_W1 = 12.0 + 8.0/12.0    # 12'8" from W1, along W2-W5 direction
+IW1_OFFSET_FROM_W2 = 6.5           # 6'6" from W2, CW-normal to W2-W5
+IW2_OFFSET_FROM_W2 = 6.5                # 6'6" from W2, CW-normal to W2-W5
+IW4_OFFSET_FROM_IW2 = 224.0 / 12.0   # 18'8" from IW2 east face, CW-normal to W2-W5
+RO1_OFFSET_FROM_IW2 = 116.0 / 12.0   # 9'8" from IW2 east face, CW-normal to W2-W5
 
 # Bed
 BED_WIDTH = 76.0 / 12.0           # 76" king bed
@@ -125,20 +125,19 @@ IW6_RO_OFFSET_W = 3.0 / 12.0      # 3" west of IW2 west face
 IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
 # Outer-wall openings (numbered CW around outline)
-# O1 (F2-F3, lower)
-O1_OFFSET_FROM_F3 = 99.0 / 12.0          # 99" from F3
+# O1 (F2-F5 east wall, centered at RO3 normal projection)
 O1_WIDTH = 19.0 / 12.0             # 19" opening height
-# O2 (F4-F5, centered at RO4 northing center)
+# O2 (F2-F5, centered at RO4 northing center)
 O2_WIDTH = 19.0 / 12.0             # 19" opening width
-# O3 (F4-F5, 4" from F5)
-O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F4 line
+# O3 (F2-F5, 4" from F5)
+O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F2 line
 O3_WIDTH = 32.0 / 12.0             # 32" opening width
 O3_DOOR_WIDTH = 30.0 / 12.0        # 30" door in O3
 # O4 (F6-F7, relative to IW2 west face)
 O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
 O4_OFFSET_FROM_IW2 = 11.0 / 12.0     # 11" from IW2
 # O5 (F9-F10)
-O5_OFFSET_FROM_IW2 = 120.0 / 12.0       # 10' from IW2, CW-normal to W2-W3
+O5_OFFSET_FROM_IW2 = 120.0 / 12.0       # 10' from IW2, CW-normal to W2-W5
 O5_WIDTH = 68.0 / 12.0            # 5'8" opening width
 # O6 (F9-F10)
 O6_WIDTH = 44.0 / 12.0             # 44" opening width
@@ -178,7 +177,8 @@ BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
 
 # Outline geometry constraints
-CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: corner arc (10" at 8" wall)
+# R_a1 (NE corner 90° arc) is now derived in floorplan/geometry.py from
+# chain closure constraint: R_a1 = E_F1 - E_F5 (≈26.6" at 8" wall).
 CORNER_NW_R = 28.0 / 12.0 + WALL_EXTRA   # R_a5: NW corner (28" at 8" wall)
 UPPER_E_R = 28.0 / 12.0 + WALL_EXTRA     # R_a7: upper east (28" at 8" wall)
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
@@ -191,7 +191,7 @@ F6_HEIGHT = 27.0 + 2*WALL_EXTRA  # F6-F7 north of F1 (27'0" at 8"; +2*WALL_EXTRA
 NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_OFFSET_FROM_W9 = 11.0              # 11'0" from W9, CW-normal to W9-W10
 IW8_OFFSET_FROM_IW1 = 19.0 / 12.0    # 19" from IW1, toward W9-W10
-F3_OFFSET_FROM_IW8 = 2.0 / 12.0      # 2" from IW8, toward W9-W10
+F2_OFFSET_FROM_IW8 = 2.0 / 12.0      # 2" from IW8, toward W9-W10 (was F3)
 F14_OFFSET_FROM_IW1 = 2.0 / 12.0     # 2" from IW1, toward W9-W10
 F14_F15_SEG = 8.5                  # 8'6" segment
 F14_F15_DIST = 8.0 + 8.0 / 12.0       # 8'8" F14-F15 target distance
@@ -199,10 +199,10 @@ ARC_F13_R_BASELINE = 5.627004870830987 + WALL_EXTRA  # C11a anchor baseline (ori
 F13_EXIT_BRG = 345.0              # 345-degree exit bearing
 SOUTH_WALL_FACE = -6.0 / 12.0 - WALL_EXTRA  # south wall face northing (-6" at 8" wall)
 PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
-F15_OFFSET_FROM_IW8 = 9.0 + 3.0/12.0 + WALL_EXTRA  # F15 from IW8, CW-normal to W2-W3 (9'3" at 8" wall)
+F15_OFFSET_FROM_IW8 = 9.0 + 3.0/12.0 + WALL_EXTRA  # F15 from IW8, CW-normal to W2-W5 (9'3" at 8" wall)
 ARC_F17_SWEEP = 30.0               # 30° sweep for F17-F18 arc (CW)
 F16_F17_MIN = 5.0                  # minimum 5' F16-F17 segment length
-F18_OFFSET_FROM_IW4 = 2.0 / 12.0         # 2" from IW4, CW-normal to W2-W3
+F18_OFFSET_FROM_IW4 = 2.0 / 12.0         # 2" from IW4, CW-normal to W2-W5
 F19_OFFSET_FROM_IW4 = -10.0 / 12.0       # F19 10" from IW4 (negative = opposite CW-normal)
 ARC_F19_R = 18.888718471469218 + WALL_EXTRA  # R_a19: ~226.7" at 8" wall
 

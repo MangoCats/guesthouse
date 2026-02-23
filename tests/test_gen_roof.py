@@ -57,7 +57,7 @@ class TestRenderRoofSvg:
         assert 'stroke-dasharray="3,2"' in rendered
 
     def test_r_series_labels(self, rendered):
-        for name in ["R1", "R2", "R5", "R6", "R7"]:
+        for name in ["R1", "R5", "R6", "R7"]:
             assert f">{name}<" in rendered
 
     def test_r3_r4_fillet_labels(self, rendered):

@@ -166,7 +166,7 @@ def build_site_plan_data():
 
     # --- External dimensions (building-aligned, matching floorplan dim15/dim13) ---
     _bld_ew, _ = seg_vecs(pts["W9"], pts["W10"])   # building E-W direction
-    _bld_ns, _ = seg_vecs(pts["W2"], pts["W3"])     # building N-S direction
+    _bld_ns, _ = seg_vecs(pts["W2"], pts["W5"])     # building N-S direction
 
     _df_ew = (pts["F15"][0] - pts["F2"][0], pts["F15"][1] - pts["F2"][1])
     ew_dim_ft = abs(_df_ew[0] * _bld_ew[0] + _df_ew[1] * _bld_ew[1])
@@ -195,11 +195,11 @@ def build_site_plan_data():
     f15_pdf = (f15_pdf_x, f15_pdf_y)
 
     # --- F-series PDF coordinates ---
-    _f_names = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b", "FC"]
+    _f_names = [f"F{i}" for i in range(1, 21) if i not in (3, 4)] + ["F11a", "F11b", "FC"]
     f_series_pdf = {name: building_to_pdf(*pts[name]) for name in _f_names}
 
     # --- Min setback distances (F-points only, excluding FC) ---
-    _f_struct = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b"]
+    _f_struct = [f"F{i}" for i in range(1, 21) if i not in (3, 4)] + ["F11a", "F11b"]
     min_setback_216 = min(
         ((pt[0] - LINE_TOP[0]) * (-ldy) + (pt[1] - LINE_TOP[1]) * ldx)
         / (llen * SCALE)
@@ -315,7 +315,7 @@ def render_site_plan(sp, corners=True):
         shape.finish(color=(1, 0, 0), width=0.5, fill=None,
                      stroke_opacity=0.4)
 
-    # --- F15 to F2-F3 dimension line ---
+    # --- F15 to F2-F5 dimension line ---
     f15 = pts["F15"]
     f15_pdf = building_to_pdf(*f15)
     foot_pdf = building_to_pdf(pts["F2"][0], f15[1])

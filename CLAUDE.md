@@ -66,12 +66,12 @@ No circular dependencies. floorplan/ never imports from survey/, walls/, or span
 - Individual arc `direction` ("CW"/"CCW" in `ArcSeg`) refers to each arc's own sweep direction, not the outline traversal. CW arcs (convex corners) get inner radius `R - wall_t`; CCW arcs (concave corners) get `R + wall_t`
 
 ## Key Patterns
-- Outline points: F-series (`F1`..`F20`, `F11a`, `F11b`), primary naming; U-series derived as aliases in survey/gen_path_svg.py
-- Inner wall points: W-series (`W1`..`W20`, `W11a`, `W11b`), 8" inset from outline, matching F-series numbering
-- Shell boundary points: S-series (`S1`..`S20`, `S11a`, `S11b`) = 2" inset (inner face of outer shell); G-series (`G1`..`G20`, `G11a`, `G11b`) = 6" inset (outer face of inner shell). Computed via `shared/wall_shells.py:compute_inset_path` with custom inset + prefix rename
-- Arc centers: C-series by lower point number (`C1`, `C3`, `C5`, `C7`, `C8`, `C10`, `C11`, `C11a`, `C13`, `C15`, `C17`, `C19`); radii: R_a-series (`R_a1`, `R_a3`, ..., `R_a19`)
+- Outline points: F-series (`F1`, `F2`, `F5`..`F20`, `F11a`, `F11b` — no F3/F4), primary naming; U-series derived as aliases in survey/gen_path_svg.py
+- Inner wall points: W-series (`W1`, `W2`, `W5`..`W20`, `W11a`, `W11b`), 8" inset from outline, matching F-series numbering
+- Shell boundary points: S-series / G-series, matching F-series numbering. Computed via `shared/wall_shells.py:compute_inset_path` with custom inset + prefix rename
+- Arc centers: C-series by lower point number (`C1`, `C5`, `C7`, `C8`, `C10`, `C11`, `C11a`, `C13`, `C15`, `C17`, `C19`); radii: R_a-series (`R_a1`, `R_a5`, ..., `R_a19`)
 - Traverse arc centers: `TC1`, `TC2`, `TC3` (outer/inset path)
-- `outline_segs`: list of 22 `LineSeg`/`ArcSeg` defining the closed outline path (CW traversal: F1→F2→...→F11→F11a→F11b→F12→...→F20→F1)
+- `outline_segs`: list of 20 `LineSeg`/`ArcSeg` defining the closed outline path (CW traversal: F1→F2→F5→...→F11→F11a→F11b→F12→...→F20→F1)
 - All radii in `OutlineGeometry.radii` dict; passed to `compute_inner_walls`
 - Arc tangency: `|center1 - center2| = R1 + R2` (external)
 - Physical constants defined once in `floorplan/constants.py` — no magic numbers in geometry/layout code

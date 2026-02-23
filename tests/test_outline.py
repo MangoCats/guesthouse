@@ -7,12 +7,10 @@ from floorplan.geometry import OutlineGeometry
 
 
 # Known-good F-series coordinates (FC-based: building center = origin,
-# rotated by COORD_ROTATION = arctan(1/9) so F4-F5 is at bearing 0)
+# rotated by COORD_ROTATION = arctan(1/9) so F2-F5 is at bearing 0)
 _EXPECTED_F = {
     "F1":  (-15.9021397548, -13.1648537450),
-    "F2":  (-16.7303762003, -12.4235466834),
-    "F3":  (-18.0647571404,  -0.4141182228),
-    "F4":  (-18.1158389349,   0.5081832496),
+    "F2":  (-18.1158389349, -10.9511545649),
     "F5":  (-18.1158389349,   9.9848504826),
     "F6":  (-16.0401791624,  12.3039125302),
     "F7":  (-10.8222895553,  12.8836780421),
@@ -38,17 +36,17 @@ class TestOutlineGeometry:
     def test_returns_outline_geometry(self, outline_geo):
         assert isinstance(outline_geo, OutlineGeometry)
 
-    def test_22_points(self, outline_geo):
-        for i in [j for j in range(21) if j != 0]:
+    def test_20_points(self, outline_geo):
+        for i in [j for j in range(21) if j not in (0, 3, 4)]:
             assert f"F{i}" in outline_geo.fp_pts
         assert "F11a" in outline_geo.fp_pts
         assert "F11b" in outline_geo.fp_pts
 
-    def test_22_segments(self, outline_geo):
-        assert len(outline_geo.outline_segs) == 22
+    def test_20_segments(self, outline_geo):
+        assert len(outline_geo.outline_segs) == 20
 
-    def test_11_radii(self, outline_geo):
-        assert len(outline_geo.radii) == 11
+    def test_10_radii(self, outline_geo):
+        assert len(outline_geo.radii) == 10
         for key, val in outline_geo.radii.items():
             assert key.startswith("R_a")
             assert val > 0, f"{key} = {val}"
@@ -70,7 +68,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 882.07) < 0.1
+        assert abs(area - 890.83) < 0.1
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):

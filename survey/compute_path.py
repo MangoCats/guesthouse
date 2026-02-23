@@ -6,7 +6,7 @@ from shared.svg import make_svg_transform
 
 # === Traverse (raw survey data, instrument at POB) ===
 # All coordinates below are FC-based: FC (building center) = (0, 0),
-# rotated by COORD_ROTATION so F4-F5 aligns to bearing 0.
+# rotated by COORD_ROTATION so F2-F5 aligns to bearing 0.
 _pts = compute_traverse()
 _arc = compute_three_arc(_pts)
 rotate_pts(_pts, COORD_ROTATION)

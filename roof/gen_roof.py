@@ -71,7 +71,7 @@ def render_roof_svg(fp_data, roof):
                f' stroke="#333" stroke-width="0.8" stroke-dasharray="3,2"/>')
 
     # R-series point labels
-    for name in ["R1", "R2", "R5", "R6", "R7"]:
+    for name in ["R1", "R5", "R6", "R7"]:
         sx, sy = to_svg(*roof.pts[name])
         out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="1.5"'
                    f' fill="#333" stroke="none"/>')

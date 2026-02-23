@@ -63,8 +63,7 @@ def compute_roof_geometry(fp_pts: dict[str, Point],
 
     # Offset straight wall segments outward (left of CW traversal = exterior)
     oL_F20_F1 = _offset_line(fp_pts["F20"], fp_pts["F1"], oh)
-    oL_F2_F3 = _offset_line(fp_pts["F2"], fp_pts["F3"], oh)
-    oL_F4_F5 = _offset_line(fp_pts["F4"], fp_pts["F5"], oh)
+    oL_F2_F5 = _offset_line(fp_pts["F2"], fp_pts["F5"], oh)
     oL_F6_F7 = _offset_line(fp_pts["F6"], fp_pts["F7"], oh)
     oL_F11a_F11b = _offset_line(fp_pts["F11a"], fp_pts["F11b"], oh)
     oL_F12_F13 = _offset_line(fp_pts["F12"], fp_pts["F13"], oh)
@@ -74,13 +73,12 @@ def compute_roof_geometry(fp_pts: dict[str, Point],
     pts: dict[str, Point] = {}
 
     # Sharp corners
-    pts["R1"] = _isect(oL_F20_F1, oL_F2_F3)
-    pts["R2"] = _isect(oL_F2_F3, oL_F4_F5)
+    pts["R1"] = _isect(oL_F20_F1, oL_F2_F5)
     pts["R5"] = _isect(oL_F12_F13, oL_F14_F15)
     pts["R6"] = _isect(oL_F14_F15, oL_F16_F17)
     pts["R7"] = _isect(oL_F16_F17, oL_F20_F1)
 
-    # R3: filleted corner (F4-F5 / F6-F7), radius R_a5 + oh, center C5
+    # R3: filleted corner (F2-F5 / F6-F7), radius R_a5 + oh, center C5
     r3_r = R_a5 + oh
     r3_c = fp_pts["C5"]
     pts["R3s"] = _arc_tangent_pt(r3_c, fp_pts["F5"], R_a5, r3_r)
@@ -93,7 +91,7 @@ def compute_roof_geometry(fp_pts: dict[str, Point],
     pts["R4e"] = _arc_tangent_pt(r4_c, fp_pts["F12"], R_a11, r4_r)
 
     # Compute area: polygon with arc segments sampled into points
-    poly: list[Point] = [pts["R1"], pts["R2"], pts["R3s"]]
+    poly: list[Point] = [pts["R1"], pts["R3s"]]
 
     # R3 arc: CW from R3s to R3e around r3_c
     n_arc = 30
@@ -124,7 +122,7 @@ def roof_segments(roof: RoofGeometry) -> list:
 
     Returns list of ("line", x1, y1, x2, y2) and
     ("arc", cx, cy, r, a1_deg, a2_deg) tuples — same format as T-path
-    elements.  The outline is CW (R1→R2→R3 arc→...→R7→R1).
+    elements.  The outline is CW (R1→R3 arc→...→R7→R1).
     """
     pts = roof.pts
     r3_c, r3_r = roof.r3_center, roof.r3_radius
@@ -141,8 +139,7 @@ def roof_segments(roof: RoofGeometry) -> list:
         return ("arc", center[0], center[1], radius, a1, a2)
 
     return [
-        _line(pts["R1"], pts["R2"]),
-        _line(pts["R2"], pts["R3s"]),
+        _line(pts["R1"], pts["R3s"]),
         _arc_cw(r3_c, r3_r, pts["R3s"], pts["R3e"]),
         _line(pts["R3e"], pts["R4s"]),
         _arc_cw(r4_c, r4_r, pts["R4s"], pts["R4e"]),
@@ -156,7 +153,7 @@ def roof_segments(roof: RoofGeometry) -> list:
 def roof_polyline(roof: RoofGeometry, n_arc: int = 30) -> list[Point]:
     """Build the roof outline as a list of (E,N) points, sampling arcs."""
     pts = roof.pts
-    poly: list[Point] = [pts["R1"], pts["R2"], pts["R3s"]]
+    poly: list[Point] = [pts["R1"], pts["R3s"]]
 
     # R3 arc: CW from R3s to R3e around r3_center
     poly.extend(_sample_arc_cw(roof.r3_center, roof.r3_radius,

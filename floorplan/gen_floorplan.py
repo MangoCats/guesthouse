@@ -336,7 +336,7 @@ def build_floorplan_data():
     # --- Fit content on letter landscape (792x612) page ---
     _margin_top = 36   # 0.5" top margin
     _margin = 72       # 1" margins on left, right, bottom
-    _f_names = [f"F{i}" for i in range(21) if i != 0]
+    _f_names = [f"F{i}" for i in range(21) if i not in (0, 3, 4)]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -359,7 +359,7 @@ def build_floorplan_data():
     _na_tip_y = _na_text_y + 6
     _na_base_y = _na_tip_y + 36
 
-    _ext_w_x = to_svg(pts["F3"][0] - 2.7, 0)[0]
+    _ext_w_x = to_svg(pts["F2"][0] - 2.7, 0)[0]
     _ext_s_y = to_svg(0, pts["F19"][1] - 3.0)[1]
     _cb_xmin = min(_bldg_xmin - 25, _ext_w_x - 10)
     _cb_xmax = _tb_right + 5
@@ -407,7 +407,7 @@ def compute_placement_points(pts, layout, radii):
     wall_t = WALL_OUTER
 
     # ---- Utility room appliances ----
-    w2w3_al, w2w3_in = seg_vecs(pts["W2"], pts["W3"])
+    w2w5_al, w2w5_in = seg_vecs(pts["W2"], pts["W5"])
     _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
 
     # Water heater center (line-circle intersection)
@@ -554,7 +554,7 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
 
     # Reference directions from axis-aligned wall segments
     _ew, _ = seg_vecs(pts["W9"], pts["W10"])      # east direction
-    _ns, _ = seg_vecs(pts["W2"], pts["W3"])        # north direction
+    _ns, _ = seg_vecs(pts["W2"], pts["W5"])        # north direction
     _w20w1_al, _w20w1_in = seg_vecs(pts["W20"], pts["W1"])
 
     # Pre-compute commonly used IW face directions
@@ -601,7 +601,7 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     # ---- dim05: W2 → IW3 west face at 8ft (horizontal) ----
     _iw3_w_al, _ = seg_vecs(layout.iw3.poly[0], layout.iw3.poly[3])
     _target5 = offset_pt(pts["W2"], 8.0, _ew)
-    _dim05_B = line_isect(layout.iw3.poly[0], _iw3_w_al, _target5, _ns)
+    _dim05_B = line_isect(layout.iw3.poly[0], _iw3_w_al, _target5, _ew)
     _dim05_A = line_isect(pts["W2"], _ns, _dim05_B, _ew)
     result.extend([("dim05_A", _dim05_A), ("dim05_B", _dim05_B)])
 
@@ -636,14 +636,8 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
                   (_ro3.poly[3][1] + _ro3.poly[0][1]) / 2)
     result.extend([("dim08_A", _o1_e_ctr), ("dim08_B", _ro3_w_ctr)])
 
-    # ---- dim09: W2-W3 → IW2-west (horizontal at F3 northing) ----
-    result.append(("dim09_A", line_isect(pts["W2"], _ns, pts["F3"], _ew)))
-    result.append(("dim09_B", line_isect(layout.iw2.poly[0], _iw2_w_al,
-                                         pts["F3"], _ew)))
-
-    # ---- dim10: W4-W5 → IW2-west (horizontal at F5 northing) ----
-    _w4w5_al, _ = seg_vecs(pts["W4"], pts["W5"])
-    result.append(("dim10_A", line_isect(pts["W4"], _w4w5_al,
+    # ---- dim10: W2-W5 → IW2-west (horizontal at F5 northing) ----
+    result.append(("dim10_A", line_isect(pts["W2"], _ns,
                                          pts["F5"], _ew)))
     result.append(("dim10_B", line_isect(layout.iw2.poly[0], _iw2_w_al,
                                          pts["F5"], _ew)))
@@ -688,7 +682,7 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
                                                  _ro4_tip, _ns)))
 
     # ---- dim13: External F18 → F6 (vertical) ----
-    _dim13_ref = offset_pt(pts["F3"], -2.7, _ew)
+    _dim13_ref = offset_pt(pts["F2"], -2.7, _ew)
     result.append(("dim13_A", line_isect(pts["F18"], _ew, _dim13_ref, _ns)))
     result.append(("dim13_B", line_isect(pts["F6"], _ew, _dim13_ref, _ns)))
 
@@ -1226,21 +1220,21 @@ def _render_appliances(out, data, layout, minik=False, db=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
     pts = data.pts
     to_svg = data.to_svg
-    # West wall (W2-W3) direction vectors for wall-relative placement
-    w2w3_al, w2w3_in = seg_vecs(pts["W2"], pts["W3"])
+    # East wall (W2-W5) direction vectors for wall-relative placement
+    w2w5_al, w2w5_in = seg_vecs(pts["W2"], pts["W5"])
     # IW2 east face: along=north, outward=east
     _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
 
     # Dryer and washer
-    minik_appl_w = 32.0 / 12.0   # 32" along w2w3_in in minik
-    minik_appl_d = 27.0 / 12.0   # 27" along w2w3_al in minik
+    minik_appl_w = 32.0 / 12.0   # 32" along w2w5_in in minik
+    minik_appl_d = 27.0 / 12.0   # 27" along w2w5_al in minik
     minik_appl_links = {
         "DRYER": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377",
         "WASHER": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375",
     }
-    # Standard shift: 4" inward from W2-W3, 2" opposite along-wall
-    _shift = (4.0 / 12.0 * w2w3_in[0] + (-2.0 / 12.0) * w2w3_al[0],
-              4.0 / 12.0 * w2w3_in[1] + (-2.0 / 12.0) * w2w3_al[1])
+    # Standard shift: 4" inward from W2-W5, 2" opposite along-wall
+    _shift = (4.0 / 12.0 * w2w5_in[0] + (-2.0 / 12.0) * w2w5_al[0],
+              4.0 / 12.0 * w2w5_in[1] + (-2.0 / 12.0) * w2w5_al[1])
     _dryer_nw_mk = None
     _small_wd = minik or db
     for label, wall_obj in [("DRYER", layout.dryer), ("WASHER", layout.washer)]:
@@ -1250,16 +1244,16 @@ def _render_appliances(out, data, layout, minik=False, db=False):
         if _small_wd:
             if label == "DRYER":
                 _sw = poly[0]
-                _se = offset_pt(_sw, minik_appl_w, w2w3_in)
-                _nw = offset_pt(_sw, minik_appl_d, w2w3_al)
-                _ne = offset_pt(_se, minik_appl_d, w2w3_al)
+                _se = offset_pt(_sw, minik_appl_w, w2w5_in)
+                _nw = offset_pt(_sw, minik_appl_d, w2w5_al)
+                _ne = offset_pt(_se, minik_appl_d, w2w5_al)
                 poly = [_sw, _se, _ne, _nw]
                 _dryer_nw_mk = _nw
             else:  # WASHER: 1" along wall from dryer
-                _sw = offset_pt(_dryer_nw_mk, 1.0 / 12.0, w2w3_al)
-                _se = offset_pt(_sw, minik_appl_w, w2w3_in)
-                _nw = offset_pt(_sw, minik_appl_d, w2w3_al)
-                _ne = offset_pt(_se, minik_appl_d, w2w3_al)
+                _sw = offset_pt(_dryer_nw_mk, 1.0 / 12.0, w2w5_al)
+                _se = offset_pt(_sw, minik_appl_w, w2w5_in)
+                _nw = offset_pt(_sw, minik_appl_d, w2w5_al)
+                _ne = offset_pt(_se, minik_appl_d, w2w5_al)
                 poly = [_sw, _se, _ne, _nw]
         link = minik_appl_links.get(label) if _small_wd else None
         _appl_poly(out, poly, to_svg, label=label, href=link, close_href=False)
@@ -1267,15 +1261,15 @@ def _render_appliances(out, data, layout, minik=False, db=False):
         _hinge = poly[2]  # NE corner
         _door_len = math.sqrt((poly[3][0] - poly[0][0])**2 + (poly[3][1] - poly[0][1])**2)
         _hx, _hy = to_svg(*_hinge)
-        _tip = offset_pt(_hinge, _door_len, w2w3_in)
+        _tip = offset_pt(_hinge, _door_len, w2w5_in)
         _tx, _ty = to_svg(*_tip)
         out.append(f'<line x1="{_hx:.1f}" y1="{_hy:.1f}" x2="{_tx:.1f}" y2="{_ty:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         _arc_pts = []
         for _i in range(21):
             _t = _i * (math.pi / 2) / 20
-            _ae = _hinge[0] + _door_len * (math.cos(_t) * w2w3_in[0] - math.sin(_t) * w2w3_al[0])
-            _an = _hinge[1] + _door_len * (math.cos(_t) * w2w3_in[1] - math.sin(_t) * w2w3_al[1])
+            _ae = _hinge[0] + _door_len * (math.cos(_t) * w2w5_in[0] - math.sin(_t) * w2w5_al[0])
+            _an = _hinge[1] + _door_len * (math.cos(_t) * w2w5_in[1] - math.sin(_t) * w2w5_al[1])
             _ax, _ay = to_svg(_ae, _an)
             _arc_pts.append(f"{_ax:.1f},{_ay:.1f}")
         out.append(f'<polyline points="{" ".join(_arc_pts)}" fill="none"'
@@ -1284,25 +1278,25 @@ def _render_appliances(out, data, layout, minik=False, db=False):
             out.append('</a>')
     washer_poly = poly  # save last poly for hamper positioning
 
-    # Hamper: 31.5" x 19", 2" along wall from washer, 2" inward from W2-W3
-    hm_ew = 31.5 / 12.0   # width along w2w3_in
-    hm_ns = 19.0 / 12.0   # depth along w2w3_al
+    # Hamper: 31.5" x 19", 2" along wall from washer, 2" inward from W2-W5
+    hm_ew = 31.5 / 12.0   # width along w2w5_in
+    hm_ns = 19.0 / 12.0   # depth along w2w5_al
     # Anchor: 2" inward from W2, washer NW + 2" along wall
-    _washer_nw_d = ((washer_poly[3][0] - pts["W2"][0]) * w2w3_al[0] +
-                    (washer_poly[3][1] - pts["W2"][1]) * w2w3_al[1])
-    _hm_sw = offset_pt(offset_pt(pts["W2"], _washer_nw_d + 2.0 / 12.0, w2w3_al),
-                        2.0 / 12.0, w2w3_in)
-    _hm_se = offset_pt(_hm_sw, hm_ew, w2w3_in)
-    _hm_nw = offset_pt(_hm_sw, hm_ns, w2w3_al)
-    _hm_ne = offset_pt(_hm_se, hm_ns, w2w3_al)
+    _washer_nw_d = ((washer_poly[3][0] - pts["W2"][0]) * w2w5_al[0] +
+                    (washer_poly[3][1] - pts["W2"][1]) * w2w5_al[1])
+    _hm_sw = offset_pt(offset_pt(pts["W2"], _washer_nw_d + 2.0 / 12.0, w2w5_al),
+                        2.0 / 12.0, w2w5_in)
+    _hm_se = offset_pt(_hm_sw, hm_ew, w2w5_in)
+    _hm_nw = offset_pt(_hm_sw, hm_ns, w2w5_al)
+    _hm_ne = offset_pt(_hm_se, hm_ns, w2w5_al)
     hm_poly = [_hm_sw, _hm_se, _hm_ne, _hm_nw]
     hm_href = "https://www.homedepot.com/p/Casual-Home-Eco-Home-Laundry-Prep-Hamper-761-30/307595219"
     out.append(f'<a href="{hm_href}" target="_blank">')
     _hm_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in hm_poly)
     out.append(f'<polygon points="{_hm_svg}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     # Dashed basket pull-out along wall
-    _hm_bo_nw = offset_pt(_hm_nw, hm_ns, w2w3_al)
-    _hm_bo_ne = offset_pt(_hm_ne, hm_ns, w2w3_al)
+    _hm_bo_nw = offset_pt(_hm_nw, hm_ns, w2w5_al)
+    _hm_bo_ne = offset_pt(_hm_ne, hm_ns, w2w5_al)
     hm_bo_poly = [_hm_nw, _hm_ne, _hm_bo_ne, _hm_bo_nw]
     _hm_bo_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in hm_bo_poly)
     out.append(f'<polygon points="{_hm_bo_svg}" fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"'
@@ -2220,11 +2214,7 @@ def _render_dimensions(out, data, layout, bare=False):
     _rotated_dim(out, ep["dim08_A"], ep["dim08_B"],
                  fmt_dist(_edist(ep["dim08_A"], ep["dim08_B"])), to_svg)
 
-    # dim09: W3 → IW2-west
-    _rotated_dim(out, ep["dim09_A"], ep["dim09_B"],
-                 fmt_dist(_edist(ep["dim09_A"], ep["dim09_B"])), to_svg)
-
-    # dim10: W5 → IW2-west
+    # dim10: W2 → IW2-west
     _rotated_dim(out, ep["dim10_A"], ep["dim10_B"],
                  fmt_dist(_edist(ep["dim10_A"], ep["dim10_B"])), to_svg)
 
@@ -2290,10 +2280,10 @@ def _render_openings(out, data, layout, bare=False):
     to_svg = data.to_svg
     outer_openings = compute_outer_openings(pts, layout)
 
-    # O3 door: 30" door on diagonal F4-F5 wall, hinged F5-side, swings east
+    # O3 door: 30" door on F2-F5 east wall, hinged F5-side, swings east
     o3 = [o for o in outer_openings if o.name == "O3"][0]
-    # O3 poly: [outer_start, outer_end, inner_end, inner_start] on diagonal wall
-    # Wall direction (F4→F5) and cross direction (outer→inner)
+    # O3 poly: [outer_start, outer_end, inner_end, inner_start]
+    # Wall direction (F2→F5) and cross direction (outer→inner)
     _o3_os, _o3_oe = o3.poly[0], o3.poly[1]
     _o3_is, _o3_ie = o3.poly[3], o3.poly[2]
     _o3_dE = _o3_oe[0] - _o3_os[0]
@@ -2327,7 +2317,7 @@ def _render_openings(out, data, layout, bare=False):
     tx, ty = to_svg(tip[0], tip[1])
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (cross) sweeping 90° to closed (along wall toward F4)
+    # Arc from open (cross) sweeping 90° to closed (along wall toward F2)
     n_arc = 20
     arc_pts_list = []
     for i in range(n_arc + 1):
