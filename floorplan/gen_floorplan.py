@@ -598,11 +598,11 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim04_B", line_isect(_iw7_s_mid, _iw7_w_al,
                                          pts["W20"], _w20w1_al)))
 
-    # ---- dim05: W2 → IW3 west face at 8ft (horizontal) ----
-    _iw3_w_al, _ = seg_vecs(layout.iw3.poly[0], layout.iw3.poly[3])
-    _target5 = offset_pt(pts["W2"], 8.0, _ew)
-    _dim05_B = line_isect(layout.iw3.poly[0], _iw3_w_al, _target5, _ew)
-    _dim05_A = line_isect(pts["W2"], _ns, _dim05_B, _ew)
+    # ---- dim05: W2-W5 → IW3 west face, parallel to W20-W1 at IW3 midpoint ----
+    _iw3_w_mid = ((layout.iw3.poly[0][0] + layout.iw3.poly[3][0]) / 2,
+                   (layout.iw3.poly[0][1] + layout.iw3.poly[3][1]) / 2)
+    _dim05_B = _iw3_w_mid
+    _dim05_A = line_isect(pts["W2"], _ns, _dim05_B, _w20w1_al)
     result.extend([("dim05_A", _dim05_A), ("dim05_B", _dim05_B)])
 
     # ---- dim06: IW4-east → W14-W15 (perp to W14-W15 at O8 center) ----
@@ -2198,7 +2198,7 @@ def _render_dimensions(out, data, layout, bare=False):
     _rotated_dim(out, ep["dim04_A"], ep["dim04_B"],
                  f"CLOSET {fmt_dist(_edist(ep['dim04_A'], ep['dim04_B']))}", to_svg)
 
-    # dim05: W2 → IW3 at 8ft
+    # dim05: W2-W5 → IW3 west face, parallel to W20-W1 at IW3 midpoint
     _rotated_dim(out, ep["dim05_A"], ep["dim05_B"],
                  fmt_dist(_edist(ep["dim05_A"], ep["dim05_B"])), to_svg)
 
