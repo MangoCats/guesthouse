@@ -1,6 +1,7 @@
 """Distance-squared regression tests.
 
-For every corner of every IW wall, every corner/center of every appliance
+For every F-series outline point, every P-series survey/inset point,
+every corner of every IW wall, every corner/center of every appliance
 or piece of furniture, every corner of every rough opening, every corner
 of every outer opening, and every door tip point, capture distance squared
 to each of: F1, F6, F12, F15.
@@ -46,6 +47,18 @@ def _collect_all_points(pts, layout, radii):
     f_names = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b"]
     for name in f_names:
         result.append((name, chain_pts[name]))
+
+    # ---- P-series survey points ----
+    # Traverse stations
+    for name in ["P3", "POB", "P2", "P4", "P5"]:
+        result.append((name, pts[name]))
+    # Three-arc points (centers, tangent pts, auxiliary)
+    for name in ["T1", "TC1", "T2", "TC2", "PA", "T3", "TC3", "PX"]:
+        result.append((name, pts[name]))
+    # Inset points
+    for name in ["PiOB", "Pi2", "Pi3", "Pi4", "Pi5",
+                  "Ti1", "Ti2", "Ti3", "PiX", "Ai2"]:
+        result.append((name, pts[name]))
 
     # ---- IW walls, appliances, furniture (all Wall type with .poly) ----
     for prefix, wall in [
@@ -268,6 +281,32 @@ EXPECTED = [
     ("F20", 535.815723707719, 1190.883422017860, 766.856578431436, 179.118169391529),
     ("F11a", 1473.847237361418, 685.116495743439, 13.578290920455, 547.320195418060),
     ("F11b", 1532.547416769082, 738.465955940979, 8.070637064439, 535.502988948933),
+    # P-series survey points (traverse stations)
+    ("P3", 6.257400, 771.590278, 1776.026622, 1357.250000),
+    ("POB", 1264.858813, 260.419501, 253.499319, 1081.524875),
+    ("P2", 721.295114, 17.590278, 1122.333111, 1908.250000),
+    ("P4", 941.230848, 1536.176343, 666.376868, 46.679937),
+    ("P5", 1759.088365, 1926.790036, 433.055158, 45.750334),
+    # P-series three-arc points
+    ("T1", 1415.360760, 1299.456990, 165.464450, 72.214962),
+    ("TC1", 2195.502987, 1696.131945, 153.821544, 296.552172),
+    ("T2", 1178.202396, 366.558532, 115.084913, 743.211167),
+    ("TC2", 2184.630179, 893.652226, 131.781280, 1054.882680),
+    ("PA", 1723.102392, 1019.790541, 6.183938, 409.142739),
+    ("T3", 282.603354, 952.098195, 902.330408, 370.541850),
+    ("TC3", 451.382153, 1678.098195, 1590.283119, 601.541850),
+    ("PX", 656.525470, 1471.157842, 922.183179, 182.991259),
+    # P-series inset points
+    ("PiOB", 1225.317992, 249.493833, 251.013006, 1057.449870),
+    ("Pi2", 698.581890, 12.866218, 1086.769512, 1852.585554),
+    ("Pi3", 3.344330, 740.673611, 1717.410820, 1316.250000),
+    ("Pi4", 922.825318, 1498.095892, 645.936525, 45.317833),
+    ("Pi5", 1696.726276, 1863.828319, 415.590595, 36.988325),
+    ("Ti1", 1381.603649, 1284.873242, 171.296596, 66.248101),
+    ("Ti2", 1144.445284, 351.974784, 120.917059, 737.244307),
+    ("Ti3", 280.681591, 924.848195, 876.809830, 365.791850),
+    ("PiX", 653.297205, 1434.446984, 882.948077, 170.344847),
+    ("Ai2", 1625.431465, 965.154793, 3.928212, 381.588009),
     # IW wall corners
     ("IW1_SW", 154.954316204608, 229.173611111111, 826.760584640841, 892.722222222222),
     ("IW1_SE", 1310.277351734232, 1233.784722222222, 173.562983243486, 61.805555555556),
