@@ -434,7 +434,7 @@ def _compute_south_wall(
 # Main entry point
 # ============================================================
 
-def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
+def compute_outline_geometry(anchors: OutlineAnchors | None = None) -> OutlineGeometry:
     """Compute F-series outline. Chain walk is single source of truth."""
     fp_pts = walk_outline_chain()
     outline_segs = _build_outline_segs()

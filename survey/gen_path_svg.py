@@ -3,17 +3,17 @@ from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import (
-    poly_area, left_norm, line_isect, arc_poly,
+    poly_area, line_isect, arc_poly,
     circle_circle_isect, line_circle_isect_min_t_gt, line_circle_isect_min_abs_t,
     segment_polyline, path_polygon, arc_sweep_deg,
     brg_dist, fmt_brg, fmt_dist,
     compute_inner_walls,
 )
-from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts, COORD_ROTATION
+from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
-from floorplan.geometry import compute_outline_geometry, OutlineAnchors
+from floorplan.geometry import compute_outline_geometry
 from floorplan.layout import compute_interior_layout
-from floorplan.constants import WALL_OUTER, WALL_EXTRA
+from floorplan.constants import WALL_OUTER
 
 # ============================================================
 # Section 1: Rendering Types
@@ -178,22 +178,15 @@ def compute_all():
     inset_segs = inset.inset_segs
     inset_area = poly_area(path_polygon(inset_segs, pts))
 
-    # Apply coordinate rotation so survey points match F-series (chain walk) coords
-    rotate_pts(pts, COORD_ROTATION)
+    # F-series outline (chain walk — independent of survey data)
+    outline_geo = compute_outline_geometry()
 
-    _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
-
-    # F-series outline geometry (from floorplan)
-    # Shift anchors outward for 10" wall (2" beyond original 8")
-    anchors = OutlineAnchors(
-        Pi2=(pts["Pi2"][0] - WALL_EXTRA, pts["Pi2"][1]),
-        Pi3=(pts["Pi3"][0] - WALL_EXTRA, pts["Pi3"][1] - WALL_EXTRA),
-        Ti3=pts["Ti3"],
-        PiX=(pts["PiX"][0] - WALL_EXTRA * _ln_pip[0], pts["PiX"][1] - WALL_EXTRA * _ln_pip[1]),
-        Pi5=(pts["Pi5"][0] - WALL_EXTRA * _ln_pip[0], pts["Pi5"][1] - WALL_EXTRA * _ln_pip[1]),
-        TC1=pts["TC1"], R1i=inset.R1i,
-    )
-    outline_geo = compute_outline_geometry(anchors)
+    # Align P/Pi with F-series: rotate so PiX→Pi5 is parallel to F17→F16
+    _pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
+    _f16 = (outline_geo.fp_pts["F16"][0] - outline_geo.fp_pts["F17"][0],
+            outline_geo.fp_pts["F16"][1] - outline_geo.fp_pts["F17"][1])
+    _align_rot = math.atan2(_f16[1], _f16[0]) - math.atan2(_pip[1], _pip[0])
+    rotate_pts(pts, _align_rot)
     pts.update(outline_geo.fp_pts)
     outline_segs = outline_geo.outline_segs
     radii = outline_geo.radii
