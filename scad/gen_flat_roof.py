@@ -457,7 +457,7 @@ def generate():
     out.append("        polygon(points = shell_pts(roof_outline, 0));")
     out.append("      multmatrix([[1,0,0,0], [0,1,0,0],")
     out.append("                  [0, roof_slope, 1, roof_z_base], [0,0,0,1]])")
-    out.append("        translate([-5, -5, -25])")
+    out.append("        translate([-25, -20, -25])")
     out.append("          cube([50, 40, 25]);")
     out.append("    }")
     out.append("")

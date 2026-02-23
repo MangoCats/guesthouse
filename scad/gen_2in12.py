@@ -445,7 +445,7 @@ def generate():
     out.append("      linear_extrude(height = max_upper_h)")
     out.append("        wall_shell(t_full_O4, half_t);")
     out.append("    multmatrix(roof_shear)")
-    out.append("      translate([-5, -5, -20])")
+    out.append("      translate([-25, -20, -20])")
     out.append("        cube([50, 40, 20]);")
     out.append("  }")
     out.append("}")

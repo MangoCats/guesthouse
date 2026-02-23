@@ -9,10 +9,11 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 _OPENSCAD = r"C:\Program Files\OpenSCAD\openscad.com"
 
 # Camera views: (name_suffix, eye_x, eye_y, eye_z, center_x, center_y, center_z)
+# Coordinates are FC-based (building center = origin)
 _VIEWS = [
-    ("patio",   12,    95,   5,   18.5, 13, 3.5),  # north face from patio, 5'
-    ("corner", -33,   -68,   5,   18.5, 13, 3.5),  # SW property corner, 5'
-    ("bumpout", 101.9, 50.6, 12,  18.5, 13, 6),    # NE residence bump-out, 12'
+    ("patio",   -6.5,  81.5,  5,   0, -0.5, 3.5),  # north face from patio, 5'
+    ("corner", -51.5, -81.5,  5,   0, -0.5, 3.5),  # SW property corner, 5'
+    ("bumpout", 83.4,  37.1, 12,   0, -0.5, 6),    # NE residence bump-out, 12'
 ]
 
 _IMG_SIZE = "1200,900"
