@@ -86,10 +86,10 @@ class TestBuildSitePlanData:
             assert x_min < px < x_max, f"x={px:.1f} outside parcel"
             assert y_min < py < y_max, f"y={py:.1f} outside parcel"
 
-    def test_ns_dim_endpoints_valid(self, sp_data):
+    def test_span_endpoints_valid(self, sp_data):
         """N-S dimension line endpoints should be distinct PDF points."""
-        sx, sy = sp_data.ns_s_pdf
-        nx, ny = sp_data.ns_n_pdf
+        sx, sy = sp_data.span_s_pdf
+        nx, ny = sp_data.span_n_pdf
         dist = math.hypot(nx - sx, ny - sy)
         assert dist > 10.0  # at least 10 PDF pts apart
 
