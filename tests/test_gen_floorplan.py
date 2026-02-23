@@ -5,7 +5,7 @@ from floorplan.gen_floorplan import (
     build_floorplan_data,
     render_floorplan_svg,
     compute_iw_area,
-    dim_line_h, dim_line_v, wall_poly, stroke_segs,
+    wall_poly, stroke_segs,
 )
 
 
@@ -17,38 +17,6 @@ def _mock_to_svg(e, n):
 # ============================================================
 # Helper unit tests
 # ============================================================
-
-class TestDimLineH:
-    def test_produces_line_and_text(self):
-        out = []
-        dim_line_h(out, 0, 5, 10, "10'", _mock_to_svg)
-        joined = "\n".join(out)
-        assert "<line" in joined
-        assert "<text" in joined
-        assert "10'" in joined
-
-    def test_tick_marks(self):
-        out = []
-        dim_line_h(out, 0, 5, 10, "10'", _mock_to_svg)
-        # main line + 2 tick marks + text = 4 elements
-        assert len(out) == 4
-
-
-class TestDimLineV:
-    def test_produces_line_and_rotated_text(self):
-        out = []
-        dim_line_v(out, 5, 0, 10, "10'", _mock_to_svg)
-        joined = "\n".join(out)
-        assert "<line" in joined
-        assert "rotate(-90" in joined
-        assert "10'" in joined
-
-    def test_tick_marks(self):
-        out = []
-        dim_line_v(out, 5, 0, 10, "10'", _mock_to_svg)
-        # main line + 2 tick marks + text = 4 elements
-        assert len(out) == 4
-
 
 class TestWallPoly:
     def test_produces_polygon(self):
