@@ -1,7 +1,29 @@
 """Tests for floorplan/layout.py — interior layout."""
+import math
 import pytest
 from floorplan.layout import InteriorLayout
-from floorplan.constants import WALL_6IN, WALL_3IN, WALL_4IN
+from floorplan.constants import WALL_6IN, WALL_3IN, WALL_4IN, IW6_THICKNESS
+
+
+def _wall_thickness(poly):
+    """Perpendicular distance between the narrower pair of opposite sides.
+
+    A wall quadrilateral has two parallel long sides (separated by the wall
+    thickness) and two ends that may not be perpendicular to the long sides.
+    This function returns the thickness — the smaller of the two opposite-side
+    perpendicular distances.
+    """
+    def _perp_dist(p, a, b):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        length = math.sqrt(dx * dx + dy * dy)
+        if length < 1e-12:
+            return 0.0
+        return abs(dx * (p[1] - a[1]) - dy * (p[0] - a[0])) / length
+    # Perpendicular distance between sides 0→1 and 3→2
+    d_01_32 = _perp_dist(poly[3], poly[0], poly[1])
+    # Perpendicular distance between sides 1→2 and 0→3
+    d_12_03 = _perp_dist(poly[0], poly[1], poly[2])
+    return min(d_01_32, d_12_03)
 
 
 class TestInteriorLayout:
@@ -53,3 +75,38 @@ class TestInteriorLayout:
         assert abs(WALL_6IN - 6.0 / 12.0) < 1e-12    # 6" = 0.5'
         assert abs(WALL_3IN - 3.0 / 12.0) < 1e-12   # 3" = 0.25'
         assert abs(WALL_4IN - 4.0 / 12.0) < 1e-12   # 4" ≈ 0.333'
+
+
+# Expected thickness constant for each interior wall
+_IW_EXPECTED_THICKNESS = {
+    "iw1": WALL_6IN,
+    "iw2": WALL_6IN,
+    "iw3": WALL_4IN,
+    "iw4": WALL_4IN,
+    "iw5": WALL_3IN,
+    "iw6": IW6_THICKNESS,
+    "iw7": WALL_4IN,
+    "iw8": WALL_6IN,
+    "iw9": WALL_4IN,
+    "iw11": WALL_4IN,
+    "iw12": WALL_4IN,
+    "iw14": WALL_3IN,
+    "iw15": WALL_4IN,
+    "iw16": WALL_4IN,
+}
+
+
+class TestWallThicknesses:
+    """Verify that every interior wall has the correct thickness.
+
+    Thickness is the perpendicular distance between the two parallel long
+    sides of the wall quadrilateral.
+    """
+
+    @pytest.mark.parametrize("iw_name,expected", list(_IW_EXPECTED_THICKNESS.items()),
+                             ids=list(_IW_EXPECTED_THICKNESS.keys()))
+    def test_iw_thickness(self, layout, iw_name, expected):
+        wall = getattr(layout, iw_name)
+        thickness = _wall_thickness(wall.poly)
+        assert thickness == pytest.approx(expected, abs=1e-10), \
+            f"{iw_name.upper()} thickness {thickness * 12:.4f}\" != {expected * 12:.4f}\""

@@ -288,7 +288,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     # --- IW8 (perpendicular to W2-W5, 12' from W20-W1; west at W2-W5, east at IW1) ---
     _iw8_s_anchor = _offset(pts["W20"], IW8_OFFSET_FROM_W20W1, _w20w1_in)
-    _iw8_n_anchor = _offset(_iw8_s_anchor, WALL_3IN, _w20w1_in)
+    _iw8_n_anchor = _offset(_iw8_s_anchor, WALL_6IN, _w2w5_al)
     iw8_sw = line_isect(_iw8_s_anchor, _w2w5_in, pts["W2"], _w2w5_al)
     iw8_nw = line_isect(_iw8_n_anchor, _w2w5_in, pts["W2"], _w2w5_al)
     iw8_se = line_isect(_iw8_s_anchor, _w2w5_in, iw1_nw, _iw_al)
