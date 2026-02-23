@@ -89,29 +89,11 @@ _d_F20_F1 = (_R_a1 - _dE_20) / math.sin(_brg_20)
 _F1_N_rel = _dN_20 + _d_F20_F1 * math.cos(_brg_20)
 _d_F2_F5 = -(_F1_N_rel + _R_a1)
 
-# Anchor: compute old F5 position to keep F5-F20 at their current locations.
-# Old F2 was at pre-rotation (-18.0, -10.5), rotated by arctan(1/9).
-# Frozen at arctan(1/9) so F-series position is independent of COORD_ROTATION.
-_F_ANCHOR_ROTATION = math.atan(1.0 / 9.0)
-_cos_R = math.cos(_F_ANCHOR_ROTATION)
-_sin_R = math.sin(_F_ANCHOR_ROTATION)
-_F2_E_old = -18.0 * _cos_R - (-10.5) * _sin_R
-_F2_N_old = -18.0 * _sin_R + (-10.5) * _cos_R
-_F2_BRG_old = -_F_ANCHOR_ROTATION
-# Walk old F2→F3→F4→F5 chain entries (now removed) to find F5 anchor position.
-_OLD_F2_TO_F5 = [
-    ("L",   12.083333333333),                                  # F2->F3 (removed)
-    ("CW",   8.351795046046, _A19, "C3", 20),                 # F3->F4 (removed)
-    ("L",    9.476667232982),                                  # F4->F5 (removed)
-]
-_F5_off_E, _F5_off_N, _ = _chain_offset(_OLD_F2_TO_F5, start_brg=_F2_BRG_old)
-_F5_E = _F2_E_old + _F5_off_E
-_F5_N = _F2_N_old + _F5_off_N
-
-# New F2: directly south of F5, at the base of the east wall.
-F2_E = _F5_E                     # same easting as F5
-F2_N = _F5_N - _d_F2_F5          # F5.N - line_distance
-F2_BRG = 0.0                     # bearing 0 (due north) in rotated frame
+# F2 position: east face at E = -18'0", F1.N = -13'0" exactly.
+# F2.N derived from F1.N + CORNER_NE_R (F1→F2 is 90° CW arc of radius R_a1).
+F2_E = -18.0                     # -18'0" east face easting
+F2_N = -13.0 + CORNER_NE_R      # F1.N + R_a1
+F2_BRG = 0.0                     # bearing 0 (due north)
 
 # Full outline chain: F2→F5 + fixed F5→F20 + derived F20→F1 + F1→F2 arc = 20 entries.
 # Starting at F2, bearing 0 (due north), CW traversal.
