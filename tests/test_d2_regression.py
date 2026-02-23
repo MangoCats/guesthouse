@@ -48,6 +48,9 @@ def _collect_all_points(pts, layout, radii):
     for name in f_names:
         result.append((name, chain_pts[name]))
 
+    # ---- FC (building center) ----
+    result.append(("FC", pts["FC"]))
+
     # ---- P-series survey points ----
     # Traverse stations
     for name in ["P3", "POB", "P2", "P4", "P5"]:
@@ -383,6 +386,8 @@ EXPECTED = [
     ("F20", 535.815723707719, 1190.883422017860, 766.856578431436, 179.118169391529),
     ("F11a", 1473.847237361418, 685.116495743439, 13.578290920455, 547.320195418060),
     ("F11b", 1532.547416769082, 738.465955940979, 8.070637064439, 535.502988948933),
+    # FC (building center)
+    ("FC", 426.191422908445, 408.673611111099, 370.947745364746, 396.249999999990),
     # P-series survey points (traverse stations)
     ("P3", 2.330170, 667.872813, 1695.431413, 1361.434230),
     ("POB", 1376.613345, 322.352930, 221.803611, 1073.158426),
