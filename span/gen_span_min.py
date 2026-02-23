@@ -18,7 +18,7 @@ from shared.geometry import (
     path_polygon, vert_isects, compute_inner_walls,
     f8f9_corner_polyline, fmt_dist,
 )
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts, COORD_ROTATION
 from shared.svg import git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import WALL_OUTER, F8F9_INNER_TURN_R
@@ -34,6 +34,7 @@ def _build_geometry():
     ai = compute_three_arc(pts)
     ins = compute_inset(pts, ai["R1"], ai["R2"], ai["R3"], ai["nE"], ai["nN"])
     pts.update(ins.pts_update)
+    rotate_pts(pts, COORD_ROTATION)
     anch = OutlineAnchors(
         Pi2=pts["Pi2"], Pi3=pts["Pi3"], Ti3=pts["Ti3"],
         PiX=pts["PiX"], Pi5=pts["Pi5"], TC1=pts["TC1"], R1i=ins.R1i,

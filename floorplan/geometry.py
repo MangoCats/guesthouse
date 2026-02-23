@@ -5,6 +5,7 @@ from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import left_norm, off_pt, poly_area
+from shared.survey import COORD_ROTATION
 from floorplan.constants import (
     CORNER_NE_R, CORNER_NW_R, UPPER_E_R, SMALL_ARC_R, ARC_180_R,
     F6_F7_LENGTH, F3_OFFSET_FROM_IW8, F6_OFFSET_ADJ,
@@ -44,9 +45,15 @@ class OutlineGeometry(NamedTuple):
 
 # FC (building center) = origin, by definition.
 # F2 position and initial bearing define the chain starting point.
-F2_E = -18.0           # F2 easting relative to FC
-F2_N = -10.5           # F2 northing relative to FC
-F2_BRG = 0.0           # initial bearing: due north (radians)
+# Pre-rotation values (axis-aligned system where F2_BRG would be 0):
+_F2_E0 = -18.0
+_F2_N0 = -10.5
+# Rotate F2 CCW by COORD_ROTATION so F4-F5 aligns to bearing 0.
+_cos_R = math.cos(COORD_ROTATION)
+_sin_R = math.sin(COORD_ROTATION)
+F2_E = _F2_E0 * _cos_R - _F2_N0 * _sin_R
+F2_N = _F2_E0 * _sin_R + _F2_N0 * _cos_R
+F2_BRG = -COORD_ROTATION  # initial bearing rotated by -COORD_ROTATION
 
 # Sweep angle constants (radians)
 _A19 = math.atan(1.0 / 9.0)   # arctan(1/9) for F3-F4, F19-F20

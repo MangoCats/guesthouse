@@ -9,7 +9,7 @@ from shared.geometry import (
     brg_dist, fmt_brg, fmt_dist,
     compute_inner_walls,
 )
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts, COORD_ROTATION
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
@@ -183,6 +183,9 @@ def compute_all():
     pts.update(inset.pts_update)
     inset_segs = inset.inset_segs
     inset_area = poly_area(path_polygon(inset_segs, pts))
+
+    # Apply coordinate rotation so survey points match F-series (chain walk) coords
+    rotate_pts(pts, COORD_ROTATION)
 
     # Rotate outer/inset points about pivot so PiX-Pi5 bearing = 60°.
     # The pivot is chosen so that F15 (after outline geometry) lands at the

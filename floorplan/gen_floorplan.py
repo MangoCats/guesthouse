@@ -12,7 +12,7 @@ from shared.geometry import (
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
     horiz_isects, seg_vecs, offset_pt, line_isect,
 )
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts, COORD_ROTATION
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.constants import (
@@ -268,6 +268,8 @@ def build_floorplan_data():
     _inset = compute_inset(pts, _arc_info["R1"], _arc_info["R2"], _arc_info["R3"],
                            _arc_info["nE"], _arc_info["nN"])
     pts.update(_inset.pts_update)
+    # Apply coordinate rotation so survey points match F-series (chain walk) coords
+    rotate_pts(pts, COORD_ROTATION)
     # Shift anchors outward for 10" wall (2" beyond original 8")
     _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
     _anchors = OutlineAnchors(
@@ -2135,9 +2137,15 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         lv_se_e = lv_w + lv_width * math.cos(lv_angle)
         lv_se_n = lv_s + lv_width * math.sin(lv_angle)
         et_gap = et_r + STD_GAP
+        # Circle-line intersection along IW1 direction (rotation-safe)
         _et_from_iw1 = offset_pt(layout.iw1.poly[3], STD_GAP + et_r, _iw1_n_out)
-        et_cy = _et_from_iw1[1]  # scalar for circle geometry
-        et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
+        _et_dx = _et_from_iw1[0] - lv_se_e
+        _et_dy = _et_from_iw1[1] - lv_se_n
+        _et_b = 2 * (_et_dx * _iw1_n_al[0] + _et_dy * _iw1_n_al[1])
+        _et_c = _et_dx**2 + _et_dy**2 - et_gap**2
+        _et_t = (-_et_b + math.sqrt(_et_b**2 - 4 * _et_c)) / 2
+        et_cx = _et_from_iw1[0] + _et_t * _iw1_n_al[0]
+        et_cy = _et_from_iw1[1] + _et_t * _iw1_n_al[1]
 
         lv_e = lv_w + lv_width
         lv_n = lv_s + lv_height
@@ -2168,21 +2176,23 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                    f' font-family="Arial" font-size="6" fill="{APPL_STROKE}">ET</text>')
         out.append('</a>')
 
-        # LOVESEAT2: same as LOVESEAT but long side E-W (65" E-W x 35" N-S)
-        lv2_w = et_cx + et_r + STD_GAP
-        _lv2_s_ref = offset_pt(layout.iw1.poly[3], STD_GAP, _iw1_n_out)
-        lv2_s = _lv2_s_ref[1]  # scalar for axis-aligned rect
-        lv2_e = lv2_w + lv_height  # 65" E-W
-        lv2_n = lv2_s + lv_width   # 35" N-S
-        lv2_sx1, lv2_sy1 = to_svg(lv2_w, lv2_n)
-        lv2_sx2, lv2_sy2 = to_svg(lv2_e, lv2_s)
-        lv2_sw = lv2_sx2 - lv2_sx1; lv2_sh = lv2_sy2 - lv2_sy1
+        # LOVESEAT2: same as LOVESEAT but long side along IW1, 35" across
+        # SW corner: ET east edge + gap along IW1, offset to IW1 face
+        _lv2_sw = offset_pt(
+            offset_pt((et_cx, et_cy), et_r + STD_GAP, _iw1_n_al),
+            -et_r, _iw1_n_out)
+        _lv2_nw = offset_pt(_lv2_sw, lv_width, _iw1_n_out)
+        _lv2_se = offset_pt(_lv2_sw, lv_height, _iw1_n_al)
+        _lv2_ne = offset_pt(_lv2_nw, lv_height, _iw1_n_al)
+        _lv2_pts = [_lv2_sw, _lv2_se, _lv2_ne, _lv2_nw]
+        _lv2_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in _lv2_pts)
+        _lv2_cx = sum(p[0] for p in _lv2_pts) / 4
+        _lv2_cy = sum(p[1] for p in _lv2_pts) / 4
+        _lv2_scx, _lv2_scy = to_svg(_lv2_cx, _lv2_cy)
         out.append('<a href="https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/" target="_blank">')
-        out.append(f'<rect x="{lv2_sx1:.1f}" y="{lv2_sy1:.1f}" width="{lv2_sw:.1f}" height="{lv2_sh:.1f}"'
+        out.append(f'<polygon points="{_lv2_svg}"'
                    f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-        lv2_cx = (lv2_sx1 + lv2_sx2) / 2
-        lv2_cy = (lv2_sy1 + lv2_sy2) / 2
-        out.append(f'<text x="{lv2_cx:.1f}" y="{lv2_cy+3:.1f}" text-anchor="middle" font-family="Arial"'
+        out.append(f'<text x="{_lv2_scx:.1f}" y="{_lv2_scy+3:.1f}" text-anchor="middle" font-family="Arial"'
                    f' font-size="6" fill="{APPL_STROKE}">LOVESEAT</text>')
         out.append('</a>')
 

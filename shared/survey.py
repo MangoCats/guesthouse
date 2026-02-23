@@ -13,6 +13,18 @@ from .geometry import (
 # Used to shift survey coordinates from P3 origin to FC origin.
 FC_IN_P3 = (18.5, 13.5)
 
+# Coordinate rotation: CCW angle aligning F4-F5 to bearing 0 (due north).
+# Equal to the C3 arc sweep angle arctan(1/9).
+COORD_ROTATION = math.atan(1.0 / 9.0)
+
+
+def rotate_pts(pts: dict[str, 'Point'], angle: float) -> None:
+    """Rotate all points in pts CCW by angle (radians) around the origin."""
+    c, s = math.cos(angle), math.sin(angle)
+    for k in list(pts):
+        e, n = pts[k]
+        pts[k] = (e * c - n * s, e * s + n * c)
+
 # ============================================================
 # Traverse Computation
 # ============================================================

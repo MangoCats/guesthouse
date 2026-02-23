@@ -4,7 +4,7 @@ import io
 import os
 import pytest
 from unittest.mock import patch
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts, COORD_ROTATION
 from shared.geometry import compute_inner_walls, path_polygon, left_norm
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
@@ -65,9 +65,10 @@ def inset_result(pts_base, arc_info):
 
 @pytest.fixture(scope="session")
 def pts_full(pts_base, inset_result):
-    """pts dict with all points including inset and F-series."""
+    """pts dict with all points including inset, rotated by COORD_ROTATION."""
     pts = dict(pts_base)
     pts.update(inset_result.pts_update)
+    rotate_pts(pts, COORD_ROTATION)
     return pts
 
 
