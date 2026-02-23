@@ -177,8 +177,7 @@ BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
 
 # Outline geometry constraints
-# R_a1 (NE corner 90° arc) is now derived in floorplan/geometry.py from
-# chain closure constraint: R_a1 = E_F1 - E_F5 (≈26.6" at 8" wall).
+CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: NE corner (10" at 8" wall)
 CORNER_NW_R = 28.0 / 12.0 + WALL_EXTRA   # R_a5: NW corner (28" at 8" wall)
 UPPER_E_R = 28.0 / 12.0 + WALL_EXTRA     # R_a7: upper east (28" at 8" wall)
 SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition

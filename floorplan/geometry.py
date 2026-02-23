@@ -5,6 +5,7 @@ from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.survey import COORD_ROTATION, rotate_pts
+from floorplan.constants import CORNER_NE_R
 
 
 class OutlineGeometry(NamedTuple):
@@ -58,8 +59,8 @@ def _chain_offset(chain, start_brg=0.0):
     return E, N, brg
 
 
-# Fixed chain entries: F5→F6→...→F20→F1 (18 entries, unchanged from original)
-_CHAIN_F5_TO_F1 = [
+# Fixed chain entries: F5→F6→...→F19→F20 (17 entries, unchanged from original)
+_CHAIN_F5_TO_F20 = [
     ("CW",   2.333333333333, _A9, "C5", 20),                  # F5->F6
     ("L",    5.250000000000),                                  # F6->F7
     ("CW",   2.333333333333, _PI_2, "C7", 20),                # F7->F8
@@ -77,16 +78,16 @@ _CHAIN_F5_TO_F1 = [
     ("CW",   6.404672887007, _PI_6, "C17", 20),               # F17->F18
     ("L",    1.397555568554),                                  # F18->F19
     ("CW",  18.888718471469, _A19, "C19", 60),                # F19->F20
-    ("L",   23.147693701700),                                  # F20->F1
 ]
 
-# Compute F5-to-F1 offset to derive NE corner closure constraints.
-# The 90° CW arc at F1 (entry bearing 270°, exit bearing 0°) gives:
-#   R_a1 = delta_E (easting offset from F5 to F1)
-#   d_F2_F5 = -delta_N - R_a1 (line distance F2→F5)
-_dE, _dN, _ = _chain_offset(_CHAIN_F5_TO_F1, start_brg=0.0)
-_R_a1 = _dE
-_d_F2_F5 = -_dN - _R_a1
+# Derive NE corner closure constraints from CORNER_NE_R.
+# Walk fixed F5→F20 chain to get F20 position relative to F5, then compute
+# the F20→F1 distance that places F1 at the correct easting for the 90° arc.
+_dE_20, _dN_20, _brg_20 = _chain_offset(_CHAIN_F5_TO_F20, start_brg=0.0)
+_R_a1 = CORNER_NE_R
+_d_F20_F1 = (_R_a1 - _dE_20) / math.sin(_brg_20)
+_F1_N_rel = _dN_20 + _d_F20_F1 * math.cos(_brg_20)
+_d_F2_F5 = -(_F1_N_rel + _R_a1)
 
 # Anchor: compute old F5 position to keep F5-F20 at their current locations.
 # Old F2 was at pre-rotation (-18.0, -10.5), rotated by COORD_ROTATION.
@@ -110,11 +111,12 @@ F2_E = _F5_E                     # same easting as F5
 F2_N = _F5_N - _d_F2_F5          # F5.N - line_distance
 F2_BRG = 0.0                     # bearing 0 (due north) in rotated frame
 
-# Full outline chain: F2→F5 + fixed F5→F1 entries + F1→F2 arc = 20 entries.
+# Full outline chain: F2→F5 + fixed F5→F20 + derived F20→F1 + F1→F2 arc = 20 entries.
 # Starting at F2, bearing 0 (due north), CW traversal.
 OUTLINE_CHAIN = [
     ("L",   _d_F2_F5),                                        # F2->F5
-] + _CHAIN_F5_TO_F1 + [
+] + _CHAIN_F5_TO_F20 + [
+    ("L",   _d_F20_F1),                                       # F20->F1
     ("CW",  _R_a1, _PI_2, "C1", 20),                          # F1->F2
 ]
 

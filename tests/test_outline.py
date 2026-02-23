@@ -9,8 +9,8 @@ from floorplan.geometry import OutlineGeometry
 # Known-good F-series coordinates (FC-based: building center = origin,
 # rotated by COORD_ROTATION = arctan(1/9) so F2-F5 is at bearing 0)
 _EXPECTED_F = {
-    "F1":  (-15.9021397548, -13.1648537450),
-    "F2":  (-18.1158389349, -10.9511545649),
+    "F1":  (-17.2825056015, -13.1648537450),
+    "F2":  (-18.1158389349, -12.3315204117),
     "F5":  (-18.1158389349,   9.9848504826),
     "F6":  (-16.0401791624,  12.3039125302),
     "F7":  (-10.8222895553,  12.8836780421),
@@ -68,7 +68,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 890.83) < 0.1
+        assert abs(area - 891.73) < 0.1
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):
