@@ -18,7 +18,7 @@ P3-Based Traverse (E/N feet, P3 = origin)
        │  subtract FC_IN_P3 = (18.5, 13.5)
        ▼
 FC-Based Pre-Rotation (E/N feet, FC = origin)
-       │  rotate CCW by arctan(1/9) ≈ 6.34°
+       │  rotate CCW by COORD_ROTATION ≈ 9.35°
        ▼
 FC-Based Rotated  ◄── PRIMARY WORKING FRAME
        │               (all stored geometry lives here)
@@ -65,7 +65,7 @@ to the FC-based frame.
 - **Origin:** FC (building center) = (0, 0)
 - **Units:** Feet
 - **Positive:** E → right, N → up
-- **Rotation:** CCW by `COORD_ROTATION = arctan(1/9) ≈ 6.34°` (aligns F2→F5 to bearing 0°)
+- **Rotation:** CCW by `COORD_ROTATION = arctan(1/9)+arctan(1/19) ≈ 9.35°`
 - **Traversal:** CW (F1→F2→...→F20→F1); interior on right side
 - **Defined in:** `shared/survey.py`, `floorplan/geometry.py`
 

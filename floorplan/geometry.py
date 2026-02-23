@@ -90,12 +90,14 @@ _F1_N_rel = _dN_20 + _d_F20_F1 * math.cos(_brg_20)
 _d_F2_F5 = -(_F1_N_rel + _R_a1)
 
 # Anchor: compute old F5 position to keep F5-F20 at their current locations.
-# Old F2 was at pre-rotation (-18.0, -10.5), rotated by COORD_ROTATION.
-_cos_R = math.cos(COORD_ROTATION)
-_sin_R = math.sin(COORD_ROTATION)
+# Old F2 was at pre-rotation (-18.0, -10.5), rotated by arctan(1/9).
+# Frozen at arctan(1/9) so F-series position is independent of COORD_ROTATION.
+_F_ANCHOR_ROTATION = math.atan(1.0 / 9.0)
+_cos_R = math.cos(_F_ANCHOR_ROTATION)
+_sin_R = math.sin(_F_ANCHOR_ROTATION)
 _F2_E_old = -18.0 * _cos_R - (-10.5) * _sin_R
 _F2_N_old = -18.0 * _sin_R + (-10.5) * _cos_R
-_F2_BRG_old = -COORD_ROTATION
+_F2_BRG_old = -_F_ANCHOR_ROTATION
 # Walk old F2→F3→F4→F5 chain entries (now removed) to find F5 anchor position.
 _OLD_F2_TO_F5 = [
     ("L",   12.083333333333),                                  # F2->F3 (removed)
@@ -209,26 +211,9 @@ def compute_outline_geometry() -> OutlineGeometry:
 
 
 def align_pts_to_f_series(pts: dict[str, Point]) -> None:
-    """Rigid transform P/Pi survey points into F-series coordinate space.
+    """Rotate P/Pi survey points into FC-based rotated coordinate space.
 
-    Rotation: PiX->Pi5 parallel to F17->F16
-    Translation: F16 on PiX-Pi5 line AND F2 on P2-P3 line
+    Pure CCW rotation by COORD_ROTATION around the origin (FC).
     Modifies pts in place.
     """
-    fp = walk_outline_chain()
-    # Rotation: align PiX->Pi5 direction with F17->F16 direction
-    pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
-    f16 = (fp["F16"][0] - fp["F17"][0], fp["F16"][1] - fp["F17"][1])
-    rot = math.atan2(f16[1], f16[0]) - math.atan2(pip[1], pip[0])
-    rotate_pts(pts, rot)
-    # Translation: 2x2 solve from two line-containment constraints
-    p23 = (pts["P3"][0] - pts["P2"][0], pts["P3"][1] - pts["P2"][1])
-    n1 = (-f16[1], f16[0])          # normal to PiX-Pi5
-    n2 = (-p23[1], p23[0])          # normal to P2-P3
-    d1 = (fp["F16"][0] - pts["PiX"][0]) * n1[0] + (fp["F16"][1] - pts["PiX"][1]) * n1[1]
-    d2 = (fp["F2"][0] - pts["P2"][0]) * n2[0] + (fp["F2"][1] - pts["P2"][1]) * n2[1]
-    det = n1[0] * n2[1] - n1[1] * n2[0]
-    tx = (d1 * n2[1] - d2 * n1[1]) / det
-    ty = (n1[0] * d2 - n2[0] * d1) / det
-    for k in list(pts):
-        pts[k] = (pts[k][0] + tx, pts[k][1] + ty)
+    rotate_pts(pts, COORD_ROTATION)
