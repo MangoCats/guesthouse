@@ -92,6 +92,7 @@ IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 # IW3 (perpendicular to W20-W0, 4" thick)
 IW3_LENGTH = 80.0 / 12.0          # 80" (6'8") length into structure
 IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W20-W0
+IW3_DIST_W2W5 = 102.0 / 12.0     # 8'6" from W2-W5 to IW3 west face
 
 # IW7 (parallel to W20-W0, 4" thick, between IW3 and IW9)
 
