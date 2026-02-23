@@ -18,7 +18,7 @@ def all_data():
 
 class TestComputeAll:
     def test_returns_expected_keys(self, all_data):
-        expected = {"pts", "pts_rot", "to_svg",
+        expected = {"pts", "to_svg",
                     "outer_segs", "inset_segs", "outline_segs",
                     "outer_area", "inset_area", "outline_area",
                     "radii", "outer_poly", "inner_poly", "inner_segs", "layout"}
@@ -65,7 +65,7 @@ class TestRenderLayerBranches:
 
     def test_opacity_wraps_in_group(self, all_data):
         lines = []
-        render_layer(lines, all_data["outer_segs"], all_data["pts_rot"],
+        render_layer(lines, all_data["outer_segs"], all_data["pts"],
                      outer_cfg, all_data["to_svg"])
         joined = "\n".join(lines)
         assert '<g opacity="' in joined
@@ -73,14 +73,14 @@ class TestRenderLayerBranches:
 
     def test_traverse_overlay_present(self, all_data):
         lines = []
-        render_layer(lines, all_data["outer_segs"], all_data["pts_rot"],
+        render_layer(lines, all_data["outer_segs"], all_data["pts"],
                      outer_cfg, all_data["to_svg"])
         joined = "\n".join(lines)
         assert 'stroke-dasharray="4,4"' in joined
 
     def test_inset_layer_has_opacity(self, all_data):
         lines = []
-        render_layer(lines, all_data["inset_segs"], all_data["pts_rot"],
+        render_layer(lines, all_data["inset_segs"], all_data["pts"],
                      inset_cfg, all_data["to_svg"])
         joined = "\n".join(lines)
         assert '<g opacity="' in joined

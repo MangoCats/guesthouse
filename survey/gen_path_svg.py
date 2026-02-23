@@ -3,7 +3,7 @@ from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.geometry import (
-    poly_area, left_norm, off_pt, line_isect, arc_poly,
+    poly_area, left_norm, line_isect, arc_poly,
     circle_circle_isect, line_circle_isect_min_t_gt, line_circle_isect_min_abs_t,
     segment_polyline, path_polygon, arc_sweep_deg,
     brg_dist, fmt_brg, fmt_dist,
@@ -13,13 +13,7 @@ from shared.survey import compute_traverse, compute_three_arc, compute_inset, ro
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
 from floorplan.geometry import compute_outline_geometry, OutlineAnchors
 from floorplan.layout import compute_interior_layout
-from floorplan.constants import (
-    WALL_OUTER, WALL_EXTRA, WALL_3IN, WALL_4IN,
-    APPLIANCE_OFFSET_FROM_W2, APPLIANCE_WIDTH,
-    COUNTER_GAP, COUNTER_DEPTH,
-    CLOSET_WIDTH, BEDROOM_WIDTH,
-    ARC_180_R, F15_OFFSET_FROM_IW8, PIX_PI5_TARGET_BRG,
-)
+from floorplan.constants import WALL_OUTER, WALL_EXTRA
 
 # ============================================================
 # Section 1: Rendering Types
@@ -187,40 +181,7 @@ def compute_all():
     # Apply coordinate rotation so survey points match F-series (chain walk) coords
     rotate_pts(pts, COORD_ROTATION)
 
-    # Rotate outer/inset points about pivot so PiX-Pi5 bearing = 60°.
-    # The pivot is chosen so that F15 (after outline geometry) lands at the
-    # correct easting — computed here from the pre-rotation dimension chain.
-    _R_fp = ARC_180_R
-    _d_pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
-    _L_pip = math.sqrt(_d_pip[0]**2 + _d_pip[1]**2)
-    _d_pip_u = (_d_pip[0]/_L_pip, _d_pip[1]/_L_pip)
     _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
-    _o_pip = off_pt(pts["PiX"], _ln_pip, _R_fp)
-    _pre_U1_E = pts["Pi3"][0] - WALL_EXTRA  # shifted Pi3 easting
-    # Dimension chain west→east: outer wall + appliance offset + appliance width
-    # + counter gap + counter depth + closet/bedroom/closet walls
-    _pre_iw8_e = (_pre_U1_E + WALL_OUTER + APPLIANCE_OFFSET_FROM_W2 + APPLIANCE_WIDTH
-                 + COUNTER_GAP + COUNTER_DEPTH
-                 + WALL_3IN + CLOSET_WIDTH + WALL_4IN + BEDROOM_WIDTH
-                 + WALL_4IN + CLOSET_WIDTH + WALL_3IN)
-    _pre_F15_E = _pre_iw8_e + F15_OFFSET_FROM_IW8
-    _t_cf4 = (_pre_F15_E - _R_fp - _o_pip[0]) / _d_pip_u[0]
-    _cf4 = (_pre_F15_E - _R_fp, _o_pip[1] + _t_cf4 * _d_pip_u[1])
-    _t_o12 = ((_cf4[0]-pts["PiX"][0])*_d_pip[0] + (_cf4[1]-pts["PiX"][1])*_d_pip[1]) \
-             / (_d_pip[0]**2 + _d_pip[1]**2)
-    _pivot = (pts["PiX"][0] + _t_o12*_d_pip[0], pts["PiX"][1] + _t_o12*_d_pip[1])
-    _brg_pip = math.degrees(math.atan2(_d_pip[0], _d_pip[1])) % 360
-    _rot_deg = PIX_PI5_TARGET_BRG - _brg_pip
-    _rot_rad = math.radians(_rot_deg)
-    _cos_r = math.cos(_rot_rad)
-    _sin_r = math.sin(_rot_rad)
-    def _rot_cw(p):
-        dE, dN = p[0] - _pivot[0], p[1] - _pivot[1]
-        return (_pivot[0] + dE*_cos_r + dN*_sin_r, _pivot[1] - dE*_sin_r + dN*_cos_r)
-    pts_rot = dict(pts)
-    for _n in ["POB","P2","P3","P4","P5","T1","T2","T3","PA","PX","TC1","TC2","TC3",
-               "PiOB","Pi2","Pi3","Pi4","Pi5","Ti1","Ti2","Ti3","Ai2","PiX"]:
-        pts_rot[_n] = _rot_cw(pts[_n])
 
     # F-series outline geometry (from floorplan)
     # Shift anchors outward for 10" wall (2" beyond original 8")
@@ -249,7 +210,7 @@ def compute_all():
     layout = compute_interior_layout(pts, inner_poly)
 
     return {
-        "pts": pts, "pts_rot": pts_rot, "to_svg": to_svg,
+        "pts": pts, "to_svg": to_svg,
         "outer_segs": outer_segs, "inset_segs": inset_segs, "outline_segs": outline_segs,
         "outer_area": outer_area, "inset_area": inset_area, "outline_area": outline_area,
         "R1i": inset.R1i, "R2i": inset.R2i, "R3i": inset.R3i,
@@ -502,7 +463,7 @@ def build_outline_cfg(outline_segs, pts, radii):
 # ============================================================
 if __name__ == "__main__":
     data = compute_all()
-    pts = data["pts"]; pts_rot = data["pts_rot"]; to_svg = data["to_svg"]
+    pts = data["pts"]; to_svg = data["to_svg"]
     outer_segs = data["outer_segs"]; inset_segs = data["inset_segs"]
     outline_segs = data["outline_segs"]
     outer_area = data["outer_area"]; inset_area = data["inset_area"]
@@ -552,15 +513,15 @@ if __name__ == "__main__":
     lines.append(f'<text x="{W/2}" y="30" text-anchor="middle" font-family="Arial" font-size="14"'
                  f' font-weight="bold">Site Path \u2014 Outline</text>')
 
-    render_layer(lines, outer_segs, pts_rot, outer_cfg, to_svg)
-    render_layer(lines, inset_segs, pts_rot, inset_cfg, to_svg)
+    render_layer(lines, outer_segs, pts, outer_cfg, to_svg)
+    render_layer(lines, inset_segs, pts, inset_cfg, to_svg)
     render_layer(lines, outline_segs, pts, outline_cfg, to_svg)
     render_floorplan(lines, to_svg, pts, data["outer_poly"], data["inner_poly"],
                      data["inner_segs"], data["layout"])
 
     # Circle 48" diameter tangent to POB-P2 on SSE side, 3' from POB
     _circ_r_ft = 48.0 / 12.0 / 2.0  # 24" radius = 2'
-    _pob_r = pts_rot["POB"]; _p2_r = pts_rot["P2"]
+    _pob_r = pts["POB"]; _p2_r = pts["P2"]
     _dx_pp = _p2_r[0] - _pob_r[0]; _dy_pp = _p2_r[1] - _pob_r[1]
     _L_pp = math.sqrt(_dx_pp**2 + _dy_pp**2)
     _ux_pp, _uy_pp = _dx_pp / _L_pp, _dy_pp / _L_pp  # unit along POB->P2
