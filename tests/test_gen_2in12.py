@@ -31,7 +31,11 @@ class TestGenerate2in12:
         assert "t_O1_O2 = [" in scad_content
         assert "t_O10_O11 = [" in scad_content
 
-    def test_eleven_lower_sections(self, scad_content):
+    def test_two_lower_sections(self, scad_content):
+        matches = re.findall(r'^t_lower_O\d+_O\d+ = \[', scad_content, re.M)
+        assert len(matches) == 2
+
+    def test_eleven_middle_sections(self, scad_content):
         matches = re.findall(r'^t_O\d+_O\d+ = \[', scad_content, re.M)
         assert len(matches) == 11
 
@@ -49,7 +53,9 @@ class TestGenerate2in12:
         assert "[0, " in scad_content
         assert "[1, " in scad_content
 
-    def test_full_wall_o4(self, scad_content):
+    def test_three_tier_walls(self, scad_content):
+        assert "lower_height" in scad_content
+        assert "middle_height" in scad_content
         assert "t_full_O4 = [" in scad_content
         assert "upper_base" in scad_content
         assert "max_upper_h" in scad_content
