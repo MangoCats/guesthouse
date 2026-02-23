@@ -104,6 +104,34 @@ def dim_line_v(out, e, n1, n2, label, to_svg, label_n=None):
         lx, ly = x1 - 3, (y1 + y2) / 2 + 3
     out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="{DIM_COLOR}" transform="rotate(-90,{lx:.1f},{ly:.1f})">{label}</text>')
 
+def _rotated_dim(out, p1, p2, label, to_svg, label_side=1):
+    """Rotated dimension line with tick marks and label.
+
+    label_side=+1 places label on the CW-perpendicular side (closet dims);
+    label_side=-1 places label on the CCW-perpendicular side (bedroom dims).
+    """
+    sx1, sy1 = to_svg(*p1)
+    sx2, sy2 = to_svg(*p2)
+    sdx = sx2 - sx1; sdy = sy2 - sy1
+    slen = math.sqrt(sdx**2 + sdy**2)
+    px = -sdy / slen; py = sdx / slen
+    tk = 4
+    out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    for sx, sy in [(sx1, sy1), (sx2, sy2)]:
+        out.append(f'<line x1="{sx - tk * px:.1f}" y1="{sy - tk * py:.1f}" '
+                   f'x2="{sx + tk * px:.1f}" y2="{sy + tk * py:.1f}" '
+                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
+    lmx = (sx1 + sx2) / 2; lmy = (sy1 + sy2) / 2
+    if label_side > 0:
+        ang = math.degrees(math.atan2(sy1 - sy2, sx1 - sx2))
+    else:
+        ang = math.degrees(math.atan2(sy2 - sy1, sx2 - sx1))
+    lx = lmx + label_side * 3 * px
+    ly = lmy + label_side * 3 * py
+    out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" font-family="Arial" '
+               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({ang:.1f},{lx:.1f},{ly:.1f})">'
+               f'{label}</text>')
+
 def wall_poly(out, points, to_svg, stroke=True):
     """Wall polygon with standard gray fill.  Stroke is inside-only via clip-path."""
     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in points)
@@ -486,6 +514,228 @@ def compute_placement_points(pts, layout, radii):
 
     # Desk SW corner (rotation anchor at W17)
     result.append(("desk_SW", pts["W17"]))
+
+    return result
+
+
+def compute_dimension_endpoints(pts, layout, radii, bare=False):
+    """Compute dimension line endpoints using wall-relative operations.
+
+    Returns list of (name, (E, N)) tuples — two endpoints per dimension line.
+    All positions derived from wall polygon faces, segment directions, and
+    line intersections (never from BBox fields or raw coordinate indexing).
+    """
+    result = []
+    openings = compute_outer_openings(pts, layout)
+    ro_by_name = {r.name: r for r in compute_rough_openings(pts, layout)}
+
+    # Reference directions from axis-aligned wall segments
+    _ew, _ = seg_vecs(pts["W9"], pts["W10"])      # east direction
+    _ns, _ = seg_vecs(pts["W2"], pts["W3"])        # north direction
+    _w20w1_al, _w20w1_in = seg_vecs(pts["W20"], pts["W1"])
+
+    # Pre-compute commonly used IW face directions
+    _iw1_n_al, _ = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
+    _iw1_s_al, _ = seg_vecs(layout.iw1.poly[0], layout.iw1.poly[1])
+    _iw2_e_al, _ = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+    _iw2_w_al, _ = seg_vecs(layout.iw2.poly[0], layout.iw2.poly[3])
+    _w14w15_al, _ = seg_vecs(pts["W14"], pts["W15"])
+
+    # ---- dim01: IW1-north → W9 (vertical) ----
+    _f9f11_mid = ((pts["F9"][0] + pts["F11"][0]) / 2,
+                  (pts["F9"][1] + pts["F11"][1]) / 2)
+    _dim01_ref = offset_pt(_f9f11_mid, 1.0, _ew)
+    result.append(("dim01_A", line_isect(layout.iw1.poly[3], _iw1_n_al,
+                                         _dim01_ref, _ns)))
+    result.append(("dim01_B", line_isect(pts["W9"], _ew,
+                                         _dim01_ref, _ns)))
+
+    # ---- dim02: IW2-east → W12-W13 (horizontal) ----
+    _f12f13_mid = ((pts["F12"][0] + pts["F13"][0]) / 2,
+                   (pts["F12"][1] + pts["F13"][1]) / 2)
+    _w13w12_al, _ = seg_vecs(pts["W13"], pts["W12"])
+    result.append(("dim02_A", line_isect(layout.iw2.poly[1], _iw2_e_al,
+                                         _f12f13_mid, _ew)))
+    result.append(("dim02_B", line_isect(pts["W13"], _w13w12_al,
+                                         _f12f13_mid, _ew)))
+
+    # ---- dim03: East closet (rotated, IW12 south center → W20-W1) ----
+    _iw12_s_mid = ((layout.iw12.poly[0][0] + layout.iw12.poly[1][0]) / 2,
+                   (layout.iw12.poly[0][1] + layout.iw12.poly[1][1]) / 2)
+    _iw11_e_al, _ = seg_vecs(layout.iw11.poly[1], layout.iw11.poly[2])
+    result.append(("dim03_A", _iw12_s_mid))
+    result.append(("dim03_B", line_isect(_iw12_s_mid, _iw11_e_al,
+                                         pts["W20"], _w20w1_al)))
+
+    # ---- dim04: West closet (rotated, IW7 south center → W20-W1) ----
+    _iw7_s_mid = ((layout.iw7.poly[0][0] + layout.iw7.poly[1][0]) / 2,
+                  (layout.iw7.poly[0][1] + layout.iw7.poly[1][1]) / 2)
+    _iw7_w_al, _ = seg_vecs(layout.iw7.poly[0], layout.iw7.poly[3])
+    result.append(("dim04_A", _iw7_s_mid))
+    result.append(("dim04_B", line_isect(_iw7_s_mid, _iw7_w_al,
+                                         pts["W20"], _w20w1_al)))
+
+    # ---- dim05: W2 → IW3 west face at 8ft (horizontal) ----
+    _iw3_w_al, _ = seg_vecs(layout.iw3.poly[0], layout.iw3.poly[3])
+    _target5 = offset_pt(pts["W2"], 8.0, _ew)
+    _dim05_B = line_isect(layout.iw3.poly[0], _iw3_w_al, _target5, _ns)
+    _dim05_A = line_isect(pts["W2"], _ns, _dim05_B, _ew)
+    result.extend([("dim05_A", _dim05_A), ("dim05_B", _dim05_B)])
+
+    # ---- dim06: IW4-east → W14-W15 (horizontal at IW4 east face mid) ----
+    _iw4_e_al, _ = seg_vecs(layout.iw4.poly[1], layout.iw4.poly[2])
+    _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
+                  (layout.iw4.poly[1][1] + layout.iw4.poly[2][1]) / 2)
+    result.append(("dim06_A", _iw4_e_mid))
+    result.append(("dim06_B", line_isect(pts["W14"], _w14w15_al,
+                                         _iw4_e_mid, _ew)))
+
+    # ---- dim07: Storage — IW15-east → W14-W15 (horizontal) ----
+    _iw15_e_al, _ = seg_vecs(layout.iw15.poly[1], layout.iw15.poly[2])
+    _iw5_n_mid = ((layout.iw5.poly[3][0] + layout.iw5.poly[2][0]) / 2,
+                  (layout.iw5.poly[3][1] + layout.iw5.poly[2][1]) / 2)
+    _iw1_s_mid = ((layout.iw1.poly[0][0] + layout.iw1.poly[1][0]) / 2,
+                  (layout.iw1.poly[0][1] + layout.iw1.poly[1][1]) / 2)
+    _stor_ref = ((_iw5_n_mid[0] + _iw1_s_mid[0]) / 2,
+                 (_iw5_n_mid[1] + _iw1_s_mid[1]) / 2)
+    result.append(("dim07_A", line_isect(layout.iw15.poly[1], _iw15_e_al,
+                                         _stor_ref, _ew)))
+    result.append(("dim07_B", line_isect(pts["W14"], _w14w15_al,
+                                         _stor_ref, _ew)))
+
+    # ---- dim08: O1 east center → RO3 west center (horizontal) ----
+    _o1 = openings[0]
+    _o1_e_ctr = ((_o1.poly[2][0] + _o1.poly[3][0]) / 2,
+                 (_o1.poly[2][1] + _o1.poly[3][1]) / 2)
+    _ro3 = ro_by_name["RO3"]
+    _ro3_w_ctr = ((_ro3.poly[3][0] + _ro3.poly[0][0]) / 2,
+                  (_ro3.poly[3][1] + _ro3.poly[0][1]) / 2)
+    result.extend([("dim08_A", _o1_e_ctr), ("dim08_B", _ro3_w_ctr)])
+
+    # ---- dim09: W2-W3 → IW2-west (horizontal at F3 northing) ----
+    result.append(("dim09_A", line_isect(pts["W2"], _ns, pts["F3"], _ew)))
+    result.append(("dim09_B", line_isect(layout.iw2.poly[0], _iw2_w_al,
+                                         pts["F3"], _ew)))
+
+    # ---- dim10: W4-W5 → IW2-west (horizontal at F5 northing) ----
+    _w4w5_al, _ = seg_vecs(pts["W4"], pts["W5"])
+    result.append(("dim10_A", line_isect(pts["W4"], _w4w5_al,
+                                         pts["F5"], _ew)))
+    result.append(("dim10_B", line_isect(layout.iw2.poly[0], _iw2_w_al,
+                                         pts["F5"], _ew)))
+
+    # ---- dim11: IW1-south → W18 (vertical at F18 easting) ----
+    result.append(("dim11_A", line_isect(layout.iw1.poly[0], _iw1_s_al,
+                                         pts["F18"], _ns)))
+    result.append(("dim11_B", line_isect(pts["W18"], _ew,
+                                         pts["F18"], _ns)))
+
+    # ---- dim12: Office verticals ----
+    if not bare:
+        _dim12_ref = offset_pt(pts["F6"], 1.0, _ew)
+        _iw6_n_al, _ = seg_vecs(layout.iw6.poly[3], layout.iw6.poly[2])
+        _iw6_s_al, _ = seg_vecs(layout.iw6.poly[0], layout.iw6.poly[1])
+        _iw8_n_al, _ = seg_vecs(layout.iw8.poly[3], layout.iw8.poly[2])
+        # dim12a: IW6-north → W6
+        result.append(("dim12a_A", line_isect(layout.iw6.poly[3], _iw6_n_al,
+                                              _dim12_ref, _ns)))
+        result.append(("dim12a_B", line_isect(pts["W6"], _ew,
+                                              _dim12_ref, _ns)))
+        # dim12b: IW8-north → IW6-south
+        result.append(("dim12b_A", line_isect(layout.iw8.poly[3], _iw8_n_al,
+                                              _dim12_ref, _ns)))
+        result.append(("dim12b_B", line_isect(layout.iw6.poly[0], _iw6_s_al,
+                                              _dim12_ref, _ns)))
+    else:
+        # dim12_bare: IW8-north → W6 at RO4 door tip easting
+        _ro4 = ro_by_name["RO4"]
+        _ro4_w_mid = ((_ro4.poly[0][0] + _ro4.poly[3][0]) / 2,
+                      (_ro4.poly[0][1] + _ro4.poly[3][1]) / 2)
+        _ro4_e_mid = ((_ro4.poly[1][0] + _ro4.poly[2][0]) / 2,
+                      (_ro4.poly[1][1] + _ro4.poly[2][1]) / 2)
+        _ro4_ctr = ((_ro4_w_mid[0] + _ro4_e_mid[0]) / 2,
+                    (_ro4_w_mid[1] + _ro4_e_mid[1]) / 2)
+        _ro4_cross, _ = seg_vecs(_ro4_e_mid, _ro4_w_mid)
+        _ro4_tip = offset_pt(_ro4_ctr, RO4_DOOR_WIDTH, _ro4_cross)
+        _iw8_n_al, _ = seg_vecs(layout.iw8.poly[3], layout.iw8.poly[2])
+        result.append(("dim12bare_A", line_isect(layout.iw8.poly[3], _iw8_n_al,
+                                                 _ro4_tip, _ns)))
+        result.append(("dim12bare_B", line_isect(pts["W6"], _ew,
+                                                 _ro4_tip, _ns)))
+
+    # ---- dim13: External F18 → F6 (vertical) ----
+    _dim13_ref = offset_pt(pts["F3"], -2.7, _ew)
+    result.append(("dim13_A", line_isect(pts["F18"], _ew, _dim13_ref, _ns)))
+    result.append(("dim13_B", line_isect(pts["F6"], _ew, _dim13_ref, _ns)))
+
+    # ---- dim14: Arc width F7-F8 to F11-F11a (horizontal) ----
+    _dim14_arc_ref = offset_pt(pts["F7"], -4.0 / 12.0, _ns)
+    _c7 = pts["C7"]; _r7 = radii["R_a7"]
+    _c7_dn = ((_dim14_arc_ref[0] - _c7[0]) * _ns[0]
+              + (_dim14_arc_ref[1] - _c7[1]) * _ns[1])
+    _c7_de = math.sqrt(_r7**2 - _c7_dn**2)
+    _arc7_pt = offset_pt(offset_pt(_c7, _c7_dn, _ns), _c7_de, _ew)
+    _c11a = pts["C11a"]; _r11 = radii["R_a11"]
+    _c11_dn = ((_dim14_arc_ref[0] - _c11a[0]) * _ns[0]
+               + (_dim14_arc_ref[1] - _c11a[1]) * _ns[1])
+    _c11_de = math.sqrt(_r11**2 - _c11_dn**2)
+    _arc11_pt = offset_pt(offset_pt(_c11a, _c11_dn, _ns), -_c11_de, _ew)
+    _dim14_render = offset_pt(pts["F6"], 1.0, _ns)
+    result.append(("dim14_A", line_isect(_arc7_pt, _ns, _dim14_render, _ew)))
+    result.append(("dim14_B", line_isect(_arc11_pt, _ns, _dim14_render, _ew)))
+
+    # ---- dim15: External F2 → F15 (horizontal) ----
+    _dim15_ref = offset_pt(pts["F19"], -3.0, _ns)
+    result.append(("dim15_A", line_isect(pts["F2"], _ns, _dim15_ref, _ew)))
+    result.append(("dim15_B", line_isect(pts["F15"], _ns, _dim15_ref, _ew)))
+
+    # ---- dim16: O9 inner → IW1-south (rotated, perp to W20-W1) ----
+    _o9 = openings[8]
+    _o9_ic = ((_o9.poly[2][0] + _o9.poly[3][0]) / 2,
+              (_o9.poly[2][1] + _o9.poly[3][1]) / 2)
+    result.append(("dim16_A", _o9_ic))
+    result.append(("dim16_B", line_isect(_o9_ic, _w20w1_in,
+                                         layout.iw1.poly[0], _iw1_s_al)))
+
+    # ---- dim17: O10 inner → IW1-south (rotated, perp to W20-W1) ----
+    _o10 = openings[9]
+    _o10_ic = ((_o10.poly[2][0] + _o10.poly[3][0]) / 2,
+               (_o10.poly[2][1] + _o10.poly[3][1]) / 2)
+    result.append(("dim17_A", _o10_ic))
+    result.append(("dim17_B", line_isect(_o10_ic, _w20w1_in,
+                                         layout.iw1.poly[0], _iw1_s_al)))
+
+    # ---- dim18: IW9-east → IW11-west (rotated) ----
+    _iw9_e_mid = ((layout.iw9.poly[1][0] + layout.iw9.poly[2][0]) / 2,
+                  (layout.iw9.poly[1][1] + layout.iw9.poly[2][1]) / 2)
+    _, _iw9_e_in = seg_vecs(layout.iw9.poly[1], layout.iw9.poly[2])
+    _iw11_w_al, _ = seg_vecs(layout.iw11.poly[0], layout.iw11.poly[3])
+    result.append(("dim18_A", _iw9_e_mid))
+    result.append(("dim18_B", line_isect(_iw9_e_mid, _iw9_e_in,
+                                         layout.iw11.poly[0], _iw11_w_al)))
+
+    # ---- dim19: O11 inner → IW8-south (vertical) ----
+    _o11 = openings[10]
+    _o11_ic = ((_o11.poly[2][0] + _o11.poly[3][0]) / 2,
+               (_o11.poly[2][1] + _o11.poly[3][1]) / 2)
+    _iw8_s_al, _ = seg_vecs(layout.iw8.poly[0], layout.iw8.poly[1])
+    result.append(("dim19_A", _o11_ic))
+    result.append(("dim19_B", line_isect(layout.iw8.poly[0], _iw8_s_al,
+                                         _o11_ic, _ns)))
+
+    # ---- Bare-only dimensions ----
+    if bare:
+        # dim20: IW2-east → W14 (horizontal at W14 northing)
+        result.append(("dim20_A", line_isect(layout.iw2.poly[1], _iw2_e_al,
+                                             pts["W14"], _ew)))
+        result.append(("dim20_B", pts["W14"]))
+
+        # dim21: W11a-W11b mid → IW1-north (vertical)
+        _w11_mid = ((pts["W11a"][0] + pts["W11b"][0]) / 2,
+                    (pts["W11a"][1] + pts["W11b"][1]) / 2)
+        result.append(("dim21_A", line_isect(layout.iw1.poly[3], _iw1_n_al,
+                                             _w11_mid, _ns)))
+        result.append(("dim21_B", _w11_mid))
 
     return result
 
@@ -2039,271 +2289,117 @@ def _render_furniture(out, data, layout, minik=False, db=False):
 
 
 def _render_dimensions(out, data, layout, bare=False):
-    """Render all dimension lines (interior and external)."""
-    pts = data.pts
+    """Render all dimension lines (interior and external).
+
+    All endpoints computed wall-relative via compute_dimension_endpoints.
+    """
     to_svg = data.to_svg
+    ep = {name: pt for name, pt in compute_dimension_endpoints(
+        data.pts, layout, data.radii, bare=bare)}
 
-    # IW1-north → F9-F11 south face dimension
-    iw1_n = layout.iw1.n
-    dim_e = (pts["F9"][0] + pts["F11"][0]) / 2 + 12.0 / 12.0
-    dim_line_v(out, dim_e, iw1_n, pts["W9"][1], fmt_dist(pts["W9"][1] - iw1_n), to_svg)
+    def _edist(a, b):
+        """Euclidean distance between two endpoint tuples."""
+        return math.sqrt((b[0] - a[0])**2 + (b[1] - a[1])**2)
 
-    # IW2-east → inside F12-F13 wall dimension
-    dim2_n = (pts["F12"][1] + pts["F13"][1]) / 2
-    w13, w12 = pts["W13"], pts["W12"]
-    t_e = (dim2_n - w13[1]) / (w12[1] - w13[1]) if w12[1] != w13[1] else 0.5
-    dim2_east_e = w13[0] + t_e * (w12[0] - w13[0])
-    dim_line_h(out, layout.iw2.e, dim2_n, dim2_east_e, fmt_dist(dim2_east_e - layout.iw2.e), to_svg,
+    # dim01: IW1-north → W9 (vertical)
+    dim_line_v(out, ep["dim01_A"][0], ep["dim01_A"][1], ep["dim01_B"][1],
+               fmt_dist(ep["dim01_B"][1] - ep["dim01_A"][1]), to_svg)
+
+    # dim02: IW2-east → W12-W13 (horizontal)
+    dim_line_h(out, ep["dim02_A"][0], ep["dim02_A"][1], ep["dim02_B"][0],
+               fmt_dist(ep["dim02_B"][0] - ep["dim02_A"][0]), to_svg,
                label_offset_e=-4.0)
 
-    # East closet (rotated dimension, parallel to IW11)
-    _iw12_sw = layout.iw12.poly[0]
-    _iw12_se = layout.iw12.poly[1]
-    _dim_s = ((_iw12_sw[0] + _iw12_se[0]) / 2,
-              (_iw12_sw[1] + _iw12_se[1]) / 2)
-    _dn = (layout.iw11.poly[2][0] - layout.iw11.poly[1][0],
-           layout.iw11.poly[2][1] - layout.iw11.poly[1][1])
-    _dl = math.sqrt(_dn[0]**2 + _dn[1]**2)
-    _nrm = (_dn[0] / _dl, _dn[1] / _dl)
-    # Ray-line intersection: ray from _dim_s in direction -_nrm hits W20-W0
-    _w20 = pts["W20"]; _w0 = pts["W1"]
-    _dw = (_w0[0] - _w20[0], _w0[1] - _w20[1])
-    _u = (_dim_s[0] - _w20[0], _dim_s[1] - _w20[1])
-    _det = _nrm[0] * _dw[1] - _nrm[1] * _dw[0]
-    _t_line = (_u[0] * _dw[1] - _u[1] * _dw[0]) / _det
-    _dim_e = (_dim_s[0] - _t_line * _nrm[0], _dim_s[1] - _t_line * _nrm[1])
-    _dsx1, _dsy1 = to_svg(*_dim_s)
-    _dsx2, _dsy2 = to_svg(*_dim_e)
-    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
-    _slen = math.sqrt(_sdx**2 + _sdy**2)
-    _px = -_sdy / _slen; _py = _sdx / _slen
-    _tk = 4
-    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
-        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
-                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
-                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
-    _up_dx = _dsx1 - _dsx2; _up_dy = _dsy1 - _dsy2
-    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
-    _lx = _lmx + 3 * _up_dy / _slen; _ly = _lmy - 3 * _up_dx / _slen
-    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
-               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
-               f'CLOSET {fmt_dist(_t_line)}</text>')
+    # dim03: East closet (rotated)
+    _rotated_dim(out, ep["dim03_A"], ep["dim03_B"],
+                 f"CLOSET {fmt_dist(_edist(ep['dim03_A'], ep['dim03_B']))}", to_svg,
+                 label_side=1)
 
-    # West closet (rotated dimension, perpendicular to IW7 south face)
-    _iw7_sw7 = layout.iw7.poly[0]
-    _iw7_se7 = layout.iw7.poly[1]
-    _dim7_s = ((_iw7_sw7[0] + _iw7_se7[0]) / 2,
-               (_iw7_sw7[1] + _iw7_se7[1]) / 2)
-    _dn7 = (layout.iw7.poly[3][0] - _iw7_sw7[0],
-            layout.iw7.poly[3][1] - _iw7_sw7[1])
-    _dl7 = math.sqrt(_dn7[0]**2 + _dn7[1]**2)
-    _nrm7 = (_dn7[0] / _dl7, _dn7[1] / _dl7)
-    _w20 = pts["W20"]; _w0 = pts["W1"]
-    _dw7 = (_w0[0] - _w20[0], _w0[1] - _w20[1])
-    _u7 = (_dim7_s[0] - _w20[0], _dim7_s[1] - _w20[1])
-    _det7 = _nrm7[0] * _dw7[1] - _nrm7[1] * _dw7[0]
-    _t7 = (_u7[0] * _dw7[1] - _u7[1] * _dw7[0]) / _det7
-    _dim7_e = (_dim7_s[0] - _t7 * _nrm7[0], _dim7_s[1] - _t7 * _nrm7[1])
-    _dsx1, _dsy1 = to_svg(*_dim7_s)
-    _dsx2, _dsy2 = to_svg(*_dim7_e)
-    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
-    _slen = math.sqrt(_sdx**2 + _sdy**2)
-    _px = -_sdy / _slen; _py = _sdx / _slen
-    _tk = 4
-    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
-        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
-                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
-                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
-    _up_dx = _dsx1 - _dsx2; _up_dy = _dsy1 - _dsy2
-    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
-    _lx = _lmx + 3 * _up_dy / _slen; _ly = _lmy - 3 * _up_dx / _slen
-    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
-               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
-               f'CLOSET {fmt_dist(_t7)}</text>')
+    # dim04: West closet (rotated)
+    _rotated_dim(out, ep["dim04_A"], ep["dim04_B"],
+                 f"CLOSET {fmt_dist(_edist(ep['dim04_A'], ep['dim04_B']))}", to_svg,
+                 label_side=1)
 
-    # Utility: W2 to IW3 west face, at northing where distance = 8'
-    _iw3_sw, _iw3_nw = layout.iw3.poly[0], layout.iw3.poly[3]
-    _target_dist = 8.0
-    _t_iw3 = (_target_dist - (_iw3_sw[0] - pts["W2"][0])) / (_iw3_nw[0] - _iw3_sw[0])
-    _dim_n = _iw3_sw[1] + _t_iw3 * (_iw3_nw[1] - _iw3_sw[1])
-    _dim_e = _iw3_sw[0] + _t_iw3 * (_iw3_nw[0] - _iw3_sw[0])
-    dim_line_h(out, pts["W2"][0], _dim_n, _dim_e,
-               fmt_dist(_dim_e - pts["W2"][0]), to_svg)
-    dim_line_h(out, layout.iw4.e, 5.0, pts["W15"][0],
-               fmt_dist(pts["W15"][0] - layout.iw4.e), to_svg)
+    # dim05: W2 → IW3 at 8ft (horizontal)
+    dim_line_h(out, ep["dim05_A"][0], ep["dim05_A"][1], ep["dim05_B"][0],
+               fmt_dist(ep["dim05_B"][0] - ep["dim05_A"][0]), to_svg)
 
-    # Storage — west end at IW15 east face
-    _stor_n = (layout.iw5.n + layout.iw1.s) / 2
-    _stor_w = layout.iw15.e
-    dim_line_h(out, _stor_w, _stor_n, pts["W15"][0],
-               f"STORAGE {fmt_dist(pts['W15'][0] - _stor_w)}", to_svg)
+    # dim06: IW4-east → W14-W15 (horizontal)
+    dim_line_h(out, ep["dim06_A"][0], ep["dim06_A"][1], ep["dim06_B"][0],
+               fmt_dist(ep["dim06_B"][0] - ep["dim06_A"][0]), to_svg)
 
-    # O1 east face center to RO3 west face center
-    _o1 = compute_outer_openings(pts, layout)[0]  # O1
-    _o1_e_ctr = ((_o1.poly[2][0] + _o1.poly[3][0]) / 2,
-                 (_o1.poly[2][1] + _o1.poly[3][1]) / 2)
-    _ro3 = [r for r in compute_rough_openings(pts, layout) if r.name == "RO3"][0]
-    _ro3_w_ctr = (_ro3.bbox.w, (_ro3.bbox.s + _ro3.bbox.n) / 2)
-    dim_line_h(out, _o1_e_ctr[0], _o1_e_ctr[1], _ro3_w_ctr[0],
-               fmt_dist(_ro3_w_ctr[0] - _o1_e_ctr[0]), to_svg)
+    # dim07: Storage (horizontal)
+    dim_line_h(out, ep["dim07_A"][0], ep["dim07_A"][1], ep["dim07_B"][0],
+               f"STORAGE {fmt_dist(ep['dim07_B'][0] - ep['dim07_A'][0])}", to_svg)
 
-    # West wall interior widths
-    dim_line_h(out, pts["W3"][0], pts["F3"][1], layout.iw2.w,
-               fmt_dist(layout.iw2.w - pts["W3"][0]), to_svg)
-    dim_line_h(out, pts["W5"][0], pts["F5"][1], layout.iw2.w,
-               fmt_dist(layout.iw2.w - pts["W5"][0]), to_svg)
+    # dim08: O1 east → RO3 west (horizontal)
+    dim_line_h(out, ep["dim08_A"][0], ep["dim08_A"][1], ep["dim08_B"][0],
+               fmt_dist(ep["dim08_B"][0] - ep["dim08_A"][0]), to_svg)
 
-    # Office/bedroom verticals
-    dim_line_v(out, pts["F18"][0], layout.iw1.s, pts["W18"][1],
-               fmt_dist(layout.iw1.s - pts["W18"][1]), to_svg,
-               label_n=(layout.iw1.s + pts["W18"][1]) / 2 + 2.5)
+    # dim09: W3 → IW2-west (horizontal)
+    dim_line_h(out, ep["dim09_A"][0], ep["dim09_A"][1], ep["dim09_B"][0],
+               fmt_dist(ep["dim09_B"][0] - ep["dim09_A"][0]), to_svg)
+
+    # dim10: W5 → IW2-west (horizontal)
+    dim_line_h(out, ep["dim10_A"][0], ep["dim10_A"][1], ep["dim10_B"][0],
+               fmt_dist(ep["dim10_B"][0] - ep["dim10_A"][0]), to_svg)
+
+    # dim11: IW1-south → W18 (vertical)
+    _mid_n = (ep["dim11_A"][1] + ep["dim11_B"][1]) / 2
+    dim_line_v(out, ep["dim11_A"][0], ep["dim11_A"][1], ep["dim11_B"][1],
+               fmt_dist(ep["dim11_A"][1] - ep["dim11_B"][1]), to_svg,
+               label_n=_mid_n + 2.5)
+
+    # dim12: Office verticals
     if bare:
-        # Single combined dim: IW8 north face to W6-W7, at RO4 open-door west extent
-        _ro4 = [r for r in compute_rough_openings(pts, layout) if r.name == "RO4"][0]
-        _ro4_mid_e = (_ro4.bbox.w + _ro4.bbox.e) / 2
-        _ro4_tip_e = _ro4_mid_e - RO4_DOOR_WIDTH
-        dim_line_v(out, _ro4_tip_e, layout.iw8.n, pts["W6"][1],
-                   fmt_dist(pts["W6"][1] - layout.iw8.n), to_svg)
+        dim_line_v(out, ep["dim12bare_A"][0], ep["dim12bare_A"][1],
+                   ep["dim12bare_B"][1],
+                   fmt_dist(ep["dim12bare_B"][1] - ep["dim12bare_A"][1]), to_svg)
     else:
-        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw6.n, pts["W6"][1],
-                   fmt_dist(pts["W6"][1] - layout.iw6.n), to_svg)
-        dim_line_v(out, pts["F6"][0] + 1.0, layout.iw8.n, layout.iw6.s,
-                   fmt_dist(layout.iw6.s - layout.iw8.n), to_svg)
+        dim_line_v(out, ep["dim12a_A"][0], ep["dim12a_A"][1], ep["dim12a_B"][1],
+                   fmt_dist(ep["dim12a_B"][1] - ep["dim12a_A"][1]), to_svg)
+        dim_line_v(out, ep["dim12b_A"][0], ep["dim12b_A"][1], ep["dim12b_B"][1],
+                   fmt_dist(ep["dim12b_B"][1] - ep["dim12b_A"][1]), to_svg)
 
-    # External dimensions
-    dim_ext_e = pts["F3"][0] - 2.7
-    dim_line_v(out, dim_ext_e, pts["F18"][1], pts["F6"][1],
-               fmt_dist(pts["F6"][1] - pts["F18"][1]), to_svg)
+    # dim13: External F18 → F6 (vertical)
+    dim_line_v(out, ep["dim13_A"][0], ep["dim13_A"][1], ep["dim13_B"][1],
+               fmt_dist(ep["dim13_B"][1] - ep["dim13_A"][1]), to_svg)
 
-    # Top exterior dim: endpoints on arcs F7-F8 and F11-F12, 4" south of F7
-    _dim_n_arc = pts["F7"][1] - 4.0 / 12.0
-    # West end: point on arc F7-F8 (center C7, radius R_a7) at that northing
-    _c7 = pts["C7"]; _r7 = data.radii["R_a7"]
-    _sin7 = (_dim_n_arc - _c7[1]) / _r7
-    _dim_w_e = _c7[0] + _r7 * math.sqrt(1.0 - _sin7 ** 2)
-    # East end: westernmost point on arc F11-F11a (center C11a, radius R_a11) at that northing
-    _c11a = pts["C11a"]; _r11 = data.radii["R_a11"]
-    _sin11 = (_dim_n_arc - _c11a[1]) / _r11
-    _dim_e_e = _c11a[0] - _r11 * math.sqrt(1.0 - _sin11 ** 2)
-    dim_line_h(out, _dim_w_e, pts["F6"][1] + 1.0, _dim_e_e,
-               fmt_dist(_dim_e_e - _dim_w_e), to_svg)
+    # dim14: Arc width (horizontal)
+    dim_line_h(out, ep["dim14_A"][0], ep["dim14_A"][1], ep["dim14_B"][0],
+               fmt_dist(ep["dim14_B"][0] - ep["dim14_A"][0]), to_svg)
 
-    dim_ext_n = pts["F19"][1] - 3.0
-    dim_line_h(out, pts["F2"][0], dim_ext_n, pts["F15"][0],
-               fmt_dist(pts["F15"][0] - pts["F2"][0]), to_svg)
+    # dim15: External F2 → F15 (horizontal)
+    dim_line_h(out, ep["dim15_A"][0], ep["dim15_A"][1], ep["dim15_B"][0],
+               fmt_dist(ep["dim15_B"][0] - ep["dim15_A"][0]), to_svg)
 
-    # Bedroom: O9 inner center perpendicular to W20-W0 up to IW1 south face
-    _o9_open = compute_outer_openings(pts, layout)[8]  # O9
-    _o9_ic = ((_o9_open.poly[2][0] + _o9_open.poly[3][0]) / 2,
-              (_o9_open.poly[2][1] + _o9_open.poly[3][1]) / 2)
-    _dEw = pts["W1"][0] - pts["W20"][0]
-    _dNw = pts["W1"][1] - pts["W20"][1]
-    _wlen = math.sqrt(_dEw**2 + _dNw**2)
-    _nrmE = _dNw / _wlen; _nrmN = -_dEw / _wlen  # inward normal (NNE)
-    _t_iw1 = (layout.iw1.s - _o9_ic[1]) / _nrmN
-    _dim_end = (_o9_ic[0] + _t_iw1 * _nrmE, layout.iw1.s)
-    _dim_len = abs(_t_iw1)
-    _dsx1, _dsy1 = to_svg(*_o9_ic)
-    _dsx2, _dsy2 = to_svg(*_dim_end)
-    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
-    _slen = math.sqrt(_sdx**2 + _sdy**2)
-    _px = -_sdy / _slen; _py = _sdx / _slen
-    _tk = 4
-    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
-        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
-                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
-                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
-    _up_dx = _dsx2 - _dsx1; _up_dy = _dsy2 - _dsy1
-    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
-    _lx = _lmx - 3 * _px; _ly = _lmy - 3 * _py
-    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
-               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
-               f'{fmt_dist(_dim_len)}</text>')
+    # dim16: O9 → IW1-south (rotated)
+    _rotated_dim(out, ep["dim16_A"], ep["dim16_B"],
+                 fmt_dist(_edist(ep["dim16_A"], ep["dim16_B"])), to_svg,
+                 label_side=-1)
 
-    # O10 inner center perpendicular to W20-W0 up to IW1 south face
-    _o10_open = compute_outer_openings(pts, layout)[9]  # O10
-    _o10_ic = ((_o10_open.poly[2][0] + _o10_open.poly[3][0]) / 2,
-               (_o10_open.poly[2][1] + _o10_open.poly[3][1]) / 2)
-    _t_iw1_10 = (layout.iw1.s - _o10_ic[1]) / _nrmN
-    _dim_end10 = (_o10_ic[0] + _t_iw1_10 * _nrmE, layout.iw1.s)
-    _dim_len10 = abs(_t_iw1_10)
-    _dsx1, _dsy1 = to_svg(*_o10_ic)
-    _dsx2, _dsy2 = to_svg(*_dim_end10)
-    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
-    _slen = math.sqrt(_sdx**2 + _sdy**2)
-    _px = -_sdy / _slen; _py = _sdx / _slen
-    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
-        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
-                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
-                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
-    _up_dx = _dsx2 - _dsx1; _up_dy = _dsy2 - _dsy1
-    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
-    _lx = _lmx - 3 * _px; _ly = _lmy - 3 * _py
-    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
-               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
-               f'{fmt_dist(_dim_len10)}</text>')
+    # dim17: O10 → IW1-south (rotated)
+    _rotated_dim(out, ep["dim17_A"], ep["dim17_B"],
+                 fmt_dist(_edist(ep["dim17_A"], ep["dim17_B"])), to_svg,
+                 label_side=-1)
 
-    # IW9 east face to IW11 west face, perpendicular to IW9 east face
-    _iw9_se9 = layout.iw9.poly[1]
-    _iw9_ne9 = layout.iw9.poly[2]
-    _dim3_s = ((_iw9_se9[0] + _iw9_ne9[0]) / 2,
-               (_iw9_se9[1] + _iw9_ne9[1]) / 2)
-    _fd3 = (_iw9_ne9[0] - _iw9_se9[0], _iw9_ne9[1] - _iw9_se9[1])
-    _fd3_len = math.sqrt(_fd3[0]**2 + _fd3[1]**2)
-    _perp3 = (_fd3[1] / _fd3_len, -_fd3[0] / _fd3_len)  # CW perp, toward IW11
-    _iw11_sw3 = layout.iw11.poly[0]
-    _iw11_nw3 = layout.iw11.poly[3]
-    _dw11f = (_iw11_nw3[0] - _iw11_sw3[0], _iw11_nw3[1] - _iw11_sw3[1])
-    _dx3 = _iw11_sw3[0] - _dim3_s[0]
-    _dy3 = _iw11_sw3[1] - _dim3_s[1]
-    _det3 = _dw11f[0] * _perp3[1] - _dw11f[1] * _perp3[0]
-    _t3 = (_dw11f[0] * _dy3 - _dw11f[1] * _dx3) / _det3
-    _dim3_e = (_dim3_s[0] + _t3 * _perp3[0], _dim3_s[1] + _t3 * _perp3[1])
-    _dsx1, _dsy1 = to_svg(*_dim3_s)
-    _dsx2, _dsy2 = to_svg(*_dim3_e)
-    _sdx = _dsx2 - _dsx1; _sdy = _dsy2 - _dsy1
-    _slen = math.sqrt(_sdx**2 + _sdy**2)
-    _px = -_sdy / _slen; _py = _sdx / _slen
-    _tk = 4
-    out.append(f'<line x1="{_dsx1:.1f}" y1="{_dsy1:.1f}" x2="{_dsx2:.1f}" y2="{_dsy2:.1f}" stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    for _sx, _sy in [(_dsx1, _dsy1), (_dsx2, _dsy2)]:
-        out.append(f'<line x1="{_sx - _tk * _px:.1f}" y1="{_sy - _tk * _py:.1f}" '
-                   f'x2="{_sx + _tk * _px:.1f}" y2="{_sy + _tk * _py:.1f}" '
-                   f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    _lmx = (_dsx1 + _dsx2) / 2; _lmy = (_dsy1 + _dsy2) / 2
-    _up_dx = _dsx2 - _dsx1; _up_dy = _dsy2 - _dsy1
-    _up_ang = math.degrees(math.atan2(_up_dy, _up_dx))
-    _lx = _lmx - 3 * _px; _ly = _lmy - 3 * _py
-    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" text-anchor="middle" font-family="Arial" '
-               f'font-size="8" fill="{DIM_COLOR}" transform="rotate({_up_ang:.1f},{_lx:.1f},{_ly:.1f})">'
-               f'{fmt_dist(_t3)}</text>')
+    # dim18: IW9 → IW11 (rotated)
+    _rotated_dim(out, ep["dim18_A"], ep["dim18_B"],
+                 fmt_dist(_edist(ep["dim18_A"], ep["dim18_B"])), to_svg,
+                 label_side=-1)
 
-    # Utility area N-S: IW8 south face to W20-W0 at O11 center
-    _o11 = compute_outer_openings(pts, layout)[10]  # O11
-    _o11_inner_mid = ((_o11.poly[2][0] + _o11.poly[3][0]) / 2,
-                      (_o11.poly[2][1] + _o11.poly[3][1]) / 2)
-    dim_line_v(out, _o11_inner_mid[0], _o11_inner_mid[1], layout.iw8.s,
-               fmt_dist(layout.iw8.s - _o11_inner_mid[1]), to_svg)
+    # dim19: O11 → IW8-south (vertical)
+    dim_line_v(out, ep["dim19_A"][0], ep["dim19_A"][1], ep["dim19_B"][1],
+               fmt_dist(ep["dim19_B"][1] - ep["dim19_A"][1]), to_svg)
 
     # Bare-only dimensions
     if bare:
-        # IW2 east face to W14 (E-W dimension at W14 northing)
-        dim_line_h(out, layout.iw2.e, pts["W14"][1], pts["W14"][0],
-                   fmt_dist(pts["W14"][0] - layout.iw2.e), to_svg)
-        # Middle of W11a-W11b to IW1 north face (N-S)
-        _w11a = pts["W11a"]; _w11b = pts["W11b"]
-        _mid_e = (_w11a[0] + _w11b[0]) / 2
-        _mid_n = (_w11a[1] + _w11b[1]) / 2
-        dim_line_v(out, _mid_e, layout.iw1.n, _mid_n,
-                   fmt_dist(_mid_n - layout.iw1.n), to_svg)
+        # dim20: IW2-east → W14 (horizontal)
+        dim_line_h(out, ep["dim20_A"][0], ep["dim20_A"][1], ep["dim20_B"][0],
+                   fmt_dist(ep["dim20_B"][0] - ep["dim20_A"][0]), to_svg)
+        # dim21: W11a-W11b mid → IW1-north (vertical)
+        dim_line_v(out, ep["dim21_B"][0], ep["dim21_A"][1], ep["dim21_B"][1],
+                   fmt_dist(ep["dim21_B"][1] - ep["dim21_A"][1]), to_svg)
 
 
 def _render_openings(out, data, layout, bare=False):

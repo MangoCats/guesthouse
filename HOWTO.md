@@ -574,7 +574,7 @@ Each render function defines local helpers for its reference walls:
 
 - **Raw coordinate indexing**: `pts["W9"][0]`, `pts["W9"][1]` — fragile if walls are not axis-aligned.
 - **Hardcoded angles**: `rotate(30, ...)` — derive from `_svg_angle(wall_along)` instead.
-- **BBox face references for positioning**: `layout.iw5.w`, `layout.iw5.n` — use `seg_vecs` on the polygon face instead. BBox fields are fine for dimension lines and non-critical annotations.
+- **BBox face references for positioning**: `layout.iw5.w`, `layout.iw5.n` — use `seg_vecs` on the polygon face instead. This applies to ALL position definitions including dimension line endpoints.
 - **Cardinal direction arithmetic**: `item_e = wall_e + gap` — use `offset_pt(wall_pt, gap, wall_outward)`.
 
 ### Existing examples
