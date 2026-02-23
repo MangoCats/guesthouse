@@ -3,6 +3,7 @@
 Single source of truth for all opening positions, consumed by both
 gen_floorplan.py (polygon rendering) and gen_walls.py (parametric wall openings).
 """
+import math
 from typing import NamedTuple
 
 from shared.types import Point, BBox, LineSeg
@@ -72,10 +73,28 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W2"][1] + _t1_start * (pts["W3"][1] - pts["W2"][1])),
     ]))
 
-    # O2: F4-F5, diagonal, centered at RO4 northing center
+    # O2: F4-F5, diagonal, centered at RO4 position
+    # Normal from RO4 center (perpendicular to IW2) intersects F4-F5 line.
     _dE2, _dN2, _seg2_len = seg_vec(pts["F4"], pts["F5"])
-    _ro4_ctr_n = layout.iw6.s - IW2_RO_OFFSET_FROM_IW6 - IW2_RO_WIDTH / 2
-    _t2_ctr = (_ro4_ctr_n - pts["F4"][1]) / _dN2
+    # RO4 center: offset from IW6 south face midpoint in the IW6 outward direction
+    _iw6_s_mid = ((layout.iw6.poly[0][0] + layout.iw6.poly[1][0]) / 2,
+                  (layout.iw6.poly[0][1] + layout.iw6.poly[1][1]) / 2)
+    _iw6_sdx = layout.iw6.poly[1][0] - layout.iw6.poly[0][0]
+    _iw6_sdy = layout.iw6.poly[1][1] - layout.iw6.poly[0][1]
+    _iw6_slen = math.sqrt(_iw6_sdx**2 + _iw6_sdy**2)
+    _iw6_s_out = (_iw6_sdy / _iw6_slen, -_iw6_sdx / _iw6_slen)
+    _ro4_off = IW2_RO_OFFSET_FROM_IW6 + IW2_RO_WIDTH / 2
+    _ro4_ctr = (_iw6_s_mid[0] + _ro4_off * _iw6_s_out[0],
+                _iw6_s_mid[1] + _ro4_off * _iw6_s_out[1])
+    # IW2 normal: left normal of IW2 length direction (SW→NW)
+    _iw2_ldx = layout.iw2.poly[3][0] - layout.iw2.poly[0][0]
+    _iw2_ldy = layout.iw2.poly[3][1] - layout.iw2.poly[0][1]
+    _iw2_llen = math.sqrt(_iw2_ldx**2 + _iw2_ldy**2)
+    _iw2_norm = (-_iw2_ldy / _iw2_llen, _iw2_ldx / _iw2_llen)
+    # Line-line intersection: RO4_ctr + s*IW2_norm ∩ F4 + t*(F5-F4)
+    _cross_den = _dE2 * _iw2_norm[1] - _dN2 * _iw2_norm[0]
+    _t2_ctr = ((_ro4_ctr[0] - pts["F4"][0]) * _iw2_norm[1]
+               - (_ro4_ctr[1] - pts["F4"][1]) * _iw2_norm[0]) / _cross_den
     _t2_half = (O2_WIDTH / 2) / _seg2_len
     _t2_start = _t2_ctr - _t2_half
     _t2_end = _t2_ctr + _t2_half

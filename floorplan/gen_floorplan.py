@@ -485,19 +485,26 @@ def compute_placement_points(pts, layout, radii):
     lv_se_n = lv_s + LOVESEAT_WIDTH * math.sin(lv_angle)
     et_r = (ET_RADIUS_CM / 2.54) / 12.0
     et_gap = et_r + STD_GAP
-    _et_from_iw1 = offset_pt(layout.iw1.poly[3], STD_GAP + et_r, _iw1_n_out)
-    et_cy = _et_from_iw1[1]
-    et_cx = lv_se_e + math.sqrt(et_gap**2 - (et_cy - lv_se_n)**2)
-    result.append(("et_center", (et_cx, et_cy)))
+    # ET center: on IW1 offset line (STD_GAP + et_r out from IW1 north face),
+    # at distance et_gap from loveseat SE corner.  Circle-line intersection
+    # along IW1 direction (rotation-safe).
+    _et_line_pt = offset_pt(layout.iw1.poly[3], STD_GAP + et_r, _iw1_n_out)
+    _et_dx = _et_line_pt[0] - lv_se_e
+    _et_dy = _et_line_pt[1] - lv_se_n
+    _et_b = 2 * (_et_dx * _iw1_n_al[0] + _et_dy * _iw1_n_al[1])
+    _et_c = _et_dx**2 + _et_dy**2 - et_gap**2
+    _et_t = (-_et_b + math.sqrt(_et_b**2 - 4 * _et_c)) / 2
+    et_center = offset_pt(_et_line_pt, _et_t, _iw1_n_al)
+    result.append(("et_center", et_center))
 
-    # Loveseat2 NW/SE
-    lv2_w = et_cx + et_r + STD_GAP
-    _lv2_s_ref = offset_pt(layout.iw1.poly[3], STD_GAP, _iw1_n_out)
-    lv2_s = _lv2_s_ref[1]
-    lv2_e = lv2_w + LOVESEAT_LENGTH
-    lv2_n = lv2_s + LOVESEAT_WIDTH
-    result.append(("loveseat2_NW", (lv2_w, lv2_n)))
-    result.append(("loveseat2_SE", (lv2_e, lv2_s)))
+    # Loveseat2 NW/SE: placed along IW1, starting at ET east edge + gap
+    _lv2_sw = offset_pt(
+        offset_pt(et_center, et_r + STD_GAP, _iw1_n_al),
+        -et_r, _iw1_n_out)
+    _lv2_nw = offset_pt(_lv2_sw, LOVESEAT_WIDTH, _iw1_n_out)
+    _lv2_se = offset_pt(_lv2_sw, LOVESEAT_LENGTH, _iw1_n_al)
+    result.append(("loveseat2_NW", _lv2_nw))
+    result.append(("loveseat2_SE", _lv2_se))
 
     # Chair center
     _ch_svg_deg = _svg_angle(w12w13_al) - 45
@@ -2464,73 +2471,94 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<polyline points="{" ".join(arc_pts_list)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # O6 door: 42" door, hinged east, swings south
+    # O6 door: 42" door, hinged east, swings inward (rotation-safe)
     o6 = [o for o in outer_openings if o.name == "O6"][0]
-    o6_w = o6.poly[0][0]
-    o6_e = o6.poly[1][0]
-    wall_n = pts["F9"][1]  # outer face
-    wall_s = pts["W9"][1]  # inner face
-    wall_mid = (wall_n + wall_s) / 2
+    # Along direction (start→end on inner face)
+    _o6_dx = o6.poly[1][0] - o6.poly[0][0]
+    _o6_dy = o6.poly[1][1] - o6.poly[0][1]
+    _o6_len = math.sqrt(_o6_dx**2 + _o6_dy**2)
+    _o6_al = (_o6_dx / _o6_len, _o6_dy / _o6_len)
+    # Inward direction (outer→inner at end edge)
+    _o6_in_dx = o6.poly[1][0] - o6.poly[2][0]
+    _o6_in_dy = o6.poly[1][1] - o6.poly[2][1]
+    _o6_in_len = math.sqrt(_o6_in_dx**2 + _o6_in_dy**2)
+    _o6_inward = (_o6_in_dx / _o6_in_len, _o6_in_dy / _o6_in_len)
+    # Edge midpoints (wall midline at start and end)
+    _o6_s_mid = ((o6.poly[0][0] + o6.poly[3][0]) / 2,
+                 (o6.poly[0][1] + o6.poly[3][1]) / 2)
+    _o6_e_mid = ((o6.poly[1][0] + o6.poly[2][0]) / 2,
+                 (o6.poly[1][1] + o6.poly[2][1]) / 2)
     gap = (O6_WIDTH - O6_DOOR_WIDTH) / 2
-    door_w = o6_w + gap
-    door_e = o6_e - gap
+    _o6_door_s = (_o6_s_mid[0] + gap * _o6_al[0], _o6_s_mid[1] + gap * _o6_al[1])
+    _o6_door_e = (_o6_e_mid[0] - gap * _o6_al[0], _o6_e_mid[1] - gap * _o6_al[1])
+    _jht = DOOR_FLAT_FACE / 2
 
-    # Jamb blocks: fill gap between opening edge and door edge
-    # Block thickness = flat face of U-turn
-    block_s = wall_mid - DOOR_FLAT_FACE / 2
-    block_n = wall_mid + DOOR_FLAT_FACE / 2
-    # West block
-    bx1, by1 = to_svg(o6_w, block_n)
-    bx2, by2 = to_svg(door_w, block_s)
-    out.append(f'<rect x="{bx1:.1f}" y="{by1:.1f}" width="{bx2-bx1:.1f}" height="{by2-by1:.1f}"'
-               f' fill="{JAMB_COLOR}" stroke="none"/>')
-    # East block
-    bx1, by1 = to_svg(door_e, block_n)
-    bx2, by2 = to_svg(o6_e, block_s)
-    out.append(f'<rect x="{bx1:.1f}" y="{by1:.1f}" width="{bx2-bx1:.1f}" height="{by2-by1:.1f}"'
-               f' fill="{JAMB_COLOR}" stroke="none"/>')
+    # Jamb blocks as polygons (rotation-safe)
+    for _jb_s, _jb_e in [(_o6_s_mid, _o6_door_s), (_o6_door_e, _o6_e_mid)]:
+        _jp = [(_jb_s[0] - _jht * _o6_inward[0], _jb_s[1] - _jht * _o6_inward[1]),
+               (_jb_e[0] - _jht * _o6_inward[0], _jb_e[1] - _jht * _o6_inward[1]),
+               (_jb_e[0] + _jht * _o6_inward[0], _jb_e[1] + _jht * _o6_inward[1]),
+               (_jb_s[0] + _jht * _o6_inward[0], _jb_s[1] + _jht * _o6_inward[1])]
+        _jp_svg = " ".join(f"{to_svg(p[0], p[1])[0]:.1f},{to_svg(p[0], p[1])[1]:.1f}"
+                           for p in _jp)
+        out.append(f'<polygon points="{_jp_svg}" fill="{JAMB_COLOR}" stroke="none"/>')
 
-    # Door: hinge at east side, swings south
-    hinge_e, hinge_n = door_e, wall_mid
-    hx, hy = to_svg(hinge_e, hinge_n)
-    # Straight line from hinge southward (door in open position)
-    tip_e, tip_n = hinge_e, hinge_n - O6_DOOR_WIDTH
-    tx, ty = to_svg(tip_e, tip_n)
+    # Door: hinge at end side, swings inward
+    hinge = _o6_door_e
+    hx, hy = to_svg(*hinge)
+    tip = (hinge[0] + O6_DOOR_WIDTH * _o6_inward[0],
+           hinge[1] + O6_DOOR_WIDTH * _o6_inward[1])
+    tx, ty = to_svg(*tip)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (south) sweeping CW 90° to closed (west)
-    # In survey coords: center=hinge, from (hinge_e, hinge_n - door_w) to (hinge_e - door_w, hinge_n)
-    # In SVG coords: y is flipped, so CW in survey becomes CCW in SVG
+    # Arc from open (inward) sweeping 90° to closed (-along direction)
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = -math.pi / 2 - i * (math.pi / 2) / n_arc  # -90° to -180° in survey
-        ae = hinge_e + O6_DOOR_WIDTH * math.cos(angle)
-        an = hinge_n + O6_DOOR_WIDTH * math.sin(angle)
+        frac = i / n_arc
+        _cos_f = math.cos(frac * math.pi / 2)
+        _sin_f = math.sin(frac * math.pi / 2)
+        ae = hinge[0] + O6_DOOR_WIDTH * (_cos_f * _o6_inward[0] - _sin_f * _o6_al[0])
+        an = hinge[1] + O6_DOOR_WIDTH * (_cos_f * _o6_inward[1] - _sin_f * _o6_al[1])
         sx, sy = to_svg(ae, an)
         arc_pts.append(f"{sx:.1f},{sy:.1f}")
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO1 door: 36" door, hinged east, swings south
+    # RO1 door: 36" door, hinged east, swings through wall (rotation-safe)
     rough_openings = compute_rough_openings(pts, layout)
     ro1 = [r for r in rough_openings if r.name == "RO1"][0]
-    ro1_mid = (ro1.bbox.s + ro1.bbox.n) / 2
-    ro1_gap = (ro1.bbox.e - ro1.bbox.w - RO1_DOOR_WIDTH) / 2
-    hinge_e, hinge_n = ro1.bbox.e - ro1_gap, ro1_mid
-    hx, hy = to_svg(hinge_e, hinge_n)
-    # Straight line from hinge southward (door in open position)
-    tip_e, tip_n = hinge_e, hinge_n - RO1_DOOR_WIDTH
-    tx, ty = to_svg(tip_e, tip_n)
+    # Along direction: poly[0]→poly[1] (SW→SE)
+    _ro1_dx = ro1.poly[1][0] - ro1.poly[0][0]
+    _ro1_dy = ro1.poly[1][1] - ro1.poly[0][1]
+    _ro1_len = math.sqrt(_ro1_dx**2 + _ro1_dy**2)
+    _ro1_al = (_ro1_dx / _ro1_len, _ro1_dy / _ro1_len)
+    # Through-wall direction (NE→SE = toward south face)
+    _ro1_thru_dx = ro1.poly[1][0] - ro1.poly[2][0]
+    _ro1_thru_dy = ro1.poly[1][1] - ro1.poly[2][1]
+    _ro1_thru_len = math.sqrt(_ro1_thru_dx**2 + _ro1_thru_dy**2)
+    _ro1_swing = (_ro1_thru_dx / _ro1_thru_len, _ro1_thru_dy / _ro1_thru_len)
+    # End edge midpoint (east): midpoint of poly[1] and poly[2]
+    _ro1_end = ((ro1.poly[1][0] + ro1.poly[2][0]) / 2,
+                (ro1.poly[1][1] + ro1.poly[2][1]) / 2)
+    ro1_gap = (_ro1_len - RO1_DOOR_WIDTH) / 2
+    hinge = (_ro1_end[0] - ro1_gap * _ro1_al[0],
+             _ro1_end[1] - ro1_gap * _ro1_al[1])
+    hx, hy = to_svg(*hinge)
+    tip = (hinge[0] + RO1_DOOR_WIDTH * _ro1_swing[0],
+           hinge[1] + RO1_DOOR_WIDTH * _ro1_swing[1])
+    tx, ty = to_svg(*tip)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (south) sweeping CW 90° to closed (west)
+    # Arc from open (swing) sweeping 90° to closed (-along direction)
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = -math.pi / 2 - i * (math.pi / 2) / n_arc
-        ae = hinge_e + RO1_DOOR_WIDTH * math.cos(angle)
-        an = hinge_n + RO1_DOOR_WIDTH * math.sin(angle)
+        frac = i / n_arc
+        _cos_f = math.cos(frac * math.pi / 2)
+        _sin_f = math.sin(frac * math.pi / 2)
+        ae = hinge[0] + RO1_DOOR_WIDTH * (_cos_f * _ro1_swing[0] - _sin_f * _ro1_al[0])
+        an = hinge[1] + RO1_DOOR_WIDTH * (_cos_f * _ro1_swing[1] - _sin_f * _ro1_al[1])
         sx, sy = to_svg(ae, an)
         arc_pts.append(f"{sx:.1f},{sy:.1f}")
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
@@ -2573,71 +2601,116 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO4 door: 36" door, hinged north, swings west
+    # RO4 door: 36" door, hinged north, swings toward west face (rotation-safe)
     ro4 = [r for r in rough_openings if r.name == "RO4"][0]
-    ro4_mid = (ro4.bbox.w + ro4.bbox.e) / 2
-    ro4_gap = (ro4.bbox.n - ro4.bbox.s - RO4_DOOR_WIDTH) / 2
-    hinge_e, hinge_n = ro4_mid, ro4.bbox.n - ro4_gap
-    hx, hy = to_svg(hinge_e, hinge_n)
-    # Straight line from hinge westward (door in open position)
-    tip_e, tip_n = hinge_e - RO4_DOOR_WIDTH, hinge_n
-    tx, ty = to_svg(tip_e, tip_n)
+    # Length direction: poly[0]→poly[3] (SW→NW)
+    _ro4_dx = ro4.poly[3][0] - ro4.poly[0][0]
+    _ro4_dy = ro4.poly[3][1] - ro4.poly[0][1]
+    _ro4_len = math.sqrt(_ro4_dx**2 + _ro4_dy**2)
+    _ro4_len_u = (_ro4_dx / _ro4_len, _ro4_dy / _ro4_len)
+    # End edge midpoint (north): midpoint of poly[2] and poly[3]
+    _ro4_end = ((ro4.poly[2][0] + ro4.poly[3][0]) / 2,
+                (ro4.poly[2][1] + ro4.poly[3][1]) / 2)
+    # Swing direction (toward west face): NE→NW = poly[2]→poly[3]
+    _ro4_sw_dx = ro4.poly[3][0] - ro4.poly[2][0]
+    _ro4_sw_dy = ro4.poly[3][1] - ro4.poly[2][1]
+    _ro4_sw_len = math.sqrt(_ro4_sw_dx**2 + _ro4_sw_dy**2)
+    _ro4_swing = (_ro4_sw_dx / _ro4_sw_len, _ro4_sw_dy / _ro4_sw_len)
+    ro4_gap = (_ro4_len - RO4_DOOR_WIDTH) / 2
+    hinge = (_ro4_end[0] - ro4_gap * _ro4_len_u[0],
+             _ro4_end[1] - ro4_gap * _ro4_len_u[1])
+    hx, hy = to_svg(*hinge)
+    tip = (hinge[0] + RO4_DOOR_WIDTH * _ro4_swing[0],
+           hinge[1] + RO4_DOOR_WIDTH * _ro4_swing[1])
+    tx, ty = to_svg(*tip)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (west) sweeping 90° to closed (south)
+    # Arc from open (swing) sweeping 90° to closed (-length direction)
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = math.pi + i * (math.pi / 2) / n_arc  # 180° to 270°
-        ae = hinge_e + RO4_DOOR_WIDTH * math.cos(angle)
-        an = hinge_n + RO4_DOOR_WIDTH * math.sin(angle)
+        frac = i / n_arc
+        _cos_f = math.cos(frac * math.pi / 2)
+        _sin_f = math.sin(frac * math.pi / 2)
+        ae = hinge[0] + RO4_DOOR_WIDTH * (_cos_f * _ro4_swing[0] - _sin_f * _ro4_len_u[0])
+        an = hinge[1] + RO4_DOOR_WIDTH * (_cos_f * _ro4_swing[1] - _sin_f * _ro4_len_u[1])
         sx, sy = to_svg(ae, an)
         arc_pts.append(f"{sx:.1f},{sy:.1f}")
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO5 door: 36" door, hinged east, swings north (omitted in bare with IW6)
+    # RO5 door: 36" door, hinged east, swings toward north face (rotation-safe)
     if not bare:
         ro5 = [r for r in rough_openings if r.name == "RO5"][0]
-        ro5_mid = (ro5.bbox.s + ro5.bbox.n) / 2
-        ro5_gap = (ro5.bbox.e - ro5.bbox.w - RO5_DOOR_WIDTH) / 2
-        hinge_e, hinge_n = ro5.bbox.e - ro5_gap, ro5_mid
-        hx, hy = to_svg(hinge_e, hinge_n)
-        # Straight line from hinge northward (door in open position)
-        tip_e, tip_n = hinge_e, hinge_n + RO5_DOOR_WIDTH
-        tx, ty = to_svg(tip_e, tip_n)
+        # Along direction: poly[0]→poly[1] (SW→SE)
+        _ro5_dx = ro5.poly[1][0] - ro5.poly[0][0]
+        _ro5_dy = ro5.poly[1][1] - ro5.poly[0][1]
+        _ro5_len = math.sqrt(_ro5_dx**2 + _ro5_dy**2)
+        _ro5_al = (_ro5_dx / _ro5_len, _ro5_dy / _ro5_len)
+        # End edge midpoint (east): midpoint of poly[1] and poly[2]
+        _ro5_end = ((ro5.poly[1][0] + ro5.poly[2][0]) / 2,
+                    (ro5.poly[1][1] + ro5.poly[2][1]) / 2)
+        # Swing direction (toward north face): SE→NE = poly[1]→poly[2]
+        _ro5_sw_dx = ro5.poly[2][0] - ro5.poly[1][0]
+        _ro5_sw_dy = ro5.poly[2][1] - ro5.poly[1][1]
+        _ro5_sw_len = math.sqrt(_ro5_sw_dx**2 + _ro5_sw_dy**2)
+        _ro5_swing = (_ro5_sw_dx / _ro5_sw_len, _ro5_sw_dy / _ro5_sw_len)
+        ro5_gap = (_ro5_len - RO5_DOOR_WIDTH) / 2
+        hinge = (_ro5_end[0] - ro5_gap * _ro5_al[0],
+                 _ro5_end[1] - ro5_gap * _ro5_al[1])
+        hx, hy = to_svg(*hinge)
+        tip = (hinge[0] + RO5_DOOR_WIDTH * _ro5_swing[0],
+               hinge[1] + RO5_DOOR_WIDTH * _ro5_swing[1])
+        tx, ty = to_svg(*tip)
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                    f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-        # Arc from open (north) sweeping 90° to closed (west)
+        # Arc from open (swing) sweeping 90° to closed (-along direction)
         n_arc = 20
         arc_pts = []
         for i in range(n_arc + 1):
-            angle = math.pi / 2 + i * (math.pi / 2) / n_arc  # 90° to 180°
-            ae = hinge_e + RO5_DOOR_WIDTH * math.cos(angle)
-            an = hinge_n + RO5_DOOR_WIDTH * math.sin(angle)
+            frac = i / n_arc
+            _cos_f = math.cos(frac * math.pi / 2)
+            _sin_f = math.sin(frac * math.pi / 2)
+            ae = hinge[0] + RO5_DOOR_WIDTH * (_cos_f * _ro5_swing[0] - _sin_f * _ro5_al[0])
+            an = hinge[1] + RO5_DOOR_WIDTH * (_cos_f * _ro5_swing[1] - _sin_f * _ro5_al[1])
             sx, sy = to_svg(ae, an)
             arc_pts.append(f"{sx:.1f},{sy:.1f}")
         out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                    f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO3 door: 36" door, hinged north, swings west
+    # RO3 door: 36" door, hinged north, swings toward west face (rotation-safe)
     ro3 = [r for r in rough_openings if r.name == "RO3"][0]
-    ro3_mid = (ro3.bbox.w + ro3.bbox.e) / 2
-    ro3_gap = (ro3.bbox.n - ro3.bbox.s - RO3_DOOR_WIDTH) / 2
-    hinge_e, hinge_n = ro3_mid, ro3.bbox.n - ro3_gap
-    hx, hy = to_svg(hinge_e, hinge_n)
-    # Straight line from hinge westward (door in open position)
-    tip_e, tip_n = hinge_e - RO3_DOOR_WIDTH, hinge_n
-    tx, ty = to_svg(tip_e, tip_n)
+    # Length direction: poly[0]→poly[3] (SW→NW)
+    _ro3_dx = ro3.poly[3][0] - ro3.poly[0][0]
+    _ro3_dy = ro3.poly[3][1] - ro3.poly[0][1]
+    _ro3_len = math.sqrt(_ro3_dx**2 + _ro3_dy**2)
+    _ro3_len_u = (_ro3_dx / _ro3_len, _ro3_dy / _ro3_len)
+    # End edge midpoint (north): midpoint of poly[2] and poly[3]
+    _ro3_end = ((ro3.poly[2][0] + ro3.poly[3][0]) / 2,
+                (ro3.poly[2][1] + ro3.poly[3][1]) / 2)
+    # Swing direction (toward west face): NE→NW = poly[2]→poly[3]
+    _ro3_sw_dx = ro3.poly[3][0] - ro3.poly[2][0]
+    _ro3_sw_dy = ro3.poly[3][1] - ro3.poly[2][1]
+    _ro3_sw_len = math.sqrt(_ro3_sw_dx**2 + _ro3_sw_dy**2)
+    _ro3_swing = (_ro3_sw_dx / _ro3_sw_len, _ro3_sw_dy / _ro3_sw_len)
+    ro3_gap = (_ro3_len - RO3_DOOR_WIDTH) / 2
+    hinge = (_ro3_end[0] - ro3_gap * _ro3_len_u[0],
+             _ro3_end[1] - ro3_gap * _ro3_len_u[1])
+    hx, hy = to_svg(*hinge)
+    tip = (hinge[0] + RO3_DOOR_WIDTH * _ro3_swing[0],
+           hinge[1] + RO3_DOOR_WIDTH * _ro3_swing[1])
+    tx, ty = to_svg(*tip)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (west) sweeping 90° to closed (south)
+    # Arc from open (swing) sweeping 90° to closed (-length direction)
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = math.pi + i * (math.pi / 2) / n_arc  # π to 3π/2 (west to south)
-        ae = hinge_e + RO3_DOOR_WIDTH * math.cos(angle)
-        an = hinge_n + RO3_DOOR_WIDTH * math.sin(angle)
+        frac = i / n_arc
+        _cos_f = math.cos(frac * math.pi / 2)
+        _sin_f = math.sin(frac * math.pi / 2)
+        ae = hinge[0] + RO3_DOOR_WIDTH * (_cos_f * _ro3_swing[0] - _sin_f * _ro3_len_u[0])
+        an = hinge[1] + RO3_DOOR_WIDTH * (_cos_f * _ro3_swing[1] - _sin_f * _ro3_len_u[1])
         sx, sy = to_svg(ae, an)
         arc_pts.append(f"{sx:.1f},{sy:.1f}")
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'

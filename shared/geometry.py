@@ -206,31 +206,56 @@ def f8f9_corner_polyline(
 ) -> list[Point]:
     """Straight-arc-straight polyline for the F8-F9 inner shell corner.
 
-    At the F8-F9 concave corner, the inner shell goes straight south,
-    makes a tight CCW turn (radius *R_turn*), then goes straight east
-    along the F9-F10 bearing.
+    At the F8-F9 concave corner, the inner shell goes straight in the
+    F7→F8 exit direction, makes a tight CCW turn (radius *R_turn*),
+    then goes straight along the F9→F10 bearing.
 
     Returns list of (E, N) points from the inset-F8 to inset-F9 position.
+    Uses traversal directions from pts (rotation-safe).
     """
-    F8 = pts["F8"]
-    C8 = pts["C8"]
-    R_a8 = C8[0] - F8[0]  # SMALL_ARC_R
+    F8, F9, F10, C7 = pts["F8"], pts["F9"], pts["F10"], pts["C7"]
 
-    start_E = F8[0] - inset
-    start_N = F8[1]
-    end_E   = C8[0]                    # F9 easting
-    end_N   = F8[1] - R_a8 - inset     # F9 northing − inset
+    # CW traversal direction at F8 (tangent at exit of C7 arc)
+    _r8x, _r8y = F8[0] - C7[0], F8[1] - C7[1]
+    _r8_len = math.sqrt(_r8x**2 + _r8y**2)
+    _dir_f8 = (_r8y / _r8_len, -_r8x / _r8_len)  # CW tangent = right normal of radius
 
-    d = R_a8 + inset - R_turn          # straight length (equal both sides)
-    arc_cx = start_E + R_turn
-    arc_cy = start_N - d
+    # CW traversal direction at F9 (F9→F10 line direction)
+    _d9x, _d9y = F10[0] - F9[0], F10[1] - F9[1]
+    _d9_len = math.sqrt(_d9x**2 + _d9y**2)
+    _dir_f9 = (_d9x / _d9_len, _d9y / _d9_len)
 
-    polyline: list[Point] = [(start_E, start_N)]
+    # Inset direction (right of CW direction = toward wall material)
+    _ins_f8 = (_dir_f8[1], -_dir_f8[0])
+    _ins_f9 = (_dir_f9[1], -_dir_f9[0])
+
+    start = (F8[0] + inset * _ins_f8[0], F8[1] + inset * _ins_f8[1])
+    end   = (F9[0] + inset * _ins_f9[0], F9[1] + inset * _ins_f9[1])
+
+    # CCW turn arc center: offset R_turn to the LEFT of each direction
+    _left_f8 = (-_dir_f8[1], _dir_f8[0])
+    _left_f9 = (-_dir_f9[1], _dir_f9[0])
+
+    # Line-line intersection to find arc center
+    _P1 = (start[0] + R_turn * _left_f8[0], start[1] + R_turn * _left_f8[1])
+    _P2 = (end[0]   + R_turn * _left_f9[0], end[1]   + R_turn * _left_f9[1])
+    _dp = (_P2[0] - _P1[0], _P2[1] - _P1[1])
+    _cross = _dir_f8[0] * _dir_f9[1] - _dir_f8[1] * _dir_f9[0]
+    _t = (_dp[0] * _dir_f9[1] - _dp[1] * _dir_f9[0]) / _cross
+    arc_cx = _P1[0] + _t * _dir_f8[0]
+    arc_cy = _P1[1] + _t * _dir_f8[1]
+
+    # Arc angles: from tangent-point-1 to tangent-point-2, CCW
+    _entry = math.atan2(-_left_f8[1], -_left_f8[0])
+    _exit  = math.atan2(-_left_f9[1], -_left_f9[0])
+    _sweep = (_exit - _entry) % (2 * math.pi)
+
+    polyline: list[Point] = [start]
     for i in range(n_arc + 1):
-        angle = math.pi + i * (math.pi / 2) / n_arc
+        angle = _entry + i * _sweep / n_arc
         polyline.append((arc_cx + R_turn * math.cos(angle),
                          arc_cy + R_turn * math.sin(angle)))
-    polyline.append((end_E, end_N))
+    polyline.append(end)
     return polyline
 
 

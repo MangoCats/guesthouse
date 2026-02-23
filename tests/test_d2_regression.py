@@ -133,18 +133,48 @@ def _compute_door_tips(pts, layout, outer_openings, rough_openings):
                  (hinge[0] + O3_DOOR_WIDTH * _o3_cross[0],
                   hinge[1] + O3_DOOR_WIDTH * _o3_cross[1])))
 
-    # O6 door tip
+    # O6 door tip (poly-based, rotation-safe)
     o6 = [o for o in outer_openings if o.name == "O6"][0]
-    wall_mid = (pts["F9"][1] + pts["W9"][1]) / 2
+    # End edge midpoint (wall midpoint at hinge side)
+    _o6_end = ((o6.poly[1][0] + o6.poly[2][0]) / 2,
+               (o6.poly[1][1] + o6.poly[2][1]) / 2)
+    # Along direction (start→end on inner face)
+    _o6_dx = o6.poly[1][0] - o6.poly[0][0]
+    _o6_dy = o6.poly[1][1] - o6.poly[0][1]
+    _o6_len = math.sqrt(_o6_dx**2 + _o6_dy**2)
+    _o6_al = (_o6_dx / _o6_len, _o6_dy / _o6_len)
+    # Inward direction (outer→inner at end edge)
+    _o6_in_dx = o6.poly[1][0] - o6.poly[2][0]
+    _o6_in_dy = o6.poly[1][1] - o6.poly[2][1]
+    _o6_in_len = math.sqrt(_o6_in_dx**2 + _o6_in_dy**2)
+    _o6_inward = (_o6_in_dx / _o6_in_len, _o6_in_dy / _o6_in_len)
     gap = (O6_WIDTH - O6_DOOR_WIDTH) / 2
-    door_e = o6.poly[1][0] - gap
-    tips.append(("O6_door_tip", (door_e, wall_mid - O6_DOOR_WIDTH)))
+    _o6_hinge = (_o6_end[0] - gap * _o6_al[0], _o6_end[1] - gap * _o6_al[1])
+    tips.append(("O6_door_tip",
+                 (_o6_hinge[0] + O6_DOOR_WIDTH * _o6_inward[0],
+                  _o6_hinge[1] + O6_DOOR_WIDTH * _o6_inward[1])))
 
-    # RO1 door tip
+    # RO1 door tip (poly-based, rotation-safe)
     ro1 = [r for r in rough_openings if r.name == "RO1"][0]
-    ro1_mid = (ro1.bbox.s + ro1.bbox.n) / 2
-    ro1_gap = (ro1.bbox.e - ro1.bbox.w - RO1_DOOR_WIDTH) / 2
-    tips.append(("RO1_door_tip", (ro1.bbox.e - ro1_gap, ro1_mid - RO1_DOOR_WIDTH)))
+    # Along direction: poly[0]→poly[1] (SW→SE)
+    _ro1_dx = ro1.poly[1][0] - ro1.poly[0][0]
+    _ro1_dy = ro1.poly[1][1] - ro1.poly[0][1]
+    _ro1_len = math.sqrt(_ro1_dx**2 + _ro1_dy**2)
+    _ro1_al = (_ro1_dx / _ro1_len, _ro1_dy / _ro1_len)
+    # End edge midpoint (east): midpoint of poly[1] (SE) and poly[2] (NE)
+    _ro1_end = ((ro1.poly[1][0] + ro1.poly[2][0]) / 2,
+                (ro1.poly[1][1] + ro1.poly[2][1]) / 2)
+    # Through-wall direction (NE→SE = toward south face)
+    _ro1_sw_dx = ro1.poly[1][0] - ro1.poly[2][0]
+    _ro1_sw_dy = ro1.poly[1][1] - ro1.poly[2][1]
+    _ro1_sw_len = math.sqrt(_ro1_sw_dx**2 + _ro1_sw_dy**2)
+    _ro1_swing = (_ro1_sw_dx / _ro1_sw_len, _ro1_sw_dy / _ro1_sw_len)
+    ro1_gap = (_ro1_len - RO1_DOOR_WIDTH) / 2
+    _ro1_hinge = (_ro1_end[0] - ro1_gap * _ro1_al[0],
+                  _ro1_end[1] - ro1_gap * _ro1_al[1])
+    tips.append(("RO1_door_tip",
+                 (_ro1_hinge[0] + RO1_DOOR_WIDTH * _ro1_swing[0],
+                  _ro1_hinge[1] + RO1_DOOR_WIDTH * _ro1_swing[1])))
 
     # RO2 door tip
     ro2 = [r for r in rough_openings if r.name == "RO2"][0]
@@ -164,23 +194,68 @@ def _compute_door_tips(pts, layout, outer_openings, rough_openings):
                  (hinge_e - RO2_DOOR_WIDTH * _i11_at[0],
                   hinge_n - RO2_DOOR_WIDTH * _i11_at[1])))
 
-    # RO3 door tip
+    # RO3 door tip (poly-based, rotation-safe)
     ro3 = [r for r in rough_openings if r.name == "RO3"][0]
-    ro3_mid = (ro3.bbox.w + ro3.bbox.e) / 2
-    ro3_gap = (ro3.bbox.n - ro3.bbox.s - RO3_DOOR_WIDTH) / 2
-    tips.append(("RO3_door_tip", (ro3_mid - RO3_DOOR_WIDTH, ro3.bbox.n - ro3_gap)))
+    # Length direction: poly[0]→poly[3] (SW→NW)
+    _ro3_dx = ro3.poly[3][0] - ro3.poly[0][0]
+    _ro3_dy = ro3.poly[3][1] - ro3.poly[0][1]
+    _ro3_len = math.sqrt(_ro3_dx**2 + _ro3_dy**2)
+    _ro3_len_u = (_ro3_dx / _ro3_len, _ro3_dy / _ro3_len)
+    # End edge midpoint (north): midpoint of poly[2] (NE) and poly[3] (NW)
+    _ro3_end = ((ro3.poly[2][0] + ro3.poly[3][0]) / 2,
+                (ro3.poly[2][1] + ro3.poly[3][1]) / 2)
+    # Door swing direction (toward west face): NE→NW = poly[2]→poly[3]
+    _ro3_sw_dx = ro3.poly[3][0] - ro3.poly[2][0]
+    _ro3_sw_dy = ro3.poly[3][1] - ro3.poly[2][1]
+    _ro3_sw_len = math.sqrt(_ro3_sw_dx**2 + _ro3_sw_dy**2)
+    _ro3_swing = (_ro3_sw_dx / _ro3_sw_len, _ro3_sw_dy / _ro3_sw_len)
+    ro3_gap = (_ro3_len - RO3_DOOR_WIDTH) / 2
+    _ro3_hinge = (_ro3_end[0] - ro3_gap * _ro3_len_u[0],
+                  _ro3_end[1] - ro3_gap * _ro3_len_u[1])
+    tips.append(("RO3_door_tip",
+                 (_ro3_hinge[0] + RO3_DOOR_WIDTH * _ro3_swing[0],
+                  _ro3_hinge[1] + RO3_DOOR_WIDTH * _ro3_swing[1])))
 
-    # RO4 door tip
+    # RO4 door tip (poly-based, rotation-safe)
     ro4 = [r for r in rough_openings if r.name == "RO4"][0]
-    ro4_mid = (ro4.bbox.w + ro4.bbox.e) / 2
-    ro4_gap = (ro4.bbox.n - ro4.bbox.s - RO4_DOOR_WIDTH) / 2
-    tips.append(("RO4_door_tip", (ro4_mid - RO4_DOOR_WIDTH, ro4.bbox.n - ro4_gap)))
+    _ro4_dx = ro4.poly[3][0] - ro4.poly[0][0]
+    _ro4_dy = ro4.poly[3][1] - ro4.poly[0][1]
+    _ro4_len = math.sqrt(_ro4_dx**2 + _ro4_dy**2)
+    _ro4_len_u = (_ro4_dx / _ro4_len, _ro4_dy / _ro4_len)
+    _ro4_end = ((ro4.poly[2][0] + ro4.poly[3][0]) / 2,
+                (ro4.poly[2][1] + ro4.poly[3][1]) / 2)
+    _ro4_sw_dx = ro4.poly[3][0] - ro4.poly[2][0]
+    _ro4_sw_dy = ro4.poly[3][1] - ro4.poly[2][1]
+    _ro4_sw_len = math.sqrt(_ro4_sw_dx**2 + _ro4_sw_dy**2)
+    _ro4_swing = (_ro4_sw_dx / _ro4_sw_len, _ro4_sw_dy / _ro4_sw_len)
+    ro4_gap = (_ro4_len - RO4_DOOR_WIDTH) / 2
+    _ro4_hinge = (_ro4_end[0] - ro4_gap * _ro4_len_u[0],
+                  _ro4_end[1] - ro4_gap * _ro4_len_u[1])
+    tips.append(("RO4_door_tip",
+                 (_ro4_hinge[0] + RO4_DOOR_WIDTH * _ro4_swing[0],
+                  _ro4_hinge[1] + RO4_DOOR_WIDTH * _ro4_swing[1])))
 
-    # RO5 door tip
+    # RO5 door tip (poly-based, rotation-safe)
     ro5 = [r for r in rough_openings if r.name == "RO5"][0]
-    ro5_mid = (ro5.bbox.s + ro5.bbox.n) / 2
-    ro5_gap = (ro5.bbox.e - ro5.bbox.w - RO5_DOOR_WIDTH) / 2
-    tips.append(("RO5_door_tip", (ro5.bbox.e - ro5_gap, ro5_mid + RO5_DOOR_WIDTH)))
+    # Along direction: poly[0]→poly[1] (SW→SE)
+    _ro5_dx = ro5.poly[1][0] - ro5.poly[0][0]
+    _ro5_dy = ro5.poly[1][1] - ro5.poly[0][1]
+    _ro5_len = math.sqrt(_ro5_dx**2 + _ro5_dy**2)
+    _ro5_al = (_ro5_dx / _ro5_len, _ro5_dy / _ro5_len)
+    # End edge midpoint (east): midpoint of poly[1] (SE) and poly[2] (NE)
+    _ro5_end = ((ro5.poly[1][0] + ro5.poly[2][0]) / 2,
+                (ro5.poly[1][1] + ro5.poly[2][1]) / 2)
+    # Door swing direction (toward north face): SE→NE = poly[1]→poly[2]
+    _ro5_sw_dx = ro5.poly[2][0] - ro5.poly[1][0]
+    _ro5_sw_dy = ro5.poly[2][1] - ro5.poly[1][1]
+    _ro5_sw_len = math.sqrt(_ro5_sw_dx**2 + _ro5_sw_dy**2)
+    _ro5_swing = (_ro5_sw_dx / _ro5_sw_len, _ro5_sw_dy / _ro5_sw_len)
+    ro5_gap = (_ro5_len - RO5_DOOR_WIDTH) / 2
+    _ro5_hinge = (_ro5_end[0] - ro5_gap * _ro5_al[0],
+                  _ro5_end[1] - ro5_gap * _ro5_al[1])
+    tips.append(("RO5_door_tip",
+                 (_ro5_hinge[0] + RO5_DOOR_WIDTH * _ro5_swing[0],
+                  _ro5_hinge[1] + RO5_DOOR_WIDTH * _ro5_swing[1])))
 
     # RO6 double door tips (south and north leaves)
     ro6 = [r for r in rough_openings if r.name == "RO6"][0]
@@ -233,10 +308,28 @@ def _collect_f8f9_shell_points(pts):
 
     For both the W-series (WALL_OUTER inset) and G-series (SHELL+GAP inset)
     polylines: start, arc tangent entry, arc center, arc tangent exit, end.
+    Arc center computed via traversal directions (rotation-safe).
     """
-    F8 = pts["F8"]
-    C8 = pts["C8"]
-    R_a8 = C8[0] - F8[0]
+    F8, F9, F10, C7 = pts["F8"], pts["F9"], pts["F10"], pts["C7"]
+
+    # CW traversal direction at F8 (tangent at exit of C7 arc)
+    _r8x, _r8y = F8[0] - C7[0], F8[1] - C7[1]
+    _r8_len = math.sqrt(_r8x**2 + _r8y**2)
+    _dir_f8 = (_r8y / _r8_len, -_r8x / _r8_len)
+
+    # CW traversal direction at F9 (F9→F10 line direction)
+    _d9x, _d9y = F10[0] - F9[0], F10[1] - F9[1]
+    _d9_len = math.sqrt(_d9x**2 + _d9y**2)
+    _dir_f9 = (_d9x / _d9_len, _d9y / _d9_len)
+
+    # Inset direction (right of CW direction = toward interior)
+    _ins_f8 = (_dir_f8[1], -_dir_f8[0])
+    _ins_f9 = (_dir_f9[1], -_dir_f9[0])
+
+    # Left of CW direction (toward arc center for CCW turn)
+    _left_f8 = (-_dir_f8[1], _dir_f8[0])
+    _left_f9 = (-_dir_f9[1], _dir_f9[0])
+
     result = []
 
     for prefix, inset, R_turn in [
@@ -244,9 +337,18 @@ def _collect_f8f9_shell_points(pts):
         ("g_f8f9", SHELL_THICKNESS + AIR_GAP, OPENING_INSIDE_RADIUS),
     ]:
         poly = f8f9_corner_polyline(pts, inset, R_turn)
-        d = R_a8 + inset - R_turn
-        arc_cx = F8[0] - inset + R_turn
-        arc_cy = F8[1] - d
+        start = (F8[0] + inset * _ins_f8[0], F8[1] + inset * _ins_f8[1])
+        end   = (F9[0] + inset * _ins_f9[0], F9[1] + inset * _ins_f9[1])
+
+        # Arc center via line-line intersection (matches f8f9_corner_polyline)
+        _P1 = (start[0] + R_turn * _left_f8[0], start[1] + R_turn * _left_f8[1])
+        _P2 = (end[0]   + R_turn * _left_f9[0], end[1]   + R_turn * _left_f9[1])
+        _dp = (_P2[0] - _P1[0], _P2[1] - _P1[1])
+        _cross = _dir_f8[0] * _dir_f9[1] - _dir_f8[1] * _dir_f9[0]
+        _t = (_dp[0] * _dir_f9[1] - _dp[1] * _dir_f9[0]) / _cross
+        arc_cx = _P1[0] + _t * _dir_f8[0]
+        arc_cy = _P1[1] + _t * _dir_f8[1]
+
         result.append((f"{prefix}_start", poly[0]))
         result.append((f"{prefix}_arc_entry", poly[1]))
         result.append((f"{prefix}_arc_center", (arc_cx, arc_cy)))
