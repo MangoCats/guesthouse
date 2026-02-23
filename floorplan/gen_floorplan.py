@@ -282,8 +282,8 @@ class FloorplanData(NamedTuple):
 
 def build_floorplan_data():
     """Compute all geometry needed for the floorplan SVG."""
-    pts, _p3_trav = compute_traverse()
-    to_svg = make_svg_transform(_p3_trav)
+    pts = compute_traverse()
+    to_svg = make_svg_transform()
     _arc_info = compute_three_arc(pts)
     _inset = compute_inset(pts, _arc_info["R1"], _arc_info["R2"], _arc_info["R3"],
                            _arc_info["nE"], _arc_info["nN"])

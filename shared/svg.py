@@ -2,7 +2,7 @@
 import os, subprocess
 from typing import Callable
 from .types import Point
-from .survey import FC_IN_P3
+from .survey import FC_IN_P3, _P3_TRAV
 
 # Cache file written by gen_all.py so all SVGs embed the same git describe.
 _GIT_DESCRIBE_CACHE = os.path.join(os.path.dirname(__file__), os.pardir, ".git_describe")
@@ -30,6 +30,10 @@ _s = (_CALIB_X_P3 - _CALIB_X_POB) / _CALIB_DIST  # SVG points per survey foot
 
 _CALIB_Y_P3 = 124.12  # P3 y-position in SVG points
 
+# Precompute SVG pixel position of FC from calibration constants and survey data.
+_px = _CALIB_X_P3 + (_P3_TRAV[0] + FC_IN_P3[0]) * _s
+_py = _CALIB_Y_P3 - (_P3_TRAV[1] + FC_IN_P3[1]) * _s
+
 def svg_polygon_pts(points, to_svg, prec=1) -> str:
     """Format polygon points string from (E,N) coords via to_svg transform."""
     fmt = f".{prec}f"
@@ -43,14 +47,8 @@ def normalize_svg_angle(deg: float) -> float:
         deg += 180
     return deg
 
-def make_svg_transform(p3_trav: Point) -> Callable[[float, float], tuple[float, float]]:
-    """Create to_svg closure from P3 traverse position.
-
-    Coordinates are FC-based (building center = origin).
-    The FC offset compensates so to_svg(0,0) maps FC to the correct SVG pixel.
-    """
-    px = _CALIB_X_P3 + (p3_trav[0] + FC_IN_P3[0]) * _s
-    py = _CALIB_Y_P3 - (p3_trav[1] + FC_IN_P3[1]) * _s
+def make_svg_transform() -> Callable[[float, float], tuple[float, float]]:
+    """Create to_svg closure mapping FC-based coordinates to SVG pixels."""
     def to_svg(e: float, n: float) -> tuple[float, float]:
-        return (px + e * _s, py - n * _s)
+        return (_px + e * _s, _py - n * _s)
     return to_svg

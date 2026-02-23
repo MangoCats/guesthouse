@@ -30,7 +30,7 @@ from floorplan.roof import compute_roof_geometry, roof_polyline
 
 def _build_geometry():
     """Return (pts, outline_segs, outer_poly, inner_poly, layout)."""
-    pts, _ = compute_traverse()
+    pts = compute_traverse()
     ai = compute_three_arc(pts)
     ins = compute_inset(pts, ai["R1"], ai["R2"], ai["R3"], ai["nE"], ai["nN"])
     pts.update(ins.pts_update)

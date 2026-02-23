@@ -16,11 +16,6 @@ class TestComputeTraverse:
         assert abs(pts_base["P2"][1] - (29.0 - 13.5)) < 1e-4
         assert abs(pts_base["P4"][1] - (0.0 - 13.5)) < 1e-4
 
-    def test_p3_trav_tuple(self, traverse):
-        _, p3_trav = traverse
-        assert len(p3_trav) == 2
-        assert isinstance(p3_trav[0], float)
-
     def test_five_stations(self, pts_base):
         for key in ["P3", "POB", "P2", "P4", "P5"]:
             assert key in pts_base

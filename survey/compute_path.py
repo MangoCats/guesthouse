@@ -1,12 +1,13 @@
 import math
 
 from shared.geometry import poly_area, arc_poly, brg_dist, fmt_brg, fmt_dist
-from shared.survey import compute_traverse, compute_three_arc, FC_IN_P3, rotate_pts, COORD_ROTATION
+from shared.survey import compute_traverse, compute_three_arc, rotate_pts, COORD_ROTATION
+from shared.svg import make_svg_transform
 
 # === Traverse (raw survey data, instrument at POB) ===
 # All coordinates below are FC-based: FC (building center) = (0, 0),
 # rotated by COORD_ROTATION so F4-F5 aligns to bearing 0.
-_pts, _p3_trav = compute_traverse()
+_pts = compute_traverse()
 _arc = compute_three_arc(_pts)
 rotate_pts(_pts, COORD_ROTATION)
 P3  = _pts["P3"]
@@ -158,11 +159,7 @@ print(f"  Arc 2 (PA->T2): R={R2}', sweep={math.degrees(sweep2):.1f} deg, length=
 print(f"  Arc 3 (T3->PX): R={R3}', sweep={math.degrees(sweep3):.1f} deg, length={arc_len3:.2f}'")
 
 # === SVG coordinates (FC-based) ===
-s = (368.79 - 151.26) / 18.66
-_p3_svg_x = 368.79 + (_p3_trav[0] + FC_IN_P3[0]) * s
-_p3_svg_y = 124.12 - (_p3_trav[1] + FC_IN_P3[1]) * s
-def to_svg(e, n):
-    return (_p3_svg_x + e * s, _p3_svg_y - n * s)
+to_svg = make_svg_transform()
 
 print(f"\n=== SVG coordinates ===")
 for name, pt in [("POB", POB), ("P2", P2), ("P3", P3), ("P4", P4), ("P5", P5),

@@ -153,8 +153,8 @@ def render_layer(lines: list, segments: list[Segment], pts: dict, cfg: LayerConf
 # ============================================================
 def compute_all():
     """Compute all geometry. Returns dict with everything needed for rendering."""
-    pts, p3_trav = compute_traverse()
-    to_svg = make_svg_transform(p3_trav)
+    pts = compute_traverse()
+    to_svg = make_svg_transform()
     arc_info = compute_three_arc(pts)
     R1, R2, R3 = arc_info["R1"], arc_info["R2"], arc_info["R3"]
     nE, nN = arc_info["nE"], arc_info["nN"]

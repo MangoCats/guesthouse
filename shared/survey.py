@@ -28,39 +28,43 @@ def rotate_pts(pts: dict[str, 'Point'], angle: float) -> None:
 # ============================================================
 # Traverse Computation
 # ============================================================
-def compute_traverse() -> tuple[dict[str, Point], Point]:
-    """Compute traverse from raw survey legs.
-
-    Returns (pts, p3_trav) where pts is a dict with keys
-    P3/POB/P2/P4/P5 (FC-based coordinates, building center = origin)
-    and p3_trav is the raw P3 position needed for SVG transform calibration.
-    """
+# Raw traverse leg accumulation (all inputs are hardcoded survey constants).
+def _accumulate_legs():
     legs = [(257,53,45,19,1.0),(180,54,31,26,11.0),(93,36,7,31,10.5),
             (56,36,31,13,2.5),(317,11,44,34,11.5)]
-    _trav = [(0.0, 0.0)]
+    trav = [(0.0, 0.0)]
     for deg, mn, sec, ft, inch in legs:
         brg = deg + mn/60.0 + sec/3600.0
         dist_in = ft * 12 + inch
         brg_rad = math.radians(brg)
         dE = dist_in * math.sin(brg_rad); dN = dist_in * math.cos(brg_rad)
-        last = _trav[-1]; _trav.append((last[0]+dE, last[1]+dN))
-    _trav_ft = [(e/12, n/12) for e, n in _trav[:5]]
-    _trav_ft[2] = (-19.1177, _trav_ft[3][1])
-    _trav_ft[1] = (_trav_ft[2][0], _trav_ft[2][1] + 29.0)
+        last = trav[-1]; trav.append((last[0]+dE, last[1]+dN))
+    trav_ft = [(e/12, n/12) for e, n in trav[:5]]
+    trav_ft[2] = (-19.1177, trav_ft[3][1])
+    trav_ft[1] = (trav_ft[2][0], trav_ft[2][1] + 29.0)
+    return trav_ft
 
-    _p3_trav = _trav_ft[2]
+_TRAV_FT = _accumulate_legs()
+
+# Raw P3 traverse position — a constant needed only for SVG calibration.
+_P3_TRAV = _TRAV_FT[2]
+
+
+def compute_traverse() -> dict[str, Point]:
+    """Compute traverse producing FC-based coordinates (building center = origin)."""
+    p3 = _P3_TRAV
     pts = {}
     pts["P3"]  = (0.0, 0.0)
-    pts["POB"] = (_trav_ft[0][0] - _p3_trav[0], _trav_ft[0][1] - _p3_trav[1])
-    pts["P2"]  = (_trav_ft[1][0] - _p3_trav[0], _trav_ft[1][1] - _p3_trav[1])
-    pts["P4"]  = (_trav_ft[3][0] - _p3_trav[0], _trav_ft[3][1] - _p3_trav[1])
-    pts["P5"]  = (_trav_ft[4][0] - _p3_trav[0], _trav_ft[4][1] - _p3_trav[1])
+    pts["POB"] = (_TRAV_FT[0][0] - p3[0], _TRAV_FT[0][1] - p3[1])
+    pts["P2"]  = (_TRAV_FT[1][0] - p3[0], _TRAV_FT[1][1] - p3[1])
+    pts["P4"]  = (_TRAV_FT[3][0] - p3[0], _TRAV_FT[3][1] - p3[1])
+    pts["P5"]  = (_TRAV_FT[4][0] - p3[0], _TRAV_FT[4][1] - p3[1])
 
     # Shift all points from P3 origin to FC (building center) origin
     for k in list(pts):
         pts[k] = (pts[k][0] - FC_IN_P3[0], pts[k][1] - FC_IN_P3[1])
 
-    return pts, _p3_trav
+    return pts
 
 # ============================================================
 # Three-Arc System

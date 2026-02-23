@@ -37,15 +37,9 @@ def generate_scad_content(generate_fn):
 
 
 @pytest.fixture(scope="session")
-def traverse():
-    """Base traverse: (pts, p3_trav)."""
+def pts_base():
+    """pts dict with P3/POB/P2/P4/P5 (FC-based)."""
     return compute_traverse()
-
-
-@pytest.fixture(scope="session")
-def pts_base(traverse):
-    """pts dict with P3/POB/P2/P4/P5."""
-    return traverse[0]
 
 
 @pytest.fixture(scope="session")
