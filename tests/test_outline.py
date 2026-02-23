@@ -70,6 +70,42 @@ class TestOutlineGeometry:
         area = poly_area(poly)
         assert abs(area - 891.73) < 0.1
 
+    def test_segment_index_mapping(self, outline_geo):
+        """Segment start→end names match expected indices.
+
+        Renderers use hardcoded indices (e.g. F8→F9 at [5]) for special
+        corner handling. This test catches index drift if segments are
+        added, removed, or reordered.
+        """
+        expected = [
+            (0,  "F1",   "F2"),
+            (1,  "F2",   "F5"),
+            (2,  "F5",   "F6"),
+            (3,  "F6",   "F7"),
+            (4,  "F7",   "F8"),
+            (5,  "F8",   "F9"),
+            (6,  "F9",   "F10"),
+            (7,  "F10",  "F11"),
+            (8,  "F11",  "F11a"),
+            (9,  "F11a", "F11b"),
+            (10, "F11b", "F12"),
+            (11, "F12",  "F13"),
+            (12, "F13",  "F14"),
+            (13, "F14",  "F15"),
+            (14, "F15",  "F16"),
+            (15, "F16",  "F17"),
+            (16, "F17",  "F18"),
+            (17, "F18",  "F19"),
+            (18, "F19",  "F20"),
+            (19, "F20",  "F1"),
+        ]
+        segs = outline_geo.outline_segs
+        for idx, start, end in expected:
+            assert segs[idx].start == start and segs[idx].end == end, (
+                f"outline_segs[{idx}]: expected {start}→{end}, "
+                f"got {segs[idx].start}→{segs[idx].end}"
+            )
+
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):
         """F-series coordinates match known-good values."""
