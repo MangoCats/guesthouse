@@ -104,11 +104,11 @@ def dim_line_v(out, e, n1, n2, label, to_svg, label_n=None):
         lx, ly = x1 - 3, (y1 + y2) / 2 + 3
     out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" font-family="Arial" font-size="8" fill="{DIM_COLOR}" transform="rotate(-90,{lx:.1f},{ly:.1f})">{label}</text>')
 
-def _rotated_dim(out, p1, p2, label, to_svg, label_side=1):
+def _rotated_dim(out, p1, p2, label, to_svg):
     """Rotated dimension line with tick marks and label.
 
-    label_side=+1 places label on the CW-perpendicular side (closet dims);
-    label_side=-1 places label on the CCW-perpendicular side (bedroom dims).
+    Label placement follows drafting convention: above for horizontal lines
+    (reading left to right), left for vertical lines (reading bottom to top).
     """
     sx1, sy1 = to_svg(*p1)
     sx2, sy2 = to_svg(*p2)
@@ -122,12 +122,16 @@ def _rotated_dim(out, p1, p2, label, to_svg, label_side=1):
                    f'x2="{sx + tk * px:.1f}" y2="{sy + tk * py:.1f}" '
                    f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
     lmx = (sx1 + sx2) / 2; lmy = (sy1 + sy2) / 2
-    if label_side > 0:
-        ang = math.degrees(math.atan2(sy1 - sy2, sx1 - sx2))
-    else:
-        ang = math.degrees(math.atan2(sy2 - sy1, sx2 - sx1))
-    lx = lmx + label_side * 3 * px
-    ly = lmy + label_side * 3 * py
+    # Normalize text angle to [-90°, 90°) for readability
+    ang = math.degrees(math.atan2(sdy, sdx))
+    if ang >= 90:
+        ang -= 180
+    elif ang < -90:
+        ang += 180
+    # Label offset: above for horizontal, left for vertical (drafting convention)
+    ang_rad = math.radians(ang)
+    lx = lmx + 3 * math.sin(ang_rad)
+    ly = lmy - 3 * math.cos(ang_rad)
     out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" font-family="Arial" '
                f'font-size="8" fill="{DIM_COLOR}" transform="rotate({ang:.1f},{lx:.1f},{ly:.1f})">'
                f'{label}</text>')
@@ -2313,13 +2317,11 @@ def _render_dimensions(out, data, layout, bare=False):
 
     # dim03: East closet (rotated)
     _rotated_dim(out, ep["dim03_A"], ep["dim03_B"],
-                 f"CLOSET {fmt_dist(_edist(ep['dim03_A'], ep['dim03_B']))}", to_svg,
-                 label_side=1)
+                 f"CLOSET {fmt_dist(_edist(ep['dim03_A'], ep['dim03_B']))}", to_svg)
 
     # dim04: West closet (rotated)
     _rotated_dim(out, ep["dim04_A"], ep["dim04_B"],
-                 f"CLOSET {fmt_dist(_edist(ep['dim04_A'], ep['dim04_B']))}", to_svg,
-                 label_side=1)
+                 f"CLOSET {fmt_dist(_edist(ep['dim04_A'], ep['dim04_B']))}", to_svg)
 
     # dim05: W2 → IW3 at 8ft (horizontal)
     dim_line_h(out, ep["dim05_A"][0], ep["dim05_A"][1], ep["dim05_B"][0],
@@ -2327,8 +2329,7 @@ def _render_dimensions(out, data, layout, bare=False):
 
     # dim06: IW4-east → W14-W15 (perp to W14-W15 at O8 center)
     _rotated_dim(out, ep["dim06_A"], ep["dim06_B"],
-                 fmt_dist(_edist(ep["dim06_A"], ep["dim06_B"])), to_svg,
-                 label_side=1)
+                 fmt_dist(_edist(ep["dim06_A"], ep["dim06_B"])), to_svg)
 
     # dim07: Storage (horizontal)
     dim_line_h(out, ep["dim07_A"][0], ep["dim07_A"][1], ep["dim07_B"][0],
@@ -2377,18 +2378,15 @@ def _render_dimensions(out, data, layout, bare=False):
 
     # dim16: O9 → IW1-south (rotated)
     _rotated_dim(out, ep["dim16_A"], ep["dim16_B"],
-                 fmt_dist(_edist(ep["dim16_A"], ep["dim16_B"])), to_svg,
-                 label_side=-1)
+                 fmt_dist(_edist(ep["dim16_A"], ep["dim16_B"])), to_svg)
 
     # dim17: O10 → IW1-south (rotated)
     _rotated_dim(out, ep["dim17_A"], ep["dim17_B"],
-                 fmt_dist(_edist(ep["dim17_A"], ep["dim17_B"])), to_svg,
-                 label_side=-1)
+                 fmt_dist(_edist(ep["dim17_A"], ep["dim17_B"])), to_svg)
 
     # dim18: IW9 → IW11 (rotated)
     _rotated_dim(out, ep["dim18_A"], ep["dim18_B"],
-                 fmt_dist(_edist(ep["dim18_A"], ep["dim18_B"])), to_svg,
-                 label_side=-1)
+                 fmt_dist(_edist(ep["dim18_A"], ep["dim18_B"])), to_svg)
 
     # dim19: O11 → IW8-south (vertical)
     dim_line_v(out, ep["dim19_A"][0], ep["dim19_A"][1], ep["dim19_B"][1],
