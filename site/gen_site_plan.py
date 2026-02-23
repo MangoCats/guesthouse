@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import fitz  # pymupdf
 from floorplan.gen_floorplan import build_floorplan_data
-from shared.geometry import vert_isects, path_polygon, segment_polyline, left_norm, off_pt
+from shared.geometry import path_polygon, segment_polyline, left_norm, off_pt, seg_vecs
 from floorplan.constants import ARC_180_R
 from shared.types import LineSeg, ArcSeg
 from shared.svg import git_describe
@@ -56,14 +56,15 @@ SitePlanData = namedtuple("SitePlanData", [
     "building_to_pdf",  # transform function (E,N) → (pdf_x, pdf_y)
     "rotation_deg",     # rotation angle in degrees
     "f15_pdf",          # F15 position in PDF coords
-    "ew_dim_ft",        # E-W dimension (F15.E - F2.E)
-    "ns_dim_ft",        # N-S dimension (F6.N - F18.N)
+    "ew_dim_ft",        # E-W external dimension (F2→F15 along building E-W)
+    "ns_dim_ft",        # N-S external dimension (F18→F6 along building N-S)
     "min_setback_216",  # min perpendicular dist of any F point from 216.73' line (ft)
     "min_setback_275",  # min perpendicular dist of any F point from 275.08' line (ft)
     "draw_poly",        # interpolated building outline (building coords)
     "inner_poly",       # inner wall polygon
-    "span_s_pdf",       # N-S span south endpoint in PDF coords
-    "span_n_pdf",       # N-S span north endpoint in PDF coords
+    "ew_foot_pdf",      # F2 projected onto F15's E-W line (PDF coords)
+    "ns_s_pdf",         # F18 projected onto N-S reference line (PDF coords)
+    "ns_n_pdf",         # F6 projected onto N-S reference line (PDF coords)
     "f2_pdf",           # F2 position in PDF coords
     "SCALE",            # PDF pts per foot (2.4)
     "f_series_pdf",     # dict of F-series + FC points in PDF coords
@@ -164,26 +165,27 @@ def build_site_plan_data():
         ie, inn = inner_poly[j]
         draw_poly.append((oe + frac * (ie - oe), on + frac * (inn - on)))
 
-    # --- Dimension values ---
-    ew_dim_ft = pts["F15"][0] - pts["F2"][0]
-    ns_dim_ft = pts["F6"][1] - pts["F18"][1]
+    # --- External dimensions (building-aligned, matching floorplan dim15/dim13) ---
+    _bld_ew, _ = seg_vecs(pts["W9"], pts["W10"])   # building E-W direction
+    _bld_ns, _ = seg_vecs(pts["W2"], pts["W3"])     # building N-S direction
 
-    # --- N-S Interior Max Span ---
-    _inch = 1.0 / 12.0
-    _e_min = min(p[0] for p in inner_poly)
-    _e_max = max(p[0] for p in inner_poly)
-    _best_span, _best_e, _best_s, _best_n = 0, 0, 0, 0
-    _e = _e_min
-    while _e <= _e_max + 1e-9:
-        _ns = vert_isects(inner_poly, _e)
-        if len(_ns) >= 2:
-            _s, _n = min(_ns), max(_ns)
-            if _n - _s > _best_span:
-                _best_span, _best_e, _best_s, _best_n = _n - _s, _e, _s, _n
-        _e += _inch
+    _df_ew = (pts["F15"][0] - pts["F2"][0], pts["F15"][1] - pts["F2"][1])
+    ew_dim_ft = abs(_df_ew[0] * _bld_ew[0] + _df_ew[1] * _bld_ew[1])
 
-    span_s_pdf = building_to_pdf(_best_e, _best_s)
-    span_n_pdf = building_to_pdf(_best_e, _best_n)
+    _df_ns = (pts["F6"][0] - pts["F18"][0], pts["F6"][1] - pts["F18"][1])
+    ns_dim_ft = abs(_df_ns[0] * _bld_ns[0] + _df_ns[1] * _bld_ns[1])
+
+    # E-W dimension line: F2 projected onto building E-W through F15
+    _t_ew = (_df_ew[0] * _bld_ew[0] + _df_ew[1] * _bld_ew[1])
+    _ew_foot = (f15[0] - _t_ew * _bld_ew[0], f15[1] - _t_ew * _bld_ew[1])
+    ew_foot_pdf = building_to_pdf(*_ew_foot)
+
+    # N-S dimension line: F18 and F6 projected onto building N-S through FC
+    _fc = pts["FC"]
+    _t_f18 = (pts["F18"][0] - _fc[0]) * _bld_ns[0] + (pts["F18"][1] - _fc[1]) * _bld_ns[1]
+    _t_f6 = (pts["F6"][0] - _fc[0]) * _bld_ns[0] + (pts["F6"][1] - _fc[1]) * _bld_ns[1]
+    ns_s_pdf = building_to_pdf(_fc[0] + _t_f18 * _bld_ns[0], _fc[1] + _t_f18 * _bld_ns[1])
+    ns_n_pdf = building_to_pdf(_fc[0] + _t_f6 * _bld_ns[0], _fc[1] + _t_f6 * _bld_ns[1])
 
     f2_pdf = building_to_pdf(*pts["F2"])
     f15_pdf = (f15_pdf_x, f15_pdf_y)
@@ -227,8 +229,9 @@ def build_site_plan_data():
         min_setback_275=min_setback_275,
         draw_poly=draw_poly,
         inner_poly=inner_poly,
-        span_s_pdf=span_s_pdf,
-        span_n_pdf=span_n_pdf,
+        ew_foot_pdf=ew_foot_pdf,
+        ns_s_pdf=ns_s_pdf,
+        ns_n_pdf=ns_n_pdf,
         f2_pdf=f2_pdf,
         SCALE=SCALE,
         f_series_pdf=f_series_pdf,
@@ -309,15 +312,13 @@ def render_site_plan(sp, corners=True):
         shape.finish(color=(1, 0, 0), width=0.5, fill=None,
                      stroke_opacity=0.4)
 
-    # --- F15 to F2-F3 dimension line ---
-    f15 = pts["F15"]
-    f15_pdf = building_to_pdf(*f15)
-    foot_pdf = building_to_pdf(pts["F2"][0], f15[1])
-    _draw_dim_line(shape, page, f15_pdf, foot_pdf,
+    # --- E-W external dimension line (F2→F15, building-aligned) ---
+    f15_pdf = building_to_pdf(*pts["F15"])
+    _draw_dim_line(shape, page, f15_pdf, sp.ew_foot_pdf,
                    f"{sp.ew_dim_ft:.1f}'", COLOR_PROPOSED)
 
-    # --- N-S Interior Max Span dimension line ---
-    _draw_dim_line(shape, page, sp.span_s_pdf, sp.span_n_pdf,
+    # --- N-S external dimension line (F18→F6, building-aligned) ---
+    _draw_dim_line(shape, page, sp.ns_s_pdf, sp.ns_n_pdf,
                    f"{sp.ns_dim_ft:.1f}'", COLOR_PROPOSED)
 
     # --- "PROPOSED CONC. GUEST HOUSE" label ---

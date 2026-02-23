@@ -42,10 +42,10 @@ class TestBuildSitePlanData:
         assert sp_data.f15_pdf[1] == pytest.approx(413.0, abs=2.0)
 
     def test_ew_dimension(self, sp_data):
-        assert sp_data.ew_dim_ft == pytest.approx(35.6, abs=0.1)
+        assert sp_data.ew_dim_ft == pytest.approx(36.0, abs=0.1)
 
     def test_ns_dimension(self, sp_data):
-        assert sp_data.ns_dim_ft == pytest.approx(25.2, abs=0.1)
+        assert sp_data.ns_dim_ft == pytest.approx(28.0, abs=0.1)
 
     def test_min_setback_216(self, sp_data):
         """Min F-point distance from 216.73' line should be 11.5'."""
@@ -86,10 +86,10 @@ class TestBuildSitePlanData:
             assert x_min < px < x_max, f"x={px:.1f} outside parcel"
             assert y_min < py < y_max, f"y={py:.1f} outside parcel"
 
-    def test_span_endpoints_valid(self, sp_data):
-        """Span line endpoints should be distinct PDF points."""
-        sx, sy = sp_data.span_s_pdf
-        nx, ny = sp_data.span_n_pdf
+    def test_ns_dim_endpoints_valid(self, sp_data):
+        """N-S dimension line endpoints should be distinct PDF points."""
+        sx, sy = sp_data.ns_s_pdf
+        nx, ny = sp_data.ns_n_pdf
         dist = math.hypot(nx - sx, ny - sy)
         assert dist > 10.0  # at least 10 PDF pts apart
 
