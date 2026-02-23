@@ -9,9 +9,9 @@ from shared.geometry import (
     brg_dist, fmt_brg, fmt_dist,
     compute_inner_walls,
 )
-from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts
+from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
-from floorplan.geometry import compute_outline_geometry
+from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import WALL_OUTER
 
@@ -182,26 +182,7 @@ def compute_all():
     outline_geo = compute_outline_geometry()
 
     # Align P/Pi with F-series: rigid transform (rotate + translate)
-    # Rotation: PiX->Pi5 parallel to F17->F16
-    _pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
-    _f16 = (outline_geo.fp_pts["F16"][0] - outline_geo.fp_pts["F17"][0],
-            outline_geo.fp_pts["F16"][1] - outline_geo.fp_pts["F17"][1])
-    _align_rot = math.atan2(_f16[1], _f16[0]) - math.atan2(_pip[1], _pip[0])
-    rotate_pts(pts, _align_rot)
-    # Translation: F16 on PiX-Pi5 line AND F3 on P2-P3 line
-    # Two line-containment constraints → 2x2 linear system for (tx, ty)
-    _fp = outline_geo.fp_pts
-    _p23 = (pts["P3"][0] - pts["P2"][0], pts["P3"][1] - pts["P2"][1])
-    _p23_L = math.sqrt(_p23[0]**2 + _p23[1]**2)
-    _n1 = (-_f16[1], _f16[0])   # normal to PiX-Pi5 (unnormalized, same dir as _f16)
-    _n2 = (-_p23[1], _p23[0])   # normal to P2-P3
-    _d1 = (_fp["F16"][0] - pts["PiX"][0]) * _n1[0] + (_fp["F16"][1] - pts["PiX"][1]) * _n1[1]
-    _d2 = (_fp["F3"][0] - pts["P2"][0]) * _n2[0] + (_fp["F3"][1] - pts["P2"][1]) * _n2[1]
-    _det = _n1[0] * _n2[1] - _n1[1] * _n2[0]
-    _tx = (_d1 * _n2[1] - _d2 * _n1[1]) / _det
-    _ty = (_n1[0] * _d2 - _n2[0] * _d1) / _det
-    for k in list(pts):
-        pts[k] = (pts[k][0] + _tx, pts[k][1] + _ty)
+    align_pts_to_f_series(pts)
     pts.update(outline_geo.fp_pts)
     outline_segs = outline_geo.outline_segs
     radii = outline_geo.radii

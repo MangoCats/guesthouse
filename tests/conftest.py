@@ -4,11 +4,11 @@ import io
 import os
 import pytest
 from unittest.mock import patch
-from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts, COORD_ROTATION
-from shared.geometry import compute_inner_walls, path_polygon, left_norm
-from floorplan.geometry import compute_outline_geometry, OutlineAnchors
+from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.geometry import compute_inner_walls, path_polygon
+from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
 from floorplan.layout import compute_interior_layout
-from floorplan.constants import WALL_OUTER, WALL_EXTRA
+from floorplan.constants import WALL_OUTER
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -65,27 +65,17 @@ def inset_result(pts_base, arc_info):
 
 @pytest.fixture(scope="session")
 def pts_full(pts_base, inset_result):
-    """pts dict with all points including inset, rotated by COORD_ROTATION."""
+    """pts dict with all points including inset, aligned to F-series."""
     pts = dict(pts_base)
     pts.update(inset_result.pts_update)
-    rotate_pts(pts, COORD_ROTATION)
+    align_pts_to_f_series(pts)
     return pts
 
 
 @pytest.fixture(scope="session")
-def outline_geo(pts_full, inset_result):
+def outline_geo():
     """OutlineGeometry from compute_outline_geometry."""
-    # Shift anchors outward for 10" wall (2" beyond original 8")
-    _ln = left_norm(pts_full["PiX"], pts_full["Pi5"])
-    anchors = OutlineAnchors(
-        Pi2=(pts_full["Pi2"][0] - WALL_EXTRA, pts_full["Pi2"][1]),
-        Pi3=(pts_full["Pi3"][0] - WALL_EXTRA, pts_full["Pi3"][1] - WALL_EXTRA),
-        Ti3=pts_full["Ti3"],
-        PiX=(pts_full["PiX"][0] - WALL_EXTRA * _ln[0], pts_full["PiX"][1] - WALL_EXTRA * _ln[1]),
-        Pi5=(pts_full["Pi5"][0] - WALL_EXTRA * _ln[0], pts_full["Pi5"][1] - WALL_EXTRA * _ln[1]),
-        TC1=pts_full["TC1"], R1i=inset_result.R1i,
-    )
-    return compute_outline_geometry(anchors)
+    return compute_outline_geometry()
 
 
 @pytest.fixture(scope="session")

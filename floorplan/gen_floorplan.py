@@ -8,15 +8,15 @@ from typing import NamedTuple, Any
 
 from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
-    segment_polyline, path_polygon, poly_area, left_norm,
+    segment_polyline, path_polygon, poly_area,
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
     seg_vecs, offset_pt, line_isect,
 )
-from shared.survey import compute_traverse, compute_three_arc, compute_inset, rotate_pts, COORD_ROTATION
+from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
-from floorplan.geometry import compute_outline_geometry, OutlineAnchors
+from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
 from floorplan.constants import (
-    WALL_OUTER, WALL_EXTRA, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
+    WALL_OUTER, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
     WH_RADIUS,
     SINK_RX, SINK_RY,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
@@ -288,19 +288,9 @@ def build_floorplan_data():
     _inset = compute_inset(pts, _arc_info["R1"], _arc_info["R2"], _arc_info["R3"],
                            _arc_info["nE"], _arc_info["nN"])
     pts.update(_inset.pts_update)
-    # Apply coordinate rotation so survey points match F-series (chain walk) coords
-    rotate_pts(pts, COORD_ROTATION)
-    # Shift anchors outward for 10" wall (2" beyond original 8")
-    _ln_pip = left_norm(pts["PiX"], pts["Pi5"])
-    _anchors = OutlineAnchors(
-        Pi2=(pts["Pi2"][0] - WALL_EXTRA, pts["Pi2"][1]),
-        Pi3=(pts["Pi3"][0] - WALL_EXTRA, pts["Pi3"][1] - WALL_EXTRA),
-        Ti3=pts["Ti3"],
-        PiX=(pts["PiX"][0] - WALL_EXTRA * _ln_pip[0], pts["PiX"][1] - WALL_EXTRA * _ln_pip[1]),
-        Pi5=(pts["Pi5"][0] - WALL_EXTRA * _ln_pip[0], pts["Pi5"][1] - WALL_EXTRA * _ln_pip[1]),
-        TC1=pts["TC1"], R1i=_inset.R1i,
-    )
-    _outline_geo = compute_outline_geometry(_anchors)
+    # Align P/Pi with F-series coordinate space
+    align_pts_to_f_series(pts)
+    _outline_geo = compute_outline_geometry()
     pts.update(_outline_geo.fp_pts)
     outline_segs = _outline_geo.outline_segs
     _radii = _outline_geo.radii
