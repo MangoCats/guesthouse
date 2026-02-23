@@ -439,3 +439,39 @@ color(roof_green)
   multmatrix(roof_shear)
     linear_extrude(height = roof_thick)
       polygon(points = shell_pts(roof_outline, 0));
+// Window panels (1" opaque, middle wall openings only)
+window_blue_grey = [0.80, 0.84, 0.90];
+color(window_blue_grey) {
+  // O1
+  translate([0, 0, lower_height])
+    linear_extrude(height = middle_height)
+      polygon(points = [[-17.20702671, -5.49253807], [-17.38187663, -3.91888882], [-17.29905298, -3.90968620], [-17.12420307, -5.48333544]]);
+  // O2
+  translate([0, 0, lower_height])
+    linear_extrude(height = middle_height)
+      polygon(points = [[-17.82417227, 2.64546266], [-17.82417227, 4.22879599], [-17.74083893, 4.22879599], [-17.74083893, 2.64546266]]);
+  // O5
+  translate([0, 0, lower_height])
+    linear_extrude(height = middle_height)
+      polygon(points = [[-7.12743475, 10.48537115], [-1.49542692, 11.11114980], [-1.48622429, 11.02832615], [-7.11823212, 10.40254750]]);
+  // O7
+  translate([0, 0, lower_height])
+    linear_extrude(height = middle_height)
+      polygon(points = [[13.85550825, 11.86589713], [16.03893647, 6.27728001], [15.96131679, 6.24695462], [13.77788857, 11.83557174]]);
+  // O8
+  translate([0, 0, lower_height])
+    linear_extrude(height = middle_height)
+      polygon(points = [[18.15218210, -3.01386040], [18.36384252, -4.91880422], [18.28101888, -4.92800685], [18.06935845, -3.02306303]]);
+  // O9
+  translate([0, 0, lower_height])
+    linear_extrude(height = middle_height)
+      polygon(points = [[6.25999823, -12.87318708], [4.34333157, -12.87318708], [4.34333157, -12.78985375], [6.25999823, -12.78985375]]);
+  // O10
+  translate([0, 0, lower_height])
+    linear_extrude(height = middle_height)
+      polygon(points = [[-2.82333510, -12.87318708], [-4.74000177, -12.87318708], [-4.74000177, -12.78985375], [-2.82333510, -12.78985375]]);
+  // O11
+  translate([0, 0, lower_height])
+    linear_extrude(height = middle_height)
+      polygon(points = [[-10.74000177, -12.87318708], [-12.32333510, -12.87318708], [-12.32333510, -12.78985375], [-10.74000177, -12.78985375]]);
+}

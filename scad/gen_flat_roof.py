@@ -318,6 +318,31 @@ def generate():
         label = f"lower_{start_op.name}_{end_op.name}"
         lower_section_data.append((label, tpath))
 
+    # Window openings: open in middle wall only (not doors O3/O6, not O4)
+    window_names = {"O1", "O2", "O5", "O7", "O8", "O9", "O10", "O11"}
+    window_panels = []
+    panel_half = 0.5 / 12.0  # 1" thick panel, half-thickness in feet
+    for op in openings:
+        if op.name not in window_names:
+            continue
+        seg = outline_segs[op.seg_idx]
+        iseg = inner_segs[op.seg_idx]
+        F_A, F_B = pts[seg.start], pts[seg.end]
+        W_A, W_B = pts[iseg.start], pts[iseg.end]
+        M_A = ((F_A[0] + W_A[0]) / 2, (F_A[1] + W_A[1]) / 2)
+        M_B = ((F_B[0] + W_B[0]) / 2, (F_B[1] + W_B[1]) / 2)
+        M_s = lerp(M_A, M_B, op.t_start)
+        M_e = lerp(M_A, M_B, op.t_end)
+        dx, dy = F_B[0] - F_A[0], F_B[1] - F_A[1]
+        ln = math.sqrt(dx * dx + dy * dy)
+        nx, ny = -dy / ln, dx / ln  # exterior normal
+        window_panels.append((op.name, [
+            (M_s[0] + nx * panel_half, M_s[1] + ny * panel_half),
+            (M_e[0] + nx * panel_half, M_e[1] + ny * panel_half),
+            (M_e[0] - nx * panel_half, M_e[1] - ny * panel_half),
+            (M_s[0] - nx * panel_half, M_s[1] - ny * panel_half),
+        ]))
+
     # Full-wall T-path: only O4 retained (upper wall band)
     o4_openings = [op for op in openings if op.name == "O4"]
     full_sections = enumerate_wall_sections(o4_openings, outline_segs)
@@ -504,6 +529,16 @@ def generate():
     out.append("        translate([-25, -20, -25])")
     out.append("          cube([50, 40, 25]);")
     out.append("    }")
+    out.append("// Window panels (1\" opaque, middle wall openings only)")
+    out.append("window_blue_grey = [0.80, 0.84, 0.90];")
+    out.append("color(window_blue_grey) {")
+    for name, poly in window_panels:
+        pts_str = ", ".join(f"[{p[0]:.8f}, {p[1]:.8f}]" for p in poly)
+        out.append(f"  // {name}")
+        out.append(f"  translate([0, 0, lower_height])")
+        out.append(f"    linear_extrude(height = middle_height)")
+        out.append(f"      polygon(points = [{pts_str}]);")
+    out.append("}")
     out.append("")
 
     with open(_OUT, "w") as f:
