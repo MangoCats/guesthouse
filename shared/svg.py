@@ -2,6 +2,7 @@
 import os, subprocess
 from typing import Callable
 from .types import Point
+from .survey import FC_IN_P3
 
 # Cache file written by gen_all.py so all SVGs embed the same git describe.
 _GIT_DESCRIBE_CACHE = os.path.join(os.path.dirname(__file__), os.pardir, ".git_describe")
@@ -43,9 +44,13 @@ def normalize_svg_angle(deg: float) -> float:
     return deg
 
 def make_svg_transform(p3_trav: Point) -> Callable[[float, float], tuple[float, float]]:
-    """Create to_svg closure from P3 traverse position."""
-    px = _CALIB_X_P3 + p3_trav[0] * _s
-    py = _CALIB_Y_P3 - p3_trav[1] * _s
+    """Create to_svg closure from P3 traverse position.
+
+    Coordinates are FC-based (building center = origin).
+    The FC offset compensates so to_svg(0,0) maps FC to the correct SVG pixel.
+    """
+    px = _CALIB_X_P3 + (p3_trav[0] + FC_IN_P3[0]) * _s
+    py = _CALIB_Y_P3 - (p3_trav[1] + FC_IN_P3[1]) * _s
     def to_svg(e: float, n: float) -> tuple[float, float]:
         return (px + e * _s, py - n * _s)
     return to_svg

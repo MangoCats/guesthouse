@@ -1,4 +1,4 @@
-"""Compute F-series outline geometry from inset anchor points and design constants."""
+"""Compute F-series outline geometry from chain walk and design constants."""
 import math
 from typing import NamedTuple
 
@@ -33,9 +33,132 @@ class OutlineAnchors(NamedTuple):
 
 class OutlineGeometry(NamedTuple):
     """Complete outline geometry result."""
-    fp_pts: dict[str, Point]     # F1-F20, F11a, F11b + C1-C19, C11a
+    fp_pts: dict[str, Point]     # F1-F20, F11a, F11b + C1-C19, C11a + FC
     outline_segs: list[Segment]  # 22 segments with F-series names
     radii: dict[str, float]      # R_a1 through R_a19
+
+
+# ============================================================
+# F-series outline chain: single source of truth
+# ============================================================
+
+# FC (building center) = origin, by definition.
+# F2 position and initial bearing define the chain starting point.
+F2_E = -18.0           # F2 easting relative to FC
+F2_N = -10.5           # F2 northing relative to FC
+F2_BRG = 0.0           # initial bearing: due north (radians)
+
+# Sweep angle constants (radians)
+_A19 = math.atan(1.0 / 9.0)   # arctan(1/9) for F3-F4, F19-F20
+_A9 = math.atan(9.0)           # arctan(9) for F5-F6, F1-F2
+_PI_2 = math.pi / 2            # 90 deg
+_5PI_12 = 5 * math.pi / 12    # 75 deg
+_PI_12 = math.pi / 12          # 15 deg
+_PI_3 = math.pi / 3            # 60 deg
+_PI_6 = math.pi / 6            # 30 deg
+
+# Chain: ("L", distance) for lines
+#        ("CW"/"CCW", radius, sweep, center_name, n_pts) for arcs
+# Starting at F2, bearing north (0 rad), CW traversal.
+OUTLINE_CHAIN = [
+    ("L",   12.083333333333),                                  # F2->F3
+    ("CW",   8.351795046046, _A19, "C3", 20),                 # F3->F4
+    ("L",    9.476667232982),                                  # F4->F5
+    ("CW",   2.333333333333, _A9, "C5", 20),                  # F5->F6
+    ("L",    5.250000000000),                                  # F6->F7
+    ("CW",   2.333333333333, _PI_2, "C7", 20),                # F7->F8
+    ("CCW",  0.166666666667, _PI_2, "C8", 20),                # F8->F9
+    ("L",   15.166666666667),                                  # F9->F10
+    ("CCW",  1.039662132188, _5PI_12, "C10", 20),             # F10->F11
+    ("CW",   2.333333333333, _5PI_12, "C11a", 30),            # F11->F11a
+    ("L",    1.000000000000),                                  # F11a->F11b
+    ("CW",   2.333333333333, _5PI_12, "C11", 30),             # F11b->F12
+    ("L",   11.858994000010),                                  # F12->F13
+    ("CW",   2.507553207938, _PI_12, "C13", 60),              # F13->F14
+    ("L",    8.666666666667),                                  # F14->F15
+    ("CW",   2.473295271375, _PI_3, "C15", 20),               # F15->F16
+    ("L",    5.000000000000),                                  # F16->F17
+    ("CW",   6.404672887007, _PI_6, "C17", 20),               # F17->F18
+    ("L",    1.397555568554),                                  # F18->F19
+    ("CW",  18.888718471469, _A19, "C19", 60),                # F19->F20
+    ("L",   23.147693701700),                                  # F20->F1
+    ("CW",   0.833333333333, _A9, "C1", 20),                  # F1->F2
+]
+
+# Point names produced by each chain segment (one per segment, in order)
+CHAIN_POINT_NAMES = [
+    "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11",
+    "F11a", "F11b", "F12", "F13", "F14", "F15", "F16", "F17",
+    "F18", "F19", "F20", "F1", "F2",
+]
+
+
+def walk_outline_chain() -> dict[str, Point]:
+    """Walk F-series chain from F2 bearing north. Returns all F/C/FC points.
+
+    FC = (0, 0) by definition. All F-series and arc center points are
+    computed from the chain walk starting at (F2_E, F2_N) with bearing F2_BRG.
+    """
+    E, N = F2_E, F2_N
+    brg = F2_BRG
+    fp_pts: dict[str, Point] = {"FC": (0.0, 0.0)}
+
+    for seg, name in zip(OUTLINE_CHAIN, CHAIN_POINT_NAMES):
+        if seg[0] == "L":
+            d = seg[1]
+            E += d * math.sin(brg)
+            N += d * math.cos(brg)
+        else:
+            direction, R, sweep, center_name = seg[0], seg[1], seg[2], seg[3]
+            if direction == "CW":
+                cx = E + R * math.cos(brg)
+                cy = N - R * math.sin(brg)
+                alpha = math.atan2(N - cy, E - cx) - sweep
+                E, N = cx + R * math.cos(alpha), cy + R * math.sin(alpha)
+                brg += sweep
+            else:  # CCW
+                cx = E - R * math.cos(brg)
+                cy = N + R * math.sin(brg)
+                alpha = math.atan2(N - cy, E - cx) + sweep
+                E, N = cx + R * math.cos(alpha), cy + R * math.sin(alpha)
+                brg -= sweep
+            fp_pts[center_name] = (cx, cy)
+        fp_pts[name] = (E, N)
+
+    return fp_pts
+
+
+def _build_outline_segs() -> list[Segment]:
+    """Build outline segment list from chain definition.
+
+    Outline convention starts at F1, so we rotate the chain (which starts
+    at F2) so the F1->F2 arc comes first.
+    """
+    start_names = ["F2"] + CHAIN_POINT_NAMES[:-1]  # F2, F3, ..., F20, F1
+    end_names = CHAIN_POINT_NAMES                    # F3, F4, ..., F1, F2
+
+    segs: list[Segment] = []
+    for entry, start, end in zip(OUTLINE_CHAIN, start_names, end_names):
+        if entry[0] == "L":
+            segs.append(LineSeg(start, end))
+        else:
+            segs.append(ArcSeg(start, end, entry[3], entry[1], entry[0], entry[4]))
+
+    # Rotate so F1->F2 comes first (matches outline convention)
+    return segs[-1:] + segs[:-1]
+
+
+def _build_radii() -> dict[str, float]:
+    """Extract radii dict from chain arc entries."""
+    radii: dict[str, float] = {}
+    for entry in OUTLINE_CHAIN:
+        if entry[0] != "L":
+            center_name = entry[3]
+            ra_name = "R_a" + center_name[1:]  # "C3" -> "R_a3"
+            if ra_name == "R_a11a":
+                ra_name = "R_a11"  # C11a and C11 share the same radius
+            radii[ra_name] = entry[1]
+    return radii
 
 
 # ============================================================
@@ -305,68 +428,8 @@ def _compute_south_wall(
 # ============================================================
 
 def compute_outline_geometry(anchors: OutlineAnchors) -> OutlineGeometry:
-    """Compute F-series outline from inset anchor points + design constants."""
-    fp_pts: dict[str, Point] = {}
-
-    R_a1 = _compute_ne_corner(fp_pts, anchors)
-    R_a5 = _compute_nw_corner(fp_pts, anchors)
-    R_a3 = _compute_west_wall(fp_pts, anchors)
-    R_a7, R_a8 = _compute_upper_east_arcs(fp_pts, anchors)
-    R_a10, R_a11, R_a13, R_a15 = _compute_central_region(fp_pts, anchors)
-    R_a17, R_a19 = _compute_south_wall(fp_pts)
-
-    # F1: tangent to line from F20 on arc C1 (CW, radius R_a1, center at F2 northing)
-    # Exit bearing from F20 (same sweep as C19 arc)
-    _sweep = math.atan(1.0 / 9.0)
-    _exit_angle = -math.pi - _sweep  # CW tangent at F20: radius_angle - π/2
-    _ex = math.cos(_exit_angle)
-    _ey = math.sin(_exit_angle)
-    # Solve for F2_N from tangency: F1 on line from F20 and on circle C1
-    _F2_E = fp_pts["F2"][0]
-    _F20_E, _F20_N = fp_pts["F20"]
-    _dE = _F2_E - _F20_E
-    _F2_N = _F20_N + (_dE + R_a1 * (1 - _ey)) * _ey / _ex - R_a1 * _ex
-    fp_pts["F2"] = (_F2_E, _F2_N)
-    fp_pts["C1"] = (_F2_E + R_a1, _F2_N)
-    fp_pts["F1"] = (_F2_E + R_a1 * (1 - _ey), _F2_N + R_a1 * _ex)
-
-    # --- Build outline segments (F-series) ---
-    outline_segs: list[Segment] = [
-        ArcSeg("F1", "F2", "C1", R_a1, "CW", 20),
-        LineSeg("F2", "F3"),
-        ArcSeg("F3", "F4", "C3", R_a3, "CW", 20),
-        LineSeg("F4", "F5"),
-        ArcSeg("F5", "F6", "C5", R_a5, "CW", 20),
-        LineSeg("F6", "F7"),
-        ArcSeg("F7", "F8", "C7", R_a7, "CW", 20),
-        ArcSeg("F8", "F9", "C8", R_a8, "CCW", 20),
-        LineSeg("F9", "F10"),
-        ArcSeg("F10", "F11", "C10", R_a10, "CCW", 20),
-        ArcSeg("F11", "F11a", "C11a", R_a11, "CW", 30),
-        LineSeg("F11a", "F11b"),
-        ArcSeg("F11b", "F12", "C11", R_a11, "CW", 30),
-        LineSeg("F12", "F13"),
-        ArcSeg("F13", "F14", "C13", R_a13, "CW", 60),
-        LineSeg("F14", "F15"),
-        ArcSeg("F15", "F16", "C15", R_a15, "CW", 20),
-        LineSeg("F16", "F17"),
-        ArcSeg("F17", "F18", "C17", R_a17, "CW", 20),
-        LineSeg("F18", "F19"),
-        ArcSeg("F19", "F20", "C19", R_a19, "CW", 60),
-        LineSeg("F20", "F1"),
-    ]
-
-    # FC: center of outline — halfway between each pair of parallel segments
-    fp_pts["FC"] = (
-        (fp_pts["F2"][0] + fp_pts["F14"][0]) / 2,   # midpoint of F2-F3 / F14-F15 eastings
-        (fp_pts["F6"][1] + fp_pts["F18"][1]) / 2,   # midpoint of F6-F7 / F18-F19 northings
-    )
-
-    radii = {
-        "R_a1": R_a1, "R_a3": R_a3, "R_a5": R_a5,
-        "R_a7": R_a7, "R_a8": R_a8, "R_a10": R_a10, "R_a11": R_a11,
-        "R_a13": R_a13, "R_a15": R_a15, "R_a17": R_a17,
-        "R_a19": R_a19,
-    }
-
+    """Compute F-series outline. Chain walk is single source of truth."""
+    fp_pts = walk_outline_chain()
+    outline_segs = _build_outline_segs()
+    radii = _build_radii()
     return OutlineGeometry(fp_pts=fp_pts, outline_segs=outline_segs, radii=radii)

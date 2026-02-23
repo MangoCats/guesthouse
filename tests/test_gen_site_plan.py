@@ -65,9 +65,9 @@ class TestBuildSitePlanData:
         # First point of draw_poly should be very close to first point of
         # outer_poly (offset by only half-stroke-width ≈ 0.33 PDF pts)
         dp = sp_data.draw_poly[0]
-        # Just check it's a reasonable building coordinate
-        assert 0.0 < dp[0] < 40.0
-        assert -5.0 < dp[1] < 30.0
+        # Just check it's a reasonable building coordinate (FC-based)
+        assert -20.0 < dp[0] < 20.0
+        assert -16.0 < dp[1] < 16.0
 
     def test_building_to_pdf_f15(self, sp_data):
         """building_to_pdf(F15) should match f15_pdf."""

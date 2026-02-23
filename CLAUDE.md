@@ -3,7 +3,9 @@
 Curved-wall building outline geometry and floorplan SVG generation.
 
 ## Coordinate System
-- P3 = origin, Easting (E) / Northing (N), units in feet
+- FC (building center) = origin, Easting (E) / Northing (N), units in feet
+- P3 = (-18.5, -13.5), defined relative to FC
+- F-series outline: chain walk from F2 bearing north is the single source of truth
 - Dimensions typically specified in inches, converted via `/ 12.0`
 
 ## Project Structure

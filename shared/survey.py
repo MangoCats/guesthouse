@@ -9,6 +9,10 @@ from .geometry import (
     circle_circle_isect,
 )
 
+# FC (building center) position in P3-based coordinates.
+# Used to shift survey coordinates from P3 origin to FC origin.
+FC_IN_P3 = (18.5, 13.5)
+
 # ============================================================
 # Traverse Computation
 # ============================================================
@@ -16,8 +20,8 @@ def compute_traverse() -> tuple[dict[str, Point], Point]:
     """Compute traverse from raw survey legs.
 
     Returns (pts, p3_trav) where pts is a dict with keys
-    P3/POB/P2/P4/P5 (P3-based coordinates) and p3_trav is
-    the raw P3 position needed for SVG transform calibration.
+    P3/POB/P2/P4/P5 (FC-based coordinates, building center = origin)
+    and p3_trav is the raw P3 position needed for SVG transform calibration.
     """
     legs = [(257,53,45,19,1.0),(180,54,31,26,11.0),(93,36,7,31,10.5),
             (56,36,31,13,2.5),(317,11,44,34,11.5)]
@@ -39,6 +43,11 @@ def compute_traverse() -> tuple[dict[str, Point], Point]:
     pts["P2"]  = (_trav_ft[1][0] - _p3_trav[0], _trav_ft[1][1] - _p3_trav[1])
     pts["P4"]  = (_trav_ft[3][0] - _p3_trav[0], _trav_ft[3][1] - _p3_trav[1])
     pts["P5"]  = (_trav_ft[4][0] - _p3_trav[0], _trav_ft[4][1] - _p3_trav[1])
+
+    # Shift all points from P3 origin to FC (building center) origin
+    for k in list(pts):
+        pts[k] = (pts[k][0] - FC_IN_P3[0], pts[k][1] - FC_IN_P3[1])
+
     return pts, _p3_trav
 
 # ============================================================

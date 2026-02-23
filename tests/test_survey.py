@@ -5,14 +5,16 @@ from shared.survey import compute_traverse, compute_three_arc, InsetResult, comp
 
 
 class TestComputeTraverse:
-    def test_p3_is_origin(self, pts_base):
-        assert pts_base["P3"] == (0, 0)
+    def test_p3_position(self, pts_base):
+        assert abs(pts_base["P3"][0] - (-18.5)) < 1e-10
+        assert abs(pts_base["P3"][1] - (-13.5)) < 1e-10
 
     def test_known_stations(self, pts_base):
-        assert abs(pts_base["POB"][0] - 19.1177) < 1e-4
-        assert abs(pts_base["POB"][1] - 32.9174) < 1e-3
-        assert abs(pts_base["P2"][1] - 29.0) < 1e-4
-        assert abs(pts_base["P4"][1] - 0.0) < 1e-4
+        # FC-based: subtract FC_IN_P3 = (18.5, 13.5) from P3-based values
+        assert abs(pts_base["POB"][0] - (19.1177 - 18.5)) < 1e-4
+        assert abs(pts_base["POB"][1] - (32.9174 - 13.5)) < 1e-3
+        assert abs(pts_base["P2"][1] - (29.0 - 13.5)) < 1e-4
+        assert abs(pts_base["P4"][1] - (0.0 - 13.5)) < 1e-4
 
     def test_p3_trav_tuple(self, traverse):
         _, p3_trav = traverse
