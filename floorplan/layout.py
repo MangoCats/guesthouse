@@ -17,7 +17,7 @@ from floorplan.constants import (
     IW9_LENGTH, IW9_OFFSET_O10,
     IW4_OFFSET_FROM_IW2, IW4_RO_WIDTH,
     IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
-    IW8_OFFSET_FROM_IW1,
+    IW8_OFFSET_FROM_W20W1,
     IW11_RADIUS_FROM_IW4, IW12_OFFSET_IW11, IW12_SHORTEN,
     DRESSER_WIDTH, DRESSER_DEPTH, DRESSER_GAP_IW15, DRESSER_GAP_IW1,
 )
@@ -286,13 +286,13 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         _ctr_ne_clip = line_isect(ctr_nw, _w2w5_in, iw3_sw, _iw3_w_dir)
         ctr_clip = [ctr_nw, _ctr_ne_clip, iw3_sw, _ctr_poly_sw]
 
-    # --- IW8 (west end touches moved W2-W5 wall; east end at old IW1) ---
-    _iw8_n_anchor = _offset(iw1_nw, -IW8_OFFSET_FROM_IW1, _w9w10_in)
-    _iw8_s_anchor = _offset(iw1_sw, -IW8_OFFSET_FROM_IW1, _w9w10_in)
-    iw8_nw = line_isect(_iw8_n_anchor, _w9w10_al, pts["W2"], _w2w5_al)
-    iw8_sw = line_isect(_iw8_s_anchor, _w9w10_al, pts["W2"], _w2w5_al)
-    iw8_ne = line_isect(_iw8_n_anchor, _w9w10_al, iw1_nw, _iw_al)
-    iw8_se = line_isect(_iw8_s_anchor, _w9w10_al, iw1_nw, _iw_al)
+    # --- IW8 (perpendicular to W2-W5, 12' from W20-W1; west at W2-W5, east at IW1) ---
+    _iw8_s_anchor = _offset(pts["W20"], IW8_OFFSET_FROM_W20W1, _w20w1_in)
+    _iw8_n_anchor = _offset(_iw8_s_anchor, WALL_3IN, _w20w1_in)
+    iw8_sw = line_isect(_iw8_s_anchor, _w2w5_in, pts["W2"], _w2w5_al)
+    iw8_nw = line_isect(_iw8_n_anchor, _w2w5_in, pts["W2"], _w2w5_al)
+    iw8_se = line_isect(_iw8_s_anchor, _w2w5_in, iw1_nw, _iw_al)
+    iw8_ne = line_isect(_iw8_n_anchor, _w2w5_in, iw1_nw, _iw_al)
 
     # --- IW5 ---
     _iw5_n_anchor = _offset(iw1_sw, IW5_OFFSET_FROM_IW1, _w9w10_in)
