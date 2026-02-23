@@ -539,7 +539,7 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     _iw1_s_al, _ = seg_vecs(layout.iw1.poly[0], layout.iw1.poly[1])
     _iw2_e_al, _ = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
     _iw2_w_al, _ = seg_vecs(layout.iw2.poly[0], layout.iw2.poly[3])
-    _w14w15_al, _ = seg_vecs(pts["W14"], pts["W15"])
+    _w14w15_al, _w14w15_in = seg_vecs(pts["W14"], pts["W15"])
 
     # ---- dim01: IW1-north → W9 (vertical) ----
     _f9f11_mid = ((pts["F9"][0] + pts["F11"][0]) / 2,
@@ -582,13 +582,14 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     _dim05_A = line_isect(pts["W2"], _ns, _dim05_B, _ew)
     result.extend([("dim05_A", _dim05_A), ("dim05_B", _dim05_B)])
 
-    # ---- dim06: IW4-east → W14-W15 (horizontal at IW4 east face mid) ----
+    # ---- dim06: IW4-east → W14-W15 (perp to W14-W15 at O8 center) ----
     _iw4_e_al, _ = seg_vecs(layout.iw4.poly[1], layout.iw4.poly[2])
-    _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
-                  (layout.iw4.poly[1][1] + layout.iw4.poly[2][1]) / 2)
-    result.append(("dim06_A", _iw4_e_mid))
-    result.append(("dim06_B", line_isect(pts["W14"], _w14w15_al,
-                                         _iw4_e_mid, _ew)))
+    _o8 = [o for o in openings if o.name == "O8"][0]
+    _o8_mid = ((_o8.poly[2][0] + _o8.poly[3][0]) / 2,
+               (_o8.poly[2][1] + _o8.poly[3][1]) / 2)
+    result.append(("dim06_A", line_isect(layout.iw4.poly[1], _iw4_e_al,
+                                         _o8_mid, _w14w15_in)))
+    result.append(("dim06_B", _o8_mid))
 
     # ---- dim07: Storage — IW15-east → W14-W15 (horizontal) ----
     _iw15_e_al, _ = seg_vecs(layout.iw15.poly[1], layout.iw15.poly[2])
@@ -2324,9 +2325,10 @@ def _render_dimensions(out, data, layout, bare=False):
     dim_line_h(out, ep["dim05_A"][0], ep["dim05_A"][1], ep["dim05_B"][0],
                fmt_dist(ep["dim05_B"][0] - ep["dim05_A"][0]), to_svg)
 
-    # dim06: IW4-east → W14-W15 (horizontal)
-    dim_line_h(out, ep["dim06_A"][0], ep["dim06_A"][1], ep["dim06_B"][0],
-               fmt_dist(ep["dim06_B"][0] - ep["dim06_A"][0]), to_svg)
+    # dim06: IW4-east → W14-W15 (perp to W14-W15 at O8 center)
+    _rotated_dim(out, ep["dim06_A"], ep["dim06_B"],
+                 fmt_dist(_edist(ep["dim06_A"], ep["dim06_B"])), to_svg,
+                 label_side=1)
 
     # dim07: Storage (horizontal)
     dim_line_h(out, ep["dim07_A"][0], ep["dim07_A"][1], ep["dim07_B"][0],
