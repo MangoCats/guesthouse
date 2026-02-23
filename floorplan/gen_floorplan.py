@@ -2113,25 +2113,26 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                href="https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/",
                text_rot=_ch_svg_deg)
 
-    # DESK: 60" x 30", along W16-W17 wall
-    w17w16_al, w17w16_in = seg_vecs(pts["W17"], pts["W16"])
+    # DESK: 60" x 30", along W16-W17 wall (interior side)
+    w16w17_al, w16w17_in = seg_vecs(pts["W16"], pts["W17"])
+    _neg_w16w17_al = (-w16w17_al[0], -w16w17_al[1])
     dk_sw_pt = pts["W17"]
-    dk_se_pt = offset_pt(dk_sw_pt, DESK_WIDTH, w17w16_al)
-    dk_nw_pt = offset_pt(dk_sw_pt, DESK_DEPTH, w17w16_in)
-    dk_ne_pt = offset_pt(dk_se_pt, DESK_DEPTH, w17w16_in)
+    dk_se_pt = offset_pt(dk_sw_pt, DESK_WIDTH, _neg_w16w17_al)
+    dk_nw_pt = offset_pt(dk_sw_pt, DESK_DEPTH, w16w17_in)
+    dk_ne_pt = offset_pt(dk_se_pt, DESK_DEPTH, w16w17_in)
     _appl_poly(out, [dk_sw_pt, dk_se_pt, dk_ne_pt, dk_nw_pt], to_svg,
-               label="DESK", text_rot=_svg_angle(w17w16_al))
+               label="DESK", text_rot=_svg_angle(_neg_w16w17_al))
 
     # DESK CHAIR: 27" x 24", 12" in front of desk, centered
-    dc_sw_pt = offset_pt(offset_pt(dk_sw_pt, DESK_WIDTH / 2 - DESK_CHAIR_WIDTH / 2, w17w16_al),
-                         DESK_DEPTH + DESK_CHAIR_GAP, w17w16_in)
-    dc_se_pt = offset_pt(dc_sw_pt, DESK_CHAIR_WIDTH, w17w16_al)
-    dc_nw_pt = offset_pt(dc_sw_pt, DESK_CHAIR_DEPTH, w17w16_in)
-    dc_ne_pt = offset_pt(dc_se_pt, DESK_CHAIR_DEPTH, w17w16_in)
+    dc_sw_pt = offset_pt(offset_pt(dk_sw_pt, DESK_WIDTH / 2 - DESK_CHAIR_WIDTH / 2, _neg_w16w17_al),
+                         DESK_DEPTH + DESK_CHAIR_GAP, w16w17_in)
+    dc_se_pt = offset_pt(dc_sw_pt, DESK_CHAIR_WIDTH, _neg_w16w17_al)
+    dc_nw_pt = offset_pt(dc_sw_pt, DESK_CHAIR_DEPTH, w16w17_in)
+    dc_ne_pt = offset_pt(dc_se_pt, DESK_CHAIR_DEPTH, w16w17_in)
     _appl_poly(out, [dc_sw_pt, dc_se_pt, dc_ne_pt, dc_nw_pt], to_svg,
                label="CHAIR",
                href="https://www.amazon.com/BESTFAIR-Ergonomic-Office-Chair-Adjustable/dp/B0FDQDMP2D?th=1",
-               text_rot=_svg_angle(w17w16_al))
+               text_rot=_svg_angle(_neg_w16w17_al))
 
     # Room labels — use polygon face midpoints for rotation-safe positioning
     # BEDROOM: 11'7" east of IW2 east face, midway between ctr south and IW1 south
