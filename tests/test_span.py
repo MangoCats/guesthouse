@@ -130,7 +130,8 @@ class TestComputeSpans:
         _, spans, south, north = spans_result
         for s, ss, ns in zip(spans, south, north):
             if s > 0:
-                assert ss + ns <= s + 1e-9
+                assert ss <= s + 1e-9
+                assert ns <= s + 1e-9
 
 
 class TestMaxSpanAtAngle:

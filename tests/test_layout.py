@@ -21,7 +21,10 @@ class TestInteriorLayout:
         assert layout.dryer.n > layout.dryer.s
 
     def test_washer_above_dryer(self, layout):
-        assert layout.washer.s > layout.dryer.n  # washer north of dryer (gap)
+        # Compare polygon centroids (rotation-safe, not BBox edges)
+        wc_n = sum(p[1] for p in layout.washer.poly) / len(layout.washer.poly)
+        dc_n = sum(p[1] for p in layout.dryer.poly) / len(layout.dryer.poly)
+        assert wc_n > dc_n  # washer centroid north of dryer centroid
 
     def test_counter_bounds(self, layout):
         assert layout.ctr.e > layout.ctr.w

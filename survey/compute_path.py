@@ -1,11 +1,14 @@
 import math
 
 from shared.geometry import poly_area, arc_poly, brg_dist, fmt_brg, fmt_dist
-from shared.survey import compute_traverse, compute_three_arc, FC_IN_P3
+from shared.survey import compute_traverse, compute_three_arc, FC_IN_P3, rotate_pts, COORD_ROTATION
 
 # === Traverse (raw survey data, instrument at POB) ===
-# All coordinates below are FC-based: FC (building center) = (0, 0).
+# All coordinates below are FC-based: FC (building center) = (0, 0),
+# rotated by COORD_ROTATION so F4-F5 aligns to bearing 0.
 _pts, _p3_trav = compute_traverse()
+_arc = compute_three_arc(_pts)
+rotate_pts(_pts, COORD_ROTATION)
 P3  = _pts["P3"]
 POB = _pts["POB"]
 P2  = _pts["P2"]
@@ -19,7 +22,6 @@ print(f"P4:  ({P4[0]:.4f}, {P4[1]:.4f})")
 print(f"P5:  ({P5[0]:.4f}, {P5[1]:.4f})")
 
 # === Three-arc system ===
-_arc = compute_three_arc(_pts)
 R1, R2, R3 = _arc["R1"], _arc["R2"], _arc["R3"]
 uE, uN = _arc["uE"], _arc["uN"]
 nE, nN = _arc["nE"], _arc["nN"]
