@@ -239,9 +239,6 @@ def _render_interior_walls(out, data):
         out.append(f'<polygon points="{svg}" fill="{IW_FILL}" '
                    f'stroke="{IW_STROKE}" stroke-width="{IW_SW}"/>')
 
-    def iw_rect(w, e, s, n):
-        iw_poly([(w, s), (e, s), (e, n), (w, n)])
-
     def iw_label(name, w, e, s, n, vertical=True, n_shift=0.0):
         """Label just outside the wall: north for horizontal, west for vertical.
 
@@ -271,12 +268,12 @@ def _render_interior_walls(out, data):
              layout.iw1.s, layout.iw1.n, vertical=False)
 
     # IW8 (horizontal, 6" — west extension of IW1)
-    iw_rect(layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n)
+    iw_poly(layout.iw8.poly)
     iw_label("IW8", layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n,
              vertical=False)
 
     # IW2 (vertical, 6")
-    iw_rect(layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
+    iw_poly(layout.iw2.poly)
     iw_label("IW2", layout.iw2.w, layout.iw2.e, ro_map["RO4"].n, layout.iw2.n)
 
     # IW3 (rotated, 4" thick, perpendicular to W20-W0)
@@ -303,17 +300,16 @@ def _render_interior_walls(out, data):
     _ro5_w = ro_map["RO5"].w
     iw_label("IW6", _ro5_w, _ro5_w, layout.iw6.s, layout.iw6.n, vertical=False)
 
-    # IW4 (vertical, 4" — north end at IW12 north face)
-    _iw4_n = layout.iw12.poly[2][1]
-    iw_rect(layout.iw4.w, layout.iw4.e, layout.iw4.s, _iw4_n)
-    iw_label("IW4", layout.iw4.w, layout.iw4.e, layout.iw4.s, _iw4_n)
+    # IW4 (vertical, 4")
+    iw_poly(layout.iw4.poly)
+    iw_label("IW4", layout.iw4.w, layout.iw4.e, layout.iw4.s, layout.iw4.n)
 
     # IW11 (vertical, 4")
     iw_poly(layout.iw11.poly)
     iw_label("IW11", layout.iw11.w, layout.iw11.e, layout.iw11.s, layout.iw11.n)
 
     # IW15 (vertical, 4" — IW11 NW north to IW1 south)
-    iw_rect(layout.iw15.w, layout.iw15.e, layout.iw15.s, layout.iw15.n)
+    iw_poly(layout.iw15.poly)
     iw_label("IW15", layout.iw15.w, layout.iw15.e, layout.iw15.s, layout.iw15.n)
 
     # IW12 (rotated, 4")
@@ -327,7 +323,7 @@ def _render_interior_walls(out, data):
              vertical=False)
 
     # IW5 (horizontal, 3")
-    iw_rect(layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n)
+    iw_poly(layout.iw5.poly)
     iw_label("IW5", layout.iw5.w, layout.iw5.e, layout.iw5.s, layout.iw5.n,
              vertical=False)
 
@@ -835,24 +831,21 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
             edges.append(math.sqrt(dx**2 + dy**2))
         return max(edges)
 
-    def _bbox_len(bb, vertical):
-        return (bb.n - bb.s) if vertical else (bb.e - bb.w)
-
     # (id, thickness_inches, length_ft, vertical)
     iw_rows = [
         ("IW1",  6, _poly_len(layout.iw1.poly), True),
-        ("IW2",  6, _bbox_len(layout.iw2, True), True),
+        ("IW2",  6, _poly_len(layout.iw2.poly), True),
         ("IW3",  4, _poly_len(layout.iw3.poly), True),
-        ("IW4",  4, layout.iw12.poly[2][1] - layout.iw4.s, True),
-        ("IW5",  3, _bbox_len(layout.iw5, False), False),
+        ("IW4",  4, _poly_len(layout.iw4.poly), True),
+        ("IW5",  3, _poly_len(layout.iw5.poly), False),
         ("IW6",  1, _poly_len(layout.iw6.poly), False),
         ("IW7",  4, _poly_len(layout.iw7.poly), False),
-        ("IW8",  6, _bbox_len(layout.iw8, False), False),
+        ("IW8",  6, _poly_len(layout.iw8.poly), False),
         ("IW9",  4, _poly_len(layout.iw9.poly), True),
         ("IW11", 4, _poly_len(layout.iw11.poly), True),
         ("IW12", 4, _poly_len(layout.iw12.poly), False),
         ("IW14", 3, _poly_len(layout.iw14.poly), False),
-        ("IW15", 4, _bbox_len(layout.iw15, True), True),
+        ("IW15", 4, _poly_len(layout.iw15.poly), True),
         ("IW16", 4, _poly_len(layout.iw16.poly), True),
     ]
 
