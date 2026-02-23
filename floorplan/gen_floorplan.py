@@ -770,18 +770,9 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
 
 def compute_iw_area(layout):
     """Compute total interior wall area from layout polygons."""
-    _iw4_w_dir = (layout.iw4.poly[3][0] - layout.iw4.poly[0][0],
-                  layout.iw4.poly[3][1] - layout.iw4.poly[0][1])
-    _iw12_n_dir = (layout.iw12.poly[2][0] - layout.iw12.poly[3][0],
-                   layout.iw12.poly[2][1] - layout.iw12.poly[3][1])
-    _iw4_trunc_w = line_isect(layout.iw4.poly[0], _iw4_w_dir,
-                               layout.iw12.poly[3], _iw12_n_dir)
-    _iw4_trunc_e = line_isect(layout.iw4.poly[1], _iw4_w_dir,
-                               layout.iw12.poly[3], _iw12_n_dir)
-    iw4_poly = [layout.iw4.poly[0], layout.iw4.poly[1], _iw4_trunc_e, _iw4_trunc_w]
     iw_polys = [layout.iw1.poly, layout.iw8.poly, layout.iw2.poly,
                 layout.iw3.poly, layout.iw7.poly, layout.iw9.poly, layout.iw6.poly,
-                iw4_poly, layout.iw11.poly, layout.iw12.poly,
+                layout.iw4.poly, layout.iw11.poly, layout.iw12.poly,
                 layout.iw14.poly, layout.iw5.poly, layout.iw16.poly, layout.iw15.poly]
     return sum(poly_area(p) for p in iw_polys)
 
@@ -1076,20 +1067,12 @@ def _render_walls(out, data, layout, bare=False):
         _neg_iw6_al = (-_iw6_s_al[0], -_iw6_s_al[1])
         _jamb_poly(out, _ro5p[1], _ro5p[2], _neg_iw6_al, to_svg)
 
-    # ---- IW4 (solid, no opening) — north end at IW12 north face ----
-    _iw4_w_dir = (layout.iw4.poly[3][0] - layout.iw4.poly[0][0],
-                  layout.iw4.poly[3][1] - layout.iw4.poly[0][1])
-    _iw12_n_dir = (layout.iw12.poly[2][0] - layout.iw12.poly[3][0],
-                   layout.iw12.poly[2][1] - layout.iw12.poly[3][1])
-    _iw4_trunc_w = line_isect(layout.iw4.poly[0], _iw4_w_dir,
-                               layout.iw12.poly[3], _iw12_n_dir)
-    _iw4_trunc_e = line_isect(layout.iw4.poly[1], _iw4_w_dir,
-                               layout.iw12.poly[3], _iw12_n_dir)
-    iw4_poly = [layout.iw4.poly[0], layout.iw4.poly[1], _iw4_trunc_e, _iw4_trunc_w]
-    wall_poly(out, iw4_poly, to_svg, stroke=False)
-    _wall_stroke(out, _iw4_trunc_w, layout.iw4.poly[0], half_sw, to_svg)  # west face
-    _wall_stroke(out, layout.iw4.poly[1], _iw4_trunc_e, half_sw, to_svg)  # east face
-    _wall_stroke(out, _iw4_trunc_e, _iw4_trunc_w, half_sw, to_svg)        # north face
+    # ---- IW4 (solid, no opening) ----
+    _iw4_sw, _iw4_se, _iw4_ne, _iw4_nw = layout.iw4.poly
+    wall_poly(out, layout.iw4.poly, to_svg, stroke=False)
+    _wall_stroke(out, _iw4_nw, _iw4_sw, half_sw, to_svg)   # west face
+    _wall_stroke(out, _iw4_se, _iw4_ne, half_sw, to_svg)    # east face
+    _wall_stroke(out, _iw4_ne, _iw4_nw, half_sw, to_svg)    # north face
 
     # ---- IW11 with RO6 and RO2 (rotated rectangle, split by two openings) ----
     _iw11_sw, _iw11_se, _iw11_ne, _iw11_nw = layout.iw11.poly

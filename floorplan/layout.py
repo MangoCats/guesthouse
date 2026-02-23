@@ -222,8 +222,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _iw4_t_s = _proj(pts["W19"], _iw4_w_anchor, _w2w3_al)
     iw4_sw = _offset(_iw4_w_anchor, _iw4_t_s, _w2w3_al)
     iw4_se = _offset(_iw4_e_anchor, _iw4_t_s, _w2w3_al)
-    iw4_nw = line_isect(_iw4_w_anchor, _w2w3_al, iw1_sw, _w9w10_al)
-    iw4_ne = line_isect(_iw4_e_anchor, _w2w3_al, iw1_sw, _w9w10_al)
+    # IW4 north end computed after IW12 (depends on IW12 north face)
 
     # --- IW11 ---
     # SE corner: circle(IW4_SW, IW11_RADIUS_FROM_IW4) intersect W20-W1
@@ -250,6 +249,11 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw12_nw = _offset(iw12_sw, WALL_4IN, _w20w1_in)
     iw12_se = line_isect(iw12_sw, _neg_w20w1_al, iw4_sw, _w2w3_al)
     iw12_ne = line_isect(iw12_nw, _neg_w20w1_al, iw4_sw, _w2w3_al)
+
+    # IW4 north end: truncate at IW12 north face
+    _iw12_n_dir = (iw12_ne[0] - iw12_nw[0], iw12_ne[1] - iw12_nw[1])
+    iw4_nw = line_isect(_iw4_w_anchor, _w2w3_al, iw12_nw, _iw12_n_dir)
+    iw4_ne = line_isect(_iw4_e_anchor, _w2w3_al, iw12_nw, _iw12_n_dir)
 
     # --- Bed, IW9, IW3, IW7 (south wall chain) ---
     (bed, iw9, iw3, iw7,
