@@ -165,7 +165,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     # ── title ─────────────────────────────────────────────────
     o.append(f'<text x="{PW / 2}" y="{MT - 14}" text-anchor="middle"'
              f' font-family="Arial" font-size="13" font-weight="bold"'
-             f' fill="#222">N\u2013S Interior Span</text>')
+             f' fill="#222">N\u2013S Interior Span (0\u00b0)</text>')
 
     # ── graph frame ───────────────────────────────────────────
     o.append(f'<rect x="{ML}" y="{g_top}" width="{plot_w}" height="{graph_h}"'

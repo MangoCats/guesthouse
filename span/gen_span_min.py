@@ -1,7 +1,7 @@
 """Generate minimum-span rotation SVG.
 
 Finds the rotation angle that minimises the maximum interior span via a
-three-pass search (5 deg coarse, 0.5 deg fine, 0.1 deg superfine).
+three-pass search (0-175 deg coarse, 0.5 deg fine, 0.1 deg superfine).
 If the result exceeds 90 deg, 180 deg is subtracted to normalise.
 
 Outputs a single portrait-Letter SVG with:
@@ -120,7 +120,7 @@ def _find_min_span_angle(inner_poly, iw_cls, cx, cy):
     # coarse: 5 deg steps
     best_span = float('inf')
     best_angle = 0.0
-    for a in range(5, 176, 5):
+    for a in range(0, 176, 5):
         ms = _max_span_at_angle(inner_poly, iw_cls, a, cx, cy)
         if ms < best_span:
             best_span = ms

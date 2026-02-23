@@ -1,6 +1,6 @@
 """Generate span-vs-rotation analysis SVG.
 
-Rotates the structure from 5 to 175 deg in 5 deg steps (35 panels).
+Rotates the structure from 0 to 175 deg in 5 deg steps (36 panels).
 For each rotation, measures the span from bottom to top at every inch
 of the rotated x-axis.  Three curves per panel:
   blue  — total span
@@ -193,7 +193,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     # coarse rotations (5 deg steps)
     all_data = [_compute_rotation_data(a, outer_poly, inner_poly, iw_cls, cx, cy,
                                        roof_poly)
-                for a in range(5, 176, 5)]
+                for a in range(0, 176, 5)]
 
     # coarse best angle
     mm_span = min(d['max_span'] for d in all_data)
@@ -266,7 +266,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     # title
     o.append(f'<text x="{PW / 2}" y="{MT - 12}" text-anchor="middle"'
              f' font-family="Arial" font-size="13" font-weight="bold"'
-             f' fill="#222">Span vs. Rotation (5\u00b0\u2013175\u00b0)'
+             f' fill="#222">Span vs. Rotation (0\u00b0\u2013175\u00b0)'
              f' \u2014 min max: {fmt_dist(sf_best_span)}'
              f' at {ref_ang_str}\u00b0</text>')
 
