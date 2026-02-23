@@ -291,7 +291,7 @@ def generate():
     pts.update(tw_pts)
 
     # F8-F9 override for TW-side only (straight-arc-straight at 7" inset)
-    tw_ov = {7: _f8f9_elems(pts, WALL_OUTER - shell_half,
+    tw_ov = {5: _f8f9_elems(pts, WALL_OUTER - shell_half,
                              OPENING_INSIDE_RADIUS + shell_half)}
 
     sections = enumerate_wall_sections(openings, outline_segs)

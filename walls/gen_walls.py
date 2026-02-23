@@ -78,7 +78,7 @@ def _path_length_between(pts, outline_segs, start_seg_idx, start_t,
     while idx != end_seg_idx:
         seg = outline_segs[idx]
         if isinstance(seg, ArcSeg):
-            if idx == 8 and inset >= SHELL_THICKNESS + AIR_GAP:
+            if idx == 5 and inset >= SHELL_THICKNESS + AIR_GAP:
                 # F8-F9 inner shell: straight-arc-straight path length
                 R_a8 = seg.radius
                 R_turn = OPENING_INSIDE_RADIUS + (inset - (SHELL_THICKNESS + AIR_GAP))
@@ -537,7 +537,7 @@ def _render_wall_segments(out, data):
             _svg_polygon(out, outer_shell, to_svg, WALL_FILL, stroke="none")
 
             # Inner shell: G-arc to W-arc
-            if seg_idx == 7:
+            if seg_idx == 5:
                 # F8-F9: straight-arc-straight path for inner shell
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
@@ -622,8 +622,8 @@ def _render_section_outlines(out, data):
     shell_t = SHELL_THICKNESS
     R_in = OPENING_INSIDE_RADIUS
 
-    g_overrides = {7: data.g_f8f9_poly}
-    w_overrides = {7: data.w_f8f9_poly}
+    g_overrides = {5: data.g_f8f9_poly}
+    w_overrides = {5: data.w_f8f9_poly}
     sections = enumerate_wall_sections(data.openings, data.outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(
