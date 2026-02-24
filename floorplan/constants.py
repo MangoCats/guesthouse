@@ -35,7 +35,7 @@ IW2_LENGTH = 42.0 / 12.0             # 42" north from IW1 north face
 IW2S_W2REF_OFFSET = 6.5              # offset from virtual W2 ref → ~5'4" true from W2-W5
 IW2S_LENGTH = 72.0 / 12.0            # 72" (6') south from W6-W7 inner wall
 IW2O_THICKNESS = 6.0 / 12.0          # 6" thick perpendicular to midline
-IW4_OFFSET_FROM_IW2 = 224.0 / 12.0   # 18'8" from IW2 east face, CW-normal to W2-W5
+IW4_GAP_IW11 = 30.0 / 12.0           # 30" from IW11 east face to IW4 west face
 RO1_OFFSET_FROM_IW2 = 116.0 / 12.0   # 9'8" from IW2 east face, CW-normal to W2-W5
 
 # Bed
@@ -97,7 +97,6 @@ IW9_LENGTH = 80.0 / 12.0            # 80" (6'8") IW9 length, same as IW3
 IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W20-W0
 
 # IW11 (4" thick, N-S)
-IW11_RADIUS_FROM_IW4 = 32.0 / 12.0  # 32" circle-line radius for SE corner
 IW9_IW11_GAP = 12.0                  # 12' from IW9 east face to IW11 west face
 
 # IW12 (4" thick, perpendicular to IW11)

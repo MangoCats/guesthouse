@@ -16,10 +16,10 @@ from floorplan.constants import (
     IW2_DIST_W2W5, IW2_LENGTH, IW2S_W2REF_OFFSET, IW2S_LENGTH, IW2O_THICKNESS,
     IW3_LENGTH, IW3_OFFSET_IW9, IW3_DIST_W2W5,
     IW9_LENGTH,
-    IW4_OFFSET_FROM_IW2,
+    IW4_GAP_IW11,
     IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
     IW8_OFFSET_FROM_W20W1,
-    IW11_RADIUS_FROM_IW4, IW9_IW11_GAP, IW12_OFFSET_IW11, IW12_SHORTEN,
+    IW9_IW11_GAP, IW12_OFFSET_IW11, IW12_SHORTEN,
     DRESSER_WIDTH, DRESSER_DEPTH, DRESSER_GAP_IW15, DRESSER_GAP_IW1,
 )
 
@@ -253,55 +253,34 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_ne = _offset(ctr_se, COUNTER_LENGTH, _w2w5_al)
     ctr_nw_r = 0
 
-    # --- IW4 ---
-    _iw4_w_anchor = _offset(iw2s_se, IW4_OFFSET_FROM_IW2, _iw_in)
-    _iw4_e_anchor = _offset(_iw4_w_anchor, WALL_4IN, _iw_in)
-    _iw4_t_s = _proj(pts["W19"], _iw4_w_anchor, _iw_al)
-    iw4_sw = _offset(_iw4_w_anchor, _iw4_t_s, _iw_al)
-    iw4_se = _offset(_iw4_e_anchor, _iw4_t_s, _iw_al)
-
-    # Shift IW4/IW11 group along W20-W1 for IW9-IW11 gap constraint
+    # --- IW11 (positioned directly by IW9-IW11 gap) ---
     _w20 = pts["W20"]
+    _w1 = pts["W1"]
     _w2w5_ref_s = line_isect(pts["W2"], _w2w5_al, pts["W1"], _w20w1_al)
-    _iw9_se_pre = _offset(_w2w5_ref_s,
+    _iw9_se_pos = _offset(_w2w5_ref_s,
                            -(IW3_DIST_W2W5 + 2 * WALL_4IN + IW3_OFFSET_IW9),
                            _w20w1_al)
-    _h = iw4_sw[1] - _w20[1]
-    _circle_dx = math.sqrt(IW11_RADIUS_FROM_IW4**2 - _h**2)
-    _iw_shift = (iw4_sw[0] - _circle_dx - WALL_4IN) - (_iw9_se_pre[0] + IW9_IW11_GAP)
-    _iw4_w_anchor = _offset(_iw4_w_anchor, _iw_shift, _w20w1_al)
-    _iw4_e_anchor = _offset(_iw4_e_anchor, _iw_shift, _w20w1_al)
-    iw4_sw = _offset(iw4_sw, _iw_shift, _w20w1_al)
-    iw4_se = _offset(iw4_se, _iw_shift, _w20w1_al)
-    # IW4 north end computed after IW12 (depends on IW12 north face)
-
-    # --- IW11 ---
-    # SE corner: circle(IW4_SW, IW11_RADIUS_FROM_IW4) intersect W20-W1
-    _w1 = pts["W1"]
-    _dE, _dN, _seg_len = seg_vec(_w20, _w1)
-    _uE = _w20[0] - iw4_sw[0]
-    _uN = _w20[1] - iw4_sw[1]
-    _qa = _dE**2 + _dN**2
-    _qb = 2 * (_uE * _dE + _uN * _dN)
-    _qc = _uE**2 + _uN**2 - IW11_RADIUS_FROM_IW4**2
-    _disc = _qb**2 - 4 * _qa * _qc
-    _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)
-    iw11_se = (_w20[0] + _t * _dE, _w20[1] + _t * _dN)
-    iw11_sw = _offset(iw11_se, WALL_4IN, _w20w1_al)
+    iw11_sw = _offset(_iw9_se_pos, -IW9_IW11_GAP, _w20w1_al)
+    iw11_se = _offset(iw11_sw, -WALL_4IN, _w20w1_al)
     iw11_ne = line_isect(iw11_se, _w20w1_in, iw1_sw, _w9w10_al)
     iw11_nw = line_isect(iw11_sw, _w20w1_in, iw1_sw, _w9w10_al)
+
+    # --- IW4 (parallel to IW11, west face 30" east of IW11 east face) ---
+    iw4_sw = _offset(iw11_se, -IW4_GAP_IW11, _w20w1_al)
+    iw4_se = _offset(iw4_sw, -WALL_4IN, _w20w1_al)
+    # IW4 north end computed after IW12 (depends on IW12 north face)
 
     # --- IW12 ---
     _iw12_base = _offset(iw11_sw, IW12_OFFSET_IW11, _w20w1_in)
     iw12_sw = _offset(_iw12_base, -IW12_SHORTEN, _w20w1_al)
     iw12_nw = _offset(iw12_sw, WALL_4IN, _w20w1_in)
-    iw12_se = line_isect(iw12_sw, _neg_w20w1_al, iw4_sw, _iw_al)
-    iw12_ne = line_isect(iw12_nw, _neg_w20w1_al, iw4_sw, _iw_al)
+    iw12_se = line_isect(iw12_sw, _neg_w20w1_al, iw4_sw, _w20w1_in)
+    iw12_ne = line_isect(iw12_nw, _neg_w20w1_al, iw4_sw, _w20w1_in)
 
     # IW4 north end: truncate at IW12 north face
     _iw12_n_dir = (iw12_ne[0] - iw12_nw[0], iw12_ne[1] - iw12_nw[1])
-    iw4_nw = line_isect(_iw4_w_anchor, _iw_al, iw12_nw, _iw12_n_dir)
-    iw4_ne = line_isect(_iw4_e_anchor, _iw_al, iw12_nw, _iw12_n_dir)
+    iw4_nw = line_isect(iw4_sw, _w20w1_in, iw12_nw, _iw12_n_dir)
+    iw4_ne = line_isect(iw4_se, _w20w1_in, iw12_nw, _iw12_n_dir)
 
     # --- Bed, IW9, IW3, IW7 (south wall chain) ---
     (bed, iw9, iw3, iw7,
