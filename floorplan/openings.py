@@ -16,7 +16,7 @@ from floorplan.constants import (
     O8_HALF_WIDTH,
     STD_GAP,
     RO1_OFFSET_FROM_IW2, IW1_RO_WIDTH,
-    IW2_RO_OFFSET_FROM_IW6, IW2_RO_WIDTH,
+    IW2_RO_WIDTH,
     IW4_RO_WIDTH, IW9_RO_WIDTH, IW11_RO_WIDTH, IW16_RO_WIDTH,
     IW6_RO_OFFSET_W, IW6_RO_WIDTH,
 )
@@ -77,28 +77,22 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W2"][1] + _t1_start * (pts["W5"][1] - pts["W2"][1])),
     ]))
 
-    # O2: F2-F5, centered at RO4 position
-    # Normal from RO4 center (perpendicular to IW2) intersects F2-F5 line.
+    # O2: F2-F5, centered at RO4 position (RO4 is now on IW2o)
+    # Normal from RO4 center (perpendicular to IW2o midline) intersects F2-F5.
     _dE2, _dN2, _seg2_len = seg_vec(pts["F2"], pts["F5"])
-    # RO4 center: offset from IW6 south face midpoint in the IW6 outward direction
-    _iw6_s_mid = ((layout.iw6.poly[0][0] + layout.iw6.poly[1][0]) / 2,
-                  (layout.iw6.poly[0][1] + layout.iw6.poly[1][1]) / 2)
-    _iw6_sdx = layout.iw6.poly[1][0] - layout.iw6.poly[0][0]
-    _iw6_sdy = layout.iw6.poly[1][1] - layout.iw6.poly[0][1]
-    _iw6_slen = math.sqrt(_iw6_sdx**2 + _iw6_sdy**2)
-    _iw6_s_out = (_iw6_sdy / _iw6_slen, -_iw6_sdx / _iw6_slen)
-    _ro4_off = IW2_RO_OFFSET_FROM_IW6 + IW2_RO_WIDTH / 2
-    _ro4_ctr = (_iw6_s_mid[0] + _ro4_off * _iw6_s_out[0],
-                _iw6_s_mid[1] + _ro4_off * _iw6_s_out[1])
-    # IW2 normal: left normal of IW2 length direction (SW→NW)
-    _iw2_ldx = layout.iw2.poly[3][0] - layout.iw2.poly[0][0]
-    _iw2_ldy = layout.iw2.poly[3][1] - layout.iw2.poly[0][1]
-    _iw2_llen = math.sqrt(_iw2_ldx**2 + _iw2_ldy**2)
-    _iw2_norm = (-_iw2_ldy / _iw2_llen, _iw2_ldx / _iw2_llen)
-    # Line-line intersection: RO4_ctr + s*IW2_norm ∩ F2 + t*(F5-F2)
-    _cross_den = _dE2 * _iw2_norm[1] - _dN2 * _iw2_norm[0]
-    _t2_ctr = ((_ro4_ctr[0] - pts["F2"][0]) * _iw2_norm[1]
-               - (_ro4_ctr[1] - pts["F2"][1]) * _iw2_norm[0]) / _cross_den
+    # RO4 center = IW2o polygon center (RO4 is centered on IW2o)
+    _iw2o = layout.iw2o.poly
+    _ro4_ctr = ((_iw2o[0][0] + _iw2o[1][0] + _iw2o[2][0] + _iw2o[3][0]) / 4,
+                (_iw2o[0][1] + _iw2o[1][1] + _iw2o[2][1] + _iw2o[3][1]) / 4)
+    # IW2o normal: left normal of IW2o along direction (SW→NW)
+    _iw2o_ldx = _iw2o[3][0] - _iw2o[0][0]
+    _iw2o_ldy = _iw2o[3][1] - _iw2o[0][1]
+    _iw2o_llen = math.sqrt(_iw2o_ldx**2 + _iw2o_ldy**2)
+    _iw2o_norm = (-_iw2o_ldy / _iw2o_llen, _iw2o_ldx / _iw2o_llen)
+    # Line-line intersection: RO4_ctr + s*IW2o_norm ∩ F2 + t*(F5-F2)
+    _cross_den = _dE2 * _iw2o_norm[1] - _dN2 * _iw2o_norm[0]
+    _t2_ctr = ((_ro4_ctr[0] - pts["F2"][0]) * _iw2o_norm[1]
+               - (_ro4_ctr[1] - pts["F2"][1]) * _iw2o_norm[0]) / _cross_den
     _t2_half = (O2_WIDTH / 2) / _seg2_len
     _t2_start = _t2_ctr - _t2_half
     _t2_end = _t2_ctr + _t2_half
@@ -141,9 +135,9 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     # O5 and O6 share segment F9-F10
     _dE56, _dN56, _seg56_len = seg_vec(pts["F9"], pts["F10"])
 
-    # O5: F9-F10, anchored at IW2 east face projection + offset
-    _iw2_e_mid = ((layout.iw2.poly[1][0] + layout.iw2.poly[2][0]) / 2,
-                  (layout.iw2.poly[1][1] + layout.iw2.poly[2][1]) / 2)
+    # O5: F9-F10, anchored at IW2s east face projection + offset
+    _iw2_e_mid = ((layout.iw2s.poly[1][0] + layout.iw2s.poly[2][0]) / 2,
+                  (layout.iw2s.poly[1][1] + layout.iw2s.poly[2][1]) / 2)
     _t5_ref = ((_iw2_e_mid[0] - pts["F9"][0]) * _dE56
                + (_iw2_e_mid[1] - pts["F9"][1]) * _dN56) / (_dE56**2 + _dN56**2)
     _t5_end = _t5_ref + O5_OFFSET_FROM_IW2 / _seg56_len
@@ -337,37 +331,34 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     _ro3_bb = BBox(w=min(p[0] for p in _ro3_poly), s=min(p[1] for p in _ro3_poly),
                    e=max(p[0] for p in _ro3_poly), n=max(p[1] for p in _ro3_poly))
 
-    # RO4: in IW2, positioned relative to IW6 south face along IW2 length
-    _iw2_sw, _iw2_se = layout.iw2.poly[0], layout.iw2.poly[1]
-    _iw2_nw = layout.iw2.poly[3]
-    _dx2r, _dy2r, _len2r = seg_vec(_iw2_sw, _iw2_nw)
-    _un2_al = (_dx2r / _len2r, _dy2r / _len2r)  # unit along IW2 length
-    # IW6 south face midpoint projected onto IW2 along-axis
-    _iw6_s_mid = ((layout.iw6.poly[0][0] + layout.iw6.poly[1][0]) / 2,
-                  (layout.iw6.poly[0][1] + layout.iw6.poly[1][1]) / 2)
-    _ro4_ref_d = ((_iw6_s_mid[0] - _iw2_sw[0]) * _un2_al[0]
-                  + (_iw6_s_mid[1] - _iw2_sw[1]) * _un2_al[1])
-    _ro4_end_d = _ro4_ref_d - IW2_RO_OFFSET_FROM_IW6
-    _ro4_start_d = _ro4_end_d - IW2_RO_WIDTH
-    _ro4_sw = (_iw2_sw[0] + _ro4_start_d * _un2_al[0],
-               _iw2_sw[1] + _ro4_start_d * _un2_al[1])
-    _ro4_se = (_iw2_se[0] + _ro4_start_d * _un2_al[0],
-               _iw2_se[1] + _ro4_start_d * _un2_al[1])
-    _ro4_ne = (_iw2_se[0] + _ro4_end_d * _un2_al[0],
-               _iw2_se[1] + _ro4_end_d * _un2_al[1])
-    _ro4_nw = (_iw2_sw[0] + _ro4_end_d * _un2_al[0],
-               _iw2_sw[1] + _ro4_end_d * _un2_al[1])
+    # RO4: in IW2o (oblique), centered along IW2o length
+    _iw2o_sw, _iw2o_se = layout.iw2o.poly[0], layout.iw2o.poly[1]
+    _iw2o_nw = layout.iw2o.poly[3]
+    _dx2r, _dy2r, _len2r = seg_vec(_iw2o_sw, _iw2o_nw)
+    _un2_al = (_dx2r / _len2r, _dy2r / _len2r)  # unit along IW2o length
+    _ro4_center_d = _len2r / 2
+    _ro4_half = IW2_RO_WIDTH / 2
+    _ro4_start_d = _ro4_center_d - _ro4_half
+    _ro4_end_d = _ro4_center_d + _ro4_half
+    _ro4_sw = (_iw2o_sw[0] + _ro4_start_d * _un2_al[0],
+               _iw2o_sw[1] + _ro4_start_d * _un2_al[1])
+    _ro4_se = (_iw2o_se[0] + _ro4_start_d * _un2_al[0],
+               _iw2o_se[1] + _ro4_start_d * _un2_al[1])
+    _ro4_ne = (_iw2o_se[0] + _ro4_end_d * _un2_al[0],
+               _iw2o_se[1] + _ro4_end_d * _un2_al[1])
+    _ro4_nw = (_iw2o_sw[0] + _ro4_end_d * _un2_al[0],
+               _iw2o_sw[1] + _ro4_end_d * _un2_al[1])
     _ro4_poly = [_ro4_sw, _ro4_se, _ro4_ne, _ro4_nw]
     _ro4_bb = BBox(w=min(p[0] for p in _ro4_poly), s=min(p[1] for p in _ro4_poly),
                    e=max(p[0] for p in _ro4_poly), n=max(p[1] for p in _ro4_poly))
 
-    # RO5: in IW6, positioned relative to IW2 west face
+    # RO5: in IW6, positioned relative to IW2s west face
     # IW6 is trapezoidal (west end meets inner polygon at slightly different
     # points on each face), so compute each face independently.
     _iw6_sw, _iw6_se = layout.iw6.poly[0], layout.iw6.poly[1]
     _iw6_ne, _iw6_nw = layout.iw6.poly[2], layout.iw6.poly[3]
-    _iw2_w_mid = ((layout.iw2.poly[0][0] + layout.iw2.poly[3][0]) / 2,
-                  (layout.iw2.poly[0][1] + layout.iw2.poly[3][1]) / 2)
+    _iw2_w_mid = ((layout.iw2s.poly[0][0] + layout.iw2s.poly[3][0]) / 2,
+                  (layout.iw2s.poly[0][1] + layout.iw2s.poly[3][1]) / 2)
     # South face (SW→SE)
     _dx6s, _dy6s, _len6s = seg_vec(_iw6_sw, _iw6_se)
     _un6s = (_dx6s / _len6s, _dy6s / _len6s)
@@ -398,7 +389,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
         RoughOpening("RO1", _ro1_bb, "IW1", "H", _ro1_poly),
         RoughOpening("RO2", _ro2_bb, "IW11", "R", _ro2_poly),
         RoughOpening("RO3", _ro3_bb, "IW16", "V", _ro3_poly),
-        RoughOpening("RO4", _ro4_bb, "IW2", "V", _ro4_poly),
+        RoughOpening("RO4", _ro4_bb, "IW2o", "R", _ro4_poly),
         RoughOpening("RO5", _ro5_bb, "IW6", "H", _ro5_poly),
         RoughOpening("RO6", _ro6_bb, "IW11", "R", _ro6_poly),
         RoughOpening("RO7", _ro7_bb, "IW9", "R", _ro7_poly),

@@ -12,7 +12,8 @@ from floorplan.constants import (
     BED_WIDTH, BED_LENGTH, BED_WALL_GAP,
     O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
     O9_OFFSET_IW11, O9_O10_WALL, O10_O11_WALL, BED_GAP_O9,
-    IW1_OFFSET_FROM_W9, IW1_OFFSET_FROM_W2, IW2_OFFSET_FROM_W2,
+    IW1_OFFSET_FROM_W9, IW1_OFFSET_FROM_W2,
+    IW2_DIST_W2W5, IW2_LENGTH, IW2S_W2REF_OFFSET, IW2S_LENGTH, IW2O_THICKNESS,
     IW3_LENGTH, IW3_OFFSET_IW9, IW3_DIST_W2W5,
     IW9_LENGTH,
     IW4_OFFSET_FROM_IW2,
@@ -67,6 +68,8 @@ class InteriorLayout(NamedTuple):
     # Interior walls
     iw1: Wall
     iw2: Wall
+    iw2o: Wall             # oblique connecting IW2 to IW2s
+    iw2s: Wall             # shower section
     iw3: Wall
     iw4: Wall
     iw5: Wall
@@ -193,13 +196,39 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _se_ts = _line_poly_isects(inner_poly, iw1_sw, _w9w10_al)
     iw1_se = _offset(iw1_sw, max(_se_ts), _w9w10_al)
 
-    # --- IW2 ---
-    _iw2_w_anchor = _offset(_iw_w2_ref, IW2_OFFSET_FROM_W2, _iw_in)
-    _iw2_e_anchor = _offset(_iw2_w_anchor, WALL_6IN, _iw_in)
-    iw2_sw = line_isect(_iw2_w_anchor, _iw_al, iw1_nw, _w9w10_al)
-    iw2_se = line_isect(_iw2_e_anchor, _iw_al, iw1_nw, _w9w10_al)
-    iw2_nw = line_isect(_iw2_w_anchor, _iw_al, pts["W6"], _w6w7_al)
-    iw2_ne = line_isect(_iw2_e_anchor, _iw_al, pts["W6"], _w6w7_al)
+    # --- IW2 (lower, restored to 6'6" true perpendicular from W2-W5) ---
+    _iw2_w_anchor = _offset(pts["W2"], IW2_DIST_W2W5, _w2w5_in)
+    _iw2_e_anchor = _offset(_iw2_w_anchor, WALL_6IN, _w2w5_in)
+    iw2_sw = line_isect(_iw2_w_anchor, _w2w5_al, iw1_nw, _w9w10_al)
+    iw2_se = line_isect(_iw2_e_anchor, _w2w5_al, iw1_nw, _w9w10_al)
+    iw2_nw = _offset(iw2_sw, IW2_LENGTH, _w2w5_al)
+    iw2_ne = _offset(iw2_se, IW2_LENGTH, _w2w5_al)
+
+    # --- IW2s (upper/shower, at former IW2 position ~5'4" from W2-W5) ---
+    _iw2s_w_anchor = _offset(_iw_w2_ref, IW2S_W2REF_OFFSET, _iw_in)
+    _iw2s_e_anchor = _offset(_iw2s_w_anchor, WALL_6IN, _iw_in)
+    iw2s_nw = line_isect(_iw2s_w_anchor, _iw_al, pts["W6"], _w6w7_al)
+    iw2s_ne = line_isect(_iw2s_e_anchor, _iw_al, pts["W6"], _w6w7_al)
+    iw2s_sw = _offset(iw2s_nw, -IW2S_LENGTH, _iw_al)
+    iw2s_se = _offset(iw2s_ne, -IW2S_LENGTH, _iw_al)
+
+    # --- IW2o (oblique, midline from IW2 north end to IW2s south end) ---
+    _iw2_n_mid = ((iw2_nw[0] + iw2_ne[0]) / 2, (iw2_nw[1] + iw2_ne[1]) / 2)
+    _iw2s_s_mid = ((iw2s_sw[0] + iw2s_se[0]) / 2, (iw2s_sw[1] + iw2s_se[1]) / 2)
+    _iw2o_dx = _iw2s_s_mid[0] - _iw2_n_mid[0]
+    _iw2o_dy = _iw2s_s_mid[1] - _iw2_n_mid[1]
+    _iw2o_len = math.sqrt(_iw2o_dx**2 + _iw2o_dy**2)
+    _iw2o_al = (_iw2o_dx / _iw2o_len, _iw2o_dy / _iw2o_len)
+    _iw2o_perp = (-_iw2o_al[1], _iw2o_al[0])
+    _half_t = IW2O_THICKNESS / 2
+    iw2o_sw = (_iw2_n_mid[0] - _half_t * _iw2o_perp[0],
+               _iw2_n_mid[1] - _half_t * _iw2o_perp[1])
+    iw2o_se = (_iw2_n_mid[0] + _half_t * _iw2o_perp[0],
+               _iw2_n_mid[1] + _half_t * _iw2o_perp[1])
+    iw2o_nw = (_iw2s_s_mid[0] - _half_t * _iw2o_perp[0],
+               _iw2s_s_mid[1] - _half_t * _iw2o_perp[1])
+    iw2o_ne = (_iw2s_s_mid[0] + _half_t * _iw2o_perp[0],
+               _iw2s_s_mid[1] + _half_t * _iw2o_perp[1])
 
     # --- Dryer (aligned to new W2-W5 east wall) ---
     _dryer_sw = line_isect(
@@ -225,7 +254,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_nw_r = 0
 
     # --- IW4 ---
-    _iw4_w_anchor = _offset(iw2_se, IW4_OFFSET_FROM_IW2, _iw_in)
+    _iw4_w_anchor = _offset(iw2s_se, IW4_OFFSET_FROM_IW2, _iw_in)
     _iw4_e_anchor = _offset(_iw4_w_anchor, WALL_4IN, _iw_in)
     _iw4_t_s = _proj(pts["W19"], _iw4_w_anchor, _iw_al)
     iw4_sw = _offset(_iw4_w_anchor, _iw4_t_s, _iw_al)
@@ -329,8 +358,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # --- IW6 ---
     _iw6_n_anchor = _offset(pts["W6"], IW6_OFFSET_FROM_W6, _w6w7_in)
     _iw6_s_anchor = _offset(_iw6_n_anchor, IW6_THICKNESS, _w6w7_in)
-    iw6_ne = line_isect(_iw6_n_anchor, _w6w7_al, _iw2_w_anchor, _iw_al)
-    iw6_se = line_isect(_iw6_s_anchor, _w6w7_al, _iw2_w_anchor, _iw_al)
+    iw6_ne = line_isect(_iw6_n_anchor, _w6w7_al, _iw2s_w_anchor, _iw_al)
+    iw6_se = line_isect(_iw6_s_anchor, _w6w7_al, _iw2s_w_anchor, _iw_al)
     _iw6_n_ts = _line_poly_isects(inner_poly, iw6_ne, _neg_w6w7_al)
     iw6_nw = _offset(iw6_ne, max(_iw6_n_ts), _neg_w6w7_al)
     _iw6_s_ts = _line_poly_isects(inner_poly, iw6_se, _neg_w6w7_al)
@@ -339,6 +368,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     return InteriorLayout(
         iw1=_make_wall([iw1_sw, iw1_se, iw1_ne, iw1_nw]),
         iw2=_make_wall([iw2_sw, iw2_se, iw2_ne, iw2_nw]),
+        iw2o=_make_wall([iw2o_sw, iw2o_se, iw2o_ne, iw2o_nw]),
+        iw2s=_make_wall([iw2s_sw, iw2s_se, iw2s_ne, iw2s_nw]),
         iw3=iw3,
         iw4=_make_wall([iw4_sw, iw4_se, iw4_ne, iw4_nw]),
         iw5=_make_wall([iw5_sw, iw5_se, iw5_ne, iw5_nw]),

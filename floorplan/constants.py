@@ -10,7 +10,7 @@ SHELL_THICKNESS = 2.0 / 12.0         # 2" concrete shell
 WALL_OUTER = 8.0 / 12.0           # 8" outer wall (adjustable: 8"-12")
 assert 8.0 / 12.0 <= WALL_OUTER <= 12.0 / 12.0, "WALL_OUTER must be 8\"-12\""
 WALL_EXTRA = WALL_OUTER - 8.0 / 12.0     # wall extra beyond 8" baseline
-WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2)
+WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2, IW2s)
 WALL_4IN = 4.0 / 12.0             # 4" interior wall (IW3, IW4)
 WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW5)
 
@@ -29,7 +29,12 @@ COUNTER_GAP = 36.0 / 12.0         # 3' east of dryer
 # Rooms
 IW1_OFFSET_FROM_W1 = 12.0 + 8.0/12.0    # 12'8" from W1, along W2-W5 direction
 IW1_OFFSET_FROM_W2 = 6.5           # 6'6" from W2, CW-normal to W2-W5
-IW2_OFFSET_FROM_W2 = 6.5                # 6'6" from W2, CW-normal to W2-W5
+# IW2 segments (breakup of former single IW2 into lower, oblique, shower)
+IW2_DIST_W2W5 = 6.5                  # 6'6" from W2-W5 inner wall (true perpendicular)
+IW2_LENGTH = 42.0 / 12.0             # 42" north from IW1 north face
+IW2S_W2REF_OFFSET = 6.5              # offset from virtual W2 ref → ~5'4" true from W2-W5
+IW2S_LENGTH = 72.0 / 12.0            # 72" (6') south from W6-W7 inner wall
+IW2O_THICKNESS = 6.0 / 12.0          # 6" thick perpendicular to midline
 IW4_OFFSET_FROM_IW2 = 224.0 / 12.0   # 18'8" from IW2 east face, CW-normal to W2-W5
 RO1_OFFSET_FROM_IW2 = 116.0 / 12.0   # 9'8" from IW2 east face, CW-normal to W2-W5
 
@@ -77,9 +82,8 @@ EAST_CTR_DEPTH = 42.0 / 12.0       # 42" east counter depth N-S
 RO1_OFFSET_FROM_IW9 = 76.0 / 12.0    # 76" from IW9 east face
 IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
-# IW2 rough opening
-IW2_RO_OFFSET_FROM_IW6 = 9.0 / 12.0      # 9" from IW6, CW-normal to W6-W7
-IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
+# IW2o rough opening (RO4 centered on IW2o oblique segment)
+IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width along IW2o
 
 # IW3 (perpendicular to W20-W0, 4" thick)
 IW3_LENGTH = 80.0 / 12.0          # 80" (6'8") length into structure

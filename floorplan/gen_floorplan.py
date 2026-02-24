@@ -411,25 +411,25 @@ def compute_placement_points(pts, layout, radii):
 
     # ---- Utility room appliances ----
     w2w5_al, w2w5_in = seg_vecs(pts["W2"], pts["W5"])
-    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+    _iw2s_e_al, _iw2s_e_out = seg_vecs(layout.iw2s.poly[1], layout.iw2s.poly[2])
 
     # Water heater center (line-circle intersection)
-    _wh_ref = offset_pt(layout.iw2.poly[2], WH_RADIUS, _iw2_e_out)
+    _wh_ref = offset_pt(layout.iw2s.poly[2], WH_RADIUS, _iw2s_e_out)
     wh_tangent_r = (radii["R_a7"] - wall_t) - WH_RADIUS
     _c7 = pts["C7"]
     _wh_d = (_wh_ref[0] - _c7[0], _wh_ref[1] - _c7[1])
-    _wh_d_al = _wh_d[0] * _iw2_e_al[0] + _wh_d[1] * _iw2_e_al[1]
+    _wh_d_al = _wh_d[0] * _iw2s_e_al[0] + _wh_d[1] * _iw2s_e_al[1]
     _wh_d2 = _wh_d[0]**2 + _wh_d[1]**2
     _wh_t = -_wh_d_al + math.sqrt(wh_tangent_r**2 - _wh_d2 + _wh_d_al**2)
-    wh_center = offset_pt(_wh_ref, _wh_t, _iw2_e_al)
+    wh_center = offset_pt(_wh_ref, _wh_t, _iw2s_e_al)
     result.append(("wh_center", wh_center))
 
     # ---- Kitchen appliances ----
     w9w10_al, w9w10_in = seg_vecs(pts["W9"], pts["W10"])
     _wall_anchor = pts["W9"]
-    _iw2_ne = layout.iw2.poly[2]
-    _iw2_d = ((_iw2_ne[0] - _wall_anchor[0]) * w9w10_al[0] +
-              (_iw2_ne[1] - _wall_anchor[1]) * w9w10_al[1])
+    _iw2s_ne = layout.iw2s.poly[2]
+    _iw2_d = ((_iw2s_ne[0] - _wall_anchor[0]) * w9w10_al[0] +
+              (_iw2s_ne[1] - _wall_anchor[1]) * w9w10_al[1])
 
     def _nwp(d_along, d_inward=0):
         return offset_pt(offset_pt(_wall_anchor, d_along, w9w10_al),
@@ -452,7 +452,8 @@ def compute_placement_points(pts, layout, radii):
     # Fridge NW/SE (standard variant: IW1/IW2 corner)
     _iw1_n_al, _iw1_n_cw = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
     _iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])
-    _iw12_corner = line_isect(layout.iw2.poly[1], _iw2_e_al,
+    _iw2_lo_e_al, _ = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+    _iw12_corner = line_isect(layout.iw2.poly[1], _iw2_lo_e_al,
                               layout.iw1.poly[3], _iw1_n_al)
     def _iwp(d_e, d_n=0):
         return offset_pt(offset_pt(_iw12_corner, d_e, _iw1_n_al),
@@ -768,7 +769,8 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
 
 def compute_iw_area(layout):
     """Compute total interior wall area from layout polygons."""
-    iw_polys = [layout.iw1.poly, layout.iw8.poly, layout.iw2.poly,
+    iw_polys = [layout.iw1.poly, layout.iw8.poly,
+                layout.iw2.poly, layout.iw2o.poly, layout.iw2s.poly,
                 layout.iw3.poly, layout.iw7.poly, layout.iw9.poly, layout.iw6.poly,
                 layout.iw4.poly, layout.iw11.poly, layout.iw12.poly,
                 layout.iw5.poly, layout.iw16.poly]
@@ -931,21 +933,35 @@ def _render_walls(out, data, layout, bare=False):
     _wall_stroke(out, layout.iw8.poly[0], layout.iw8.poly[1], half_sw, to_svg)
     _wall_stroke(out, layout.iw8.poly[3], layout.iw8.poly[2], half_sw, to_svg)
 
-    # ---- IW2 with RO4 ----
-    _iw2 = layout.iw2.poly
+    # ---- IW2 (lower, solid, no opening) ----
+    wall_poly(out, layout.iw2.poly, to_svg, stroke=False)
+    _wall_stroke(out, layout.iw2.poly[0], layout.iw2.poly[1], half_sw, to_svg)
+    _wall_stroke(out, layout.iw2.poly[3], layout.iw2.poly[2], half_sw, to_svg)
+    _wall_stroke(out, layout.iw2.poly[1], layout.iw2.poly[2], half_sw, to_svg)
+    _wall_stroke(out, layout.iw2.poly[0], layout.iw2.poly[3], half_sw, to_svg)
+
+    # ---- IW2s (shower, solid, no opening) ----
+    wall_poly(out, layout.iw2s.poly, to_svg, stroke=False)
+    _wall_stroke(out, layout.iw2s.poly[0], layout.iw2s.poly[1], half_sw, to_svg)
+    _wall_stroke(out, layout.iw2s.poly[3], layout.iw2s.poly[2], half_sw, to_svg)
+    _wall_stroke(out, layout.iw2s.poly[1], layout.iw2s.poly[2], half_sw, to_svg)
+    _wall_stroke(out, layout.iw2s.poly[0], layout.iw2s.poly[3], half_sw, to_svg)
+
+    # ---- IW2o (oblique) with RO4 ----
+    _iw2o = layout.iw2o.poly
     _ro4p = [r for r in rough_openings if r.name == "RO4"][0].poly
-    iw2_s_poly = [_iw2[0], _iw2[1], _ro4p[1], _ro4p[0]]
-    iw2_n_poly = [_ro4p[3], _ro4p[2], _iw2[2], _iw2[3]]
-    wall_poly(out, iw2_s_poly, to_svg, stroke=False)
-    wall_poly(out, iw2_n_poly, to_svg, stroke=False)
-    _wall_stroke(out, _iw2[3], _ro4p[3], half_sw, to_svg)    # west face north
-    _wall_stroke(out, _ro4p[0], _iw2[0], half_sw, to_svg)    # west face south
-    _wall_stroke(out, _iw2[1], _ro4p[1], half_sw, to_svg)    # east face south
-    _wall_stroke(out, _ro4p[2], _iw2[2], half_sw, to_svg)    # east face north
-    _iw2_al, _ = seg_vecs(_iw2[0], _iw2[3])
-    _jamb_poly(out, _ro4p[0], _ro4p[1], _iw2_al, to_svg)
-    _neg_iw2_al = (-_iw2_al[0], -_iw2_al[1])
-    _jamb_poly(out, _ro4p[2], _ro4p[3], _neg_iw2_al, to_svg)
+    iw2o_s_poly = [_iw2o[0], _iw2o[1], _ro4p[1], _ro4p[0]]
+    iw2o_n_poly = [_ro4p[3], _ro4p[2], _iw2o[2], _iw2o[3]]
+    wall_poly(out, iw2o_s_poly, to_svg, stroke=False)
+    wall_poly(out, iw2o_n_poly, to_svg, stroke=False)
+    _wall_stroke(out, _iw2o[3], _ro4p[3], half_sw, to_svg)    # west face north
+    _wall_stroke(out, _ro4p[0], _iw2o[0], half_sw, to_svg)    # west face south
+    _wall_stroke(out, _iw2o[1], _ro4p[1], half_sw, to_svg)    # east face south
+    _wall_stroke(out, _ro4p[2], _iw2o[2], half_sw, to_svg)    # east face north
+    _iw2o_al, _ = seg_vecs(_iw2o[0], _iw2o[3])
+    _jamb_poly(out, _ro4p[0], _ro4p[1], _iw2o_al, to_svg)
+    _neg_iw2o_al = (-_iw2o_al[0], -_iw2o_al[1])
+    _jamb_poly(out, _ro4p[2], _ro4p[3], _neg_iw2o_al, to_svg)
 
     # ---- IW3 (solid, no opening, rotated perpendicular to W20-W0) ----
     _iw3_sw, _iw3_se, _iw3_ne, _iw3_nw = layout.iw3.poly
@@ -1189,8 +1205,8 @@ def _render_appliances(out, data, layout, minik=False, db=False):
     to_svg = data.to_svg
     # East wall (W2-W5) direction vectors for wall-relative placement
     w2w5_al, w2w5_in = seg_vecs(pts["W2"], pts["W5"])
-    # IW2 east face: along=north, outward=east
-    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+    # IW2s east face: along=north, outward=east (shower section)
+    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2s.poly[1], layout.iw2s.poly[2])
 
     # Dryer and washer
     minik_appl_w = 32.0 / 12.0   # 32" along w2w5_in in minik
@@ -1287,8 +1303,8 @@ def _render_appliances(out, data, layout, minik=False, db=False):
                f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
 
     # Water heater: 28" diameter circle, tangent to inner arc at C7
-    # WH center lies on IW2 east face line at WH_RADIUS from face
-    _wh_ref = offset_pt(layout.iw2.poly[2], WH_RADIUS, _iw2_e_out)
+    # WH center lies on IW2s east face line at WH_RADIUS from face
+    _wh_ref = offset_pt(layout.iw2s.poly[2], WH_RADIUS, _iw2_e_out)
     wh_tangent_r = (data.radii["R_a7"] - data.wall_t) - WH_RADIUS
     _c7 = pts["C7"]
     _wh_d = (_wh_ref[0] - _c7[0], _wh_ref[1] - _c7[1])
@@ -1347,10 +1363,10 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     # North wall (W9-W10) direction vectors for wall-relative placement
     w9w10_al, w9w10_in = seg_vecs(pts["W9"], pts["W10"])
     _wall_anchor = pts["W9"]
-    # Distance from W9 to IW2 east face along wall
-    _iw2_ne = layout.iw2.poly[2]
-    _iw2_d = ((_iw2_ne[0] - _wall_anchor[0]) * w9w10_al[0] +
-              (_iw2_ne[1] - _wall_anchor[1]) * w9w10_al[1])
+    # Distance from W9 to IW2s east face along wall
+    _iw2s_ne = layout.iw2s.poly[2]
+    _iw2_d = ((_iw2s_ne[0] - _wall_anchor[0]) * w9w10_al[0] +
+              (_iw2s_ne[1] - _wall_anchor[1]) * w9w10_al[1])
 
     def _nwp(d_along, d_inward=0):
         """Point on north wall at d_along from W9, d_inward into room."""
@@ -1362,10 +1378,10 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     _ks_d = _st_d + STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0
     _dw_d = _ks_d + KITCHEN_SINK_WIDTH + KITCHEN_APPL_GAP
     # IW1/IW2 corner: for items in the fridge/counter/table area
-    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+    _iw2_lo_e_al, _ = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
     _iw1_n_al, _iw1_n_cw = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
     _iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])  # outward from IW1 north face
-    _iw12_corner = line_isect(layout.iw2.poly[1], _iw2_e_al,
+    _iw12_corner = line_isect(layout.iw2.poly[1], _iw2_lo_e_al,
                               layout.iw1.poly[3], _iw1_n_al)
 
     def _iwp(d_e, d_n=0):
@@ -1797,9 +1813,9 @@ def _render_furniture(out, data, layout, minik=False, db=False):
         """Point from W9 along north wall: d_along toward W10, d_inward from wall."""
         return offset_pt(offset_pt(_nw_anchor, d_along, w9w10_al),
                          d_inward, w9w10_in)
-    # IW2 east face distance from W9 along north wall
-    _iw2_d = ((layout.iw2.poly[2][0] - _nw_anchor[0]) * w9w10_al[0] +
-              (layout.iw2.poly[2][1] - _nw_anchor[1]) * w9w10_al[1])
+    # IW2s east face distance from W9 along north wall
+    _iw2_d = ((layout.iw2s.poly[2][0] - _nw_anchor[0]) * w9w10_al[0] +
+              (layout.iw2s.poly[2][1] - _nw_anchor[1]) * w9w10_al[1])
 
     # Bed (rotated polygon)
     _bp = layout.bed.poly

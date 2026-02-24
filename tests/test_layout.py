@@ -2,7 +2,7 @@
 import math
 import pytest
 from floorplan.layout import InteriorLayout
-from floorplan.constants import WALL_6IN, WALL_3IN, WALL_4IN, IW6_THICKNESS
+from floorplan.constants import WALL_6IN, WALL_3IN, WALL_4IN, IW6_THICKNESS, IW2O_THICKNESS
 
 
 def _wall_thickness(poly):
@@ -37,6 +37,14 @@ class TestInteriorLayout:
     def test_iw2_bounds(self, layout):
         assert layout.iw2.e > layout.iw2.w
         assert layout.iw2.n > layout.iw2.s
+
+    def test_iw2o_bounds(self, layout):
+        assert layout.iw2o.e > layout.iw2o.w
+        assert layout.iw2o.n > layout.iw2o.s
+
+    def test_iw2s_bounds(self, layout):
+        assert layout.iw2s.e > layout.iw2s.w
+        assert layout.iw2s.n > layout.iw2s.s
 
     def test_dryer_bounds(self, layout):
         assert layout.dryer.e > layout.dryer.w
@@ -81,6 +89,8 @@ class TestInteriorLayout:
 _IW_EXPECTED_THICKNESS = {
     "iw1": WALL_6IN,
     "iw2": WALL_6IN,
+    "iw2o": IW2O_THICKNESS,
+    "iw2s": WALL_6IN,
     "iw3": WALL_4IN,
     "iw4": WALL_4IN,
     "iw5": WALL_3IN,
