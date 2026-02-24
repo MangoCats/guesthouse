@@ -272,9 +272,17 @@ def _render_interior_walls(out, data):
     iw_label("IW8", layout.iw8.w, layout.iw8.e, layout.iw8.s, layout.iw8.n,
              vertical=False)
 
-    # IW2 (vertical, 6")
+    # IW2 (vertical, 6" — lower segment)
     iw_poly(layout.iw2.poly)
-    iw_label("IW2", layout.iw2.w, layout.iw2.e, ro_map["RO4"].n, layout.iw2.n)
+    iw_label("IW2", layout.iw2.w, layout.iw2.e, layout.iw2.s, layout.iw2.n)
+
+    # IW2o (oblique, 6" — connector with RO4)
+    iw_poly(layout.iw2o.poly)
+    iw_label("IW2o", layout.iw2o.w, layout.iw2o.e, layout.iw2o.s, layout.iw2o.n)
+
+    # IW2s (vertical, 6" — shower segment)
+    iw_poly(layout.iw2s.poly)
+    iw_label("IW2s", layout.iw2s.w, layout.iw2s.e, layout.iw2s.s, layout.iw2s.n)
 
     # IW3 (rotated, 4" thick, perpendicular to W20-W0)
     iw_poly(layout.iw3.poly)
@@ -826,6 +834,8 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
     iw_rows = [
         ("IW1",  6, _poly_len(layout.iw1.poly), True),
         ("IW2",  6, _poly_len(layout.iw2.poly), True),
+        ("IW2o", 6, _poly_len(layout.iw2o.poly), True),
+        ("IW2s", 6, _poly_len(layout.iw2s.poly), True),
         ("IW3",  4, _poly_len(layout.iw3.poly), True),
         ("IW4",  4, _poly_len(layout.iw4.poly), True),
         ("IW5",  3, _poly_len(layout.iw5.poly), False),
