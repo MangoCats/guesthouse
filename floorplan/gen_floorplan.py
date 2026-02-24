@@ -452,8 +452,8 @@ def compute_placement_points(pts, layout, radii):
     _iw12_corner = line_isect(layout.iw2.poly[1], _iw2_e_al,
                               layout.iw1.poly[3], _iw1_n_al)
     def _iwp(d_e, d_n=0):
-        return offset_pt(offset_pt(_iw12_corner, d_e, _iw2_e_out),
-                         d_n, _iw2_e_al)
+        return offset_pt(offset_pt(_iw12_corner, d_e, _iw1_n_al),
+                         d_n, _iw1_n_out)
     _fr_w2 = 32.75 / 12.0
     _fr_h1 = 35.0 / 12.0
     result.append(("fridge_NW", _iwp(KITCHEN_APPL_GAP, KITCHEN_APPL_GAP + _fr_h1)))
@@ -475,13 +475,13 @@ def compute_placement_points(pts, layout, radii):
     result.append(("wctr_SE", _iwp(_wc_d2 + 60.0 / 12.0, 0)))
 
     # ---- Living room furniture ----
-    _iw4_w_al, _iw4_w_out = seg_vecs(layout.iw4.poly[3], layout.iw4.poly[0])
-    _iw4_w_n = (-_iw4_w_al[0], -_iw4_w_al[1])  # northward along IW4
+    _iw4_w_al, _ = seg_vecs(layout.iw4.poly[3], layout.iw4.poly[0])
     _iw41_corner = line_isect(layout.iw4.poly[3], _iw4_w_al,
                               layout.iw1.poly[3], _iw1_n_al)
+    _iw1_w = (-_iw1_n_al[0], -_iw1_n_al[1])  # westward along IW1
     def _lwp(d_w=0, d_n=0):
-        return offset_pt(offset_pt(_iw41_corner, d_w, _iw4_w_out),
-                         d_n, _iw4_w_n)
+        return offset_pt(offset_pt(_iw41_corner, d_w, _iw1_w),
+                         d_n, _iw1_n_out)
 
     w12w13_al, _ = seg_vecs(pts["W12"], pts["W13"])
     w11w12_al, w11w12_in = seg_vecs(pts["W11"], pts["W12"])
@@ -1366,9 +1366,9 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                               layout.iw1.poly[3], _iw1_n_al)
 
     def _iwp(d_e, d_n=0):
-        """Point from IW1/IW2 corner: d_e along IW2-outward, d_n along IW2-along."""
-        return offset_pt(offset_pt(_iw12_corner, d_e, _iw2_e_out),
-                         d_n, _iw2_e_al)
+        """Point from IW1/IW2 corner: d_e along IW1-along, d_n along IW1-outward."""
+        return offset_pt(offset_pt(_iw12_corner, d_e, _iw1_n_al),
+                         d_n, _iw1_n_out)
 
 
     # (label, along_start, along_width, inward_start, inward_depth, href)
@@ -1444,8 +1444,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     if db or (not minik):
         # Door arc: hinged at NW corner, sweeps from open (along IW2) to closed (outward IW2)
         fr_door = _fr_w2
-        _open_dir = _iw2_e_al    # along IW2 east face (northward)
-        _close_dir = _iw2_e_out  # outward from IW2 (eastward)
+        _open_dir = _iw1_n_al    # along IW1 north face (eastward)
+        _close_dir = _iw1_n_out  # outward from IW1 (northward)
         hx, hy = to_svg(*fr_nw)
         tip = offset_pt(fr_nw, fr_door, _open_dir)
         tip_x, tip_y = to_svg(*tip)
@@ -1502,8 +1502,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         # Door: hinged at NE corner, sweeps from open (along IW2) to closed (back along IW2)
         _mw_door = mw_ew
         _mw_hinge = _iwp(_mw_d2 + mw_ew, _mw_d1 + mw_ns)  # NE corner
-        _mw_open = _iw2_e_al                                 # northward along IW2
-        _mw_close = (-_iw2_e_out[0], -_iw2_e_out[1])         # westward
+        _mw_open = _iw1_n_out                                 # northward from IW1
+        _mw_close = (-_iw1_n_al[0], -_iw1_n_al[1])           # westward along IW1
         _mh_x, _mh_y = to_svg(*_mw_hinge)
         _mt = offset_pt(_mw_hinge, _mw_door, _mw_open)
         _mt_x, _mt_y = to_svg(*_mt)
@@ -1775,21 +1775,19 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     w12w13_al, _ = seg_vecs(pts["W12"], pts["W13"])
     w9w10_al, w9w10_in = seg_vecs(pts["W9"], pts["W10"])
     w11w12_al, w11w12_in = seg_vecs(pts["W11"], pts["W12"])
-    # IW4 west face: along=south, outward=west
-    _iw4_w_al, _iw4_w_out = seg_vecs(layout.iw4.poly[3], layout.iw4.poly[0])
-    _iw4_w_n = (-_iw4_w_al[0], -_iw4_w_al[1])  # northward along IW4
+    # IW4 west face: along=south (needed for corner intersection)
+    _iw4_w_al, _ = seg_vecs(layout.iw4.poly[3], layout.iw4.poly[0])
     # IW1 north face: along=east, CW-inward=south, outward=north
     _iw1_n_al, _iw1_n_cw = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
     _iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])
-    # IW2 east face: along=north, outward=east
-    _iw2_e_al, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
+    _iw1_w = (-_iw1_n_al[0], -_iw1_n_al[1])  # westward along IW1
     # IW4/IW1 corner: intersection of IW4 west face and IW1 north face
     _iw41_corner = line_isect(layout.iw4.poly[3], _iw4_w_al,
                               layout.iw1.poly[3], _iw1_n_al)
     def _lwp(d_w=0, d_n=0):
-        """Point offset from IW4/IW1 corner: d_w along IW4-outward, d_n along IW4-northward."""
-        return offset_pt(offset_pt(_iw41_corner, d_w, _iw4_w_out),
-                         d_n, _iw4_w_n)
+        """Point offset from IW4/IW1 corner: d_w westward along IW1, d_n northward from IW1."""
+        return offset_pt(offset_pt(_iw41_corner, d_w, _iw1_w),
+                         d_n, _iw1_n_out)
     # North wall helper: from W9 anchor along W9-W10 wall
     _nw_anchor = pts["W9"]
     def _nwp(d_along, d_inward=0):
