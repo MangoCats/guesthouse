@@ -26,8 +26,8 @@ _PI_12 = math.pi / 12          # 15 deg
 _PI_3 = math.pi / 3            # 60 deg
 _PI_6 = math.pi / 6            # 30 deg
 _C10_SWEEP = _5PI_12             # F10→F11: 75°
-_C11_SWEEP = 1.241050474165       # F11b→F12: ~71.1° (C11a+C11 sweeps sum with C13 to π/2)
-_C13_SWEEP = 0.329745852630       # F13→F14: ~18.9° → exit bearing = π
+_C11_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)  # F11b→F12: 90° - arctan(1/3)
+_C13_SWEEP = math.atan(1.0 / 3.0)                 # F13→F14: arctan(1/3) → exit bearing = π
 
 # Chain: ("L", distance) for lines
 #        ("CW"/"CCW", radius, sweep, center_name, n_pts) for arcs
@@ -67,12 +67,12 @@ _CHAIN_F5_TO_F18 = [
     ("L",    5.166666666667),                                  # F6->F7
     ("CW",   2.333333333333, _PI_2, "C7", 20),                # F7->F8
     ("CCW",  0.166666666667, _PI_2, "C8", 20),                # F8->F9
-    ("L",   15.500000000000),                                  # F9->F10
+    ("L",   15.602448180950),                                  # F9->F10
     ("CCW",  1.039662132188, _C10_SWEEP, "C10", 20),          # F10->F11
     ("CW",   2.333333333333, _5PI_12, "C11a", 30),            # F11->F11a
     ("L",    F11AB_TARGET),                                    # F11a->F11b
     ("CW",   2.333333333333, _C11_SWEEP, "C11", 30),          # F11b->F12
-    ("L",   12.158230824622),                                  # F12->F13
+    ("L",   12.121250924689),                                  # F12->F13
     ("CW",   1.808727374505, _C13_SWEEP, "C13", 60),          # F13->F14
     ("L",    9.357939292171),                                  # F14->F15
     ("CW",   1.808727374505, _PI_3, "C15", 20),               # F15->F16
