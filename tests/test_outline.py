@@ -22,9 +22,9 @@ _EXPECTED_F = {
     "F11b": (11.7046635931,  13.8815529010),
     "F12": ( 14.1356882535,  12.4116018253),
     "F13": ( 17.8307503524,   2.9538659795),
-    "F14": ( 17.9873409046,   2.3182685035),
-    "F15": ( 18.9444141306,  -6.2953905304),
-    "F16": ( 17.9518674804,  -8.5607912999),
+    "F14": ( 18.0026777654,   2.0413555760),
+    "F15": ( 18.0026777654,  -7.2724405041),
+    "F16": ( 16.9950037851,  -9.2647115024),
     "F17": ( 13.9243034824, -11.5236831714),
     "F18": ( 10.8363106361, -12.7301373919),
     "F19": (  9.4473028882, -12.8844715862),
@@ -68,7 +68,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 863.00) < 0.1
+        assert abs(area - 857.21) < 0.1
 
     def test_segment_index_mapping(self, outline_geo):
         """Segment start→end names match expected indices.

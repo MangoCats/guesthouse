@@ -29,6 +29,8 @@ _PI_3 = math.pi / 3            # 60 deg
 _PI_6 = math.pi / 6            # 30 deg
 _C7_SWEEP = _PI_2 + _A19       # F7→F8: 90° + arctan(1/9)
 _C10_SWEEP = _5PI_12 + _A19    # F10→F11: 75° + arctan(1/9)
+_C13_SWEEP = _PI_12 + _A19     # F13→F14: 15° + arctan(1/9) → exit bearing = π
+_C15_SWEEP = _PI_3 - _A19      # F15→F16: 60° - arctan(1/9)
 
 # Chain: ("L", distance) for lines
 #        ("CW"/"CCW", radius, sweep, center_name, n_pts) for arcs
@@ -66,10 +68,7 @@ _CHAIN_F5_TO_F7 = [
     ("CW",   2.333333333333, _A9, "C5", 20),                  # F5->F6
     ("L",    5.250000000000),                                  # F6->F7
 ]
-_CHAIN_F14_TO_F20 = [
-    ("L",    8.666666666667),                                  # F14->F15
-    ("CW",   2.473295271375, _PI_3, "C15", 20),               # F15->F16
-    ("L",    5.000000000000),                                  # F16->F17
+_CHAIN_F17_TO_F20 = [
     ("CW",   6.404672887007, _PI_6, "C17", 20),               # F17->F18
     ("L",    1.397555568554),                                  # F18->F19
     ("CW",  18.888718471469, _A19, "C19", 60),                # F19->F20
@@ -117,6 +116,35 @@ _det = _a_E * _c12 - _a_N * _s12
 _R_C10 = (_rhs_E * _c12 - _rhs_N * _s12) / _det
 _L_F12F13 = (_a_E * _rhs_N - _a_N * _rhs_E) / _det
 
+# Solve for F14→F15 distance and F16→F17 distance to keep F17 fixed.
+# Target: original F13→F17 displacement (old C13/C15 sweeps and line distances)
+_tgt2_E, _tgt2_N, _ = _chain_offset([
+    ("CW",  2.507553207938, _PI_12, "C13", 60),
+    ("L",   8.666666666667),
+    ("CW",  2.473295271375, _PI_3, "C15", 20),
+    ("L",   5.000000000000),
+], start_brg=_brg_F12)
+
+# Arc offsets with new sweeps
+_c13_dE, _c13_dN, _ = _chain_offset(
+    [("CW", 2.507553207938, _C13_SWEEP, "C13", 60)], start_brg=_brg_F12)
+_c15_dE, _c15_dN, _ = _chain_offset(
+    [("CW", 2.473295271375, _C15_SWEEP, "C15", 20)], start_brg=math.pi)
+
+# 2×2 linear solve: d_F14F15 (line at bearing π) and L_F16F17 (line at bearing π+S)
+_rhs2_E = _tgt2_E - _c13_dE - _c15_dE
+_rhs2_N = _tgt2_N - _c13_dN - _c15_dN
+_sinS = math.sin(_C15_SWEEP)
+_cosS = math.cos(_C15_SWEEP)
+_d_F14F15 = (_rhs2_E * _cosS - _rhs2_N * _sinS) / _sinS
+_L_F16F17 = -_rhs2_E / _sinS
+
+_CHAIN_F14_TO_F20 = [
+    ("L",    _d_F14F15),                                       # F14->F15
+    ("CW",   2.473295271375, _C15_SWEEP, "C15", 20),          # F15->F16
+    ("L",    _L_F16F17),                                       # F16->F17
+] + _CHAIN_F17_TO_F20
+
 # Full chain: F5→F20 with computed R_C10 and L_F12F13
 _CHAIN_F5_TO_F20 = _CHAIN_F5_TO_F7 + [
     ("CW",   2.333333333333, _C7_SWEEP, "C7", 20),            # F7->F8
@@ -127,7 +155,7 @@ _CHAIN_F5_TO_F20 = _CHAIN_F5_TO_F7 + [
     ("L",    F11AB_TARGET),                                    # F11a->F11b
     ("CW",   2.333333333333, _5PI_12, "C11", 30),             # F11b->F12
     ("L",    _L_F12F13),                                       # F12->F13
-    ("CW",   2.507553207938, _PI_12, "C13", 60),              # F13->F14
+    ("CW",   2.507553207938, _C13_SWEEP, "C13", 60),          # F13->F14
 ] + _CHAIN_F14_TO_F20
 
 # Derive NE corner closure constraints from CORNER_NE_R.
