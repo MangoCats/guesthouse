@@ -179,6 +179,7 @@ BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
 
 # Outline geometry constraints
+NS_CLEAR_SPAN = 23.5                 # perpendicular distance W20-W1 to W9-W10, feet
 CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: NE corner (10" at 8" wall)
 CORNER_NW_R = 28.0 / 12.0 + WALL_EXTRA   # R_a5: NW corner (28" at 8" wall)
 UPPER_E_R = 28.0 / 12.0 + WALL_EXTRA     # R_a7: upper east (28" at 8" wall)

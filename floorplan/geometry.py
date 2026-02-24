@@ -5,7 +5,7 @@ from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.survey import COORD_ROTATION, rotate_pts
-from floorplan.constants import CORNER_NE_R, F11AB_TARGET
+from floorplan.constants import CORNER_NE_R, F11AB_TARGET, WALL_OUTER, NS_CLEAR_SPAN
 
 
 class OutlineGeometry(NamedTuple):
@@ -139,14 +139,7 @@ _cosS = math.cos(_C15_SWEEP)
 _d_F14F15 = (_rhs2_E * _cosS - _rhs2_N * _sinS) / _sinS
 _L_F16F17 = -_rhs2_E / _sinS
 
-_CHAIN_F14_TO_F20 = [
-    ("L",    _d_F14F15),                                       # F14->F15
-    ("CW",   2.473295271375, _C15_SWEEP, "C15", 20),          # F15->F16
-    ("L",    _L_F16F17),                                       # F16->F17
-] + _CHAIN_F17_TO_F20
-
-# Full chain: F5→F20 with computed R_C10 and L_F12F13
-_CHAIN_F5_TO_F20 = _CHAIN_F5_TO_F7 + [
+_CHAIN_F5_TO_F14 = _CHAIN_F5_TO_F7 + [
     ("CW",   2.333333333333, _C7_SWEEP, "C7", 20),            # F7->F8
     ("CCW",  0.166666666667, _PI_2, "C8", 20),                # F8->F9
     ("L",   15.166666666667),                                  # F9->F10
@@ -156,16 +149,39 @@ _CHAIN_F5_TO_F20 = _CHAIN_F5_TO_F7 + [
     ("CW",   2.333333333333, _5PI_12, "C11", 30),             # F11b->F12
     ("L",    _L_F12F13),                                       # F12->F13
     ("CW",   2.507553207938, _C13_SWEEP, "C13", 60),          # F13->F14
-] + _CHAIN_F14_TO_F20
+]
 
-# Derive NE corner closure constraints from CORNER_NE_R.
-# Walk F5→F20 chain to get F20 position relative to F5, then compute
-# the F20→F1 distance that places F1 at the correct easting for the 90° arc.
-_dE_20, _dN_20, _brg_20 = _chain_offset(_CHAIN_F5_TO_F20, start_brg=0.0)
+# Base closure: compute _d_F2_F5 and _d_F20_F1 before N-S span adjustment.
+_CHAIN_F5_TO_F20_base = _CHAIN_F5_TO_F14 + [
+    ("L",    _d_F14F15),                                       # F14->F15
+    ("CW",   2.473295271375, _C15_SWEEP, "C15", 20),          # F15->F16
+    ("L",    _L_F16F17),                                       # F16->F17
+] + _CHAIN_F17_TO_F20
+
+_dE_20, _dN_20, _brg_20 = _chain_offset(_CHAIN_F5_TO_F20_base, start_brg=0.0)
 _R_a1 = CORNER_NE_R
 _d_F20_F1 = (_R_a1 - _dE_20) / math.sin(_brg_20)
 _F1_N_rel = _dN_20 + _d_F20_F1 * math.cos(_brg_20)
 _d_F2_F5 = -(_F1_N_rel + _R_a1)
+
+# Adjust F14→F15 and F2→F5 to achieve NS_CLEAR_SPAN between W20-W1 and W9-W10.
+# perp_dist = R_a1 + _d_F2_F5 + nF5toF9 - 2*WALL_OUTER
+_, _nF5toF9, _ = _chain_offset(_CHAIN_F5_TO_F7 + [
+    ("CW",  2.333333333333, _C7_SWEEP, "C7", 20),
+    ("CCW", 0.166666666667, _PI_2, "C8", 20),
+], start_brg=0.0)
+_delta_ns = NS_CLEAR_SPAN - (_R_a1 + _d_F2_F5 + _nF5toF9 - 2 * WALL_OUTER)
+_d_F14F15 += _delta_ns
+_d_F2_F5 += _delta_ns
+
+# Final chains with adjusted F14→F15 distance
+_CHAIN_F14_TO_F20 = [
+    ("L",    _d_F14F15),                                       # F14->F15
+    ("CW",   2.473295271375, _C15_SWEEP, "C15", 20),          # F15->F16
+    ("L",    _L_F16F17),                                       # F16->F17
+] + _CHAIN_F17_TO_F20
+
+_CHAIN_F5_TO_F20 = _CHAIN_F5_TO_F14 + _CHAIN_F14_TO_F20
 
 # F2 position: east face at E = -18'0", F1.N = -13'0" exactly.
 # F2.N derived from F1.N + CORNER_NE_R (F1→F2 is 90° CW arc of radius R_a1).
