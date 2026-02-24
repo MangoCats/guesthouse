@@ -85,16 +85,16 @@ IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 # IW2o rough opening (RO4 centered on IW2o oblique segment)
 IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width along IW2o
 
-# IW3 (perpendicular to W20-W0, 4" thick)
+# IW3 (perpendicular to W18-W1, 4" thick)
 IW3_LENGTH = 80.0 / 12.0          # 80" (6'8") length into structure
-IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W20-W0
+IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W18-W1
 IW3_DIST_W2W5 = 102.0 / 12.0     # 8'6" from W2-W5 to IW3 west face
 
-# IW7 (parallel to W20-W0, 4" thick, between IW3 and IW9)
+# IW7 (parallel to W18-W1, 4" thick, between IW3 and IW9)
 
-# IW9 (perpendicular to W20-W0, 4" thick)
+# IW9 (perpendicular to W18-W1, 4" thick)
 IW9_LENGTH = 80.0 / 12.0            # 80" (6'8") IW9 length, same as IW3
-IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W20-W0
+IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W18-W1
 
 # IW11 (4" thick, N-S)
 IW9_IW11_GAP = 12.0                  # 12' from IW9 east face to IW11 west face
@@ -161,14 +161,14 @@ O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
 # O8 (F14-F15)
 O8_HALF_WIDTH = 11.5 / 12.0        # 11.5" half-width
-# O9, O10, O11 (F20-F1 south wall chain)
+# O9, O10, O11 (F18-F1 south wall chain)
 O9_HALF_WIDTH = 11.5 / 12.0        # 11.5" half-width
 O10_HALF_WIDTH = 11.5 / 12.0       # 11.5" half-width
 O11_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width
-O9_OFFSET_IW11 = 6.0 / 12.0       # 6" IW11 SW to O9 SE along F20-F1
+O9_OFFSET_IW11 = 6.0 / 12.0       # 6" IW11 SW to O9 SE along F18-F1
 O9_O10_WALL = 86.0 / 12.0         # 86" solid wall between O9 NW and O10 SE
 O10_O11_WALL = 72.0 / 12.0        # 72" solid wall between O10 NW and O11 SE
-BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
+BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W18-W1
 
 # IW5 partition
 IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
@@ -177,7 +177,7 @@ IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
 CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: NE corner (10" at 8" wall)
 F11AB_TARGET = 1.0                 # 1'0" target F11a-F11b distance
 IW1_OFFSET_FROM_W9 = 11.0              # 11'0" from W9, CW-normal to W9-W10
-IW8_OFFSET_FROM_W20W1 = 12.0          # 12'0" perpendicular to W20-W1
+IW8_OFFSET_FROM_W18W1 = 12.0          # 12'0" perpendicular to W18-W1
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)

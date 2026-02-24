@@ -62,7 +62,7 @@ def compute_roof_geometry(fp_pts: dict[str, Point],
     R_a11 = radii["R_a11"]
 
     # Offset straight wall segments outward (left of CW traversal = exterior)
-    oL_F20_F1 = _offset_line(fp_pts["F20"], fp_pts["F1"], oh)
+    oL_F18_F1 = _offset_line(fp_pts["F18"], fp_pts["F1"], oh)
     oL_F2_F5 = _offset_line(fp_pts["F2"], fp_pts["F5"], oh)
     oL_F6_F7 = _offset_line(fp_pts["F6"], fp_pts["F7"], oh)
     oL_F11a_F11b = _offset_line(fp_pts["F11a"], fp_pts["F11b"], oh)
@@ -73,10 +73,10 @@ def compute_roof_geometry(fp_pts: dict[str, Point],
     pts: dict[str, Point] = {}
 
     # Sharp corners
-    pts["R1"] = _isect(oL_F20_F1, oL_F2_F5)
+    pts["R1"] = _isect(oL_F18_F1, oL_F2_F5)
     pts["R5"] = _isect(oL_F12_F13, oL_F14_F15)
     pts["R6"] = _isect(oL_F14_F15, oL_F16_F17)
-    pts["R7"] = _isect(oL_F16_F17, oL_F20_F1)
+    pts["R7"] = _isect(oL_F16_F17, oL_F18_F1)
 
     # R3: filleted corner (F2-F5 / F6-F7), radius R_a5 + oh, center C5
     r3_r = R_a5 + oh

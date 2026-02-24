@@ -195,18 +195,18 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
          pts["W14"][1] + _t8_end * (pts["W15"][1] - pts["W14"][1])),
     ]))
 
-    # O9, O10, O11: F20-F1 — parametric positions from layout (single source)
-    _dE9, _dN9, _ = seg_vec(pts["F20"], pts["F1"])
+    # O9, O10, O11: F18-F1 — parametric positions from layout (single source)
+    _dE9, _dN9, _ = seg_vec(pts["F18"], pts["F1"])
     for _name, _ts, _te in [("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
                              ("O10", layout.sw_t_o10_start, layout.sw_t_o10_end),
                              ("O11", layout.sw_t_o11_start, layout.sw_t_o11_end)]:
-        openings.append(OuterOpening(_name, "F20", "F1", [
-            (pts["F20"][0] + _ts * _dE9, pts["F20"][1] + _ts * _dN9),
-            (pts["F20"][0] + _te * _dE9, pts["F20"][1] + _te * _dN9),
-            (pts["W20"][0] + _te * (pts["W1"][0] - pts["W20"][0]),
-             pts["W20"][1] + _te * (pts["W1"][1] - pts["W20"][1])),
-            (pts["W20"][0] + _ts * (pts["W1"][0] - pts["W20"][0]),
-             pts["W20"][1] + _ts * (pts["W1"][1] - pts["W20"][1])),
+        openings.append(OuterOpening(_name, "F18", "F1", [
+            (pts["F18"][0] + _ts * _dE9, pts["F18"][1] + _ts * _dN9),
+            (pts["F18"][0] + _te * _dE9, pts["F18"][1] + _te * _dN9),
+            (pts["W18"][0] + _te * (pts["W1"][0] - pts["W18"][0]),
+             pts["W18"][1] + _te * (pts["W1"][1] - pts["W18"][1])),
+            (pts["W18"][0] + _ts * (pts["W1"][0] - pts["W18"][0]),
+             pts["W18"][1] + _ts * (pts["W1"][1] - pts["W18"][1])),
         ]))
 
     return openings

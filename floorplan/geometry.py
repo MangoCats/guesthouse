@@ -10,9 +10,9 @@ from floorplan.constants import CORNER_NE_R, F11AB_TARGET
 
 class OutlineGeometry(NamedTuple):
     """Complete outline geometry result."""
-    fp_pts: dict[str, Point]     # F1-F20, F11a, F11b + C1-C19, C11a + FC
-    outline_segs: list[Segment]  # 20 segments with F-series names
-    radii: dict[str, float]      # R_a1 through R_a19
+    fp_pts: dict[str, Point]     # F1-F18, F11a, F11b + C1-C17, C11a + FC
+    outline_segs: list[Segment]  # 18 segments with F-series names
+    radii: dict[str, float]      # R_a1 through R_a17
 
 
 # ============================================================
@@ -20,7 +20,6 @@ class OutlineGeometry(NamedTuple):
 # ============================================================
 
 # Sweep angle constants (radians)
-_A19 = math.atan(1.0 / 9.0)   # arctan(1/9) for F19-F20
 _PI_2 = math.pi / 2            # 90 deg
 _5PI_12 = 5 * math.pi / 12    # 75 deg
 _PI_12 = math.pi / 12          # 15 deg
@@ -28,7 +27,6 @@ _PI_3 = math.pi / 3            # 60 deg
 _PI_6 = math.pi / 6            # 30 deg
 _C10_SWEEP = _5PI_12             # F10→F11: 75°
 _C13_SWEEP = _PI_12              # F13→F14: 15° → exit bearing = π
-_C15_SWEEP = _PI_3 - _A19      # F15→F16: 60° - arctan(1/9)
 
 # Chain: ("L", distance) for lines
 #        ("CW"/"CCW", radius, sweep, center_name, n_pts) for arcs
@@ -62,8 +60,8 @@ def _chain_offset(chain, start_brg=0.0):
 
 
 # Segment definitions — all parameters are explicit constants.
-# Only d_F2_F5 and d_F20_F1 are computed (closure solver below).
-_CHAIN_F5_TO_F20 = [
+# Only d_F2_F5 and d_F18_F1 are computed (closure solver below).
+_CHAIN_F5_TO_F18 = [
     ("CW",   2.333333333333, _PI_2, "C5", 20),                # F5->F6
     ("L",    5.166666666667),                                  # F6->F7
     ("CW",   2.333333333333, _PI_2, "C7", 20),                # F7->F8
@@ -75,19 +73,17 @@ _CHAIN_F5_TO_F20 = [
     ("CW",   2.333333333333, _5PI_12, "C11", 30),             # F11b->F12
     ("L",   16.179083703144),                                  # F12->F13
     ("CW",   2.507553207938, _C13_SWEEP, "C13", 60),          # F13->F14
-    ("L",    3.599554287941),                                  # F14->F15
-    ("CW",   2.473295271375, _C15_SWEEP, "C15", 20),          # F15->F16
-    ("L",    3.812106156752),                                  # F16->F17
-    ("CW",   6.404672887007, _PI_6, "C17", 20),               # F17->F18
-    ("L",    1.397555568554),                                  # F18->F19
-    ("CW",  18.888718471469, _A19, "C19", 60),                # F19->F20
+    ("L",    4.735199629703),                                  # F14->F15
+    ("CW",   2.333333333333, _PI_3, "C15", 20),               # F15->F16
+    ("L",    4.517161641662),                                  # F16->F17
+    ("CW",   2.333333333333, _PI_6, "C17", 20),               # F17->F18
 ]
 
-# Closure solver: compute d_F2_F5 and d_F20_F1 so the chain closes.
+# Closure solver: compute d_F2_F5 and d_F18_F1 so the chain closes.
 _R_a1 = CORNER_NE_R
-_dE_20, _dN_20, _brg_20 = _chain_offset(_CHAIN_F5_TO_F20, start_brg=0.0)
-_d_F20_F1 = (_R_a1 - _dE_20) / math.sin(_brg_20)
-_F1_N_rel = _dN_20 + _d_F20_F1 * math.cos(_brg_20)
+_dE_18, _dN_18, _brg_18 = _chain_offset(_CHAIN_F5_TO_F18, start_brg=0.0)
+_d_F18_F1 = (_R_a1 - _dE_18) / math.sin(_brg_18)
+_F1_N_rel = _dN_18 + _d_F18_F1 * math.cos(_brg_18)
 _d_F2_F5 = -(_F1_N_rel + _R_a1)
 
 # F2 position: east face at E = -18'6", F1.N = -13'6" exactly.
@@ -96,12 +92,12 @@ F2_E = -18.5                     # -18'6" east face easting
 F2_N = -13.5 + CORNER_NE_R      # F1.N + R_a1
 F2_BRG = 0.0                     # bearing 0 (due north)
 
-# Full outline chain: F2→F5 + F5→F20 + F20→F1 + F1→F2 arc = 20 entries.
+# Full outline chain: F2→F5 + F5→F18 + F18→F1 + F1→F2 arc = 18 entries.
 # Starting at F2, bearing 0 (due north), CW traversal.
 OUTLINE_CHAIN = [
     ("L",   _d_F2_F5),                                        # F2->F5
-] + _CHAIN_F5_TO_F20 + [
-    ("L",   _d_F20_F1),                                       # F20->F1
+] + _CHAIN_F5_TO_F18 + [
+    ("L",   _d_F18_F1),                                       # F18->F1
     ("CW",  _R_a1, _PI_2, "C1", 20),                          # F1->F2
 ]
 
@@ -109,7 +105,7 @@ OUTLINE_CHAIN = [
 CHAIN_POINT_NAMES = [
     "F5", "F6", "F7", "F8", "F9", "F10", "F11",
     "F11a", "F11b", "F12", "F13", "F14", "F15", "F16", "F17",
-    "F18", "F19", "F20", "F1", "F2",
+    "F18", "F1", "F2",
 ]
 
 
@@ -154,7 +150,7 @@ def _build_outline_segs() -> list[Segment]:
     Outline convention starts at F1, so we rotate the chain (which starts
     at F2) so the F1->F2 arc comes first.
     """
-    start_names = ["F2"] + CHAIN_POINT_NAMES[:-1]  # F2, F5, ..., F20, F1
+    start_names = ["F2"] + CHAIN_POINT_NAMES[:-1]  # F2, F5, ..., F18, F1
     end_names = CHAIN_POINT_NAMES                    # F5, F6, ..., F1, F2
 
     segs: list[Segment] = []

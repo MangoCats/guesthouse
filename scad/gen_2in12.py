@@ -36,7 +36,7 @@ ROOF_THICK_IN = 18.0   # roof slab thickness (inches)
 ROOF_THICK_FT = ROOF_THICK_IN / 12.0
 ROOF_SLOPE_IN_PER_FT = 2.0   # 2" rise per foot of northing (2:12)
 ROOF_SLOPE = ROOF_SLOPE_IN_PER_FT / 12.0  # ft/ft (rise in Z per ft in Y)
-ROOF_REF_ELEV_FT = 7.5  # 7'6" roof underside elevation at F18-F19
+ROOF_REF_ELEV_FT = 7.5  # 7'6" roof underside elevation at F18-F1
 
 
 # ── element types ────────────────────────────────────────────
@@ -311,7 +311,7 @@ def generate():
     # Roof outline polygon and slope parameters
     roof_geo = compute_roof_geometry(pts, radii)
     roof_pts = roof_polyline(roof_geo)
-    ref_y = pts["F18"][1]  # F18-F19 northing (south reference)
+    ref_y = pts["F18"][1]  # F18-F1 northing (south reference)
     roof_z_offset = ROOF_REF_ELEV_FT - ROOF_SLOPE * ref_y
     max_roof_y = max(y for _, y in roof_pts)
     max_roof_z = ROOF_SLOPE * max_roof_y + roof_z_offset
@@ -369,7 +369,7 @@ def generate():
     out.append(f"// Middle walls: {LOWER_HEIGHT_IN:.0f}\" to {WALL_HEIGHT_IN:.0f}\" "
                f"(5'0\") — all openings")
     out.append(f"// Upper wall:   {UPPER_BASE_IN:.0f}\" to sloped roof underside (O4 only)")
-    out.append(f"// Roof: {ROOF_THICK_IN:.0f}\" slab, 2:12 slope N, 7'6\" at F18-F19")
+    out.append(f"// Roof: {ROOF_THICK_IN:.0f}\" slab, 2:12 slope N, 7'6\" at F18-F1")
     out.append("// Construction: 2\" outer shell / 4\" air gap / 2\" inner shell")
     out.append(f"// {len(lower_section_data)} lower + {len(section_data)} middle "
                f"+ 1 upper wall sections")
@@ -521,7 +521,7 @@ def generate():
     out.append("        cube([50, 40, 20]);")
     out.append("  }")
     out.append("}")
-    out.append("// Sloped roof slab (18\", 2:12 slope N, 7'6\" at F18-F19)")
+    out.append("// Sloped roof slab (18\", 2:12 slope N, 7'6\" at F18-F1)")
     out.append("color(roof_green)")
     out.append("  multmatrix(roof_shear)")
     out.append("    linear_extrude(height = roof_thick)")

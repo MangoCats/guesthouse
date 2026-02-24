@@ -159,7 +159,7 @@ def build_wall_data():
     w_f8f9_poly = fp_data.w_f8f9_poly
 
     # --- Page layout: 1:72 scale ---
-    _f_names = [f"F{i}" for i in range(21) if i not in (0, 3, 4)]
+    _f_names = [f"F{i}" for i in range(19) if i not in (0, 3, 4)]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -284,16 +284,16 @@ def _render_interior_walls(out, data):
     iw_poly(layout.iw2s.poly)
     iw_label("IW2s", layout.iw2s.w, layout.iw2s.e, layout.iw2s.s, layout.iw2s.n)
 
-    # IW3 (rotated, 4" thick, perpendicular to W20-W0)
+    # IW3 (rotated, 4" thick, perpendicular to W18-W1)
     iw_poly(layout.iw3.poly)
     iw_label("IW3", layout.iw3.w, layout.iw3.e, layout.iw3.s, layout.iw3.n)
 
-    # IW7 (rotated, 4" thick, parallel to W20-W0)
+    # IW7 (rotated, 4" thick, parallel to W18-W1)
     iw_poly(layout.iw7.poly)
     iw_label("IW7", layout.iw7.w, layout.iw7.e, layout.iw7.s, layout.iw7.n,
              vertical=False)
 
-    # IW9 (rotated, 4" thick, perpendicular to W20-W0)
+    # IW9 (rotated, 4" thick, perpendicular to W18-W1)
     iw_poly(layout.iw9.poly)
     iw_label("IW9", layout.iw9.w, layout.iw9.e,
              (layout.iw9.s + ro_map["RO7"].n) / 2, layout.iw9.n)
@@ -925,8 +925,6 @@ def _render_f_labels(out, data):
         ("F16",  "start",    5,   2),
         ("F17",  "middle",   0,   6),
         ("F18",  "middle",   0,   6),
-        ("F19",  "middle",   0,   6),
-        ("F20",  "middle",   0,   6),
     ]
 
     for name, anchor, dx, dy in _F_LABELS:

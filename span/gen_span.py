@@ -276,7 +276,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
                  f' stroke="#666" stroke-width="0.4"/>')
 
     # F-series dots + labels
-    for i in range(21):
+    for i in range(19):
         if i == 4:
             continue
         nm = f"F{i}"
@@ -287,7 +287,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
                      f' font-size="4.5" fill="#555">{nm}</text>')
 
     # W-series dots
-    for i in range(21):
+    for i in range(19):
         nm = f"W{i}"
         if nm in pts:
             x, y = ex(pts[nm][0]), ny(pts[nm][1])

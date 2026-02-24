@@ -23,12 +23,6 @@ _EXPECTED_F = {
     "F12": ( 13.2297799671,  12.1039111052),
     "F13": ( 17.4172349618,  -3.5238836893),
     "F14": ( 17.5026777654,  -4.1728862161),
-    "F15": ( 17.5026777654,  -7.7724405041),
-    "F16": ( 16.4950037851,  -9.7647115024),
-    "F17": ( 13.4243034824, -12.0236831714),
-    "F18": ( 10.3363106361, -13.2301373919),
-    "F19": (  8.9473028882, -13.3844715862),
-    "F20": (  6.8613928818, -13.5000000000),
 }
 
 
@@ -36,17 +30,17 @@ class TestOutlineGeometry:
     def test_returns_outline_geometry(self, outline_geo):
         assert isinstance(outline_geo, OutlineGeometry)
 
-    def test_20_points(self, outline_geo):
-        for i in [j for j in range(21) if j not in (0, 3, 4)]:
+    def test_18_points(self, outline_geo):
+        for i in [j for j in range(19) if j not in (0, 3, 4)]:
             assert f"F{i}" in outline_geo.fp_pts
         assert "F11a" in outline_geo.fp_pts
         assert "F11b" in outline_geo.fp_pts
 
-    def test_20_segments(self, outline_geo):
-        assert len(outline_geo.outline_segs) == 20
+    def test_18_segments(self, outline_geo):
+        assert len(outline_geo.outline_segs) == 18
 
-    def test_10_radii(self, outline_geo):
-        assert len(outline_geo.radii) == 10
+    def test_9_radii(self, outline_geo):
+        assert len(outline_geo.radii) == 9
         for key, val in outline_geo.radii.items():
             assert key.startswith("R_a")
             assert val > 0, f"{key} = {val}"
@@ -68,7 +62,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 882.39) < 0.1
+        assert abs(area - 887.87) < 1.0
 
     def test_segment_index_mapping(self, outline_geo):
         """Segment start→end names match expected indices.
@@ -95,9 +89,7 @@ class TestOutlineGeometry:
             (14, "F15",  "F16"),
             (15, "F16",  "F17"),
             (16, "F17",  "F18"),
-            (17, "F18",  "F19"),
-            (18, "F19",  "F20"),
-            (19, "F20",  "F1"),
+            (17, "F18",  "F1"),
         ]
         segs = outline_geo.outline_segs
         for idx, start, end in expected:

@@ -18,7 +18,7 @@ from floorplan.constants import (
     IW9_LENGTH,
     IW4_GAP_IW11,
     IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
-    IW8_OFFSET_FROM_W20W1,
+    IW8_OFFSET_FROM_W18W1,
     IW9_IW11_GAP, IW12_OFFSET_IW11, IW12_SHORTEN,
     DRESSER_WIDTH, DRESSER_DEPTH, DRESSER_GAP_IW15, DRESSER_GAP_IW1,
 )
@@ -101,38 +101,38 @@ def _compute_segment_vectors(pts):
     """Compute along/inward unit vectors for the 4 reference wall segments.
 
     Returns ((w2w5_al, w2w5_in), (w6w7_al, w6w7_in),
-             (w9w10_al, w9w10_in), (w20w1_al, w20w1_in)).
+             (w9w10_al, w9w10_in), (w18w1_al, w18w1_in)).
     """
     return (
         _seg_vecs(pts["W2"], pts["W5"]),    # along≈(0,1), inward≈(1,0)
         _seg_vecs(pts["W6"], pts["W7"]),    # along≈(1,0), inward≈(0,-1)
         _seg_vecs(pts["W9"], pts["W10"]),   # along≈(1,0), inward≈(0,-1)
-        _seg_vecs(pts["W20"], pts["W1"]),
+        _seg_vecs(pts["W18"], pts["W1"]),   # along≈(-1,0), inward≈(0,1)
     )
 
 
-def _compute_south_walls(pts, w20w1, w2w5, iw4_sw, iw11_sw, iw11_se):
-    """Compute walls along the south (W20-W1) wall: bed, IW9, IW3, IW7.
+def _compute_south_walls(pts, w18w1, w2w5, iw4_sw, iw11_sw, iw11_se):
+    """Compute walls along the south (W18-W1) wall: bed, IW9, IW3, IW7.
 
     Returns (bed, iw9, iw3, iw7, opening_params) where opening_params is
-    (ts9, te9, ts10, te10, ts11, te11) — parametric positions on F20-F1.
+    (ts9, te9, ts10, te10, ts11, te11) — parametric positions on F18-F1.
     """
-    w20w1_al, w20w1_in = w20w1
+    w18w1_al, w18w1_in = w18w1
     w2w5_al, _ = w2w5
-    _dE, _dN, _seg_len = seg_vec(pts["W20"], pts["W1"])
+    _dE, _dN, _seg_len = seg_vec(pts["W18"], pts["W1"])
 
     # --- Bed ---
-    _dE9, _dN9, _seg9_len = seg_vec(pts["F20"], pts["F1"])
-    _t_sw9 = ((iw11_sw[0] - pts["F20"][0]) * _dE9
-              + (iw11_sw[1] - pts["F20"][1]) * _dN9) / (_dE9**2 + _dN9**2)
+    _dE9, _dN9, _seg9_len = seg_vec(pts["F18"], pts["F1"])
+    _t_sw9 = ((iw11_sw[0] - pts["F18"][0]) * _dE9
+              + (iw11_sw[1] - pts["F18"][1]) * _dN9) / (_dE9**2 + _dN9**2)
     _ts9 = _t_sw9 + O9_OFFSET_IW11 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
     _bed_t = _te9 + BED_GAP_O9 / _seg_len
-    _bed_se_wall = _offset(pts["W20"], _bed_t, (_dE, _dN))
-    bed_se = _offset(_bed_se_wall, BED_WALL_GAP, w20w1_in)
-    bed_sw = _offset(bed_se, BED_WIDTH, w20w1_al)
-    bed_ne = _offset(bed_se, BED_LENGTH, w20w1_in)
-    bed_nw = _offset(bed_sw, BED_LENGTH, w20w1_in)
+    _bed_se_wall = _offset(pts["W18"], _bed_t, (_dE, _dN))
+    bed_se = _offset(_bed_se_wall, BED_WALL_GAP, w18w1_in)
+    bed_sw = _offset(bed_se, BED_WIDTH, w18w1_al)
+    bed_ne = _offset(bed_se, BED_LENGTH, w18w1_in)
+    bed_nw = _offset(bed_sw, BED_LENGTH, w18w1_in)
 
     # --- Openings O10, O11 parametric positions ---
     _ts10 = _te9 + O9_O10_WALL / _seg9_len
@@ -141,23 +141,23 @@ def _compute_south_walls(pts, w20w1, w2w5, iw4_sw, iw11_sw, iw11_se):
     _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
 
     # --- IW3 (anchored at IW3_DIST_W2W5 from W2-W5) ---
-    _w2w5_ref = line_isect(pts["W2"], w2w5_al, pts["W1"], w20w1_al)
-    iw3_sw = _offset(_w2w5_ref, -IW3_DIST_W2W5, w20w1_al)
-    iw3_se = _offset(iw3_sw, -WALL_4IN, w20w1_al)
-    iw3_ne = _offset(iw3_se, IW3_LENGTH, w20w1_in)
-    iw3_nw = _offset(iw3_sw, IW3_LENGTH, w20w1_in)
+    _w2w5_ref = line_isect(pts["W2"], w2w5_al, pts["W1"], w18w1_al)
+    iw3_sw = _offset(_w2w5_ref, -IW3_DIST_W2W5, w18w1_al)
+    iw3_se = _offset(iw3_sw, -WALL_4IN, w18w1_al)
+    iw3_ne = _offset(iw3_se, IW3_LENGTH, w18w1_in)
+    iw3_nw = _offset(iw3_sw, IW3_LENGTH, w18w1_in)
 
-    # --- IW9 (IW3_OFFSET_IW9 from IW3 east face, toward W20) ---
-    iw9_sw = _offset(iw3_se, -IW3_OFFSET_IW9, w20w1_al)
-    iw9_se = _offset(iw9_sw, -WALL_4IN, w20w1_al)
-    iw9_ne = _offset(iw9_se, IW9_LENGTH, w20w1_in)
-    iw9_nw = _offset(iw9_sw, IW9_LENGTH, w20w1_in)
+    # --- IW9 (IW3_OFFSET_IW9 from IW3 east face, toward W18) ---
+    iw9_sw = _offset(iw3_se, -IW3_OFFSET_IW9, w18w1_al)
+    iw9_se = _offset(iw9_sw, -WALL_4IN, w18w1_al)
+    iw9_ne = _offset(iw9_se, IW9_LENGTH, w18w1_in)
+    iw9_nw = _offset(iw9_sw, IW9_LENGTH, w18w1_in)
 
     # --- IW7 ---
     iw7_nw = iw3_ne
-    iw7_ne = _offset(iw7_nw, -IW3_OFFSET_IW9, w20w1_al)
-    iw7_sw = _offset(iw7_nw, -WALL_4IN, w20w1_in)
-    iw7_se = _offset(iw7_ne, -WALL_4IN, w20w1_in)
+    iw7_ne = _offset(iw7_nw, -IW3_OFFSET_IW9, w18w1_al)
+    iw7_sw = _offset(iw7_nw, -WALL_4IN, w18w1_in)
+    iw7_se = _offset(iw7_ne, -WALL_4IN, w18w1_in)
 
     return (
         _make_wall([bed_sw, bed_se, bed_ne, bed_nw]),
@@ -171,12 +171,12 @@ def _compute_south_walls(pts, w20w1, w2w5, iw4_sw, iw11_sw, iw11_se):
 def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     """Compute interior layout positions.
 
-    pts must contain W-series (W1-W20) and F-series (F1-F20).
+    pts must contain W-series (W1-W18) and F-series (F1-F18).
     """
     # Segment vectors for wall segments
     ((_w2w5_al, _w2w5_in), (_w6w7_al, _w6w7_in),
-     (_w9w10_al, _w9w10_in), (_w20w1_al, _w20w1_in)) = _compute_segment_vectors(pts)
-    _neg_w20w1_al = (-_w20w1_al[0], -_w20w1_al[1])
+     (_w9w10_al, _w9w10_in), (_w18w1_al, _w18w1_in)) = _compute_segment_vectors(pts)
+    _neg_w18w1_al = (-_w18w1_al[0], -_w18w1_al[1])
     _neg_w6w7_al = (-_w6w7_al[0], -_w6w7_al[1])
 
     # Old east-wall direction (perpendicular to W6-W7, unchanged by F2 move).
@@ -254,38 +254,38 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     ctr_nw_r = 0
 
     # --- IW11 (positioned directly by IW9-IW11 gap) ---
-    _w20 = pts["W20"]
+    _w18 = pts["W18"]
     _w1 = pts["W1"]
-    _w2w5_ref_s = line_isect(pts["W2"], _w2w5_al, pts["W1"], _w20w1_al)
+    _w2w5_ref_s = line_isect(pts["W2"], _w2w5_al, pts["W1"], _w18w1_al)
     _iw9_se_pos = _offset(_w2w5_ref_s,
                            -(IW3_DIST_W2W5 + 2 * WALL_4IN + IW3_OFFSET_IW9),
-                           _w20w1_al)
-    iw11_sw = _offset(_iw9_se_pos, -IW9_IW11_GAP, _w20w1_al)
-    iw11_se = _offset(iw11_sw, -WALL_4IN, _w20w1_al)
-    iw11_ne = line_isect(iw11_se, _w20w1_in, iw1_sw, _w9w10_al)
-    iw11_nw = line_isect(iw11_sw, _w20w1_in, iw1_sw, _w9w10_al)
+                           _w18w1_al)
+    iw11_sw = _offset(_iw9_se_pos, -IW9_IW11_GAP, _w18w1_al)
+    iw11_se = _offset(iw11_sw, -WALL_4IN, _w18w1_al)
+    iw11_ne = line_isect(iw11_se, _w18w1_in, iw1_sw, _w9w10_al)
+    iw11_nw = line_isect(iw11_sw, _w18w1_in, iw1_sw, _w9w10_al)
 
     # --- IW4 (parallel to IW11, west face 30" east of IW11 east face) ---
-    iw4_sw = _offset(iw11_se, -IW4_GAP_IW11, _w20w1_al)
-    iw4_se = _offset(iw4_sw, -WALL_4IN, _w20w1_al)
+    iw4_sw = _offset(iw11_se, -IW4_GAP_IW11, _w18w1_al)
+    iw4_se = _offset(iw4_sw, -WALL_4IN, _w18w1_al)
     # IW4 north end computed after IW12 (depends on IW12 north face)
 
     # --- IW12 ---
-    _iw12_base = _offset(iw11_sw, IW12_OFFSET_IW11, _w20w1_in)
-    iw12_sw = _offset(_iw12_base, -IW12_SHORTEN, _w20w1_al)
-    iw12_nw = _offset(iw12_sw, WALL_4IN, _w20w1_in)
-    iw12_se = line_isect(iw12_sw, _neg_w20w1_al, iw4_sw, _w20w1_in)
-    iw12_ne = line_isect(iw12_nw, _neg_w20w1_al, iw4_sw, _w20w1_in)
+    _iw12_base = _offset(iw11_sw, IW12_OFFSET_IW11, _w18w1_in)
+    iw12_sw = _offset(_iw12_base, -IW12_SHORTEN, _w18w1_al)
+    iw12_nw = _offset(iw12_sw, WALL_4IN, _w18w1_in)
+    iw12_se = line_isect(iw12_sw, _neg_w18w1_al, iw4_sw, _w18w1_in)
+    iw12_ne = line_isect(iw12_nw, _neg_w18w1_al, iw4_sw, _w18w1_in)
 
     # IW4 north end: truncate at IW12 north face
     _iw12_n_dir = (iw12_ne[0] - iw12_nw[0], iw12_ne[1] - iw12_nw[1])
-    iw4_nw = line_isect(iw4_sw, _w20w1_in, iw12_nw, _iw12_n_dir)
-    iw4_ne = line_isect(iw4_se, _w20w1_in, iw12_nw, _iw12_n_dir)
+    iw4_nw = line_isect(iw4_sw, _w18w1_in, iw12_nw, _iw12_n_dir)
+    iw4_ne = line_isect(iw4_se, _w18w1_in, iw12_nw, _iw12_n_dir)
 
     # --- Bed, IW9, IW3, IW7 (south wall chain) ---
     (bed, iw9, iw3, iw7,
      (_ts9, _te9, _ts10, _te10, _ts11, _te11)) = _compute_south_walls(
-        pts, (_w20w1_al, _w20w1_in), (_w2w5_al, _w2w5_in),
+        pts, (_w18w1_al, _w18w1_in), (_w2w5_al, _w2w5_in),
         iw4_sw, iw11_sw, iw11_se)
     iw3_sw, iw3_nw = iw3.poly[0], iw3.poly[3]
 
@@ -296,9 +296,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw16_nw = _offset(_iw16_w_anchor, _iw16_t_n, _iw_al)
     iw16_ne = _offset(_iw16_e_anchor, _iw16_t_n, _iw_al)
 
-    # Counter clip polygon (south edge follows W20-W1, east clipped at IW3/IW16)
-    _ctr_poly_sw = line_isect(_ctr_sw_anchor, _w2w5_al, pts["W20"], _w20w1_al)
-    _iw3_w_dir = _w20w1_in
+    # Counter clip polygon (south edge follows W18-W1, east clipped at IW3/IW16)
+    _ctr_poly_sw = line_isect(_ctr_sw_anchor, _w2w5_al, pts["W18"], _w18w1_al)
+    _iw3_w_dir = _w18w1_in
     _ctr_vs_iw3 = _proj(ctr_nw, iw3_nw, _w2w5_al)
     if _ctr_vs_iw3 > 0:
         _ctr_ne_clip = line_isect(ctr_nw, _w2w5_in, _iw16_w_anchor, _iw_al)
@@ -307,8 +307,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         _ctr_ne_clip = line_isect(ctr_nw, _w2w5_in, iw3_sw, _iw3_w_dir)
         ctr_clip = [ctr_nw, _ctr_ne_clip, iw3_sw, _ctr_poly_sw]
 
-    # --- IW8 (perpendicular to W2-W5, 12' from W20-W1; west at W2-W5, east at IW1) ---
-    _iw8_s_anchor = _offset(pts["W20"], IW8_OFFSET_FROM_W20W1, _w20w1_in)
+    # --- IW8 (perpendicular to W2-W5, 12' from W18-W1; west at W2-W5, east at IW1) ---
+    _iw8_s_anchor = _offset(pts["W18"], IW8_OFFSET_FROM_W18W1, _w18w1_in)
     _iw8_n_anchor = _offset(_iw8_s_anchor, WALL_6IN, _w2w5_al)
     iw8_sw = line_isect(_iw8_s_anchor, _w2w5_in, pts["W2"], _w2w5_al)
     iw8_nw = line_isect(_iw8_n_anchor, _w2w5_in, pts["W2"], _w2w5_al)
@@ -323,12 +323,12 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw5_se = _offset(_iw5_s_anchor, _iw5_t_e, _w9w10_al)
 
     # IW5 west end (at IW11 east face)
-    iw5_nw = line_isect(_iw5_n_anchor, _w9w10_al, iw11_se, _w20w1_in)
-    iw5_sw = line_isect(_iw5_s_anchor, _w9w10_al, iw11_se, _w20w1_in)
+    iw5_nw = line_isect(_iw5_n_anchor, _w9w10_al, iw11_se, _w18w1_in)
+    iw5_sw = line_isect(_iw5_s_anchor, _w9w10_al, iw11_se, _w18w1_in)
 
     # --- Dresser (aligned with IW1 south face) ---
     dresser_ne = line_isect(
-        _offset(iw11_nw, DRESSER_GAP_IW15, _w20w1_al), _w20w1_in,
+        _offset(iw11_nw, DRESSER_GAP_IW15, _w18w1_al), _w18w1_in,
         _offset(iw1_sw, DRESSER_GAP_IW1, _w9w10_in), _w9w10_al)
     dresser_nw = _offset(dresser_ne, -DRESSER_WIDTH, _w9w10_al)
     dresser_se = _offset(dresser_ne, DRESSER_DEPTH, _w9w10_in)

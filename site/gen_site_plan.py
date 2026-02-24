@@ -194,11 +194,11 @@ def build_site_plan_data():
     f15_pdf = (f15_pdf_x, f15_pdf_y)
 
     # --- F-series PDF coordinates ---
-    _f_names = [f"F{i}" for i in range(1, 21) if i not in (3, 4)] + ["F11a", "F11b", "FC"]
+    _f_names = [f"F{i}" for i in range(1, 19) if i not in (3, 4)] + ["F11a", "F11b", "FC"]
     f_series_pdf = {name: building_to_pdf(*pts[name]) for name in _f_names}
 
     # --- Min setback distances (F-points only, excluding FC) ---
-    _f_struct = [f"F{i}" for i in range(1, 21) if i not in (3, 4)] + ["F11a", "F11b"]
+    _f_struct = [f"F{i}" for i in range(1, 19) if i not in (3, 4)] + ["F11a", "F11b"]
     min_setback_216 = min(
         ((pt[0] - LINE_TOP[0]) * (-ldy) + (pt[1] - LINE_TOP[1]) * ldx)
         / (llen * SCALE)

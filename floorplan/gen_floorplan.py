@@ -1,7 +1,7 @@
 """Generate floorplan SVG with 8" wall inset from the outline path.
 
 Computes geometry from shared/ and floorplan/ packages.
-Outline points F1-F20, inner wall points W1-W20.
+Outline points F1-F18, inner wall points W1-W18.
 """
 import os, sys, math, datetime
 from typing import NamedTuple, Any
@@ -339,7 +339,7 @@ def build_floorplan_data():
     # --- Fit content on letter landscape (792x612) page ---
     _margin_top = 36   # 0.5" top margin
     _margin = 72       # 1" margins on left, right, bottom
-    _f_names = [f"F{i}" for i in range(21) if i not in (0, 3, 4)]
+    _f_names = [f"F{i}" for i in range(19) if i not in (0, 3, 4)]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -363,7 +363,7 @@ def build_floorplan_data():
     _na_base_y = _na_tip_y + 36
 
     _ext_w_x = to_svg(pts["F2"][0] - 2.7, 0)[0]
-    _ext_s_y = to_svg(0, pts["F19"][1] - 3.0)[1]
+    _ext_s_y = to_svg(0, pts["F18"][1] - 3.0)[1]
     _cb_xmin = min(_bldg_xmin - 25, _ext_w_x - 10)
     _cb_xmax = _tb_right + 5
     _cb_ymin = _title_y - 14 - 5
@@ -560,7 +560,7 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     # Reference directions from axis-aligned wall segments
     _ew, _ = seg_vecs(pts["W9"], pts["W10"])      # east direction
     _ns, _ = seg_vecs(pts["W2"], pts["W5"])        # north direction
-    _w20w1_al, _w20w1_in = seg_vecs(pts["W20"], pts["W1"])
+    _w18w1_al, _w18w1_in = seg_vecs(pts["W18"], pts["W1"])
 
     # Pre-compute commonly used IW face directions
     _iw1_n_al, _ = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
@@ -587,27 +587,27 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim02_B", line_isect(pts["W13"], _w13w12_al,
                                          _f12f13_mid, _ew)))
 
-    # ---- dim03: East closet (rotated, IW12 south center → W20-W1) ----
+    # ---- dim03: East closet (rotated, IW12 south center → W18-W1) ----
     _iw12_s_mid = ((layout.iw12.poly[0][0] + layout.iw12.poly[1][0]) / 2,
                    (layout.iw12.poly[0][1] + layout.iw12.poly[1][1]) / 2)
     _iw11_e_al, _ = seg_vecs(layout.iw11.poly[1], layout.iw11.poly[2])
     result.append(("dim03_A", _iw12_s_mid))
     result.append(("dim03_B", line_isect(_iw12_s_mid, _iw11_e_al,
-                                         pts["W20"], _w20w1_al)))
+                                         pts["W18"], _w18w1_al)))
 
-    # ---- dim04: West closet (rotated, IW7 south center → W20-W1) ----
+    # ---- dim04: West closet (rotated, IW7 south center → W18-W1) ----
     _iw7_s_mid = ((layout.iw7.poly[0][0] + layout.iw7.poly[1][0]) / 2,
                   (layout.iw7.poly[0][1] + layout.iw7.poly[1][1]) / 2)
     _iw7_w_al, _ = seg_vecs(layout.iw7.poly[0], layout.iw7.poly[3])
     result.append(("dim04_A", _iw7_s_mid))
     result.append(("dim04_B", line_isect(_iw7_s_mid, _iw7_w_al,
-                                         pts["W20"], _w20w1_al)))
+                                         pts["W18"], _w18w1_al)))
 
-    # ---- dim05: W2-W5 → IW3 west face, parallel to W20-W1 at IW3 midpoint ----
+    # ---- dim05: W2-W5 → IW3 west face, parallel to W18-W1 at IW3 midpoint ----
     _iw3_w_mid = ((layout.iw3.poly[0][0] + layout.iw3.poly[3][0]) / 2,
                    (layout.iw3.poly[0][1] + layout.iw3.poly[3][1]) / 2)
     _dim05_B = _iw3_w_mid
-    _dim05_A = line_isect(pts["W2"], _ns, _dim05_B, _w20w1_al)
+    _dim05_A = line_isect(pts["W2"], _ns, _dim05_B, _w18w1_al)
     result.extend([("dim05_A", _dim05_A), ("dim05_B", _dim05_B)])
 
     # ---- dim06: IW4-east → W14-W15 (perp to W14-W15 at O8 center) ----
@@ -708,24 +708,24 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim14_B", line_isect(_arc11_pt, _ns, _dim14_render, _ew)))
 
     # ---- dim15: External F2 → F15 (horizontal) ----
-    _dim15_ref = offset_pt(pts["F19"], -3.0, _ns)
+    _dim15_ref = offset_pt(pts["F18"], -3.0, _ns)
     result.append(("dim15_A", line_isect(pts["F2"], _ns, _dim15_ref, _ew)))
     result.append(("dim15_B", line_isect(pts["F15"], _ns, _dim15_ref, _ew)))
 
-    # ---- dim16: O9 inner → IW1-south (rotated, perp to W20-W1) ----
+    # ---- dim16: O9 inner → IW1-south (rotated, perp to W18-W1) ----
     _o9 = openings[8]
     _o9_ic = ((_o9.poly[2][0] + _o9.poly[3][0]) / 2,
               (_o9.poly[2][1] + _o9.poly[3][1]) / 2)
     result.append(("dim16_A", _o9_ic))
-    result.append(("dim16_B", line_isect(_o9_ic, _w20w1_in,
+    result.append(("dim16_B", line_isect(_o9_ic, _w18w1_in,
                                          layout.iw1.poly[0], _iw1_s_al)))
 
-    # ---- dim17: O10 inner → IW1-south (rotated, perp to W20-W1) ----
+    # ---- dim17: O10 inner → IW1-south (rotated, perp to W18-W1) ----
     _o10 = openings[9]
     _o10_ic = ((_o10.poly[2][0] + _o10.poly[3][0]) / 2,
                (_o10.poly[2][1] + _o10.poly[3][1]) / 2)
     result.append(("dim17_A", _o10_ic))
-    result.append(("dim17_B", line_isect(_o10_ic, _w20w1_in,
+    result.append(("dim17_B", line_isect(_o10_ic, _w18w1_in,
                                          layout.iw1.poly[0], _iw1_s_al)))
 
     # ---- dim18: IW9-east → IW11-west (rotated) ----
@@ -963,7 +963,7 @@ def _render_walls(out, data, layout, bare=False):
     _neg_iw2o_al = (-_iw2o_al[0], -_iw2o_al[1])
     _jamb_poly(out, _ro4p[2], _ro4p[3], _neg_iw2o_al, to_svg)
 
-    # ---- IW3 (solid, no opening, rotated perpendicular to W20-W0) ----
+    # ---- IW3 (solid, no opening, rotated perpendicular to W18-W1) ----
     _iw3_sw, _iw3_se, _iw3_ne, _iw3_nw = layout.iw3.poly
     wall_poly(out, layout.iw3.poly, to_svg, stroke=False)
     _iw3_dx_t = _iw3_sw[0] - _iw3_se[0]
@@ -979,7 +979,7 @@ def _render_walls(out, data, layout, bare=False):
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ---- IW7 (solid, no opening, rotated parallel to W20-W0) ----
+    # ---- IW7 (solid, no opening, rotated parallel to W18-W1) ----
     _iw7_sw, _iw7_se, _iw7_ne, _iw7_nw = layout.iw7.poly
     wall_poly(out, layout.iw7.poly, to_svg, stroke=False)
     # Thickness unit vector: NW - SW direction (norm direction)
@@ -1291,7 +1291,7 @@ def _render_appliances(out, data, layout, minik=False, db=False):
                f' font-size="6" fill="{APPL_STROKE}">HAMPER</text>')
     out.append('</a>')
 
-    # Counter: polygon clipped to W20-W0 south edge, IW3/IW16 west face east edge
+    # Counter: polygon clipped to W18-W1 south edge, IW3/IW16 west face east edge
     ctr_poly_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
                             for p in layout.ctr_clip)
     out.append(f'<polygon points="{ctr_poly_svg}"'
@@ -1823,18 +1823,18 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     out.append(f'<polygon points="{_bp_svg}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     _bp_cx = sum(p[0] for p in _bp) / 4
     _bp_cy = sum(p[1] for p in _bp) / 4
-    # Rotate label 90° CW from bed long axis (now parallel to W20-W0)
+    # Rotate label 90° CW from bed long axis (now parallel to W18-W1)
     _bed_dx = to_svg(*_bp[2])[0] - to_svg(*_bp[1])[0]
     _bed_dy = to_svg(*_bp[2])[1] - to_svg(*_bp[1])[1]
     _bed_ang = math.degrees(math.atan2(_bed_dy, _bed_dx)) + 90
-    # Position at 1/2 the perpendicular distance from W20-W1 to IW1
-    _w20b = pts["W20"]; _w0b = pts["W1"]
-    _dEwb = _w0b[0] - _w20b[0]; _dNwb = _w0b[1] - _w20b[1]
+    # Position at 1/2 the perpendicular distance from W18-W1 to IW1
+    _w18b = pts["W18"]; _w1b = pts["W1"]
+    _dEwb = _w1b[0] - _w18b[0]; _dNwb = _w1b[1] - _w18b[1]
     _wlb = math.sqrt(_dEwb**2 + _dNwb**2)
     _nEb = _dNwb / _wlb; _nNb = -_dEwb / _wlb  # inward normal
-    _ucx = _bp_cx - _w20b[0]; _ucy = _bp_cy - _w20b[1]
+    _ucx = _bp_cx - _w18b[0]; _ucy = _bp_cy - _w18b[1]
     _tw = (_ucx * _dEwb + _ucy * _dNwb) / (_dEwb**2 + _dNwb**2)
-    _wb = (_w20b[0] + _tw * _dEwb, _w20b[1] + _tw * _dNwb)
+    _wb = (_w18b[0] + _tw * _dEwb, _w18b[1] + _tw * _dNwb)
     # Distance from _wb to IW1 south face midpoint along inward normal
     _iw1_s_mid = ((layout.iw1.poly[0][0] + layout.iw1.poly[1][0]) / 2,
                   (layout.iw1.poly[0][1] + layout.iw1.poly[1][1]) / 2)
@@ -2180,7 +2180,7 @@ def _render_dimensions(out, data, layout, bare=False):
     _rotated_dim(out, ep["dim04_A"], ep["dim04_B"],
                  f"CLOSET {fmt_dist(_edist(ep['dim04_A'], ep['dim04_B']))}", to_svg)
 
-    # dim05: W2-W5 → IW3 west face, parallel to W20-W1 at IW3 midpoint
+    # dim05: W2-W5 → IW3 west face, parallel to W18-W1 at IW3 midpoint
     _rotated_dim(out, ep["dim05_A"], ep["dim05_B"],
                  fmt_dist(_edist(ep["dim05_A"], ep["dim05_B"])), to_svg)
 
