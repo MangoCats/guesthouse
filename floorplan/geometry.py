@@ -183,10 +183,10 @@ _CHAIN_F14_TO_F20 = [
 
 _CHAIN_F5_TO_F20 = _CHAIN_F5_TO_F14 + _CHAIN_F14_TO_F20
 
-# F2 position: east face at E = -18'0", F1.N = -13'0" exactly.
+# F2 position: east face at E = -18'6", F1.N = -13'6" exactly.
 # F2.N derived from F1.N + CORNER_NE_R (F1→F2 is 90° CW arc of radius R_a1).
-F2_E = -18.0                     # -18'0" east face easting
-F2_N = -13.0 + CORNER_NE_R      # F1.N + R_a1
+F2_E = -18.5                     # -18'6" east face easting
+F2_N = -13.5 + CORNER_NE_R      # F1.N + R_a1
 F2_BRG = 0.0                     # bearing 0 (due north)
 
 # Full outline chain: F2→F5 + fixed F5→F20 + derived F20→F1 + F1→F2 arc = 20 entries.
