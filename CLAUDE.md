@@ -94,6 +94,7 @@ The F-series outline is defined purely by:
 - Wall construction constants (shell thickness, air gap, opening radius) defined in `floorplan/constants.py`, re-exported by `walls/constants.py`
 - Shell geometry utilities (inset paths, U-turn polygons, wall sections) live in `shared/wall_shells.py`
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
+- After geometry changes, update d² regression tests: `python tests/update_d2.py` (see HOWTO §14)
 
 ## HOWTO Reference
 See `HOWTO.md` for step-by-step instructions on common tasks (adding dimension lines, walls, openings, appliances, identifying wall faces). Consult it before researching the codebase from scratch. If you complete a complex task not covered there, add a section to it.

@@ -16,6 +16,8 @@ Step-by-step instructions for common but complex tasks in the Hut2 project. Cons
 10. [Changing Exterior Wall Thickness](#10-changing-exterior-wall-thickness)
 11. [Contributing to This Document](#11-contributing-to-this-document)
 12. [Rotation-Invariant Placement](#12-rotation-invariant-placement)
+13. [Modifying F-Series Outline Geometry](#13-modifying-f-series-outline-geometry)
+14. [Updating d² Regression Tests](#14-updating-d²-regression-tests)
 
 ---
 
@@ -645,3 +647,53 @@ To change the C5 sweep from `arctan(9)` to `π/2` while keeping F9-F20 fixed:
    - Step-by-step instructions
    - A concrete code example from the codebase
 3. Keep instructions concise and focused on the "how", not the "why" — the architecture is documented in `CLAUDE.md`.
+
+---
+
+## 14. Updating d² Regression Tests
+
+**Script:** `tests/update_d2.py`
+
+After any geometry or layout change, d² regression values in test files may need updating. The `update_d2.py` script automates this.
+
+### What it updates
+
+Three expected-value tables across two test files:
+
+| Table | File | Reference points | Content |
+|-|-|-|-|
+| `EXPECTED` | `test_d2_regression.py` | F1, F6, F12, F15 | All layout points (F-series, P-series, IW walls, appliances, furniture, openings, door tips, shell points, placement points, dimension endpoints) |
+| `EXPECTED_D2` | `test_gen_site_plan.py` | CORNER_NW/NE/SE/SW | F-series + FC points in PDF coordinates |
+| `EXPECTED_P_D2` | `test_gen_site_plan.py` | CORNER_NW/NE/SE/SW | P-series points in PDF coordinates |
+
+### Usage
+
+**Check what changed** (no files modified):
+
+```bash
+python tests/update_d2.py --check
+```
+
+Reports which points changed, which reference distances shifted, and by how much. Exit code 1 if changes found, 0 if up to date.
+
+**Update test files**:
+
+```bash
+python tests/update_d2.py
+```
+
+Recomputes all d² values, reports changes, then writes updated tables to the test files. Always run tests afterward:
+
+```bash
+python -m pytest tests/ -x
+```
+
+### Typical workflow after a geometry change
+
+1. Make geometry changes in `floorplan/geometry.py` or `floorplan/constants.py`
+2. Update `test_outline.py` expected coordinates manually (these are hand-verified)
+3. Run `python tests/update_d2.py --check` to review which d² values changed
+4. Verify only expected points moved (e.g., after changing F6-F7 length, only F7/F8/F9 and downstream layout points should change)
+5. Run `python tests/update_d2.py` to update
+6. Run `python -m pytest tests/ -x` to verify all 581 tests pass
+7. Commit and run `python gen_all.py`
