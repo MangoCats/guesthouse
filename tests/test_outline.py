@@ -11,9 +11,9 @@ from floorplan.geometry import OutlineGeometry
 _EXPECTED_F = {
     "F1":  (-17.6666666667, -13.5000000000),
     "F2":  (-18.5000000000, -12.6666666667),
-    "F5":  (-18.5000000000,  10.9202344881),
-    "F6":  (-16.4243402275,  13.2392965357),
-    "F7":  (-11.2064506205,  13.8190620476),
+    "F5":  (-18.5000000000,  11.5000000000),
+    "F6":  (-16.1666666667,  13.8333333333),
+    "F7":  (-10.9487770596,  13.8333333333),
     "F8":  ( -8.6154437263,  11.5000000000),
     "F9":  ( -8.4487770596,  11.3333333333),
     "F10": (  6.7178896070,  11.3333333333),
@@ -68,7 +68,7 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 902.95) < 0.1
+        assert abs(area - 905.74) < 0.1
 
     def test_segment_index_mapping(self, outline_geo):
         """Segment start→end names match expected indices.

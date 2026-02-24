@@ -590,6 +590,50 @@ Each render function defines local helpers for its reference walls:
 
 ---
 
+## 13. Modifying F-Series Outline Geometry
+
+**File:** `floorplan/geometry.py`
+
+The F-series outline is a chain of 20 line/arc segments starting at F2, traversing CW, and closing back to F2. All segment parameters are explicit constants. Only two values are computed at runtime: `d_F2_F5` and `d_F20_F1` (the closure solver).
+
+### Architecture
+
+```
+Segment definitions (hardcoded)  →  Chain  →  Closure solver (d_F2_F5, d_F20_F1)  →  Walk  →  F-series points
+```
+
+There are no other runtime solvers. Tangency is automatic (each segment starts where the previous ended). Closure is the only runtime computation.
+
+### Making a change
+
+1. **Identify which segment parameters change.** A change request may specify constraints like "keep F9-F20 fixed" — use these to derive the new parameter values.
+
+2. **Derive new values.** Use `_chain_offset()` or algebraic computation to find segment parameters that satisfy the change request. Verify by walking the chain and checking all constraints.
+
+3. **Hardcode the results.** Replace the old segment parameter values with the new ones. Do NOT add runtime solvers to enforce the change-request constraints — the constraints were only needed to derive the values.
+
+4. **Verify closure and tangency.** Run tests. The closure solver automatically adjusts `d_F2_F5` and `d_F20_F1`. All other points follow from the chain walk.
+
+5. **Update regression tests.** Points that changed need updated expected values in `test_outline.py`, `test_d2_regression.py`, and `test_gen_site_plan.py`.
+
+### Example: changing an arc sweep
+
+To change the C5 sweep from `arctan(9)` to `π/2` while keeping F9-F20 fixed:
+
+1. Compute the old F5→F9 E-displacement (since F9.E must stay the same)
+2. With the new sweep, derive the new F6→F7 line length: `L = old_dE - R_C5 - R_C7 - R_C8`
+3. Replace the old sweep and line length values in the chain
+4. All other segments stay the same → F9-F20 positions are preserved
+5. The closure solver recomputes `d_F2_F5` and `d_F20_F1`
+
+### What NOT to do
+
+- **Do not add runtime solvers** for constraints from a change request (e.g., "solve for R_C10 and L_F12F13 to maintain F7→F14 displacement"). Derive the values once, hardcode them, discard the solver.
+- **Do not retain a "reference chain"** from a previous geometry state. The current segment definitions ARE the geometry.
+- **Do not couple segment parameters** via runtime constraints (e.g., NS_CLEAR_SPAN adjusting d_F14F15). Each segment parameter is independent after derivation.
+
+---
+
 ## 11. Contributing to This Document
 
 **For future agents:** If you encounter a complex task that required significant codebase research and is not already covered here, please add a new section documenting the procedure. Follow the existing format:

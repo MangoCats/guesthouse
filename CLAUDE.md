@@ -76,6 +76,16 @@ No circular dependencies. floorplan/ never imports from survey/, walls/, or span
 - Arc tangency: `|center1 - center2| = R1 + R2` (external)
 - Physical constants defined once in `floorplan/constants.py` — no magic numbers in geometry/layout code
 
+## F-Series Geometry Principle
+
+The F-series outline is defined purely by:
+1. **Start point**: F2 position (offset from FC) and bearing
+2. **Segment definitions**: each segment is either a line (bearing, length) or an arc (radius, sweep, CW/CCW direction)
+3. **Tangency**: automatic — each segment starts at the position and bearing where the previous segment ended
+4. **Closure**: d_F2_F5 and d_F20_F1 are solved so the chain closes back to F2
+
+**That's it.** No other runtime constraints exist in the geometry code. When a change request specifies additional constraints (e.g., "keep F9-F20 fixed", "maintain clear span"), those constraints are used to DERIVE new segment parameter values. Once the values are verified to satisfy the change request plus tangency and closure, the derived values are hardcoded as segment definitions and the change-request constraints are discarded. The solver in `geometry.py` must never accumulate constraints from past change requests.
+
 ## Workflow
 - After each successful (as determined by passing of all tests) completed request, always: `git commit -a -m "<summary>"` then `python gen_all.py` to regenerate all SVGs.  summary shall be 25 words or less, and shall not include "Co-Authored-By: Claude".
 - Outline geometry lives in `floorplan/geometry.py`; dimension constants in `floorplan/constants.py`
