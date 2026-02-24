@@ -6,7 +6,7 @@ import sys
 import os
 from collections import namedtuple
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import fitz  # pymupdf
 from floorplan.gen_floorplan import build_floorplan_data
@@ -285,7 +285,7 @@ def _draw_setback_label(page, pt_pdf, line_p1, line_p2, value_ft, color,
 
 def render_site_plan(sp, corners=True):
     """Render base site plan PDF overlay. Returns unsaved fitz.Document."""
-    src = fitz.open("site/site_survey.pdf")
+    src = fitz.open(os.path.join(os.path.dirname(__file__), "site_survey.pdf"))
     doc = fitz.open()
     doc.insert_pdf(src)
     src.close()

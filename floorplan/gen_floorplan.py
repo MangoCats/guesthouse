@@ -3,8 +3,11 @@
 Computes geometry from shared/ and floorplan/ packages.
 Outline points F1-F20, inner wall points W1-W20.
 """
-import os, math, datetime
+import os, sys, math, datetime
 from typing import NamedTuple, Any
+
+# Ensure project root is on sys.path for package imports
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (

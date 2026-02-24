@@ -12,7 +12,10 @@ Outputs a single portrait-Letter SVG with:
 
 Output: span/span_min.svg
 """
-import os, math
+import os, sys, math
+
+# Ensure project root is on sys.path for package imports
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from shared.geometry import (
     path_polygon, vert_isects, compute_inner_walls,

@@ -15,7 +15,8 @@ def git_describe() -> str:
             return f.read().strip()
     except FileNotFoundError:
         return subprocess.check_output(
-            ["git", "describe", "--always", "--dirty=-DEV"], text=True
+            ["git", "describe", "--always", "--dirty=-DEV"],
+            cwd=os.path.dirname(__file__), text=True
         ).strip()
 
 # US Letter landscape at 72 dpi (11" x 8.5")

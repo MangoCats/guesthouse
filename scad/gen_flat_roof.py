@@ -7,6 +7,10 @@ All coordinates in feet.
 """
 import math
 import os
+import sys
+
+# Ensure project root is on sys.path for package imports
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS,
