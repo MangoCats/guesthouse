@@ -18,7 +18,7 @@ P3-Based Traverse (E/N feet, P3 = origin)
        │  subtract FC_IN_P3 = (18.5, 13.5)
        ▼
 FC-Based Pre-Rotation (E/N feet, FC = origin)
-       │  rotate CCW by arctan(1/9) ≈ 6.34°
+       │  rotate CCW by COORD_ROTATION (currently 0°)
        ▼
 FC-Based Rotated  ◄── PRIMARY WORKING FRAME
        │               (all stored geometry lives here)
@@ -65,7 +65,7 @@ to the FC-based frame.
 - **Origin:** FC (building center) = (0, 0)
 - **Units:** Feet
 - **Positive:** E → right, N → up
-- **Rotation:** CCW by `COORD_ROTATION = arctan(1/9) ≈ 6.34°` (aligns F4→F5 to bearing 0°)
+- **Rotation:** CCW by `COORD_ROTATION` (currently 0°)
 - **Traversal:** CW (F1→F2→...→F20→F1); interior on right side
 - **Defined in:** `shared/survey.py`, `floorplan/geometry.py`
 
@@ -82,7 +82,7 @@ furniture, openings — lives in this coordinate system.
 | S1–S20, S11a, S11b | 2" (SHELL_THICKNESS) | Inner face of outer shell |
 | G1–G20, G11a, G11b | 6" (SHELL_THICKNESS + AIR_GAP) | Outer face of inner shell |
 | W1–W20, W11a, W11b | 8" (WALL_OUTER) | Interior wall face |
-| C1, C3, ..., C19, C11a | — | Arc centers |
+| C1, C5, ..., C19, C11a | — | Arc centers |
 
 ### Source of truth
 

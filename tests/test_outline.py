@@ -7,30 +7,28 @@ from floorplan.geometry import OutlineGeometry
 
 
 # Known-good F-series coordinates (FC-based: building center = origin,
-# rotated by COORD_ROTATION = arctan(1/9) so F4-F5 is at bearing 0)
+# F2.E = -18'6", F1.N = -13'6", F2 bearing 0 due north)
 _EXPECTED_F = {
-    "F1":  (-15.9021397548, -13.1648537450),
-    "F2":  (-16.7303762003, -12.4235466834),
-    "F3":  (-18.0647571404,  -0.4141182228),
-    "F4":  (-18.1158389349,   0.5081832496),
-    "F5":  (-18.1158389349,   9.9848504826),
-    "F6":  (-16.0401791624,  12.3039125302),
-    "F7":  (-10.8222895553,  12.8836780421),
-    "F8":  ( -8.2455539469,  10.8222895553),
-    "F9":  ( -8.0615014035,  10.6750475206),
-    "F10": (  7.0124019058,  12.3499256660),
-    "F11": (  7.9254001536,  13.2266897495),
-    "F11a": ( 9.9744593423,  15.1944279196),
-    "F11b": (10.9683430769,  15.3048594457),
-    "F12": ( 13.3993677373,  13.8349083699),
-    "F13": ( 17.7149114176,   2.7890122344),
-    "F14": ( 17.8715019698,   2.1534147585),
-    "F15": ( 18.8285751958,  -6.4602442754),
-    "F16": ( 17.8360285456,  -8.7256450449),
-    "F17": ( 13.8084645476, -11.6885369164),
-    "F18": ( 10.7204717012, -12.8949911370),
-    "F19": (  9.3314639533, -13.0493253312),
-    "F20": (  7.2455539469, -13.1648537450),
+    "F1":  (-17.6666666667, -13.5000000000),
+    "F2":  (-18.5000000000, -12.6666666667),
+    "F5":  (-18.5000000000,  11.5000000000),
+    "F6":  (-16.1666666667,  13.8333333333),
+    "F7":  (-10.9487770596,  13.8333333333),
+    "F8":  ( -8.6154437263,  11.5000000000),
+    "F9":  ( -8.4487770596,  11.3333333333),
+    "F10": (  6.7178896070,  11.3333333333),
+    "F11": (  7.7221261111,  12.1039111052),
+    "F11a": ( 9.9759530391,  13.8333333333),
+    "F11b": (10.9759530391,  13.8333333333),
+    "F12": ( 13.2297799671,  12.1039111052),
+    "F13": ( 17.4172349618,  -3.5238836893),
+    "F14": ( 17.5026777654,  -4.1728862161),
+    "F15": ( 17.5026777654,  -7.7724405041),
+    "F16": ( 16.4950037851,  -9.7647115024),
+    "F17": ( 13.4243034824, -12.0236831714),
+    "F18": ( 10.3363106361, -13.2301373919),
+    "F19": (  8.9473028882, -13.3844715862),
+    "F20": (  6.8613928818, -13.5000000000),
 }
 
 
@@ -38,17 +36,17 @@ class TestOutlineGeometry:
     def test_returns_outline_geometry(self, outline_geo):
         assert isinstance(outline_geo, OutlineGeometry)
 
-    def test_22_points(self, outline_geo):
-        for i in [j for j in range(21) if j != 0]:
+    def test_20_points(self, outline_geo):
+        for i in [j for j in range(21) if j not in (0, 3, 4)]:
             assert f"F{i}" in outline_geo.fp_pts
         assert "F11a" in outline_geo.fp_pts
         assert "F11b" in outline_geo.fp_pts
 
-    def test_22_segments(self, outline_geo):
-        assert len(outline_geo.outline_segs) == 22
+    def test_20_segments(self, outline_geo):
+        assert len(outline_geo.outline_segs) == 20
 
-    def test_11_radii(self, outline_geo):
-        assert len(outline_geo.radii) == 11
+    def test_10_radii(self, outline_geo):
+        assert len(outline_geo.radii) == 10
         for key, val in outline_geo.radii.items():
             assert key.startswith("R_a")
             assert val > 0, f"{key} = {val}"
@@ -70,7 +68,43 @@ class TestOutlineGeometry:
     def test_outline_area(self, outline_geo):
         poly = path_polygon(outline_geo.outline_segs, outline_geo.fp_pts)
         area = poly_area(poly)
-        assert abs(area - 882.07) < 0.1
+        assert abs(area - 882.52) < 0.1
+
+    def test_segment_index_mapping(self, outline_geo):
+        """Segment start→end names match expected indices.
+
+        Renderers use hardcoded indices (e.g. F8→F9 at [5]) for special
+        corner handling. This test catches index drift if segments are
+        added, removed, or reordered.
+        """
+        expected = [
+            (0,  "F1",   "F2"),
+            (1,  "F2",   "F5"),
+            (2,  "F5",   "F6"),
+            (3,  "F6",   "F7"),
+            (4,  "F7",   "F8"),
+            (5,  "F8",   "F9"),
+            (6,  "F9",   "F10"),
+            (7,  "F10",  "F11"),
+            (8,  "F11",  "F11a"),
+            (9,  "F11a", "F11b"),
+            (10, "F11b", "F12"),
+            (11, "F12",  "F13"),
+            (12, "F13",  "F14"),
+            (13, "F14",  "F15"),
+            (14, "F15",  "F16"),
+            (15, "F16",  "F17"),
+            (16, "F17",  "F18"),
+            (17, "F18",  "F19"),
+            (18, "F19",  "F20"),
+            (19, "F20",  "F1"),
+        ]
+        segs = outline_geo.outline_segs
+        for idx, start, end in expected:
+            assert segs[idx].start == start and segs[idx].end == end, (
+                f"outline_segs[{idx}]: expected {start}→{end}, "
+                f"got {segs[idx].start}→{segs[idx].end}"
+            )
 
     @pytest.mark.parametrize("name,expected", list(_EXPECTED_F.items()))
     def test_f_series_regression(self, outline_geo, name, expected):

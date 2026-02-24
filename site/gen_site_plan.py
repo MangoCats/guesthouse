@@ -10,8 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import fitz  # pymupdf
 from floorplan.gen_floorplan import build_floorplan_data
-from shared.geometry import vert_isects, path_polygon, segment_polyline, left_norm, off_pt, seg_vecs
-from floorplan.constants import ARC_180_R
+from shared.geometry import vert_isects, path_polygon, segment_polyline, seg_vecs
 from shared.types import LineSeg, ArcSeg
 from shared.svg import git_describe
 
@@ -166,7 +165,7 @@ def build_site_plan_data():
 
     # --- External dimensions (building-aligned, matching floorplan dim15/dim13) ---
     _bld_ew, _ = seg_vecs(pts["W9"], pts["W10"])   # building E-W direction
-    _bld_ns, _ = seg_vecs(pts["W2"], pts["W3"])     # building N-S direction
+    _bld_ns, _ = seg_vecs(pts["W2"], pts["W5"])     # building N-S direction
 
     _df_ew = (pts["F15"][0] - pts["F2"][0], pts["F15"][1] - pts["F2"][1])
     ew_dim_ft = abs(_df_ew[0] * _bld_ew[0] + _df_ew[1] * _bld_ew[1])
@@ -195,11 +194,11 @@ def build_site_plan_data():
     f15_pdf = (f15_pdf_x, f15_pdf_y)
 
     # --- F-series PDF coordinates ---
-    _f_names = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b", "FC"]
+    _f_names = [f"F{i}" for i in range(1, 21) if i not in (3, 4)] + ["F11a", "F11b", "FC"]
     f_series_pdf = {name: building_to_pdf(*pts[name]) for name in _f_names}
 
     # --- Min setback distances (F-points only, excluding FC) ---
-    _f_struct = [f"F{i}" for i in range(1, 21)] + ["F11a", "F11b"]
+    _f_struct = [f"F{i}" for i in range(1, 21) if i not in (3, 4)] + ["F11a", "F11b"]
     min_setback_216 = min(
         ((pt[0] - LINE_TOP[0]) * (-ldy) + (pt[1] - LINE_TOP[1]) * ldx)
         / (llen * SCALE)
@@ -218,9 +217,10 @@ def build_site_plan_data():
             _res_best_dist, _res_best_name = d, n
     residence_dist_ft = _res_best_dist / SCALE
 
-    # --- P-series PDF coordinates (angularly corrected, path_area.svg pivot) ---
-    _corrected_bld = _correct_p_series(pts)
-    p_series_pdf = {n: building_to_pdf(*p) for n, p in _corrected_bld.items()}
+    # --- P-series PDF coordinates (building coords → PDF, no angular correction) ---
+    _P_NAMES = ["POB", "P2", "P3", "P4", "P5",
+                "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
+    p_series_pdf = {n: building_to_pdf(*pts[n]) for n in _P_NAMES}
 
     return SitePlanData(
         pts=pts,
@@ -315,7 +315,7 @@ def render_site_plan(sp, corners=True):
         shape.finish(color=(1, 0, 0), width=0.5, fill=None,
                      stroke_opacity=0.4)
 
-    # --- F15 to F2-F3 dimension line ---
+    # --- F15 to F2-F5 dimension line ---
     f15 = pts["F15"]
     f15_pdf = building_to_pdf(*f15)
     foot_pdf = building_to_pdf(pts["F2"][0], f15[1])
@@ -528,45 +528,6 @@ def render_site_plan_df(doc, sp):
 COLOR_OUTER_PATH = (0, 0.4, 0)  # dark green for survey outer path
 
 
-def _correct_p_series(pts):
-    """Correct P-series points by rotation about the path_area.svg pivot.
-
-    The rotation angle aligns PX→P5 with F17→F16 (both parallel to the
-    216.73' property line, field-verified).  The pivot matches
-    gen_path_svg.py: projection of the C15 arc center onto the PiX→Pi5
-    line, using F15 easting to locate C15.
-
-    Returns dict of corrected building-coord points for the 13 P-series names.
-    """
-    pxp5_angle = math.atan2(pts["P5"][1] - pts["PX"][1],
-                            pts["P5"][0] - pts["PX"][0])
-    f17f16_angle = math.atan2(pts["F16"][1] - pts["F17"][1],
-                              pts["F16"][0] - pts["F17"][0])
-    corr = f17f16_angle - pxp5_angle
-    cos_c = math.cos(corr)
-    sin_c = math.sin(corr)
-
-    # Pivot: same as gen_path_svg.py — project C15 arc-center estimate onto
-    # the PiX→Pi5 line, where C15.E = F15.E - ARC_180_R.
-    d_pip = (pts["Pi5"][0] - pts["PiX"][0], pts["Pi5"][1] - pts["PiX"][1])
-    L_pip = math.hypot(*d_pip)
-    d_pip_u = (d_pip[0] / L_pip, d_pip[1] / L_pip)
-    ln_pip = left_norm(pts["PiX"], pts["Pi5"])
-    o_pip = off_pt(pts["PiX"], ln_pip, ARC_180_R)
-    f15_e = pts["F15"][0]
-    t_cf = (f15_e - ARC_180_R - o_pip[0]) / d_pip_u[0]
-    cf = (f15_e - ARC_180_R, o_pip[1] + t_cf * d_pip_u[1])
-    t_piv = ((cf[0] - pts["PiX"][0]) * d_pip[0]
-             + (cf[1] - pts["PiX"][1]) * d_pip[1]) / (d_pip[0] ** 2 + d_pip[1] ** 2)
-    a = pts["PiX"][0] + t_piv * d_pip[0]
-    b = pts["PiX"][1] + t_piv * d_pip[1]
-
-    names = ["POB", "P2", "P3", "P4", "P5",
-             "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
-    return {name: (a + (pts[name][0] - a) * cos_c - (pts[name][1] - b) * sin_c,
-                   b + (pts[name][0] - a) * sin_c + (pts[name][1] - b) * cos_c)
-            for name in names}
-
 
 def render_site_plan_fs(doc, sp):
     """Add outer survey path (P-series traverse) overlay to an existing site plan."""
@@ -584,9 +545,8 @@ def render_site_plan_fs(doc, sp):
         LineSeg("T2", "POB"),
     ]
 
-    # Corrected building coords → polygon → PDF coords
+    # Building coords → polygon → PDF coords (no angular correction)
     corrected_pts = dict(sp.pts)
-    corrected_pts.update(_correct_p_series(sp.pts))
     poly_bld = path_polygon(outer_segs, corrected_pts)
     poly_pdf = [fitz.Point(*building_to_pdf(*p)) for p in poly_bld]
 

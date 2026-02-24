@@ -78,7 +78,7 @@ def _path_length_between(pts, outline_segs, start_seg_idx, start_t,
     while idx != end_seg_idx:
         seg = outline_segs[idx]
         if isinstance(seg, ArcSeg):
-            if idx == 8 and inset >= SHELL_THICKNESS + AIR_GAP:
+            if idx == 5 and inset >= SHELL_THICKNESS + AIR_GAP:
                 # F8-F9 inner shell: straight-arc-straight path length
                 R_a8 = seg.radius
                 R_turn = OPENING_INSIDE_RADIUS + (inset - (SHELL_THICKNESS + AIR_GAP))
@@ -159,7 +159,7 @@ def build_wall_data():
     w_f8f9_poly = fp_data.w_f8f9_poly
 
     # --- Page layout: 1:72 scale ---
-    _f_names = [f"F{i}" for i in range(21) if i != 0]
+    _f_names = [f"F{i}" for i in range(21) if i not in (0, 3, 4)]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -308,18 +308,9 @@ def _render_interior_walls(out, data):
     iw_poly(layout.iw11.poly)
     iw_label("IW11", layout.iw11.w, layout.iw11.e, layout.iw11.s, layout.iw11.n)
 
-    # IW15 (vertical, 4" — IW11 NW north to IW1 south)
-    iw_poly(layout.iw15.poly)
-    iw_label("IW15", layout.iw15.w, layout.iw15.e, layout.iw15.s, layout.iw15.n)
-
     # IW12 (rotated, 4")
     iw_poly(layout.iw12.poly)
     iw_label("IW12", layout.iw12.w, layout.iw12.e, layout.iw12.s, layout.iw12.n,
-             vertical=False)
-
-    # IW14 (rotated, 3" — parallel to IW12)
-    iw_poly(layout.iw14.poly)
-    iw_label("IW14", layout.iw14.w, layout.iw14.e, layout.iw14.s, layout.iw14.n,
              vertical=False)
 
     # IW5 (horizontal, 3")
@@ -537,7 +528,7 @@ def _render_wall_segments(out, data):
             _svg_polygon(out, outer_shell, to_svg, WALL_FILL, stroke="none")
 
             # Inner shell: G-arc to W-arc
-            if seg_idx == 7:
+            if seg_idx == 5:
                 # F8-F9: straight-arc-straight path for inner shell
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
@@ -622,8 +613,8 @@ def _render_section_outlines(out, data):
     shell_t = SHELL_THICKNESS
     R_in = OPENING_INSIDE_RADIUS
 
-    g_overrides = {7: data.g_f8f9_poly}
-    w_overrides = {7: data.w_f8f9_poly}
+    g_overrides = {5: data.g_f8f9_poly}
+    w_overrides = {5: data.w_f8f9_poly}
     sections = enumerate_wall_sections(data.openings, data.outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(
@@ -844,8 +835,6 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
         ("IW9",  4, _poly_len(layout.iw9.poly), True),
         ("IW11", 4, _poly_len(layout.iw11.poly), True),
         ("IW12", 4, _poly_len(layout.iw12.poly), False),
-        ("IW14", 3, _poly_len(layout.iw14.poly), False),
-        ("IW15", 4, _poly_len(layout.iw15.poly), True),
         ("IW16", 4, _poly_len(layout.iw16.poly), True),
     ]
 

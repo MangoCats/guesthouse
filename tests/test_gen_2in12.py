@@ -81,7 +81,7 @@ class TestGenerate2in12:
         body = m.group(1)
         data_lines = [l.strip() for l in body.split('\n')
                       if l.strip() and not l.strip().startswith('//')]
-        assert len(data_lines) == 9
+        assert len(data_lines) == 8
         for line in data_lines:
             assert line.startswith('[0,') or line.startswith('[1,'), \
                 f"unexpected format: {line[:40]}"

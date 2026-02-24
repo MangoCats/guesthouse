@@ -47,9 +47,13 @@ def main():
         if os.path.exists(_CACHE):
             os.remove(_CACHE)
 
-    # 4. Render site plan PDFs → PNGs at 1920px wide
-    for pdf_name in ("site_plan_df.pdf", "site_plan_fs.pdf"):
-        pdf_path = os.path.join(_DIR, "site", pdf_name)
+    # 4. Render PDFs → PNGs at 1920px wide
+    pdf_pngs = [
+        os.path.join(_DIR, "site", "site_plan_df.pdf"),
+        os.path.join(_DIR, "site", "site_plan_fs.pdf"),
+        os.path.join(_DIR, "3views.pdf"),
+    ]
+    for pdf_path in pdf_pngs:
         png_path = pdf_path.replace(".pdf", ".png")
         doc = fitz.open(pdf_path)
         page = doc[0]

@@ -145,13 +145,13 @@ def _elem_end(elem):
 class TestRoofSegments:
     def test_segment_count(self, roof_geo):
         segs = roof_segments(roof_geo)
-        assert len(segs) == 9
+        assert len(segs) == 8
 
     def test_segment_types(self, roof_geo):
         segs = roof_segments(roof_geo)
         lines = [s for s in segs if s[0] == "line"]
         arcs = [s for s in segs if s[0] == "arc"]
-        assert len(lines) == 7
+        assert len(lines) == 6
         assert len(arcs) == 2
 
     def test_arcs_are_cw(self, roof_geo):
@@ -250,7 +250,7 @@ class TestTpathStructure:
         body = m.group(1)
         data_lines = [l.strip() for l in body.split('\n')
                       if l.strip() and not l.strip().startswith('//')]
-        assert len(data_lines) == 9
+        assert len(data_lines) == 8
 
 
 # ── integration test ──────────────────────────────────────────

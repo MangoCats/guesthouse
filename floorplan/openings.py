@@ -26,7 +26,7 @@ class OuterOpening(NamedTuple):
     """Opening in the outer wall, positioned as a 4-point polygon."""
     name: str
     seg_start: str       # e.g., "F2" — outline segment start point
-    seg_end: str         # e.g., "F3" — outline segment end point
+    seg_end: str         # e.g., "F5" — outline segment end point
     poly: list[Point]    # 4 vertices: [outer_start, outer_end, inner_end, inner_start]
 
 
@@ -55,27 +55,31 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     """
     openings = []
 
-    # O1: F2-F3, centered at IW16 midpoint projected onto segment
-    _dE1, _dN1, _seg1_len = seg_vec(pts["F2"], pts["F3"])
-    _iw16_ctr = ((layout.iw16.poly[0][0] + layout.iw16.poly[2][0]) / 2,
-                 (layout.iw16.poly[0][1] + layout.iw16.poly[2][1]) / 2)
-    _t1_ctr = ((_iw16_ctr[0] - pts["F2"][0]) * _dE1
-               + (_iw16_ctr[1] - pts["F2"][1]) * _dN1) / (_dE1**2 + _dN1**2)
+    # O1: F2-F5, centered at RO3 center normal projection onto W2-W5
+    _dE1, _dN1, _seg1_len = seg_vec(pts["F2"], pts["F5"])
+    # RO3 center = IW16 polygon center (RO3 is centered on IW16)
+    _ro3_ctr = ((layout.iw16.poly[0][0] + layout.iw16.poly[2][0]) / 2,
+                (layout.iw16.poly[0][1] + layout.iw16.poly[2][1]) / 2)
+    # Normal projection of RO3 center onto W2-W5 line
+    _dW1 = (pts["W5"][0] - pts["W2"][0], pts["W5"][1] - pts["W2"][1])
+    _dW1_sq = _dW1[0]**2 + _dW1[1]**2
+    _t1_ctr = ((_ro3_ctr[0] - pts["W2"][0]) * _dW1[0]
+               + (_ro3_ctr[1] - pts["W2"][1]) * _dW1[1]) / _dW1_sq
     _t1_half = (O1_WIDTH / 2) / _seg1_len
     _t1_start = _t1_ctr - _t1_half
     _t1_end = _t1_ctr + _t1_half
-    openings.append(OuterOpening("O1", "F2", "F3", [
+    openings.append(OuterOpening("O1", "F2", "F5", [
         (pts["F2"][0] + _t1_start * _dE1, pts["F2"][1] + _t1_start * _dN1),
         (pts["F2"][0] + _t1_end * _dE1, pts["F2"][1] + _t1_end * _dN1),
-        (pts["W2"][0] + _t1_end * (pts["W3"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t1_end * (pts["W3"][1] - pts["W2"][1])),
-        (pts["W2"][0] + _t1_start * (pts["W3"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t1_start * (pts["W3"][1] - pts["W2"][1])),
+        (pts["W2"][0] + _t1_end * (pts["W5"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t1_end * (pts["W5"][1] - pts["W2"][1])),
+        (pts["W2"][0] + _t1_start * (pts["W5"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t1_start * (pts["W5"][1] - pts["W2"][1])),
     ]))
 
-    # O2: F4-F5, diagonal, centered at RO4 position
-    # Normal from RO4 center (perpendicular to IW2) intersects F4-F5 line.
-    _dE2, _dN2, _seg2_len = seg_vec(pts["F4"], pts["F5"])
+    # O2: F2-F5, centered at RO4 position
+    # Normal from RO4 center (perpendicular to IW2) intersects F2-F5 line.
+    _dE2, _dN2, _seg2_len = seg_vec(pts["F2"], pts["F5"])
     # RO4 center: offset from IW6 south face midpoint in the IW6 outward direction
     _iw6_s_mid = ((layout.iw6.poly[0][0] + layout.iw6.poly[1][0]) / 2,
                   (layout.iw6.poly[0][1] + layout.iw6.poly[1][1]) / 2)
@@ -91,33 +95,33 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     _iw2_ldy = layout.iw2.poly[3][1] - layout.iw2.poly[0][1]
     _iw2_llen = math.sqrt(_iw2_ldx**2 + _iw2_ldy**2)
     _iw2_norm = (-_iw2_ldy / _iw2_llen, _iw2_ldx / _iw2_llen)
-    # Line-line intersection: RO4_ctr + s*IW2_norm ∩ F4 + t*(F5-F4)
+    # Line-line intersection: RO4_ctr + s*IW2_norm ∩ F2 + t*(F5-F2)
     _cross_den = _dE2 * _iw2_norm[1] - _dN2 * _iw2_norm[0]
-    _t2_ctr = ((_ro4_ctr[0] - pts["F4"][0]) * _iw2_norm[1]
-               - (_ro4_ctr[1] - pts["F4"][1]) * _iw2_norm[0]) / _cross_den
+    _t2_ctr = ((_ro4_ctr[0] - pts["F2"][0]) * _iw2_norm[1]
+               - (_ro4_ctr[1] - pts["F2"][1]) * _iw2_norm[0]) / _cross_den
     _t2_half = (O2_WIDTH / 2) / _seg2_len
     _t2_start = _t2_ctr - _t2_half
     _t2_end = _t2_ctr + _t2_half
-    openings.append(OuterOpening("O2", "F4", "F5", [
-        (pts["F4"][0] + _t2_start * _dE2, pts["F4"][1] + _t2_start * _dN2),
-        (pts["F4"][0] + _t2_end * _dE2, pts["F4"][1] + _t2_end * _dN2),
-        (pts["W4"][0] + _t2_end * (pts["W5"][0] - pts["W4"][0]),
-         pts["W4"][1] + _t2_end * (pts["W5"][1] - pts["W4"][1])),
-        (pts["W4"][0] + _t2_start * (pts["W5"][0] - pts["W4"][0]),
-         pts["W4"][1] + _t2_start * (pts["W5"][1] - pts["W4"][1])),
+    openings.append(OuterOpening("O2", "F2", "F5", [
+        (pts["F2"][0] + _t2_start * _dE2, pts["F2"][1] + _t2_start * _dN2),
+        (pts["F2"][0] + _t2_end * _dE2, pts["F2"][1] + _t2_end * _dN2),
+        (pts["W2"][0] + _t2_end * (pts["W5"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t2_end * (pts["W5"][1] - pts["W2"][1])),
+        (pts["W2"][0] + _t2_start * (pts["W5"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t2_start * (pts["W5"][1] - pts["W2"][1])),
     ]))
 
-    # O3: F4-F5, diagonal, 4" from F5 along F5-F4 line
-    # reuse _dE2, _dN2, _seg2_len from O2 (same segment F4-F5)
+    # O3: F2-F5, 4" from F5 along F5-F2 line
+    # reuse _dE2, _dN2, _seg2_len from O2 (same segment F2-F5)
     _t3_end = 1 - O3_GAP_F5 / _seg2_len       # closer to F5
     _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg2_len  # farther from F5
-    openings.append(OuterOpening("O3", "F4", "F5", [
-        (pts["F4"][0] + _t3_start * _dE2, pts["F4"][1] + _t3_start * _dN2),
-        (pts["F4"][0] + _t3_end * _dE2, pts["F4"][1] + _t3_end * _dN2),
-        (pts["W4"][0] + _t3_end * (pts["W5"][0] - pts["W4"][0]),
-         pts["W4"][1] + _t3_end * (pts["W5"][1] - pts["W4"][1])),
-        (pts["W4"][0] + _t3_start * (pts["W5"][0] - pts["W4"][0]),
-         pts["W4"][1] + _t3_start * (pts["W5"][1] - pts["W4"][1])),
+    openings.append(OuterOpening("O3", "F2", "F5", [
+        (pts["F2"][0] + _t3_start * _dE2, pts["F2"][1] + _t3_start * _dN2),
+        (pts["F2"][0] + _t3_end * _dE2, pts["F2"][1] + _t3_end * _dN2),
+        (pts["W2"][0] + _t3_end * (pts["W5"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t3_end * (pts["W5"][1] - pts["W2"][1])),
+        (pts["W2"][0] + _t3_start * (pts["W5"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t3_start * (pts["W5"][1] - pts["W2"][1])),
     ]))
 
     # O4: F6-F7, centered on segment at t=0.5
