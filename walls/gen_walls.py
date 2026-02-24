@@ -886,6 +886,49 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
                f' fill="none" stroke="#999" stroke-width="0.5"/>')
 
 
+def _render_f_labels(out, data):
+    """Render F-series point labels on the exterior side of the outline."""
+    pts = data.pts
+    to_svg = data.to_svg
+
+    FONT_SIZE = "5"
+    COLOR = "#d32f2f"
+    DOT_R = "1.0"
+
+    # (name, anchor, dx, dy) — dx/dy in SVG units from the transformed point
+    _F_LABELS = [
+        ("F1",   "middle",   0,   6),
+        ("F2",   "end",     -5,   0),
+        ("F5",   "end",     -5,   0),
+        ("F6",   "middle",   0,  -5),
+        ("F7",   "middle",   0,  -5),
+        ("F8",   "end",     -5,   0),
+        ("F9",   "middle",   0,  -5),
+        ("F10",  "middle",   0,  -5),
+        ("F11",  "start",    4,  -3),
+        ("F11a", "middle",   0,  -5),
+        ("F11b", "middle",   0,  -5),
+        ("F12",  "start",    4,  -3),
+        ("F13",  "start",    5,   0),
+        ("F14",  "start",    5,   0),
+        ("F15",  "start",    5,   0),
+        ("F16",  "start",    5,   2),
+        ("F17",  "middle",   0,   6),
+        ("F18",  "middle",   0,   6),
+        ("F19",  "middle",   0,   6),
+        ("F20",  "middle",   0,   6),
+    ]
+
+    for name, anchor, dx, dy in _F_LABELS:
+        sx, sy = to_svg(*pts[name])
+        out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="{DOT_R}"'
+                   f' fill="{COLOR}"/>')
+        out.append(f'<text x="{sx + dx:.1f}" y="{sy + dy:.1f}"'
+                   f' text-anchor="{anchor}" dominant-baseline="central"'
+                   f' font-family="Arial" font-size="{FONT_SIZE}"'
+                   f' fill="{COLOR}">{name}</text>')
+
+
 def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     """Render the wall detail SVG. Returns SVG string."""
     to_svg = data.to_svg
@@ -909,6 +952,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
         _render_interior_walls(out, data)
         _render_opening_dims(out, data)
 
+    _render_f_labels(out, data)
     _render_opening_labels(out, data)
     _render_title_block(out, data)
     tbl_bottom = _render_wall_table(out, data)
