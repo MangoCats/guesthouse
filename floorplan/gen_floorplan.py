@@ -1442,10 +1442,10 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
     if db or (not minik):
-        # Door arc: hinged at NW corner, sweeps from open (along IW2) to closed (outward IW2)
+        # Door arc: hinged at NW corner, sweeps from open (northward) to closed (eastward)
         fr_door = _fr_w2
-        _open_dir = _iw1_n_al    # along IW1 north face (eastward)
-        _close_dir = _iw1_n_out  # outward from IW1 (northward)
+        _open_dir = _iw1_n_out   # outward from IW1 (northward) — door open
+        _close_dir = _iw1_n_al   # along IW1 north face (eastward) — door closed
         hx, hy = to_svg(*fr_nw)
         tip = offset_pt(fr_nw, fr_door, _open_dir)
         tip_x, tip_y = to_svg(*tip)
