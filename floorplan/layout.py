@@ -318,11 +318,11 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw5_nw = line_isect(_iw5_n_anchor, _w9w10_al, iw11_se, _w20w1_in)
     iw5_sw = line_isect(_iw5_s_anchor, _w9w10_al, iw11_se, _w20w1_in)
 
-    # --- Dresser ---
+    # --- Dresser (aligned with IW1 south face) ---
     dresser_ne = line_isect(
-        _offset(iw11_nw, -DRESSER_GAP_IW15, _iw_in), _iw_al,
+        _offset(iw11_nw, DRESSER_GAP_IW15, _w20w1_al), _w20w1_in,
         _offset(iw1_sw, DRESSER_GAP_IW1, _w9w10_in), _w9w10_al)
-    dresser_nw = _offset(dresser_ne, -DRESSER_WIDTH, _iw_in)
+    dresser_nw = _offset(dresser_ne, -DRESSER_WIDTH, _w9w10_al)
     dresser_se = _offset(dresser_ne, DRESSER_DEPTH, _w9w10_in)
     dresser_sw = _offset(dresser_nw, DRESSER_DEPTH, _w9w10_in)
 
