@@ -24,14 +24,9 @@ APPLIANCE_GAP = 1.0 / 12.0        # 1" gap between dryer and washer
 # Counter
 COUNTER_DEPTH = 24.0 / 12.0       # 2' E-W
 COUNTER_LENGTH = 6.0              # 6' N-S
-COUNTER_NW_RADIUS = 9.0 / 12.0    # 9" rounded corner
 COUNTER_GAP = 36.0 / 12.0         # 3' east of dryer
 
 # Rooms
-BEDROOM_WIDTH = 138.0 / 12.0      # 11'6" E-W
-CLOSET_WIDTH = 30.0 / 12.0        # 30" closet depth (closet 1)
-CLOSET2_WIDTH = 28.0 / 12.0       # 28" closet 2 depth (east)
-CLOSET1_HEIGHT = 6.0              # 6' closet 1 N-S
 IW1_OFFSET_FROM_W1 = 12.0 + 8.0/12.0    # 12'8" from W1, along W2-W5 direction
 IW1_OFFSET_FROM_W2 = 6.5           # 6'6" from W2, CW-normal to W2-W5
 IW2_OFFSET_FROM_W2 = 6.5                # 6'6" from W2, CW-normal to W2-W5
@@ -41,7 +36,6 @@ RO1_OFFSET_FROM_IW2 = 116.0 / 12.0   # 9'8" from IW2 east face, CW-normal to W2-
 # Bed
 BED_WIDTH = 76.0 / 12.0           # 76" king bed
 BED_LENGTH = 94.0 / 12.0          # 94" (incl. frame)
-BED_OFFSET_N = 2.0 / 12.0         # 2" from south wall
 BED_WALL_GAP = 2.0 / 12.0         # 2" bed-to-outer-wall inward gap
 
 # Dresser
@@ -78,10 +72,8 @@ NORTH_CTR_LENGTH = 36.0 / 12.0     # 36" north wall counter E-W
 NORTH_CTR_DEPTH = 30.0 / 12.0      # 30" north wall counter depth N-S
 EAST_CTR_LENGTH = 30.0 / 12.0      # 30" east counter E-W along W9-W10
 EAST_CTR_DEPTH = 42.0 / 12.0       # 42" east counter depth N-S
-EAST_CTR_RADIUS = 12.0 / 12.0      # 12" south corner radius
 
 # IW1 rough opening
-RO1_OFFSET_FROM_IW4 = 64.0 / 12.0    # 64" from IW4 (legacy)
 RO1_OFFSET_FROM_IW9 = 76.0 / 12.0    # 76" from IW9 east face
 IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
@@ -179,34 +171,10 @@ BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W20-W1
 IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
 
 # Outline geometry constraints
-NS_CLEAR_SPAN = 23.5                 # perpendicular distance W20-W1 to W9-W10, feet
 CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: NE corner (10" at 8" wall)
-CORNER_NW_R = 28.0 / 12.0 + WALL_EXTRA   # R_a5: NW corner (28" at 8" wall)
-UPPER_E_R = 28.0 / 12.0 + WALL_EXTRA     # R_a7: upper east (28" at 8" wall)
-SMALL_ARC_R = 2.0 / 12.0          # R_a8: 2" transition
-ARC_180_R = 28.0 / 12.0 + WALL_EXTRA     # R_a11: 180-degree arc (28" at 8" wall)
-FLAT_SEG_11 = 16.0 / 12.0         # 16" C11a baseline offset (design reference)
 F11AB_TARGET = 1.0                 # 1'0" target F11a-F11b distance
-F6_F7_LENGTH = 5.0 + 2.0 / 12.0     # 5'2" F6-F7 segment target length
-F6_OFFSET_ADJ = 6.0 / 12.0           # 6" F6 position adjustment
-F6_HEIGHT = 27.0 + 2*WALL_EXTRA  # F6-F7 north of F1 (27'0" at 8"; +2*WALL_EXTRA because F1 moves south and F6 north)
-NW_SHIFT = 1.0                    # C5 1' east shift
 IW1_OFFSET_FROM_W9 = 11.0              # 11'0" from W9, CW-normal to W9-W10
 IW8_OFFSET_FROM_W20W1 = 12.0          # 12'0" perpendicular to W20-W1
-F2_OFFSET_FROM_IW8 = 2.0 / 12.0      # 2" from IW8, toward W9-W10 (was F3)
-F14_OFFSET_FROM_IW1 = 2.0 / 12.0     # 2" from IW1, toward W9-W10
-F14_F15_SEG = 8.5                  # 8'6" segment
-F14_F15_DIST = 8.0 + 8.0 / 12.0       # 8'8" F14-F15 target distance
-ARC_F13_R_BASELINE = 5.627004870830987 + WALL_EXTRA  # C11a anchor baseline (original R_a13)
-F13_EXIT_BRG = 345.0              # 345-degree exit bearing
-SOUTH_WALL_FACE = -6.0 / 12.0 - WALL_EXTRA  # south wall face northing (-6" at 8" wall)
-PIX_PI5_TARGET_BRG = 60.0         # 60-degree target bearing
-F15_OFFSET_FROM_IW8 = 9.0 + 3.0/12.0 + WALL_EXTRA  # F15 from IW8, CW-normal to W2-W5 (9'3" at 8" wall)
-ARC_F17_SWEEP = 30.0               # 30° sweep for F17-F18 arc (CW)
-F16_F17_MIN = 5.0                  # minimum 5' F16-F17 segment length
-F18_OFFSET_FROM_IW4 = 2.0 / 12.0         # 2" from IW4, CW-normal to W2-W5
-F19_OFFSET_FROM_IW4 = -10.0 / 12.0       # F19 10" from IW4 (negative = opposite CW-normal)
-ARC_F19_R = 18.888718471469218 + WALL_EXTRA  # R_a19: ~226.7" at 8" wall
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)
@@ -230,8 +198,6 @@ OTTOMAN_SIZE = 29.0 / 12.0        # 29" square ottoman
 ET_RADIUS_CM = 25.0               # 25 cm endtable radius
 SOFA_WIDTH = 97.2 / 12.0          # 97.2" sofa E-W
 SOFA_DEPTH = 24.6 / 12.0          # 24.6" sofa N-S
-SHELVES_WIDTH = 36.0 / 12.0       # 36" shelves E-W
-SHELVES_DEPTH = 15.0 / 12.0       # 15" shelves N-S
 ICE_WIDTH = 17.7 / 12.0           # 17.7" ice maker E-W
 ICE_DEPTH = 15.8 / 12.0           # 15.8" ice maker N-S
 ROCKER_WIDTH = 26.75 / 12.0       # 26.75" POANG rocking chair E-W
