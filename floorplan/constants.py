@@ -12,7 +12,7 @@ assert 8.0 / 12.0 <= WALL_OUTER <= 12.0 / 12.0, "WALL_OUTER must be 8\"-12\""
 WALL_EXTRA = WALL_OUTER - 8.0 / 12.0     # wall extra beyond 8" baseline
 WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2)
 WALL_4IN = 4.0 / 12.0             # 4" interior wall (IW3, IW4)
-WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW5, IW14)
+WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW5)
 
 # Appliance dimensions (feet)
 APPLIANCE_WIDTH = 35.0 / 12.0     # 35" washer/dryer width

@@ -308,18 +308,9 @@ def _render_interior_walls(out, data):
     iw_poly(layout.iw11.poly)
     iw_label("IW11", layout.iw11.w, layout.iw11.e, layout.iw11.s, layout.iw11.n)
 
-    # IW15 (vertical, 4" — IW11 NW north to IW1 south)
-    iw_poly(layout.iw15.poly)
-    iw_label("IW15", layout.iw15.w, layout.iw15.e, layout.iw15.s, layout.iw15.n)
-
     # IW12 (rotated, 4")
     iw_poly(layout.iw12.poly)
     iw_label("IW12", layout.iw12.w, layout.iw12.e, layout.iw12.s, layout.iw12.n,
-             vertical=False)
-
-    # IW14 (rotated, 3" — parallel to IW12)
-    iw_poly(layout.iw14.poly)
-    iw_label("IW14", layout.iw14.w, layout.iw14.e, layout.iw14.s, layout.iw14.n,
              vertical=False)
 
     # IW5 (horizontal, 3")
@@ -844,8 +835,6 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
         ("IW9",  4, _poly_len(layout.iw9.poly), True),
         ("IW11", 4, _poly_len(layout.iw11.poly), True),
         ("IW12", 4, _poly_len(layout.iw12.poly), False),
-        ("IW14", 3, _poly_len(layout.iw14.poly), False),
-        ("IW15", 4, _poly_len(layout.iw15.poly), True),
         ("IW16", 4, _poly_len(layout.iw16.poly), True),
     ]
 

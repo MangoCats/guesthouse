@@ -15,7 +15,7 @@ from floorplan.constants import (
     IW1_OFFSET_FROM_W9, IW1_OFFSET_FROM_W2, IW2_OFFSET_FROM_W2,
     IW3_LENGTH, IW3_OFFSET_IW9, IW3_DIST_W2W5,
     IW9_LENGTH,
-    IW4_OFFSET_FROM_IW2, IW4_RO_WIDTH,
+    IW4_OFFSET_FROM_IW2,
     IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
     IW8_OFFSET_FROM_W20W1,
     IW11_RADIUS_FROM_IW4, IW9_IW11_GAP, IW12_OFFSET_IW11, IW12_SHORTEN,
@@ -76,8 +76,6 @@ class InteriorLayout(NamedTuple):
     iw9: Wall
     iw11: Wall
     iw12: Wall
-    iw14: Wall
-    iw15: Wall
     iw16: Wall
     # Appliances & furniture
     dryer: Wall
@@ -260,11 +258,9 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _disc = _qb**2 - 4 * _qa * _qc
     _t = (-_qb + math.sqrt(_disc)) / (2 * _qa)
     iw11_se = (_w20[0] + _t * _dE, _w20[1] + _t * _dN)
-    _iw14_d = IW12_OFFSET_IW11 + WALL_4IN + 3.0 / 12.0 + IW4_RO_WIDTH + 3.0 / 12.0
-    _iw11_len = _iw14_d + WALL_3IN
     iw11_sw = _offset(iw11_se, WALL_4IN, _w20w1_al)
-    iw11_ne = _offset(iw11_se, _iw11_len, _w20w1_in)
-    iw11_nw = _offset(iw11_sw, _iw11_len, _w20w1_in)
+    iw11_ne = line_isect(iw11_se, _w20w1_in, iw1_sw, _w9w10_al)
+    iw11_nw = line_isect(iw11_sw, _w20w1_in, iw1_sw, _w9w10_al)
 
     # --- IW12 ---
     _iw12_base = _offset(iw11_sw, IW12_OFFSET_IW11, _w20w1_in)
@@ -318,27 +314,13 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw5_ne = _offset(_iw5_n_anchor, _iw5_t_e, _w9w10_al)
     iw5_se = _offset(_iw5_s_anchor, _iw5_t_e, _w9w10_al)
 
-    # --- IW14 ---
-    iw14_sw = _offset(iw11_se, _iw14_d, _w20w1_in)
-    iw14_nw = _offset(iw14_sw, WALL_3IN, _w20w1_in)
-    iw14_se = line_isect(iw14_sw, _neg_w20w1_al,
-                         _iw5_s_anchor, _w9w10_al)
-    iw14_ne = _offset(iw14_se, WALL_3IN, _w20w1_in)
-
-    # IW5 west end (at IW14 east face)
-    iw5_nw = line_isect(_iw5_n_anchor, _w9w10_al, iw14_se, _w20w1_in)
-    iw5_sw = line_isect(_iw5_s_anchor, _w9w10_al, iw14_se, _w20w1_in)
-
-    # --- IW15 ---
-    _iw15_w_anchor = iw11_nw
-    _iw15_e_anchor = _offset(_iw15_w_anchor, WALL_4IN, _iw_in)
-    _iw15_t_n = _proj(iw1_sw, _iw15_w_anchor, _iw_al)
-    iw15_nw = _offset(_iw15_w_anchor, _iw15_t_n, _iw_al)
-    iw15_ne = _offset(_iw15_e_anchor, _iw15_t_n, _iw_al)
+    # IW5 west end (at IW11 east face)
+    iw5_nw = line_isect(_iw5_n_anchor, _w9w10_al, iw11_se, _w20w1_in)
+    iw5_sw = line_isect(_iw5_s_anchor, _w9w10_al, iw11_se, _w20w1_in)
 
     # --- Dresser ---
     dresser_ne = line_isect(
-        _offset(_iw15_w_anchor, -DRESSER_GAP_IW15, _iw_in), _iw_al,
+        _offset(iw11_nw, -DRESSER_GAP_IW15, _iw_in), _iw_al,
         _offset(iw1_sw, DRESSER_GAP_IW1, _w9w10_in), _w9w10_al)
     dresser_nw = _offset(dresser_ne, -DRESSER_WIDTH, _iw_in)
     dresser_se = _offset(dresser_ne, DRESSER_DEPTH, _w9w10_in)
@@ -366,8 +348,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw9=iw9,
         iw11=_make_wall([iw11_sw, iw11_se, iw11_ne, iw11_nw]),
         iw12=_make_wall([iw12_sw, iw12_se, iw12_ne, iw12_nw]),
-        iw14=_make_wall([iw14_sw, iw14_se, iw14_ne, iw14_nw]),
-        iw15=_make_wall([_iw15_w_anchor, _iw15_e_anchor, iw15_ne, iw15_nw]),
         iw16=_make_wall([_iw16_w_anchor, _iw16_e_anchor, iw16_ne, iw16_nw]),
         dryer=_make_wall([_dryer_sw, _dryer_se, _dryer_ne, _dryer_nw]),
         washer=_make_wall([_washer_sw, _washer_se, _washer_ne, _washer_nw]),

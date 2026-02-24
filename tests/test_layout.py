@@ -90,8 +90,6 @@ _IW_EXPECTED_THICKNESS = {
     "iw9": WALL_4IN,
     "iw11": WALL_4IN,
     "iw12": WALL_4IN,
-    "iw14": WALL_3IN,
-    "iw15": WALL_4IN,
     "iw16": WALL_4IN,
 }
 

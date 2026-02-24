@@ -222,7 +222,7 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
             lines.append(f'<polyline points="{svg_polygon_pts(pl, to_svg)}" fill="none" stroke="#666" stroke-width="1.0" stroke-linecap="round"/>')
     # Interior walls (all IW structures from layout)
     for iw in [L.iw1, L.iw2, L.iw3, L.iw4, L.iw5, L.iw6, L.iw7, L.iw8,
-               L.iw9, L.iw11, L.iw12, L.iw14, L.iw15, L.iw16]:
+               L.iw9, L.iw11, L.iw12, L.iw16]:
         lines.append(f'<polygon points="{svg_polygon_pts(iw.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     lines.append('</g>')
 

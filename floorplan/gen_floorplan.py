@@ -614,15 +614,15 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
                                          _o8_mid, _w14w15_in)))
     result.append(("dim06_B", _o8_mid))
 
-    # ---- dim07: Storage — IW15-east → W14-W15 (horizontal) ----
-    _iw15_e_al, _ = seg_vecs(layout.iw15.poly[1], layout.iw15.poly[2])
+    # ---- dim07: Storage — IW11-east → W14-W15 (horizontal) ----
+    _iw11_e_al, _ = seg_vecs(layout.iw11.poly[1], layout.iw11.poly[2])
     _iw5_n_mid = ((layout.iw5.poly[3][0] + layout.iw5.poly[2][0]) / 2,
                   (layout.iw5.poly[3][1] + layout.iw5.poly[2][1]) / 2)
     _iw1_s_mid = ((layout.iw1.poly[0][0] + layout.iw1.poly[1][0]) / 2,
                   (layout.iw1.poly[0][1] + layout.iw1.poly[1][1]) / 2)
     _stor_ref = ((_iw5_n_mid[0] + _iw1_s_mid[0]) / 2,
                  (_iw5_n_mid[1] + _iw1_s_mid[1]) / 2)
-    result.append(("dim07_A", line_isect(layout.iw15.poly[1], _iw15_e_al,
+    result.append(("dim07_A", line_isect(layout.iw11.poly[1], _iw11_e_al,
                                          _stor_ref, _ew)))
     result.append(("dim07_B", line_isect(pts["W14"], _w14w15_al,
                                          _stor_ref, _ew)))
@@ -767,7 +767,7 @@ def compute_iw_area(layout):
     iw_polys = [layout.iw1.poly, layout.iw8.poly, layout.iw2.poly,
                 layout.iw3.poly, layout.iw7.poly, layout.iw9.poly, layout.iw6.poly,
                 layout.iw4.poly, layout.iw11.poly, layout.iw12.poly,
-                layout.iw14.poly, layout.iw5.poly, layout.iw16.poly, layout.iw15.poly]
+                layout.iw5.poly, layout.iw16.poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -1159,43 +1159,6 @@ def _render_walls(out, data, layout, bare=False):
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
-        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
-                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-
-    # ---- IW14 (rotated rectangle, 3" thick, parallel to IW12) ----
-    wall_poly(out, layout.iw14.poly, to_svg, stroke=False)
-    _iw14_sw, _iw14_se, _iw14_ne, _iw14_nw = layout.iw14.poly
-    _iw14_dx_t = _iw14_se[0] - _iw14_sw[0]  # length direction (-along)
-    _iw14_dy_t = _iw14_se[1] - _iw14_sw[1]
-    _iw14_lt = math.sqrt(_iw14_dx_t**2 + _iw14_dy_t**2)
-    _iw14_al = (_iw14_dx_t / _iw14_lt, _iw14_dy_t / _iw14_lt)  # unit along length
-    _iw14_dx_n = _iw14_nw[0] - _iw14_sw[0]  # thickness direction (norm)
-    _iw14_dy_n = _iw14_nw[1] - _iw14_sw[1]
-    _iw14_ln = math.sqrt(_iw14_dx_n**2 + _iw14_dy_n**2)
-    _iw14_an = (_iw14_dx_n / _iw14_ln, _iw14_dy_n / _iw14_ln)  # unit normal
-    for (p1, p2), (ox, oy) in [
-        ((_iw14_sw, _iw14_se), _iw14_an),      # south face, inset toward north
-        ((_iw14_nw, _iw14_ne), (-_iw14_an[0], -_iw14_an[1])),  # north face
-        ((_iw14_sw, _iw14_nw), _iw14_al),      # west end, inset toward east
-        ((_iw14_se, _iw14_ne), (-_iw14_al[0], -_iw14_al[1])),  # east end
-    ]:
-        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
-        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
-        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
-                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-
-    # ---- IW15 (no openings, N-S from IW11 north to IW1 south) ----
-    iw15 = layout.iw15
-    wall_poly(out, iw15.poly, to_svg, stroke=False)
-    # Stroke lines: inset half_sw from west and east faces (poly-based)
-    for (p_start, p_end) in [(iw15.poly[3], iw15.poly[0]),   # west face NW→SW
-                              (iw15.poly[1], iw15.poly[2])]:  # east face SE→NE
-        _al, _out = seg_vecs(p_start, p_end)
-        _inw = (-_out[0], -_out[1])
-        _p1 = offset_pt(p_start, half_sw, _inw)
-        _p2 = offset_pt(p_end, half_sw, _inw)
-        sx1, sy1 = to_svg(*_p1)
-        sx2, sy2 = to_svg(*_p2)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
