@@ -1,7 +1,11 @@
 """Generate roof outline SVG showing R-series roof corners over building walls."""
 import math
 import os
+import sys
 from datetime import date
+
+# Ensure project root is on sys.path for package imports
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from shared.svg import W, H, git_describe
 from shared.geometry import path_polygon, poly_area, fmt_dist

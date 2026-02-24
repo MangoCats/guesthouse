@@ -92,7 +92,7 @@ def main():
         return pdf_x, pdf_y
 
     # --- Generate PDF ---
-    src = fitz.open("site/site_survey.pdf")
+    src = fitz.open(os.path.join(os.path.dirname(__file__), "site_survey.pdf"))
     doc = fitz.open()  # new PDF
     doc.insert_pdf(src)
     page = doc[0]
