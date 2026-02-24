@@ -18,7 +18,7 @@ from floorplan.constants import (
     IW4_OFFSET_FROM_IW2, IW4_RO_WIDTH,
     IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
     IW8_OFFSET_FROM_W20W1,
-    IW11_RADIUS_FROM_IW4, IW12_OFFSET_IW11, IW12_SHORTEN,
+    IW11_RADIUS_FROM_IW4, IW9_IW11_GAP, IW12_OFFSET_IW11, IW12_SHORTEN,
     DRESSER_WIDTH, DRESSER_DEPTH, DRESSER_GAP_IW15, DRESSER_GAP_IW1,
 )
 
@@ -232,11 +232,24 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _iw4_t_s = _proj(pts["W19"], _iw4_w_anchor, _iw_al)
     iw4_sw = _offset(_iw4_w_anchor, _iw4_t_s, _iw_al)
     iw4_se = _offset(_iw4_e_anchor, _iw4_t_s, _iw_al)
+
+    # Shift IW4/IW11 group along W20-W1 for IW9-IW11 gap constraint
+    _w20 = pts["W20"]
+    _w2w5_ref_s = line_isect(pts["W2"], _w2w5_al, pts["W1"], _w20w1_al)
+    _iw9_se_pre = _offset(_w2w5_ref_s,
+                           -(IW3_DIST_W2W5 + 2 * WALL_4IN + IW3_OFFSET_IW9),
+                           _w20w1_al)
+    _h = iw4_sw[1] - _w20[1]
+    _circle_dx = math.sqrt(IW11_RADIUS_FROM_IW4**2 - _h**2)
+    _iw_shift = (iw4_sw[0] - _circle_dx - WALL_4IN) - (_iw9_se_pre[0] + IW9_IW11_GAP)
+    _iw4_w_anchor = _offset(_iw4_w_anchor, _iw_shift, _w20w1_al)
+    _iw4_e_anchor = _offset(_iw4_e_anchor, _iw_shift, _w20w1_al)
+    iw4_sw = _offset(iw4_sw, _iw_shift, _w20w1_al)
+    iw4_se = _offset(iw4_se, _iw_shift, _w20w1_al)
     # IW4 north end computed after IW12 (depends on IW12 north face)
 
     # --- IW11 ---
     # SE corner: circle(IW4_SW, IW11_RADIUS_FROM_IW4) intersect W20-W1
-    _w20 = pts["W20"]
     _w1 = pts["W1"]
     _dE, _dN, _seg_len = seg_vec(_w20, _w1)
     _uE = _w20[0] - iw4_sw[0]

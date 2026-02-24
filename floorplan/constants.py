@@ -102,6 +102,7 @@ IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W20-W0
 
 # IW11 (4" thick, N-S)
 IW11_RADIUS_FROM_IW4 = 32.0 / 12.0  # 32" circle-line radius for SE corner
+IW9_IW11_GAP = 12.0                  # 12' from IW9 east face to IW11 west face
 
 # IW12 (4" thick, perpendicular to IW11)
 IW12_OFFSET_IW11 = 6.0              # 6' from IW11 SW to IW12 base
