@@ -18,7 +18,7 @@ from floorplan.constants import (
     IW7_OFFSET_FROM_W18W1,
     IW4_GAP_IW11,
     IW5_S_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
-    IW9_IW11_GAP, IW12_S_OFFSET_W18W1, IW12_SHORTEN,
+    IW9_IW11_GAP, IW12_S_OFFSET_W18W1,
     DRESSER_WIDTH, DRESSER_DEPTH, DRESSER_GAP_IW15, DRESSER_GAP_IW1,
     SHELVES_LENGTH, SHELVES_DEPTH, SHELVES_GAP_IW1, SHELVES_GAP_IW9,
 )
@@ -274,12 +274,13 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw4_se = _offset(iw4_sw, -WALL_4IN, _w18w1_al)
     # IW4 north end computed after IW12 (depends on IW12 north face)
 
-    # --- IW12 (S face 5'0" N of W18-W1) ---
+    # --- IW12 (S face 5'0" N of W18-W1, W end at IW11 E face, E end at IW4 W face) ---
     _iw12_s_anchor = _offset(pts["W18"], IW12_S_OFFSET_W18W1, _w18w1_in)
-    iw12_sw = _offset(_iw12_s_anchor, -IW12_SHORTEN, _w18w1_al)
-    iw12_nw = _offset(iw12_sw, WALL_4IN, _w18w1_in)
-    iw12_se = line_isect(iw12_sw, _neg_w18w1_al, iw4_sw, _w18w1_in)
-    iw12_ne = line_isect(iw12_nw, _neg_w18w1_al, iw4_sw, _w18w1_in)
+    _iw12_n_anchor = _offset(_iw12_s_anchor, WALL_4IN, _w18w1_in)
+    iw12_sw = line_isect(_iw12_s_anchor, _neg_w18w1_al, iw11_se, _w18w1_in)
+    iw12_nw = line_isect(_iw12_n_anchor, _neg_w18w1_al, iw11_se, _w18w1_in)
+    iw12_se = line_isect(_iw12_s_anchor, _neg_w18w1_al, iw4_sw, _w18w1_in)
+    iw12_ne = line_isect(_iw12_n_anchor, _neg_w18w1_al, iw4_sw, _w18w1_in)
 
     # IW4 north end: truncate at IW12 north face
     _iw12_n_dir = (iw12_ne[0] - iw12_nw[0], iw12_ne[1] - iw12_nw[1])
