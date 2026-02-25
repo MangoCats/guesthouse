@@ -53,7 +53,7 @@ DRESSER_GAP_IW1 = 1.0 / 12.0      # 1" south of IW1
 SHELVES_LENGTH = 57.875 / 12.0    # 57 7/8" E-W (along IW1)
 SHELVES_DEPTH = 15.375 / 12.0     # 15 3/8" N-S
 SHELVES_GAP_IW1 = 0.25 / 12.0    # 1/4" from IW1
-SHELVES_GAP_IW9 = 2.0 / 12.0     # 2" from IW9
+SHELVES_GAP_IW9 = 0.25 / 12.0    # 1/4" from IW9
 
 # Water heater
 WH_RADIUS = 14.0 / 12.0           # 14" radius (28" diameter)
