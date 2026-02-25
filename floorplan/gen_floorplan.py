@@ -642,6 +642,15 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
                   (_ro3.poly[1][1] + _ro3.poly[2][1]) / 2)
     result.extend([("dim08_A", _o1_e_ctr), ("dim08_B", _ro3_w_ctr)])
 
+    # ---- dim09: W2-W5 → IW2-west (horizontal at O2 center northing) ----
+    _o2 = [o for o in openings if o.name == "O2"][0]
+    _o2_ctr = (sum(p[0] for p in _o2.poly) / 4,
+               sum(p[1] for p in _o2.poly) / 4)
+    result.append(("dim09_A", line_isect(pts["W2"], _ns,
+                                         _o2_ctr, _ew)))
+    result.append(("dim09_B", line_isect(layout.iw2.poly[0], _iw2_w_al,
+                                         _o2_ctr, _ew)))
+
     # ---- dim10: W2-W5 → IW2s-west (horizontal at F5 northing) ----
     _iw2s_w_al, _ = seg_vecs(layout.iw2s.poly[0], layout.iw2s.poly[3])
     result.append(("dim10_A", line_isect(pts["W2"], _ns,
@@ -2194,7 +2203,11 @@ def _render_dimensions(out, data, layout, bare=False):
     _rotated_dim(out, ep["dim08_A"], ep["dim08_B"],
                  fmt_dist(_edist(ep["dim08_A"], ep["dim08_B"])), to_svg)
 
-    # dim10: W2 → IW2-west
+    # dim09: W2-W5 → IW2-west
+    _rotated_dim(out, ep["dim09_A"], ep["dim09_B"],
+                 fmt_dist(_edist(ep["dim09_A"], ep["dim09_B"])), to_svg)
+
+    # dim10: W2 → IW2s-west
     _rotated_dim(out, ep["dim10_A"], ep["dim10_B"],
                  fmt_dist(_edist(ep["dim10_A"], ep["dim10_B"])), to_svg)
 
