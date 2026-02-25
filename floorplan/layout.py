@@ -14,7 +14,7 @@ from floorplan.constants import (
     O9_OFFSET_IW11, O9_O10_WALL, O10_O11_WALL, BED_GAP_O9,
     IW1_OFFSET_FROM_W9, IW1_OFFSET_FROM_W2,
     IW2_DIST_W2W5, IW2_LENGTH, IW2S_W2REF_OFFSET, IW2S_LENGTH, IW2O_THICKNESS,
-    IW3_LENGTH, IW3_OFFSET_IW9, IW3_DIST_W2W5,
+    IW3_OFFSET_IW9, IW3_DIST_W2W5,
     IW7_OFFSET_FROM_W18W1,
     IW4_GAP_IW11,
     IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
@@ -140,12 +140,13 @@ def _compute_south_walls(pts, w18w1, w2w5, iw4_sw, iw11_sw, iw11_se,
     _ts11 = _te10 + O10_O11_WALL / _seg9_len
     _te11 = _ts11 + 2 * O11_HALF_WIDTH / _seg9_len
 
-    # --- IW3 (anchored at IW3_DIST_W2W5 from W2-W5) ---
+    # --- IW3 (anchored at IW3_DIST_W2W5 from W2-W5, runs to IW7 N face) ---
     _w2w5_ref = line_isect(pts["W2"], w2w5_al, pts["W1"], w18w1_al)
     iw3_sw = _offset(_w2w5_ref, -IW3_DIST_W2W5, w18w1_al)
     iw3_se = _offset(iw3_sw, -WALL_4IN, w18w1_al)
-    iw3_ne = _offset(iw3_se, IW3_LENGTH, w18w1_in)
-    iw3_nw = _offset(iw3_sw, IW3_LENGTH, w18w1_in)
+    _iw3_height = IW7_OFFSET_FROM_W18W1 + WALL_4IN
+    iw3_ne = _offset(iw3_se, _iw3_height, w18w1_in)
+    iw3_nw = _offset(iw3_sw, _iw3_height, w18w1_in)
 
     # --- IW9 (IW3_OFFSET_IW9 from IW3 east face, extends to IW1 S face) ---
     iw9_sw = _offset(iw3_se, -IW3_OFFSET_IW9, w18w1_al)

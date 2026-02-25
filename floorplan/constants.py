@@ -85,8 +85,7 @@ IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 # IW2o rough opening (RO4 centered on IW2o oblique segment)
 IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width along IW2o
 
-# IW3 (perpendicular to W18-W1, 4" thick)
-IW3_LENGTH = 80.0 / 12.0          # 80" (6'8") length into structure
+# IW3 (perpendicular to W18-W1, 4" thick, runs from W18-W1 to IW7 N face)
 IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W18-W1
 IW3_DIST_W2W5 = 102.0 / 12.0     # 8'6" from W2-W5 to IW3 west face
 
