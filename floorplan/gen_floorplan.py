@@ -637,8 +637,9 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     _o1_e_ctr = ((_o1.poly[2][0] + _o1.poly[3][0]) / 2,
                  (_o1.poly[2][1] + _o1.poly[3][1]) / 2)
     _ro3 = ro_by_name["RO3"]
-    _ro3_w_ctr = ((_ro3.poly[3][0] + _ro3.poly[0][0]) / 2,
-                  (_ro3.poly[3][1] + _ro3.poly[0][1]) / 2)
+    # RO3 is now in IW9 (rotated): poly[1]+poly[2] = IW9 west face (toward IW3)
+    _ro3_w_ctr = ((_ro3.poly[1][0] + _ro3.poly[2][0]) / 2,
+                  (_ro3.poly[1][1] + _ro3.poly[2][1]) / 2)
     result.extend([("dim08_A", _o1_e_ctr), ("dim08_B", _ro3_w_ctr)])
 
     # ---- dim10: W2-W5 → IW2-west (horizontal at F5 northing) ----
@@ -773,7 +774,7 @@ def compute_iw_area(layout):
                 layout.iw2.poly, layout.iw2o.poly, layout.iw2s.poly,
                 layout.iw3.poly, layout.iw7.poly, layout.iw9.poly, layout.iw6.poly,
                 layout.iw4.poly, layout.iw11.poly, layout.iw12.poly,
-                layout.iw5.poly, layout.iw16.poly]
+                layout.iw5.poly]
     return sum(poly_area(p) for p in iw_polys)
 
 
@@ -996,7 +997,7 @@ def _render_walls(out, data, layout, bare=False):
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
 
-    # ---- IW9 with RO7 (rotated rectangle, split by opening) ----
+    # ---- IW9 with RO7 and RO3 (rotated rectangle, split by two openings) ----
     _iw9_sw, _iw9_se, _iw9_ne, _iw9_nw = layout.iw9.poly
     # Thickness unit vector: SW - SE direction
     _iw9_dx_t = _iw9_sw[0] - _iw9_se[0]
@@ -1009,60 +1010,58 @@ def _render_walls(out, data, layout, bare=False):
     _iw9_ln = math.sqrt(_iw9_dx_n**2 + _iw9_dy_n**2)
     _iw9_an = (_iw9_dx_n / _iw9_ln, _iw9_dy_n / _iw9_ln)
 
-    # RO7 polygon corners on IW9
+    # RO7 and RO3 polygon corners on IW9
     ro7_ro = [r for r in rough_openings if r.name == "RO7"][0]
     _ro7p = ro7_ro.poly  # [SW, SE, NE, NW]
+    _ro3p = [r for r in rough_openings if r.name == "RO3"][0].poly
 
-    # South segment: IW9 south end to RO7 south edge
+    # Three solid segments: S end→RO7, RO7→RO3, RO3→N end
     iw9_s_poly = [_iw9_sw, _iw9_se, _ro7p[0], _ro7p[1]]
+    iw9_m_poly = [_ro7p[2], _ro7p[3], _ro3p[0], _ro3p[1]]
+    iw9_n_poly = [_ro3p[2], _ro3p[3], _iw9_ne, _iw9_nw]
     wall_poly(out, iw9_s_poly, to_svg, stroke=False)
-    # North segment: RO7 north edge to IW9 north end
-    iw9_n_poly = [_ro7p[2], _ro7p[3], _iw9_ne, _iw9_nw]
+    wall_poly(out, iw9_m_poly, to_svg, stroke=False)
     wall_poly(out, iw9_n_poly, to_svg, stroke=False)
 
-    # Inset stroke lines for south segment
+    _neg_iw9_at = (-_iw9_at[0], -_iw9_at[1])
+    _neg_iw9_an = (-_iw9_an[0], -_iw9_an[1])
+    # Stroke lines for south segment
     for (p1, p2), (ox, oy) in [
-        ((_iw9_se, _ro7p[0]), _iw9_at),     # east face south
-        ((_iw9_sw, _ro7p[1]), (-_iw9_at[0], -_iw9_at[1])),  # west face south
-        ((_iw9_sw, _iw9_se), _iw9_an),      # south end
+        ((_iw9_se, _ro7p[0]), _iw9_at),        # east face south
+        ((_iw9_sw, _ro7p[1]), _neg_iw9_at),    # west face south
+        ((_iw9_sw, _iw9_se), _iw9_an),         # south end
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    # Inset stroke lines for north segment
+    # Stroke lines for middle segment (between RO7 and RO3)
     for (p1, p2), (ox, oy) in [
-        ((_ro7p[3], _iw9_ne), _iw9_at),     # east face north
-        ((_ro7p[2], _iw9_nw), (-_iw9_at[0], -_iw9_at[1])),  # west face north
-        ((_iw9_ne, _iw9_nw), (-_iw9_an[0], -_iw9_an[1])),  # north end
+        ((_ro7p[3], _ro3p[0]), _iw9_at),       # east face middle
+        ((_ro7p[2], _ro3p[1]), _neg_iw9_at),   # west face middle
     ]:
         sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
         sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
         out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
                    f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
-    # Jambs at RO7 edges
-    for (j1, j2) in [(_ro7p[0], _ro7p[1]), (_ro7p[3], _ro7p[2])]:
+    # Stroke lines for north segment
+    for (p1, p2), (ox, oy) in [
+        ((_ro3p[3], _iw9_ne), _iw9_at),        # east face north
+        ((_ro3p[2], _iw9_nw), _neg_iw9_at),    # west face north
+        ((_iw9_ne, _iw9_nw), _neg_iw9_an),     # north end
+    ]:
+        sx1, sy1 = to_svg(p1[0] + half_sw * ox, p1[1] + half_sw * oy)
+        sx2, sy2 = to_svg(p2[0] + half_sw * ox, p2[1] + half_sw * oy)
+        out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" x2="{sx2:.1f}" y2="{sy2:.1f}"'
+                   f' stroke="{WALL_STROKE}" stroke-width="{WALL_SW}"/>')
+    # Jambs at RO7 and RO3 edges
+    for (j1, j2) in [(_ro7p[0], _ro7p[1]), (_ro7p[3], _ro7p[2]),
+                      (_ro3p[0], _ro3p[1]), (_ro3p[3], _ro3p[2])]:
         _jn = (_iw9_an[0] * JAMB_WIDTH, _iw9_an[1] * JAMB_WIDTH)
         j_poly = [j1, j2, (j2[0] + _jn[0], j2[1] + _jn[1]),
                   (j1[0] + _jn[0], j1[1] + _jn[1])]
         jp = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in j_poly)
         out.append(f'<polygon points="{jp}" fill="{JAMB_COLOR}" stroke="none"/>')
-
-    # ---- IW16 with RO3 ----
-    _iw16 = layout.iw16.poly
-    _ro3p = [r for r in rough_openings if r.name == "RO3"][0].poly
-    iw16_s_poly = [_iw16[0], _iw16[1], _ro3p[1], _ro3p[0]]
-    iw16_n_poly = [_ro3p[3], _ro3p[2], _iw16[2], _iw16[3]]
-    wall_poly(out, iw16_s_poly, to_svg, stroke=False)
-    wall_poly(out, iw16_n_poly, to_svg, stroke=False)
-    _wall_stroke(out, _iw16[3], _ro3p[3], half_sw, to_svg)    # west face north
-    _wall_stroke(out, _ro3p[0], _iw16[0], half_sw, to_svg)    # west face south
-    _wall_stroke(out, _iw16[1], _ro3p[1], half_sw, to_svg)    # east face south
-    _wall_stroke(out, _ro3p[2], _iw16[2], half_sw, to_svg)    # east face north
-    _iw16_al, _ = seg_vecs(_iw16[0], _iw16[3])
-    _jamb_poly(out, _ro3p[0], _ro3p[1], _iw16_al, to_svg)
-    _neg_iw16_al = (-_iw16_al[0], -_iw16_al[1])
-    _jamb_poly(out, _ro3p[2], _ro3p[3], _neg_iw16_al, to_svg)
 
     # ---- IW6 with RO5 ---- (omitted in bare)
     if not bare:
@@ -1291,7 +1290,7 @@ def _render_appliances(out, data, layout, minik=False, db=False):
                f' font-size="6" fill="{APPL_STROKE}">HAMPER</text>')
     out.append('</a>')
 
-    # Counter: polygon clipped to W18-W1 south edge, IW3/IW16 west face east edge
+    # Counter: polygon clipped to W18-W1 south edge, IW3 west face east edge
     ctr_poly_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
                             for p in layout.ctr_clip)
     out.append(f'<polygon points="{ctr_poly_svg}"'
@@ -2521,48 +2520,7 @@ def _render_openings(out, data, layout, bare=False):
         out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                    f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO3 door: 36" door, hinged north, swings toward west face (rotation-safe)
-    ro3 = [r for r in rough_openings if r.name == "RO3"][0]
-    # Length direction: poly[0]→poly[3] (SW→NW)
-    _ro3_dx = ro3.poly[3][0] - ro3.poly[0][0]
-    _ro3_dy = ro3.poly[3][1] - ro3.poly[0][1]
-    _ro3_len = math.sqrt(_ro3_dx**2 + _ro3_dy**2)
-    _ro3_len_u = (_ro3_dx / _ro3_len, _ro3_dy / _ro3_len)
-    # End edge midpoint (north): midpoint of poly[2] and poly[3]
-    _ro3_end = ((ro3.poly[2][0] + ro3.poly[3][0]) / 2,
-                (ro3.poly[2][1] + ro3.poly[3][1]) / 2)
-    # Swing direction (toward west face): NE→NW = poly[2]→poly[3]
-    _ro3_sw_dx = ro3.poly[3][0] - ro3.poly[2][0]
-    _ro3_sw_dy = ro3.poly[3][1] - ro3.poly[2][1]
-    _ro3_sw_len = math.sqrt(_ro3_sw_dx**2 + _ro3_sw_dy**2)
-    _ro3_swing = (_ro3_sw_dx / _ro3_sw_len, _ro3_sw_dy / _ro3_sw_len)
-    ro3_gap = (_ro3_len - RO3_DOOR_WIDTH) / 2
-    hinge = (_ro3_end[0] - ro3_gap * _ro3_len_u[0],
-             _ro3_end[1] - ro3_gap * _ro3_len_u[1])
-    hx, hy = to_svg(*hinge)
-    tip = (hinge[0] + RO3_DOOR_WIDTH * _ro3_swing[0],
-           hinge[1] + RO3_DOOR_WIDTH * _ro3_swing[1])
-    tx, ty = to_svg(*tip)
-    out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
-               f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (swing) sweeping 90° to closed (-length direction)
-    n_arc = 20
-    arc_pts = []
-    for i in range(n_arc + 1):
-        frac = i / n_arc
-        _cos_f = math.cos(frac * math.pi / 2)
-        _sin_f = math.sin(frac * math.pi / 2)
-        ae = hinge[0] + RO3_DOOR_WIDTH * (_cos_f * _ro3_swing[0] - _sin_f * _ro3_len_u[0])
-        an = hinge[1] + RO3_DOOR_WIDTH * (_cos_f * _ro3_swing[1] - _sin_f * _ro3_len_u[1])
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
-               f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
-
-    # RO7 double door: 2×30" doors in IW9 (rotated), hinged at outer edges, open east
-    ro7 = [r for r in rough_openings if r.name == "RO7"][0]
-    _ro7p = ro7.poly  # [SW, SE, NE, NW]
-    # IW9 unit vectors
+    # IW9 unit vectors (shared by RO3 and RO7 doors)
     _i9_sw, _i9_se, _i9_ne, _i9_nw = layout.iw9.poly
     _i9_dx_n = _i9_ne[0] - _i9_se[0]; _i9_dy_n = _i9_ne[1] - _i9_se[1]
     _i9_ln = math.sqrt(_i9_dx_n**2 + _i9_dy_n**2)
@@ -2570,10 +2528,40 @@ def _render_openings(out, data, layout, bare=False):
     _i9_dx_t = _i9_sw[0] - _i9_se[0]; _i9_dy_t = _i9_sw[1] - _i9_se[1]
     _i9_lt = math.sqrt(_i9_dx_t**2 + _i9_dy_t**2)
     _i9_at = (_i9_dx_t / _i9_lt, _i9_dy_t / _i9_lt)  # SE→SW (across thickness)
-    _ro7_gap = (IW9_RO_WIDTH - 2 * RO7_DOOR_WIDTH) / 2
-    # East direction = -_i9_at
     _east_ang = math.atan2(-_i9_at[1], -_i9_at[0])
-    n_arc = 20
+
+    # RO3 door: 36" door in IW9 (rotated), hinged at north edge, swings east
+    ro3 = [r for r in rough_openings if r.name == "RO3"][0]
+    _ro3p_d = ro3.poly  # [SW, SE, NE, NW] in IW9 orientation
+    _ro3_gap = (math.sqrt((_ro3p_d[3][0] - _ro3p_d[0][0])**2 +
+                           (_ro3p_d[3][1] - _ro3p_d[0][1])**2) - RO3_DOOR_WIDTH) / 2
+    # North edge center: midpoint of NW (poly[3]) and NE (poly[2])
+    _ro3_n_ctr = ((_ro3p_d[3][0] + _ro3p_d[2][0]) / 2,
+                  (_ro3p_d[3][1] + _ro3p_d[2][1]) / 2)
+    h_ro3 = (_ro3_n_ctr[0] - _ro3_gap * _i9_an[0],
+             _ro3_n_ctr[1] - _ro3_gap * _i9_an[1])
+    hx, hy = to_svg(*h_ro3)
+    # Open position: east (-_i9_at direction)
+    tip_ro3 = (h_ro3[0] - RO3_DOOR_WIDTH * _i9_at[0],
+               h_ro3[1] - RO3_DOOR_WIDTH * _i9_at[1])
+    tx, ty = to_svg(*tip_ro3)
+    out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
+               f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
+    # Arc from east (open) sweeping CW to SSW (closed toward center)
+    arc_pts = []
+    for i in range(n_arc + 1):
+        angle = _east_ang - i * (math.pi / 2) / n_arc
+        ae = h_ro3[0] + RO3_DOOR_WIDTH * math.cos(angle)
+        an = h_ro3[1] + RO3_DOOR_WIDTH * math.sin(angle)
+        sx, sy = to_svg(ae, an)
+        arc_pts.append(f"{sx:.1f},{sy:.1f}")
+    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+               f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
+
+    # RO7 double door: 2×24" doors in IW9 (rotated), hinged at outer edges, open east
+    ro7 = [r for r in rough_openings if r.name == "RO7"][0]
+    _ro7p = ro7.poly  # [SW, SE, NE, NW]
+    _ro7_gap = (IW9_RO_WIDTH - 2 * RO7_DOOR_WIDTH) / 2
     # South door: hinged at south edge (east face), swings east
     _ro7_s_ctr = ((_ro7p[0][0] + _ro7p[1][0]) / 2, (_ro7p[0][1] + _ro7p[1][1]) / 2)
     h_s = (_ro7_s_ctr[0] + _ro7_gap * _i9_an[0], _ro7_s_ctr[1] + _ro7_gap * _i9_an[1])

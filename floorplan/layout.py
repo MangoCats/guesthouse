@@ -15,7 +15,7 @@ from floorplan.constants import (
     IW1_OFFSET_FROM_W9, IW1_OFFSET_FROM_W2,
     IW2_DIST_W2W5, IW2_LENGTH, IW2S_W2REF_OFFSET, IW2S_LENGTH, IW2O_THICKNESS,
     IW3_LENGTH, IW3_OFFSET_IW9, IW3_DIST_W2W5,
-    IW9_LENGTH,
+    IW7_OFFSET_FROM_W18W1,
     IW4_GAP_IW11,
     IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
     IW8_OFFSET_FROM_W18W1,
@@ -79,7 +79,6 @@ class InteriorLayout(NamedTuple):
     iw9: Wall
     iw11: Wall
     iw12: Wall
-    iw16: Wall
     # Appliances & furniture
     dryer: Wall
     washer: Wall
@@ -111,7 +110,8 @@ def _compute_segment_vectors(pts):
     )
 
 
-def _compute_south_walls(pts, w18w1, w2w5, iw4_sw, iw11_sw, iw11_se):
+def _compute_south_walls(pts, w18w1, w2w5, iw4_sw, iw11_sw, iw11_se,
+                         iw1_sw, iw1_se):
     """Compute walls along the south (W18-W1) wall: bed, IW9, IW3, IW7.
 
     Returns (bed, iw9, iw3, iw7, opening_params) where opening_params is
@@ -147,17 +147,18 @@ def _compute_south_walls(pts, w18w1, w2w5, iw4_sw, iw11_sw, iw11_se):
     iw3_ne = _offset(iw3_se, IW3_LENGTH, w18w1_in)
     iw3_nw = _offset(iw3_sw, IW3_LENGTH, w18w1_in)
 
-    # --- IW9 (IW3_OFFSET_IW9 from IW3 east face, toward W18) ---
+    # --- IW9 (IW3_OFFSET_IW9 from IW3 east face, extends to IW1 S face) ---
     iw9_sw = _offset(iw3_se, -IW3_OFFSET_IW9, w18w1_al)
     iw9_se = _offset(iw9_sw, -WALL_4IN, w18w1_al)
-    iw9_ne = _offset(iw9_se, IW9_LENGTH, w18w1_in)
-    iw9_nw = _offset(iw9_sw, IW9_LENGTH, w18w1_in)
+    _iw1_s_dir = (iw1_se[0] - iw1_sw[0], iw1_se[1] - iw1_sw[1])
+    iw9_ne = line_isect(iw9_se, w18w1_in, iw1_sw, _iw1_s_dir)
+    iw9_nw = line_isect(iw9_sw, w18w1_in, iw1_sw, _iw1_s_dir)
 
-    # --- IW7 ---
-    iw7_nw = iw3_ne
-    iw7_ne = _offset(iw7_nw, -IW3_OFFSET_IW9, w18w1_al)
-    iw7_sw = _offset(iw7_nw, -WALL_4IN, w18w1_in)
-    iw7_se = _offset(iw7_ne, -WALL_4IN, w18w1_in)
+    # --- IW7 (6' from W18-W1 to S face, spans IW3 east → IW9 west) ---
+    iw7_sw = _offset(iw3_se, IW7_OFFSET_FROM_W18W1, w18w1_in)
+    iw7_se = _offset(iw9_sw, IW7_OFFSET_FROM_W18W1, w18w1_in)
+    iw7_nw = _offset(iw7_sw, WALL_4IN, w18w1_in)
+    iw7_ne = _offset(iw7_se, WALL_4IN, w18w1_in)
 
     return (
         _make_wall([bed_sw, bed_se, bed_ne, bed_nw]),
@@ -286,25 +287,17 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     (bed, iw9, iw3, iw7,
      (_ts9, _te9, _ts10, _te10, _ts11, _te11)) = _compute_south_walls(
         pts, (_w18w1_al, _w18w1_in), (_w2w5_al, _w2w5_in),
-        iw4_sw, iw11_sw, iw11_se)
+        iw4_sw, iw11_sw, iw11_se, iw1_sw, iw1_se)
     iw3_sw, iw3_nw = iw3.poly[0], iw3.poly[3]
 
-    # --- IW16 ---
-    _iw16_w_anchor = iw3_nw
-    _iw16_e_anchor = _offset(_iw16_w_anchor, WALL_4IN, _iw_in)
-    _iw16_t_n = _proj(iw1_sw, _iw16_w_anchor, _iw_al)
-    iw16_nw = _offset(_iw16_w_anchor, _iw16_t_n, _iw_al)
-    iw16_ne = _offset(_iw16_e_anchor, _iw16_t_n, _iw_al)
-
-    # Counter clip polygon (south edge follows W18-W1, east clipped at IW3/IW16)
+    # Counter clip polygon (south edge follows W18-W1, east clipped at IW3 west face)
     _ctr_poly_sw = line_isect(_ctr_sw_anchor, _w2w5_al, pts["W18"], _w18w1_al)
     _iw3_w_dir = _w18w1_in
     _ctr_vs_iw3 = _proj(ctr_nw, iw3_nw, _w2w5_al)
+    _ctr_ne_clip = line_isect(ctr_nw, _w2w5_in, iw3_sw, _iw3_w_dir)
     if _ctr_vs_iw3 > 0:
-        _ctr_ne_clip = line_isect(ctr_nw, _w2w5_in, _iw16_w_anchor, _iw_al)
         ctr_clip = [ctr_nw, _ctr_ne_clip, iw3_nw, iw3_sw, _ctr_poly_sw]
     else:
-        _ctr_ne_clip = line_isect(ctr_nw, _w2w5_in, iw3_sw, _iw3_w_dir)
         ctr_clip = [ctr_nw, _ctr_ne_clip, iw3_sw, _ctr_poly_sw]
 
     # --- IW8 (perpendicular to W2-W5, 12' from W18-W1; west at W2-W5, east at IW1) ---
@@ -358,7 +351,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         iw9=iw9,
         iw11=_make_wall([iw11_sw, iw11_se, iw11_ne, iw11_nw]),
         iw12=_make_wall([iw12_sw, iw12_se, iw12_ne, iw12_nw]),
-        iw16=_make_wall([_iw16_w_anchor, _iw16_e_anchor, iw16_ne, iw16_nw]),
         dryer=_make_wall([_dryer_sw, _dryer_se, _dryer_ne, _dryer_nw]),
         washer=_make_wall([_washer_sw, _washer_se, _washer_ne, _washer_nw]),
         ctr=_make_wall([ctr_sw, ctr_se, ctr_ne, ctr_nw]),

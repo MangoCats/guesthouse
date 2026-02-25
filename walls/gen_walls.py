@@ -296,12 +296,7 @@ def _render_interior_walls(out, data):
     # IW9 (rotated, 4" thick, perpendicular to W18-W1)
     iw_poly(layout.iw9.poly)
     iw_label("IW9", layout.iw9.w, layout.iw9.e,
-             (layout.iw9.s + ro_map["RO7"].n) / 2, layout.iw9.n)
-
-    # IW16 (vertical, 4" — IW3 NW to IW1)
-    iw_poly(layout.iw16.poly)
-    _iw16 = layout.iw16.poly
-    iw_label("IW16", _iw16[0][0], _iw16[1][0], _iw16[0][1], _iw16[2][1])
+             ro_map["RO7"].n, ro_map["RO3"].s)
 
     # IW6 (horizontal, 1" partition)
     iw_poly(layout.iw6.poly)
@@ -393,11 +388,6 @@ def _render_interior_walls(out, data):
             lx, ly = to_svg((b.w + b.e) / 2, b.n)
             ly -= LABEL_GAP
             rot = ""
-        elif ro.name == "RO3":
-            # RO3: label on east side to avoid IW16/IW3 overlap
-            lx, ly = to_svg(b.e, (b.s + b.n) / 2)
-            lx += LABEL_GAP
-            rot = f' transform="rotate(-90 {lx:.1f} {ly:.1f})"'
         else:
             # Vertical opening: label centered left (west)
             lx, ly = to_svg(b.w, (b.s + b.n) / 2)
@@ -845,7 +835,6 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
         ("IW9",  4, _poly_len(layout.iw9.poly), True),
         ("IW11", 4, _poly_len(layout.iw11.poly), True),
         ("IW12", 4, _poly_len(layout.iw12.poly), False),
-        ("IW16", 4, _poly_len(layout.iw16.poly), True),
     ]
 
     iw_tbl_top = tbl_border_bottom + 14

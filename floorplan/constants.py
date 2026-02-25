@@ -91,9 +91,9 @@ IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W18-W1
 IW3_DIST_W2W5 = 102.0 / 12.0     # 8'6" from W2-W5 to IW3 west face
 
 # IW7 (parallel to W18-W1, 4" thick, between IW3 and IW9)
+IW7_OFFSET_FROM_W18W1 = 6.0          # 6' from W18-W1 to IW7 south face
 
-# IW9 (perpendicular to W18-W1, 4" thick)
-IW9_LENGTH = 80.0 / 12.0            # 80" (6'8") IW9 length, same as IW3
+# IW9 (perpendicular to W18-W1, 4" thick — extends from W18-W1 to IW1 S face)
 IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W18-W1
 
 # IW11 (4" thick, N-S)
@@ -102,10 +102,11 @@ IW9_IW11_GAP = 12.0                  # 12' from IW9 east face to IW11 west face
 # IW12 (4" thick, perpendicular to IW11)
 IW12_OFFSET_IW11 = 6.0              # 6' from IW11 SW to IW12 base
 IW12_SHORTEN = 4.0 / 12.0           # 4" IW12 west-end setback
-IW9_RO_WIDTH = 62.0 / 12.0          # 62" opening width along IW9 (RO7)
+IW9_RO_WIDTH = 50.0 / 12.0          # 50" opening width along IW9 (RO7)
 
-# IW16 rough opening
-IW16_RO_WIDTH = 38.0 / 12.0         # 38" opening width N-S
+# RO3 (in IW9)
+RO3_WIDTH = 38.0 / 12.0             # 38" opening width along IW9
+RO3_IW7_GAP = 5.0 / 12.0           # 5" from IW7 N face to RO3 south edge
 
 # IW4 rough opening
 IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
@@ -148,7 +149,7 @@ RO3_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO3
 RO4_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO4
 RO5_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO5
 RO6_DOOR_WIDTH = 30.0 / 12.0       # 30" door leaf in RO6 (double door, 2×30")
-RO7_DOOR_WIDTH = 30.0 / 12.0       # 30" door leaf in RO7 (double door, 2×30")
+RO7_DOOR_WIDTH = 24.0 / 12.0       # 24" door leaf in RO7 (double door, 2×24")
 # Shell construction: 2" shell / gap / 2" shell
 AIR_GAP = WALL_OUTER - 2 * SHELL_THICKNESS  # air gap between shells
 OPENING_INSIDE_RADIUS = 10.0 / 304.8  # 10mm inside corner radius at openings

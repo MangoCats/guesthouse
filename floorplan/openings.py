@@ -17,8 +17,10 @@ from floorplan.constants import (
     STD_GAP,
     RO1_OFFSET_FROM_IW2, IW1_RO_WIDTH,
     IW2_RO_WIDTH,
-    IW4_RO_WIDTH, IW9_RO_WIDTH, IW11_RO_WIDTH, IW16_RO_WIDTH,
+    IW4_RO_WIDTH, IW9_RO_WIDTH, IW11_RO_WIDTH,
+    RO3_WIDTH, RO3_IW7_GAP,
     IW6_RO_OFFSET_W, IW6_RO_WIDTH,
+    WALL_4IN,
 )
 
 
@@ -57,9 +59,18 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
 
     # O1: F2-F5, centered at RO3 center normal projection onto W2-W5
     _dE1, _dN1, _seg1_len = seg_vec(pts["F2"], pts["F5"])
-    # RO3 center = IW16 polygon center (RO3 is centered on IW16)
-    _ro3_ctr = ((layout.iw16.poly[0][0] + layout.iw16.poly[2][0]) / 2,
-                (layout.iw16.poly[0][1] + layout.iw16.poly[2][1]) / 2)
+    # RO3 center on IW9: IW7 N face + RO3_IW7_GAP + RO3_WIDTH/2 along IW9
+    _iw9_se, _iw9_ne = layout.iw9.poly[1], layout.iw9.poly[2]
+    _iw9_sw = layout.iw9.poly[0]
+    _dx9c, _dy9c, _len9c = seg_vec(_iw9_se, _iw9_ne)
+    _un9c = (_dx9c / _len9c, _dy9c / _len9c)
+    _iw7_ne = layout.iw7.poly[2]
+    _ro3_iw7_n_d = ((_iw7_ne[0] - _iw9_se[0]) * _un9c[0]
+                    + (_iw7_ne[1] - _iw9_se[1]) * _un9c[1])
+    _ro3_ctr_d = _ro3_iw7_n_d + RO3_IW7_GAP + RO3_WIDTH / 2
+    _iw9_mid_s = ((_iw9_sw[0] + _iw9_se[0]) / 2, (_iw9_sw[1] + _iw9_se[1]) / 2)
+    _ro3_ctr = (_iw9_mid_s[0] + _ro3_ctr_d * _un9c[0],
+                _iw9_mid_s[1] + _ro3_ctr_d * _un9c[1])
     # Normal projection of RO3 center onto W2-W5 line
     _dW1 = (pts["W5"][0] - pts["W2"][0], pts["W5"][1] - pts["W2"][1])
     _dW1_sq = _dW1[0]**2 + _dW1[1]**2
@@ -310,23 +321,25 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     _ro7_bb = BBox(w=min(p[0] for p in _ro7_poly), s=min(p[1] for p in _ro7_poly),
                    e=max(p[0] for p in _ro7_poly), n=max(p[1] for p in _ro7_poly))
 
-    # RO3: in IW16, centered along IW16 length
-    _iw16_sw, _iw16_se = layout.iw16.poly[0], layout.iw16.poly[1]
-    _iw16_nw = layout.iw16.poly[3]
-    _dx16, _dy16, _len16 = seg_vec(_iw16_sw, _iw16_nw)
-    _un16_al = (_dx16 / _len16, _dy16 / _len16)  # unit along IW16 length
-    _ro3_center_d = _len16 / 2
-    _ro3_half = IW16_RO_WIDTH / 2
-    _ro3_start_d = _ro3_center_d - _ro3_half
-    _ro3_end_d = _ro3_center_d + _ro3_half
-    _ro3_sw = (_iw16_sw[0] + _ro3_start_d * _un16_al[0],
-               _iw16_sw[1] + _ro3_start_d * _un16_al[1])
-    _ro3_se = (_iw16_se[0] + _ro3_start_d * _un16_al[0],
-               _iw16_se[1] + _ro3_start_d * _un16_al[1])
-    _ro3_ne = (_iw16_se[0] + _ro3_end_d * _un16_al[0],
-               _iw16_se[1] + _ro3_end_d * _un16_al[1])
-    _ro3_nw = (_iw16_sw[0] + _ro3_end_d * _un16_al[0],
-               _iw16_sw[1] + _ro3_end_d * _un16_al[1])
+    # RO3: in IW9 (rotated), south edge 5" N of IW7 N face
+    _iw9r_se, _iw9r_ne = layout.iw9.poly[1], layout.iw9.poly[2]
+    _iw9r_sw = layout.iw9.poly[0]
+    _dx9r, _dy9r, _len9r = seg_vec(_iw9r_se, _iw9r_ne)
+    _un9r = (_dx9r / _len9r, _dy9r / _len9r)  # unit along IW9 length (NNE)
+    # IW7 NE corner projected onto IW9 length axis = IW7 north face position
+    _iw7r_ne = layout.iw7.poly[2]
+    _ro3_iw7_n_d = ((_iw7r_ne[0] - _iw9r_se[0]) * _un9r[0]
+                    + (_iw7r_ne[1] - _iw9r_se[1]) * _un9r[1])
+    _ro3_start_d = _ro3_iw7_n_d + RO3_IW7_GAP
+    _ro3_end_d = _ro3_start_d + RO3_WIDTH
+    _ro3_sw = (_iw9r_se[0] + _ro3_start_d * _un9r[0],
+               _iw9r_se[1] + _ro3_start_d * _un9r[1])
+    _ro3_se = (_iw9r_sw[0] + _ro3_start_d * _un9r[0],
+               _iw9r_sw[1] + _ro3_start_d * _un9r[1])
+    _ro3_ne = (_iw9r_sw[0] + _ro3_end_d * _un9r[0],
+               _iw9r_sw[1] + _ro3_end_d * _un9r[1])
+    _ro3_nw = (_iw9r_se[0] + _ro3_end_d * _un9r[0],
+               _iw9r_se[1] + _ro3_end_d * _un9r[1])
     _ro3_poly = [_ro3_sw, _ro3_se, _ro3_ne, _ro3_nw]
     _ro3_bb = BBox(w=min(p[0] for p in _ro3_poly), s=min(p[1] for p in _ro3_poly),
                    e=max(p[0] for p in _ro3_poly), n=max(p[1] for p in _ro3_poly))
@@ -388,7 +401,7 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     return [
         RoughOpening("RO1", _ro1_bb, "IW1", "H", _ro1_poly),
         RoughOpening("RO2", _ro2_bb, "IW11", "R", _ro2_poly),
-        RoughOpening("RO3", _ro3_bb, "IW16", "V", _ro3_poly),
+        RoughOpening("RO3", _ro3_bb, "IW9", "R", _ro3_poly),
         RoughOpening("RO4", _ro4_bb, "IW2o", "R", _ro4_poly),
         RoughOpening("RO5", _ro5_bb, "IW6", "H", _ro5_poly),
         RoughOpening("RO6", _ro6_bb, "IW11", "R", _ro6_poly),

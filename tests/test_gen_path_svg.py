@@ -117,6 +117,6 @@ class TestRenderFloorplan:
             all_data["outer_poly"], all_data["inner_poly"],
             all_data["inner_segs"], all_data["layout"])
         joined = "\n".join(lines)
-        # 12 IW polygons + 1 wall band path = 13 uses of the wall fill
+        # 11 IW polygons + 1 wall band path = 12 uses of the wall fill
         iw_polys = re.findall(r'<polygon[^>]*fill="rgba\(160,160,160,0\.5\)"', joined)
-        assert len(iw_polys) == 12
+        assert len(iw_polys) == 11
