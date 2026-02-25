@@ -336,7 +336,7 @@ def render_site_plan(sp, corners=True):
     fc_pdf = building_to_pdf(*pts["FC"])
     _char_w = fitz.get_text_length("M", fontname="helv", fontsize=BLDG_LABEL_FS)
     label_pdf = (fc_pdf[0] + 0.25 * _char_w, fc_pdf[1] + 5.0 * SCALE - 1.5 * BLDG_LABEL_FS)
-    label_lines = ["PROPOSED", "950SF", "MAX", "ADU"]
+    label_lines = ["PROPOSED", "950SF MAX", "ADU"]
     label_lh = BLDG_LABEL_FS * 1.15
     block_h = label_lh * len(label_lines)
     start_y = label_pdf[1] - block_h / 2.0 + BLDG_LABEL_FS
