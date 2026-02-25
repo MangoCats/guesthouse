@@ -333,10 +333,9 @@ def render_site_plan(sp, corners=True):
                    f"{sp.ns_dim_ft:.1f}'", COLOR_PROPOSED)
 
     # --- "PROPOSED 950SF MAX ADU" label ---
-    _cx = sum(p[0] for p in sp.inner_poly) / len(sp.inner_poly)
-    _cy = sum(p[1] for p in sp.inner_poly) / len(sp.inner_poly)
-    label_pdf_raw = building_to_pdf(_cx, _cy + 2.0)
-    label_pdf = (label_pdf_raw[0], label_pdf_raw[1] + 5.0 * SCALE)
+    fc_pdf = building_to_pdf(*pts["FC"])
+    _char_w = fitz.get_text_length("M", fontname="helv", fontsize=BLDG_LABEL_FS)
+    label_pdf = (fc_pdf[0] + 2 * _char_w, fc_pdf[1] + 5.0 * SCALE)
     label_lines = ["PROPOSED", "950SF", "MAX", "ADU"]
     label_lh = BLDG_LABEL_FS * 1.15
     block_h = label_lh * len(label_lines)
