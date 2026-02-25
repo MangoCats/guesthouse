@@ -26,9 +26,9 @@ CORNER_NE = LINE_TOP   # 251.53' meets 216.73'
 CORNER_SE = LINE_BOT   # 216.73' meets 275.08'
 CORNER_SW = BOT_LEFT   # 275.08' meets 163.69'
 
-# FC (building center) distances from property lines (feet)
-FC_DIST_216 = 29.097863567855153  # FC distance from 216.73' line
-FC_DIST_275 = 45.786428974476834  # FC distance from 275.08' line
+# Placement constraints: survey point distances from property lines (feet)
+P45_DIST_216 = 11.0    # P4/P5 tangent-normal distance from 216.73' line
+P3_DIST_275 = 25.5     # P3 tangent-normal distance from 275.08' line
 
 # Existing FRAME & STONE RESIDENCE lower-right corner (14.4'/28.2' wall midline isect)
 RESIDENCE_LR = (661.35, 380.80)
@@ -112,31 +112,37 @@ def build_site_plan_data():
 
     # F15 is the reference point for placement
     f15 = pts["F15"]
-    fc = pts["FC"]
 
     # --- Constraint-based placement (2×2 linear system) ---
     # After rotation, each building point has a fixed PDF offset from F15.
     # Unknowns: f15_pdf_x, f15_pdf_y (F15's position on the PDF page).
-    # Constraints use FC (building center) distances from property lines.
+    # Constraints use P4/P5 and P3 distances from property lines.
 
-    # PDF offset of FC from F15 (fixed after rotation)
-    off_fc_x = ((fc[0] - f15[0]) * cos_r - (fc[1] - f15[1]) * sin_r) * SCALE
-    off_fc_y = -((fc[0] - f15[0]) * sin_r + (fc[1] - f15[1]) * cos_r) * SCALE
+    p4 = pts["P4"]
+    p3 = pts["P3"]
 
-    # Constraint A: FC is FC_DIST_216 inside the 216.73' line.
+    # PDF offset of P4 from F15 (fixed after rotation)
+    off_p4_x = ((p4[0] - f15[0]) * cos_r - (p4[1] - f15[1]) * sin_r) * SCALE
+    off_p4_y = -((p4[0] - f15[0]) * sin_r + (p4[1] - f15[1]) * cos_r) * SCALE
+
+    # PDF offset of P3 from F15 (fixed after rotation)
+    off_p3_x = ((p3[0] - f15[0]) * cos_r - (p3[1] - f15[1]) * sin_r) * SCALE
+    off_p3_y = -((p3[0] - f15[0]) * sin_r + (p3[1] - f15[1]) * cos_r) * SCALE
+
+    # Constraint A: P4 is P45_DIST_216 inside the 216.73' line.
     # Signed distance to left of LINE_TOP→LINE_BOT = property interior.
     a1 = -ldy / llen
     b1 = ldx / llen
-    c1 = (FC_DIST_216 * SCALE
-          + a1 * (LINE_TOP[0] - off_fc_x) + b1 * (LINE_TOP[1] - off_fc_y))
+    c1 = (P45_DIST_216 * SCALE
+          + a1 * (LINE_TOP[0] - off_p4_x) + b1 * (LINE_TOP[1] - off_p4_y))
 
-    # Constraint B: FC is FC_DIST_275 inside the 275.08' line.
+    # Constraint B: P3 is P3_DIST_275 inside the 275.08' line.
     # Direction BOT_LEFT→LINE_BOT; interior is to the right.
     bdx, bdy, blen = _LINE_275_DX, _LINE_275_DY, _LINE_275_LEN
     a2 = bdy / blen
     b2 = -bdx / blen
-    c2 = (FC_DIST_275 * SCALE
-          + a2 * (BOT_LEFT[0] - off_fc_x) + b2 * (BOT_LEFT[1] - off_fc_y))
+    c2 = (P3_DIST_275 * SCALE
+          + a2 * (BOT_LEFT[0] - off_p3_x) + b2 * (BOT_LEFT[1] - off_p3_y))
 
     # Solve: a1*fx + b1*fy = c1,  a2*fx + b2*fy = c2
     det = a1 * b2 - a2 * b1
@@ -341,7 +347,7 @@ def render_site_plan(sp, corners=True):
             fitz.Point(label_pdf[0] - lw / 2.0, start_y + i * label_lh),
             line, fontname="helv", fontsize=BLDG_LABEL_FS, color=COLOR_PROPOSED)
 
-    # --- 11.5' setback caption (from 216.73' line) ---
+    # --- Setback caption (from 216.73' line) ---
     f16_pdf = building_to_pdf(*pts["F16"])
     f17_pdf = building_to_pdf(*pts["F17"])
     mid_f16f17 = ((f16_pdf[0] + f17_pdf[0]) / 2.0,
