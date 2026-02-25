@@ -2103,25 +2103,17 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                text_rot=_svg_angle(_neg_w16w17_al))
 
     # Room labels — use polygon face midpoints for rotation-safe positioning
-    # BEDROOM: 11'7" east of IW2 east face, midway between ctr south and IW1 south
-    _iw2_e_mid = ((layout.iw2.poly[1][0] + layout.iw2.poly[2][0]) / 2,
-                  (layout.iw2.poly[1][1] + layout.iw2.poly[2][1]) / 2)
-    _, _iw2_e_out = seg_vecs(layout.iw2.poly[1], layout.iw2.poly[2])
-    _bd_ew = offset_pt(_iw2_e_mid, 139.0 / 12.0, _iw2_e_out)
-    _ctr_s_mid = ((layout.ctr.poly[0][0] + layout.ctr.poly[1][0]) / 2,
-                  (layout.ctr.poly[0][1] + layout.ctr.poly[1][1]) / 2)
-    _iw1_s_mid_r = ((layout.iw1.poly[0][0] + layout.iw1.poly[1][0]) / 2,
-                    (layout.iw1.poly[0][1] + layout.iw1.poly[1][1]) / 2)
-    _bd_ns = ((_ctr_s_mid[0] + _iw1_s_mid_r[0]) / 2,
-              (_ctr_s_mid[1] + _iw1_s_mid_r[1]) / 2)
-    # Project _bd_ns onto _iw1_n_out direction from _bd_ew
-    _bd_ns_d = ((_bd_ns[0] - _bd_ew[0]) * _iw1_n_out[0] +
-                (_bd_ns[1] - _bd_ew[1]) * _iw1_n_out[1])
-    bd_cx = _bd_ew[0] + _bd_ns_d * _iw1_n_out[0]
-    bd_cy = _bd_ew[1] + _bd_ns_d * _iw1_n_out[1]
-    bdx, bdy = to_svg(bd_cx, bd_cy)
-    out.append(f'<text x="{bdx:.1f}" y="{bdy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="8" fill="#666">BEDROOM</text>')
+    # BEDROOM: right edge at W end of RO1, top at N end of RO3
+    _ro_list = compute_rough_openings(pts, layout)
+    _ro1_bd = [r for r in _ro_list if r.name == "RO1"][0].poly
+    _ro3_bd = [r for r in _ro_list if r.name == "RO3"][0].poly
+    _ro1_w_mid = ((_ro1_bd[0][0] + _ro1_bd[3][0]) / 2,
+                  (_ro1_bd[0][1] + _ro1_bd[3][1]) / 2)
+    _ro3_n_mid = ((_ro3_bd[2][0] + _ro3_bd[3][0]) / 2,
+                  (_ro3_bd[2][1] + _ro3_bd[3][1]) / 2)
+    bdx, bdy = to_svg(_ro1_w_mid[0], _ro3_n_mid[1])
+    out.append(f'<text x="{bdx:.1f}" y="{bdy:.1f}" text-anchor="end" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
 
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
@@ -2129,6 +2121,10 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     _of_ew = ((_iw4_e_mid[0] + pts["W15"][0]) / 2,
               (_iw4_e_mid[1] + pts["W15"][1]) / 2)
     # N-S: offset ctr south face by 5'+WALL_3IN, midpoint with IW1 south, adjust by -2'+8"
+    _ctr_s_mid = ((layout.ctr.poly[0][0] + layout.ctr.poly[1][0]) / 2,
+                  (layout.ctr.poly[0][1] + layout.ctr.poly[1][1]) / 2)
+    _iw1_s_mid_r = ((layout.iw1.poly[0][0] + layout.iw1.poly[1][0]) / 2,
+                    (layout.iw1.poly[0][1] + layout.iw1.poly[1][1]) / 2)
     _ctr_offset = offset_pt(_ctr_s_mid, 5.0 + WALL_3IN, _iw1_n_out)
     _of_ns = ((_ctr_offset[0] + _iw1_s_mid_r[0]) / 2,
               (_ctr_offset[1] + _iw1_s_mid_r[1]) / 2)
