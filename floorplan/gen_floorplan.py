@@ -752,6 +752,13 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim19_B", line_isect(layout.iw8.poly[0], _iw8_s_al,
                                          _o11_ic, _ns)))
 
+    # ---- dim22: IW12-north-mid → IW5-south (rotated, perp to W18-W1) ----
+    _iw12_n_mid = ((layout.iw12.poly[2][0] + layout.iw12.poly[3][0]) / 2,
+                   (layout.iw12.poly[2][1] + layout.iw12.poly[3][1]) / 2)
+    result.append(("dim22_A", _iw12_n_mid))
+    result.append(("dim22_B", line_isect(_iw12_n_mid, _w18w1_in,
+                                         layout.iw5.poly[0], _iw5_s_al)))
+
     # ---- Bare-only dimensions ----
     if bare:
         # dim20: IW2-east → W14 (horizontal at W14 northing)
@@ -2238,6 +2245,10 @@ def _render_dimensions(out, data, layout, bare=False):
     # dim19: O11 → IW8-south
     _rotated_dim(out, ep["dim19_A"], ep["dim19_B"],
                  fmt_dist(_edist(ep["dim19_A"], ep["dim19_B"])), to_svg)
+
+    # dim22: IW12-north-mid → IW5-south (rotated)
+    _rotated_dim(out, ep["dim22_A"], ep["dim22_B"],
+                 fmt_dist(_edist(ep["dim22_A"], ep["dim22_B"])), to_svg)
 
     # Bare-only dimensions
     if bare:
