@@ -206,19 +206,19 @@ def _compute_door_tips(pts, layout, outer_openings, rough_openings):
     _i9_lt = math.sqrt(_i9_dx_t**2 + _i9_dy_t**2)
     _i9_at = (_i9_dx_t / _i9_lt, _i9_dy_t / _i9_lt)
 
-    # RO3 door tip: in IW9, hinged at north edge, swings east
+    # RO3 door tip: in IW9, hinged at south edge, swings west
     ro3 = [r for r in rough_openings if r.name == "RO3"][0]
     _ro3_dx_l = ro3.poly[3][0] - ro3.poly[0][0]
     _ro3_dy_l = ro3.poly[3][1] - ro3.poly[0][1]
     _ro3_len = math.sqrt(_ro3_dx_l**2 + _ro3_dy_l**2)
     _ro3_gap = (_ro3_len - RO3_DOOR_WIDTH) / 2
-    _ro3_n_ctr = ((ro3.poly[3][0] + ro3.poly[2][0]) / 2,
-                  (ro3.poly[3][1] + ro3.poly[2][1]) / 2)
-    _ro3_hinge = (_ro3_n_ctr[0] - _ro3_gap * _i9_an[0],
-                  _ro3_n_ctr[1] - _ro3_gap * _i9_an[1])
+    _ro3_s_ctr = ((ro3.poly[0][0] + ro3.poly[1][0]) / 2,
+                  (ro3.poly[0][1] + ro3.poly[1][1]) / 2)
+    _ro3_hinge = (_ro3_s_ctr[0] + _ro3_gap * _i9_an[0],
+                  _ro3_s_ctr[1] + _ro3_gap * _i9_an[1])
     tips.append(("RO3_door_tip",
-                 (_ro3_hinge[0] - RO3_DOOR_WIDTH * _i9_at[0],
-                  _ro3_hinge[1] - RO3_DOOR_WIDTH * _i9_at[1])))
+                 (_ro3_hinge[0] + RO3_DOOR_WIDTH * _i9_at[0],
+                  _ro3_hinge[1] + RO3_DOOR_WIDTH * _i9_at[1])))
 
     # RO4 door tip (poly-based, rotation-safe)
     ro4 = [r for r in rough_openings if r.name == "RO4"][0]
@@ -547,7 +547,7 @@ EXPECTED = [
     ("O6_door_tip", 1021.006944, 550.118056, 75.234743, 401.438860),
     ("RO1_door_tip", 481.847222, 630.347222, 388.737122, 274.289261),
     ("RO2_door_tip", 817.888889, 922.361111, 259.222203, 108.545877),
-    ("RO3_door_tip", 315.694444, 448.055556, 521.719505, 472.359635),
+    ("RO3_door_tip", 125.694444, 440.055556, 862.332603, 730.211999),
     ("RO4_door_tip", 510.334444, 89.231111, 546.853923, 990.067068),
     ("RO5_door_tip", 605.376736, 21.404514, 705.672671, 1312.795772),
     ("RO6_door_tip_S", 449.388889, 1071.472222, 707.420141, 205.872545),

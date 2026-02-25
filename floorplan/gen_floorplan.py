@@ -2530,27 +2530,28 @@ def _render_openings(out, data, layout, bare=False):
     _i9_at = (_i9_dx_t / _i9_lt, _i9_dy_t / _i9_lt)  # SE→SW (across thickness)
     _east_ang = math.atan2(-_i9_at[1], -_i9_at[0])
 
-    # RO3 door: 36" door in IW9 (rotated), hinged at north edge, swings east
+    # RO3 door: 36" door in IW9 (rotated), hinged at south edge, swings west
     ro3 = [r for r in rough_openings if r.name == "RO3"][0]
     _ro3p_d = ro3.poly  # [SW, SE, NE, NW] in IW9 orientation
     _ro3_gap = (math.sqrt((_ro3p_d[3][0] - _ro3p_d[0][0])**2 +
                            (_ro3p_d[3][1] - _ro3p_d[0][1])**2) - RO3_DOOR_WIDTH) / 2
-    # North edge center: midpoint of NW (poly[3]) and NE (poly[2])
-    _ro3_n_ctr = ((_ro3p_d[3][0] + _ro3p_d[2][0]) / 2,
-                  (_ro3p_d[3][1] + _ro3p_d[2][1]) / 2)
-    h_ro3 = (_ro3_n_ctr[0] - _ro3_gap * _i9_an[0],
-             _ro3_n_ctr[1] - _ro3_gap * _i9_an[1])
+    # South edge center: midpoint of SW (poly[0]) and SE (poly[1])
+    _ro3_s_ctr = ((_ro3p_d[0][0] + _ro3p_d[1][0]) / 2,
+                  (_ro3p_d[0][1] + _ro3p_d[1][1]) / 2)
+    h_ro3 = (_ro3_s_ctr[0] + _ro3_gap * _i9_an[0],
+             _ro3_s_ctr[1] + _ro3_gap * _i9_an[1])
     hx, hy = to_svg(*h_ro3)
-    # Open position: east (-_i9_at direction)
-    tip_ro3 = (h_ro3[0] - RO3_DOOR_WIDTH * _i9_at[0],
-               h_ro3[1] - RO3_DOOR_WIDTH * _i9_at[1])
+    # Open position: west (_i9_at direction)
+    tip_ro3 = (h_ro3[0] + RO3_DOOR_WIDTH * _i9_at[0],
+               h_ro3[1] + RO3_DOOR_WIDTH * _i9_at[1])
     tx, ty = to_svg(*tip_ro3)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from east (open) sweeping CW to SSW (closed toward center)
+    # Arc from west (open) sweeping CW to north (closed toward center)
+    _west_ang = math.atan2(_i9_at[1], _i9_at[0])
     arc_pts = []
     for i in range(n_arc + 1):
-        angle = _east_ang - i * (math.pi / 2) / n_arc
+        angle = _west_ang - i * (math.pi / 2) / n_arc
         ae = h_ro3[0] + RO3_DOOR_WIDTH * math.cos(angle)
         an = h_ro3[1] + RO3_DOOR_WIDTH * math.sin(angle)
         sx, sy = to_svg(ae, an)
