@@ -105,7 +105,7 @@ IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W18-W1
 IW9_IW11_GAP = 12.0                  # 12' from IW9 east face to IW11 west face
 
 # IW12 (4" thick, perpendicular to IW11)
-IW12_OFFSET_IW11 = 6.0              # 6' from IW11 SW to IW12 base
+IW12_S_OFFSET_W18W1 = 5.0            # 5'0" from W18-W1 to IW12 S face
 IW12_SHORTEN = 4.0 / 12.0           # 4" IW12 west-end setback
 IW9_RO_WIDTH = 50.0 / 12.0          # 50" opening width along IW9 (RO7)
 
@@ -117,7 +117,7 @@ RO3_IW7_GAP = 5.0 / 12.0           # 5" from IW7 N face to RO3 south edge
 IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
 
 # IW11 rough opening (RO6)
-IW11_RO_WIDTH = 62.0 / 12.0       # 62" opening width along IW11
+IW11_RO_WIDTH = 50.0 / 12.0       # 50" opening width along IW11
 
 # IW6 partition
 IW6_THICKNESS = 1.0 / 12.0        # 1" partition
@@ -153,7 +153,7 @@ RO2_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO2
 RO3_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO3
 RO4_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO4
 RO5_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO5
-RO6_DOOR_WIDTH = 30.0 / 12.0       # 30" door leaf in RO6 (double door, 2×30")
+RO6_DOOR_WIDTH = 24.0 / 12.0       # 24" door leaf in RO6 (double door, 2×24")
 RO7_DOOR_WIDTH = 24.0 / 12.0       # 24" door leaf in RO7 (double door, 2×24")
 # Shell construction: 2" shell / gap / 2" shell
 AIR_GAP = WALL_OUTER - 2 * SHELL_THICKNESS  # air gap between shells
@@ -177,7 +177,7 @@ O10_O11_WALL = 72.0 / 12.0        # 72" solid wall between O10 NW and O11 SE
 BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W18-W1
 
 # IW5 partition
-IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
+IW5_S_OFFSET_FROM_IW1 = 30.0 / 12.0      # 30" from IW1 S face to IW5 S face
 
 # Outline geometry constraints
 CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: NE corner (10" at 8" wall)

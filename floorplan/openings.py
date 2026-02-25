@@ -250,18 +250,25 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     _ro1_bb = BBox(w=min(p[0] for p in _ro1_poly), s=min(p[1] for p in _ro1_poly),
                    e=max(p[0] for p in _ro1_poly), n=max(p[1] for p in _ro1_poly))
 
-    # RO2: in IW11 (rotated), 3" NNE of IW12 north face along IW11
+    # RO2: in IW11 (rotated), centered between IW12 N face and IW5 S face
     _iw11_se, _iw11_ne = layout.iw11.poly[1], layout.iw11.poly[2]
     _iw11_sw = layout.iw11.poly[0]
     _dx11, _dy11, _len11 = seg_vec(_iw11_se, _iw11_ne)
     _un11 = (_dx11 / _len11, _dy11 / _len11)  # unit along IW11 length (NNE)
     _dx11t, _dy11t, _lt11 = seg_vec(_iw11_se, _iw11_sw)
     _ut11 = (_dx11t / _lt11, _dy11t / _lt11)  # unit along IW11 thickness
-    # IW12 NW corner projected onto IW11 length axis
+    # IW12 NW corner projected onto IW11 length axis = IW12 N face distance
     _iw12_nw = layout.iw12.poly[3]
-    _ro2_start_d = ((_iw12_nw[0] - _iw11_se[0]) * _un11[0]
-                    + (_iw12_nw[1] - _iw11_se[1]) * _un11[1]) + 3.0 / 12.0
-    _ro2_end_d = _ro2_start_d + IW4_RO_WIDTH
+    _ro2_iw12_n_d = ((_iw12_nw[0] - _iw11_se[0]) * _un11[0]
+                     + (_iw12_nw[1] - _iw11_se[1]) * _un11[1])
+    # IW5 SW corner projected onto IW11 length axis = IW5 S face distance
+    _iw5_sw = layout.iw5.poly[0]
+    _ro2_iw5_s_d = ((_iw5_sw[0] - _iw11_se[0]) * _un11[0]
+                    + (_iw5_sw[1] - _iw11_se[1]) * _un11[1])
+    _ro2_center_d = (_ro2_iw12_n_d + _ro2_iw5_s_d) / 2
+    _ro2_half = IW4_RO_WIDTH / 2
+    _ro2_start_d = _ro2_center_d - _ro2_half
+    _ro2_end_d = _ro2_center_d + _ro2_half
     # RO2 polygon [SW, SE, NE, NW] in IW11 coords
     _ro2_sw = (_iw11_se[0] + _ro2_start_d * _un11[0],
                _iw11_se[1] + _ro2_start_d * _un11[1])
@@ -275,12 +282,15 @@ def compute_rough_openings(pts, layout) -> list[RoughOpening]:
     _ro2_bb = BBox(w=min(p[0] for p in _ro2_poly), s=min(p[1] for p in _ro2_poly),
                    e=max(p[0] for p in _ro2_poly), n=max(p[1] for p in _ro2_poly))
 
-    # RO6: in IW11 (rotated), 62" centered between IW12 S face and IW11 S end
+    # RO6: in IW11 (rotated), 50" centered between IW12 S face and W18-W1
     # IW12 SW corner projected onto IW11 length axis = distance of IW12 south face
     _iw12_sw = layout.iw12.poly[0]
     _ro6_iw12_s_d = ((_iw12_sw[0] - _iw11_se[0]) * _un11[0]
                      + (_iw12_sw[1] - _iw11_se[1]) * _un11[1])
-    _ro6_center_d = _ro6_iw12_s_d / 2  # centered between 0 (IW11 S end) and IW12 S face
+    # W18 projected onto IW11 length axis = distance of W18-W1 line
+    _ro6_w18_d = ((pts["W18"][0] - _iw11_se[0]) * _un11[0]
+                  + (pts["W18"][1] - _iw11_se[1]) * _un11[1])
+    _ro6_center_d = (_ro6_iw12_s_d + _ro6_w18_d) / 2
     _ro6_half = IW11_RO_WIDTH / 2
     _ro6_start_d = _ro6_center_d - _ro6_half
     _ro6_end_d = _ro6_center_d + _ro6_half

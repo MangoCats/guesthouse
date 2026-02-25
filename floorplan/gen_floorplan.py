@@ -2600,7 +2600,7 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO6 double door: 2×30" doors in IW11 (rotated), hinged at outer edges, open west
+    # RO6 double door: 2×24" doors in IW11 (rotated), hinged at outer edges, open west
     ro6 = [r for r in rough_openings if r.name == "RO6"][0]
     _ro6p = ro6.poly  # [SW, SE, NE, NW]
     # IW11 unit vectors already computed (_i11_an, _i11_at)
