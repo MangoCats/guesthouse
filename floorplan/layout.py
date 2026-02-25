@@ -18,7 +18,6 @@ from floorplan.constants import (
     IW7_OFFSET_FROM_W18W1,
     IW4_GAP_IW11,
     IW5_OFFSET_FROM_IW1, IW6_THICKNESS, IW6_OFFSET_FROM_W6,
-    IW8_OFFSET_FROM_W18W1,
     IW9_IW11_GAP, IW12_OFFSET_IW11, IW12_SHORTEN,
     DRESSER_WIDTH, DRESSER_DEPTH, DRESSER_GAP_IW15, DRESSER_GAP_IW1,
     SHELVES_LENGTH, SHELVES_DEPTH, SHELVES_GAP_IW1, SHELVES_GAP_IW9,
@@ -304,8 +303,10 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     else:
         ctr_clip = [ctr_nw, _ctr_ne_clip, iw3_sw, _ctr_poly_sw]
 
-    # --- IW8 (perpendicular to W2-W5, 12' from W18-W1; west at W2-W5, east at IW2 W face) ---
-    _iw8_s_anchor = _offset(pts["W18"], IW8_OFFSET_FROM_W18W1, _w18w1_in)
+    # --- IW8 (perpendicular to W2-W5, centered between W18-W1 and W6-W7) ---
+    _d_w18w1_to_w6w7 = _proj(pts["W6"], pts["W1"], _w18w1_in)
+    _iw8_mid_offset = _d_w18w1_to_w6w7 / 2
+    _iw8_s_anchor = _offset(pts["W18"], _iw8_mid_offset - WALL_6IN / 2, _w18w1_in)
     _iw8_n_anchor = _offset(_iw8_s_anchor, WALL_6IN, _w2w5_al)
     iw8_sw = line_isect(_iw8_s_anchor, _w2w5_in, pts["W2"], _w2w5_al)
     iw8_nw = line_isect(_iw8_n_anchor, _w2w5_in, pts["W2"], _w2w5_al)

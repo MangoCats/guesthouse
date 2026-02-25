@@ -183,7 +183,6 @@ IW5_OFFSET_FROM_IW1 = 30.0 / 12.0        # 30" from IW1, CW-normal to W9-W10
 CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: NE corner (10" at 8" wall)
 F11AB_TARGET = 1.0                 # 1'0" target F11a-F11b distance
 IW1_OFFSET_FROM_W9 = 11.0              # 11'0" from W9, CW-normal to W9-W10
-IW8_OFFSET_FROM_W18W1 = 12.0          # 12'0" perpendicular to W18-W1
 
 # Jamb and gap constants
 JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)
