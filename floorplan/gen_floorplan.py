@@ -718,14 +718,6 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim15_A", line_isect(pts["F2"], _ns, _dim15_ref, _ew)))
     result.append(("dim15_B", line_isect(pts["F15"], _ns, _dim15_ref, _ew)))
 
-    # ---- dim16: O9 inner → IW1-south (rotated, perp to W18-W1) ----
-    _o9 = openings[8]
-    _o9_ic = ((_o9.poly[2][0] + _o9.poly[3][0]) / 2,
-              (_o9.poly[2][1] + _o9.poly[3][1]) / 2)
-    result.append(("dim16_A", _o9_ic))
-    result.append(("dim16_B", line_isect(_o9_ic, _w18w1_in,
-                                         layout.iw1.poly[0], _iw1_s_al)))
-
     # ---- dim17: O10 inner → IW1-south (rotated, perp to W18-W1) ----
     _o10 = openings[9]
     _o10_ic = ((_o10.poly[2][0] + _o10.poly[3][0]) / 2,
@@ -2229,10 +2221,6 @@ def _render_dimensions(out, data, layout, bare=False):
     # dim15: External F2 → F15
     _rotated_dim(out, ep["dim15_A"], ep["dim15_B"],
                  fmt_dist(_edist(ep["dim15_A"], ep["dim15_B"])), to_svg)
-
-    # dim16: O9 → IW1-south (rotated)
-    _rotated_dim(out, ep["dim16_A"], ep["dim16_B"],
-                 fmt_dist(_edist(ep["dim16_A"], ep["dim16_B"])), to_svg)
 
     # dim17: O10 → IW1-south (rotated)
     _rotated_dim(out, ep["dim17_A"], ep["dim17_B"],
