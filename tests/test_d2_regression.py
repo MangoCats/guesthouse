@@ -221,7 +221,7 @@ def _compute_door_tips(pts, layout, outer_openings, rough_openings):
                  (_ro3_hinge[0] + RO3_DOOR_WIDTH * _i9_at[0],
                   _ro3_hinge[1] + RO3_DOOR_WIDTH * _i9_at[1])))
 
-    # RO4 door tip (hinged at SE end midpoint, swings toward east face)
+    # RO4 door tip (hinged at SE end midpoint, swings WSW)
     ro4 = [r for r in rough_openings if r.name == "RO4"][0]
     _ro4_hinge = ((ro4.poly[0][0] + ro4.poly[1][0]) / 2,
                   (ro4.poly[0][1] + ro4.poly[1][1]) / 2)
