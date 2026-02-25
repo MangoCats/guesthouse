@@ -1830,24 +1830,9 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     _bed_dx = to_svg(*_bp[2])[0] - to_svg(*_bp[1])[0]
     _bed_dy = to_svg(*_bp[2])[1] - to_svg(*_bp[1])[1]
     _bed_ang = math.degrees(math.atan2(_bed_dy, _bed_dx)) + 90
-    # Position at 1/2 the perpendicular distance from W18-W1 to IW1
-    _w18b = pts["W18"]; _w1b = pts["W1"]
-    _dEwb = _w1b[0] - _w18b[0]; _dNwb = _w1b[1] - _w18b[1]
-    _wlb = math.sqrt(_dEwb**2 + _dNwb**2)
-    _nEb = _dNwb / _wlb; _nNb = -_dEwb / _wlb  # inward normal
-    _ucx = _bp_cx - _w18b[0]; _ucy = _bp_cy - _w18b[1]
-    _tw = (_ucx * _dEwb + _ucy * _dNwb) / (_dEwb**2 + _dNwb**2)
-    _wb = (_w18b[0] + _tw * _dEwb, _w18b[1] + _tw * _dNwb)
-    # Distance from _wb to IW1 south face midpoint along inward normal
-    _iw1_s_mid = ((layout.iw1.poly[0][0] + layout.iw1.poly[1][0]) / 2,
-                  (layout.iw1.poly[0][1] + layout.iw1.poly[1][1]) / 2)
-    _d_iw1 = ((_iw1_s_mid[0] - _wb[0]) * _nEb +
-              (_iw1_s_mid[1] - _wb[1]) * _nNb)
-    _lbl_e = _wb[0] + _d_iw1 / 2 * _nEb
-    _lbl_n = _wb[1] + _d_iw1 / 2 * _nNb
-    _bsx, _bsy = to_svg(_lbl_e, _lbl_n)
-    out.append(f'<text x="{_bsx:.1f}" y="{_bsy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="7" fill="{APPL_STROKE}" transform="rotate({_bed_ang:.1f},{_bsx:.1f},{_bsy+3:.1f})">'
+    _bsx, _bsy = to_svg(_bp_cx, _bp_cy)
+    out.append(f'<text x="{_bsx:.1f}" y="{_bsy:.1f}" text-anchor="middle" dominant-baseline="central" font-family="Arial"'
+               f' font-size="7" fill="{APPL_STROKE}" transform="rotate({_bed_ang:.1f},{_bsx:.1f},{_bsy:.1f})">'
                f'KING BED</text>')
 
     # Dresser (34" E-W × 19" N-S) with 15" clearance zone on south side
