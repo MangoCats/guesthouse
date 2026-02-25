@@ -671,21 +671,15 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
         result.append(("dim12b_B", line_isect(layout.iw6.poly[0], _iw6_s_al,
                                               _dim12_ref, _ns)))
     else:
-        # dim12_bare: IW8-north → W6 at RO4 door tip easting
-        _ro4 = ro_by_name["RO4"]
-        _ro4_w_mid = ((_ro4.poly[0][0] + _ro4.poly[3][0]) / 2,
-                      (_ro4.poly[0][1] + _ro4.poly[3][1]) / 2)
-        _ro4_e_mid = ((_ro4.poly[1][0] + _ro4.poly[2][0]) / 2,
-                      (_ro4.poly[1][1] + _ro4.poly[2][1]) / 2)
-        _ro4_ctr = ((_ro4_w_mid[0] + _ro4_e_mid[0]) / 2,
-                    (_ro4_w_mid[1] + _ro4_e_mid[1]) / 2)
-        _ro4_cross, _ = seg_vecs(_ro4_e_mid, _ro4_w_mid)
-        _ro4_tip = offset_pt(_ro4_ctr, RO4_DOOR_WIDTH, _ro4_cross)
+        # dim12_bare: IW8-north → W6-W7, centered in O4
+        _o4 = [o for o in openings if o.name == "O4"][0]
+        _o4_ctr = (sum(p[0] for p in _o4.poly) / 4,
+                   sum(p[1] for p in _o4.poly) / 4)
         _iw8_n_al, _ = seg_vecs(layout.iw8.poly[3], layout.iw8.poly[2])
         result.append(("dim12bare_A", line_isect(layout.iw8.poly[3], _iw8_n_al,
-                                                 _ro4_tip, _ns)))
+                                                 _o4_ctr, _ns)))
         result.append(("dim12bare_B", line_isect(pts["W6"], _ew,
-                                                 _ro4_tip, _ns)))
+                                                 _o4_ctr, _ns)))
 
     # ---- dim13: External F18 → F6 (vertical) ----
     _dim13_ref = offset_pt(pts["F2"], -2.7, _ew)
