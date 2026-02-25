@@ -105,7 +105,7 @@ IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W18-W1
 IW9_IW11_GAP = 12.0                  # 12' from IW9 east face to IW11 west face
 
 # IW12 (4" thick, perpendicular to IW11)
-IW12_S_OFFSET_W18W1 = 5.0            # 5'0" from W18-W1 to IW12 S face
+IW12_S_OFFSET_W18W1 = 68.0 / 12.0    # 5'8" from W18-W1 to IW12 S face
 IW9_RO_WIDTH = 50.0 / 12.0          # 50" opening width along IW9 (RO7)
 
 # RO3 (in IW9)
