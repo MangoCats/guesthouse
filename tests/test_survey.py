@@ -6,15 +6,17 @@ from shared.survey import compute_traverse, compute_three_arc, InsetResult, comp
 
 class TestComputeTraverse:
     def test_p3_position(self, pts_base):
-        assert abs(pts_base["P3"][0] - (-18.5)) < 1e-10
-        assert abs(pts_base["P3"][1] - (-13.5)) < 1e-10
+        from shared.survey import FC_IN_P3
+        assert abs(pts_base["P3"][0] - (-FC_IN_P3[0])) < 1e-10
+        assert abs(pts_base["P3"][1] - (-FC_IN_P3[1])) < 1e-10
 
     def test_known_stations(self, pts_base):
-        # FC-based: subtract FC_IN_P3 = (18.5, 13.5) from P3-based values
-        assert abs(pts_base["POB"][0] - (19.1177 - 18.5)) < 1e-4
-        assert abs(pts_base["POB"][1] - (32.9174 - 13.5)) < 1e-3
-        assert abs(pts_base["P2"][1] - (29.0 - 13.5)) < 1e-4
-        assert abs(pts_base["P4"][1] - (0.0 - 13.5)) < 1e-4
+        # FC-based: subtract FC_IN_P3 from P3-based values
+        from shared.survey import FC_IN_P3
+        assert abs(pts_base["POB"][0] - (19.1177 - FC_IN_P3[0])) < 1e-4
+        assert abs(pts_base["POB"][1] - (32.9174 - FC_IN_P3[1])) < 1e-3
+        assert abs(pts_base["P2"][1] - (29.0 - FC_IN_P3[1])) < 1e-4
+        assert abs(pts_base["P4"][1] - (0.0 - FC_IN_P3[1])) < 1e-4
 
     def test_five_stations(self, pts_base):
         for key in ["P3", "POB", "P2", "P4", "P5"]:
