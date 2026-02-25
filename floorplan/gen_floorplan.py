@@ -642,10 +642,11 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
                   (_ro3.poly[1][1] + _ro3.poly[2][1]) / 2)
     result.extend([("dim08_A", _o1_e_ctr), ("dim08_B", _ro3_w_ctr)])
 
-    # ---- dim10: W2-W5 → IW2-west (horizontal at F5 northing) ----
+    # ---- dim10: W2-W5 → IW2s-west (horizontal at F5 northing) ----
+    _iw2s_w_al, _ = seg_vecs(layout.iw2s.poly[0], layout.iw2s.poly[3])
     result.append(("dim10_A", line_isect(pts["W2"], _ns,
                                          pts["F5"], _ew)))
-    result.append(("dim10_B", line_isect(layout.iw2.poly[0], _iw2_w_al,
+    result.append(("dim10_B", line_isect(layout.iw2s.poly[0], _iw2s_w_al,
                                          pts["F5"], _ew)))
 
     # ---- dim11: IW1-south → W18 (vertical at F18 easting) ----
