@@ -190,10 +190,12 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # Virtual W2 reference: 8' from W7 toward W6, preserving old IW offsets
     _iw_w2_ref = _offset(pts["W7"], 8.0, _neg_w6w7_al)
 
-    # --- IW1 ---
+    # IW2 west face anchor (needed before IW1 — IW1 west end aligns here)
+    _iw2_w_anchor = _offset(pts["W2"], IW2_DIST_W2W5, _w2w5_in)
+
+    # --- IW1 (west end at IW2 west face) ---
     _iw1_n_anchor = _offset(pts["W9"], IW1_OFFSET_FROM_W9, _w9w10_in)
-    _iw1_w_anchor = _offset(_iw_w2_ref, IW1_OFFSET_FROM_W2, _iw_in)
-    iw1_nw = line_isect(_iw1_n_anchor, _w9w10_al, _iw1_w_anchor, _iw_al)
+    iw1_nw = line_isect(_iw1_n_anchor, _w9w10_al, _iw2_w_anchor, _w2w5_al)
     iw1_sw = _offset(iw1_nw, WALL_6IN, _w9w10_in)
     _ne_ts = _line_poly_isects(inner_poly, iw1_nw, _w9w10_al)
     iw1_ne = _offset(iw1_nw, max(_ne_ts), _w9w10_al)
@@ -201,7 +203,6 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw1_se = _offset(iw1_sw, max(_se_ts), _w9w10_al)
 
     # --- IW2 (lower, restored to 6'6" true perpendicular from W2-W5) ---
-    _iw2_w_anchor = _offset(pts["W2"], IW2_DIST_W2W5, _w2w5_in)
     _iw2_e_anchor = _offset(_iw2_w_anchor, WALL_6IN, _w2w5_in)
     iw2_sw = line_isect(_iw2_w_anchor, _w2w5_al, iw1_nw, _w9w10_al)
     iw2_se = line_isect(_iw2_e_anchor, _w2w5_al, iw1_nw, _w9w10_al)
@@ -303,13 +304,13 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     else:
         ctr_clip = [ctr_nw, _ctr_ne_clip, iw3_sw, _ctr_poly_sw]
 
-    # --- IW8 (perpendicular to W2-W5, 12' from W18-W1; west at W2-W5, east at IW1) ---
+    # --- IW8 (perpendicular to W2-W5, 12' from W18-W1; west at W2-W5, east at IW2 W face) ---
     _iw8_s_anchor = _offset(pts["W18"], IW8_OFFSET_FROM_W18W1, _w18w1_in)
     _iw8_n_anchor = _offset(_iw8_s_anchor, WALL_6IN, _w2w5_al)
     iw8_sw = line_isect(_iw8_s_anchor, _w2w5_in, pts["W2"], _w2w5_al)
     iw8_nw = line_isect(_iw8_n_anchor, _w2w5_in, pts["W2"], _w2w5_al)
-    iw8_se = line_isect(_iw8_s_anchor, _w2w5_in, iw1_nw, _iw_al)
-    iw8_ne = line_isect(_iw8_n_anchor, _w2w5_in, iw1_nw, _iw_al)
+    iw8_se = line_isect(_iw8_s_anchor, _w2w5_in, _iw2_w_anchor, _w2w5_al)
+    iw8_ne = line_isect(_iw8_n_anchor, _w2w5_in, _iw2_w_anchor, _w2w5_al)
 
     # --- IW5 ---
     _iw5_n_anchor = _offset(iw1_sw, IW5_OFFSET_FROM_IW1, _w9w10_in)
