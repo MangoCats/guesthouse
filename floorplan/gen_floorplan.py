@@ -2440,39 +2440,40 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # RO4 door: 36" door, hinged north, swings toward west face (rotation-safe)
+    # RO4 door: centered in opening, hinged at SE end midpoint, swings 90° to NW end
     ro4 = [r for r in rough_openings if r.name == "RO4"][0]
-    # Length direction: poly[0]→poly[3] (SW→NW)
-    _ro4_dx = ro4.poly[3][0] - ro4.poly[0][0]
-    _ro4_dy = ro4.poly[3][1] - ro4.poly[0][1]
-    _ro4_len = math.sqrt(_ro4_dx**2 + _ro4_dy**2)
-    _ro4_len_u = (_ro4_dx / _ro4_len, _ro4_dy / _ro4_len)
-    # End edge midpoint (north): midpoint of poly[2] and poly[3]
-    _ro4_end = ((ro4.poly[2][0] + ro4.poly[3][0]) / 2,
-                (ro4.poly[2][1] + ro4.poly[3][1]) / 2)
-    # Swing direction (toward west face): NE→NW = poly[2]→poly[3]
+    # Hinge: midpoint of SE end (poly[0] and poly[1])
+    hinge = ((ro4.poly[0][0] + ro4.poly[1][0]) / 2,
+             (ro4.poly[0][1] + ro4.poly[1][1]) / 2)
+    # Closed tip: midpoint of NW end (poly[2] and poly[3])
+    _ro4_closed = ((ro4.poly[2][0] + ro4.poly[3][0]) / 2,
+                   (ro4.poly[2][1] + ro4.poly[3][1]) / 2)
+    # Door length and closed direction (hinge → NW end mid)
+    _ro4_dx = _ro4_closed[0] - hinge[0]
+    _ro4_dy = _ro4_closed[1] - hinge[1]
+    _ro4_door_len = math.sqrt(_ro4_dx**2 + _ro4_dy**2)
+    _ro4_len_u = (_ro4_dx / _ro4_door_len, _ro4_dy / _ro4_door_len)
+    # Swing direction (perpendicular, toward west face): NE→NW = poly[2]→poly[3]
     _ro4_sw_dx = ro4.poly[3][0] - ro4.poly[2][0]
     _ro4_sw_dy = ro4.poly[3][1] - ro4.poly[2][1]
     _ro4_sw_len = math.sqrt(_ro4_sw_dx**2 + _ro4_sw_dy**2)
     _ro4_swing = (_ro4_sw_dx / _ro4_sw_len, _ro4_sw_dy / _ro4_sw_len)
-    ro4_gap = (_ro4_len - RO4_DOOR_WIDTH) / 2
-    hinge = (_ro4_end[0] - ro4_gap * _ro4_len_u[0],
-             _ro4_end[1] - ro4_gap * _ro4_len_u[1])
+    # Door line (open position, perpendicular to opening)
+    tip = (hinge[0] + _ro4_door_len * _ro4_swing[0],
+           hinge[1] + _ro4_door_len * _ro4_swing[1])
     hx, hy = to_svg(*hinge)
-    tip = (hinge[0] + RO4_DOOR_WIDTH * _ro4_swing[0],
-           hinge[1] + RO4_DOOR_WIDTH * _ro4_swing[1])
     tx, ty = to_svg(*tip)
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-    # Arc from open (swing) sweeping 90° to closed (-length direction)
+    # Arc from open (swing) sweeping 90° to closed (length direction)
     n_arc = 20
     arc_pts = []
     for i in range(n_arc + 1):
         frac = i / n_arc
         _cos_f = math.cos(frac * math.pi / 2)
         _sin_f = math.sin(frac * math.pi / 2)
-        ae = hinge[0] + RO4_DOOR_WIDTH * (_cos_f * _ro4_swing[0] - _sin_f * _ro4_len_u[0])
-        an = hinge[1] + RO4_DOOR_WIDTH * (_cos_f * _ro4_swing[1] - _sin_f * _ro4_len_u[1])
+        ae = hinge[0] + _ro4_door_len * (_cos_f * _ro4_swing[0] + _sin_f * _ro4_len_u[0])
+        an = hinge[1] + _ro4_door_len * (_cos_f * _ro4_swing[1] + _sin_f * _ro4_len_u[1])
         sx, sy = to_svg(ae, an)
         arc_pts.append(f"{sx:.1f},{sy:.1f}")
     out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
