@@ -332,12 +332,12 @@ def render_site_plan(sp, corners=True):
     _draw_dim_line(shape, page, sp.span_s_pdf, sp.span_n_pdf,
                    f"{sp.ns_dim_ft:.1f}'", COLOR_PROPOSED)
 
-    # --- "PROPOSED CONC. GUEST HOUSE" label ---
+    # --- "PROPOSED 950SF MAX ADU" label ---
     _cx = sum(p[0] for p in sp.inner_poly) / len(sp.inner_poly)
     _cy = sum(p[1] for p in sp.inner_poly) / len(sp.inner_poly)
     label_pdf_raw = building_to_pdf(_cx, _cy + 2.0)
     label_pdf = (label_pdf_raw[0], label_pdf_raw[1] + 5.0 * SCALE)
-    label_lines = ["     PROPOSED", "CONC.", "GUEST", "HOUSE"]
+    label_lines = ["PROPOSED", "950SF", "MAX", "ADU"]
     label_lh = BLDG_LABEL_FS * 1.15
     block_h = label_lh * len(label_lines)
     start_y = label_pdf[1] - block_h / 2.0 + BLDG_LABEL_FS
