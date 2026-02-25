@@ -49,6 +49,11 @@ DRESSER_DEPTH = 19.0 / 12.0       # 19" N-S
 DRESSER_GAP_IW15 = 2.0 / 12.0     # 2" west of IW15
 DRESSER_GAP_IW1 = 1.0 / 12.0      # 1" south of IW1
 
+# Shelves (IKEA KALLAX 57 7/8 × 15 3/8 top view, long side N-S along IW9)
+SHELVES_LENGTH = 57.875 / 12.0    # 57 7/8" N-S
+SHELVES_DEPTH = 15.375 / 12.0     # 15 3/8" E-W
+SHELVES_GAP = 2.0 / 12.0          # 2" from IW1 and IW9
+
 # Water heater
 WH_RADIUS = 14.0 / 12.0           # 14" radius (28" diameter)
 

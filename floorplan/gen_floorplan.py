@@ -1856,6 +1856,10 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     _appl_poly(out, [d.poly[0], d.poly[1], cl_se, cl_sw], to_svg,
                dash=True, fill_color="none")
 
+    # Shelves (KALLAX, linked to product page)
+    _appl_poly(out, layout.shelves.poly, to_svg, label="SHELVES",
+               href="https://www.ikea.com/us/en/p/kallax-shelving-unit-with-underframe-white-stained-oak-effect-black-s49442718/")
+
     if minik:
         # SOFA: 80.75" E-W x 34.625" N-S, centered on old sofa, 2" N of IW1
         _sofa_ew = 80.75 / 12.0

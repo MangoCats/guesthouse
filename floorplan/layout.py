@@ -21,6 +21,7 @@ from floorplan.constants import (
     IW8_OFFSET_FROM_W18W1,
     IW9_IW11_GAP, IW12_OFFSET_IW11, IW12_SHORTEN,
     DRESSER_WIDTH, DRESSER_DEPTH, DRESSER_GAP_IW15, DRESSER_GAP_IW1,
+    SHELVES_LENGTH, SHELVES_DEPTH, SHELVES_GAP,
 )
 
 
@@ -86,6 +87,7 @@ class InteriorLayout(NamedTuple):
     ctr_clip: list[Point]  # clipped rendering polygon (5 vertices)
     ctr_nw_r: float        # NW corner radius (currently 0)
     dresser: Wall
+    shelves: Wall
     bed: Wall
     # South wall opening parametric positions
     sw_t_o9_start: float
@@ -328,6 +330,14 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     dresser_se = _offset(dresser_ne, DRESSER_DEPTH, _w9w10_in)
     dresser_sw = _offset(dresser_nw, DRESSER_DEPTH, _w9w10_in)
 
+    # --- Shelves (KALLAX, 2" S of IW1 and 2" W of IW9, long side N-S) ---
+    shelves_ne = line_isect(
+        _offset(iw1_sw, SHELVES_GAP, _w9w10_in), _w9w10_al,
+        _offset(iw9.poly[3], SHELVES_GAP, _w18w1_al), _w18w1_in)
+    shelves_nw = _offset(shelves_ne, SHELVES_DEPTH, _w18w1_al)
+    shelves_se = _offset(shelves_ne, SHELVES_LENGTH, _w9w10_in)
+    shelves_sw = _offset(shelves_nw, SHELVES_LENGTH, _w9w10_in)
+
     # --- IW6 ---
     _iw6_n_anchor = _offset(pts["W6"], IW6_OFFSET_FROM_W6, _w6w7_in)
     _iw6_s_anchor = _offset(_iw6_n_anchor, IW6_THICKNESS, _w6w7_in)
@@ -358,6 +368,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         ctr_clip=ctr_clip,
         ctr_nw_r=ctr_nw_r,
         dresser=_make_wall([dresser_sw, dresser_se, dresser_ne, dresser_nw]),
+        shelves=_make_wall([shelves_sw, shelves_se, shelves_ne, shelves_nw]),
         bed=bed,
         sw_t_o9_start=_ts9, sw_t_o9_end=_te9,
         sw_t_o10_start=_ts10, sw_t_o10_end=_te10,

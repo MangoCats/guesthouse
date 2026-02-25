@@ -82,7 +82,8 @@ def _collect_all_points(pts, layout, radii):
         result.append((f"ctr_poly_{i}", p))
 
     # ---- Furniture (bed, dresser) ----
-    for prefix, wall in [("bed", layout.bed), ("dresser", layout.dresser)]:
+    for prefix, wall in [("bed", layout.bed), ("dresser", layout.dresser),
+                          ("shelves", layout.shelves)]:
         for i, label in enumerate(["SW", "SE", "NE", "NW"]):
             result.append((f"{prefix}_{label}", wall.poly[i]))
 
@@ -471,6 +472,10 @@ EXPECTED = [
     ("dresser_SE", 665.444444, 743.472222, 281.452777, 184.800907),
     ("dresser_NE", 702.784722, 694.256944, 237.289816, 208.496882),
     ("dresser_NW", 578.590278, 578.562500, 290.738718, 283.580215),
+    ("shelves_SW", 153.391710, 453.916016, 794.052003, 658.942285),
+    ("shelves_SE", 179.937609, 476.618164, 740.266536, 595.373600),
+    ("shelves_NE", 277.250000, 310.277778, 589.315773, 651.124725),
+    ("shelves_NW", 250.704102, 287.575629, 643.101241, 714.693410),
     ("RO1_SW", 432.694444, 440.111111, 391.343846, 418.299594),
     ("RO1_SE", 547.222222, 545.138889, 307.329061, 310.105149),
     ("RO1_NE", 560.138889, 530.722222, 294.507863, 318.713089),
