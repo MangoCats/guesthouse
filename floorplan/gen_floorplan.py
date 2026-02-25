@@ -658,8 +658,9 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim10_B", line_isect(layout.iw2s.poly[0], _iw2s_w_al,
                                          pts["F5"], _ew)))
 
-    # ---- dim11: IW1-south → W18 (vertical at F18 easting) ----
-    result.append(("dim11_A", line_isect(layout.iw1.poly[0], _iw1_s_al,
+    # ---- dim11: IW5-south → W18 (vertical at F18 easting) ----
+    _iw5_s_al, _ = seg_vecs(layout.iw5.poly[0], layout.iw5.poly[1])
+    result.append(("dim11_A", line_isect(layout.iw5.poly[0], _iw5_s_al,
                                          pts["F18"], _ns)))
     result.append(("dim11_B", line_isect(pts["W18"], _ew,
                                          pts["F18"], _ns)))
@@ -2196,7 +2197,7 @@ def _render_dimensions(out, data, layout, bare=False):
     _rotated_dim(out, ep["dim10_A"], ep["dim10_B"],
                  fmt_dist(_edist(ep["dim10_A"], ep["dim10_B"])), to_svg)
 
-    # dim11: IW1-south → W18
+    # dim11: IW5-south → W18
     _rotated_dim(out, ep["dim11_A"], ep["dim11_B"],
                  fmt_dist(_edist(ep["dim11_A"], ep["dim11_B"])), to_svg)
 
