@@ -23,8 +23,8 @@ class OutlineGeometry(NamedTuple):
 _PI_2 = math.pi / 2            # 90 deg
 _5PI_12 = 5 * math.pi / 12    # 75 deg
 _PI_12 = math.pi / 12          # 15 deg
-_C15_SWEEP = 0.941072060857     # F15→F16: F12-F13 tangent to TC1 arc
-_C17_SWEEP = 0.629724265938     # F17→F18: π/2 − C15 sweep
+_C15_SWEEP = math.pi / 2 - math.atan(7.0 / 12.0)  # F15→F16: π/2 − arctan(7/12)
+_C17_SWEEP = math.atan(7.0 / 12.0)                 # F17→F18: arctan(7/12)
 _C10_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)  # F10→F11: 90° - arctan(1/3)
 _C11_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)  # F11b→F12: 90° - arctan(1/3)
 _C13_SWEEP = math.atan(1.0 / 3.0)                 # F13→F14: arctan(1/3) → exit bearing = π
@@ -74,7 +74,7 @@ _CHAIN_F5_TO_F18 = [
     ("CW",   2.333333333333, _C11_SWEEP, "C11", 30),          # F11b->F12
     ("L",   11.779557008578),                                  # F12->F13
     ("CW",   1.808727374505, _C13_SWEEP, "C13", 60),          # F13->F14
-    ("L",    9.237488929222),                                  # F14->F15
+    ("L",    9.662743475808),                                  # F14->F15
     ("CW",   1.808727374505, _C15_SWEEP, "C15", 20),          # F15->F16
     ("L",    5.000000000000),                                  # F16->F17
     ("CW",   1.808727374505, _C17_SWEEP, "C17", 20),          # F17->F18

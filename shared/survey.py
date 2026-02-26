@@ -11,12 +11,12 @@ from .geometry import (
 
 # FC (building center) position in P3-based coordinates.
 # Used to shift survey coordinates from P3 origin to FC origin.
-FC_IN_P3 = (18.4764568622, 13.4883354059)
+FC_IN_P3 = (18.5141152720, 13.3968094375)
 
 # Coordinate rotation: CCW angle from FC-based pre-rotation to the primary
-# working frame.  +2.689° so that F16-F17 lies on the Pi5-Pi4-PiX line,
-# T3 remains on the F18-F1 line, and F12-F13 is tangent to TC1 arc.
-COORD_ROTATION = 0.0469345880
+# working frame.  Best-fit alignment at C17 = arctan(7/12): T3 on F18-F1,
+# F12-F13 tangent to TC1 arc, F16-F17 on Pi5-PiX line (RMS ≈ 0.085 ft).
+COORD_ROTATION = 0.0015153784
 
 
 def rotate_pts(pts: dict[str, 'Point'], angle: float) -> None:
