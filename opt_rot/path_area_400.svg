@@ -256,5 +256,5 @@
 <text x="60" y="573" font-family="Arial" font-size="8" fill="#999">Inset path at 20%</text>
 <line x1="40" y1="582" x2="54" y2="582" stroke="#333" stroke-width="2.0"/>
 <text x="60" y="585" font-family="Arial" font-size="8" fill="#333">Outline (899.10 sq ft)</text>
-<text x="396.0" y="610" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-25 22:09:10 from v0.1-740-g19b0819-DEV</text>
+<text x="396.0" y="610" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-25 22:14:39 from v0.1-741-g41eb903-DEV</text>
 </svg>

@@ -301,6 +301,7 @@ if __name__ == "__main__":
     # Build list of (c17_deg, filename_label) pairs
     angles = [(x / 10.0, f"{x:03d}") for x in range(300, 421, 10)]
     angles.append((math.degrees(math.atan(7.0 / 12.0)), "712"))
+    angles.append((math.degrees(math.atan(8.0 / 12.0)), "812"))
 
     print(f"\n{'C17':>8s} {'C15':>6s} {'rot':>9s} {'dx':>9s} {'dy':>9s} "
           f"{'RMS':>10s} {'d14-15':>8s} {'d18-1':>8s} {'area':>8s}")
@@ -356,7 +357,11 @@ if __name__ == "__main__":
         lines.append('</defs>')
 
         # Title
-        angle_str = f"atan(7/12) = {c17_deg:.4f}" if label == "712" else f"{c17_deg:.1f}"
+        _atan_labels = {"712": "atan(7/12)", "812": "atan(8/12)"}
+        if label in _atan_labels:
+            angle_str = f"{_atan_labels[label]} = {c17_deg:.4f}"
+        else:
+            angle_str = f"{c17_deg:.1f}"
         lines.append(f'<text x="{W/2}" y="22" text-anchor="middle" font-family="Arial"'
                      f' font-size="13" font-weight="bold">'
                      f'C17 = {angle_str}\u00b0'
