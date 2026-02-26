@@ -1,4 +1,15 @@
-"""Generate path_area SVGs for C17 sweep angles from 30.0 to 42.0 degrees."""
+"""Generate path_area SVGs for C17 sweep angles with alignment constraints.
+
+For each C17 sweep angle (30-42 deg), finds the rigid-body placement
+(rotation + translation) that best satisfies the 4 alignment constraints:
+  1. T3 on F18-F1 line
+  2. F12-F13 tangent to TC1 arc (signed dist = +R1)
+  3. F16 on Pi5-PiX line
+  4. F17 on Pi5-PiX line
+
+With 4 constraints and 4 unknowns (rot, dx, dy, C17), the system is
+fully constrained — a unique C17 exists with zero residual.
+"""
 import os, sys, math, datetime
 
 # Ensure project root is on sys.path for package imports
@@ -16,6 +27,11 @@ from survey.gen_path_svg import (
     compute_all, render_layer, build_outline_cfg,
     outer_cfg, inset_cfg,
 )
+
+try:
+    from scipy.optimize import least_squares, fsolve
+except ImportError:
+    sys.exit("scipy required: pip install -e '.[adjust]'")
 
 # ============================================================
 # Constants
@@ -175,6 +191,52 @@ def build_radii(outline_chain):
 
 
 # ============================================================
+# Alignment constraints
+# ============================================================
+def signed_dist(P, A, B):
+    """Signed perpendicular distance from P to line A->B. Left-positive."""
+    dx, dy = B[0] - A[0], B[1] - A[1]
+    L = math.hypot(dx, dy)
+    if L < 1e-15:
+        return 0.0
+    return (dx * (P[1] - A[1]) - dy * (P[0] - A[0])) / L
+
+
+def xform_pts(std_pts, rot, dx, dy):
+    """Rotate CW by rot around origin, then translate by (dx, dy)."""
+    c, s = math.cos(rot), math.sin(rot)
+    return {name: (e * c + n * s + dx, -e * s + n * c + dy)
+            for name, (e, n) in std_pts.items()}
+
+
+def alignment_residuals(placement, c17_deg, survey_info):
+    """4 alignment residuals for 3 placement unknowns at fixed C17.
+
+    survey_info: (T3, TC1, R1, Pi5, PiX)
+    """
+    rot, dx, dy = placement
+    T3, TC1, R1, Pi5, PiX = survey_info
+
+    d1, d2, _, _, chain = solve_for_angle(c17_deg)
+    if d1 <= 0 or d2 <= 0:
+        return [1e6, 1e6, 1e6, 1e6]
+
+    xf = xform_pts(walk_chain(chain), rot, dx, dy)
+
+    return [
+        signed_dist(T3, xf["F18"], xf["F1"]),             # T3 on F18-F1
+        signed_dist(TC1, xf["F12"], xf["F13"]) - R1,      # F12-F13 tangent to TC1
+        signed_dist(xf["F16"], Pi5, PiX),                  # F16 on Pi5-PiX
+        signed_dist(xf["F17"], Pi5, PiX),                  # F17 on Pi5-PiX
+    ]
+
+
+def full_residuals(x, survey_info):
+    """4 residuals for full 4-variable system (rot, dx, dy, C17_deg)."""
+    return alignment_residuals(x[:3], x[3], survey_info)
+
+
+# ============================================================
 # Main
 # ============================================================
 if __name__ == "__main__":
@@ -184,40 +246,100 @@ if __name__ == "__main__":
     to_svg = data["to_svg"]
     outer_segs = data["outer_segs"]
     inset_segs = data["inset_segs"]
-    outer_area = data["outer_area"]
-    inset_area = data["inset_area"]
 
+    # Survey alignment targets (fixed in primary frame)
+    T3 = base_pts["T3"]
+    TC1 = base_pts["TC1"]
+    Pi5 = base_pts["Pi5"]
+    PiX = base_pts["PiX"]
+
+    # R1 (TC1 arc radius) from outer segments
+    R1 = next(s.radius for s in outer_segs
+              if isinstance(s, ArcSeg) and s.center == "TC1")
+
+    # Verify tangent sign: TC1 is on the LEFT of F12->F13 (positive signed dist)
+    tang_dist = signed_dist(TC1, base_pts["F12"], base_pts["F13"])
+    assert tang_dist > 0, f"Expected TC1 left of F12->F13, got {tang_dist}"
+    print(f"Tangent check: signed_dist(TC1, F12-F13) = {tang_dist:.6f}, R1 = {R1:.6f}")
+
+    survey_info = (T3, TC1, R1, Pi5, PiX)
+
+    # Verify current design satisfies all constraints
+    c17_current = math.degrees(0.629724265938)
+    r0 = alignment_residuals([0, 0, 0], c17_current, survey_info)
+    print(f"\nCurrent design (C17={c17_current:.4f}\u00b0) residuals:")
+    for name, val in zip(
+        ["T3 on F18-F1", "F12-F13 tangent", "F16 on line", "F17 on line"], r0
+    ):
+        print(f"  {name}: {val:.2e} ft")
+
+    # Solve for exact C17 + placement
+    sol, info, ier, msg = fsolve(
+        full_residuals, [0.0, 0.0, 0.0, c17_current],
+        args=(survey_info,), full_output=True,
+    )
+    rot_sol, dx_sol, dy_sol, c17_sol = sol
+    d1_sol, d2_sol, s1_sol, _, _ = solve_for_angle(c17_sol)
+    r_sol = full_residuals(sol, survey_info)
+    print(f"\n{'='*60}")
+    print(f"EXACT SOLUTION (fsolve ier={ier}):")
+    print(f"  C17  = {c17_sol:.6f}\u00b0")
+    print(f"  C15  = {math.degrees(s1_sol):.6f}\u00b0")
+    print(f"  rot  = {rot_sol:.2e} rad ({math.degrees(rot_sol):.4e}\u00b0)")
+    print(f"  dx   = {dx_sol:.2e} ft ({dx_sol*12:.2e}\")")
+    print(f"  dy   = {dy_sol:.2e} ft ({dy_sol*12:.2e}\")")
+    print(f"  d(F14-F15) = {d1_sol:.6f}'")
+    print(f"  d(F18-F1)  = {d2_sol:.6f}'")
+    print(f"  Residuals: {[f'{r:.2e}' for r in r_sol]}")
+    print(f"{'='*60}")
+
+    # Sweep: for each C17 from 30-42 deg, find best-fit placement
     out_dir = os.path.dirname(os.path.abspath(__file__))
     count = 0
+    prev_placement = [0.0, 0.0, 0.0]
+
+    print(f"\n{'C17':>6s} {'C15':>6s} {'rot':>9s} {'dx':>9s} {'dy':>9s} "
+          f"{'RMS':>10s} {'d14-15':>8s} {'d18-1':>8s} {'area':>8s}")
+    print("-" * 90)
 
     for c17_deg_x10 in range(300, 421, 10):
         c17_deg = c17_deg_x10 / 10.0
         d1, d2, s1, s2, chain = solve_for_angle(c17_deg)
 
-        print(f"C17={c17_deg:5.1f}\u00b0  C15={math.degrees(s1):5.1f}\u00b0  "
-              f"d_F14_F15={d1:.4f}'  d_F18_F1={d2:.4f}'")
-
         if d1 <= 0 or d2 <= 0:
-            print(f"  WARNING: non-positive length, skipping")
+            print(f"{c17_deg:6.1f}\u00b0  SKIPPED (non-positive length)")
             continue
 
-        # Walk chain to get F/C points
-        fp_pts = walk_chain(chain)
+        # Find best-fit placement (3 unknowns, 4 constraints → least squares)
+        result = least_squares(
+            alignment_residuals, prev_placement,
+            args=(c17_deg, survey_info),
+        )
+        rot, dx, dy = result.x
+        rms = math.sqrt(result.cost / 4)
+        prev_placement = list(result.x)
 
-        # Merge with survey points (copy base, override with new outline)
+        # Walk chain and apply transform
+        std_pts = walk_chain(chain)
+        xf = xform_pts(std_pts, rot, dx, dy)
+
+        # Merge with survey points
         pts = dict(base_pts)
-        pts.update(fp_pts)
+        pts.update(xf)
 
-        # Build outline segments and radii
+        # Build outline geometry
         outline_segs = build_outline_segs(chain)
         radii = build_radii(chain)
-
-        # Compute outline polygon and area
         outer_poly = path_polygon(outline_segs, pts)
         outline_area = poly_area(outer_poly)
-
-        # Build outline layer config
         outline_cfg = build_outline_cfg(outline_segs, pts, radii)
+
+        print(f"{c17_deg:6.1f}\u00b0 {math.degrees(s1):5.1f}\u00b0 "
+              f"{math.degrees(rot):+9.4f}\u00b0 {dx:+9.4f}' {dy:+9.4f}' "
+              f"{rms:10.4e} {d1:8.4f}' {d2:8.4f}' {outline_area:8.2f}")
+
+        # Individual constraint residuals
+        resid = alignment_residuals([rot, dx, dy], c17_deg, survey_info)
 
         # --- Render SVG ---
         lines: list[str] = []
@@ -231,14 +353,26 @@ if __name__ == "__main__":
         lines.append('</defs>')
 
         # Title
-        lines.append(f'<text x="{W/2}" y="26" text-anchor="middle" font-family="Arial"'
-                     f' font-size="14" font-weight="bold">'
-                     f'C17 Sweep = {c17_deg:.1f}\u00b0'
-                     f'  (C15 = {math.degrees(s1):.1f}\u00b0)</text>')
-        lines.append(f'<text x="{W/2}" y="42" text-anchor="middle" font-family="Arial"'
-                     f' font-size="10" fill="#666">'
-                     f"d(F14-F15) = {d1:.3f}'   d(F18-F1) = {d2:.3f}'"
-                     f'   Area = {outline_area:.2f} sq ft</text>')
+        lines.append(f'<text x="{W/2}" y="22" text-anchor="middle" font-family="Arial"'
+                     f' font-size="13" font-weight="bold">'
+                     f'C17 = {c17_deg:.1f}\u00b0'
+                     f'   C15 = {math.degrees(s1):.1f}\u00b0'
+                     f'   RMS = {rms:.4e} ft</text>')
+        sub2 = (f"d(F14-F15)={d1:.3f}\u2032  d(F18-F1)={d2:.3f}\u2032"
+                f"  Area={outline_area:.2f} sq ft"
+                f"  rot={math.degrees(rot):+.3f}\u00b0"
+                f"  \u0394=({dx:+.3f}\u2032, {dy:+.3f}\u2032)")
+        lines.append(f'<text x="{W/2}" y="36" text-anchor="middle" font-family="Arial"'
+                     f' font-size="9" fill="#666">{sub2}</text>')
+
+        # Constraint residual subtitle
+        rms_color = "#2E7D32" if rms < 0.01 else "#BF360C"
+        lines.append(f'<text x="{W/2}" y="48" text-anchor="middle" font-family="Arial"'
+                     f' font-size="8" fill="{rms_color}">'
+                     f'T3\u2190F18F1: {resid[0]:.3e}'
+                     f'   TC1\u2190F12F13: {resid[1]:.3e}'
+                     f'   F16\u2192line: {resid[2]:.3e}'
+                     f'   F17\u2192line: {resid[3]:.3e}</text>')
 
         # Three layers
         render_layer(lines, outer_segs, pts, outer_cfg, to_svg)
@@ -252,7 +386,7 @@ if __name__ == "__main__":
                      ' font-size="13" font-weight="bold">N</text>')
 
         # Legend
-        ly = 550
+        ly = 554
         lines.append(f'<rect x="40" y="{ly}" width="14" height="8" fill="#e8edf5"'
                      f' stroke="#333" stroke-width="1" opacity="0.3"/>')
         lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8"'
