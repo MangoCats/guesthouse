@@ -42,30 +42,24 @@ def _ang_diff(a, b):
     return min(d, 360 - d)
 
 
-def k_closest_p(k_pt, pts, n=3):
-    """Return n P-series points selected for angular diversity, sorted by distance.
+def _diverse_select(origin, targets, n):
+    """Select n targets with greatest angular diversity from origin.
 
-    Computes survey bearings from k_pt to all 5 P-series points, then
-    iteratively removes the least-needed point: find the pair with the
-    smallest angular difference, remove whichever of those two whose
-    removal leaves the smallest angle between the surviving member and
-    its circular neighbor on the removed side.
+    targets: dict mapping name -> (easting, northing).
+    Returns [(name, distance), ...] sorted by distance.
     """
-    # Bearing and distance from k_pt to each P point
     info = {}
-    for pname in P_REFS:
-        dE = pts[pname][0] - k_pt[0]
-        dN = pts[pname][1] - k_pt[1]
-        info[pname] = (math.degrees(math.atan2(dE, dN)) % 360,
+    for name, pos in targets.items():
+        dE = pos[0] - origin[0]
+        dN = pos[1] - origin[1]
+        info[name] = (math.degrees(math.atan2(dE, dN)) % 360,
                        math.hypot(dE, dN))
 
-    candidates = list(P_REFS)
-    for _ in range(len(P_REFS) - n):
-        # Sort candidates by bearing for circular neighbor identification
+    candidates = list(targets.keys())
+    for _ in range(len(candidates) - n):
         sc = sorted(candidates, key=lambda p: info[p][0])
         m = len(sc)
 
-        # Find adjacent pair (in circular bearing order) with smallest gap
         best_diff = float('inf')
         best_i = 0
         for i in range(m):
@@ -74,27 +68,37 @@ def k_closest_p(k_pt, pts, n=3):
                 best_diff = diff
                 best_i = i
 
-        # The tight pair
         ia = best_i
         ib = (best_i + 1) % m
         a_name = sc[ia]
         b_name = sc[ib]
 
-        # If we remove a: b survives, its neighbor on a's side is sc[(ia-1) % m]
         neighbor_b = sc[(ia - 1) % m]
         gap_if_remove_a = _ang_diff(info[b_name][0], info[neighbor_b][0])
 
-        # If we remove b: a survives, its neighbor on b's side is sc[(ib+1) % m]
         neighbor_a = sc[(ib + 1) % m]
         gap_if_remove_b = _ang_diff(info[a_name][0], info[neighbor_a][0])
 
-        # Remove the one whose removal leaves the smallest gap
         if gap_if_remove_a <= gap_if_remove_b:
             candidates.remove(a_name)
         else:
             candidates.remove(b_name)
 
     return sorted([(p, info[p][1]) for p in candidates], key=lambda x: x[1])
+
+
+def k_closest_p(k_pt, pts, n=3):
+    """Return n P-series points selected for angular diversity, sorted by distance."""
+    return _diverse_select(k_pt, {p: pts[p] for p in P_REFS}, n)
+
+
+K_NAMES = ["K1", "K2", "K3", "K4", "K5", "K6"]
+
+
+def k_best_k(k_name, k_pts, n=3):
+    """Return n other K points selected for angular diversity, sorted by distance."""
+    others = {name: k_pts[name] for name in K_NAMES if name != k_name}
+    return _diverse_select(k_pts[k_name], others, n)
 
 
 def render_k_points(lines, k_pts, to_svg):
@@ -117,26 +121,28 @@ def render_k_points(lines, k_pts, to_svg):
 
 
 def render_distance_table(lines, k_pts, pts):
-    """Render an SVG table of K-to-P distances."""
-    # Collect rows: [(pair_label, distance_str), ...]
+    """Render an SVG table of K-to-P and K-to-K distances."""
+    # Collect rows: [(pair_label, distance_str, color), ...]
+    # 'p' = K-to-P row, 'k' = K-to-K row
     rows = []
-    for name in ["K1", "K2", "K3", "K4", "K5", "K6"]:
-        closest = k_closest_p(k_pts[name], pts, n=3)
-        for pname, d in closest:
-            rows.append((f"{name}\u2013{pname}", fmt_dist(d)))
+    for name in K_NAMES:
+        for pname, d in k_closest_p(k_pts[name], pts, n=3):
+            rows.append((f"{name}\u2013{pname}", fmt_dist(d), "p"))
+        for kname, d in k_best_k(name, k_pts, n=3):
+            rows.append((f"{name}\u2013{kname}", fmt_dist(d), "k"))
 
     # Table position and sizing — upper right, close to geometry
-    tx, ty = 610, 55
+    tx, ty = 610, 50
     col1_w = 70   # pair column
     col2_w = 80   # distance column
-    row_h = 11
-    fs = 8.5
-    hdr_h = 14
+    row_h = 10
+    fs = 8
+    hdr_h = 13
 
     # Background
     table_h = hdr_h + len(rows) * row_h + 4
     table_w = col1_w + col2_w
-    lines.append(f'<rect x="{tx-4}" y="{ty-12}" width="{table_w+8}" height="{table_h}"'
+    lines.append(f'<rect x="{tx-4}" y="{ty-11}" width="{table_w+8}" height="{table_h}"'
                  f' fill="white" stroke="#ccc" stroke-width="0.5" rx="3"/>')
 
     # Header
@@ -150,13 +156,14 @@ def render_distance_table(lines, k_pts, pts):
 
     # Data rows with separator lines between K groups
     prev_k = None
-    for pair, dist in rows:
+    for pair, dist, kind in rows:
         cur_k = pair.split("\u2013")[0]
         if prev_k is not None and cur_k != prev_k:
             lines.append(f'<line x1="{tx-2}" y1="{ty-row_h+2}" x2="{tx+table_w+2}" y2="{ty-row_h+2}"'
                          f' stroke="#ddd" stroke-width="0.5"/>')
+        pair_color = K_COLOR if kind == "p" else "#336"
         lines.append(f'<text x="{tx}" y="{ty}" font-family="Arial" font-size="{fs}"'
-                     f' fill="{K_COLOR}">{pair}</text>')
+                     f' fill="{pair_color}">{pair}</text>')
         lines.append(f'<text x="{tx+col1_w}" y="{ty}" font-family="Arial" font-size="{fs}"'
                      f' fill="#555">{dist}</text>')
         ty += row_h
@@ -203,13 +210,17 @@ if __name__ == "__main__":
     # K-series stake points
     render_k_points(lines, k_pts, to_svg)
 
-    # Dashed lines from each K to its 3 closest P points
-    for name in ["K1", "K2", "K3", "K4", "K5", "K6"]:
+    # Dashed lines from each K to its selected P and K points
+    for name in K_NAMES:
         kx, ky = to_svg(*k_pts[name])
         for pname, _ in k_closest_p(k_pts[name], pts, n=3):
             px, py = to_svg(*pts[pname])
             lines.append(f'<line x1="{kx:.1f}" y1="{ky:.1f}" x2="{px:.1f}" y2="{py:.1f}"'
                          f' stroke="{K_COLOR}" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.4"/>')
+        for kname, _ in k_best_k(name, k_pts, n=3):
+            px, py = to_svg(*k_pts[kname])
+            lines.append(f'<line x1="{kx:.1f}" y1="{ky:.1f}" x2="{px:.1f}" y2="{py:.1f}"'
+                         f' stroke="#336" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.3"/>')
 
     # Campfire circle
     _circ_r_ft = 48.0 / 12.0 / 2.0
@@ -318,8 +329,10 @@ if __name__ == "__main__":
 
     print(f"\nSVG written to path_area_ks.svg")
     print(f"K-series stake points:")
-    for name in ["K1", "K2", "K3", "K4", "K5", "K6"]:
+    for name in K_NAMES:
         pt = k_pts[name]
         print(f"  {name}: ({pt[0]:.4f}, {pt[1]:.4f})")
         for pname, d in k_closest_p(k_pts[name], pts, n=3):
             print(f"    {name}-{pname}: {fmt_dist(d)}")
+        for kname, d in k_best_k(name, k_pts, n=3):
+            print(f"    {name}-{kname}: {fmt_dist(d)}")
