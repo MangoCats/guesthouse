@@ -135,10 +135,15 @@ def render_distance_table(lines, k_pts, pts):
     # Collect rows: [(pair_label, distance_str, color), ...]
     # 'p' = K-to-P row, 'k' = K-to-K row
     rows = []
+    seen_kk = set()  # track K-K pairs to avoid duplicates (e.g. K1-K2 / K2-K1)
     for name in K_NAMES:
         for pname, d in k_closest_p(k_pts[name], pts, n=3):
             rows.append((f"{name}\u2013{pname}", fmt_dist(d), "p"))
         for kname, d in k_best_k(name, k_pts, n=3):
+            pair_key = frozenset((name, kname))
+            if pair_key in seen_kk:
+                continue
+            seen_kk.add(pair_key)
             rows.append((f"{name}\u2013{kname}", fmt_dist(d), "k"))
 
     # Table position and sizing — upper right, close to geometry
