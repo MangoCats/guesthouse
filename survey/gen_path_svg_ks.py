@@ -74,8 +74,8 @@ def render_distance_table(lines, k_pts, pts):
         for pname, d in closest:
             rows.append((f"{name}\u2013{pname}", fmt_dist(d)))
 
-    # Table position and sizing
-    tx, ty = 40, 430
+    # Table position and sizing — upper right, close to geometry
+    tx, ty = 610, 55
     col1_w = 70   # pair column
     col2_w = 80   # distance column
     row_h = 11
@@ -125,7 +125,8 @@ if __name__ == "__main__":
     k_pts = compute_k_points(pts)
     pts.update(k_pts)
 
-    outline_cfg = build_outline_cfg(outline_segs, pts, radii)
+    outline_cfg = build_outline_cfg(outline_segs, pts, radii)._replace(
+        vertex_styles={}, brg_dist_labels=None, arc_labels=None, center_marks=None)
 
     lines = []
     lines.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
