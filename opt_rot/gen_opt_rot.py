@@ -383,6 +383,19 @@ if __name__ == "__main__":
         render_layer(lines, inset_segs, pts, inset_cfg, to_svg)
         render_layer(lines, outline_segs, pts, outline_cfg, to_svg)
 
+        # Area label: halfway between FC and midpoint of F9-F10
+        _f9f10_mid = ((pts["F9"][0] + pts["F10"][0]) / 2,
+                      (pts["F9"][1] + pts["F10"][1]) / 2)
+        cx_a = (pts["FC"][0] + _f9f10_mid[0]) / 2
+        cy_a = (pts["FC"][1] + _f9f10_mid[1]) / 2
+        ax, ay = to_svg(cx_a, cy_a)
+        lines.append(f'<text x="{ax:.1f}" y="{ay:.1f}" text-anchor="middle"'
+                     f' font-family="Arial" font-size="12" fill="#333"'
+                     f' font-weight="bold">{outline_area:.2f} sq ft</text>')
+        lines.append(f'<text x="{ax:.1f}" y="{ay+14:.1f}" text-anchor="middle"'
+                     f' font-family="Arial" font-size="9" fill="#666">'
+                     f'(Outline enclosed area)</text>')
+
         # North arrow
         lines.append('<line x1="742" y1="560" x2="742" y2="524" stroke="#333"'
                      ' stroke-width="2" marker-end="url(#ah)"/>')

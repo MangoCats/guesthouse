@@ -246,6 +246,8 @@
 <text x="588.8" y="460.9" text-anchor="start" font-family="Arial" font-size="8.5" fill="#333">59.7°</text>
 <text x="507.5" y="492.0" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">Arc R=22"</text>
 <text x="507.5" y="503.0" text-anchor="end" font-family="Arial" font-size="8.5" fill="#333">30.3°</text>
+<text x="365.1" y="286.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333" font-weight="bold">900.19 sq ft</text>
+<text x="365.1" y="300.0" text-anchor="middle" font-family="Arial" font-size="9" fill="#666">(Outline enclosed area)</text>
 <line x1="742" y1="560" x2="742" y2="524" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>
 <text x="742" y="518" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">N</text>
 <rect x="40" y="554" width="14" height="8" fill="#e8edf5" stroke="#333" stroke-width="1" opacity="0.3"/>
@@ -254,5 +256,5 @@
 <text x="60" y="573" font-family="Arial" font-size="8" fill="#999">Inset path at 20%</text>
 <line x1="40" y1="582" x2="54" y2="582" stroke="#333" stroke-width="2.0"/>
 <text x="60" y="585" font-family="Arial" font-size="8" fill="#333">Outline (900.19 sq ft)</text>
-<text x="396.0" y="610" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-25 22:07:05 from v0.1-739-g9922079-DEV</text>
+<text x="396.0" y="610" text-anchor="middle" font-family="Arial" font-size="7.5" fill="#999">Generated 2026-02-25 22:09:10 from v0.1-740-g19b0819-DEV</text>
 </svg>
