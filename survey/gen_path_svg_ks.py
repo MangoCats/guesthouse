@@ -36,14 +36,65 @@ def compute_k_points(pts):
     return k_pts
 
 
+def _ang_diff(a, b):
+    """Positive angular difference in [0, 180], handling 0-360 rollover."""
+    d = abs(a - b) % 360
+    return min(d, 360 - d)
+
+
 def k_closest_p(k_pt, pts, n=3):
-    """Return the n closest P-series points sorted by distance."""
-    dists = []
+    """Return n P-series points selected for angular diversity, sorted by distance.
+
+    Computes survey bearings from k_pt to all 5 P-series points, then
+    iteratively removes the least-needed point: find the pair with the
+    smallest angular difference, remove whichever of those two whose
+    removal leaves the smallest angle between the surviving member and
+    its circular neighbor on the removed side.
+    """
+    # Bearing and distance from k_pt to each P point
+    info = {}
     for pname in P_REFS:
-        d = math.hypot(k_pt[0] - pts[pname][0], k_pt[1] - pts[pname][1])
-        dists.append((pname, d))
-    dists.sort(key=lambda x: x[1])
-    return dists[:n]
+        dE = pts[pname][0] - k_pt[0]
+        dN = pts[pname][1] - k_pt[1]
+        info[pname] = (math.degrees(math.atan2(dE, dN)) % 360,
+                       math.hypot(dE, dN))
+
+    candidates = list(P_REFS)
+    for _ in range(len(P_REFS) - n):
+        # Sort candidates by bearing for circular neighbor identification
+        sc = sorted(candidates, key=lambda p: info[p][0])
+        m = len(sc)
+
+        # Find adjacent pair (in circular bearing order) with smallest gap
+        best_diff = float('inf')
+        best_i = 0
+        for i in range(m):
+            diff = _ang_diff(info[sc[i]][0], info[sc[(i + 1) % m]][0])
+            if diff < best_diff:
+                best_diff = diff
+                best_i = i
+
+        # The tight pair
+        ia = best_i
+        ib = (best_i + 1) % m
+        a_name = sc[ia]
+        b_name = sc[ib]
+
+        # If we remove a: b survives, its neighbor on a's side is sc[(ia-1) % m]
+        neighbor_b = sc[(ia - 1) % m]
+        gap_if_remove_a = _ang_diff(info[b_name][0], info[neighbor_b][0])
+
+        # If we remove b: a survives, its neighbor on b's side is sc[(ib+1) % m]
+        neighbor_a = sc[(ib + 1) % m]
+        gap_if_remove_b = _ang_diff(info[a_name][0], info[neighbor_a][0])
+
+        # Remove the one whose removal leaves the smallest gap
+        if gap_if_remove_a <= gap_if_remove_b:
+            candidates.remove(a_name)
+        else:
+            candidates.remove(b_name)
+
+    return sorted([(p, info[p][1]) for p in candidates], key=lambda x: x[1])
 
 
 def render_k_points(lines, k_pts, to_svg):
