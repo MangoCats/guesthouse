@@ -131,7 +131,7 @@ def render_k_points(lines, k_pts, to_svg):
 
 
 def render_distance_table(lines, k_pts, pts):
-    """Render an SVG table of K-to-P and K-to-K distances."""
+    """Render an SVG table of K-to-P and K-to-K distances. Returns bottom y."""
     # Collect rows: [(pair_label, distance_str, color), ...]
     # 'p' = K-to-P row, 'k' = K-to-K row
     rows = []
@@ -179,9 +179,11 @@ def render_distance_table(lines, k_pts, pts):
         ty += row_h
         prev_k = cur_k
 
+    return ty  # y position after last row
 
-def render_opening_table(lines, k_pts, openings):
-    """Render an SVG table of K-to-opening distances."""
+
+def render_opening_table(lines, k_pts, openings, top_y):
+    """Render an SVG table of K-to-opening distances below the distance table."""
     o_map = {o.name: o for o in openings}
 
     rows = []  # (k_name, display_text)
@@ -203,7 +205,8 @@ def render_opening_table(lines, k_pts, openings):
                 suffix = ""
             rows.append((k_name, f'{k_name} {oname} ({fmt_dist(width)}) @ {fmt_dist(dist)}{suffix}'))
 
-    tx, ty = 40, 415
+    tx = 610
+    ty = top_y + 6  # small gap below distance table
     fs = 8
     row_h = 10
     hdr_h = 13
@@ -359,10 +362,10 @@ if __name__ == "__main__":
     lines.append('<text x="742" y="518" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">N</text>')
 
     # Distance table
-    render_distance_table(lines, k_pts, pts)
+    dist_bottom = render_distance_table(lines, k_pts, pts)
 
     # Opening locations table
-    render_opening_table(lines, k_pts, outer_openings)
+    render_opening_table(lines, k_pts, outer_openings, dist_bottom)
 
     # Legend
     ly = 550
