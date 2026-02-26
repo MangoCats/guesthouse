@@ -15,6 +15,16 @@ from survey.gen_path_svg_wo import render_openings, OPENING_FILL, OPENING_STROKE
 K_COLOR = '#8B008B'  # dark magenta
 P_REFS = ["POB", "P2", "P3", "P4", "P5"]
 
+# K-to-opening assignments: which openings are measured from each K point
+K_OPENING_MAP = [
+    ("K1", ["O1", "O2", "O3"]),
+    ("K2", ["O4", "O5", "O6"]),
+    ("K3", ["O7"]),
+    ("K4", ["O8"]),
+    ("K6", ["O9", "O10", "O11"]),
+]
+EASTING_ONLY = {"O5", "O6"}  # easting distance only from K2
+
 # K-series definitions: each is the intersection of two F-segment lines
 K_DEFS = [
     ("K1", "F18", "F1",  "F2",  "F5"),
@@ -170,6 +180,56 @@ def render_distance_table(lines, k_pts, pts):
         prev_k = cur_k
 
 
+def render_opening_table(lines, k_pts, openings):
+    """Render an SVG table of K-to-opening distances."""
+    o_map = {o.name: o for o in openings}
+
+    rows = []  # (k_name, display_text)
+    for k_name, o_names in K_OPENING_MAP:
+        kpt = k_pts[k_name]
+        for oname in o_names:
+            o = o_map[oname]
+            width = math.hypot(o.poly[1][0] - o.poly[0][0],
+                               o.poly[1][1] - o.poly[0][1])
+            if oname in EASTING_ONLY:
+                d0 = abs(o.poly[0][0] - kpt[0])
+                d1 = abs(o.poly[1][0] - kpt[0])
+                dist = min(d0, d1)
+                suffix = " E"
+            else:
+                d0 = math.hypot(o.poly[0][0] - kpt[0], o.poly[0][1] - kpt[1])
+                d1 = math.hypot(o.poly[1][0] - kpt[0], o.poly[1][1] - kpt[1])
+                dist = min(d0, d1)
+                suffix = ""
+            rows.append((k_name, f'{k_name} {oname} ({fmt_dist(width)}) @ {fmt_dist(dist)}{suffix}'))
+
+    tx, ty = 40, 415
+    fs = 8
+    row_h = 10
+    hdr_h = 13
+    col_w = 160
+
+    table_h = hdr_h + len(rows) * row_h + 4
+    lines.append(f'<rect x="{tx-4}" y="{ty-11}" width="{col_w+8}" height="{table_h}"'
+                 f' fill="white" stroke="#ccc" stroke-width="0.5" rx="3"/>')
+
+    lines.append(f'<text x="{tx}" y="{ty}" font-family="Arial" font-size="{fs}"'
+                 f' font-weight="bold" fill="#333">Opening Locations</text>')
+    lines.append(f'<line x1="{tx-2}" y1="{ty+3}" x2="{tx+col_w+2}" y2="{ty+3}"'
+                 f' stroke="#999" stroke-width="0.5"/>')
+    ty += hdr_h
+
+    prev_k = None
+    for k_name, text in rows:
+        if prev_k is not None and k_name != prev_k:
+            lines.append(f'<line x1="{tx-2}" y1="{ty-row_h+2}" x2="{tx+col_w+2}" y2="{ty-row_h+2}"'
+                         f' stroke="#ddd" stroke-width="0.5"/>')
+        lines.append(f'<text x="{tx}" y="{ty}" font-family="Arial" font-size="{fs}"'
+                     f' fill="{OPENING_STROKE}">{text}</text>')
+        ty += row_h
+        prev_k = k_name
+
+
 if __name__ == "__main__":
     data = compute_all()
     pts = data["pts"]; to_svg = data["to_svg"]
@@ -300,6 +360,9 @@ if __name__ == "__main__":
 
     # Distance table
     render_distance_table(lines, k_pts, pts)
+
+    # Opening locations table
+    render_opening_table(lines, k_pts, outer_openings)
 
     # Legend
     ly = 550
