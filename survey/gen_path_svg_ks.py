@@ -285,68 +285,6 @@ if __name__ == "__main__":
             lines.append(f'<line x1="{kx:.1f}" y1="{ky:.1f}" x2="{px:.1f}" y2="{py:.1f}"'
                          f' stroke="#336" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.3"/>')
 
-    # Campfire circle
-    _circ_r_ft = 48.0 / 12.0 / 2.0
-    _pob_r = pts["POB"]; _p2_r = pts["P2"]
-    _dx_pp = _p2_r[0] - _pob_r[0]; _dy_pp = _p2_r[1] - _pob_r[1]
-    _L_pp = math.sqrt(_dx_pp**2 + _dy_pp**2)
-    _ux_pp, _uy_pp = _dx_pp / _L_pp, _dy_pp / _L_pp
-    _tan_e = _pob_r[0] + 3.0 * _ux_pp
-    _tan_n = _pob_r[1] + 3.0 * _uy_pp
-    _ln_e, _ln_n = -_dy_pp / _L_pp, _dx_pp / _L_pp
-    _circ_ce = _tan_e + _circ_r_ft * _ln_e
-    _circ_cn = _tan_n + _circ_r_ft * _ln_n
-    _ccx, _ccy = to_svg(_circ_ce, _circ_cn)
-    _cr_svg = to_svg(_circ_ce + _circ_r_ft, _circ_cn)[0] - _ccx
-    _fireplace_url = ("https://www.wayfair.com/outdoor/pdp/big-horn-outdoors-wellington"
-                      "-819-h-concrete-outdoor-fireplace-famu1012.html")
-    lines.append(f'<a href="{_fireplace_url}" target="_blank">')
-    lines.append(f'<circle cx="{_ccx:.1f}" cy="{_ccy:.1f}" r="{_cr_svg:.1f}"'
-                 f' fill="transparent" stroke="#333" stroke-width="1.5" cursor="pointer"/>')
-    _icon_s = 3.0 * _cr_svg / _circ_r_ft
-    _fire_dy = 0.15 * _icon_s
-    lines.append(f'<g transform="translate({_ccx:.1f},{_ccy + _fire_dy:.1f}) scale({_icon_s:.2f})">')
-    lines.append('<path d="M 0,0.05 C -0.22,-0.15 -0.32,-0.45 -0.18,-0.7'
-                 ' C -0.1,-0.82 -0.04,-0.92 0,-0.95'
-                 ' C 0.04,-0.92 0.1,-0.82 0.18,-0.7'
-                 ' C 0.32,-0.45 0.22,-0.15 0,0.05 Z"'
-                 ' fill="#B22222" opacity="0.85"/>')
-    lines.append('<path d="M -0.06,0.03 C -0.2,-0.08 -0.28,-0.35 -0.15,-0.58'
-                 ' C -0.08,-0.72 -0.03,-0.62 -0.02,-0.45'
-                 ' C -0.01,-0.3 0.0,-0.1 -0.06,0.03 Z" fill="#D44000"/>')
-    lines.append('<path d="M 0.06,0.03 C 0.2,-0.08 0.28,-0.35 0.15,-0.58'
-                 ' C 0.08,-0.72 0.03,-0.62 0.02,-0.45'
-                 ' C 0.01,-0.3 0.0,-0.1 0.06,0.03 Z" fill="#D44000"/>')
-    lines.append('<path d="M 0,0.04 C -0.14,-0.12 -0.2,-0.4 -0.08,-0.62'
-                 ' C -0.03,-0.72 0,-0.82 0,-0.82'
-                 ' C 0,-0.82 0.03,-0.72 0.08,-0.62'
-                 ' C 0.2,-0.4 0.14,-0.12 0,0.04 Z" fill="#E86100"/>')
-    lines.append('<path d="M -0.04,0.0 C -0.15,-0.1 -0.18,-0.32 -0.08,-0.48'
-                 ' C -0.02,-0.38 0.0,-0.15 -0.04,0.0 Z" fill="#FF7518"/>')
-    lines.append('<path d="M 0.04,0.0 C 0.15,-0.1 0.18,-0.32 0.08,-0.48'
-                 ' C 0.02,-0.38 0.0,-0.15 0.04,0.0 Z" fill="#FF7518"/>')
-    lines.append('<path d="M 0,0.02 C -0.09,-0.08 -0.12,-0.3 -0.04,-0.5'
-                 ' C -0.01,-0.58 0,-0.65 0,-0.65'
-                 ' C 0,-0.65 0.01,-0.58 0.04,-0.5'
-                 ' C 0.12,-0.3 0.09,-0.08 0,0.02 Z" fill="#FFA500"/>')
-    lines.append('<path d="M 0,0.0 C -0.05,-0.06 -0.07,-0.2 -0.02,-0.38'
-                 ' C 0,-0.44 0,-0.44'
-                 ' C 0.02,-0.38 0.07,-0.2 0.05,-0.06 Z" fill="#FFD700"/>')
-    lines.append('<path d="M 0,-0.02 C -0.025,-0.08 -0.03,-0.15 0,-0.28'
-                 ' C 0.03,-0.15 0.025,-0.08 0,-0.02 Z" fill="#FFF176"/>')
-    _lw = 0.065
-    lines.append(f'<line x1="-0.4" y1="0.32" x2="0.12" y2="0.06"'
-                 f' stroke="#6B3410" stroke-width="{_lw}" stroke-linecap="round"/>')
-    lines.append(f'<line x1="0.4" y1="0.32" x2="-0.12" y2="0.06"'
-                 f' stroke="#8B4513" stroke-width="{_lw}" stroke-linecap="round"/>')
-    lines.append(f'<line x1="-0.3" y1="0.25" x2="0.3" y2="0.25"'
-                 f' stroke="#A0522D" stroke-width="{_lw * 0.85:.4f}" stroke-linecap="round"/>')
-    for _le, _ln in [(-0.4, 0.32), (0.4, 0.32), (-0.3, 0.25), (0.3, 0.25)]:
-        lines.append(f'<circle cx="{_le}" cy="{_ln}" r="0.028" fill="#A0522D" stroke="#5C2D0E" stroke-width="0.008"/>')
-    lines.append('<ellipse cx="0" cy="0.18" rx="0.18" ry="0.06" fill="#FF4500" opacity="0.3"/>')
-    lines.append('</g>')
-    lines.append('</a>')
-
     # Area label
     _w9w10_mid = ((pts["W9"][0] + pts["W10"][0]) / 2, (pts["W9"][1] + pts["W10"][1]) / 2)
     cx_o = (pts["FC"][0] + _w9w10_mid[0]) / 2
