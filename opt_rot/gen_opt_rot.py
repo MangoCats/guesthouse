@@ -293,21 +293,24 @@ if __name__ == "__main__":
     print(f"  Residuals: {[f'{r:.2e}' for r in r_sol]}")
     print(f"{'='*60}")
 
-    # Sweep: for each C17 from 30-42 deg, find best-fit placement
+    # Sweep: for each C17, find best-fit placement
     out_dir = os.path.dirname(os.path.abspath(__file__))
     count = 0
     prev_placement = [0.0, 0.0, 0.0]
 
-    print(f"\n{'C17':>6s} {'C15':>6s} {'rot':>9s} {'dx':>9s} {'dy':>9s} "
-          f"{'RMS':>10s} {'d14-15':>8s} {'d18-1':>8s} {'area':>8s}")
-    print("-" * 90)
+    # Build list of (c17_deg, filename_label) pairs
+    angles = [(x / 10.0, f"{x:03d}") for x in range(300, 421, 10)]
+    angles.append((math.degrees(math.atan(7.0 / 12.0)), "712"))
 
-    for c17_deg_x10 in range(300, 421, 10):
-        c17_deg = c17_deg_x10 / 10.0
+    print(f"\n{'C17':>8s} {'C15':>6s} {'rot':>9s} {'dx':>9s} {'dy':>9s} "
+          f"{'RMS':>10s} {'d14-15':>8s} {'d18-1':>8s} {'area':>8s}")
+    print("-" * 95)
+
+    for c17_deg, label in angles:
         d1, d2, s1, s2, chain = solve_for_angle(c17_deg)
 
         if d1 <= 0 or d2 <= 0:
-            print(f"{c17_deg:6.1f}\u00b0  SKIPPED (non-positive length)")
+            print(f"{c17_deg:8.4f}\u00b0  SKIPPED (non-positive length)")
             continue
 
         # Find best-fit placement (3 unknowns, 4 constraints → least squares)
@@ -334,7 +337,7 @@ if __name__ == "__main__":
         outline_area = poly_area(outer_poly)
         outline_cfg = build_outline_cfg(outline_segs, pts, radii)
 
-        print(f"{c17_deg:6.1f}\u00b0 {math.degrees(s1):5.1f}\u00b0 "
+        print(f"{c17_deg:8.4f}\u00b0 {math.degrees(s1):5.1f}\u00b0 "
               f"{math.degrees(rot):+9.4f}\u00b0 {dx:+9.4f}' {dy:+9.4f}' "
               f"{rms:10.4e} {d1:8.4f}' {d2:8.4f}' {outline_area:8.2f}")
 
@@ -353,9 +356,10 @@ if __name__ == "__main__":
         lines.append('</defs>')
 
         # Title
+        angle_str = f"atan(7/12) = {c17_deg:.4f}" if label == "712" else f"{c17_deg:.1f}"
         lines.append(f'<text x="{W/2}" y="22" text-anchor="middle" font-family="Arial"'
                      f' font-size="13" font-weight="bold">'
-                     f'C17 = {c17_deg:.1f}\u00b0'
+                     f'C17 = {angle_str}\u00b0'
                      f'   C15 = {math.degrees(s1):.1f}\u00b0'
                      f'   RMS = {rms:.4e} ft</text>')
         sub2 = (f"d(F14-F15)={d1:.3f}\u2032  d(F18-F1)={d2:.3f}\u2032"
@@ -411,7 +415,7 @@ if __name__ == "__main__":
         lines.append('</svg>')
 
         svg_content = "\n".join(lines)
-        svg_path = os.path.join(out_dir, f"path_area_{c17_deg_x10:03d}.svg")
+        svg_path = os.path.join(out_dir, f"path_area_{label}.svg")
         with open(svg_path, "w", encoding="utf-8") as f:
             f.write(svg_content)
         count += 1
