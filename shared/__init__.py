@@ -2,7 +2,7 @@
 
 from .types import Point, LineSeg, ArcSeg, Segment
 from .geometry import (
-    GeometryError,
+    GeometryError, GEOM_EPS, ARC_POLY_PTS, require_pts,
     left_norm, off_pt, line_isect, arc_poly,
     circle_circle_isect, line_circle_isect_min_t_gt, line_circle_isect_min_abs_t,
     poly_area, segment_polyline, path_polygon, arc_sweep_deg,

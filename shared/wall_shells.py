@@ -7,14 +7,17 @@ Used by both floorplan/gen_floorplan.py and walls/gen_walls.py.
 import math
 
 from shared.types import LineSeg, ArcSeg
-from shared.geometry import compute_inner_walls, segment_polyline
+from shared.geometry import compute_inner_walls, segment_polyline, GEOM_EPS
 
+# Default arc point count for U-turn quarter-circle arcs
+UTURN_ARC_PTS = 12
 
 # ============================================================
 # Shell path computation
 # ============================================================
 
-def compute_inset_path(outline_segs, pts, radii, inset, prefix):
+def compute_inset_path(outline_segs, pts, radii, inset, prefix
+                       ) -> tuple[dict, list]:
     """Compute a shell boundary path at given inset distance.
 
     Returns (new_pts_dict, new_segs) with point names using the given prefix
@@ -42,14 +45,14 @@ def compute_inset_path(outline_segs, pts, radii, inset, prefix):
     return result_pts, result_segs
 
 
-def openings_on_seg(openings, seg_idx):
+def openings_on_seg(openings, seg_idx) -> list:
     """Get openings on a given segment, sorted by t_start."""
     result = [o for o in openings if o.seg_idx == seg_idx]
     result.sort(key=lambda o: o.t_start)
     return result
 
 
-def solid_ranges(seg_openings):
+def solid_ranges(seg_openings) -> list[tuple[float, float]]:
     """Compute solid wall parametric ranges from sorted opening list.
 
     Returns list of (t_start, t_end) for solid wall sections.
@@ -57,10 +60,10 @@ def solid_ranges(seg_openings):
     ranges = []
     cursor = 0.0
     for o in seg_openings:
-        if o.t_start > cursor + 1e-9:
+        if o.t_start > cursor + GEOM_EPS:
             ranges.append((cursor, o.t_start))
         cursor = o.t_end
-    if cursor < 1.0 - 1e-9:
+    if cursor < 1.0 - GEOM_EPS:
         ranges.append((cursor, 1.0))
     return ranges
 
@@ -69,7 +72,7 @@ def solid_ranges(seg_openings):
 # Polygon builders
 # ============================================================
 
-def lerp(a, b, t):
+def lerp(a, b, t) -> tuple[float, float]:
     """Linear interpolation between two points."""
     return (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]))
 
@@ -127,7 +130,8 @@ def partial_line_strip_2(pts, g_seg, inner_seg, t_start, t_end):
 # ============================================================
 
 def uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
-                   shell_t, R_in, wall_total, n_arc=12):
+                   shell_t, R_in, wall_total, n_arc=UTURN_ARC_PTS
+                   ) -> dict[str, list[tuple[float, float]]]:
     """Compute U-turn arc point arrays at an opening boundary.
 
     Returns a dict with keys:
@@ -203,7 +207,7 @@ def uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
 
 def uturn_polygon(pts, outline_segs, inner_segs, s_segs, g_segs,
                   seg_idx, t_param, side, shell_t, R_in, wall_total,
-                  n_arc=12):
+                  n_arc=UTURN_ARC_PTS) -> list[tuple[float, float]]:
     """Build the U-turn polygon at an opening boundary.
 
     The turn connects the outer shell to the inner shell via two 90-degree
@@ -243,7 +247,8 @@ def uturn_polygon(pts, outline_segs, inner_segs, s_segs, g_segs,
 # ============================================================
 
 def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
-                        end_t, R_out, seg_overrides=None):
+                        end_t, R_out, seg_overrides=None
+                        ) -> list[tuple[float, float]]:
     """Trace a boundary path between two opening boundaries across segments.
 
     Traces CW from (start_seg_idx, start_t + delta_t) to
@@ -312,7 +317,7 @@ def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
     return path
 
 
-def enumerate_wall_sections(openings, outline_segs):
+def enumerate_wall_sections(openings, outline_segs) -> list[tuple]:
     """Enumerate wall sections as (start_opening, end_opening) pairs.
 
     Each wall section is bounded by start_opening.t_end on one side and
@@ -338,8 +343,9 @@ def enumerate_wall_sections(openings, outline_segs):
 
 def build_section_outlines(pts, outline_segs, inner_segs, s_segs, g_segs,
                            start_op, end_op, shell_t, R_in, wall_total,
-                           n_arc=12, g_seg_overrides=None,
-                           w_seg_overrides=None):
+                           n_arc=UTURN_ARC_PTS, g_seg_overrides=None,
+                           w_seg_overrides=None
+                           ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
     """Build outer and inner cavity outlines for one wall section.
 
     start_op: opening whose t_end starts this wall section

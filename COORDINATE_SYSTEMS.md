@@ -1,6 +1,6 @@
 # Coordinate Systems
 
-This document describes every coordinate system used in the hut2 project,
+This document describes every coordinate system used in the ADU project,
 their sources of truth, and how they relate to each other.
 
 ## Overview

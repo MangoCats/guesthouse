@@ -13,7 +13,7 @@ from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
     segment_polyline, path_polygon, poly_area,
     compute_inner_walls, fmt_dist, f8f9_corner_polyline,
-    seg_vecs, offset_pt, line_isect,
+    seg_vecs, offset_pt, line_isect, require_pts, GEOM_EPS,
 )
 from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
@@ -305,14 +305,15 @@ def build_floorplan_data():
     inner_poly = path_polygon(inner_segs, pts)
 
     # Replace W8-W9 arc in inner_poly with straight-arc-straight path
+    require_pts(pts, "W8", "W9")
     w_f8f9_poly = f8f9_corner_polyline(pts, WALL_OUTER, F8F9_INNER_TURN_R)
     w8 = pts["W8"]
     w9 = pts["W9"]
     w8_idx = next(i for i, p in enumerate(inner_poly)
-                  if abs(p[0] - w8[0]) < 1e-9 and abs(p[1] - w8[1]) < 1e-9)
+                  if abs(p[0] - w8[0]) < GEOM_EPS and abs(p[1] - w8[1]) < GEOM_EPS)
     w9_idx = next(i for i, p in enumerate(inner_poly)
                   if i > w8_idx
-                  and abs(p[0] - w9[0]) < 1e-9 and abs(p[1] - w9[1]) < 1e-9)
+                  and abs(p[0] - w9[0]) < GEOM_EPS and abs(p[1] - w9[1]) < GEOM_EPS)
     inner_poly[w8_idx:w9_idx + 1] = w_f8f9_poly
 
     # Compute S-series (2" inset = inner face of outer shell)

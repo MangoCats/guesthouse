@@ -20,221 +20,39 @@ import os, sys, math
 # Ensure project root is on sys.path for package imports
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from shared.geometry import (
-    path_polygon, vert_isects, compute_inner_walls,
-    f8f9_corner_polyline, fmt_dist,
-)
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.geometry import fmt_dist
 from shared.svg import git_describe
-from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
-from floorplan.constants import WALL_OUTER, F8F9_INNER_TURN_R
-from floorplan.layout import compute_interior_layout
-from floorplan.roof import compute_roof_geometry, roof_polyline
-
-
-# ── geometry bootstrap ─────────────────────────────────────────
-
-def _build_geometry():
-    """Return (pts, outline_segs, outer_poly, inner_poly, layout)."""
-    pts = compute_traverse()
-    ai = compute_three_arc(pts)
-    ins = compute_inset(pts, ai["R1"], ai["R2"], ai["R3"], ai["nE"], ai["nN"])
-    pts.update(ins.pts_update)
-    align_pts_to_f_series(pts)
-    geo = compute_outline_geometry()
-    pts.update(geo.fp_pts)
-    inner_segs = compute_inner_walls(geo.outline_segs, pts, WALL_OUTER, geo.radii)
-    outer_poly = path_polygon(geo.outline_segs, pts)
-    inner_poly = path_polygon(inner_segs, pts)
-    # patch concave W8-W9 corner
-    w_f8f9 = f8f9_corner_polyline(pts, WALL_OUTER, F8F9_INNER_TURN_R)
-    w8, w9 = pts["W8"], pts["W9"]
-    i8 = next(i for i, p in enumerate(inner_poly)
-              if abs(p[0] - w8[0]) < 1e-9 and abs(p[1] - w8[1]) < 1e-9)
-    i9 = next(i for i, p in enumerate(inner_poly)
-              if i > i8 and abs(p[0] - w9[0]) < 1e-9 and abs(p[1] - w9[1]) < 1e-9)
-    inner_poly[i8:i9 + 1] = w_f8f9
-    layout = compute_interior_layout(pts, inner_poly)
-    roof = compute_roof_geometry(pts, geo.radii)
-    roof_poly = roof_polyline(roof)
-    return pts, geo.outline_segs, outer_poly, inner_poly, layout, roof_poly
-
-
-# ── IW centerlines ─────────────────────────────────────────────
-
-def _extract_iw_centerlines(layout):
-    """Midlines of IW1, IW2, IW8 as line segments [(p1, p2), ...]."""
-    # IW1: polygon [SW, SE, NE, NW]; midline across the middle
-    iw1 = layout.iw1
-    mid_n1 = (iw1.s + iw1.n) / 2
-    cl1 = ((iw1.poly[0][0], mid_n1), ((iw1.poly[1][0] + iw1.poly[2][0]) / 2, mid_n1))
-    # IW2: vertical BBox; midline is a vertical segment
-    iw2 = layout.iw2
-    cl2 = (((iw2.w + iw2.e) / 2, iw2.s), ((iw2.w + iw2.e) / 2, iw2.n))
-    # IW8: horizontal BBox; midline is a horizontal segment
-    iw8 = layout.iw8
-    mid_n8 = (iw8.s + iw8.n) / 2
-    cl8 = ((iw8.w, mid_n8), (iw8.e, mid_n8))
-    return [cl1, cl2, cl8]
-
-
-# ── rotation helpers ───────────────────────────────────────────
-
-def _rot_pt(p, cx, cy, cos_a, sin_a):
-    dx, dy = p[0] - cx, p[1] - cy
-    return (cx + dx * cos_a - dy * sin_a, cy + dx * sin_a + dy * cos_a)
-
-
-def _rot_poly(poly, cx, cy, cos_a, sin_a):
-    return [_rot_pt(p, cx, cy, cos_a, sin_a) for p in poly]
-
-
-def _seg_vert_isect(p1, p2, e):
-    """Northing where vertical x=e crosses segment p1–p2, or None."""
-    de = p2[0] - p1[0]
-    if abs(de) < 1e-12:
-        return None
-    t = (e - p1[0]) / de
-    if -1e-9 <= t <= 1 + 1e-9:
-        return p1[1] + t * (p2[1] - p1[1])
-    return None
-
-
-# ── max-span-at-angle helper ───────────────────────────────────
-
-def _max_span_at_angle(inner_poly, iw_cls, angle, cx, cy):
-    """Return just the max total span for a given rotation angle."""
-    rad = math.radians(angle)
-    ca, sa = math.cos(rad), math.sin(rad)
-    r_inner = _rot_poly(inner_poly, cx, cy, ca, sa)
-    ie_min = min(p[0] for p in r_inner)
-    ie_max = max(p[0] for p in r_inner)
-    inch = 1.0 / 12.0
-    best = 0.0
-    e = ie_min
-    while e <= ie_max + 1e-9:
-        ns = vert_isects(r_inner, e)
-        if len(ns) >= 2:
-            span = max(ns) - min(ns)
-            if span > best:
-                best = span
-        e += inch
-    return best
-
-
-# ── full rotation data ─────────────────────────────────────────
-
-def _compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy,
-                           roof_poly=None):
-    """Compute full span data for one rotation angle."""
-    rad = math.radians(angle)
-    ca, sa = math.cos(rad), math.sin(rad)
-    r_outer = _rot_poly(outer_poly, cx, cy, ca, sa)
-    r_inner = _rot_poly(inner_poly, cx, cy, ca, sa)
-    r_cls = [(_rot_pt(c[0], cx, cy, ca, sa),
-              _rot_pt(c[1], cx, cy, ca, sa)) for c in iw_cls]
-    r_roof = _rot_poly(roof_poly, cx, cy, ca, sa) if roof_poly else None
-
-    all_vis = r_outer + r_inner
-    e_min = min(p[0] for p in all_vis)
-    e_max = max(p[0] for p in all_vis)
-    n_min = min(p[1] for p in all_vis)
-    n_max = max(p[1] for p in all_vis)
-
-    ie_min = min(p[0] for p in r_inner)
-    ie_max = max(p[0] for p in r_inner)
-    inch = 1.0 / 12.0
-    eastings, spans, s_spans, n_spans, roof_spans = [], [], [], [], []
-    e = ie_min
-    while e <= ie_max + 1e-9:
-        ns = vert_isects(r_inner, e)
-        if len(ns) >= 2:
-            bot, top = min(ns), max(ns)
-            span = top - bot
-        else:
-            span = bot = top = 0.0
-        spans.append(span)
-
-        iw_ns = []
-        for cl in r_cls:
-            n = _seg_vert_isect(cl[0], cl[1], e)
-            if n is not None and span > 0 and bot < n < top:
-                iw_ns.append(n)
-        if iw_ns and span > 0:
-            s_spans.append(min(iw_ns) - bot)
-            n_spans.append(top - max(iw_ns))
-        else:
-            s_spans.append(span)
-            n_spans.append(span)
-
-        if r_roof:
-            rns = vert_isects(r_roof, e)
-            roof_spans.append(max(rns) - min(rns) if len(rns) >= 2 else 0.0)
-
-        eastings.append(e)
-        e += inch
-
-    max_span = max(spans) if spans else 0
-    max_e = eastings[spans.index(max_span)] if spans else 0
-    max_roof_span = max(roof_spans) if roof_spans else 0
-    return dict(
-        angle=angle, eastings=eastings, spans=spans,
-        s_spans=s_spans, n_spans=n_spans, roof_spans=roof_spans,
-        r_outer=r_outer, r_inner=r_inner, r_cls=r_cls,
-        max_span=max_span, max_e=max_e, max_roof_span=max_roof_span,
-        e_min=e_min, e_max=e_max, n_min=n_min, n_max=n_max,
-    )
+from span._common import (
+    build_geometry, extract_iw_centerlines,
+    compute_rotation_data, find_min_span_angle, fmt_angle,
+)
 
 
 # ── SVG generation ─────────────────────────────────────────────
 
 def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
-    iw_cls = _extract_iw_centerlines(layout)
+    iw_cls = extract_iw_centerlines(layout)
     cx = sum(p[0] for p in inner_poly) / len(inner_poly)
     cy = sum(p[1] for p in inner_poly) / len(inner_poly)
 
     # coarse rotations (5 deg steps)
-    all_data = [_compute_rotation_data(a, outer_poly, inner_poly, iw_cls, cx, cy,
-                                       roof_poly)
+    all_data = [compute_rotation_data(a, outer_poly, inner_poly, iw_cls, cx, cy,
+                                      roof_poly)
                 for a in range(0, 176, 5)]
 
-    # coarse best angle
+    # coarse best angle (for highlighting in panel grid)
     mm_span = min(d['max_span'] for d in all_data)
     mm_angle = next(d['angle'] for d in all_data if d['max_span'] == mm_span)
 
-    # fine search: 0.5 deg steps, +/-4.5 deg around coarse minimum
-    fine_best_span = mm_span
-    fine_best_angle = float(mm_angle)
-    fine_a = mm_angle - 4.5
-    while fine_a <= mm_angle + 4.5 + 1e-9:
-        ms = _max_span_at_angle(inner_poly, iw_cls, fine_a, cx, cy)
-        if ms < fine_best_span:
-            fine_best_span = ms
-            fine_best_angle = fine_a
-        fine_a += 0.5
-
-    # superfine search: 0.1 deg steps, +/-0.9 deg around fine minimum
-    sf_best_span = fine_best_span
-    sf_best_angle = fine_best_angle
-    sf_a = fine_best_angle - 0.9
-    while sf_a <= fine_best_angle + 0.9 + 1e-9:
-        ms = _max_span_at_angle(inner_poly, iw_cls, sf_a, cx, cy)
-        if ms < sf_best_span:
-            sf_best_span = ms
-            sf_best_angle = sf_a
-        sf_a += 0.1
+    # refined minimum via three-pass search (unnormalised for panel rendering)
+    sf_best_angle, sf_best_span = find_min_span_angle(
+        inner_poly, iw_cls, cx, cy, normalize=False)
 
     # full data for the refined minimum angle
-    refined = _compute_rotation_data(
+    refined = compute_rotation_data(
         sf_best_angle, outer_poly, inner_poly, iw_cls, cx, cy, roof_poly)
 
-    def _fmt_angle(a):
-        if a == int(a):
-            return f"{int(a)}"
-        s = f"{a:.1f}"
-        return s.rstrip('0').rstrip('.')
-
-    ref_ang_str = _fmt_angle(sf_best_angle)
+    ref_ang_str = fmt_angle(sf_best_angle)
 
     # global bounds (include refined panel)
     all_panels = all_data + [refined]
@@ -451,7 +269,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
 # ── entry point ────────────────────────────────────────────────
 
 def main():
-    pts, _, outer_poly, inner_poly, layout, roof_poly = _build_geometry()
+    pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry()
     svg = _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly)
     outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "span_minmax.svg")

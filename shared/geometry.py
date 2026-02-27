@@ -2,11 +2,25 @@
 import math
 from .types import Point, LineSeg, ArcSeg, Segment
 
+# Geometric tolerance for point/intersection coincidence checks
+GEOM_EPS = 1e-9
+
+# Default point count for arc-to-polygon conversions
+ARC_POLY_PTS = 60
+
 # ============================================================
 # Error Type
 # ============================================================
 class GeometryError(ValueError):
     """Raised for impossible geometry operations."""
+
+
+def require_pts(pts: dict[str, 'Point'], *names: str) -> None:
+    """Raise KeyError with a descriptive message if any named point is missing."""
+    missing = [n for n in names if n not in pts]
+    if missing:
+        raise KeyError(f"Missing geometry point(s): {', '.join(missing)}")
+
 
 # ============================================================
 # Geometry Utilities
@@ -50,7 +64,7 @@ def line_isect(p1: Point, d1: Point, p2: Point, d2: Point) -> Point:
     t = ((p2[0]-p1[0])*d2[1]-(p2[1]-p1[1])*d2[0])/det
     return (p1[0]+t*d1[0], p1[1]+t*d1[1])
 
-def arc_poly(cx: float, cy: float, r: float, sa: float, ea: float, n: int = 60) -> list[Point]:
+def arc_poly(cx: float, cy: float, r: float, sa: float, ea: float, n: int = ARC_POLY_PTS) -> list[Point]:
     """Generate n+1 points along a circular arc from angle sa to ea (radians)."""
     return [(cx+r*math.cos(sa+(ea-sa)*i/n), cy+r*math.sin(sa+(ea-sa)*i/n))
             for i in range(n+1)]
@@ -61,13 +75,13 @@ def circle_circle_isect(c1: Point, r1: float, c2: Point, r2: float, near: Point)
     Raises GeometryError if the circles don't intersect.
     """
     dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.sqrt(dx**2+dy**2)
-    if d > r1 + r2 + 1e-9:
+    if d > r1 + r2 + GEOM_EPS:
         raise GeometryError(f"Circles too far apart: d={d:.6f}, r1+r2={r1+r2:.6f}")
-    if d < abs(r1-r2) - 1e-9:
+    if d < abs(r1-r2) - GEOM_EPS:
         raise GeometryError(f"Circle contained: d={d:.6f}, |r1-r2|={abs(r1-r2):.6f}")
     a = (r1**2-r2**2+d**2)/(2*d)
     h_sq = r1**2-a**2
-    if h_sq < -1e-9:
+    if h_sq < -GEOM_EPS:
         raise GeometryError(f"No intersection: h^2={h_sq:.6f}")
     h = math.sqrt(max(0, h_sq))
     ux, uy = dx/d, dy/d; Mx, My = c1[0]+a*ux, c1[1]+a*uy
@@ -84,7 +98,7 @@ def line_circle_isect_min_t_gt(p: Point, d: Point, c: Point, r: float, t_min: fl
     ax = p[0]-c[0]; ay = p[1]-c[1]
     A = d[0]**2+d[1]**2; B = 2*(ax*d[0]+ay*d[1]); C = ax**2+ay**2-r**2
     disc = B**2-4*A*C
-    if disc < -1e-9:
+    if disc < -GEOM_EPS:
         raise GeometryError(f"Line misses circle: disc={disc:.6f}")
     disc = max(0, disc)
     t1 = (-B+math.sqrt(disc))/(2*A); t2 = (-B-math.sqrt(disc))/(2*A)
@@ -102,7 +116,7 @@ def line_circle_isect_min_abs_t(p: Point, d: Point, c: Point, r: float) -> Point
     ax = p[0]-c[0]; ay = p[1]-c[1]
     A = d[0]**2+d[1]**2; B = 2*(ax*d[0]+ay*d[1]); C = ax**2+ay**2-r**2
     disc = B**2-4*A*C
-    if disc < -1e-9:
+    if disc < -GEOM_EPS:
         raise GeometryError(f"Line misses circle: disc={disc:.6f}")
     disc = max(0, disc)
     t1 = (-B+math.sqrt(disc))/(2*A); t2 = (-B-math.sqrt(disc))/(2*A)

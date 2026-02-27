@@ -3,32 +3,39 @@ import math
 import pytest
 from conftest import _import_from
 
-# Import from both modules so coverage hits both files
+# Import generator modules (for _generate_svg / _compute_spans)
 _span = _import_from("span", "gen_span")
 _smin = _import_from("span", "gen_span_min")
 _smm = _import_from("span", "gen_span_minmax")
 
+# Import shared helpers from _common
+from span._common import (
+    rot_pt, rot_poly, seg_vert_isect,
+    extract_iw_centerlines, max_span_at_angle,
+    compute_rotation_data,
+)
+
 
 # ===================================================================
-# Pure helper unit tests — test via gen_span_min
+# Pure helper unit tests — via span._common
 # ===================================================================
 
 class TestRotPt:
     def test_identity(self):
         p = (3.0, 4.0)
-        result = _smin._rot_pt(p, 0.0, 0.0, 1.0, 0.0)
+        result = rot_pt(p, 0.0, 0.0, 1.0, 0.0)
         assert result[0] == pytest.approx(3.0)
         assert result[1] == pytest.approx(4.0)
 
     def test_90_degrees(self):
         # (1, 0) rotated 90° CCW around origin → (0, 1)
-        result = _smin._rot_pt((1.0, 0.0), 0.0, 0.0, 0.0, 1.0)
+        result = rot_pt((1.0, 0.0), 0.0, 0.0, 0.0, 1.0)
         assert result[0] == pytest.approx(0.0, abs=1e-12)
         assert result[1] == pytest.approx(1.0, abs=1e-12)
 
     def test_around_offset_center(self):
         # (5, 3) rotated 180° around (3, 3) → (1, 3)
-        result = _smin._rot_pt((5.0, 3.0), 3.0, 3.0, -1.0, 0.0)
+        result = rot_pt((5.0, 3.0), 3.0, 3.0, -1.0, 0.0)
         assert result[0] == pytest.approx(1.0, abs=1e-12)
         assert result[1] == pytest.approx(3.0, abs=1e-12)
 
@@ -36,52 +43,32 @@ class TestRotPt:
 class TestRotPoly:
     def test_rotates_all_points(self):
         poly = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-        result = _smin._rot_poly(poly, 0.0, 0.0, 1.0, 0.0)  # identity
+        result = rot_poly(poly, 0.0, 0.0, 1.0, 0.0)  # identity
         assert len(result) == 4
         assert result[0][0] == pytest.approx(0.0)
 
     def test_empty_polygon(self):
-        assert _smin._rot_poly([], 0.0, 0.0, 1.0, 0.0) == []
+        assert rot_poly([], 0.0, 0.0, 1.0, 0.0) == []
 
 
 class TestSegVertIsect:
     def test_horizontal_crossing(self):
         # Segment (0,0)-(10,0), vertical at e=5 → n=0
-        n = _smin._seg_vert_isect((0.0, 0.0), (10.0, 0.0), 5.0)
+        n = seg_vert_isect((0.0, 0.0), (10.0, 0.0), 5.0)
         assert n == pytest.approx(0.0)
 
     def test_diagonal_crossing(self):
         # Segment (0,0)-(10,10), vertical at e=5 → n=5
-        n = _smin._seg_vert_isect((0.0, 0.0), (10.0, 10.0), 5.0)
+        n = seg_vert_isect((0.0, 0.0), (10.0, 10.0), 5.0)
         assert n == pytest.approx(5.0)
 
     def test_vertical_segment_returns_none(self):
         # Vertical segment (5,0)-(5,10) has de=0
-        assert _smin._seg_vert_isect((5.0, 0.0), (5.0, 10.0), 5.0) is None
+        assert seg_vert_isect((5.0, 0.0), (5.0, 10.0), 5.0) is None
 
     def test_outside_segment_returns_none(self):
         # Segment (0,0)-(10,0), e=20 is outside
-        assert _smin._seg_vert_isect((0.0, 0.0), (10.0, 0.0), 20.0) is None
-
-
-# Cover the same functions in gen_span_minmax
-class TestMinmaxRotPt:
-    def test_identity(self):
-        result = _smm._rot_pt((3.0, 4.0), 0.0, 0.0, 1.0, 0.0)
-        assert result[0] == pytest.approx(3.0)
-
-    def test_90_degrees(self):
-        result = _smm._rot_pt((1.0, 0.0), 0.0, 0.0, 0.0, 1.0)
-        assert result[0] == pytest.approx(0.0, abs=1e-12)
-
-
-class TestMinmaxSegVertIsect:
-    def test_horizontal_crossing(self):
-        n = _smm._seg_vert_isect((0.0, 0.0), (10.0, 0.0), 5.0)
-        assert n == pytest.approx(0.0)
-
-    def test_vertical_returns_none(self):
-        assert _smm._seg_vert_isect((5.0, 0.0), (5.0, 10.0), 5.0) is None
+        assert seg_vert_isect((0.0, 0.0), (10.0, 0.0), 20.0) is None
 
 
 # ===================================================================
@@ -91,12 +78,12 @@ class TestMinmaxSegVertIsect:
 class TestExtractIwCenterlines:
     def test_returns_three(self, span_geometry):
         _, _, _, inner_poly, layout, _ = span_geometry
-        cls = _smin._extract_iw_centerlines(layout)
+        cls = extract_iw_centerlines(layout)
         assert len(cls) == 3
 
     def test_each_is_two_points(self, span_geometry):
         _, _, _, inner_poly, layout, _ = span_geometry
-        cls = _smin._extract_iw_centerlines(layout)
+        cls = extract_iw_centerlines(layout)
         for cl in cls:
             assert len(cl) == 2
             assert len(cl[0]) == 2  # (E, N)
@@ -137,19 +124,19 @@ class TestComputeSpans:
 class TestMaxSpanAtAngle:
     def test_zero_rotation_positive(self, span_geometry):
         _, _, _, inner_poly, layout, _ = span_geometry
-        iw_cls = _smin._extract_iw_centerlines(layout)
+        iw_cls = extract_iw_centerlines(layout)
         cx = sum(p[0] for p in inner_poly) / len(inner_poly)
         cy = sum(p[1] for p in inner_poly) / len(inner_poly)
-        ms = _smin._max_span_at_angle(inner_poly, iw_cls, 0.0, cx, cy)
+        ms = max_span_at_angle(inner_poly, iw_cls, 0.0, cx, cy)
         assert ms > 0
 
     def test_different_at_90(self, span_geometry):
         _, _, _, inner_poly, layout, _ = span_geometry
-        iw_cls = _smin._extract_iw_centerlines(layout)
+        iw_cls = extract_iw_centerlines(layout)
         cx = sum(p[0] for p in inner_poly) / len(inner_poly)
         cy = sum(p[1] for p in inner_poly) / len(inner_poly)
-        ms0 = _smin._max_span_at_angle(inner_poly, iw_cls, 0.0, cx, cy)
-        ms90 = _smin._max_span_at_angle(inner_poly, iw_cls, 90.0, cx, cy)
+        ms0 = max_span_at_angle(inner_poly, iw_cls, 0.0, cx, cy)
+        ms90 = max_span_at_angle(inner_poly, iw_cls, 90.0, cx, cy)
         assert ms0 != pytest.approx(ms90, abs=0.5)
 
 
@@ -157,10 +144,10 @@ class TestComputeRotationData:
     @pytest.fixture(scope="class")
     def rot_data(self, span_geometry):
         _, _, outer_poly, inner_poly, layout, roof_poly = span_geometry
-        iw_cls = _smin._extract_iw_centerlines(layout)
+        iw_cls = extract_iw_centerlines(layout)
         cx = sum(p[0] for p in inner_poly) / len(inner_poly)
         cy = sum(p[1] for p in inner_poly) / len(inner_poly)
-        return _smin._compute_rotation_data(
+        return compute_rotation_data(
             45.0, outer_poly, inner_poly, iw_cls, cx, cy, roof_poly)
 
     def test_expected_keys(self, rot_data):

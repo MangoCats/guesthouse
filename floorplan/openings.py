@@ -49,7 +49,7 @@ class WallOpening(NamedTuple):
     t_end: float    # parametric position [0, 1] along the segment
 
 
-def compute_outer_openings(pts, layout) -> list[OuterOpening]:
+def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     """Compute all 11 outer-wall opening polygons.
 
     Each polygon has 4 vertices spanning from the F-face (outer) to the W-face (inner).
@@ -223,7 +223,7 @@ def compute_outer_openings(pts, layout) -> list[OuterOpening]:
     return openings
 
 
-def compute_rough_openings(pts, layout) -> list[RoughOpening]:
+def compute_rough_openings(pts: dict[str, Point], layout) -> list[RoughOpening]:
     """Compute all 7 interior rough-opening polygons and bounding boxes."""
 
     # RO1: in IW1, positioned relative to IW2 east face along IW1 length

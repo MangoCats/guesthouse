@@ -17,44 +17,9 @@ import os, sys, math
 # Ensure project root is on sys.path for package imports
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from shared.geometry import (
-    path_polygon, vert_isects, compute_inner_walls,
-    f8f9_corner_polyline, fmt_dist,
-)
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.geometry import vert_isects, fmt_dist
 from shared.svg import git_describe
-from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
-from floorplan.constants import WALL_OUTER, F8F9_INNER_TURN_R
-from floorplan.layout import compute_interior_layout
-from floorplan.roof import compute_roof_geometry, roof_polyline
-
-
-# ── geometry bootstrap ─────────────────────────────────────────
-
-def _build_geometry():
-    """Return (pts, outline_segs, outer_poly, inner_poly, layout)."""
-    pts = compute_traverse()
-    ai = compute_three_arc(pts)
-    ins = compute_inset(pts, ai["R1"], ai["R2"], ai["R3"], ai["nE"], ai["nN"])
-    pts.update(ins.pts_update)
-    align_pts_to_f_series(pts)
-    geo = compute_outline_geometry()
-    pts.update(geo.fp_pts)
-    inner_segs = compute_inner_walls(geo.outline_segs, pts, WALL_OUTER, geo.radii)
-    outer_poly = path_polygon(geo.outline_segs, pts)
-    inner_poly = path_polygon(inner_segs, pts)
-    # patch concave W8-W9 corner
-    w_f8f9 = f8f9_corner_polyline(pts, WALL_OUTER, F8F9_INNER_TURN_R)
-    w8, w9 = pts["W8"], pts["W9"]
-    i8 = next(i for i, p in enumerate(inner_poly)
-              if abs(p[0] - w8[0]) < 1e-9 and abs(p[1] - w8[1]) < 1e-9)
-    i9 = next(i for i, p in enumerate(inner_poly)
-              if i > i8 and abs(p[0] - w9[0]) < 1e-9 and abs(p[1] - w9[1]) < 1e-9)
-    inner_poly[i8:i9 + 1] = w_f8f9
-    layout = compute_interior_layout(pts, inner_poly)
-    roof = compute_roof_geometry(pts, geo.radii)
-    roof_poly = roof_polyline(roof)
-    return pts, geo.outline_segs, outer_poly, inner_poly, layout, roof_poly
+from span._common import build_geometry
 
 
 # ── span computation ───────────────────────────────────────────
@@ -310,7 +275,7 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
 # ── entry point ────────────────────────────────────────────────
 
 def main():
-    pts, _, outer_poly, inner_poly, layout, roof_poly = _build_geometry()
+    pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry()
     svg = _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly)
     outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "span.svg")
     with open(outpath, 'w', encoding='utf-8') as f:

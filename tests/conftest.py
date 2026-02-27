@@ -1,4 +1,4 @@
-"""Shared test fixtures for hut2 geometry tests."""
+"""Shared test fixtures for ADU geometry tests."""
 import importlib.util
 import io
 import os
@@ -99,6 +99,6 @@ def layout(pts_with_outline, inner_poly):
 
 @pytest.fixture(scope="session")
 def span_geometry():
-    """Full geometry tuple from span _build_geometry()."""
-    mod = _import_from("span", "gen_span")
-    return mod._build_geometry()
+    """Full geometry tuple from span._common.build_geometry()."""
+    from span._common import build_geometry
+    return build_geometry()

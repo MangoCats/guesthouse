@@ -1,6 +1,6 @@
 # HOWTO — Common Tasks Reference
 
-Step-by-step instructions for common but complex tasks in the Hut2 project. Consult this before researching the codebase from scratch.
+Step-by-step instructions for common but complex tasks in the ADU project. Consult this before researching the codebase from scratch.
 
 ## Table of Contents
 
@@ -18,6 +18,8 @@ Step-by-step instructions for common but complex tasks in the Hut2 project. Cons
 12. [Rotation-Invariant Placement](#12-rotation-invariant-placement)
 13. [Modifying F-Series Outline Geometry](#13-modifying-f-series-outline-geometry)
 14. [Updating d² Regression Tests](#14-updating-d²-regression-tests)
+15. [Adding a New Generator to gen_all.py](#15-adding-a-new-generator-to-gen_allpy)
+16. [Debugging a Failed Test](#16-debugging-a-failed-test)
 
 ---
 
@@ -695,5 +697,91 @@ python -m pytest tests/ -x
 3. Run `python tests/update_d2.py --check` to review which d² values changed
 4. Verify only expected points moved (e.g., after changing F6-F7 length, only F7/F8/F9 and downstream layout points should change)
 5. Run `python tests/update_d2.py` to update
-6. Run `python -m pytest tests/ -x` to verify all 581 tests pass
+6. Run `python -m pytest tests/ -x` to verify all tests pass
 7. Commit and run `python gen_all.py`
+
+
+---
+
+## 15. Adding a New Generator to gen_all.py
+
+When you create a new SVG generator script, register it in `gen_all.py` so that `python gen_all.py` regenerates everything.
+
+### Steps
+
+1. **Create the generator script** in the appropriate subdirectory (e.g., `mydir/gen_foo.py`). It must:
+   - Be runnable as `python mydir/gen_foo.py` from the project root
+   - Write its output file(s) to a deterministic path (typically alongside the script)
+   - Use `from shared.svg import git_describe` for version stamps
+
+2. **Add the script path to `_SCRIPTS`** in `gen_all.py`:
+   ```python
+   _SCRIPTS = [
+       ...
+       os.path.join(_DIR, "mydir", "gen_foo.py"),
+   ]
+   ```
+   Order doesn't matter for correctness, but grouping by subdirectory keeps it readable.
+
+3. **If the generator produces a PDF that should be rendered to PNG**, add its path to the `pdf_pngs` list:
+   ```python
+   pdf_pngs = [
+       ...
+       os.path.join(_DIR, "mydir", "foo.pdf"),
+   ]
+   ```
+   This requires `PyMuPDF` (`pip install -e ".[gen]"`).
+
+4. **Test**: run `python gen_all.py` and verify the new output appears.
+
+### How gen_all.py works
+
+- Captures `git describe --always --dirty=-DEV` to `.git_describe` *before* any script runs
+- `shared.svg.git_describe()` reads this file so all SVGs get the same version stamp
+- Scripts run sequentially via `subprocess.check_call`
+- The `.git_describe` cache file is cleaned up in a `finally` block
+
+
+---
+
+## 16. Debugging a Failed Test
+
+### Common causes
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| `test_d2_regression` fails | Geometry changed but d² baselines not updated | Run `python tests/update_d2.py` after verifying only expected points moved |
+| `test_outline` fails | F-series coordinates changed | Update expected values in `test_outline.py` (hand-verified) |
+| `KeyError: 'W8'` or similar | Missing geometry point after layout change | Check that all required points are computed in `floorplan/geometry.py` or `floorplan/layout.py` |
+| `ImportError` | Missing dependency or broken relative import | Run `pip install -e .` to reinstall; check `sys.path.insert` in scripts |
+| SVG output differs | Constant changed or computation order changed | Compare old vs new SVG; check `floorplan/constants.py` for unintended changes |
+
+### Diagnostic commands
+
+```bash
+# Run all tests with verbose output
+python -m pytest tests/ -v
+
+# Run a single test file
+python -m pytest tests/test_outline.py -v
+
+# Run tests matching a pattern
+python -m pytest tests/ -k "d2_regression" -v
+
+# Check which d² values changed (without updating)
+python tests/update_d2.py --check
+
+# Update d² baselines after verified geometry change
+python tests/update_d2.py
+
+# Regenerate all SVGs to check for runtime errors
+python gen_all.py
+```
+
+### Test architecture
+
+- `tests/conftest.py` defines session-scoped fixtures that compute geometry once
+- `test_d2_regression.py` checks squared-distance invariants between named points
+- `test_outline.py` checks absolute F-series coordinates
+- `test_span.py` tests span computation helpers from `span/_common.py`
+- Tests run in ~3 seconds total; no external services or network access needed

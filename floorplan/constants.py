@@ -30,6 +30,7 @@ COUNTER_GAP = 36.0 / 12.0         # 3' east of dryer
 IW1_OFFSET_FROM_W1 = 12.0 + 8.0/12.0    # 12'8" from W1, along W2-W5 direction
 IW1_OFFSET_FROM_W2 = 6.5           # 6'6" from W2, CW-normal to W2-W5
 # IW2 segments (breakup of former single IW2 into lower, oblique, shower)
+IW_W2_REF_DIST = 8.0                  # 8' from W7 toward W6 for virtual W2 reference
 IW2_DIST_W2W5 = 6.5                  # 6'6" from W2-W5 inner wall (true perpendicular)
 IW2_LENGTH = 42.0 / 12.0             # 42" north from IW1 north face
 IW2S_W2REF_OFFSET = 6.5              # offset from virtual W2 ref → ~5'4" true from W2-W5

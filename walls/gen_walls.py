@@ -28,6 +28,14 @@ from shared.wall_shells import (
 )
 
 
+# ── Color palette ─────────────────────────────────────────────
+CLR_IW_FILL = "rgba(160,160,160,0.35)"
+CLR_IW_STROKE = "#666"
+CLR_DIM = "#4682B4"
+CLR_SHELL_FILL = "rgba(180,180,180,0.5)"
+CLR_OPENING_FILL = "rgb(220,235,255)"
+CLR_LABEL = "#666"
+CLR_TITLE = "#333"
 
 
 # ============================================================
@@ -214,7 +222,7 @@ def build_wall_data():
 # SVG rendering
 # ============================================================
 
-def _svg_polygon(out, poly, to_svg, fill, stroke="#666", stroke_width="0.5"):
+def _svg_polygon(out, poly, to_svg, fill, stroke=CLR_IW_STROKE, stroke_width="0.5"):
     """Render a polygon as an SVG element."""
     svg = svg_polygon_pts(poly, to_svg, prec=2)
     out.append(f'<polygon points="{svg}" fill="{fill}" '
@@ -228,8 +236,8 @@ def _render_interior_walls(out, data):
     layout = data.layout
     inner_poly = data.inner_poly
 
-    IW_FILL = "rgba(160,160,160,0.35)"
-    IW_STROKE = "#666"
+    IW_FILL = CLR_IW_FILL
+    IW_STROKE = CLR_IW_STROKE
     IW_SW = "0.5"
     LABEL_SIZE = "6"
     LABEL_GAP = 3.0  # SVG px from wall face to label center
@@ -257,7 +265,7 @@ def _render_interior_walls(out, data):
             rot = ""
         out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
                    f' dominant-baseline="central" font-family="Arial"'
-                   f' font-size="{LABEL_SIZE}" fill="#666"{rot}>{name}</text>')
+                   f' font-size="{LABEL_SIZE}" fill="{CLR_LABEL}"{rot}>{name}</text>')
 
     rough_openings = compute_rough_openings(pts, layout)
     ro_map = {ro.name: ro.bbox for ro in rough_openings}
@@ -409,7 +417,7 @@ def _render_opening_dims(out, data):
     TICK = 3.0              # SVG pts, tick half-length
     EXT_OVERSHOOT = 1.5     # SVG pts, extension line past dim line
     LABEL_OFFSET = 4.0      # SVG pts, label offset from dim line toward exterior
-    DIM_COLOR = "#4682B4"
+    DIM_COLOR = CLR_DIM
     DIM_SW = "0.4"
     FONT_SIZE = "5"
 
@@ -508,8 +516,8 @@ def _render_wall_segments(out, data):
     R_in = OPENING_INSIDE_RADIUS
     R_out = R_in + shell_t
 
-    WALL_FILL = "rgba(180,180,180,0.5)"
-    OPENING_FILL = "rgb(220,235,255)"
+    WALL_FILL = CLR_SHELL_FILL
+    OPENING_FILL = CLR_OPENING_FILL
 
     for seg_idx in range(len(outline_segs)):
         seg = outline_segs[seg_idx]
@@ -601,7 +609,7 @@ def _render_wall_segments(out, data):
                         lerp(W_A, W_B, op.t_start),
                     ]
                     _svg_polygon(out, o_poly, to_svg, OPENING_FILL,
-                                 stroke="#4682B4", stroke_width="0.5")
+                                 stroke=CLR_DIM, stroke_width="0.5")
 
 
 def _render_section_outlines(out, data):
@@ -648,7 +656,7 @@ def _render_opening_labels(out, data):
                if abs(svg_angle) > 0.1 else "")
         out.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="middle"'
                    f' dominant-baseline="central" font-family="Arial"'
-                   f' font-size="5" fill="#4682B4" font-weight="bold"'
+                   f' font-size="5" fill="{CLR_DIM}" font-weight="bold"'
                    f'{rot}>{op.name}</text>')
 
 
@@ -656,20 +664,20 @@ def _render_title_block(out, data):
     """Render the title block with area, scale, timestamp."""
     out.append(f'<rect x="{data.tb_left:.1f}" y="{data.tb_top:.1f}"'
                f' width="{data.tb_w}" height="{data.tb_h}"'
-               f' fill="white" stroke="#333" stroke-width="1"/>')
+               f' fill="white" stroke="{CLR_TITLE}" stroke-width="1"/>')
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+14:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="11"'
-               f' font-weight="bold" fill="#333">'
+               f' font-weight="bold" fill="{CLR_TITLE}">'
                f'{data.outer_area:.2f} sq ft</text>')
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+26:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="8"'
-               f' fill="#666">Exterior area</text>')
+               f' fill="{CLR_LABEL}">Exterior area</text>')
 
     _ratio = data.ft_per_inch * 12
     _scale_label = f'Scale 1:{_ratio:.1f} 1&#8243; = {fmt_dist(data.ft_per_inch)}'
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+40:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="8"'
-               f' fill="#666">{_scale_label}</text>')
+               f' fill="{CLR_LABEL}">{_scale_label}</text>')
 
     _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     _git_desc = git_describe()
@@ -737,7 +745,7 @@ def _render_wall_table(out, data):
     # Table title
     out.append(f'<text x="{(tbl_left + col_r[-1]) / 2:.1f}" y="{tbl_top:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7"'
-               f' font-weight="bold" fill="#333">Wall Segments</text>')
+               f' font-weight="bold" fill="{CLR_TITLE}">Wall Segments</text>')
 
     # Column headers
     hdr_y = tbl_top + 10
@@ -747,7 +755,7 @@ def _render_wall_table(out, data):
     for hx, ha, hd in zip(hdr_x, hdr_anchor, hdrs):
         out.append(f'<text x="{hx:.1f}" y="{hdr_y:.1f}"'
                    f' text-anchor="{ha}" font-family="Arial" font-size="6"'
-                   f' font-weight="bold" fill="#333">{hd}</text>')
+                   f' font-weight="bold" fill="{CLR_TITLE}">{hd}</text>')
 
     # Header underline
     line_y = hdr_y + 2.5
@@ -762,7 +770,7 @@ def _render_wall_table(out, data):
         for vx, va, vv in zip(hdr_x, hdr_anchor, vals):
             out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
                        f' text-anchor="{va}" font-family="Arial"'
-                       f' font-size="6" fill="#333">{vv}</text>')
+                       f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
 
     # Total row (separated by a line)
     total_line_y = line_y + len(table_rows) * row_h + 2
@@ -777,7 +785,7 @@ def _render_wall_table(out, data):
     for vx, va, vv in zip(hdr_x, hdr_anchor, tot_vals):
         out.append(f'<text x="{vx:.1f}" y="{tot_y:.1f}"'
                    f' text-anchor="{va}" font-family="Arial"'
-                   f' font-size="6" font-weight="bold" fill="#333">{vv}</text>')
+                   f' font-size="6" font-weight="bold" fill="{CLR_TITLE}">{vv}</text>')
 
     # "in feet" row
     ft_y = tot_y + row_h
@@ -785,7 +793,7 @@ def _render_wall_table(out, data):
     for vx, va, vv in zip(hdr_x, hdr_anchor, ft_vals):
         out.append(f'<text x="{vx:.1f}" y="{ft_y:.1f}"'
                    f' text-anchor="{va}" font-family="Arial"'
-                   f' font-size="6" fill="#333">{vv}</text>')
+                   f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
 
     # Table border
     tbl_border_top = tbl_top - 8.5
@@ -844,7 +852,7 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
     # Table title
     out.append(f'<text x="{(tbl_left + iw_col[-1]) / 2:.1f}" y="{iw_tbl_top:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7"'
-               f' font-weight="bold" fill="#333">Interior Walls</text>')
+               f' font-weight="bold" fill="{CLR_TITLE}">Interior Walls</text>')
 
     # Column headers
     iw_hdr_y = iw_tbl_top + 10
@@ -854,7 +862,7 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
     for hx, ha, hd in zip(iw_hdr_x, iw_hdr_a, iw_hdrs):
         out.append(f'<text x="{hx:.1f}" y="{iw_hdr_y:.1f}"'
                    f' text-anchor="{ha}" font-family="Arial" font-size="6"'
-                   f' font-weight="bold" fill="#333">{hd}</text>')
+                   f' font-weight="bold" fill="{CLR_TITLE}">{hd}</text>')
 
     # Header underline
     iw_line_y = iw_hdr_y + 2.5
@@ -874,7 +882,7 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
         for vx, va, vv in zip(iw_hdr_x, iw_hdr_a, vals):
             out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
                        f' text-anchor="{va}" font-family="Arial"'
-                       f' font-size="6" fill="#333">{vv}</text>')
+                       f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
 
     # Table border
     iw_border_top = iw_tbl_top - 8.5

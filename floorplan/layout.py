@@ -13,6 +13,7 @@ from floorplan.constants import (
     O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
     O9_OFFSET_IW11, O9_O10_WALL, O10_O11_WALL, BED_GAP_O9,
     IW1_OFFSET_FROM_W9, IW1_OFFSET_FROM_W2,
+    IW_W2_REF_DIST,
     IW2_DIST_W2W5, IW2_LENGTH, IW2S_W2REF_OFFSET, IW2S_LENGTH, IW2O_THICKNESS,
     IW3_OFFSET_IW9, IW3_DIST_W2W5,
     IW7_OFFSET_FROM_W18W1,
@@ -186,8 +187,8 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     # All IW positioning uses these to preserve interior layout positions.
     _iw_al = (-_w6w7_al[1], _w6w7_al[0])    # ≈ old W2-W3 along (roughly north)
     _iw_in = _w6w7_al                         # ≈ old W2-W3 inward (roughly east)
-    # Virtual W2 reference: 8' from W7 toward W6, preserving old IW offsets
-    _iw_w2_ref = _offset(pts["W7"], 8.0, _neg_w6w7_al)
+    # Virtual W2 reference: from W7 toward W6, preserving old IW offsets
+    _iw_w2_ref = _offset(pts["W7"], IW_W2_REF_DIST, _neg_w6w7_al)
 
     # IW2 west face anchor (needed before IW1 — IW1 west end aligns here)
     _iw2_w_anchor = _offset(pts["W2"], IW2_DIST_W2W5, _w2w5_in)

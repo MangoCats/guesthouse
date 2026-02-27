@@ -1,4 +1,4 @@
-# Hut2
+# ADU
 
 Curved-wall building outline geometry and floorplan SVG generation.
 

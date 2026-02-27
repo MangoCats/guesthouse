@@ -1,4 +1,4 @@
-"""Shared type definitions for the hut2 project."""
+"""Shared type definitions for the ADU project."""
 from typing import Literal, NamedTuple
 
 Point = tuple[float, float]
