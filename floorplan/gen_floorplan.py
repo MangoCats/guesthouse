@@ -2126,6 +2126,27 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     out.append(f'<text x="{bdx:.1f}" y="{bdy:.1f}" text-anchor="end" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
 
+    # UTIL: same northing as BEDROOM, centered in easting between south toilet and sink
+    _iw8_al, _iw8_in = seg_vecs(layout.iw8.poly[0], layout.iw8.poly[1])
+    _iw8_s_ref = layout.iw8.poly[0]
+    _dryer_cx = sum(p[0] for p in layout.dryer.poly) / 4
+    _dryer_cy = sum(p[1] for p in layout.dryer.poly) / 4
+    _d_dryer_al = ((_dryer_cx - _iw8_s_ref[0]) * _iw8_al[0] +
+                   (_dryer_cy - _iw8_s_ref[1]) * _iw8_al[1])
+    _toilet_s = offset_pt(_iw8_s_ref, _d_dryer_al, _iw8_al)
+    _ctr_cx = sum(p[0] for p in layout.ctr.poly) / 4
+    _ctr_cy = sum(p[1] for p in layout.ctr.poly) / 4
+    _sink_mid = ((_dryer_cx + _ctr_cx) / 2, (_dryer_cy + _ctr_cy) / 2)
+    _d_sink_al = ((_sink_mid[0] - _iw8_s_ref[0]) * _iw8_al[0] +
+                  (_sink_mid[1] - _iw8_s_ref[1]) * _iw8_al[1])
+    _sink_s = offset_pt(_iw8_s_ref, _d_sink_al, _iw8_al)
+    _sk_s = offset_pt(_sink_s, SINK_RY, _iw8_in)
+    _util_e = (_toilet_s[0] + _sk_s[0]) / 2
+    _util_n = _ro3_n_mid[1]
+    utx, uty = to_svg(_util_e, _util_n)
+    out.append(f'<text x="{utx:.1f}" y="{uty:.1f}" text-anchor="middle" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">UTIL</text>')
+
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
                   (layout.iw4.poly[1][1] + layout.iw4.poly[2][1]) / 2)
@@ -2681,6 +2702,27 @@ def _render_sf_extras(out, data, layout):
     bdx, bdy = to_svg(_ro1_w_mid[0], _ro3_n_mid[1])
     out.append(f'<text x="{bdx:.1f}" y="{bdy:.1f}" text-anchor="end" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
+
+    # UTIL: same northing as BEDROOM, centered in easting between south toilet and sink
+    _iw8_al, _iw8_in = seg_vecs(layout.iw8.poly[0], layout.iw8.poly[1])
+    _iw8_s_ref = layout.iw8.poly[0]
+    _dryer_cx = sum(p[0] for p in layout.dryer.poly) / 4
+    _dryer_cy = sum(p[1] for p in layout.dryer.poly) / 4
+    _d_dryer_al = ((_dryer_cx - _iw8_s_ref[0]) * _iw8_al[0] +
+                   (_dryer_cy - _iw8_s_ref[1]) * _iw8_al[1])
+    _toilet_s = offset_pt(_iw8_s_ref, _d_dryer_al, _iw8_al)
+    _ctr_cx = sum(p[0] for p in layout.ctr.poly) / 4
+    _ctr_cy = sum(p[1] for p in layout.ctr.poly) / 4
+    _sink_mid = ((_dryer_cx + _ctr_cx) / 2, (_dryer_cy + _ctr_cy) / 2)
+    _d_sink_al = ((_sink_mid[0] - _iw8_s_ref[0]) * _iw8_al[0] +
+                  (_sink_mid[1] - _iw8_s_ref[1]) * _iw8_al[1])
+    _sink_s = offset_pt(_iw8_s_ref, _d_sink_al, _iw8_al)
+    _sk_s = offset_pt(_sink_s, SINK_RY, _iw8_in)
+    _util_e = (_toilet_s[0] + _sk_s[0]) / 2
+    _util_n = _ro3_n_mid[1]
+    utx, uty = to_svg(_util_e, _util_n)
+    out.append(f'<text x="{utx:.1f}" y="{uty:.1f}" text-anchor="middle" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">UTIL</text>')
 
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
