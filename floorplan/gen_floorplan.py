@@ -2980,14 +2980,17 @@ def _render_sf_extras(out, data, layout):
     _wh_poly.extend(_seg5_pl[1:])                          # arc W8→W9
     _wh_poly.append((layout.iw2s.poly[2][0], pts["W9"][1]))  # IW2s east at W9 N
     _wh_sf = poly_area(_wh_poly)
-    _wh_cx = sum(p[0] for p in _wh_poly) / len(_wh_poly)
-    _wh_cy = sum(p[1] for p in _wh_poly) / len(_wh_poly)
-    _whx, _why = to_svg(_wh_cx, _wh_cy)
-    out.append(f'<text x="{_whx:.1f}" y="{_why:.1f}" text-anchor="middle"'
-               f' font-family="Arial" font-size="4" fill="#666">WH</text>')
-    _wh_sf_y = _why + 4.0 + _half_gap / 2
-    out.append(f'<text x="{_whx:.1f}" y="{_wh_sf_y:.1f}" text-anchor="middle"'
-               f' dominant-baseline="hanging" font-family="Arial" font-size="4"'
+    _wh_e = (layout.iw2s.poly[2][0] + pts["W8"][0]) / 2
+    _wh_n = (pts["W7"][1] + pts["W9"][1]) / 2
+    _whx, _why = to_svg(_wh_e, _wh_n)
+    # Vertically center the WH/sf pair: offset each by half the pair height
+    _wh_pair_h = 6.0 + _half_gap / 2 + 6.0  # WH + gap + sf
+    _why_wh = _why - _wh_pair_h / 2 + 6.0   # baseline of WH (bottom of text)
+    _why_sf = _why_wh + _half_gap / 2         # top of sf text (hanging)
+    out.append(f'<text x="{_whx:.1f}" y="{_why_wh:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="6" fill="#666">WH</text>')
+    out.append(f'<text x="{_whx:.1f}" y="{_why_sf:.1f}" text-anchor="middle"'
+               f' dominant-baseline="hanging" font-family="Arial" font-size="6"'
                f' fill="#666">{_wh_sf:.1f} sf</text>')
 
     # --- Dashed line from west end of RO1 to west end of O6 ---
