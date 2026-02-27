@@ -215,3 +215,57 @@ def fmt_angle(a):
         return f"{int(a)}"
     s = f"{a:.1f}"
     return s.rstrip('0').rstrip('.')
+
+
+# ── shared SVG chart helpers ──────────────────────────────────
+
+# Span curve color palette (order: roof, south-to-IW, IW-to-north, total)
+CURVE_COLORS = ["#999", "#2E7D32", "#00ACC1", "#1565C0"]
+
+
+def render_y_grid(o, ML, plot_w, g_bot, y_max_ft, ys, font_size="7"):
+    """Render Y-axis grid lines, tick marks, and labels."""
+    y_step = 2 if y_max_ft > 14 else 1
+    for ft in range(0, y_max_ft + 1, y_step):
+        y = g_bot - ft * ys
+        if ft > 0:
+            o.append(f'<line x1="{ML}" y1="{y:.1f}" x2="{ML + plot_w}" y2="{y:.1f}"'
+                     f' stroke="#eaeaea" stroke-width="0.3"/>')
+        o.append(f'<line x1="{ML - 3}" y1="{y:.1f}" x2="{ML}" y2="{y:.1f}"'
+                 f' stroke="#666" stroke-width="0.5"/>')
+        o.append(f'<text x="{ML - 5}" y="{y + 2.5:.1f}" text-anchor="end"'
+                 f' font-family="Arial" font-size="{font_size}" fill="#555">{ft}\'</text>')
+
+
+def render_x_grid(o, ML, plot_w, g_top, g_bot, xs, axis_ft,
+                  font_size="7", label_y_offset=12):
+    """Render X-axis grid lines, tick marks, and labels."""
+    for ft in range(0, int(math.ceil(axis_ft)) + 1, 5):
+        x = ML + ft * xs
+        if x > ML + plot_w + 0.5:
+            break
+        if 0 < ft < axis_ft:
+            o.append(f'<line x1="{x:.1f}" y1="{g_top}" x2="{x:.1f}" y2="{g_bot}"'
+                     f' stroke="#f0f0f0" stroke-width="0.3"/>')
+        o.append(f'<line x1="{x:.1f}" y1="{g_bot}" x2="{x:.1f}" y2="{g_bot + 3}"'
+                 f' stroke="#666" stroke-width="0.5"/>')
+        o.append(f'<text x="{x:.1f}" y="{g_bot + label_y_offset}" text-anchor="middle"'
+                 f' font-family="Arial" font-size="{font_size}" fill="#555">{ft}\'</text>')
+
+
+def render_span_curves(o, eastings, data_arrays, ex_fn, sy_fn,
+                       stroke_widths=(0.8, 0.8, 0.8, 1.0)):
+    """Render the 4 standard span polyline curves.
+
+    data_arrays: (roof_spans, s_spans, n_spans, spans) — in rendering order.
+    stroke_widths: per-curve stroke widths (default: 0.8 for first 3, 1.0 for total).
+    """
+    for arr, color, sw in zip(data_arrays, CURVE_COLORS, stroke_widths):
+        if not arr:
+            continue
+        pts_str = [f"{ex_fn(e):.1f},{sy_fn(s):.1f}"
+                   for e, s in zip(eastings, arr) if s > 0]
+        if pts_str:
+            o.append(f'<polyline points="{" ".join(pts_str)}" fill="none"'
+                     f' stroke="{color}" stroke-width="{sw}"'
+                     f' stroke-linejoin="round"/>')

@@ -99,29 +99,19 @@ def line_strip_poly(pts, seg_start, seg_end, inner_start, inner_end):
     ]
 
 
-def partial_line_strip(pts, seg, inner_seg_start, inner_seg_end, t_start, t_end):
-    """Build polygon for a partial line shell strip between t_start and t_end."""
-    A_out = pts[seg.start]
-    B_out = pts[seg.end]
-    A_in = pts[inner_seg_start]
-    B_in = pts[inner_seg_end]
+def partial_line_strip(pts, outer_seg, inner_seg, t_start, t_end):
+    """Build polygon for a partial line shell strip between t_start and t_end.
+
+    outer_seg and inner_seg are LineSeg/ArcSeg objects with .start/.end names.
+    """
+    A_out = pts[outer_seg.start]
+    B_out = pts[outer_seg.end]
+    A_in = pts[inner_seg.start]
+    B_in = pts[inner_seg.end]
     p1 = lerp(A_out, B_out, t_start)
     p2 = lerp(A_out, B_out, t_end)
     p3 = lerp(A_in, B_in, t_end)
     p4 = lerp(A_in, B_in, t_start)
-    return [p1, p2, p3, p4]
-
-
-def partial_line_strip_2(pts, g_seg, inner_seg, t_start, t_end):
-    """Build inner shell strip for a partial line segment range."""
-    G_A = pts[g_seg.start]
-    G_B = pts[g_seg.end]
-    W_A = pts[inner_seg.start]
-    W_B = pts[inner_seg.end]
-    p1 = lerp(G_A, G_B, t_start)
-    p2 = lerp(G_A, G_B, t_end)
-    p3 = lerp(W_A, W_B, t_end)
-    p4 = lerp(W_A, W_B, t_start)
     return [p1, p2, p3, p4]
 
 
@@ -162,7 +152,7 @@ def uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
 
     # Tangent direction (along wall, CW traversal)
     dx, dy = F_B[0] - F_A[0], F_B[1] - F_A[1]
-    t_len = math.sqrt(dx * dx + dy * dy)
+    t_len = math.hypot(dx, dy)
     t_hat = (dx / t_len, dy / t_len)
 
     # Exterior normal (left of CW traversal direction)
@@ -271,7 +261,7 @@ def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
         # Same segment — just two interpolated points
         seg = segs[start_seg_idx]
         A, B = pts[seg.start], pts[seg.end]
-        seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
+        seg_len = math.hypot(B[0] - A[0], B[1] - A[1])
         dt = R_out / seg_len
         path.append(lerp(A, B, start_t + dt))
         path.append(lerp(A, B, end_t - dt))
@@ -282,7 +272,7 @@ def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
     # Start segment (from start_t + delta to segment end)
     seg = segs[start_seg_idx]
     A, B = pts[seg.start], pts[seg.end]
-    seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
+    seg_len = math.hypot(B[0] - A[0], B[1] - A[1])
     dt = R_out / seg_len
     path.append(lerp(A, B, start_t + dt))
     if isinstance(seg, ArcSeg):
@@ -310,7 +300,7 @@ def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
     # End segment (from segment start to end_t - delta)
     seg = segs[end_seg_idx]
     A, B = pts[seg.start], pts[seg.end]
-    seg_len = math.sqrt((B[0] - A[0])**2 + (B[1] - A[1])**2)
+    seg_len = math.hypot(B[0] - A[0], B[1] - A[1])
     dt = R_out / seg_len
     path.append(lerp(A, B, end_t - dt))
 

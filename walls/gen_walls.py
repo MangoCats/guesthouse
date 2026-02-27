@@ -22,7 +22,7 @@ from floorplan.roof import compute_roof_geometry
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges,
-    arc_strip_poly, line_strip_poly, partial_line_strip, partial_line_strip_2,
+    arc_strip_poly, line_strip_poly, partial_line_strip,
     uturn_arc_data, uturn_polygon,
     trace_boundary_path, enumerate_wall_sections, build_section_outlines,
 )
@@ -573,11 +573,11 @@ def _render_wall_segments(out, data):
                 for t_s, t_e in adjusted:
                     # Outer shell partial strip
                     outer_strip = partial_line_strip(
-                        pts, seg, s_seg.start, s_seg.end, t_s, t_e)
+                        pts, seg, s_seg, t_s, t_e)
                     _svg_polygon(out, outer_strip, to_svg, WALL_FILL, stroke="none")
 
                     # Inner shell partial strip
-                    inner_strip = partial_line_strip_2(
+                    inner_strip = partial_line_strip(
                         pts, g_seg, inner_seg, t_s, t_e)
                     _svg_polygon(out, inner_strip, to_svg, WALL_FILL, stroke="none")
 

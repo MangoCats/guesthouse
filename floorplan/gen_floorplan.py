@@ -50,7 +50,7 @@ from floorplan.openings import (
 )
 from shared.wall_shells import (
     compute_inset_path, lerp, openings_on_seg, solid_ranges,
-    arc_strip_poly, line_strip_poly, partial_line_strip, partial_line_strip_2,
+    arc_strip_poly, line_strip_poly, partial_line_strip,
     uturn_polygon, enumerate_wall_sections, build_section_outlines,
 )
 
@@ -855,10 +855,10 @@ def _render_walls(out, data, layout, bare=False):
 
                 for t_s, t_e in adjusted:
                     outer_strip = partial_line_strip(
-                        pts, seg, s_seg.start, s_seg.end, t_s, t_e)
+                        pts, seg, s_seg, t_s, t_e)
                     _svg_wall_poly(out, outer_strip, to_svg)
 
-                    inner_strip = partial_line_strip_2(
+                    inner_strip = partial_line_strip(
                         pts, g_seg, inner_seg, t_s, t_e)
                     _svg_wall_poly(out, inner_strip, to_svg)
 

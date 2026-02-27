@@ -25,6 +25,7 @@ from shared.svg import git_describe
 from span._common import (
     build_geometry, extract_iw_centerlines,
     compute_rotation_data, find_min_span_angle, fmt_angle,
+    render_y_grid, render_x_grid, render_span_curves,
 )
 
 
@@ -133,63 +134,15 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
         o.append(f'<rect x="{ML}" y="{gt}" width="{pw}" height="{GH}"'
                  f' fill="none" stroke="#bbb" stroke-width="0.5"/>')
 
-        ystep = 2 if y_cap > 14 else 1
-        for ft in range(0, y_cap + 1, ystep):
-            yy = gb - ft * ys
-            if ft > 0:
-                o.append(f'<line x1="{ML}" y1="{yy:.1f}"'
-                         f' x2="{ML + pw}" y2="{yy:.1f}"'
-                         f' stroke="#eaeaea" stroke-width="0.3"/>')
-            o.append(f'<line x1="{ML - 3}" y1="{yy:.1f}"'
-                     f' x2="{ML}" y2="{yy:.1f}"'
-                     f' stroke="#666" stroke-width="0.5"/>')
-            o.append(f'<text x="{ML - 5}" y="{yy + 2.5:.1f}"'
-                     f' text-anchor="end" font-family="Arial"'
-                     f' font-size="6" fill="#555">{ft}\'</text>')
+        render_y_grid(o, ML, pw, gb, y_cap, ys, font_size="6")
 
-        for ft in range(0, int(math.ceil(gw)) + 1, 5):
-            xx = ML + ft * xs
-            if xx > ML + pw + 0.5:
-                break
-            if 0 < ft < gw:
-                o.append(f'<line x1="{xx:.1f}" y1="{gt}"'
-                         f' x2="{xx:.1f}" y2="{gb}"'
-                         f' stroke="#f0f0f0" stroke-width="0.3"/>')
-            o.append(f'<line x1="{xx:.1f}" y1="{gb}"'
-                     f' x2="{xx:.1f}" y2="{gb + 3}"'
-                     f' stroke="#666" stroke-width="0.5"/>')
-            o.append(f'<text x="{xx:.1f}" y="{gb + 10}"'
-                     f' text-anchor="middle" font-family="Arial"'
-                     f' font-size="5" fill="#555">{ft}\'</text>')
+        render_x_grid(o, ML, pw, gt, gb, xs, gw,
+                      font_size="5", label_y_offset=10)
 
-        if d['roof_spans']:
-            rsp = [f"{ex(e):.1f},{gb - s * ys:.1f}"
-                   for e, s in zip(d['eastings'], d['roof_spans']) if s > 0]
-            if rsp:
-                o.append(f'<polyline points="{" ".join(rsp)}" fill="none"'
-                         f' stroke="#999" stroke-width="0.6"'
-                         f' stroke-linejoin="round"/>')
-
-        grn = [f"{ex(e):.1f},{gb - s * ys:.1f}"
-               for e, s in zip(d['eastings'], d['s_spans']) if s > 0]
-        if grn:
-            o.append(f'<polyline points="{" ".join(grn)}" fill="none"'
-                     f' stroke="#2E7D32" stroke-width="0.6"'
-                     f' stroke-linejoin="round"/>')
-
-        cyn = [f"{ex(e):.1f},{gb - s * ys:.1f}"
-               for e, s in zip(d['eastings'], d['n_spans']) if s > 0]
-        if cyn:
-            o.append(f'<polyline points="{" ".join(cyn)}" fill="none"'
-                     f' stroke="#00ACC1" stroke-width="0.6"'
-                     f' stroke-linejoin="round"/>')
-
-        crv = [f"{ex(e):.1f},{gb - s * ys:.1f}"
-               for e, s in zip(d['eastings'], d['spans']) if s > 0]
-        if crv:
-            o.append(f'<polyline points="{" ".join(crv)}" fill="none"'
-                     f' stroke="#1565C0" stroke-width="0.8"'
-                     f' stroke-linejoin="round"/>')
+        def _sy(s): return gb - s * ys
+        render_span_curves(o, d['eastings'],
+                           (d['roof_spans'], d['s_spans'], d['n_spans'], d['spans']),
+                           ex, _sy, stroke_widths=(0.6, 0.6, 0.6, 0.8))
 
         if d['max_roof_span'] > 0:
             ry = gb - d['max_roof_span'] * ys

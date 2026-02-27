@@ -77,7 +77,7 @@ def compute_three_arc(pts: dict[str, Point]) -> dict[str, float]:
     Returns dict with R1, R2, R3, uE, uN, nE, nN.
     """
     dE_l = pts["P5"][0]-pts["POB"][0]; dN_l = pts["P5"][1]-pts["POB"][1]
-    L = math.sqrt(dE_l**2+dN_l**2)
+    L = math.hypot(dE_l, dN_l)
     uE, uN = dE_l/L, dN_l/L
     nE, nN = -uN, uE
 
@@ -90,7 +90,7 @@ def compute_three_arc(pts: dict[str, Point]) -> dict[str, float]:
 
     # PA: circle-circle intersection
     dx_cc = pts["TC2"][0]-pts["TC1"][0]; dy_cc = pts["TC2"][1]-pts["TC1"][1]
-    d_cc = math.sqrt(dx_cc**2+dy_cc**2)
+    d_cc = math.hypot(dx_cc, dy_cc)
     a_cc = (R1**2-R2**2+d_cc**2)/(2*d_cc); h_cc = math.sqrt(R1**2-a_cc**2)
     ux_cc, uy_cc = dx_cc/d_cc, dy_cc/d_cc
     Mx, My = pts["TC1"][0]+a_cc*ux_cc, pts["TC1"][1]+a_cc*uy_cc

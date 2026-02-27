@@ -22,6 +22,7 @@ from shared.svg import git_describe
 from span._common import (
     build_geometry, extract_iw_centerlines,
     compute_rotation_data, find_min_span_angle, fmt_angle,
+    render_y_grid, render_x_grid, render_span_curves,
 )
 
 
@@ -90,58 +91,15 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
              f' fill="none" stroke="#bbb" stroke-width="0.5"/>')
 
     # Y grid + labels
-    y_step = 2 if y_max_ft > 14 else 1
-    for ft in range(0, y_max_ft + 1, y_step):
-        y = sy(ft)
-        if ft > 0:
-            o.append(f'<line x1="{ML}" y1="{y:.1f}" x2="{ML + plot_w}" y2="{y:.1f}"'
-                     f' stroke="#eaeaea" stroke-width="0.3"/>')
-        o.append(f'<line x1="{ML - 3}" y1="{y:.1f}" x2="{ML}" y2="{y:.1f}"'
-                 f' stroke="#666" stroke-width="0.5"/>')
-        o.append(f'<text x="{ML - 5}" y="{y + 2.5:.1f}" text-anchor="end"'
-                 f' font-family="Arial" font-size="7" fill="#555">{ft}\'</text>')
+    render_y_grid(o, ML, plot_w, g_bot, y_max_ft, ys)
 
     # X grid + ticks + labels (every 5 ft)
-    for ft in range(0, int(math.ceil(geo_w)) + 1, 5):
-        x = ML + ft * xs
-        if x > ML + plot_w + 0.5:
-            break
-        if 0 < ft < geo_w:
-            o.append(f'<line x1="{x:.1f}" y1="{g_top}" x2="{x:.1f}" y2="{g_bot}"'
-                     f' stroke="#f0f0f0" stroke-width="0.3"/>')
-        o.append(f'<line x1="{x:.1f}" y1="{g_bot}" x2="{x:.1f}" y2="{g_bot + 3}"'
-                 f' stroke="#666" stroke-width="0.5"/>')
-        o.append(f'<text x="{x:.1f}" y="{g_bot + 12}" text-anchor="middle"'
-                 f' font-family="Arial" font-size="7" fill="#555">{ft}\'</text>')
+    render_x_grid(o, ML, plot_w, g_top, g_bot, xs, geo_w)
 
-    # grey curve -- roof span
-    if d['roof_spans']:
-        rsp = [f"{ex(e):.1f},{sy(s):.1f}"
-               for e, s in zip(d['eastings'], d['roof_spans']) if s > 0]
-        if rsp:
-            o.append(f'<polyline points="{" ".join(rsp)}" fill="none"'
-                     f' stroke="#999" stroke-width="0.8" stroke-linejoin="round"/>')
-
-    # green curve -- south W surface to IW midline
-    grn = [f"{ex(e):.1f},{sy(s):.1f}"
-           for e, s in zip(d['eastings'], d['s_spans']) if s > 0]
-    if grn:
-        o.append(f'<polyline points="{" ".join(grn)}" fill="none"'
-                 f' stroke="#2E7D32" stroke-width="0.8" stroke-linejoin="round"/>')
-
-    # cyan curve -- IW midline to north W surface
-    cyn = [f"{ex(e):.1f},{sy(s):.1f}"
-           for e, s in zip(d['eastings'], d['n_spans']) if s > 0]
-    if cyn:
-        o.append(f'<polyline points="{" ".join(cyn)}" fill="none"'
-                 f' stroke="#00ACC1" stroke-width="0.8" stroke-linejoin="round"/>')
-
-    # blue curve -- total span (on top)
-    crv = [f"{ex(e):.1f},{sy(s):.1f}"
-           for e, s in zip(d['eastings'], d['spans']) if s > 0]
-    if crv:
-        o.append(f'<polyline points="{" ".join(crv)}" fill="none"'
-                 f' stroke="#1565C0" stroke-width="1.0" stroke-linejoin="round"/>')
+    # span curves: roof (grey), south-to-IW (green), IW-to-north (cyan), total (blue)
+    render_span_curves(o, d['eastings'],
+                       (d['roof_spans'], d['s_spans'], d['n_spans'], d['spans']),
+                       ex, sy)
 
     # max roof span dashed line + label (grey)
     if max_roof_span > 0:

@@ -7,7 +7,7 @@ import math
 from typing import NamedTuple
 
 from shared.types import Point, BBox, LineSeg
-from shared.geometry import seg_vec
+from shared.geometry import seg_vec, bbox_from_points
 from floorplan.constants import (
     O1_WIDTH, O2_WIDTH,
     O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH,
@@ -98,7 +98,7 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     # IW2o normal: left normal of IW2o along direction (SW→NW)
     _iw2o_ldx = _iw2o[3][0] - _iw2o[0][0]
     _iw2o_ldy = _iw2o[3][1] - _iw2o[0][1]
-    _iw2o_llen = math.sqrt(_iw2o_ldx**2 + _iw2o_ldy**2)
+    _iw2o_llen = math.hypot(_iw2o_ldx, _iw2o_ldy)
     _iw2o_norm = (-_iw2o_ldy / _iw2o_llen, _iw2o_ldx / _iw2o_llen)
     # Line-line intersection: RO4_ctr + s*IW2o_norm ∩ F2 + t*(F5-F2)
     _cross_den = _dE2 * _iw2o_norm[1] - _dN2 * _iw2o_norm[0]
@@ -223,190 +223,123 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     return openings
 
 
+def _ro_poly_bbox(face_a: Point, face_b: Point,
+                   unit: tuple[float, float],
+                   start_d: float, end_d: float
+                   ) -> tuple[list[Point], BBox]:
+    """Build a rough-opening polygon and bbox on a wall.
+
+    face_a, face_b: two reference corners on opposite faces of the wall.
+    unit: unit vector along the wall's length axis.
+    start_d, end_d: distances along the unit vector from the reference corners.
+
+    Returns 4-point polygon [a+start, b+start, b+end, a+end] and BBox.
+    """
+    p0 = (face_a[0] + start_d * unit[0], face_a[1] + start_d * unit[1])
+    p1 = (face_b[0] + start_d * unit[0], face_b[1] + start_d * unit[1])
+    p2 = (face_b[0] + end_d * unit[0],   face_b[1] + end_d * unit[1])
+    p3 = (face_a[0] + end_d * unit[0],   face_a[1] + end_d * unit[1])
+    poly = [p0, p1, p2, p3]
+    return poly, bbox_from_points(poly)
+
+
+def _wall_unit(p1: Point, p2: Point) -> tuple[tuple[float, float], float]:
+    """Unit vector from p1 toward p2 and their distance."""
+    dx, dy, length = seg_vec(p1, p2)
+    return (dx / length, dy / length), length
+
+
+def _project(pt: Point, origin: Point, unit: tuple[float, float]) -> float:
+    """Project pt onto axis defined by origin + t*unit; return t."""
+    return (pt[0] - origin[0]) * unit[0] + (pt[1] - origin[1]) * unit[1]
+
+
 def compute_rough_openings(pts: dict[str, Point], layout) -> list[RoughOpening]:
     """Compute all 7 interior rough-opening polygons and bounding boxes."""
 
     # RO1: in IW1, positioned relative to IW2 east face along IW1 length
-    _iw1_sw, _iw1_se = layout.iw1.poly[0], layout.iw1.poly[1]
-    _iw1_nw = layout.iw1.poly[3]
-    _dx1r, _dy1r, _len1r = seg_vec(_iw1_sw, _iw1_se)
-    _un1_al = (_dx1r / _len1r, _dy1r / _len1r)  # unit along IW1 length
-    # IW2 east face midpoint projected onto IW1 along-axis
+    # RO1 uses a unique winding (along-face-a first) so we build its polygon
+    # directly rather than using _ro_poly_bbox.
+    _iw1_sw, _iw1_se, _iw1_nw = layout.iw1.poly[0], layout.iw1.poly[1], layout.iw1.poly[3]
+    _un1_al, _ = _wall_unit(_iw1_sw, _iw1_se)
     _iw2_e_mid_r = ((layout.iw2.poly[1][0] + layout.iw2.poly[2][0]) / 2,
                     (layout.iw2.poly[1][1] + layout.iw2.poly[2][1]) / 2)
-    _ro1_ref_d = ((_iw2_e_mid_r[0] - _iw1_sw[0]) * _un1_al[0]
-                  + (_iw2_e_mid_r[1] - _iw1_sw[1]) * _un1_al[1])
+    _ro1_ref_d = _project(_iw2_e_mid_r, _iw1_sw, _un1_al)
     _ro1_start_d = _ro1_ref_d + RO1_OFFSET_FROM_IW2
     _ro1_end_d = _ro1_start_d + IW1_RO_WIDTH
-    _ro1_sw = (_iw1_sw[0] + _ro1_start_d * _un1_al[0],
-               _iw1_sw[1] + _ro1_start_d * _un1_al[1])
-    _ro1_se = (_iw1_sw[0] + _ro1_end_d * _un1_al[0],
-               _iw1_sw[1] + _ro1_end_d * _un1_al[1])
-    _ro1_ne = (_iw1_nw[0] + _ro1_end_d * _un1_al[0],
-               _iw1_nw[1] + _ro1_end_d * _un1_al[1])
-    _ro1_nw = (_iw1_nw[0] + _ro1_start_d * _un1_al[0],
-               _iw1_nw[1] + _ro1_start_d * _un1_al[1])
-    _ro1_poly = [_ro1_sw, _ro1_se, _ro1_ne, _ro1_nw]
-    _ro1_bb = BBox(w=min(p[0] for p in _ro1_poly), s=min(p[1] for p in _ro1_poly),
-                   e=max(p[0] for p in _ro1_poly), n=max(p[1] for p in _ro1_poly))
+    _ro1_poly = [
+        (_iw1_sw[0] + _ro1_start_d * _un1_al[0], _iw1_sw[1] + _ro1_start_d * _un1_al[1]),
+        (_iw1_sw[0] + _ro1_end_d * _un1_al[0],   _iw1_sw[1] + _ro1_end_d * _un1_al[1]),
+        (_iw1_nw[0] + _ro1_end_d * _un1_al[0],   _iw1_nw[1] + _ro1_end_d * _un1_al[1]),
+        (_iw1_nw[0] + _ro1_start_d * _un1_al[0], _iw1_nw[1] + _ro1_start_d * _un1_al[1]),
+    ]
+    _ro1_bb = bbox_from_points(_ro1_poly)
 
     # RO2: in IW11 (rotated), centered between IW12 N face and IW5 S face
-    _iw11_se, _iw11_ne = layout.iw11.poly[1], layout.iw11.poly[2]
-    _iw11_sw = layout.iw11.poly[0]
-    _dx11, _dy11, _len11 = seg_vec(_iw11_se, _iw11_ne)
-    _un11 = (_dx11 / _len11, _dy11 / _len11)  # unit along IW11 length (NNE)
-    _dx11t, _dy11t, _lt11 = seg_vec(_iw11_se, _iw11_sw)
-    _ut11 = (_dx11t / _lt11, _dy11t / _lt11)  # unit along IW11 thickness
-    # IW12 NW corner projected onto IW11 length axis = IW12 N face distance
-    _iw12_nw = layout.iw12.poly[3]
-    _ro2_iw12_n_d = ((_iw12_nw[0] - _iw11_se[0]) * _un11[0]
-                     + (_iw12_nw[1] - _iw11_se[1]) * _un11[1])
-    # IW5 SW corner projected onto IW11 length axis = IW5 S face distance
-    _iw5_sw = layout.iw5.poly[0]
-    _ro2_iw5_s_d = ((_iw5_sw[0] - _iw11_se[0]) * _un11[0]
-                    + (_iw5_sw[1] - _iw11_se[1]) * _un11[1])
+    _iw11_se, _iw11_ne, _iw11_sw = layout.iw11.poly[1], layout.iw11.poly[2], layout.iw11.poly[0]
+    _un11, _ = _wall_unit(_iw11_se, _iw11_ne)
+    _ro2_iw12_n_d = _project(layout.iw12.poly[3], _iw11_se, _un11)
+    _ro2_iw5_s_d = _project(layout.iw5.poly[0], _iw11_se, _un11)
     _ro2_center_d = (_ro2_iw12_n_d + _ro2_iw5_s_d) / 2
     _ro2_half = IW4_RO_WIDTH / 2
-    _ro2_start_d = _ro2_center_d - _ro2_half
-    _ro2_end_d = _ro2_center_d + _ro2_half
-    # RO2 polygon [SW, SE, NE, NW] in IW11 coords
-    _ro2_sw = (_iw11_se[0] + _ro2_start_d * _un11[0],
-               _iw11_se[1] + _ro2_start_d * _un11[1])
-    _ro2_se = (_iw11_sw[0] + _ro2_start_d * _un11[0],
-               _iw11_sw[1] + _ro2_start_d * _un11[1])
-    _ro2_ne = (_iw11_sw[0] + _ro2_end_d * _un11[0],
-               _iw11_sw[1] + _ro2_end_d * _un11[1])
-    _ro2_nw = (_iw11_se[0] + _ro2_end_d * _un11[0],
-               _iw11_se[1] + _ro2_end_d * _un11[1])
-    _ro2_poly = [_ro2_sw, _ro2_se, _ro2_ne, _ro2_nw]
-    _ro2_bb = BBox(w=min(p[0] for p in _ro2_poly), s=min(p[1] for p in _ro2_poly),
-                   e=max(p[0] for p in _ro2_poly), n=max(p[1] for p in _ro2_poly))
+    _ro2_poly, _ro2_bb = _ro_poly_bbox(_iw11_se, _iw11_sw, _un11,
+                                       _ro2_center_d - _ro2_half,
+                                       _ro2_center_d + _ro2_half)
 
     # RO6: in IW11 (rotated), 50" centered between IW12 S face and W18-W1
-    # IW12 SW corner projected onto IW11 length axis = distance of IW12 south face
-    _iw12_sw = layout.iw12.poly[0]
-    _ro6_iw12_s_d = ((_iw12_sw[0] - _iw11_se[0]) * _un11[0]
-                     + (_iw12_sw[1] - _iw11_se[1]) * _un11[1])
-    # W18 projected onto IW11 length axis = distance of W18-W1 line
-    _ro6_w18_d = ((pts["W18"][0] - _iw11_se[0]) * _un11[0]
-                  + (pts["W18"][1] - _iw11_se[1]) * _un11[1])
+    _ro6_iw12_s_d = _project(layout.iw12.poly[0], _iw11_se, _un11)
+    _ro6_w18_d = _project(pts["W18"], _iw11_se, _un11)
     _ro6_center_d = (_ro6_iw12_s_d + _ro6_w18_d) / 2
     _ro6_half = IW11_RO_WIDTH / 2
-    _ro6_start_d = _ro6_center_d - _ro6_half
-    _ro6_end_d = _ro6_center_d + _ro6_half
-    _ro6_sw = (_iw11_se[0] + _ro6_start_d * _un11[0],
-               _iw11_se[1] + _ro6_start_d * _un11[1])
-    _ro6_se = (_iw11_sw[0] + _ro6_start_d * _un11[0],
-               _iw11_sw[1] + _ro6_start_d * _un11[1])
-    _ro6_ne = (_iw11_sw[0] + _ro6_end_d * _un11[0],
-               _iw11_sw[1] + _ro6_end_d * _un11[1])
-    _ro6_nw = (_iw11_se[0] + _ro6_end_d * _un11[0],
-               _iw11_se[1] + _ro6_end_d * _un11[1])
-    _ro6_poly = [_ro6_sw, _ro6_se, _ro6_ne, _ro6_nw]
-    _ro6_bb = BBox(w=min(p[0] for p in _ro6_poly), s=min(p[1] for p in _ro6_poly),
-                   e=max(p[0] for p in _ro6_poly), n=max(p[1] for p in _ro6_poly))
+    _ro6_poly, _ro6_bb = _ro_poly_bbox(_iw11_se, _iw11_sw, _un11,
+                                       _ro6_center_d - _ro6_half,
+                                       _ro6_center_d + _ro6_half)
 
     # RO7: in IW9 (rotated), 62" centered between IW7 S face and IW9 S end
-    _iw9_se, _iw9_ne = layout.iw9.poly[1], layout.iw9.poly[2]
-    _iw9_sw = layout.iw9.poly[0]
-    _dx9, _dy9, _len9 = seg_vec(_iw9_se, _iw9_ne)
-    _un9 = (_dx9 / _len9, _dy9 / _len9)  # unit along IW9 length (NNE)
-    # IW7 SW corner projected onto IW9 length axis = distance of IW7 south face
-    _iw7_sw = layout.iw7.poly[0]
-    _ro7_iw7_s_d = ((_iw7_sw[0] - _iw9_se[0]) * _un9[0]
-                    + (_iw7_sw[1] - _iw9_se[1]) * _un9[1])
-    _ro7_center_d = _ro7_iw7_s_d / 2  # centered between 0 (IW9 S end) and IW7 S face
+    _iw9_se, _iw9_ne, _iw9_sw = layout.iw9.poly[1], layout.iw9.poly[2], layout.iw9.poly[0]
+    _un9, _ = _wall_unit(_iw9_se, _iw9_ne)
+    _ro7_iw7_s_d = _project(layout.iw7.poly[0], _iw9_se, _un9)
+    _ro7_center_d = _ro7_iw7_s_d / 2
     _ro7_half = IW9_RO_WIDTH / 2
-    _ro7_start_d = _ro7_center_d - _ro7_half
-    _ro7_end_d = _ro7_center_d + _ro7_half
-    _ro7_sw = (_iw9_se[0] + _ro7_start_d * _un9[0],
-               _iw9_se[1] + _ro7_start_d * _un9[1])
-    _ro7_se = (_iw9_sw[0] + _ro7_start_d * _un9[0],
-               _iw9_sw[1] + _ro7_start_d * _un9[1])
-    _ro7_ne = (_iw9_sw[0] + _ro7_end_d * _un9[0],
-               _iw9_sw[1] + _ro7_end_d * _un9[1])
-    _ro7_nw = (_iw9_se[0] + _ro7_end_d * _un9[0],
-               _iw9_se[1] + _ro7_end_d * _un9[1])
-    _ro7_poly = [_ro7_sw, _ro7_se, _ro7_ne, _ro7_nw]
-    _ro7_bb = BBox(w=min(p[0] for p in _ro7_poly), s=min(p[1] for p in _ro7_poly),
-                   e=max(p[0] for p in _ro7_poly), n=max(p[1] for p in _ro7_poly))
+    _ro7_poly, _ro7_bb = _ro_poly_bbox(_iw9_se, _iw9_sw, _un9,
+                                       _ro7_center_d - _ro7_half,
+                                       _ro7_center_d + _ro7_half)
 
     # RO3: in IW9 (rotated), south edge 5" N of IW7 N face
-    _iw9r_se, _iw9r_ne = layout.iw9.poly[1], layout.iw9.poly[2]
-    _iw9r_sw = layout.iw9.poly[0]
-    _dx9r, _dy9r, _len9r = seg_vec(_iw9r_se, _iw9r_ne)
-    _un9r = (_dx9r / _len9r, _dy9r / _len9r)  # unit along IW9 length (NNE)
-    # IW7 NE corner projected onto IW9 length axis = IW7 north face position
-    _iw7r_ne = layout.iw7.poly[2]
-    _ro3_iw7_n_d = ((_iw7r_ne[0] - _iw9r_se[0]) * _un9r[0]
-                    + (_iw7r_ne[1] - _iw9r_se[1]) * _un9r[1])
+    _ro3_iw7_n_d = _project(layout.iw7.poly[2], _iw9_se, _un9)
     _ro3_start_d = _ro3_iw7_n_d + RO3_IW7_GAP
-    _ro3_end_d = _ro3_start_d + RO3_WIDTH
-    _ro3_sw = (_iw9r_se[0] + _ro3_start_d * _un9r[0],
-               _iw9r_se[1] + _ro3_start_d * _un9r[1])
-    _ro3_se = (_iw9r_sw[0] + _ro3_start_d * _un9r[0],
-               _iw9r_sw[1] + _ro3_start_d * _un9r[1])
-    _ro3_ne = (_iw9r_sw[0] + _ro3_end_d * _un9r[0],
-               _iw9r_sw[1] + _ro3_end_d * _un9r[1])
-    _ro3_nw = (_iw9r_se[0] + _ro3_end_d * _un9r[0],
-               _iw9r_se[1] + _ro3_end_d * _un9r[1])
-    _ro3_poly = [_ro3_sw, _ro3_se, _ro3_ne, _ro3_nw]
-    _ro3_bb = BBox(w=min(p[0] for p in _ro3_poly), s=min(p[1] for p in _ro3_poly),
-                   e=max(p[0] for p in _ro3_poly), n=max(p[1] for p in _ro3_poly))
+    _ro3_poly, _ro3_bb = _ro_poly_bbox(_iw9_se, _iw9_sw, _un9,
+                                       _ro3_start_d,
+                                       _ro3_start_d + RO3_WIDTH)
 
     # RO4: in IW2o (oblique), centered along IW2o length
-    _iw2o_sw, _iw2o_se = layout.iw2o.poly[0], layout.iw2o.poly[1]
-    _iw2o_nw = layout.iw2o.poly[3]
-    _dx2r, _dy2r, _len2r = seg_vec(_iw2o_sw, _iw2o_nw)
-    _un2_al = (_dx2r / _len2r, _dy2r / _len2r)  # unit along IW2o length
-    _ro4_center_d = _len2r / 2
+    _iw2o_sw, _iw2o_se, _iw2o_nw = layout.iw2o.poly[0], layout.iw2o.poly[1], layout.iw2o.poly[3]
+    _un2_al, _len2r = _wall_unit(_iw2o_sw, _iw2o_nw)
     _ro4_half = IW2_RO_WIDTH / 2
-    _ro4_start_d = _ro4_center_d - _ro4_half
-    _ro4_end_d = _ro4_center_d + _ro4_half
-    _ro4_sw = (_iw2o_sw[0] + _ro4_start_d * _un2_al[0],
-               _iw2o_sw[1] + _ro4_start_d * _un2_al[1])
-    _ro4_se = (_iw2o_se[0] + _ro4_start_d * _un2_al[0],
-               _iw2o_se[1] + _ro4_start_d * _un2_al[1])
-    _ro4_ne = (_iw2o_se[0] + _ro4_end_d * _un2_al[0],
-               _iw2o_se[1] + _ro4_end_d * _un2_al[1])
-    _ro4_nw = (_iw2o_sw[0] + _ro4_end_d * _un2_al[0],
-               _iw2o_sw[1] + _ro4_end_d * _un2_al[1])
-    _ro4_poly = [_ro4_sw, _ro4_se, _ro4_ne, _ro4_nw]
-    _ro4_bb = BBox(w=min(p[0] for p in _ro4_poly), s=min(p[1] for p in _ro4_poly),
-                   e=max(p[0] for p in _ro4_poly), n=max(p[1] for p in _ro4_poly))
+    _ro4_poly, _ro4_bb = _ro_poly_bbox(_iw2o_sw, _iw2o_se, _un2_al,
+                                       _len2r / 2 - _ro4_half,
+                                       _len2r / 2 + _ro4_half)
 
     # RO5: in IW6, positioned relative to IW2s west face
-    # IW6 is trapezoidal (west end meets inner polygon at slightly different
-    # points on each face), so compute each face independently.
+    # IW6 is trapezoidal — compute each face independently.
     _iw6_sw, _iw6_se = layout.iw6.poly[0], layout.iw6.poly[1]
     _iw6_ne, _iw6_nw = layout.iw6.poly[2], layout.iw6.poly[3]
     _iw2_w_mid = ((layout.iw2s.poly[0][0] + layout.iw2s.poly[3][0]) / 2,
                   (layout.iw2s.poly[0][1] + layout.iw2s.poly[3][1]) / 2)
-    # South face (SW→SE)
-    _dx6s, _dy6s, _len6s = seg_vec(_iw6_sw, _iw6_se)
-    _un6s = (_dx6s / _len6s, _dy6s / _len6s)
-    _ref6s = ((_iw2_w_mid[0] - _iw6_sw[0]) * _un6s[0]
-              + (_iw2_w_mid[1] - _iw6_sw[1]) * _un6s[1])
+    _un6s, _ = _wall_unit(_iw6_sw, _iw6_se)
+    _ref6s = _project(_iw2_w_mid, _iw6_sw, _un6s)
     _end6s = _ref6s - IW6_RO_OFFSET_W
     _start6s = _end6s - IW6_RO_WIDTH
-    # North face (NW→NE)
-    _dx6n, _dy6n, _len6n = seg_vec(_iw6_nw, _iw6_ne)
-    _un6n = (_dx6n / _len6n, _dy6n / _len6n)
-    _ref6n = ((_iw2_w_mid[0] - _iw6_nw[0]) * _un6n[0]
-              + (_iw2_w_mid[1] - _iw6_nw[1]) * _un6n[1])
+    _un6n, _ = _wall_unit(_iw6_nw, _iw6_ne)
+    _ref6n = _project(_iw2_w_mid, _iw6_nw, _un6n)
     _end6n = _ref6n - IW6_RO_OFFSET_W
     _start6n = _end6n - IW6_RO_WIDTH
-    _ro5_sw = (_iw6_sw[0] + _start6s * _un6s[0],
-               _iw6_sw[1] + _start6s * _un6s[1])
-    _ro5_se = (_iw6_sw[0] + _end6s * _un6s[0],
-               _iw6_sw[1] + _end6s * _un6s[1])
-    _ro5_ne = (_iw6_nw[0] + _end6n * _un6n[0],
-               _iw6_nw[1] + _end6n * _un6n[1])
-    _ro5_nw = (_iw6_nw[0] + _start6n * _un6n[0],
-               _iw6_nw[1] + _start6n * _un6n[1])
+    _ro5_sw = (_iw6_sw[0] + _start6s * _un6s[0], _iw6_sw[1] + _start6s * _un6s[1])
+    _ro5_se = (_iw6_sw[0] + _end6s * _un6s[0],   _iw6_sw[1] + _end6s * _un6s[1])
+    _ro5_ne = (_iw6_nw[0] + _end6n * _un6n[0],   _iw6_nw[1] + _end6n * _un6n[1])
+    _ro5_nw = (_iw6_nw[0] + _start6n * _un6n[0], _iw6_nw[1] + _start6n * _un6n[1])
     _ro5_poly = [_ro5_sw, _ro5_se, _ro5_ne, _ro5_nw]
-    _ro5_bb = BBox(w=min(p[0] for p in _ro5_poly), s=min(p[1] for p in _ro5_poly),
-                   e=max(p[0] for p in _ro5_poly), n=max(p[1] for p in _ro5_poly))
+    _ro5_bb = bbox_from_points(_ro5_poly)
 
     return [
         RoughOpening("RO1", _ro1_bb, "IW1", "H", _ro1_poly),

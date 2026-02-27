@@ -72,15 +72,16 @@ class TestPartialLineStrip:
     def test_full_range(self):
         pts = {"A": (0.0, 0.0), "B": (10.0, 0.0)}
         seg = LineSeg("A", "B")
-        result = partial_line_strip(pts, seg, "A", "B", 0.0, 1.0)
+        result = partial_line_strip(pts, seg, seg, 0.0, 1.0)
         assert len(result) == 4
         assert result[0] == pytest.approx((0.0, 0.0))
         assert result[1] == pytest.approx((10.0, 0.0))
 
     def test_sub_range(self):
         pts = {"A": (0.0, 0.0), "B": (10.0, 0.0), "C": (0.0, 1.0), "D": (10.0, 1.0)}
-        seg = LineSeg("A", "B")
-        result = partial_line_strip(pts, seg, "C", "D", 0.2, 0.8)
+        outer_seg = LineSeg("A", "B")
+        inner_seg = LineSeg("C", "D")
+        result = partial_line_strip(pts, outer_seg, inner_seg, 0.2, 0.8)
         assert len(result) == 4
         assert result[0] == pytest.approx((2.0, 0.0))
         assert result[1] == pytest.approx((8.0, 0.0))

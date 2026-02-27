@@ -1,6 +1,6 @@
 """Pure geometry functions, path operations, polygon utilities, and formatting."""
 import math
-from .types import Point, LineSeg, ArcSeg, Segment
+from .types import Point, BBox, LineSeg, ArcSeg, Segment
 
 # Geometric tolerance for point/intersection coincidence checks
 GEOM_EPS = 1e-9
@@ -27,11 +27,14 @@ def require_pts(pts: dict[str, 'Point'], *names: str) -> None:
 # ============================================================
 def left_norm(p1: Point, p2: Point) -> Point:
     """Unit normal vector to the left of the direction p1 → p2 (CCW perpendicular)."""
-    dx = p2[0]-p1[0]; dy = p2[1]-p1[1]; Ln = math.sqrt(dx**2+dy**2)
+    dx = p2[0]-p1[0]; dy = p2[1]-p1[1]; Ln = math.hypot(dx, dy)
     return (-dy/Ln, dx/Ln)
 
 def off_pt(p: Point, n: Point, d: float) -> Point:
-    """Offset point p by distance d along unit direction n."""
+    """Offset point p by distance d along unit direction n.
+
+    Equivalent to ``offset_pt(p, d, n)`` with different arg order.
+    """
     return (p[0]+d*n[0], p[1]+d*n[1])
 
 def seg_vec(p1: Point, p2: Point) -> tuple[float, float, float]:
@@ -47,14 +50,14 @@ def seg_vecs(p1: Point, p2: Point) -> tuple[tuple[float, float], tuple[float, fl
     - inward: right perpendicular of along (CW-inward for CW outline traversal)
     """
     dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-    length = math.sqrt(dx * dx + dy * dy)
+    length = math.hypot(dx, dy)
     along = (dx / length, dy / length)
     inward = (dy / length, -dx / length)
     return along, inward
 
 def offset_pt(origin: Point, dist: float, direction: tuple[float, float]) -> Point:
-    """Offset point by dist along direction vector."""
-    return (origin[0] + dist * direction[0], origin[1] + dist * direction[1])
+    """Offset point by dist along direction vector.  Thin wrapper around off_pt."""
+    return off_pt(origin, direction, dist)
 
 def line_isect(p1: Point, d1: Point, p2: Point, d2: Point) -> Point:
     """Intersection of two lines (p1+t*d1) and (p2+s*d2). Raises GeometryError if parallel."""
@@ -74,7 +77,7 @@ def circle_circle_isect(c1: Point, r1: float, c2: Point, r2: float, near: Point)
 
     Raises GeometryError if the circles don't intersect.
     """
-    dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.sqrt(dx**2+dy**2)
+    dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.hypot(dx, dy)
     if d > r1 + r2 + GEOM_EPS:
         raise GeometryError(f"Circles too far apart: d={d:.6f}, r1+r2={r1+r2:.6f}")
     if d < abs(r1-r2) - GEOM_EPS:
@@ -122,6 +125,12 @@ def line_circle_isect_min_abs_t(p: Point, d: Point, c: Point, r: float) -> Point
     t1 = (-B+math.sqrt(disc))/(2*A); t2 = (-B-math.sqrt(disc))/(2*A)
     t = min(t1, t2, key=lambda t: abs(t))
     return (p[0]+t*d[0], p[1]+t*d[1])
+
+def bbox_from_points(pts: list[Point]) -> BBox:
+    """Compute axis-aligned bounding box from a list of points."""
+    return BBox(w=min(p[0] for p in pts), s=min(p[1] for p in pts),
+                e=max(p[0] for p in pts), n=max(p[1] for p in pts))
+
 
 def poly_area(verts: list[Point]) -> float:
     """Polygon area via the shoelace formula. Works for either winding order."""
@@ -174,7 +183,7 @@ def arc_sweep_deg(seg: ArcSeg, pts: dict[str, Point]) -> float:
 def brg_dist(p1: Point, p2: Point) -> tuple[float, float]:
     """Bearing (degrees clockwise from North) and distance between two E/N points."""
     dE = p2[0]-p1[0]; dN = p2[1]-p1[1]
-    d = math.sqrt(dE**2+dN**2)
+    d = math.hypot(dE, dN)
     b = math.degrees(math.atan2(dE, dN)) % 360
     return b, d
 
@@ -231,12 +240,12 @@ def f8f9_corner_polyline(
 
     # CW traversal direction at F8 (tangent at exit of C7 arc)
     _r8x, _r8y = F8[0] - C7[0], F8[1] - C7[1]
-    _r8_len = math.sqrt(_r8x**2 + _r8y**2)
+    _r8_len = math.hypot(_r8x, _r8y)
     _dir_f8 = (_r8y / _r8_len, -_r8x / _r8_len)  # CW tangent = right normal of radius
 
     # CW traversal direction at F9 (F9→F10 line direction)
     _d9x, _d9y = F10[0] - F9[0], F10[1] - F9[1]
-    _d9_len = math.sqrt(_d9x**2 + _d9y**2)
+    _d9_len = math.hypot(_d9x, _d9y)
     _dir_f9 = (_d9x / _d9_len, _d9y / _d9_len)
 
     # Inset direction (right of CW direction = toward wall material)
@@ -302,7 +311,7 @@ def compute_inner_walls(
         if not isinstance(seg_b, LineSeg) and not isinstance(seg_a, LineSeg):
             c1 = pts[seg_b.center]; c2 = pts[seg_a.center]
             r1 = (seg_b.radius + _wt) if seg_b.direction == "CW" else (seg_b.radius - _wt)
-            dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.sqrt(dx*dx+dy*dy)
+            dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.hypot(dx, dy)
             return (c1[0]+r1*dx/d, c1[1]+r1*dy/d)
         ls = seg_b if isinstance(seg_b, LineSeg) else seg_a
         arc = seg_a if isinstance(seg_b, LineSeg) else seg_b
