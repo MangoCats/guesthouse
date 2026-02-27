@@ -36,7 +36,7 @@ IW2S_W2REF_OFFSET = 6.5              # offset from virtual W2 ref → ~5'4" true
 IW2S_LENGTH = 72.0 / 12.0            # 72" (6') south from W6-W7 inner wall
 IW2O_THICKNESS = 6.0 / 12.0          # 6" thick perpendicular to midline
 IW4_GAP_IW11 = 30.0 / 12.0           # 30" from IW11 east face to IW4 west face
-RO1_OFFSET_FROM_IW2 = 116.0 / 12.0   # 9'8" from IW2 east face, CW-normal to W2-W5
+RO1_OFFSET_FROM_IW2 = 120.0 / 12.0   # 10'0" from IW2 east face, CW-normal to W2-W5
 
 # Bed
 BED_WIDTH = 76.0 / 12.0           # 76" king bed
