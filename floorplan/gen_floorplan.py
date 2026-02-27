@@ -2882,6 +2882,57 @@ def _render_sf_extras(out, data, layout):
     out.append(f'<text x="{ofx:.1f}" y="{_of_sf_y:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">{_office_sf:.1f} sf</text>')
 
+    # --- CLOSET and STORAGE sf labels (on opposite side of dim lines) ---
+    _ep = {name: pt for name, pt in compute_dimension_endpoints(
+        pts, layout, data.radii, bare=False)}
+
+    # East closet area: IW11 east → IW4 west, IW12 south → south wall
+    _e_closet_sf = poly_area([
+        (layout.iw11.poly[1][0], layout.iw12.poly[0][1]),
+        (layout.iw4.poly[0][0], layout.iw12.poly[0][1]),
+        layout.iw4.poly[0],
+        (layout.iw11.poly[1][0], pts["W1"][1]),
+    ])
+    # West closet area: IW3 east → IW9 west, IW7 south → south wall
+    _w_closet_sf = poly_area([
+        (layout.iw3.poly[1][0], layout.iw7.poly[0][1]),
+        (layout.iw9.poly[0][0], layout.iw7.poly[0][1]),
+        (layout.iw9.poly[0][0], pts["W1"][1]),
+        (layout.iw3.poly[1][0], pts["W1"][1]),
+    ])
+    # Storage area: IW11 east → east wall, IW5 south → IW1 south
+    _storage_sf = poly_area([
+        (layout.iw11.poly[1][0], layout.iw5.poly[0][1]),
+        (pts["W14"][0], layout.iw5.poly[0][1]),
+        (pts["W14"][0], layout.iw1.poly[0][1]),
+        (layout.iw11.poly[1][0], layout.iw1.poly[0][1]),
+    ])
+
+    # Place each sf label on the opposite side of its dim line from the dim label
+    for _dim_key, _area, _rot in [
+        ("dim03", _e_closet_sf, True),
+        ("dim04", _w_closet_sf, True),
+        ("dim07", _storage_sf, False),
+    ]:
+        _da, _db = _ep[f"{_dim_key}_A"], _ep[f"{_dim_key}_B"]
+        _sx1, _sy1 = to_svg(*_da)
+        _sx2, _sy2 = to_svg(*_db)
+        _sdx = _sx2 - _sx1; _sdy = _sy2 - _sy1
+        _slen = math.sqrt(_sdx**2 + _sdy**2)
+        _ang = math.degrees(math.atan2(_sdy, _sdx))
+        if _ang >= 90: _ang -= 180
+        elif _ang < -90: _ang += 180
+        _ang_rad = math.radians(_ang)
+        _mx = (_sx1 + _sx2) / 2; _my = (_sy1 + _sy2) / 2
+        # Opposite side: negate the label offset direction
+        _sfx = _mx - 3 * math.sin(_ang_rad)
+        _sfy = _my + 3 * math.cos(_ang_rad)
+        _rot_attr = f' transform="rotate({_ang:.1f},{_sfx:.1f},{_sfy:.1f})"' if _rot else ""
+        out.append(
+            f'<text x="{_sfx:.1f}" y="{_sfy:.1f}" text-anchor="middle"'
+            f' dominant-baseline="hanging" font-family="Arial" font-size="8"'
+            f' fill="#666"{_rot_attr}>{_area:.1f} sf</text>')
+
     # --- Dashed line from west end of RO1 to west end of O6 ---
     # RO1 west end: midpoint of poly[0] (south) and poly[3] (north)
     ro1_w = _ro1_w_mid  # already computed above
