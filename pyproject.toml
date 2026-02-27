@@ -9,7 +9,7 @@ requires-python = ">=3.12"
 
 [project.optional-dependencies]
 adjust = ["numpy", "scipy"]
-gen = ["PyMuPDF"]
+gen = ["PyMuPDF", "Pillow", "numpy", "scipy"]
 test = ["pytest"]
 
 [tool.setuptools.packages.find]
