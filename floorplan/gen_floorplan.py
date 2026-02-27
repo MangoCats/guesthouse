@@ -172,6 +172,26 @@ def _jamb_poly(out, j1, j2, along_dir, to_svg):
     out.append(f'<polygon points="{jp}" fill="{JAMB_COLOR}" stroke="none"/>')
 
 
+def _swing_arc_svg(hinge, radius, dir_from, dir_to, to_svg, n_pts=20):
+    """SVG polyline points string for a 90-degree door/window swing arc.
+
+    Rotates ``dir_from`` toward ``dir_to`` (must be approximately
+    perpendicular unit vectors).  Sweep direction (CW/CCW) is determined
+    by the cross product of *dir_from* × *dir_to*.
+    """
+    cross = dir_from[0] * dir_to[1] - dir_from[1] * dir_to[0]
+    sweep = math.pi / 2 if cross > 0 else -math.pi / 2
+    pts = []
+    for i in range(n_pts + 1):
+        a = sweep * i / n_pts
+        ca, sa = math.cos(a), math.sin(a)
+        ae = hinge[0] + radius * (dir_from[0] * ca - dir_from[1] * sa)
+        an = hinge[1] + radius * (dir_from[0] * sa + dir_from[1] * ca)
+        sx, sy = to_svg(ae, an)
+        pts.append(f"{sx:.1f},{sy:.1f}")
+    return " ".join(pts)
+
+
 # Toilet plan-view shape: (dx, dy) offsets in source SVG units from center of
 # back edge, +dy = toward bowl.  Extracted from hut/floor_plan_2d.svg lines 264-269.
 # 1 SVG unit = 10 cm; _SVG_TO_FT converts to feet.
@@ -1253,14 +1273,9 @@ def _render_appliances(out, data, layout, minik=False, db=False):
         _tx, _ty = to_svg(*_tip)
         out.append(f'<line x1="{_hx:.1f}" y1="{_hy:.1f}" x2="{_tx:.1f}" y2="{_ty:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
-        _arc_pts = []
-        for _i in range(21):
-            _t = _i * (math.pi / 2) / 20
-            _ae = _hinge[0] + _door_len * (math.cos(_t) * w2w5_in[0] - math.sin(_t) * w2w5_al[0])
-            _an = _hinge[1] + _door_len * (math.cos(_t) * w2w5_in[1] - math.sin(_t) * w2w5_al[1])
-            _ax, _ay = to_svg(_ae, _an)
-            _arc_pts.append(f"{_ax:.1f},{_ay:.1f}")
-        out.append(f'<polyline points="{" ".join(_arc_pts)}" fill="none"'
+        _arc_pts = _swing_arc_svg(_hinge, _door_len, w2w5_in,
+                                   (-w2w5_al[0], -w2w5_al[1]), to_svg)
+        out.append(f'<polyline points="{_arc_pts}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         if link:
             out.append('</a>')
@@ -1452,17 +1467,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         tip_x, tip_y = to_svg(*tip)
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
-        n_arc = 20
-        arc_pts = []
-        for i in range(n_arc + 1):
-            t = i / n_arc
-            ct = math.cos(t * math.pi / 2)
-            st = math.sin(t * math.pi / 2)
-            ae = fr_se[0] + fr_door * (ct * _close_dir[0] + st * _open_dir[0])
-            an = fr_se[1] + fr_door * (ct * _close_dir[1] + st * _open_dir[1])
-            ax, ay = to_svg(ae, an)
-            arc_pts.append(f"{ax:.1f},{ay:.1f}")
-        out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+        arc_pts = _swing_arc_svg(fr_se, fr_door, _close_dir, _open_dir, to_svg)
+        out.append(f'<polyline points="{arc_pts}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
     if db or (not minik):
@@ -1475,17 +1481,8 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         tip_x, tip_y = to_svg(*tip)
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tip_x:.1f}" y2="{tip_y:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
-        n_arc = 20
-        arc_pts = []
-        for i in range(n_arc + 1):
-            t = i / n_arc
-            ct = math.cos(t * math.pi / 2)
-            st = math.sin(t * math.pi / 2)
-            ae = fr_nw[0] + fr_door * (ct * _open_dir[0] + st * _close_dir[0])
-            an = fr_nw[1] + fr_door * (ct * _open_dir[1] + st * _close_dir[1])
-            ax, ay = to_svg(ae, an)
-            arc_pts.append(f"{ax:.1f},{ay:.1f}")
-        out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+        arc_pts = _swing_arc_svg(fr_nw, fr_door, _open_dir, _close_dir, to_svg)
+        out.append(f'<polyline points="{arc_pts}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
 
@@ -2306,18 +2303,9 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from open (cross) sweeping 90° to closed (along wall toward F2)
-    n_arc = 20
-    arc_pts_list = []
-    for i in range(n_arc + 1):
-        angle = i * (math.pi / 2) / n_arc  # 0° to 90°
-        _cos_a = math.cos(angle)
-        _sin_a = math.sin(angle)
-        # Rotate from cross direction toward -along direction
-        _de = O3_DOOR_WIDTH * (_cos_a * _o3_cross[0] - _sin_a * _o3_along[0])
-        _dn = O3_DOOR_WIDTH * (_cos_a * _o3_cross[1] - _sin_a * _o3_along[1])
-        sx, sy = to_svg(hinge[0] + _de, hinge[1] + _dn)
-        arc_pts_list.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts_list)}" fill="none"'
+    arc_pts_str = _swing_arc_svg(hinge, O3_DOOR_WIDTH, _o3_cross,
+                                 (-_o3_along[0], -_o3_along[1]), to_svg)
+    out.append(f'<polyline points="{arc_pts_str}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # O6 door: 42" door, hinged east, swings inward (rotation-safe)
@@ -2361,17 +2349,9 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from open (inward) sweeping 90° to closed (-along direction)
-    n_arc = 20
-    arc_pts = []
-    for i in range(n_arc + 1):
-        frac = i / n_arc
-        _cos_f = math.cos(frac * math.pi / 2)
-        _sin_f = math.sin(frac * math.pi / 2)
-        ae = hinge[0] + O6_DOOR_WIDTH * (_cos_f * _o6_inward[0] - _sin_f * _o6_al[0])
-        an = hinge[1] + O6_DOOR_WIDTH * (_cos_f * _o6_inward[1] - _sin_f * _o6_al[1])
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg(hinge, O6_DOOR_WIDTH, _o6_inward,
+                             (-_o6_al[0], -_o6_al[1]), to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # RO1 door: 36" door, hinged east, swings through wall (rotation-safe)
@@ -2400,17 +2380,9 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from open (swing) sweeping 90° to closed (-along direction)
-    n_arc = 20
-    arc_pts = []
-    for i in range(n_arc + 1):
-        frac = i / n_arc
-        _cos_f = math.cos(frac * math.pi / 2)
-        _sin_f = math.sin(frac * math.pi / 2)
-        ae = hinge[0] + RO1_DOOR_WIDTH * (_cos_f * _ro1_swing[0] - _sin_f * _ro1_al[0])
-        an = hinge[1] + RO1_DOOR_WIDTH * (_cos_f * _ro1_swing[1] - _sin_f * _ro1_al[1])
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg(hinge, RO1_DOOR_WIDTH, _ro1_swing,
+                             (-_ro1_al[0], -_ro1_al[1]), to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # RO2 door: 36" door in IW11 (rotated), hinged at NNE edge, swings into office
@@ -2438,16 +2410,10 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from closed (SSW, -_i11_an) sweeping CCW 90° to open (ENE, -_i11_at)
-    _closed_ang = math.atan2(-_i11_an[1], -_i11_an[0])
-    n_arc = 20
-    arc_pts = []
-    for i in range(n_arc + 1):
-        angle = _closed_ang + i * (math.pi / 2) / n_arc
-        ae = hinge_e + RO2_DOOR_WIDTH * math.cos(angle)
-        an = hinge_n + RO2_DOOR_WIDTH * math.sin(angle)
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg((hinge_e, hinge_n), RO2_DOOR_WIDTH,
+                             (-_i11_an[0], -_i11_an[1]),
+                             (-_i11_at[0], -_i11_at[1]), to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # RO4 door: centered in opening, hinged at SE end midpoint, swings 90° to NW end
@@ -2476,17 +2442,9 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from open (swing) sweeping 90° to closed (length direction)
-    n_arc = 20
-    arc_pts = []
-    for i in range(n_arc + 1):
-        frac = i / n_arc
-        _cos_f = math.cos(frac * math.pi / 2)
-        _sin_f = math.sin(frac * math.pi / 2)
-        ae = hinge[0] + _ro4_door_len * (_cos_f * _ro4_swing[0] + _sin_f * _ro4_len_u[0])
-        an = hinge[1] + _ro4_door_len * (_cos_f * _ro4_swing[1] + _sin_f * _ro4_len_u[1])
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg(hinge, _ro4_door_len, _ro4_swing,
+                             _ro4_len_u, to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # RO5 door: 36" door, hinged east, swings toward north face (rotation-safe)
@@ -2515,17 +2473,9 @@ def _render_openings(out, data, layout, bare=False):
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                    f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
         # Arc from open (swing) sweeping 90° to closed (-along direction)
-        n_arc = 20
-        arc_pts = []
-        for i in range(n_arc + 1):
-            frac = i / n_arc
-            _cos_f = math.cos(frac * math.pi / 2)
-            _sin_f = math.sin(frac * math.pi / 2)
-            ae = hinge[0] + RO5_DOOR_WIDTH * (_cos_f * _ro5_swing[0] - _sin_f * _ro5_al[0])
-            an = hinge[1] + RO5_DOOR_WIDTH * (_cos_f * _ro5_swing[1] - _sin_f * _ro5_al[1])
-            sx, sy = to_svg(ae, an)
-            arc_pts.append(f"{sx:.1f},{sy:.1f}")
-        out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+        arc_pts = _swing_arc_svg(hinge, RO5_DOOR_WIDTH, _ro5_swing,
+                                 (-_ro5_al[0], -_ro5_al[1]), to_svg)
+        out.append(f'<polyline points="{arc_pts}" fill="none"'
                    f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # IW9 unit vectors (shared by RO3 and RO7 doors)
@@ -2536,7 +2486,6 @@ def _render_openings(out, data, layout, bare=False):
     _i9_dx_t = _i9_sw[0] - _i9_se[0]; _i9_dy_t = _i9_sw[1] - _i9_se[1]
     _i9_lt = math.sqrt(_i9_dx_t**2 + _i9_dy_t**2)
     _i9_at = (_i9_dx_t / _i9_lt, _i9_dy_t / _i9_lt)  # SE→SW (across thickness)
-    _east_ang = math.atan2(-_i9_at[1], -_i9_at[0])
 
     # RO3 door: 36" door in IW9 (rotated), hinged at south edge, swings west
     ro3 = [r for r in rough_openings if r.name == "RO3"][0]
@@ -2556,15 +2505,8 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" x2="{tx:.1f}" y2="{ty:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from west (open) sweeping CW to north (closed toward center)
-    _west_ang = math.atan2(_i9_at[1], _i9_at[0])
-    arc_pts = []
-    for i in range(n_arc + 1):
-        angle = _west_ang - i * (math.pi / 2) / n_arc
-        ae = h_ro3[0] + RO3_DOOR_WIDTH * math.cos(angle)
-        an = h_ro3[1] + RO3_DOOR_WIDTH * math.sin(angle)
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg(h_ro3, RO3_DOOR_WIDTH, _i9_at, _i9_an, to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # RO7 double door: 2×24" doors in IW9 (rotated), hinged at outer edges, open east
@@ -2581,14 +2523,9 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hsx:.1f}" y1="{hsy:.1f}" x2="{tsx:.1f}" y2="{tsy:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from east (open) sweeping CCW to NNE (closed toward center)
-    arc_pts = []
-    for i in range(n_arc + 1):
-        angle = _east_ang + i * (math.pi / 2) / n_arc
-        ae = h_s[0] + RO7_DOOR_WIDTH * math.cos(angle)
-        an = h_s[1] + RO7_DOOR_WIDTH * math.sin(angle)
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg(h_s, RO7_DOOR_WIDTH,
+                             (-_i9_at[0], -_i9_at[1]), _i9_an, to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
     # North door: hinged at north edge (east face), swings east
     _ro7_n_ctr = ((_ro7p[3][0] + _ro7p[2][0]) / 2, (_ro7p[3][1] + _ro7p[2][1]) / 2)
@@ -2600,14 +2537,10 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hnx:.1f}" y1="{hny:.1f}" x2="{tnx:.1f}" y2="{tny:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from east (open) sweeping CW to SSW (closed toward center)
-    arc_pts = []
-    for i in range(n_arc + 1):
-        angle = _east_ang - i * (math.pi / 2) / n_arc
-        ae = h_n[0] + RO7_DOOR_WIDTH * math.cos(angle)
-        an = h_n[1] + RO7_DOOR_WIDTH * math.sin(angle)
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg(h_n, RO7_DOOR_WIDTH,
+                             (-_i9_at[0], -_i9_at[1]),
+                             (-_i9_an[0], -_i9_an[1]), to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # RO6 double door: 2×24" doors in IW11 (rotated), hinged at outer edges, open west
@@ -2615,8 +2548,6 @@ def _render_openings(out, data, layout, bare=False):
     _ro6p = ro6.poly  # [SW, SE, NE, NW]
     # IW11 unit vectors already computed (_i11_an, _i11_at)
     _ro6_gap = (IW11_RO_WIDTH - 2 * RO6_DOOR_WIDTH) / 2
-    # West direction = _i11_at
-    _west_ang = math.atan2(_i11_at[1], _i11_at[0])
     # South door: hinged at south edge (west face), swings west
     _ro6_s_ctr = ((_ro6p[0][0] + _ro6p[1][0]) / 2, (_ro6p[0][1] + _ro6p[1][1]) / 2)
     h_s6 = (_ro6_s_ctr[0] + _ro6_gap * _i11_an[0], _ro6_s_ctr[1] + _ro6_gap * _i11_an[1])
@@ -2627,14 +2558,8 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hs6x:.1f}" y1="{hs6y:.1f}" x2="{ts6x:.1f}" y2="{ts6y:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from west (open) sweeping CW to NNE (closed toward center)
-    arc_pts = []
-    for i in range(n_arc + 1):
-        angle = _west_ang - i * (math.pi / 2) / n_arc
-        ae = h_s6[0] + RO6_DOOR_WIDTH * math.cos(angle)
-        an = h_s6[1] + RO6_DOOR_WIDTH * math.sin(angle)
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg(h_s6, RO6_DOOR_WIDTH, _i11_at, _i11_an, to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
     # North door: hinged at north edge (west face), swings west
     _ro6_n_ctr = ((_ro6p[3][0] + _ro6p[2][0]) / 2, (_ro6p[3][1] + _ro6p[2][1]) / 2)
@@ -2646,14 +2571,9 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<line x1="{hn6x:.1f}" y1="{hn6y:.1f}" x2="{tn6x:.1f}" y2="{tn6y:.1f}"'
                f' stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
     # Arc from west (open) sweeping CCW to SSW (closed toward center)
-    arc_pts = []
-    for i in range(n_arc + 1):
-        angle = _west_ang + i * (math.pi / 2) / n_arc
-        ae = h_n6[0] + RO6_DOOR_WIDTH * math.cos(angle)
-        an = h_n6[1] + RO6_DOOR_WIDTH * math.sin(angle)
-        sx, sy = to_svg(ae, an)
-        arc_pts.append(f"{sx:.1f},{sy:.1f}")
-    out.append(f'<polyline points="{" ".join(arc_pts)}" fill="none"'
+    arc_pts = _swing_arc_svg(h_n6, RO6_DOOR_WIDTH, _i11_at,
+                             (-_i11_an[0], -_i11_an[1]), to_svg)
+    out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # Casement windows: O8, O9, O10 (23" openings, 45° swing, hinged at S-series face)
