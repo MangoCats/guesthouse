@@ -2731,11 +2731,10 @@ def _render_sf_extras(out, data, layout):
     _ro_list = compute_rough_openings(pts, layout)
     _ro1_bd = [r for r in _ro_list if r.name == "RO1"][0].poly
     _ro3_bd = [r for r in _ro_list if r.name == "RO3"][0].poly
-    _ro1_w_mid = ((_ro1_bd[0][0] + _ro1_bd[3][0]) / 2,
-                  (_ro1_bd[0][1] + _ro1_bd[3][1]) / 2)
+    _ro1_w_nf = _ro1_bd[3]    # RO1 NW: IW1 north face at RO1 west end
     _ro3_n_mid = ((_ro3_bd[2][0] + _ro3_bd[3][0]) / 2,
                   (_ro3_bd[2][1] + _ro3_bd[3][1]) / 2)
-    bdx, bdy = to_svg(_ro1_w_mid[0], _ro3_n_mid[1])
+    bdx, bdy = to_svg(_ro1_w_nf[0], _ro3_n_mid[1])
     out.append(f'<text x="{bdx:.1f}" y="{bdy:.1f}" text-anchor="end" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
     # BEDROOM area: rectangle between IW9 east, IW11 west, IW1 south, south wall
@@ -2770,13 +2769,14 @@ def _render_sf_extras(out, data, layout):
     utx, uty = to_svg(_util_e, _util_n)
     out.append(f'<text x="{utx:.1f}" y="{uty:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">UTIL</text>')
-    # UTIL area: IW8 south, IW1 south to IW9, south along IW9 to IW7/IW3,
-    # south along IW3 west, south wall with W1-W2 arc, west wall
+    # UTIL area: T-shape. IW8 south east to IW2 west, south along IW2 west
+    # to IW1 south, east along IW1 south to IW9 west, south to IW7/IW3,
+    # south wall with W1-W2 arc, west wall back to IW8 SW.
     _util_poly = [
         layout.iw8.poly[0],                               # IW8 SW
-        layout.iw8.poly[1],                               # IW8 SE
-        layout.iw1.poly[0],                               # IW1 SW
-        layout.iw9.poly[3],                               # IW9 NW (along IW1 south)
+        layout.iw8.poly[1],                               # IW8 SE (= IW2 west at IW8 south)
+        layout.iw1.poly[0],                               # IW1 SW (= IW2 west at IW1 south)
+        layout.iw9.poly[3],                               # IW9 NW (on IW1 south)
         (layout.iw9.poly[0][0], layout.iw7.poly[2][1]),   # IW9 at IW7 north
         layout.iw7.poly[3],                               # IW7 NW (= IW3 NE)
         layout.iw3.poly[3],                               # IW3 NW
@@ -2802,23 +2802,22 @@ def _render_sf_extras(out, data, layout):
     out.append(f'<text x="{kx:.1f}" y="{ky:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">KITCHEN</text>')
 
-    # Kitchen area polygon: dashed lines, IW1 north, IW2/IW2o/IW2s west, W9-W10
+    # Kitchen area polygon: dashed line, IW2/IW2o/IW2s east faces, W9-W10
     outer_openings = compute_outer_openings(pts, layout)
     o6 = [o for o in outer_openings if o.name == "O6"][0]
-    o6_w = ((o6.poly[0][0] + o6.poly[3][0]) / 2,
-            (o6.poly[0][1] + o6.poly[3][1]) / 2)
-    _iw2s_w_al, _ = seg_vecs(layout.iw2s.poly[0], layout.iw2s.poly[3])
-    _iw2s_w_at_w9 = line_isect(layout.iw2s.poly[0], _iw2s_w_al,
+    o6_w = o6.poly[0]              # O6 SW: W-surface at O6 west edge
+    _iw2s_e_al, _ = seg_vecs(layout.iw2s.poly[1], layout.iw2s.poly[2])
+    _iw2s_e_at_w9 = line_isect(layout.iw2s.poly[1], _iw2s_e_al,
                                 pts["W9"], _w9w10_al)
     _kitchen_poly = [
-        o6_w,                       # NW: O6 west midpoint on north wall
-        _iw2s_w_at_w9,              # NE: IW2s west face at W9 northing
-        layout.iw2s.poly[0],        # IW2s SW
-        layout.iw2o.poly[3],        # IW2o NW
-        layout.iw2o.poly[0],        # IW2o SW
-        layout.iw2.poly[3],         # IW2 NW
-        layout.iw2.poly[0],         # IW2 SW (= IW1 NW)
-        _ro1_w_mid,                 # SW: RO1 west midpoint on IW1
+        o6_w,                       # NW: O6 SW on W-surface
+        _iw2s_e_at_w9,             # NE: IW2s east face at W9 northing
+        layout.iw2s.poly[1],       # IW2s SE
+        layout.iw2o.poly[3],       # IW2o NW (kitchen-side, north end)
+        layout.iw2o.poly[0],       # IW2o SW (kitchen-side, south end)
+        layout.iw2.poly[2],        # IW2 NE
+        layout.iw2.poly[1],        # IW2 SE (on IW1 north face)
+        _ro1_w_nf,                 # SW: RO1 NW on IW1 north face
     ]
     _kitchen_sf = poly_area(_kitchen_poly)
     # SF label: centered under KITCHEN, equal distance below dim02 as KITCHEN is above
@@ -2836,11 +2835,8 @@ def _render_sf_extras(out, data, layout):
     # Living area polygon: dashed line (west), inner wall arcs (north/east), IW1 north (south)
     _iw1_ne = layout.iw1.poly[2]
     _iw1_n_n = _iw1_ne[1]  # IW1 north face northing
-    # Dashed line at IW1 north face
-    _dash_dx = o6_w[0] - _ro1_w_mid[0]
-    _dash_dy = o6_w[1] - _ro1_w_mid[1]
-    _t_n = (_iw1_n_n - _ro1_w_mid[1]) / _dash_dy
-    _dash_at_iw1_n = (_ro1_w_mid[0] + _t_n * _dash_dx, _iw1_n_n)
+    # Dashed line south end is already on IW1 north face
+    _dash_at_iw1_n = _ro1_w_nf
     _living_poly = [o6_w]
     # Inner wall seg 6 endpoint (W10)
     _living_poly.append(segment_polyline(data.inner_segs[6], pts)[-1])
@@ -2864,22 +2860,22 @@ def _render_sf_extras(out, data, layout):
     bax, bay = to_svg(_bath_e, _ro4_n_mid[1])
     out.append(f'<text x="{bax:.1f}" y="{bay:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">BATH</text>')
-    # BATH area: west wall to IW2/IW2o/IW2s west faces, IW8 north to IW6 south
+    # BATH area: west wall to IW2/IW2o/IW2s bath-side faces, IW8 north to seg 2/3
     # Ignore IW6: extend bath north to inner wall (NW corner arc + flat to IW2s)
     _seg2_pl = segment_polyline(data.inner_segs[2], pts)  # W5-W6 arc
     _seg3_pl = segment_polyline(data.inner_segs[3], pts)  # W6-W7 line
     _bath_poly = [
         layout.iw8.poly[3],                               # IW8 NW
         layout.iw8.poly[2],                               # IW8 NE
-        layout.iw2.poly[3],                               # IW2 NW
-        layout.iw2o.poly[0],                              # IW2o SW
-        layout.iw2o.poly[3],                              # IW2o NW
-        layout.iw2s.poly[0],                              # IW2s SW
+        layout.iw2.poly[3],                               # IW2 NW (bath side)
+        layout.iw2o.poly[1],                              # IW2o SE (bath side)
+        layout.iw2o.poly[2],                              # IW2o NE (bath side)
+        layout.iw2s.poly[0],                              # IW2s SW (bath side)
         layout.iw2s.poly[3],                              # IW2s NW (on seg 3)
         _seg3_pl[0],                                       # W6 (west end of seg 3)
     ]
     _bath_poly.extend(reversed(_seg2_pl[:-1]))             # W6→W5 arc (reversed)
-    _bath_sf = poly_area(_bath_poly)
+    _bath_sf = poly_area(_bath_poly) - poly_area(layout.iw6.poly)  # subtract IW6 inside bath
     _ba_sf_y = bay + _half_gap
     out.append(f'<text x="{bax:.1f}" y="{_ba_sf_y:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">{_bath_sf:.1f} sf</text>')
@@ -2937,10 +2933,10 @@ def _render_sf_extras(out, data, layout):
         (layout.iw9.poly[0][0], pts["W1"][1]),
         (layout.iw3.poly[1][0], pts["W1"][1]),
     ])
-    # Storage area: IW11 east → east wall, IW5 south → IW1 south
+    # Storage area: IW11 east → east wall, IW5 north → IW1 south
     _storage_sf = poly_area([
-        (layout.iw11.poly[1][0], layout.iw5.poly[0][1]),
-        (pts["W14"][0], layout.iw5.poly[0][1]),
+        (layout.iw11.poly[1][0], layout.iw5.poly[3][1]),
+        (pts["W14"][0], layout.iw5.poly[3][1]),
         (pts["W14"][0], layout.iw1.poly[0][1]),
         (layout.iw11.poly[1][0], layout.iw1.poly[0][1]),
     ])
@@ -2993,11 +2989,10 @@ def _render_sf_extras(out, data, layout):
                f' dominant-baseline="hanging" font-family="Arial" font-size="6"'
                f' fill="#666">{_wh_sf:.1f} sf</text>')
 
-    # --- Dashed line from west end of RO1 to west end of O6 ---
-    # RO1 west end: midpoint of poly[0] (south) and poly[3] (north)
-    ro1_w = _ro1_w_mid  # already computed above
+    # --- Dashed line from IW1-north at RO1 west to W-surface at O6 west ---
+    ro1_w = _ro1_w_nf  # RO1 NW on IW1 north face
 
-    # o6_w already computed above for kitchen area
+    # o6_w = O6 SW on W-surface, already computed above
     r1x, r1y = to_svg(*ro1_w)
     o6x, o6y = to_svg(*o6_w)
     out.append(f'<line x1="{r1x:.1f}" y1="{r1y:.1f}" x2="{o6x:.1f}" y2="{o6y:.1f}"'
