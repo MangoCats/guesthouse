@@ -2156,7 +2156,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     _ks_d_k = _st_d_k + STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0
     _sink_ctr = offset_pt(pts["W9"], _ks_d_k + KITCHEN_SINK_WIDTH / 2, _w9w10_al)
     _dim02_n = (pts["F12"][1] + pts["F13"][1]) / 2
-    kx, ky = to_svg(_sink_ctr[0], _dim02_n + 6.0 / 12.0)
+    kx, ky = to_svg(_sink_ctr[0], _dim02_n + 3.0 / 12.0)
     out.append(f'<text x="{kx:.1f}" y="{ky:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">KITCHEN</text>')
 
@@ -2746,9 +2746,33 @@ def _render_sf_extras(out, data, layout):
     _ks_d_k = _st_d_k + STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0
     _sink_ctr = offset_pt(pts["W9"], _ks_d_k + KITCHEN_SINK_WIDTH / 2, _w9w10_al)
     _dim02_n = (pts["F12"][1] + pts["F13"][1]) / 2
-    kx, ky = to_svg(_sink_ctr[0], _dim02_n + 6.0 / 12.0)
+    kx, ky = to_svg(_sink_ctr[0], _dim02_n + 3.0 / 12.0)
     out.append(f'<text x="{kx:.1f}" y="{ky:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">KITCHEN</text>')
+
+    # Kitchen area polygon: dashed lines, IW1 north, IW2/IW2o/IW2s west, W9-W10
+    outer_openings = compute_outer_openings(pts, layout)
+    o6 = [o for o in outer_openings if o.name == "O6"][0]
+    o6_w = ((o6.poly[0][0] + o6.poly[3][0]) / 2,
+            (o6.poly[0][1] + o6.poly[3][1]) / 2)
+    _iw2s_w_al, _ = seg_vecs(layout.iw2s.poly[0], layout.iw2s.poly[3])
+    _iw2s_w_at_w9 = line_isect(layout.iw2s.poly[0], _iw2s_w_al,
+                                pts["W9"], _w9w10_al)
+    _kitchen_poly = [
+        o6_w,                       # NW: O6 west midpoint on north wall
+        _iw2s_w_at_w9,              # NE: IW2s west face at W9 northing
+        layout.iw2s.poly[0],        # IW2s SW
+        layout.iw2o.poly[3],        # IW2o NW
+        layout.iw2o.poly[0],        # IW2o SW
+        layout.iw2.poly[3],         # IW2 NW
+        layout.iw2.poly[0],         # IW2 SW (= IW1 NW)
+        _ro1_w_mid,                 # SW: RO1 west midpoint on IW1
+    ]
+    _kitchen_sf = poly_area(_kitchen_poly)
+    # SF label: centered under KITCHEN, equal distance below dim02 as KITCHEN is above
+    sfx, sfy = to_svg(_sink_ctr[0], _dim02_n - 3.0 / 12.0)
+    out.append(f'<text x="{sfx:.1f}" y="{sfy:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="8" fill="#666">{_kitchen_sf:.1f} sf</text>')
 
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
@@ -2775,12 +2799,7 @@ def _render_sf_extras(out, data, layout):
     # RO1 west end: midpoint of poly[0] (south) and poly[3] (north)
     ro1_w = _ro1_w_mid  # already computed above
 
-    # O6 west end: midpoint of poly[0] (inner/start) and poly[3] (outer/start)
-    outer_openings = compute_outer_openings(pts, layout)
-    o6 = [o for o in outer_openings if o.name == "O6"][0]
-    o6_w = ((o6.poly[0][0] + o6.poly[3][0]) / 2,
-            (o6.poly[0][1] + o6.poly[3][1]) / 2)
-
+    # o6_w already computed above for kitchen area
     r1x, r1y = to_svg(*ro1_w)
     o6x, o6y = to_svg(*o6_w)
     out.append(f'<line x1="{r1x:.1f}" y1="{r1y:.1f}" x2="{o6x:.1f}" y2="{o6y:.1f}"'
