@@ -21,8 +21,9 @@ def render_openings(lines, openings, to_svg):
         lines.append(f'<polygon points="{svg_pts}" fill="{OPENING_FILL}"'
                      f' stroke="{OPENING_STROKE}" stroke-width="1.0"/>')
         # Label at polygon centroid
-        cx = sum(p[0] for p in o.poly) / 4
-        cy = sum(p[1] for p in o.poly) / 4
+        n = len(o.poly)
+        cx = sum(p[0] for p in o.poly) / n
+        cy = sum(p[1] for p in o.poly) / n
         sx, sy = to_svg(cx, cy)
         lines.append(f'<text x="{sx:.1f}" y="{sy + 3:.1f}" text-anchor="middle"'
                      f' font-family="Arial" font-size="7" fill="{OPENING_STROKE}"'
