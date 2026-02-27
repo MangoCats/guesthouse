@@ -2970,6 +2970,26 @@ def _render_sf_extras(out, data, layout):
             f' dominant-baseline="hanging" font-family="Arial" font-size="8"'
             f' fill="#666"{_rot_attr}>{_area:.1f} sf</text>')
 
+    # WH: area above the W9-IW2s dashed line, east of IW2s, south of W6-W7
+    _seg3_pl = segment_polyline(data.inner_segs[3], pts)
+    _seg4_pl = segment_polyline(data.inner_segs[4], pts)
+    _seg5_pl = segment_polyline(data.inner_segs[5], pts)
+    _wh_poly = [layout.iw2s.poly[2]]                      # IW2s NE
+    _wh_poly.append(_seg3_pl[-1])                          # W7
+    _wh_poly.extend(_seg4_pl[1:])                          # arc W7→W8
+    _wh_poly.extend(_seg5_pl[1:])                          # arc W8→W9
+    _wh_poly.append((layout.iw2s.poly[2][0], pts["W9"][1]))  # IW2s east at W9 N
+    _wh_sf = poly_area(_wh_poly)
+    _wh_cx = sum(p[0] for p in _wh_poly) / len(_wh_poly)
+    _wh_cy = sum(p[1] for p in _wh_poly) / len(_wh_poly)
+    _whx, _why = to_svg(_wh_cx, _wh_cy)
+    out.append(f'<text x="{_whx:.1f}" y="{_why:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="4" fill="#666">WH</text>')
+    _wh_sf_y = _why + 4.0 + _half_gap / 2
+    out.append(f'<text x="{_whx:.1f}" y="{_wh_sf_y:.1f}" text-anchor="middle"'
+               f' dominant-baseline="hanging" font-family="Arial" font-size="4"'
+               f' fill="#666">{_wh_sf:.1f} sf</text>')
+
     # --- Dashed line from west end of RO1 to west end of O6 ---
     # RO1 west end: midpoint of poly[0] (south) and poly[3] (north)
     ro1_w = _ro1_w_mid  # already computed above
