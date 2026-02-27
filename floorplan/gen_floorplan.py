@@ -2865,6 +2865,9 @@ def _render_sf_extras(out, data, layout):
     out.append(f'<text x="{bax:.1f}" y="{bay:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">BATH</text>')
     # BATH area: west wall to IW2/IW2o/IW2s west faces, IW8 north to IW6 south
+    # Ignore IW6: extend bath north to inner wall (NW corner arc + flat to IW2s)
+    _seg2_pl = segment_polyline(data.inner_segs[2], pts)  # W5-W6 arc
+    _seg3_pl = segment_polyline(data.inner_segs[3], pts)  # W6-W7 line
     _bath_poly = [
         layout.iw8.poly[3],                               # IW8 NW
         layout.iw8.poly[2],                               # IW8 NE
@@ -2872,9 +2875,10 @@ def _render_sf_extras(out, data, layout):
         layout.iw2o.poly[0],                              # IW2o SW
         layout.iw2o.poly[3],                              # IW2o NW
         layout.iw2s.poly[0],                              # IW2s SW
-        (layout.iw2s.poly[0][0], layout.iw6.poly[0][1]), # IW2s west at IW6 south
-        layout.iw6.poly[0],                               # IW6 SW
+        layout.iw2s.poly[3],                              # IW2s NW (on seg 3)
+        _seg3_pl[0],                                       # W6 (west end of seg 3)
     ]
+    _bath_poly.extend(reversed(_seg2_pl[:-1]))             # W6→W5 arc (reversed)
     _bath_sf = poly_area(_bath_poly)
     _ba_sf_y = bay + _half_gap
     out.append(f'<text x="{bax:.1f}" y="{_ba_sf_y:.1f}" text-anchor="middle" dominant-baseline="hanging"'
