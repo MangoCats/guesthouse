@@ -3,7 +3,7 @@ import math
 from typing import NamedTuple
 
 from shared.types import Point, Wall
-from shared.geometry import line_isect, seg_vec, seg_vecs, offset_pt
+from shared.geometry import line_isect, seg_vec, seg_vecs, offset_pt, GeometryError
 from floorplan.constants import (
     WALL_6IN, WALL_4IN, WALL_3IN,
     APPLIANCE_WIDTH, APPLIANCE_DEPTH, APPLIANCE_OFFSET_FROM_W2,
@@ -198,8 +198,12 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw1_nw = line_isect(_iw1_n_anchor, _w9w10_al, _iw2_w_anchor, _w2w5_al)
     iw1_sw = _offset(iw1_nw, WALL_6IN, _w9w10_in)
     _ne_ts = _line_poly_isects(inner_poly, iw1_nw, _w9w10_al)
+    if not _ne_ts:
+        raise GeometryError("IW1 north edge does not intersect inner polygon")
     iw1_ne = _offset(iw1_nw, max(_ne_ts), _w9w10_al)
     _se_ts = _line_poly_isects(inner_poly, iw1_sw, _w9w10_al)
+    if not _se_ts:
+        raise GeometryError("IW1 south edge does not intersect inner polygon")
     iw1_se = _offset(iw1_sw, max(_se_ts), _w9w10_al)
 
     # --- IW2 (lower, restored to 6'6" true perpendicular from W2-W5) ---

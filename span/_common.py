@@ -90,15 +90,15 @@ def max_span_at_angle(inner_poly, iw_cls, angle, cx, cy):
     ie_min = min(p[0] for p in r_inner)
     ie_max = max(p[0] for p in r_inner)
     inch = 1.0 / 12.0
+    n_steps = int((ie_max - ie_min) / inch) + 1
     best = 0.0
-    e = ie_min
-    while e <= ie_max + GEOM_EPS:
+    for i in range(n_steps):
+        e = ie_min + i * inch
         ns = vert_isects(r_inner, e)
         if len(ns) >= 2:
             span = max(ns) - min(ns)
             if span > best:
                 best = span
-        e += inch
     return best
 
 
@@ -119,23 +119,22 @@ def find_min_span_angle(inner_poly, iw_cls, cx, cy, normalize=True):
             best_angle = float(a)
 
     # fine: 0.5 deg steps, +/-4.5 deg around coarse minimum
-    fine_a = best_angle - 4.5
-    while fine_a <= best_angle + 4.5 + GEOM_EPS:
-        ms = max_span_at_angle(inner_poly, iw_cls, fine_a, cx, cy)
+    fine_base = best_angle - 4.5
+    for i in range(19):  # 0..18 → -4.5 to +4.5 in 0.5 steps
+        a = fine_base + i * 0.5
+        ms = max_span_at_angle(inner_poly, iw_cls, a, cx, cy)
         if ms < best_span:
             best_span = ms
-            best_angle = fine_a
-        fine_a += 0.5
+            best_angle = a
 
     # superfine: 0.1 deg steps, +/-0.9 deg around fine minimum
-    center = best_angle
-    sf_a = center - 0.9
-    while sf_a <= center + 0.9 + GEOM_EPS:
-        ms = max_span_at_angle(inner_poly, iw_cls, sf_a, cx, cy)
+    sf_base = best_angle - 0.9
+    for i in range(19):  # 0..18 → -0.9 to +0.9 in 0.1 steps
+        a = sf_base + i * 0.1
+        ms = max_span_at_angle(inner_poly, iw_cls, a, cx, cy)
         if ms < best_span:
             best_span = ms
-            best_angle = sf_a
-        sf_a += 0.1
+            best_angle = a
 
     if normalize and best_angle > 90:
         best_angle -= 180
@@ -165,9 +164,10 @@ def compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy,
     ie_min = min(p[0] for p in r_inner)
     ie_max = max(p[0] for p in r_inner)
     inch = 1.0 / 12.0
+    n_steps = int((ie_max - ie_min) / inch) + 1
     eastings, spans, s_spans, n_spans, roof_spans = [], [], [], [], []
-    e = ie_min
-    while e <= ie_max + GEOM_EPS:
+    for i in range(n_steps):
+        e = ie_min + i * inch
         ns = vert_isects(r_inner, e)
         if len(ns) >= 2:
             bot, top = min(ns), max(ns)
@@ -193,7 +193,6 @@ def compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy,
             roof_spans.append(max(rns) - min(rns) if len(rns) >= 2 else 0.0)
 
         eastings.append(e)
-        e += inch
 
     max_span = max(spans) if spans else 0
     max_e = eastings[spans.index(max_span)] if spans else 0

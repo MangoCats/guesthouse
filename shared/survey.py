@@ -88,18 +88,8 @@ def compute_three_arc(pts: dict[str, Point]) -> dict[str, float]:
     pts["T2"] = (pts["POB"][0]+T2_dist*uE, pts["POB"][1]+T2_dist*uN)
     pts["TC2"] = (pts["T2"][0]+R2*nE, pts["T2"][1]+R2*nN)
 
-    # PA: circle-circle intersection
-    dx_cc = pts["TC2"][0]-pts["TC1"][0]; dy_cc = pts["TC2"][1]-pts["TC1"][1]
-    d_cc = math.hypot(dx_cc, dy_cc)
-    a_cc = (R1**2-R2**2+d_cc**2)/(2*d_cc); h_cc = math.sqrt(R1**2-a_cc**2)
-    ux_cc, uy_cc = dx_cc/d_cc, dy_cc/d_cc
-    Mx, My = pts["TC1"][0]+a_cc*ux_cc, pts["TC1"][1]+a_cc*uy_cc
-    I1 = (Mx+h_cc*(-uy_cc), My+h_cc*ux_cc); I2 = (Mx-h_cc*(-uy_cc), My-h_cc*ux_cc)
-    ang_T2_C2 = math.atan2(pts["T2"][1]-pts["TC2"][1], pts["T2"][0]-pts["TC2"][0])
-    def ccw_a(s, e): return (e-s)%(2*math.pi)
-    s1 = ccw_a(ang_T2_C2, math.atan2(I1[1]-pts["TC2"][1], I1[0]-pts["TC2"][0]))
-    s2 = ccw_a(ang_T2_C2, math.atan2(I2[1]-pts["TC2"][1], I2[0]-pts["TC2"][0]))
-    pts["PA"] = I1 if s1 < s2 else I2
+    # PA: circle-circle intersection (nearest to T2 on arc 2)
+    pts["PA"] = circle_circle_isect(pts["TC1"], R1, pts["TC2"], R2, near=pts["T2"])
 
     R3 = 11.0
     T3_dist_from_P3 = 17.911244

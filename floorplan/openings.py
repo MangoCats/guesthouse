@@ -358,6 +358,8 @@ def _seg_param(pts, seg, point):
     B = pts[seg.end]
     dx = B[0] - A[0]
     dy = B[1] - A[1]
+    if abs(dx) < 1e-12 and abs(dy) < 1e-12:
+        return 0.0  # degenerate zero-length segment
     if abs(dx) > abs(dy):
         return (point[0] - A[0]) / dx
     else:
