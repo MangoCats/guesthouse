@@ -28,6 +28,8 @@ def require_pts(pts: dict[str, 'Point'], *names: str) -> None:
 def left_norm(p1: Point, p2: Point) -> Point:
     """Unit normal vector to the left of the direction p1 → p2 (CCW perpendicular)."""
     dx = p2[0]-p1[0]; dy = p2[1]-p1[1]; Ln = math.hypot(dx, dy)
+    if Ln < GEOM_EPS:
+        raise GeometryError(f"Zero-length segment in left_norm: p1={p1}, p2={p2}")
     return (-dy/Ln, dx/Ln)
 
 def off_pt(p: Point, n: Point, d: float) -> Point:
@@ -51,6 +53,8 @@ def seg_vecs(p1: Point, p2: Point) -> tuple[tuple[float, float], tuple[float, fl
     """
     dx, dy = p2[0] - p1[0], p2[1] - p1[1]
     length = math.hypot(dx, dy)
+    if length < GEOM_EPS:
+        raise GeometryError(f"Zero-length segment in seg_vecs: p1={p1}, p2={p2}")
     along = (dx / length, dy / length)
     inward = (dy / length, -dx / length)
     return along, inward
