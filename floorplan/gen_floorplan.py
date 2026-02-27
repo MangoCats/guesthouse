@@ -2786,6 +2786,15 @@ def _render_sf_extras(out, data, layout):
     out.append(f'<line x1="{r1x:.1f}" y1="{r1y:.1f}" x2="{o6x:.1f}" y2="{o6y:.1f}"'
                f' stroke="#666" stroke-width="0.7" stroke-dasharray="4,3"/>')
 
+    # --- Dashed line from W9 E-W to IW2s east face ---
+    _iw2s_e_al, _ = seg_vecs(layout.iw2s.poly[1], layout.iw2s.poly[2])
+    _iw2s_at_w9 = line_isect(layout.iw2s.poly[1], _iw2s_e_al,
+                              pts["W9"], _w9w10_al)
+    w9x, w9y = to_svg(*pts["W9"])
+    i2x, i2y = to_svg(*_iw2s_at_w9)
+    out.append(f'<line x1="{w9x:.1f}" y1="{w9y:.1f}" x2="{i2x:.1f}" y2="{i2y:.1f}"'
+               f' stroke="#666" stroke-width="0.7" stroke-dasharray="4,3"/>')
+
 
 def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False, sf=False):
     """Render the complete floorplan SVG. Returns SVG string.
