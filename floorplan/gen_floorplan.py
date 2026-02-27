@@ -2168,6 +2168,15 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">LIVING</text>')
 
+    # BATH: centered between IW2s west and W2-W5, at RO4 north end northing
+    _bath_e = (layout.iw2s.poly[0][0] + pts["W2"][0]) / 2
+    _ro4_bd = [r for r in compute_rough_openings(pts, layout) if r.name == "RO4"][0].poly
+    _ro4_n_mid = ((_ro4_bd[2][0] + _ro4_bd[3][0]) / 2,
+                  (_ro4_bd[2][1] + _ro4_bd[3][1]) / 2)
+    bax, bay = to_svg(_bath_e, _ro4_n_mid[1])
+    out.append(f'<text x="{bax:.1f}" y="{bay:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="8" fill="#666">BATH</text>')
+
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
                   (layout.iw4.poly[1][1] + layout.iw4.poly[2][1]) / 2)
@@ -2846,6 +2855,30 @@ def _render_sf_extras(out, data, layout):
     lsfx, lsfy = to_svg(_o6_cx, _dim02_n - 3.0 / 12.0)
     out.append(f'<text x="{lsfx:.1f}" y="{lsfy:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">{_living_sf:.1f} sf</text>')
+
+    # BATH: centered between IW2s west and W2-W5, at RO4 north end northing
+    _bath_e = (layout.iw2s.poly[0][0] + pts["W2"][0]) / 2
+    _ro4_bd = [r for r in _ro_list if r.name == "RO4"][0].poly
+    _ro4_n_mid = ((_ro4_bd[2][0] + _ro4_bd[3][0]) / 2,
+                  (_ro4_bd[2][1] + _ro4_bd[3][1]) / 2)
+    bax, bay = to_svg(_bath_e, _ro4_n_mid[1])
+    out.append(f'<text x="{bax:.1f}" y="{bay:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="8" fill="#666">BATH</text>')
+    # BATH area: west wall to IW2/IW2o/IW2s west faces, IW8 north to IW6 south
+    _bath_poly = [
+        layout.iw8.poly[3],                               # IW8 NW
+        layout.iw8.poly[2],                               # IW8 NE
+        layout.iw2.poly[3],                               # IW2 NW
+        layout.iw2o.poly[0],                              # IW2o SW
+        layout.iw2o.poly[3],                              # IW2o NW
+        layout.iw2s.poly[0],                              # IW2s SW
+        (layout.iw2s.poly[0][0], layout.iw6.poly[0][1]), # IW2s west at IW6 south
+        layout.iw6.poly[0],                               # IW6 SW
+    ]
+    _bath_sf = poly_area(_bath_poly)
+    _ba_sf_y = bay + _half_gap
+    out.append(f'<text x="{bax:.1f}" y="{_ba_sf_y:.1f}" text-anchor="middle" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">{_bath_sf:.1f} sf</text>')
 
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
