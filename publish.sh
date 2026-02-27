@@ -11,6 +11,7 @@ files=(
          roof/roof.svg
          span/span.svg
          span/span_min.svg
+         # span/span_minmax.svg intentionally omitted — too detailed for the website
          site/site_plan.pdf
          site/site_plan_df.pdf
          site/site_plan_df.png
