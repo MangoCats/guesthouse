@@ -1,5 +1,6 @@
 """Generate points.pdf: coordinate table and key measurements."""
 
+import datetime
 import math
 import os
 import sys
@@ -8,7 +9,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import fitz  # pymupdf
 from shared.survey import compute_traverse
-from shared.geometry import line_isect, fmt_dist
+from shared.geometry import fmt_dist
+from shared.svg import git_describe
 from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
 from survey.gen_path_svg_ks import compute_k_points
 
@@ -204,6 +206,14 @@ def main():
     y = _draw_coord_table(page, "Point Coordinates (FC frame)", sections, y)
     y += 24
     _draw_measurements_table(page, "Key Measurements", measurements, y)
+
+    # Footer: Generated timestamp + repo info
+    cap_fs = 7
+    cap_text = f"Generated {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  {git_describe()}"
+    cap_tw = fitz.get_text_length(cap_text, fontname=FONT, fontsize=cap_fs)
+    page.insert_text(fitz.Point((PAGE_W - cap_tw) / 2, PAGE_H - MARGIN / 2),
+                     cap_text, fontname=FONT, fontsize=cap_fs,
+                     color=(0.4, 0.4, 0.4))
 
     out_path = os.path.join(_DIR, "points.pdf")
     doc.save(out_path)
