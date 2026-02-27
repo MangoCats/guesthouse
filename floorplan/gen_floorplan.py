@@ -42,6 +42,7 @@ from floorplan.constants import (
     RO3_DOOR_WIDTH, RO4_DOOR_WIDTH, RO5_DOOR_WIDTH, RO6_DOOR_WIDTH,
     RO7_DOOR_WIDTH,
     IW4_RO_WIDTH, IW9_RO_WIDTH, IW11_RO_WIDTH, DOOR_FLAT_FACE, F8F9_INNER_TURN_R,
+    SHELVES_LENGTH, SHELVES_DEPTH, SHELVES_GAP_IW1, SHELVES_GAP_IW9,
 )
 from floorplan.layout import compute_interior_layout
 from floorplan.openings import (
@@ -1890,6 +1891,18 @@ def _render_furniture(out, data, layout, minik=False, db=False):
                    href="https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/",
                    text_rot=_svg_angle(w12w13_al) - 90)
     elif db:
+        # Shelves2 (KALLAX copy, east side of IW9, same gaps from IW9 and IW1)
+        _iw9_e_al, _iw9_e_cw = seg_vecs(layout.iw9.poly[1], layout.iw9.poly[2])
+        _sh2_nw = line_isect(
+            offset_pt(layout.iw1.poly[0], SHELVES_GAP_IW1, w9w10_in), w9w10_al,
+            offset_pt(layout.iw9.poly[2], SHELVES_GAP_IW9, _iw9_e_cw), _iw9_e_al)
+        _sh2_ne = offset_pt(_sh2_nw, SHELVES_LENGTH, _iw9_e_cw)
+        _sh2_sw = offset_pt(_sh2_nw, SHELVES_DEPTH, w9w10_in)
+        _sh2_se = offset_pt(_sh2_ne, SHELVES_DEPTH, w9w10_in)
+        _appl_poly(out, [_sh2_sw, _sh2_se, _sh2_ne, _sh2_nw], to_svg,
+                   label="SHELVES",
+                   href="https://www.ikea.com/us/en/p/kallax-shelving-unit-with-underframe-white-stained-oak-effect-black-s49442718/")
+
         # DB variant: no loveseats; ET shifted east to 2" from W-series wall
         et_r = (ET_RADIUS_CM / 2.54) / 12.0
         _et_from_iw1 = offset_pt(layout.iw1.poly[3], STD_GAP + et_r, _iw1_n_out)

@@ -16,6 +16,8 @@ files=(
          site/site_plan_df.png
          site/site_plan_fs.pdf
        survey/path_area.svg
+       survey/path_area_ks.svg
+       survey/path_area_wo.svg
         walls/walls.svg
         walls/all_walls.svg
          scad/2in12_patio.png
@@ -24,8 +26,8 @@ files=(
          scad/flat_roof_patio.png
          scad/flat_roof_corner.png
          scad/flat_roof_bumpout.png
-		      3views.pdf
-		      3views.png
+              3views.pdf
+              3views.png
 )
 
 # Files that are never branch-suffixed
