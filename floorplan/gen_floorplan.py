@@ -2761,12 +2761,17 @@ def _render_sf_extras(out, data, layout):
     utx, uty = to_svg(_util_e, _util_n)
     out.append(f'<text x="{utx:.1f}" y="{uty:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">UTIL</text>')
-    # UTIL area: west wall (with W1-W2 arc) to ctr west, south wall to IW8 south
+    # UTIL area: IW8 south, IW1 south to IW9, south along IW9 to IW7/IW3,
+    # south along IW3 west, south wall with W1-W2 arc, west wall
     _util_poly = [
-        layout.iw8.poly[0],                               # IW8 SW (west wall at IW8 south)
+        layout.iw8.poly[0],                               # IW8 SW
         layout.iw8.poly[1],                               # IW8 SE
-        layout.ctr.poly[3],                               # ctr NW
-        (layout.ctr.poly[0][0], pts["W1"][1]),            # ctr west at south wall
+        layout.iw1.poly[0],                               # IW1 SW
+        layout.iw9.poly[3],                               # IW9 NW (along IW1 south)
+        (layout.iw9.poly[0][0], layout.iw7.poly[2][1]),   # IW9 at IW7 north
+        layout.iw7.poly[3],                               # IW7 NW (= IW3 NE)
+        layout.iw3.poly[3],                               # IW3 NW
+        (layout.iw3.poly[0][0], pts["W1"][1]),            # IW3 west at south wall
         pts["W1"],                                         # W1
     ]
     _util_poly.extend(segment_polyline(data.inner_segs[0], pts)[1:])  # W1-W2 arc
