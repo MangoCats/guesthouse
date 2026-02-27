@@ -2147,6 +2147,19 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     out.append(f'<text x="{utx:.1f}" y="{uty:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">UTIL</text>')
 
+    # KITCHEN: centered beneath kitchen sink, just above dim02 (25' 8.1") line
+    _w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
+    _iw2s_ne_k = layout.iw2s.poly[2]
+    _iw2_d_k = ((_iw2s_ne_k[0] - pts["W9"][0]) * _w9w10_al[0] +
+                (_iw2s_ne_k[1] - pts["W9"][1]) * _w9w10_al[1])
+    _st_d_k = _iw2_d_k + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+    _ks_d_k = _st_d_k + STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0
+    _sink_ctr = offset_pt(pts["W9"], _ks_d_k + KITCHEN_SINK_WIDTH / 2, _w9w10_al)
+    _dim02_n = (pts["F12"][1] + pts["F13"][1]) / 2
+    kx, ky = to_svg(_sink_ctr[0], _dim02_n + 6.0 / 12.0)
+    out.append(f'<text x="{kx:.1f}" y="{ky:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="8" fill="#666">KITCHEN</text>')
+
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
                   (layout.iw4.poly[1][1] + layout.iw4.poly[2][1]) / 2)
@@ -2723,6 +2736,19 @@ def _render_sf_extras(out, data, layout):
     utx, uty = to_svg(_util_e, _util_n)
     out.append(f'<text x="{utx:.1f}" y="{uty:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">UTIL</text>')
+
+    # KITCHEN: centered beneath kitchen sink, just above dim02 (25' 8.1") line
+    _w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
+    _iw2s_ne_k = layout.iw2s.poly[2]
+    _iw2_d_k = ((_iw2s_ne_k[0] - pts["W9"][0]) * _w9w10_al[0] +
+                (_iw2s_ne_k[1] - pts["W9"][1]) * _w9w10_al[1])
+    _st_d_k = _iw2_d_k + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+    _ks_d_k = _st_d_k + STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0
+    _sink_ctr = offset_pt(pts["W9"], _ks_d_k + KITCHEN_SINK_WIDTH / 2, _w9w10_al)
+    _dim02_n = (pts["F12"][1] + pts["F13"][1]) / 2
+    kx, ky = to_svg(_sink_ctr[0], _dim02_n + 6.0 / 12.0)
+    out.append(f'<text x="{kx:.1f}" y="{ky:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="8" fill="#666">KITCHEN</text>')
 
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
