@@ -1,0 +1,1535 @@
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0009.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0010.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0011.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0012.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0013.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0014.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0015.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0016.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0017.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0018.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0019.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0020.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0021.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0022.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0023.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0024.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0025.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0026.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0027.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0028.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0029.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0030.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0031.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0032.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0033.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0034.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0035.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0036.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0037.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0038.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0039.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0040.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0041.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0042.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0043.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0044.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0045.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0046.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0047.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0048.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0049.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0050.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0051.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0052.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0053.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0054.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0055.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0056.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0057.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0058.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0059.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0060.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0061.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0062.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0063.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0064.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0065.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0066.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0067.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0068.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0069.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0070.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0071.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0072.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0073.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0074.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0075.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0076.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0077.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0078.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0079.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0080.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0081.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0082.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0083.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0084.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0085.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0086.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0087.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0088.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0089.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0090.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0091.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0092.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0093.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0094.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0095.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0096.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0097.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0098.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0099.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0100.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0101.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0102.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0103.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0104.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0105.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0106.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0107.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0108.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0109.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0110.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0111.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0112.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0113.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0114.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0115.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0116.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0117.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0118.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0119.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0120.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0121.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0122.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0123.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0124.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0125.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0126.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0127.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0128.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0129.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0130.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0131.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0132.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0133.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0134.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0135.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0136.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0137.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0138.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0139.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0140.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0141.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0142.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0143.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0144.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0145.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0146.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0147.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0148.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0149.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0150.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0151.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0152.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0153.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0154.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0155.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0156.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0157.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0158.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0159.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0160.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0161.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0162.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0163.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0164.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0165.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0166.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0167.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0168.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0169.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0170.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0171.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0172.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0173.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0174.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0175.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0176.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0177.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0178.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0179.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0180.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0181.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0182.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0183.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0185.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0186.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0187.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0188.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0189.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0190.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0191.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0192.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0193.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0194.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0195.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0196.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0197.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0198.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0199.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0200.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0201.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0202.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0203.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0204.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0205.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0206.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0207.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0208.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0209.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0210.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0211.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0212.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0213.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0214.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0215.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0216.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0217.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0218.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0219.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0220.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0221.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0222.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0223.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0224.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0225.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0226.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0227.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0228.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0229.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0230.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0231.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0232.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0233.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0234.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0235.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0236.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0237.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0238.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0239.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0240.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0241.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0242.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0243.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0244.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0245.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0246.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0247.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0248.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0249.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0250.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0251.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0252.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0253.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0254.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0255.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0256.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0257.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0258.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0259.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0260.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0261.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0262.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0263.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0264.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0265.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0266.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0267.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0268.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0269.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0270.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0271.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0272.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0273.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0274.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0275.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0276.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0277.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0278.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0279.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0280.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0281.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0282.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0283.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0284.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0285.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0286.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0287.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0288.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0289.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0290.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0291.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0292.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0293.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0294.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0295.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0296.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0297.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0298.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0299.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0300.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0301.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0302.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0303.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0304.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0305.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0306.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0307.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0308.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0309.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0310.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0311.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0312.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0313.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0314.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0315.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0316.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0317.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0318.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0319.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0320.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0321.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0322.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0323.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0324.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0325.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0326.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0327.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0328.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0329.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0330.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0331.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0332.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0333.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0334.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0335.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0336.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0337.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0338.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0339.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0340.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0341.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0342.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0343.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0344.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0345.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0346.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0347.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0348.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0349.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0350.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0351.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0352.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0353.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0354.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0355.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0356.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0357.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0358.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0359.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0360.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0361.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0362.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0363.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0364.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0365.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0366.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0367.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0368.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0369.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0370.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0371.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0372.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0373.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0374.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0375.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0376.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0377.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0378.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0379.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0380.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0381.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0382.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0383.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0384.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0385.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0386.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0387.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0388.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0389.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0390.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0391.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0392.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0393.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0394.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0395.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0396.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0397.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0398.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0399.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0400.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0401.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0402.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0403.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0404.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0405.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0406.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0407.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0408.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0409.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0410.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0411.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0412.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0413.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0414.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0415.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0416.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0417.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0418.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0419.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0420.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0421.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0422.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0423.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0424.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0425.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0426.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0427.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0428.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0429.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0430.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0431.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0432.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0433.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0434.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0435.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0436.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0437.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0438.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0439.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0440.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0441.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0442.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0443.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0444.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0445.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0446.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0447.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0448.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0449.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0450.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0451.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0452.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0453.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0454.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0455.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0456.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0457.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0458.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0459.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0460.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0461.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0462.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0463.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0464.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0465.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0466.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0467.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0468.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0469.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0470.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0471.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0472.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0473.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0474.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0475.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0476.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0477.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0478.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0479.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0480.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0481.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0482.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0483.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0484.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0485.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0486.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0487.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0488.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0489.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0490.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0491.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0492.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0493.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0494.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0495.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0496.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0497.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0498.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0499.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0500.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0501.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0502.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0503.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0504.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0505.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0506.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0507.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0508.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0509.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0510.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0511.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0512.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0513.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0514.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0515.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0516.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0517.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0518.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0519.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0520.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0521.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0522.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0523.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0524.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0525.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0526.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0527.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0528.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0529.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0530.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0531.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0532.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0533.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0534.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0535.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0536.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0537.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0538.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0539.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0540.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0541.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0542.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0543.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0544.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0545.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0546.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0547.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0548.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0549.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0550.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0551.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0552.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0553.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0554.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0555.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0556.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0557.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0558.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0559.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0560.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0561.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0562.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0563.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0564.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0565.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0566.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0567.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0568.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0569.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0570.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0571.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0572.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0573.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0574.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0575.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0576.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0577.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0578.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0579.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0580.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0581.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0582.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0583.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0584.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0585.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0586.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0587.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0588.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0589.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0590.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0591.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0592.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0593.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0594.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0595.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0596.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0597.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0598.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0599.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0600.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0601.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0602.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0603.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0604.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0605.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0606.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0607.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0608.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0609.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0610.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0611.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0612.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0613.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0614.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0615.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0616.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0617.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0618.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0619.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0620.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0621.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0622.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0623.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0624.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0625.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0626.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0627.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0628.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0629.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0630.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0631.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0632.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0633.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0634.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0635.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0636.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0637.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0638.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0639.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0640.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0641.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0642.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0643.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0644.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0645.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0646.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0647.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0648.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0649.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0650.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0651.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0652.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0653.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0654.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0655.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0656.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0657.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0658.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0659.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0660.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0661.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0662.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0663.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0664.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0665.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0666.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0667.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0668.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0669.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0670.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0671.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0672.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0673.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0674.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0675.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0676.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0677.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0678.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0679.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0680.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0681.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0682.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0683.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0684.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0685.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0686.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0687.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0688.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0689.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0690.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0691.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0692.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0693.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0694.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0695.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0696.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0697.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0698.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0699.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0700.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0701.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0702.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0703.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0704.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0705.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0706.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0707.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0708.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0709.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0710.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0711.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0712.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0713.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0714.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0715.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0716.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0717.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0718.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0719.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0720.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0721.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0722.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0723.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0724.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0725.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0726.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0727.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0728.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0729.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0730.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0731.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0732.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0733.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0734.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0735.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0736.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0737.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0738.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0739.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0740.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0741.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0742.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0743.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0744.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0745.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0746.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0747.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0748.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0749.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0750.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0751.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0752.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0753.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0754.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0755.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0756.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0757.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0758.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0759.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0760.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0761.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0762.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0763.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0764.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0765.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0766.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0767.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0768.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0769.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0770.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0771.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0772.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0773.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0774.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0775.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0776.png'
+duration 0.233333
+file 'C:/Users/Mango Cat/Dev/guesthouse/ani/padded/frame_0776.png'
