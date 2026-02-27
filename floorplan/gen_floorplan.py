@@ -2139,7 +2139,7 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     _ctr_offset = offset_pt(_ctr_s_mid, 5.0 + WALL_3IN, _iw1_n_out)
     _of_ns = ((_ctr_offset[0] + _iw1_s_mid_r[0]) / 2,
               (_ctr_offset[1] + _iw1_s_mid_r[1]) / 2)
-    _of_ns_adj = offset_pt(_of_ns, -2.0 + 8.0 / 12.0, _iw1_n_out)
+    _of_ns_adj = offset_pt(_of_ns, -2.0 + 26.0 / 12.0, _iw1_n_out)
     # Project onto _iw1_n_out from _of_ew
     _of_ns_d = ((_of_ns_adj[0] - _of_ew[0]) * _iw1_n_out[0] +
                 (_of_ns_adj[1] - _of_ew[1]) * _iw1_n_out[1])
@@ -2694,7 +2694,7 @@ def _render_sf_extras(out, data, layout):
     _ctr_offset = offset_pt(_ctr_s_mid, 5.0 + WALL_3IN, _iw1_n_out)
     _of_ns = ((_ctr_offset[0] + _iw1_s_mid_r[0]) / 2,
               (_ctr_offset[1] + _iw1_s_mid_r[1]) / 2)
-    _of_ns_adj = offset_pt(_of_ns, -2.0 + 8.0 / 12.0, _iw1_n_out)
+    _of_ns_adj = offset_pt(_of_ns, -2.0 + 26.0 / 12.0, _iw1_n_out)
     _of_ns_d = ((_of_ns_adj[0] - _of_ew[0]) * _iw1_n_out[0] +
                 (_of_ns_adj[1] - _of_ew[1]) * _iw1_n_out[1])
     of_cx = _of_ew[0] + _of_ns_d * _iw1_n_out[0]
