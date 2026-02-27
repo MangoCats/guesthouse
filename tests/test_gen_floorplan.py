@@ -5,6 +5,7 @@ from floorplan.gen_floorplan import (
     build_floorplan_data,
     render_floorplan_svg,
     compute_iw_area,
+    compute_room_areas,
     wall_poly, stroke_segs,
 )
 
@@ -134,3 +135,14 @@ class TestRenderFloorplanSvg:
         inner_area = floorplan_data.inner_area - iw_area
         assert inner_area < floorplan_data.inner_area
         assert inner_area > 0
+
+    def test_room_areas_sum_to_interior(self, floorplan_data):
+        """Sum of room areas must match title-block interior area within 0.25 sf."""
+        iw_area = compute_iw_area(floorplan_data.layout)
+        title_block_sf = floorplan_data.inner_area - iw_area
+        room_areas = compute_room_areas(floorplan_data, floorplan_data.layout)
+        room_total = sum(room_areas.values())
+        assert abs(room_total - title_block_sf) < 0.25, (
+            f"Room total {room_total:.2f} sf != title block {title_block_sf:.2f} sf "
+            f"(diff {room_total - title_block_sf:+.2f} sf)"
+        )
