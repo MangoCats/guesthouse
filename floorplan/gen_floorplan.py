@@ -2708,6 +2708,12 @@ def _render_sf_extras(out, data, layout):
     to_svg = data.to_svg
 
     # --- Room labels (same positioning as _render_furniture) ---
+    # SVG scale for sf-label gap computation
+    _, _py0 = to_svg(0, 0)
+    _, _py1 = to_svg(0, 1)
+    _svg_per_ft = _py0 - _py1
+    _half_gap = (3.0 / 12.0) * _svg_per_ft  # 50% of KITCHEN/LIVING gap
+
     # IW1 north face directions
     _iw1_n_al, _iw1_n_cw = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
     _iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])
@@ -2723,6 +2729,17 @@ def _render_sf_extras(out, data, layout):
     bdx, bdy = to_svg(_ro1_w_mid[0], _ro3_n_mid[1])
     out.append(f'<text x="{bdx:.1f}" y="{bdy:.1f}" text-anchor="end" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
+    # BEDROOM area: rectangle between IW9 east, IW11 west, IW1 south, south wall
+    _bedroom_poly = [
+        (layout.iw9.poly[2][0], layout.iw1.poly[0][1]),
+        (layout.iw11.poly[3][0], layout.iw1.poly[0][1]),
+        (layout.iw11.poly[3][0], pts["W1"][1]),
+        (layout.iw9.poly[2][0], pts["W1"][1]),
+    ]
+    _bedroom_sf = poly_area(_bedroom_poly)
+    _bd_sf_y = bdy + 8.0 + _half_gap
+    out.append(f'<text x="{bdx:.1f}" y="{_bd_sf_y:.1f}" text-anchor="end" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">{_bedroom_sf:.1f} sf</text>')
 
     # UTIL: same northing as BEDROOM, centered in easting between south toilet and sink
     _iw8_al, _iw8_in = seg_vecs(layout.iw8.poly[0], layout.iw8.poly[1])
@@ -2744,6 +2761,19 @@ def _render_sf_extras(out, data, layout):
     utx, uty = to_svg(_util_e, _util_n)
     out.append(f'<text x="{utx:.1f}" y="{uty:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">UTIL</text>')
+    # UTIL area: west wall (with W1-W2 arc) to ctr west, south wall to IW8 south
+    _util_poly = [
+        layout.iw8.poly[0],                               # IW8 SW (west wall at IW8 south)
+        layout.iw8.poly[1],                               # IW8 SE
+        layout.ctr.poly[3],                               # ctr NW
+        (layout.ctr.poly[0][0], pts["W1"][1]),            # ctr west at south wall
+        pts["W1"],                                         # W1
+    ]
+    _util_poly.extend(segment_polyline(data.inner_segs[0], pts)[1:])  # W1-W2 arc
+    _util_sf = poly_area(_util_poly)
+    _ut_sf_y = uty + 8.0 + _half_gap
+    out.append(f'<text x="{utx:.1f}" y="{_ut_sf_y:.1f}" text-anchor="middle" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">{_util_sf:.1f} sf</text>')
 
     # KITCHEN: centered beneath kitchen sink, just above dim02 (25' 8.1") line
     _w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
@@ -2832,6 +2862,20 @@ def _render_sf_extras(out, data, layout):
     ofx, ofy = to_svg(of_cx, of_cy)
     out.append(f'<text x="{ofx:.1f}" y="{ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="8" fill="#666">OFFICE</text>')
+    # OFFICE area: IW5 south, IW11 east, IW12 north, IW4 east, inner east/south wall
+    _office_poly = [layout.iw5.poly[0]]                     # IW5 SW
+    _office_poly.append((pts["W15"][0], layout.iw5.poly[0][1]))  # east wall at IW5 N
+    _office_poly.append(pts["W15"])                          # W15
+    for _si in [14, 15, 16]:                                 # arcs + line to W18
+        _office_poly.extend(segment_polyline(data.inner_segs[_si], pts)[1:])
+    _office_poly.append(layout.iw4.poly[1])                  # IW4 SE
+    _office_poly.append(layout.iw4.poly[2])                  # IW4 NE
+    _office_poly.append(layout.iw12.poly[2])                 # IW12 NE (= IW4 NW)
+    _office_poly.append(layout.iw12.poly[3])                 # IW12 NW (on IW11 east)
+    _office_sf = poly_area(_office_poly)
+    _of_sf_y = ofy + 3 + _half_gap
+    out.append(f'<text x="{ofx:.1f}" y="{_of_sf_y:.1f}" text-anchor="middle" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">{_office_sf:.1f} sf</text>')
 
     # --- Dashed line from west end of RO1 to west end of O6 ---
     # RO1 west end: midpoint of poly[0] (south) and poly[3] (north)
