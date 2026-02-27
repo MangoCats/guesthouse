@@ -300,7 +300,20 @@ After any geometry or layout change, regenerate and inspect all SVGs:
 python gen_all.py
 ```
 
-This captures `git describe --always --dirty=-DEV` once into `.git_describe`, runs all six generators (survey, floorplan, walls, and three span scripts) using that cached value, then deletes the cache. This ensures all title blocks embed the same version string even though writing the first SVG dirties the working tree.
+This captures `git describe --always --dirty=-DEV` once into `.git_describe`, runs all 15 generator scripts using that cached value, then deletes the cache. This ensures all title blocks embed the same version string even though writing the first SVG dirties the working tree. After the scripts finish, it renders PDFs to PNGs at 1920px wide.
+
+The full generator list:
+
+| Subdirectory | Scripts | Outputs |
+|-|-|-|
+| `survey/` | `gen_path_svg.py`, `gen_path_svg_wo.py`, `gen_path_svg_ks.py` | `path_area.svg`, `path_area_wo.svg`, `path_area_ks.svg` |
+| `floorplan/` | `gen_floorplan.py` | `floorplan.svg` |
+| `walls/` | `gen_walls.py` | `walls.svg`, `all_walls.svg` |
+| `span/` | `gen_span.py`, `gen_span_minmax.py`, `gen_span_min.py` | `span.svg`, `span_minmax.svg`, `span_min.svg` |
+| `roof/` | `gen_roof.py` | `roof.svg` |
+| `site/` | `gen_site_plan.py` | `site_plan_df.pdf`, `site_plan_fs.pdf` |
+| `scad/` | `gen_flat_roof.py`, `gen_2in12.py`, `gen_views.py`, `gen_line_drawings.py` | `.scad` and `.svg` files |
+| top-level | `gen_3views.py` | `3views.pdf` |
 
 Individual scripts can also be run standalone — they fall back to a live `git describe` if the cache file is absent:
 
@@ -311,6 +324,13 @@ python walls/gen_walls.py
 python span/gen_span.py
 python span/gen_span_minmax.py
 python span/gen_span_min.py
+python roof/gen_roof.py
+python site/gen_site_plan.py
+python scad/gen_flat_roof.py
+python scad/gen_2in12.py
+python scad/gen_views.py
+python scad/gen_line_drawings.py
+python gen_3views.py
 ```
 
 The floorplan script prints:
