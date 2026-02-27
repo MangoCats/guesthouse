@@ -14,6 +14,7 @@ _SCRIPTS = [
     os.path.join(_DIR, "survey", "gen_path_svg.py"),
     os.path.join(_DIR, "survey", "gen_path_svg_wo.py"),
     os.path.join(_DIR, "survey", "gen_path_svg_ks.py"),
+    os.path.join(_DIR, "survey", "gen_points_pdf.py"),
     os.path.join(_DIR, "floorplan", "gen_floorplan.py"),
     os.path.join(_DIR, "walls", "gen_walls.py"),
     os.path.join(_DIR, "span", "gen_span.py"),
