@@ -2660,10 +2660,70 @@ def _render_title_block(out, data, inner_area):
 # SVG rendering — orchestrator
 # ============================================================
 
-def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False):
+def _render_sf_extras(out, data, layout):
+    """Render SF-specific extras: BEDROOM/OFFICE labels and RO1–O6 dashed line."""
+    pts = data.pts
+    to_svg = data.to_svg
+
+    # --- Room labels (same positioning as _render_furniture) ---
+    # IW1 north face directions
+    _iw1_n_al, _iw1_n_cw = seg_vecs(layout.iw1.poly[3], layout.iw1.poly[2])
+    _iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])
+
+    # BEDROOM: right edge at W end of RO1, top at N end of RO3
+    _ro_list = compute_rough_openings(pts, layout)
+    _ro1_bd = [r for r in _ro_list if r.name == "RO1"][0].poly
+    _ro3_bd = [r for r in _ro_list if r.name == "RO3"][0].poly
+    _ro1_w_mid = ((_ro1_bd[0][0] + _ro1_bd[3][0]) / 2,
+                  (_ro1_bd[0][1] + _ro1_bd[3][1]) / 2)
+    _ro3_n_mid = ((_ro3_bd[2][0] + _ro3_bd[3][0]) / 2,
+                  (_ro3_bd[2][1] + _ro3_bd[3][1]) / 2)
+    bdx, bdy = to_svg(_ro1_w_mid[0], _ro3_n_mid[1])
+    out.append(f'<text x="{bdx:.1f}" y="{bdy:.1f}" text-anchor="end" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">BEDROOM</text>')
+
+    # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
+    _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
+                  (layout.iw4.poly[1][1] + layout.iw4.poly[2][1]) / 2)
+    _of_ew = ((_iw4_e_mid[0] + pts["W15"][0]) / 2,
+              (_iw4_e_mid[1] + pts["W15"][1]) / 2)
+    _ctr_s_mid = ((layout.ctr.poly[0][0] + layout.ctr.poly[1][0]) / 2,
+                  (layout.ctr.poly[0][1] + layout.ctr.poly[1][1]) / 2)
+    _iw1_s_mid_r = ((layout.iw1.poly[0][0] + layout.iw1.poly[1][0]) / 2,
+                    (layout.iw1.poly[0][1] + layout.iw1.poly[1][1]) / 2)
+    _ctr_offset = offset_pt(_ctr_s_mid, 5.0 + WALL_3IN, _iw1_n_out)
+    _of_ns = ((_ctr_offset[0] + _iw1_s_mid_r[0]) / 2,
+              (_ctr_offset[1] + _iw1_s_mid_r[1]) / 2)
+    _of_ns_adj = offset_pt(_of_ns, -2.0 + 8.0 / 12.0, _iw1_n_out)
+    _of_ns_d = ((_of_ns_adj[0] - _of_ew[0]) * _iw1_n_out[0] +
+                (_of_ns_adj[1] - _of_ew[1]) * _iw1_n_out[1])
+    of_cx = _of_ew[0] + _of_ns_d * _iw1_n_out[0]
+    of_cy = _of_ew[1] + _of_ns_d * _iw1_n_out[1]
+    ofx, ofy = to_svg(of_cx, of_cy)
+    out.append(f'<text x="{ofx:.1f}" y="{ofy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="8" fill="#666">OFFICE</text>')
+
+    # --- Dashed line from west end of RO1 to west end of O6 ---
+    # RO1 west end: midpoint of poly[0] (south) and poly[3] (north)
+    ro1_w = _ro1_w_mid  # already computed above
+
+    # O6 west end: midpoint of poly[0] (inner/start) and poly[3] (outer/start)
+    outer_openings = compute_outer_openings(pts, layout)
+    o6 = [o for o in outer_openings if o.name == "O6"][0]
+    o6_w = ((o6.poly[0][0] + o6.poly[3][0]) / 2,
+            (o6.poly[0][1] + o6.poly[3][1]) / 2)
+
+    r1x, r1y = to_svg(*ro1_w)
+    o6x, o6y = to_svg(*o6_w)
+    out.append(f'<line x1="{r1x:.1f}" y1="{r1y:.1f}" x2="{o6x:.1f}" y2="{o6y:.1f}"'
+               f' stroke="#666" stroke-width="0.7" stroke-dasharray="4,3"/>')
+
+
+def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False, sf=False):
     """Render the complete floorplan SVG. Returns SVG string.
 
     If bare=True, omit appliances, kitchen, and furniture (interior objects).
+    If sf=True, render like bare but add BEDROOM/OFFICE labels and RO1–O6 dashed line.
     """
     pts = data.pts
     to_svg = data.to_svg
@@ -2680,15 +2740,17 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
     out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
                f' font-weight="bold">{room_title}</text>')
 
-    _render_walls(out, data, layout, bare=bare)
-    if not bare:
+    _render_walls(out, data, layout, bare=bare or sf)
+    if not bare and not sf:
         _render_appliances(out, data, layout, minik=minik, db=db)
         _render_kitchen(out, data, layout, minik=minik, db=db)
         _render_furniture(out, data, layout, minik=minik, db=db)
     out.append('<g opacity="0.5">')
-    _render_dimensions(out, data, layout, bare=bare)
+    _render_dimensions(out, data, layout, bare=bare or sf)
     out.append('</g>')
-    _render_openings(out, data, layout, bare=bare)
+    _render_openings(out, data, layout, bare=bare or sf)
+    if sf:
+        _render_sf_extras(out, data, layout)
 
     inner_area = data.inner_area - compute_iw_area(layout)
     _render_title_block(out, data, inner_area)
@@ -2733,6 +2795,12 @@ if __name__ == "__main__":
     with open(bare_path, "w") as f:
         f.write(bare_content)
     print(f"Floorplan (bare) written to {bare_path}")
+
+    sf_content = render_floorplan_svg(data, room_title="Room Dimensions", sf=True)
+    sf_path = os.path.join(base_dir, "floorplan_sf.svg")
+    with open(sf_path, "w") as f:
+        f.write(sf_content)
+    print(f"Floorplan (sf) written to {sf_path}")
 
     print(f"Outer area:    {outer_area:.2f} sq ft")
     print(f"Interior area: {inner_area:.2f} sq ft")
