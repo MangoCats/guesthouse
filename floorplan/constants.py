@@ -99,7 +99,7 @@ IW3_DIST_W2W5 = 102.0 / 12.0     # 8'6" from W2-W5 to IW3 west face
 IW7_OFFSET_FROM_W18W1 = 6.0          # 6' from W18-W1 to IW7 south face
 
 # IW9 (perpendicular to W18-W1, 4" thick — extends from W18-W1 to IW1 S face)
-IW9_OFFSET_O10 = 2.0 / 12.0         # 2" past O10 along W18-W1
+IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W18-W1
 
 # IW11 (4" thick, N-S)
 IW9_IW11_GAP = 12.0                  # 12' from IW9 east face to IW11 west face
@@ -171,7 +171,7 @@ O9_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
 O10_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
 O11_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width
 O9_OFFSET_IW11 = 6.0 / 12.0       # 6" IW11 SW to O9 SE along F18-F1
-O9_O10_WALL = 86.0 / 12.0         # 86" solid wall between O9 NW and O10 SE
+O9_O10_WALL = 82.0 / 12.0         # 82" solid wall between O9 NW and O10 SE
 O10_O11_WALL = 72.0 / 12.0        # 72" solid wall between O10 NW and O11 SE
 BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W18-W1
 
