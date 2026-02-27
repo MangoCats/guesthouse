@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import fitz  # pymupdf
-from shared.survey import compute_traverse
+from shared.survey import compute_traverse, compute_three_arc
 from shared.geometry import fmt_dist
 from shared.svg import git_describe
 from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
@@ -176,6 +176,7 @@ def _draw_measurements_table(page, title, rows, y_start):
 def main():
     # Compute all points
     pts = compute_traverse()
+    compute_three_arc(pts)
     align_pts_to_f_series(pts)
     outline = compute_outline_geometry()
     pts.update(outline.fp_pts)
@@ -194,9 +195,14 @@ def main():
     k5_dist = _point_to_line_dist(pts["K5"], p4, p5)
     k6_dist = _point_to_line_dist(pts["K6"], p4, p5)
 
+    f12_f13_tc1 = _point_to_line_dist(pts["TC1"], pts["F12"], pts["F13"])
+    f18_f1_tc3 = _point_to_line_dist(pts["TC3"], pts["F18"], pts["F1"])
+
     measurements = [
         ("K5 to P4-P5 line", fmt_dist(k5_dist)),
         ("K6 to P4-P5 line", fmt_dist(k6_dist)),
+        ("F12-F13 min. dist. to TC1", fmt_dist(f12_f13_tc1)),
+        ("F18-F1 min. dist. to TC3", fmt_dist(f18_f1_tc3)),
     ]
 
     doc = fitz.open()
