@@ -229,15 +229,21 @@ def draw_toilet(out, center, facing, width, to_svg):
 
 
 def draw_sink(out, center_e, center_n, to_svg):
-    """Draw a sink plan view as an ellipse."""
+    """Draw a sink plan view as a rectangle (Empire NSB24 24×19 console)."""
     sx, sy = to_svg(center_e, center_n)
-    # Convert radii from feet to SVG pixel units
+    # Convert half-dimensions from feet to SVG pixel units
     rx_svg = abs(to_svg(SINK_RX, 0)[0] - to_svg(0, 0)[0])
     ry_svg = abs(to_svg(0, SINK_RY)[1] - to_svg(0, 0)[1])
-    out.append(f'<ellipse cx="{sx:.1f}" cy="{sy:.1f}" rx="{rx_svg:.1f}" ry="{ry_svg:.1f}"'
+    x0 = sx - rx_svg
+    y0 = sy - ry_svg
+    _url = ("https://www.qualitybath.com/empire-nsb24-new-south-beach-24-inch"
+            "-console-24-w-x-19-d-x-32-1-2-h-product-91109.htm")
+    out.append(f'<a href="{_url}" target="_blank">')
+    out.append(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{2*rx_svg:.1f}" height="{2*ry_svg:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     out.append(f'<text x="{sx:.1f}" y="{sy+3:.1f}" text-anchor="middle" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">SINK</text>')
+    out.append('</a>')
 
 
 def stroke_segs(out, segs, color, width, pts, to_svg, seg_overrides=None):
