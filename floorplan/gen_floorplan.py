@@ -229,15 +229,16 @@ def draw_toilet(out, center, facing, width, to_svg):
 
 
 def draw_sink(out, center_e, center_n, to_svg):
-    """Draw a sink plan view as a rectangle (Empire NSB24 24×19 console)."""
+    """Draw a sink plan view as a rectangle (24" Petten console, 23-5/8 x 16-1/2)."""
     sx, sy = to_svg(center_e, center_n)
     # Convert half-dimensions from feet to SVG pixel units
     rx_svg = abs(to_svg(SINK_RX, 0)[0] - to_svg(0, 0)[0])
     ry_svg = abs(to_svg(0, SINK_RY)[1] - to_svg(0, 0)[1])
     x0 = sx - rx_svg
     y0 = sy - ry_svg
-    _url = ("https://www.qualitybath.com/empire-nsb24-new-south-beach-24-inch"
-            "-console-24-w-x-19-d-x-32-1-2-h-product-91109.htm")
+    _url = ("https://www.magnushomeproducts.com/products/24-petten-matte-gray"
+            "-vitreous-china-console-sink-with-black-powdercoat-steel-stand"
+            "-and-shelves")
     out.append(f'<a href="{_url}" target="_blank">')
     out.append(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{2*rx_svg:.1f}" height="{2*ry_svg:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')

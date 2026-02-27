@@ -63,9 +63,9 @@ WH_RADIUS = 14.0 / 12.0           # 14" radius (28" diameter)
 TOILET_WIDTH = 15.0 / 12.0        # 15"
 TOILET_TANK_DEPTH = 8.0 / 12.0    # 8" tank
 
-# Sink (plan view, rectangle half-dimensions — Empire NSB24 console)
-SINK_RX = 12.0 / 12.0             # 12" half-width (24" total)
-SINK_RY = 9.5 / 12.0              # 9.5" half-depth (19" total)
+# Sink (plan view, rectangle half-dimensions — 24" Petten console)
+SINK_RX = 11.8125 / 12.0          # 11-13/16" half-width (23-5/8" total)
+SINK_RY = 8.25 / 12.0             # 8-1/4" half-depth (16-1/2" total)
 
 # Kitchen appliances (feet)
 KITCHEN_SINK_WIDTH = 45.0 / 12.0   # 45" E-W
