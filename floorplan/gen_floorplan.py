@@ -2771,7 +2771,7 @@ def _render_sf_extras(out, data, layout):
     _kitchen_sf = poly_area(_kitchen_poly)
     # SF label: centered under KITCHEN, equal distance below dim02 as KITCHEN is above
     sfx, sfy = to_svg(_sink_ctr[0], _dim02_n - 3.0 / 12.0)
-    out.append(f'<text x="{sfx:.1f}" y="{sfy:.1f}" text-anchor="middle"'
+    out.append(f'<text x="{sfx:.1f}" y="{sfy:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">{_kitchen_sf:.1f} sf</text>')
 
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
