@@ -2160,6 +2160,14 @@ def _render_furniture(out, data, layout, minik=False, db=False):
     out.append(f'<text x="{kx:.1f}" y="{ky:.1f}" text-anchor="middle"'
                f' font-family="Arial" font-size="8" fill="#666">KITCHEN</text>')
 
+    # LIVING: centered under O6 at KITCHEN label's northing
+    _o6_open = compute_outer_openings(pts, layout)
+    _o6 = [o for o in _o6_open if o.name == "O6"][0]
+    _o6_cx = sum(p[0] for p in _o6.poly) / 4
+    lx, ly = to_svg(_o6_cx, _dim02_n + 3.0 / 12.0)
+    out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="8" fill="#666">LIVING</text>')
+
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
                   (layout.iw4.poly[1][1] + layout.iw4.poly[2][1]) / 2)
@@ -2773,6 +2781,36 @@ def _render_sf_extras(out, data, layout):
     sfx, sfy = to_svg(_sink_ctr[0], _dim02_n - 3.0 / 12.0)
     out.append(f'<text x="{sfx:.1f}" y="{sfy:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">{_kitchen_sf:.1f} sf</text>')
+
+    # LIVING: centered under O6 at KITCHEN label's northing
+    _o6_cx = sum(p[0] for p in o6.poly) / 4
+    _living_n = _dim02_n + 3.0 / 12.0
+    lx, ly = to_svg(_o6_cx, _living_n)
+    out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
+               f' font-family="Arial" font-size="8" fill="#666">LIVING</text>')
+
+    # Living area polygon: dashed line (west), inner wall arcs (north/east), IW1 north (south)
+    _iw1_ne = layout.iw1.poly[2]
+    _iw1_n_n = _iw1_ne[1]  # IW1 north face northing
+    # Dashed line at IW1 north face
+    _dash_dx = o6_w[0] - _ro1_w_mid[0]
+    _dash_dy = o6_w[1] - _ro1_w_mid[1]
+    _t_n = (_iw1_n_n - _ro1_w_mid[1]) / _dash_dy
+    _dash_at_iw1_n = (_ro1_w_mid[0] + _t_n * _dash_dx, _iw1_n_n)
+    _living_poly = [o6_w]
+    # Inner wall seg 6 endpoint (W10)
+    _living_poly.append(segment_polyline(data.inner_segs[6], pts)[-1])
+    # Arc polylines segs 7-12
+    for _si in range(7, 13):
+        _pl = segment_polyline(data.inner_segs[_si], pts)
+        _living_poly.extend(_pl[1:])
+    _living_poly.append(_iw1_ne)           # east wall down to IW1 NE
+    _living_poly.append(_dash_at_iw1_n)    # west along IW1 north face to dashed line
+    _living_sf = poly_area(_living_poly)
+    # SF label: centered under LIVING, same offset pattern
+    lsfx, lsfy = to_svg(_o6_cx, _dim02_n - 3.0 / 12.0)
+    out.append(f'<text x="{lsfx:.1f}" y="{lsfy:.1f}" text-anchor="middle" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">{_living_sf:.1f} sf</text>')
 
     # OFFICE: midpoint between IW4 east face and W15, vertically between ctr+5'+3" and IW1
     _iw4_e_mid = ((layout.iw4.poly[1][0] + layout.iw4.poly[2][0]) / 2,
