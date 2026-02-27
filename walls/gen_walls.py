@@ -694,12 +694,12 @@ def _render_title_block(out, data):
                f' fill="#999">{SHELL_THICKNESS*12:.0f}&#8243; shell / {AIR_GAP*12:.0f}&#8243; gap / {SHELL_THICKNESS*12:.0f}&#8243; shell</text>')
 
 
-def _render_wall_table(out, data):
-    """Render the wall segment measurement table. Returns table bottom y."""
-    pts = data.pts
-    outline_segs = data.outline_segs
-    openings = data.openings
+def compute_wall_table_rows(pts, outline_segs, openings):
+    """Compute wall segment measurements for the wall table.
 
+    Returns a list of (label, outer_inches, inner_inches, shell_inches) tuples,
+    one per wall section, rotated so O11-O1 comes first.
+    """
     shell_t = SHELL_THICKNESS
     R_in = OPENING_INSIDE_RADIUS
     R_out = R_in + shell_t
@@ -708,19 +708,12 @@ def _render_wall_table(out, data):
     # Rotate so O11-O1 (last section) comes first
     sections = sections[-1:] + sections[:-1]
 
-    tbl_left = data.tb_left
-    tbl_top = data.tb_bottom + 12
-    row_h = 7.5
-    # Column right-edges (From-To is left-aligned, others right-aligned)
-    col_r = [tbl_left + 32, tbl_left + 62, tbl_left + 92, tbl_left + 128]
-
     # U-turn centerline length (same for every section)
     R_mid = R_in + shell_t / 2          # centerline radius through shell
     uturn_straight = WALL_OUTER - 2 * (shell_t + R_in)
     uturn_cl = 2 * (math.pi / 2) * R_mid + uturn_straight  # feet
 
-    # Compute row data
-    table_rows = []
+    rows = []
     for start_op, end_op in sections:
         label = f"{start_op.name}&#8211;{end_op.name}"
         s_seg = start_op.seg_idx
@@ -739,8 +732,21 @@ def _render_wall_table(out, data):
             WALL_OUTER - shell_t / 2)
         shell_ft = (outer_cl_ft - 2 * R_out) + (inner_cl_ft - 2 * R_out) + 2 * uturn_cl
 
-        table_rows.append((label,
-                           outer_ft * 12, inner_ft * 12, shell_ft * 12))
+        rows.append((label, outer_ft * 12, inner_ft * 12, shell_ft * 12))
+
+    return rows
+
+
+def _render_wall_table(out, data):
+    """Render the wall segment measurement table. Returns table bottom y."""
+    table_rows = compute_wall_table_rows(
+        data.pts, data.outline_segs, data.openings)
+
+    tbl_left = data.tb_left
+    tbl_top = data.tb_bottom + 12
+    row_h = 7.5
+    # Column right-edges (From-To is left-aligned, others right-aligned)
+    col_r = [tbl_left + 32, tbl_left + 62, tbl_left + 92, tbl_left + 128]
 
     # Table title
     out.append(f'<text x="{(tbl_left + col_r[-1]) / 2:.1f}" y="{tbl_top:.1f}"'
