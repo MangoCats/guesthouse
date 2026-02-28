@@ -1459,10 +1459,24 @@ def _render_plumbing_path(out, data, layout):
 
     rp7 = offset_pt(_w9_inset_r, _dw_d + DW_WIDTH / 2, w9w10_al_k)
 
-    red_pts = [rp1, rp2, rp3, rp4, rp5, rp6, rp7]
-    red_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
-                       for p in red_pts)
-    out.append(f'<polyline points="{red_svg}" fill="none"'
+    # Break 1st red line at WH T-stub, turn north on both sides
+    _wh_brk_w = line_isect(_w9_inset_r, w9w10_al_k, (_wh_ctr[0] - h, 0), (0, 1))
+    _wh_brk_e = line_isect(_w9_inset_r, w9w10_al_k, (_wh_ctr[0] + h, 0), (0, 1))
+    _wh_brk_wn = (_wh_brk_w[0], _wh_bl_n[1])
+    _wh_brk_en = (_wh_brk_e[0], _wh_bl_n[1])
+
+    # West segment: rp1 → ... → rp6 → break_w → break_w_n
+    red_w_pts = [rp1, rp2, rp3, rp4, rp5, rp6, _wh_brk_w, _wh_brk_wn]
+    red_w_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                         for p in red_w_pts)
+    out.append(f'<polyline points="{red_w_svg}" fill="none"'
+               f' stroke="#FF0000" stroke-width="{bw_svg:.1f}"'
+               f' stroke-linejoin="round" stroke-linecap="round"/>')
+    # East segment: break_e_n → break_e → rp7
+    red_e_pts = [_wh_brk_en, _wh_brk_e, rp7]
+    red_e_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                         for p in red_e_pts)
+    out.append(f'<polyline points="{red_e_svg}" fill="none"'
                f' stroke="#FF0000" stroke-width="{bw_svg:.1f}"'
                f' stroke-linejoin="round" stroke-linecap="round"/>')
 
