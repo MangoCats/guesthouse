@@ -134,8 +134,9 @@ IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 # Outer-wall openings (numbered CW around outline)
 # O1 (F2-F5 west wall, centered at RO3 normal projection)
 O1_WIDTH = 19.0 / 12.0             # 19" opening height
-# O2 (F2-F5, centered at RO4 northing center)
+# O2 (F2-F5, 48" south of O3)
 O2_WIDTH = 19.0 / 12.0             # 19" opening width
+O2_GAP_O3 = 48.0 / 12.0            # 48" from O2 north edge to O3 south edge
 # O3 (F2-F5, 4" from F5)
 O3_GAP_F5 = 8.0 / 12.0             # 8" from F5 along F5-F2 line
 O3_WIDTH = 32.0 / 12.0             # 32" opening width
