@@ -8,6 +8,7 @@ files=(
     floorplan/floorplan_db.svg
     floorplan/floorplan_bare.svg
     floorplan/floorplan_minik.svg
+     plumbing/plumbing.svg
          roof/roof.svg
          span/span.svg
          span/span_min.svg

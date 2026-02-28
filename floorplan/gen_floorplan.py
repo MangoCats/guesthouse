@@ -1285,6 +1285,62 @@ def _render_walls(out, data, layout, bare=False):
 
 
 
+def _render_plumbing_path(out, data, layout):
+    """Render green utility path from washer through west/south side to east."""
+    pts = data.pts
+    to_svg = data.to_svg
+
+    # Compute washer center (replicates db-mode logic from _render_appliances)
+    w2w5_al, w2w5_in = seg_vecs(pts["W2"], pts["W5"])
+    _appl_d = 27.0 / 12.0   # 27" washer/dryer depth along wall
+    _dryer_sw = list(layout.dryer.poly)[0]
+    _dryer_nw = offset_pt(_dryer_sw, _appl_d, w2w5_al)
+    _washer_sw = offset_pt(_dryer_nw, 1.0 / 12.0, w2w5_al)
+    _washer_nw = offset_pt(_washer_sw, _appl_d, w2w5_al)
+    washer_cn = (_washer_sw[1] + _washer_nw[1]) / 2
+
+    # Reference points
+    f2_e = pts["F2"][0]       # F2-F5 face easting
+    f1_n = pts["F1"][1]       # F18-F1 face northing
+    f14_e = pts["F14"][0]     # F14-F15 face easting
+
+    # Centerline waypoints (survey coords)
+    wp1 = (f2_e, washer_cn)
+    wp2 = (f2_e - 24.0 / 12.0, washer_cn)
+    wp3 = (f2_e - 24.0 / 12.0, f1_n - 24.0 / 12.0)
+    wp4 = (f14_e, f1_n - 24.0 / 12.0)
+    wp5 = (f14_e + 6.0, f1_n - 24.0 / 12.0)
+
+    # Path width in SVG units (18" = 1.5 ft)
+    sw_svg = abs(to_svg(18.0 / 12.0, 0)[0] - to_svg(0, 0)[0])
+
+    # SVG coordinates
+    s1 = to_svg(*wp1); s2 = to_svg(*wp2); s3 = to_svg(*wp3)
+    s4 = to_svg(*wp4); s5 = to_svg(*wp5)
+
+    # Gradient definition (fade from 100% to 0% opacity over 6')
+    out.append('<defs>')
+    out.append(f'  <linearGradient id="plumb_fade" x1="{s4[0]:.2f}" y1="{s4[1]:.2f}"'
+               f' x2="{s5[0]:.2f}" y2="{s5[1]:.2f}" gradientUnits="userSpaceOnUse">')
+    out.append('    <stop offset="0%" stop-color="#228B22" stop-opacity="1"/>')
+    out.append('    <stop offset="100%" stop-color="#228B22" stop-opacity="0"/>')
+    out.append('  </linearGradient>')
+    out.append('</defs>')
+
+    # Solid green path: wp1 → wp2 → wp3 → wp4
+    solid_pts = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                         for p in [wp1, wp2, wp3, wp4])
+    out.append(f'<polyline points="{solid_pts}" fill="none"'
+               f' stroke="#228B22" stroke-width="{sw_svg:.1f}"'
+               f' stroke-linejoin="round" stroke-linecap="butt"/>')
+
+    # Gradient fade: wp4 → wp5
+    out.append(f'<line x1="{s4[0]:.1f}" y1="{s4[1]:.1f}"'
+               f' x2="{s5[0]:.1f}" y2="{s5[1]:.1f}"'
+               f' stroke="url(#plumb_fade)" stroke-width="{sw_svg:.1f}"'
+               f' stroke-linecap="butt"/>')
+
+
 def _render_appliances(out, data, layout, minik=False, db=False, plumbing=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
     pts = data.pts
@@ -3194,6 +3250,8 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
                f' font-weight="bold">{room_title}</text>')
 
     _render_walls(out, data, layout, bare=bare or sf)
+    if plumbing:
+        _render_plumbing_path(out, data, layout)
     if not bare and not sf:
         _render_appliances(out, data, layout, minik=minik, db=db, plumbing=plumbing)
         _render_kitchen(out, data, layout, minik=minik, db=db, plumbing=plumbing)
