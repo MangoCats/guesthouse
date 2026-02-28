@@ -704,15 +704,13 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim07_B", line_isect(pts["W14"], _w14w15_al,
                                          _stor_ref, _ew)))
 
-    # ---- dim08: O1 east center → RO3 west center (horizontal) ----
-    _o1 = openings[0]
-    _o1_e_ctr = ((_o1.poly[2][0] + _o1.poly[3][0]) / 2,
+    # ---- dim08: O1 W-series face (east side) center → IW9 west face center ----
+    _o1 = [o for o in openings if o.name == "O1"][0]
+    _o1_w_ctr = ((_o1.poly[2][0] + _o1.poly[3][0]) / 2,
                  (_o1.poly[2][1] + _o1.poly[3][1]) / 2)
-    _ro3 = ro_by_name["RO3"]
-    # RO3 is now in IW9 (rotated): poly[1]+poly[2] = IW9 west face (toward IW3)
-    _ro3_w_ctr = ((_ro3.poly[1][0] + _ro3.poly[2][0]) / 2,
-                  (_ro3.poly[1][1] + _ro3.poly[2][1]) / 2)
-    result.extend([("dim08_A", _o1_e_ctr), ("dim08_B", _ro3_w_ctr)])
+    _iw9_w_mid = ((layout.iw9.poly[0][0] + layout.iw9.poly[3][0]) / 2,
+                  (layout.iw9.poly[0][1] + layout.iw9.poly[3][1]) / 2)
+    result.extend([("dim08_A", _o1_w_ctr), ("dim08_B", _iw9_w_mid)])
 
     # ---- dim09: W2-W5 → IW2-west (horizontal at O2 center northing) ----
     _o2 = [o for o in openings if o.name == "O2"][0]
@@ -2296,7 +2294,7 @@ def _render_dimensions(out, data, layout, bare=False):
     _rotated_dim(out, ep["dim07_A"], ep["dim07_B"],
                  f"STORAGE {fmt_dist(_edist(ep['dim07_A'], ep['dim07_B']))}", to_svg)
 
-    # dim08: O1 east → RO3 west
+    # dim08: O1 W-series face (east side) → IW9 west
     _rotated_dim(out, ep["dim08_A"], ep["dim08_B"],
                  fmt_dist(_edist(ep["dim08_A"], ep["dim08_B"])), to_svg)
 
