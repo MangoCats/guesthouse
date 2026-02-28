@@ -1399,7 +1399,7 @@ def _render_appliances(out, data, layout, minik=False, db=False):
     _dryer_cy = sum(p[1] for p in layout.dryer.poly) / 4
     _d_dryer_al = ((_dryer_cx - _iw8_s_ref[0]) * _iw8_al[0] +
                    (_dryer_cy - _iw8_s_ref[1]) * _iw8_al[1])
-    _toilet_s = offset_pt(_iw8_s_ref, _d_dryer_al, _iw8_al)
+    _toilet_s = offset_pt(_iw8_s_ref, _d_dryer_al - 4.0 / 12.0, _iw8_al)
     # Project midpoint between dryer SE and counter SW for sink position
     _ctr_cx = sum(p[0] for p in layout.ctr.poly) / 4
     _ctr_cy = sum(p[1] for p in layout.ctr.poly) / 4
@@ -1417,7 +1417,7 @@ def _render_appliances(out, data, layout, minik=False, db=False):
     _iw8_n_ref = layout.iw8.poly[3]
     _d_toilet_n_al = ((_dryer_cx - _iw8_n_ref[0]) * _iw8_al[0] +
                       (_dryer_cy - _iw8_n_ref[1]) * _iw8_al[1])
-    _toilet_n = offset_pt(_iw8_n_ref, _d_toilet_n_al, _iw8_al)
+    _toilet_n = offset_pt(_iw8_n_ref, _d_toilet_n_al - 4.0 / 12.0, _iw8_al)
     draw_toilet(out, _toilet_n, _iw8_out, _iw8_al, to_svg)
     # BATH sink: east end 9" from IW2 west face, flat side flush with IW8 north face
     _iw2_w = layout.iw2.poly[0]  # SW corner of IW2 west face
