@@ -2818,20 +2818,32 @@ def compute_room_areas(data, layout):
         (layout.iw9.poly[2][0], pts["W1"][1]),
     ])
 
-    # --- UTIL (T-shape) ---
-    _util_poly = [
+    # --- UTIL (T-shape, split at IW3 NW → W2-W5 dashed line) ---
+    _w2w5_al, _ = seg_vecs(pts["W2"], pts["W5"])
+    _w18w1_al, _ = seg_vecs(pts["W18"], pts["W1"])
+    _iw3_nw = layout.iw3.poly[3]
+    _iw3_w2w5 = line_isect(_iw3_nw, _w18w1_al, pts["W2"], _w2w5_al)
+
+    _util_north_poly = [
+        _iw3_w2w5,                                        # dashed line at W2-W5
         layout.iw8.poly[0],                               # IW8 SW
         layout.iw8.poly[1],                               # IW8 SE (= IW2 west at IW8 south)
         layout.iw1.poly[0],                               # IW1 SW (= IW2 west at IW1 south)
         layout.iw9.poly[3],                               # IW9 NW (on IW1 south)
         (layout.iw9.poly[0][0], layout.iw7.poly[2][1]),   # IW9 at IW7 north
         layout.iw7.poly[3],                               # IW7 NW (= IW3 NE)
-        layout.iw3.poly[3],                               # IW3 NW
+        _iw3_nw,                                           # IW3 NW
+    ]
+    util_n = poly_area(_util_north_poly)
+
+    _util_south_poly = [
+        _iw3_nw,                                           # IW3 NW
         (layout.iw3.poly[0][0], pts["W1"][1]),            # IW3 west at south wall
         pts["W1"],                                         # W1
     ]
-    _util_poly.extend(segment_polyline(data.inner_segs[0], pts)[1:])
-    util = poly_area(_util_poly)
+    _util_south_poly.extend(segment_polyline(data.inner_segs[0], pts)[1:])
+    _util_south_poly.append(_iw3_w2w5)                    # dashed line at W2-W5
+    util_s = poly_area(_util_south_poly)
 
     # --- KITCHEN ---
     _iw2s_e_al, _ = seg_vecs(layout.iw2s.poly[1], layout.iw2s.poly[2])
@@ -2923,7 +2935,7 @@ def compute_room_areas(data, layout):
     wh = poly_area(_wh_poly)
 
     return {
-        "BEDROOM": bedroom, "UTIL": util, "KITCHEN": kitchen,
+        "BEDROOM": bedroom, "UTIL_N": util_n, "UTIL_S": util_s, "KITCHEN": kitchen,
         "LIVING": living, "BATH": bath, "OFFICE": office,
         "E CLOSET": e_closet, "W CLOSET": w_closet,
         "STORAGE": storage, "WH": wh,
@@ -2988,10 +3000,17 @@ def _render_sf_extras(out, data, layout):
     utx, uty = to_svg(_util_e, _util_n)
     out.append(f'<text x="{utx:.1f}" y="{uty:.1f}" text-anchor="middle" dominant-baseline="hanging"'
                f' font-family="Arial" font-size="8" fill="#666">UTIL</text>')
-    _util_sf = _areas["UTIL"]
+    _util_n_sf = _areas["UTIL_N"]
     _ut_sf_y = uty + 8.0 + _half_gap
     out.append(f'<text x="{utx:.1f}" y="{_ut_sf_y:.1f}" text-anchor="middle" dominant-baseline="hanging"'
-               f' font-family="Arial" font-size="8" fill="#666">{_util_sf:.1f} sf</text>')
+               f' font-family="Arial" font-size="8" fill="#666">{_util_n_sf:.1f} sf</text>')
+
+    # UTIL south sf: same easting, just below the IW3 NW → W2-W5 dashed line
+    _util_s_sf = _areas["UTIL_S"]
+    _, _ut_s_y = to_svg(_util_e, layout.iw3.poly[3][1])
+    _ut_s_sf_y = _ut_s_y + _half_gap
+    out.append(f'<text x="{utx:.1f}" y="{_ut_s_sf_y:.1f}" text-anchor="middle" dominant-baseline="hanging"'
+               f' font-family="Arial" font-size="8" fill="#666">{_util_s_sf:.1f} sf</text>')
 
     # KITCHEN: centered beneath kitchen sink, just above dim02 (25' 8.1") line
     _w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
