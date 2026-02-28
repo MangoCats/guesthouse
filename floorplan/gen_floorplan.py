@@ -2341,7 +2341,7 @@ def _render_furniture(out, data, layout, minik=False, db=False, plumbing=False):
                f' font-size="8" fill="#666">OFFICE</text>')
 
 
-def _render_dimensions(out, data, layout, bare=False):
+def _render_dimensions(out, data, layout, bare=False, plumbing=False):
     """Render all dimension lines (interior and external).
 
     All endpoints computed wall-relative via compute_dimension_endpoints.
@@ -2349,6 +2349,12 @@ def _render_dimensions(out, data, layout, bare=False):
     to_svg = data.to_svg
     ep = {name: pt for name, pt in compute_dimension_endpoints(
         data.pts, layout, data.radii, bare=bare)}
+
+    # Plumbing view: shift outside E-W dim (dim15) 9" south to clear the path
+    if plumbing:
+        _shift = 9.0 / 12.0
+        for k in ("dim15_A", "dim15_B"):
+            ep[k] = (ep[k][0], ep[k][1] - _shift)
 
     def _edist(a, b):
         """Euclidean distance between two endpoint tuples."""
@@ -3257,7 +3263,7 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
         _render_kitchen(out, data, layout, minik=minik, db=db, plumbing=plumbing)
         _render_furniture(out, data, layout, minik=minik, db=db, plumbing=plumbing)
     out.append('<g opacity="0.5">')
-    _render_dimensions(out, data, layout, bare=bare or sf)
+    _render_dimensions(out, data, layout, bare=bare or sf, plumbing=plumbing)
     out.append('</g>')
     _render_openings(out, data, layout, bare=bare or sf)
     if sf:
