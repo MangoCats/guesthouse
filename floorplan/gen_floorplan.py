@@ -1484,15 +1484,17 @@ def _render_plumbing_path(out, data, layout):
     # --- 2nd red hot water line (bath sink to kitchen sink) ---
     gihh = gi + 2 * h  # interior wall total offset
 
-    # Bath sink center easting (replicates _render_appliances logic)
+    # North toilet east side (replicates _render_appliances logic)
     _iw8_al_p, _ = seg_vecs(iw8.poly[0], iw8.poly[1])
     _iw8_n_ref = iw8.poly[3]
-    _d_iw2_al_p = ((iw2.poly[0][0] - _iw8_n_ref[0]) * _iw8_al_p[0] +
-                   (iw2.poly[0][1] - _iw8_n_ref[1]) * _iw8_al_p[1])
-    _bath_ctr_d = _d_iw2_al_p - 9.0 / 12.0 - BATH_SINK_LENGTH / 2
-    _bath_anchor = offset_pt(_iw8_n_ref, _bath_ctr_d, _iw8_al_p)
+    _dryer_cx = sum(p[0] for p in layout.dryer.poly) / 4
+    _dryer_cy = sum(p[1] for p in layout.dryer.poly) / 4
+    _d_toilet_n_al = ((_dryer_cx - _iw8_n_ref[0]) * _iw8_al_p[0] +
+                      (_dryer_cy - _iw8_n_ref[1]) * _iw8_al_p[1])
+    _toilet_n_ctr = offset_pt(_iw8_n_ref, _d_toilet_n_al - 4.0 / 12.0, _iw8_al_p)
+    _toilet_n_east = offset_pt(_toilet_n_ctr, 1.905 * _SVG_TO_FT, _iw8_al_p)
 
-    rr1 = (_bath_anchor[0], iw8.poly[3][1] - gihh)
+    rr1 = (_toilet_n_east[0], iw8.poly[3][1] - gihh)
     rr2 = (iw2.poly[0][0] + gihh, iw8.poly[3][1] - gihh)
 
     _iw2_anchor_rr = offset_pt(iw2.poly[0], gihh, _iw2_w_in)
@@ -1510,7 +1512,7 @@ def _render_plumbing_path(out, data, layout):
     rr6 = offset_pt(_w9_inset_rr, _ks_ctr_d, w9w10_al_k)
 
     # T-connections to 1st red line
-    rr0 = (_bath_anchor[0], iw8.poly[3][1] - gih)   # start stub: up to 1st red
+    rr0 = (_toilet_n_east[0], iw8.poly[3][1] - gih)   # start stub: up to 1st red
     rr7 = offset_pt(_w9_inset_r, _ks_ctr_d, w9w10_al_k)  # end stub: up to 1st red
 
     red2_pts = [rr0, rr1, rr2, rr3, rr4, rr5, rr6, rr7]
