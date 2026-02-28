@@ -1340,6 +1340,12 @@ def _render_plumbing_path(out, data, layout):
                f' stroke="url(#plumb_fade)" stroke-width="{sw_svg:.1f}"'
                f' stroke-linecap="butt"/>')
 
+    # Label east of gradient
+    _lx = s5[0] + 4
+    _ly = s5[1] + 3
+    out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" font-family="Arial"'
+               f' font-size="8" fill="#228B22">from Well</text>')
+
 
 def _render_appliances(out, data, layout, minik=False, db=False, plumbing=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
