@@ -1418,6 +1418,26 @@ def _render_plumbing_path(out, data, layout):
                f' stroke="url(#blue_fade)" stroke-width="{bw_svg:.1f}"'
                f' stroke-linecap="butt"/>')
 
+    # --- Blue T-stub to water heater (12" north) ---
+    _iw2s_e_al, _iw2s_e_out = seg_vecs(iw2s.poly[1], iw2s.poly[2])
+    _wh_ref = offset_pt(iw2s.poly[2], WH_RADIUS, _iw2s_e_out)
+    _wh_tan_r = (data.radii["R_a7"] - data.wall_t) - WH_RADIUS
+    _c7 = pts["C7"]
+    _wh_d = (_wh_ref[0] - _c7[0], _wh_ref[1] - _c7[1])
+    _wh_d_al = _wh_d[0] * _iw2s_e_al[0] + _wh_d[1] * _iw2s_e_al[1]
+    _wh_d2 = _wh_d[0] ** 2 + _wh_d[1] ** 2
+    _wh_t = -_wh_d_al + math.sqrt(_wh_tan_r ** 2 - _wh_d2 + _wh_d_al ** 2)
+    _wh_ctr = offset_pt(_wh_ref, _wh_t, _iw2s_e_al)
+    # Point on blue IW2s segment at WH center northing
+    _wh_bl = line_isect(_iw2s_anchor, _iw2s_w_al, (0, _wh_ctr[1]), (1, 0))
+    _wh_bl_n = (_wh_bl[0], _wh_bl[1] + 1.0)  # 12" north
+    _wbs = to_svg(*_wh_bl)
+    _wbn = to_svg(*_wh_bl_n)
+    out.append(f'<line x1="{_wbs[0]:.1f}" y1="{_wbs[1]:.1f}"'
+               f' x2="{_wbn[0]:.1f}" y2="{_wbn[1]:.1f}"'
+               f' stroke="#1E90FF" stroke-width="{bw_svg:.1f}"'
+               f' stroke-linecap="round"/>')
+
     # --- Red hot water line (1" thick, 1.5" right of blue) ---
     h = 1.5 / 12.0   # 1.5" center-to-center offset from blue
     gwh = gw + h      # W2-W5 total offset
