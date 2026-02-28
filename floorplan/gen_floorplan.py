@@ -1417,6 +1417,33 @@ def _render_plumbing_path(out, data, layout):
                f' stroke="url(#blue_fade)" stroke-width="{bw_svg:.1f}"'
                f' stroke-linecap="butt"/>')
 
+    # --- Red hot water line (1" thick, 1.5" right of blue) ---
+    h = 1.5 / 12.0   # 1.5" center-to-center offset from blue
+    gh = g + h        # total offset from wall faces
+
+    rp1 = (pts["W2"][0] + gh, washer_cn)
+    rp2 = (pts["W2"][0] + gh, iw8.poly[3][1] - gh)
+    rp3 = (iw2.poly[0][0] + gh, iw8.poly[3][1] - gh)
+
+    _iw2_anchor_r = offset_pt(iw2.poly[0], gh, _iw2_w_in)
+    _iw2o_anchor_r = offset_pt(iw2o.poly[1], gh, _iw2o_in)
+    rp4 = line_isect(_iw2_anchor_r, _iw2_w_al, _iw2o_anchor_r, _iw2o_al)
+
+    _iw2s_anchor_r = offset_pt(iw2s.poly[0], gh, _iw2s_w_in)
+    rp5 = line_isect(_iw2o_anchor_r, _iw2o_al, _iw2s_anchor_r, _iw2s_w_al)
+
+    _w9_inset_r = offset_pt(pts["W9"], gh, w9w10_in_k)
+    rp6 = line_isect(_iw2s_anchor_r, _iw2s_w_al, _w9_inset_r, w9w10_al_k)
+
+    rp7 = offset_pt(_w9_inset_r, _dw_d + DW_WIDTH / 2, w9w10_al_k)
+
+    red_pts = [rp1, rp2, rp3, rp4, rp5, rp6, rp7]
+    red_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                       for p in red_pts)
+    out.append(f'<polyline points="{red_svg}" fill="none"'
+               f' stroke="#FF0000" stroke-width="{bw_svg:.1f}"'
+               f' stroke-linejoin="round" stroke-linecap="round"/>')
+
 
 def _render_appliances(out, data, layout, minik=False, db=False, plumbing=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
