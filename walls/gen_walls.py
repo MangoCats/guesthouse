@@ -920,7 +920,7 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
 
     iw_tbl_top = tbl_border_bottom + 14
     iw_row_h = 7.5
-    iw_col = [tbl_left + 20, tbl_left + 48, tbl_left + 82, tbl_left + 128]
+    iw_col = [tbl_left + 20, tbl_left + 48, tbl_left + 82, tbl_left + 168]
 
     # Table title
     out.append(f'<text x="{(tbl_left + iw_col[-1]) / 2:.1f}" y="{iw_tbl_top:.1f}"'
