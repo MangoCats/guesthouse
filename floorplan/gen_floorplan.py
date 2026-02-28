@@ -1346,6 +1346,63 @@ def _render_plumbing_path(out, data, layout):
     out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" font-family="Arial"'
                f' font-size="8" fill="#228B22">from Well</text>')
 
+    # --- Blue water supply line (1" thick) ---
+    g = 1.5 / 12.0  # 1.5" offset from wall faces
+
+    iw8 = layout.iw8
+    iw2 = layout.iw2
+    iw2o = layout.iw2o
+    iw2s = layout.iw2s
+
+    # Outside waypoints (centered in green path)
+    bp1 = (f14_e + 5.0, f1_n - 24.0 / 12.0)
+    bp2 = (f2_e - 24.0 / 12.0, f1_n - 24.0 / 12.0)
+    bp3 = (f2_e - 24.0 / 12.0, washer_cn)
+
+    # Through wall, inside building
+    bp4 = (pts["W2"][0] + g, washer_cn)
+    bp5 = (pts["W2"][0] + g, iw8.poly[3][1] - g)
+    bp6 = (iw2.poly[0][0] + g, iw8.poly[3][1] - g)
+
+    # IW2 west face: poly[0]→poly[3] (SW→NW)
+    _iw2_w_al, _iw2_w_in = seg_vecs(iw2.poly[0], iw2.poly[3])
+    _iw2_anchor = offset_pt(iw2.poly[0], g, _iw2_w_in)
+
+    # IW2o oblique: utility-room face is poly[1]→poly[2]
+    _iw2o_al, _iw2o_in = seg_vecs(iw2o.poly[1], iw2o.poly[2])
+    _iw2o_anchor = offset_pt(iw2o.poly[1], g, _iw2o_in)
+    bp7 = line_isect(_iw2_anchor, _iw2_w_al, _iw2o_anchor, _iw2o_al)
+
+    # IW2s west face: poly[0]→poly[3] (SW→NW)
+    _iw2s_w_al, _iw2s_w_in = seg_vecs(iw2s.poly[0], iw2s.poly[3])
+    _iw2s_anchor = offset_pt(iw2s.poly[0], g, _iw2s_w_in)
+    bp8 = line_isect(_iw2o_anchor, _iw2o_al, _iw2s_anchor, _iw2s_w_al)
+
+    # W9-W10 north wall: 1.5" south (inward)
+    w9w10_al_k, w9w10_in_k = seg_vecs(pts["W9"], pts["W10"])
+    _w9_inset = offset_pt(pts["W9"], g, w9w10_in_k)
+    bp9 = line_isect(_iw2s_anchor, _iw2s_w_al, _w9_inset, w9w10_al_k)
+
+    # D/W center distance along wall from W9
+    _iw2s_ne = iw2s.poly[2]
+    _iw2_d = ((_iw2s_ne[0] - pts["W9"][0]) * w9w10_al_k[0] +
+              (_iw2s_ne[1] - pts["W9"][1]) * w9w10_al_k[1])
+    _dw_d = (_iw2_d + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP +
+             STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0 +
+             KITCHEN_SINK_WIDTH + KITCHEN_APPL_GAP)
+    bp10 = offset_pt(_w9_inset, _dw_d + DW_WIDTH / 2, w9w10_al_k)
+
+    # Blue line stroke width (1" = 1/12 ft)
+    bw_svg = abs(to_svg(1.0 / 12.0, 0)[0] - to_svg(0, 0)[0])
+
+    # Render blue polyline
+    blue_pts = [bp1, bp2, bp3, bp4, bp5, bp6, bp7, bp8, bp9, bp10]
+    blue_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                        for p in blue_pts)
+    out.append(f'<polyline points="{blue_svg}" fill="none"'
+               f' stroke="#1E90FF" stroke-width="{bw_svg:.1f}"'
+               f' stroke-linejoin="round" stroke-linecap="round"/>')
+
 
 def _render_appliances(out, data, layout, minik=False, db=False, plumbing=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
