@@ -1474,7 +1474,11 @@ def _render_plumbing_path(out, data, layout):
     _ks_ctr_d = _dw_d - KITCHEN_APPL_GAP - KITCHEN_SINK_WIDTH / 2
     rr6 = offset_pt(_w9_inset_rr, _ks_ctr_d, w9w10_al_k)
 
-    red2_pts = [rr1, rr2, rr3, rr4, rr5, rr6]
+    # T-connections to 1st red line
+    rr0 = (_bath_anchor[0], iw8.poly[3][1] - gih)   # start stub: up to 1st red
+    rr7 = offset_pt(_w9_inset_r, _ks_ctr_d, w9w10_al_k)  # end stub: up to 1st red
+
+    red2_pts = [rr0, rr1, rr2, rr3, rr4, rr5, rr6, rr7]
     red2_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
                         for p in red2_pts)
     out.append(f'<polyline points="{red2_svg}" fill="none"'
