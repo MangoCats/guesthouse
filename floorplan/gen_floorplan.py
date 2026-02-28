@@ -3322,13 +3322,21 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
     if plumbing:
         _render_plumbing_path(out, data, layout)
     if not bare and not sf:
+        if plumbing:
+            out.append('<g opacity="0.6">')
         _render_appliances(out, data, layout, minik=minik, db=db, plumbing=plumbing)
         _render_kitchen(out, data, layout, minik=minik, db=db, plumbing=plumbing)
         _render_furniture(out, data, layout, minik=minik, db=db, plumbing=plumbing)
+        if plumbing:
+            out.append('</g>')
     out.append('<g opacity="0.5">')
     _render_dimensions(out, data, layout, bare=bare or sf, plumbing=plumbing)
     out.append('</g>')
+    if plumbing:
+        out.append('<g opacity="0.2">')
     _render_openings(out, data, layout, bare=bare or sf)
+    if plumbing:
+        out.append('</g>')
     if sf:
         _render_sf_extras(out, data, layout)
 
