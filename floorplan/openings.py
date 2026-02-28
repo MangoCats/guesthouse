@@ -9,7 +9,7 @@ from typing import NamedTuple
 from shared.types import Point, BBox, LineSeg
 from shared.geometry import seg_vec, bbox_from_points
 from floorplan.constants import (
-    O1_WIDTH, O2_WIDTH, O2_GAP_O3,
+    O1_WIDTH, O1_GAP_O2, O2_WIDTH, O2_GAP_O3,
     O3_GAP_F5, O3_WIDTH, O4_HALF_WIDTH,
     O5_OFFSET_FROM_IW2, O5_WIDTH, O6_WIDTH, O6_GAP_F10,
     O7_NW_GAP, O7_HALF_WIDTH,
@@ -57,38 +57,7 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     """
     openings = []
 
-    # O1: F2-F5, centered at RO3 center normal projection onto W2-W5
-    _dE1, _dN1, _seg1_len = seg_vec(pts["F2"], pts["F5"])
-    # RO3 center on IW9: IW7 N face + RO3_IW7_GAP + RO3_WIDTH/2 along IW9
-    _iw9_se, _iw9_ne = layout.iw9.poly[1], layout.iw9.poly[2]
-    _iw9_sw = layout.iw9.poly[0]
-    _dx9c, _dy9c, _len9c = seg_vec(_iw9_se, _iw9_ne)
-    _un9c = (_dx9c / _len9c, _dy9c / _len9c)
-    _iw7_ne = layout.iw7.poly[2]
-    _ro3_iw7_n_d = ((_iw7_ne[0] - _iw9_se[0]) * _un9c[0]
-                    + (_iw7_ne[1] - _iw9_se[1]) * _un9c[1])
-    _ro3_ctr_d = _ro3_iw7_n_d + RO3_IW7_GAP + RO3_WIDTH / 2
-    _iw9_mid_s = ((_iw9_sw[0] + _iw9_se[0]) / 2, (_iw9_sw[1] + _iw9_se[1]) / 2)
-    _ro3_ctr = (_iw9_mid_s[0] + _ro3_ctr_d * _un9c[0],
-                _iw9_mid_s[1] + _ro3_ctr_d * _un9c[1])
-    # Normal projection of RO3 center onto W2-W5 line
-    _dW1 = (pts["W5"][0] - pts["W2"][0], pts["W5"][1] - pts["W2"][1])
-    _dW1_sq = _dW1[0]**2 + _dW1[1]**2
-    _t1_ctr = ((_ro3_ctr[0] - pts["W2"][0]) * _dW1[0]
-               + (_ro3_ctr[1] - pts["W2"][1]) * _dW1[1]) / _dW1_sq
-    _t1_half = (O1_WIDTH / 2) / _seg1_len
-    _t1_start = _t1_ctr - _t1_half
-    _t1_end = _t1_ctr + _t1_half
-    openings.append(OuterOpening("O1", "F2", "F5", [
-        (pts["F2"][0] + _t1_start * _dE1, pts["F2"][1] + _t1_start * _dN1),
-        (pts["F2"][0] + _t1_end * _dE1, pts["F2"][1] + _t1_end * _dN1),
-        (pts["W2"][0] + _t1_end * (pts["W5"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t1_end * (pts["W5"][1] - pts["W2"][1])),
-        (pts["W2"][0] + _t1_start * (pts["W5"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t1_start * (pts["W5"][1] - pts["W2"][1])),
-    ]))
-
-    # O3: F2-F5, 8" from F5 along F5-F2 line (compute first; O2 depends on O3)
+    # O3: F2-F5, 8" from F5 along F5-F2 line (compute first; O2 and O1 depend on it)
     _dE2, _dN2, _seg2_len = seg_vec(pts["F2"], pts["F5"])
     _t3_end = 1 - O3_GAP_F5 / _seg2_len       # closer to F5
     _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg2_len  # farther from F5
@@ -111,6 +80,18 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
          pts["W2"][1] + _t2_end * (pts["W5"][1] - pts["W2"][1])),
         (pts["W2"][0] + _t2_start * (pts["W5"][0] - pts["W2"][0]),
          pts["W2"][1] + _t2_start * (pts["W5"][1] - pts["W2"][1])),
+    ]))
+
+    # O1: F2-F5, 72" south of O2
+    _t1_end = _t2_start - O1_GAP_O2 / _seg2_len    # north edge, 72" south of O2
+    _t1_start = _t1_end - O1_WIDTH / _seg2_len      # south edge
+    openings.append(OuterOpening("O1", "F2", "F5", [
+        (pts["F2"][0] + _t1_start * _dE2, pts["F2"][1] + _t1_start * _dN2),
+        (pts["F2"][0] + _t1_end * _dE2, pts["F2"][1] + _t1_end * _dN2),
+        (pts["W2"][0] + _t1_end * (pts["W5"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t1_end * (pts["W5"][1] - pts["W2"][1])),
+        (pts["W2"][0] + _t1_start * (pts["W5"][0] - pts["W2"][0]),
+         pts["W2"][1] + _t1_start * (pts["W5"][1] - pts["W2"][1])),
     ]))
 
     # O4: F6-F7, centered on segment at t=0.5
