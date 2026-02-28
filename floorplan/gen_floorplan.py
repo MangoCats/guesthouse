@@ -704,13 +704,15 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim07_B", line_isect(pts["W14"], _w14w15_al,
                                          _stor_ref, _ew)))
 
-    # ---- dim08: O1 W-series face (east side) center → IW9 west face center ----
+    # ---- dim08: O1 W-series face → IW9 west face, E-W at O1 center northing ----
     _o1 = [o for o in openings if o.name == "O1"][0]
-    _o1_w_ctr = ((_o1.poly[2][0] + _o1.poly[3][0]) / 2,
-                 (_o1.poly[2][1] + _o1.poly[3][1]) / 2)
-    _iw9_w_mid = ((layout.iw9.poly[0][0] + layout.iw9.poly[3][0]) / 2,
-                  (layout.iw9.poly[0][1] + layout.iw9.poly[3][1]) / 2)
-    result.extend([("dim08_A", _o1_w_ctr), ("dim08_B", _iw9_w_mid)])
+    _o1_ctr_n = sum(p[1] for p in _o1.poly) / 4
+    _o1_w_ctr = ((_o1.poly[2][0] + _o1.poly[3][0]) / 2, _o1_ctr_n)
+    _iw9_w_e = line_isect(layout.iw9.poly[0],
+                           (layout.iw9.poly[3][0] - layout.iw9.poly[0][0],
+                            layout.iw9.poly[3][1] - layout.iw9.poly[0][1]),
+                           (0, _o1_ctr_n), _ew)[0]
+    result.extend([("dim08_A", _o1_w_ctr), ("dim08_B", (_iw9_w_e, _o1_ctr_n))])
 
     # ---- dim09: W2-W5 → IW2-west (horizontal at O2 center northing) ----
     _o2 = [o for o in openings if o.name == "O2"][0]
