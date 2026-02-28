@@ -1800,9 +1800,6 @@ def _render_kitchen(out, data, layout, minik=False, db=False, plumbing=False):
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
 
-    if plumbing:
-        return
-
     # ICE — positioned along north wall
     if db:
         _ice_d = _dw_d + DW_WIDTH + 2.0 / 12.0    # 2" along wall past D/W
@@ -1817,6 +1814,9 @@ def _render_kitchen(out, data, layout, minik=False, db=False, plumbing=False):
               _nwp(_ice_d + ICE_WIDTH, _ice_i), _nwp(_ice_d, _ice_i)]
     _appl_poly(out, _ice_c, to_svg, label="ICE", font_size="6",
                href="https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876")
+
+    if plumbing:
+        return
 
     # Work counter: 60" along IW2-outward x 18" along IW1-outward, against IW1
     _wc_d2 = KITCHEN_APPL_GAP + _fr_w2 + KITCHEN_APPL_GAP  # gap + fridge + gap from IW2
@@ -3431,7 +3431,7 @@ def _render_supplies_table(out, data):
         ("FRIDGE",       True, False, False),
         ("SHOWER",       True, True, True),
         ("KITCHEN SINK", True, True, True),
-        ("DISHWASHER",   True, True, True),
+        ("DISHWASHER",   False, True, False),
         ("ICE",          True, False, False),
     ]
 
