@@ -1347,7 +1347,8 @@ def _render_plumbing_path(out, data, layout):
                f' font-size="8" fill="#1E90FF">from Well</text>')
 
     # --- Blue water supply line (1" thick) ---
-    g = 1.5 / 12.0  # 1.5" offset from wall faces
+    gw = 1.5 / 12.0  # 1.5" offset from W2-W5 exterior wall
+    gi = 1.0 / 12.0  # 1.0" offset from interior walls (IW8, IW2, IW2o, IW2s, W9-W10)
 
     iw8 = layout.iw8
     iw2 = layout.iw2
@@ -1360,27 +1361,27 @@ def _render_plumbing_path(out, data, layout):
     bp3 = (f2_e - 24.0 / 12.0, washer_cn)
 
     # Through wall, inside building
-    bp4 = (pts["W2"][0] + g, washer_cn)
-    bp5 = (pts["W2"][0] + g, iw8.poly[3][1] - g)
-    bp6 = (iw2.poly[0][0] + g, iw8.poly[3][1] - g)
+    bp4 = (pts["W2"][0] + gw, washer_cn)
+    bp5 = (pts["W2"][0] + gw, iw8.poly[3][1] - gi)
+    bp6 = (iw2.poly[0][0] + gi, iw8.poly[3][1] - gi)
 
     # IW2 west face: poly[0]→poly[3] (SW→NW)
     _iw2_w_al, _iw2_w_in = seg_vecs(iw2.poly[0], iw2.poly[3])
-    _iw2_anchor = offset_pt(iw2.poly[0], g, _iw2_w_in)
+    _iw2_anchor = offset_pt(iw2.poly[0], gi, _iw2_w_in)
 
     # IW2o oblique: utility-room face is poly[1]→poly[2]
     _iw2o_al, _iw2o_in = seg_vecs(iw2o.poly[1], iw2o.poly[2])
-    _iw2o_anchor = offset_pt(iw2o.poly[1], g, _iw2o_in)
+    _iw2o_anchor = offset_pt(iw2o.poly[1], gi, _iw2o_in)
     bp7 = line_isect(_iw2_anchor, _iw2_w_al, _iw2o_anchor, _iw2o_al)
 
     # IW2s west face: poly[0]→poly[3] (SW→NW)
     _iw2s_w_al, _iw2s_w_in = seg_vecs(iw2s.poly[0], iw2s.poly[3])
-    _iw2s_anchor = offset_pt(iw2s.poly[0], g, _iw2s_w_in)
+    _iw2s_anchor = offset_pt(iw2s.poly[0], gi, _iw2s_w_in)
     bp8 = line_isect(_iw2o_anchor, _iw2o_al, _iw2s_anchor, _iw2s_w_al)
 
-    # W9-W10 north wall: 1.5" south (inward)
+    # W9-W10 north wall: 1" south (inward)
     w9w10_al_k, w9w10_in_k = seg_vecs(pts["W9"], pts["W10"])
-    _w9_inset = offset_pt(pts["W9"], g, w9w10_in_k)
+    _w9_inset = offset_pt(pts["W9"], gi, w9w10_in_k)
     bp9 = line_isect(_iw2s_anchor, _iw2s_w_al, _w9_inset, w9w10_al_k)
 
     # D/W center distance along wall from W9
@@ -1419,20 +1420,21 @@ def _render_plumbing_path(out, data, layout):
 
     # --- Red hot water line (1" thick, 1.5" right of blue) ---
     h = 1.5 / 12.0   # 1.5" center-to-center offset from blue
-    gh = g + h        # total offset from wall faces
+    gwh = gw + h      # W2-W5 total offset
+    gih = gi + h      # interior wall total offset
 
-    rp1 = (pts["W2"][0] + gh, washer_cn)
-    rp2 = (pts["W2"][0] + gh, iw8.poly[3][1] - gh)
-    rp3 = (iw2.poly[0][0] + gh, iw8.poly[3][1] - gh)
+    rp1 = (pts["W2"][0] + gwh, washer_cn)
+    rp2 = (pts["W2"][0] + gwh, iw8.poly[3][1] - gih)
+    rp3 = (iw2.poly[0][0] + gih, iw8.poly[3][1] - gih)
 
-    _iw2_anchor_r = offset_pt(iw2.poly[0], gh, _iw2_w_in)
-    _iw2o_anchor_r = offset_pt(iw2o.poly[1], gh, _iw2o_in)
+    _iw2_anchor_r = offset_pt(iw2.poly[0], gih, _iw2_w_in)
+    _iw2o_anchor_r = offset_pt(iw2o.poly[1], gih, _iw2o_in)
     rp4 = line_isect(_iw2_anchor_r, _iw2_w_al, _iw2o_anchor_r, _iw2o_al)
 
-    _iw2s_anchor_r = offset_pt(iw2s.poly[0], gh, _iw2s_w_in)
+    _iw2s_anchor_r = offset_pt(iw2s.poly[0], gih, _iw2s_w_in)
     rp5 = line_isect(_iw2o_anchor_r, _iw2o_al, _iw2s_anchor_r, _iw2s_w_al)
 
-    _w9_inset_r = offset_pt(pts["W9"], gh, w9w10_in_k)
+    _w9_inset_r = offset_pt(pts["W9"], gih, w9w10_in_k)
     rp6 = line_isect(_iw2s_anchor_r, _iw2s_w_al, _w9_inset_r, w9w10_al_k)
 
     rp7 = offset_pt(_w9_inset_r, _dw_d + DW_WIDTH / 2, w9w10_al_k)
@@ -1445,7 +1447,7 @@ def _render_plumbing_path(out, data, layout):
                f' stroke-linejoin="round" stroke-linecap="round"/>')
 
     # --- 2nd red hot water line (bath sink to kitchen sink) ---
-    ghh = g + 2 * h  # total offset from wall faces
+    gihh = gi + 2 * h  # interior wall total offset
 
     # Bath sink center easting (replicates _render_appliances logic)
     _iw8_al_p, _ = seg_vecs(iw8.poly[0], iw8.poly[1])
@@ -1455,17 +1457,17 @@ def _render_plumbing_path(out, data, layout):
     _bath_ctr_d = _d_iw2_al_p - 9.0 / 12.0 - BATH_SINK_LENGTH / 2
     _bath_anchor = offset_pt(_iw8_n_ref, _bath_ctr_d, _iw8_al_p)
 
-    rr1 = (_bath_anchor[0], iw8.poly[3][1] - ghh)
-    rr2 = (iw2.poly[0][0] + ghh, iw8.poly[3][1] - ghh)
+    rr1 = (_bath_anchor[0], iw8.poly[3][1] - gihh)
+    rr2 = (iw2.poly[0][0] + gihh, iw8.poly[3][1] - gihh)
 
-    _iw2_anchor_rr = offset_pt(iw2.poly[0], ghh, _iw2_w_in)
-    _iw2o_anchor_rr = offset_pt(iw2o.poly[1], ghh, _iw2o_in)
+    _iw2_anchor_rr = offset_pt(iw2.poly[0], gihh, _iw2_w_in)
+    _iw2o_anchor_rr = offset_pt(iw2o.poly[1], gihh, _iw2o_in)
     rr3 = line_isect(_iw2_anchor_rr, _iw2_w_al, _iw2o_anchor_rr, _iw2o_al)
 
-    _iw2s_anchor_rr = offset_pt(iw2s.poly[0], ghh, _iw2s_w_in)
+    _iw2s_anchor_rr = offset_pt(iw2s.poly[0], gihh, _iw2s_w_in)
     rr4 = line_isect(_iw2o_anchor_rr, _iw2o_al, _iw2s_anchor_rr, _iw2s_w_al)
 
-    _w9_inset_rr = offset_pt(pts["W9"], ghh, w9w10_in_k)
+    _w9_inset_rr = offset_pt(pts["W9"], gihh, w9w10_in_k)
     rr5 = line_isect(_iw2s_anchor_rr, _iw2s_w_al, _w9_inset_rr, w9w10_al_k)
 
     # Kitchen sink center distance along W9-W10
