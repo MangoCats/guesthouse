@@ -84,11 +84,13 @@ def _svg_angle(along):
     return -math.degrees(math.atan2(along[1], along[0]))
 
 
-def _rotated_dim(out, p1, p2, label, to_svg):
+def _rotated_dim(out, p1, p2, label, to_svg, label_pt=None):
     """Rotated dimension line with tick marks and label.
 
     Label placement follows drafting convention: above for horizontal lines
     (reading left to right), left for vertical lines (reading bottom to top).
+    label_pt: optional (e, n) world-coord point to center the label at
+              (projected onto the dimension line direction).
     """
     sx1, sy1 = to_svg(*p1)
     sx2, sy2 = to_svg(*p2)
@@ -101,7 +103,14 @@ def _rotated_dim(out, p1, p2, label, to_svg):
         out.append(f'<line x1="{sx - tk * px:.1f}" y1="{sy - tk * py:.1f}" '
                    f'x2="{sx + tk * px:.1f}" y2="{sy + tk * py:.1f}" '
                    f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
-    lmx = (sx1 + sx2) / 2; lmy = (sy1 + sy2) / 2
+    if label_pt is not None:
+        lsx, lsy = to_svg(*label_pt)
+        # Project onto dimension line direction
+        ux, uy = sdx / slen, sdy / slen
+        t = (lsx - sx1) * ux + (lsy - sy1) * uy
+        lmx = sx1 + t * ux; lmy = sy1 + t * uy
+    else:
+        lmx = (sx1 + sx2) / 2; lmy = (sy1 + sy2) / 2
     # Normalize text angle to [-90°, 90°) for readability
     ang = math.degrees(math.atan2(sdy, sdx))
     if ang >= 90:
@@ -2300,9 +2309,16 @@ def _render_dimensions(out, data, layout, bare=False):
     _rotated_dim(out, ep["dim08_A"], ep["dim08_B"],
                  fmt_dist(_edist(ep["dim08_A"], ep["dim08_B"])), to_svg)
 
-    # dim09: W2-W5 → IW2-west
+    # dim09: W2-W5 → IW2-west, label centered at bath toilet easting
+    _iw8_al_d, _ = seg_vecs(layout.iw8.poly[0], layout.iw8.poly[1])
+    _dryer_cx_d = sum(p[0] for p in layout.dryer.poly) / 4
+    _dryer_cy_d = sum(p[1] for p in layout.dryer.poly) / 4
+    _d_dryer_d = ((_dryer_cx_d - layout.iw8.poly[0][0]) * _iw8_al_d[0] +
+                  (_dryer_cy_d - layout.iw8.poly[0][1]) * _iw8_al_d[1])
+    _toilet_s_d = offset_pt(layout.iw8.poly[0], _d_dryer_d - 4.0 / 12.0, _iw8_al_d)
     _rotated_dim(out, ep["dim09_A"], ep["dim09_B"],
-                 fmt_dist(_edist(ep["dim09_A"], ep["dim09_B"])), to_svg)
+                 fmt_dist(_edist(ep["dim09_A"], ep["dim09_B"])), to_svg,
+                 label_pt=(_toilet_s_d[0], ep["dim09_A"][1]))
 
     # dim10: W2 → IW2s-west
     _rotated_dim(out, ep["dim10_A"], ep["dim10_B"],
