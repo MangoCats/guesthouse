@@ -2370,7 +2370,7 @@ def _render_openings(out, data, layout, bare=False):
     to_svg = data.to_svg
     outer_openings = compute_outer_openings(pts, layout)
 
-    # O3 door: 30" door on F2-F5 east wall, hinged F5-side, swings east
+    # O3 door: 30" door on F2-F5 west wall, hinged F5-side, swings west
     o3 = [o for o in outer_openings if o.name == "O3"][0]
     # O3 poly: [outer_start, outer_end, inner_end, inner_start]
     # Wall direction (F2→F5) and cross direction (outer→inner)

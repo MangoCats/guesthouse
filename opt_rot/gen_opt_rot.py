@@ -22,7 +22,7 @@ from floorplan.geometry import (
     OUTLINE_CHAIN, CHAIN_POINT_NAMES,
     F2_E, F2_N, F2_BRG,
 )
-from floorplan.constants import CORNER_NE_R, F11AB_TARGET
+from floorplan.constants import CORNER_SW_R, F11AB_TARGET
 from survey.gen_path_svg import (
     compute_all, render_layer, build_outline_cfg,
     outer_cfg, inset_cfg,
@@ -41,7 +41,7 @@ _C10_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)
 _C11_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)
 _C13_SWEEP = math.atan(1.0 / 3.0)
 
-_R_a1 = CORNER_NE_R
+_R_a1 = CORNER_SW_R
 _R_C15C17 = 1.808727374505       # C15/C17 arc radius (feet)
 _L_F16F17 = 5.000000000000       # F16-F17 line length (feet)
 

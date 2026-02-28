@@ -487,7 +487,7 @@ The private constant `_WE = WALL_OUTER - 8.0 / 12.0` (wall extra beyond the 8" b
 | Constant | Formula | Why |
 |-|-|-|
 | `AIR_GAP` | `WALL_OUTER - 2*SHELL_THICKNESS` | Shell thickness is fixed; gap absorbs the change |
-| `CORNER_NE_R` | `10"/12 + _WE` | Arc radii grow to keep arc centers (and W-series) fixed |
+| `CORNER_SW_R` | `10"/12 + _WE` | Arc radii grow to keep arc centers (and W-series) fixed |
 | `CORNER_NW_R` | `28"/12 + _WE` | Same |
 | `UPPER_E_R` | `28"/12 + _WE` | Same |
 | `ARC_180_R` | `28"/12 + _WE` | Same |

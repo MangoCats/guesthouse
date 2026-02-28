@@ -5,7 +5,7 @@ from typing import NamedTuple
 
 from shared.types import Point, LineSeg, ArcSeg, Segment
 from shared.survey import COORD_ROTATION, rotate_pts
-from floorplan.constants import CORNER_NE_R, F11AB_TARGET
+from floorplan.constants import CORNER_SW_R, F11AB_TARGET
 
 
 class OutlineGeometry(NamedTuple):
@@ -81,16 +81,16 @@ _CHAIN_F5_TO_F18 = [
 ]
 
 # Closure solver: compute d_F2_F5 and d_F18_F1 so the chain closes.
-_R_a1 = CORNER_NE_R
+_R_a1 = CORNER_SW_R
 _dE_18, _dN_18, _brg_18 = _chain_offset(_CHAIN_F5_TO_F18, start_brg=0.0)
 _d_F18_F1 = (_R_a1 - _dE_18) / math.sin(_brg_18)
 _F1_N_rel = _dN_18 + _d_F18_F1 * math.cos(_brg_18)
 _d_F2_F5 = -(_F1_N_rel + _R_a1)
 
 # F2 position: east face at E = -18'6", F1.N = -13'6" exactly.
-# F2.N derived from F1.N + CORNER_NE_R (F1→F2 is 90° CW arc of radius R_a1).
+# F2.N derived from F1.N + CORNER_SW_R (F1→F2 is 90° CW arc of radius R_a1).
 F2_E = -18.5                     # -18'6" east face easting
-F2_N = -13.5 + CORNER_NE_R      # F1.N + R_a1
+F2_N = -13.5 + CORNER_SW_R      # F1.N + R_a1
 F2_BRG = 0.0                     # bearing 0 (due north)
 
 # Full outline chain: F2→F5 + F5→F18 + F18→F1 + F1→F2 arc = 18 entries.

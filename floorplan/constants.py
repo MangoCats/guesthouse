@@ -132,12 +132,12 @@ IW6_RO_OFFSET_W = 3.0 / 12.0      # 3" west of IW2 west face
 IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
 
 # Outer-wall openings (numbered CW around outline)
-# O1 (F2-F5 east wall, centered at RO3 normal projection)
+# O1 (F2-F5 west wall, centered at RO3 normal projection)
 O1_WIDTH = 19.0 / 12.0             # 19" opening height
 # O2 (F2-F5, centered at RO4 northing center)
 O2_WIDTH = 19.0 / 12.0             # 19" opening width
 # O3 (F2-F5, 4" from F5)
-O3_GAP_F5 = 4.0 / 12.0             # 4" from F5 along F5-F2 line
+O3_GAP_F5 = 8.0 / 12.0             # 8" from F5 along F5-F2 line
 O3_WIDTH = 32.0 / 12.0             # 32" opening width
 O3_DOOR_WIDTH = 30.0 / 12.0        # 30" door in O3
 # O4 (F6-F7, relative to IW2 west face)
@@ -187,7 +187,7 @@ BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W18-W1
 IW5_S_OFFSET_FROM_IW1 = 30.0 / 12.0      # 30" from IW1 S face to IW5 S face
 
 # Outline geometry constraints
-CORNER_NE_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: NE corner (10" at 8" wall)
+CORNER_SW_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: SW corner (10" at 8" wall)
 F11AB_TARGET = 1.0                 # 1'0" target F11a-F11b distance
 IW1_OFFSET_FROM_W9 = 11.0              # 11'0" from W9, CW-normal to W9-W10
 

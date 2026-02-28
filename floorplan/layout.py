@@ -245,7 +245,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     iw2o_ne = (_iw2s_s_mid[0] + _half_t * _iw2o_perp[0],
                _iw2s_s_mid[1] + _half_t * _iw2o_perp[1])
 
-    # --- Dryer (aligned to new W2-W5 east wall) ---
+    # --- Dryer (aligned to W2-W5 west wall) ---
     _dryer_sw = line_isect(
         _offset(pts["W2"], APPLIANCE_OFFSET_FROM_W2, _w2w5_in), _w2w5_al,
         _offset(pts["W1"], APPLIANCE_OFFSET_FROM_W1, _w2w5_al), _w9w10_al)
@@ -253,13 +253,13 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
     _dryer_nw = _offset(_dryer_sw, APPLIANCE_DEPTH, _w2w5_al)
     _dryer_ne = _offset(_dryer_se, APPLIANCE_DEPTH, _w2w5_al)
 
-    # --- Washer (aligned to new W2-W5 east wall) ---
+    # --- Washer (aligned to W2-W5 west wall) ---
     _washer_sw = _offset(_dryer_nw, APPLIANCE_GAP, _w2w5_al)
     _washer_se = _offset(_washer_sw, APPLIANCE_WIDTH, _w2w5_in)
     _washer_nw = _offset(_washer_sw, APPLIANCE_DEPTH, _w2w5_al)
     _washer_ne = _offset(_washer_se, APPLIANCE_DEPTH, _w2w5_al)
 
-    # --- Counter (aligned to new W2-W5 east wall) ---
+    # --- Counter (aligned to W2-W5 west wall) ---
     _ctr_sw_anchor = _offset(_dryer_se, COUNTER_GAP, _w2w5_in)
     _ctr_se_anchor = _offset(_ctr_sw_anchor, COUNTER_DEPTH, _w2w5_in)
     ctr_sw = line_isect(_ctr_sw_anchor, _w2w5_al, pts["W1"], _w9w10_al)
