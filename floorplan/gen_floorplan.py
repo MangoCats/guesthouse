@@ -1428,8 +1428,8 @@ def _render_plumbing_path(out, data, layout):
     _wh_d2 = _wh_d[0] ** 2 + _wh_d[1] ** 2
     _wh_t = -_wh_d_al + math.sqrt(_wh_tan_r ** 2 - _wh_d2 + _wh_d_al ** 2)
     _wh_ctr = offset_pt(_wh_ref, _wh_t, _iw2s_e_al)
-    # Point on blue IW2s segment at WH center northing
-    _wh_bl = line_isect(_iw2s_anchor, _iw2s_w_al, (0, _wh_ctr[1]), (1, 0))
+    # Point on blue W9-W10 segment at WH center easting
+    _wh_bl = line_isect(_w9_inset, w9w10_al_k, (_wh_ctr[0], 0), (0, 1))
     _wh_bl_n = (_wh_bl[0], _wh_bl[1] + 1.0)  # 12" north
     _wbs = to_svg(*_wh_bl)
     _wbn = to_svg(*_wh_bl_n)
