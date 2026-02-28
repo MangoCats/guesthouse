@@ -1326,16 +1326,24 @@ def _render_appliances(out, data, layout, minik=False, db=False):
                 poly = [_sw, _se, _ne, _nw]
         link = minik_appl_links.get(label) if _small_wd else None
         _appl_poly(out, poly, to_svg, label=label, href=link, close_href=False)
-        # Door: hinged at SE corner, swings shut on NE corner
-        _hinge = poly[1]  # SE corner
+        # Door swing
         _door_len = math.sqrt((poly[3][0] - poly[0][0])**2 + (poly[3][1] - poly[0][1])**2)
+        if label == "DRYER":
+            # Hinged at SE corner, swings shut on NE corner
+            _hinge = poly[1]  # SE
+            _tip = offset_pt(_hinge, _door_len, w2w5_in)
+            _arc_end = w2w5_al
+        else:
+            # Hinged at NE corner, swings from inward to -along
+            _hinge = poly[2]  # NE
+            _tip = offset_pt(_hinge, _door_len, w2w5_in)
+            _arc_end = (-w2w5_al[0], -w2w5_al[1])
         _hx, _hy = to_svg(*_hinge)
-        _tip = offset_pt(_hinge, _door_len, w2w5_in)
         _tx, _ty = to_svg(*_tip)
         out.append(f'<line x1="{_hx:.1f}" y1="{_hy:.1f}" x2="{_tx:.1f}" y2="{_ty:.1f}"'
                    f' stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         _arc_pts = _swing_arc_svg(_hinge, _door_len, w2w5_in,
-                                   w2w5_al, to_svg)
+                                   _arc_end, to_svg)
         out.append(f'<polyline points="{_arc_pts}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         if link:
