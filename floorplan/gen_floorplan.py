@@ -248,42 +248,42 @@ def draw_sink(out, center_e, center_n, to_svg):
 
 
 def draw_bath_sink(out, anchor_e, anchor_n, al_vec, out_vec, to_svg):
-    """Draw bath sink: D-shape (Tripoli wall-mount, 33-7/8 x 18-3/4).
+    """Draw bath sink (Tripoli wall-mount, 33-7/8 x 18-3/4).
 
-    Flat south edge at anchor (flush with wall), rounded north edge.
-    anchor: midpoint of flat edge on the wall face.
+    Rectangle with semicircular bulge from central 50% of north edge.
+    anchor: midpoint of flat south edge on the wall face.
     al_vec: unit vector along wall (east-ish).
     out_vec: unit vector away from wall into room (north-ish).
     """
     half_len = BATH_SINK_LENGTH / 2
-    depth = BATH_SINK_DEPTH
-    # Build polygon: SE corner, flat edge to SW corner, half-ellipse back to SE
+    quarter_len = BATH_SINK_LENGTH / 4   # arc chord half-width = arc radius
+    rect_depth = BATH_SINK_DEPTH - quarter_len  # rectangle depth
+
+    def _pt(along, outward):
+        return (anchor_e + along * al_vec[0] + outward * out_vec[0],
+                anchor_n + along * al_vec[1] + outward * out_vec[1])
+
     pts_poly = []
-    # SE corner (east end of flat edge)
-    pts_poly.append((anchor_e + half_len * al_vec[0],
-                     anchor_n + half_len * al_vec[1]))
-    # SW corner (west end of flat edge)
-    pts_poly.append((anchor_e - half_len * al_vec[0],
-                     anchor_n - half_len * al_vec[1]))
-    # Half-ellipse from SW to SE, curving in out_vec direction
+    pts_poly.append(_pt(half_len, 0))            # SE (on wall face)
+    pts_poly.append(_pt(-half_len, 0))           # SW (on wall face)
+    pts_poly.append(_pt(-half_len, rect_depth))  # NW (rect top, west end)
+    # Semicircle from central 50% of north edge, bulging into room
     n_arc = 32
-    for i in range(1, n_arc):
-        t = math.pi * i / n_arc
-        along = -math.cos(t) * half_len
-        outward = math.sin(t) * depth
-        pts_poly.append((anchor_e + along * al_vec[0] + outward * out_vec[0],
-                         anchor_n + along * al_vec[1] + outward * out_vec[1]))
+    for i in range(n_arc + 1):
+        t = math.pi - math.pi * i / n_arc
+        pts_poly.append(_pt(math.cos(t) * quarter_len,
+                            rect_depth + math.sin(t) * quarter_len))
+    pts_poly.append(_pt(half_len, rect_depth))   # NE (rect top, east end)
     svg_pts = " ".join(f"{to_svg(e, n)[0]:.1f},{to_svg(e, n)[1]:.1f}"
                        for e, n in pts_poly)
     _url = ("https://www.magnushomeproducts.com/products/tripoli-vitreous"
             "-china-wall-mount-bathroom-sink")
-    cx, cy = to_svg(anchor_e, anchor_n)
     out.append(f'<a href="{_url}" target="_blank">')
     out.append(f'<polygon points="{svg_pts}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    # Label centered in the D-shape (offset into room by ~1/3 depth)
-    lx = cx + (depth / 3) * (to_svg(out_vec[0], out_vec[1])[0] - to_svg(0, 0)[0])
-    ly = cy + (depth / 3) * (to_svg(out_vec[0], out_vec[1])[1] - to_svg(0, 0)[1])
+    # Label centered in the rectangular portion
+    lbl_e, lbl_n = _pt(0, rect_depth / 2)
+    lx, ly = to_svg(lbl_e, lbl_n)
     out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
                f' dominant-baseline="central" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">SINK</text>')
