@@ -1334,8 +1334,8 @@ def _render_plumbing_path(out, data, layout):
                f' stroke="#228B22" stroke-width="{sw_svg:.1f}"'
                f' stroke-linejoin="round" stroke-linecap="butt"/>')
 
-    # Gradient fade: wp4 → wp5
-    out.append(f'<line x1="{s4[0]:.1f}" y1="{s4[1]:.1f}"'
+    # Gradient fade: wp4 → wp5 (overlap 1px to avoid antialiasing seam)
+    out.append(f'<line x1="{s4[0] - 1:.1f}" y1="{s4[1]:.1f}"'
                f' x2="{s5[0]:.1f}" y2="{s5[1]:.1f}"'
                f' stroke="url(#plumb_fade)" stroke-width="{sw_svg:.1f}"'
                f' stroke-linecap="butt"/>')
