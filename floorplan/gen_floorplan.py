@@ -3413,6 +3413,73 @@ def _render_sf_extras(out, data, layout):
                f' stroke="#666" stroke-width="0.7" stroke-dasharray="4,3"/>')
 
 
+def _render_supplies_table(out, data):
+    """Render the plumbing supplies table below the title block."""
+    tbl_left = data.tb_left
+    tbl_top = data.tb_bottom + 12
+    row_h = 7.5
+    clr = "#333"
+    check = "&#x2713;"
+
+    rows = [
+        # (fixture,  cold, hot, drain)
+        ("WASHER",       True, True, True),
+        ("TOILET1",      True, True, True),
+        ("TOILET2",      True, True, True),
+        ("UTIL SINK",    True, True, True),
+        ("BATH SINK",    True, True, True),
+        ("FRIDGE",       True, False, False),
+        ("SHOWER",       True, True, True),
+        ("KITCHEN SINK", True, True, True),
+        ("DISHWASHER",   True, True, True),
+        ("ICE",          True, False, False),
+    ]
+
+    col_r = [tbl_left + 62, tbl_left + 80, tbl_left + 95, tbl_left + 112]
+
+    # Table title
+    out.append(f'<text x="{(tbl_left + col_r[-1]) / 2:.1f}" y="{tbl_top:.1f}"'
+               f' text-anchor="middle" font-family="Arial" font-size="7"'
+               f' font-weight="bold" fill="{clr}">Supplies</text>')
+
+    # Column headers
+    hdr_y = tbl_top + 10
+    hdrs = ["Fixture", "Cold", "Hot", "Drain"]
+    hdr_x = [tbl_left + 2, (col_r[0] + col_r[1]) / 2,
+             (col_r[1] + col_r[2]) / 2, (col_r[2] + col_r[3]) / 2]
+    hdr_a = ["start", "middle", "middle", "middle"]
+    for hx, ha, hd in zip(hdr_x, hdr_a, hdrs):
+        out.append(f'<text x="{hx:.1f}" y="{hdr_y:.1f}"'
+                   f' text-anchor="{ha}" font-family="Arial" font-size="6"'
+                   f' font-weight="bold" fill="{clr}">{hd}</text>')
+
+    # Header underline
+    line_y = hdr_y + 2.5
+    out.append(f'<line x1="{tbl_left:.1f}" y1="{line_y:.1f}"'
+               f' x2="{col_r[-1]:.1f}" y2="{line_y:.1f}"'
+               f' stroke="#999" stroke-width="0.5"/>')
+
+    # Data rows
+    for ri, (fixture, cold, hot, drain) in enumerate(rows):
+        y = line_y + (ri + 1) * row_h
+        vals = [fixture,
+                check if cold else "",
+                check if hot else "",
+                check if drain else ""]
+        for vx, va, vv in zip(hdr_x, hdr_a, vals):
+            out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
+                       f' text-anchor="{va}" font-family="Arial"'
+                       f' font-size="6" fill="{clr}">{vv}</text>')
+
+    # Table border
+    border_top = tbl_top - 8.5
+    border_bottom = line_y + len(rows) * row_h + 3
+    out.append(f'<rect x="{tbl_left:.1f}" y="{border_top:.1f}"'
+               f' width="{col_r[-1] - tbl_left:.1f}"'
+               f' height="{border_bottom - border_top:.1f}"'
+               f' fill="none" stroke="#999" stroke-width="0.5"/>')
+
+
 def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False, sf=False, plumbing=False):
     """Render the complete floorplan SVG. Returns SVG string.
 
@@ -3458,6 +3525,8 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
 
     inner_area = data.inner_area - compute_iw_area(layout)
     _render_title_block(out, data, inner_area)
+    if plumbing:
+        _render_supplies_table(out, data)
     out.append('</svg>')
 
     return "\n".join(out)
