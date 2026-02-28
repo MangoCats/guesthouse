@@ -13,7 +13,7 @@ from typing import NamedTuple
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from shared.types import LineSeg, ArcSeg
-from shared.geometry import fmt_dist, left_norm
+from shared.geometry import fmt_dist, left_norm, segment_polyline
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
 from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import WALL_OUTER
@@ -694,11 +694,47 @@ def _render_title_block(out, data):
                f' fill="#999">{SHELL_THICKNESS*12:.0f}&#8243; shell / {AIR_GAP*12:.0f}&#8243; gap / {SHELL_THICKNESS*12:.0f}&#8243; shell</text>')
 
 
+def _compute_slope_wall_area(pts, outline_segs, inner_segs):
+    """Compute total wall face area from 80" up to the 2:12 roof bottom.
+
+    The 2:12 roof rises 2" per foot of northing from a reference elevation
+    of 7'6" (90") at F18 northing (-13.5 ft).  Height above 80" at northing y:
+        h(y) = 2*y + 37 inches
+
+    Returns total slope area in sq ft (outer F-series + inner W-series faces).
+    """
+    # Roof slope: 2" rise per foot of northing
+    # At F18 northing (-13.5 ft): roof bottom = 90" (7'6")
+    # h_above_80(y) = 2*y + 37 inches
+    def _h(y):
+        return 2.0 * y + 37.0  # inches above 80" at northing y (feet)
+
+    def _seg_slope_area(segs):
+        """Sum trapezoidal slope area for a list of segments."""
+        total = 0.0
+        for seg in segs:
+            poly = segment_polyline(seg, pts)
+            for i in range(len(poly) - 1):
+                p1, p2 = poly[i], poly[i + 1]
+                dx = p2[0] - p1[0]
+                dy = p2[1] - p1[1]
+                seg_len_ft = math.sqrt(dx * dx + dy * dy)
+                h1 = _h(p1[1])
+                h2 = _h(p2[1])
+                # Trapezoidal area: length_ft * avg_height_in / 12 → sq ft
+                total += seg_len_ft * (h1 + h2) / 2.0 / 12.0
+        return total
+
+    outer_area = _seg_slope_area(outline_segs)
+    inner_area = _seg_slope_area(inner_segs)
+    return outer_area + inner_area
+
+
 def compute_wall_table_rows(pts, outline_segs, openings):
     """Compute wall segment measurements for the wall table.
 
-    Returns a list of (label, outer_inches, inner_inches, shell_inches) tuples,
-    one per wall section, rotated so O11-O1 comes first.
+    Returns a list of (label, outer_inches, inner_inches, shell_inches,
+    area_2_12_sqft) tuples, one per wall section, rotated so O11-O1 first.
     """
     shell_t = SHELL_THICKNESS
     R_in = OPENING_INSIDE_RADIUS
@@ -732,7 +768,11 @@ def compute_wall_table_rows(pts, outline_segs, openings):
             WALL_OUTER - shell_t / 2)
         shell_ft = (outer_cl_ft - 2 * R_out) + (inner_cl_ft - 2 * R_out) + 2 * uturn_cl
 
-        rows.append((label, outer_ft * 12, inner_ft * 12, shell_ft * 12))
+        outer_in = outer_ft * 12
+        inner_in = inner_ft * 12
+        # 2:12 area: both faces × 80" height, converted to sq ft
+        area_2_12 = (outer_in + inner_in) * 80.0 / 144.0
+        rows.append((label, outer_in, inner_in, shell_ft * 12, area_2_12))
 
     return rows
 
@@ -741,12 +781,15 @@ def _render_wall_table(out, data):
     """Render the wall segment measurement table. Returns table bottom y."""
     table_rows = compute_wall_table_rows(
         data.pts, data.outline_segs, data.openings)
+    slope_area = _compute_slope_wall_area(
+        data.pts, data.outline_segs, data.inner_segs)
 
     tbl_left = data.tb_left
     tbl_top = data.tb_bottom + 12
     row_h = 7.5
     # Column right-edges (From-To is left-aligned, others right-aligned)
-    col_r = [tbl_left + 32, tbl_left + 62, tbl_left + 92, tbl_left + 128]
+    col_r = [tbl_left + 32, tbl_left + 62, tbl_left + 92,
+             tbl_left + 128, tbl_left + 168]
 
     # Table title
     out.append(f'<text x="{(tbl_left + col_r[-1]) / 2:.1f}" y="{tbl_top:.1f}"'
@@ -755,9 +798,11 @@ def _render_wall_table(out, data):
 
     # Column headers
     hdr_y = tbl_top + 10
-    hdrs = ["From&#8211;To", "Outer (in)", "Inner (in)", "Shell (in)"]
-    hdr_x = [tbl_left + 2, col_r[1] - 2, col_r[2] - 2, col_r[3] - 2]
-    hdr_anchor = ["start", "end", "end", "end"]
+    hdrs = ["From&#8211;To", "Outer (in)", "Inner (in)", "Shell (in)",
+            "2:12 area"]
+    hdr_x = [tbl_left + 2, col_r[1] - 2, col_r[2] - 2, col_r[3] - 2,
+             col_r[4] - 2]
+    hdr_anchor = ["start", "end", "end", "end", "end"]
     for hx, ha, hd in zip(hdr_x, hdr_anchor, hdrs):
         out.append(f'<text x="{hx:.1f}" y="{hdr_y:.1f}"'
                    f' text-anchor="{ha}" font-family="Arial" font-size="6"'
@@ -770,24 +815,36 @@ def _render_wall_table(out, data):
                f' stroke="#999" stroke-width="0.5"/>')
 
     # Data rows
-    for ri, (label, o_in, i_in, s_in) in enumerate(table_rows):
+    for ri, (label, o_in, i_in, s_in, a_sqft) in enumerate(table_rows):
         y = line_y + (ri + 1) * row_h
-        vals = [label, f"{o_in:.2f}", f"{i_in:.2f}", f"{s_in:.2f}"]
+        vals = [label, f"{o_in:.2f}", f"{i_in:.2f}", f"{s_in:.2f}",
+                f"{a_sqft:.1f}"]
         for vx, va, vv in zip(hdr_x, hdr_anchor, vals):
             out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
                        f' text-anchor="{va}" font-family="Arial"'
                        f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
 
+    # Slope wall row
+    slope_y = line_y + (len(table_rows) + 1) * row_h
+    slope_vals = ["Slope wall", "", "", "", f"{slope_area:.1f}"]
+    for vx, va, vv in zip(hdr_x, hdr_anchor, slope_vals):
+        if vv:
+            out.append(f'<text x="{vx:.1f}" y="{slope_y:.1f}"'
+                       f' text-anchor="{va}" font-family="Arial"'
+                       f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
+
     # Total row (separated by a line)
-    total_line_y = line_y + len(table_rows) * row_h + 2
+    total_line_y = slope_y + 2
     out.append(f'<line x1="{tbl_left:.1f}" y1="{total_line_y:.1f}"'
                f' x2="{col_r[-1]:.1f}" y2="{total_line_y:.1f}"'
                f' stroke="#999" stroke-width="0.5"/>')
     tot_o = sum(r[1] for r in table_rows)
     tot_i = sum(r[2] for r in table_rows)
     tot_s = sum(r[3] for r in table_rows)
+    tot_a = sum(r[4] for r in table_rows) + slope_area
     tot_y = total_line_y + row_h
-    tot_vals = ["Total", f"{tot_o:.1f}", f"{tot_i:.1f}", f"{tot_s:.1f}"]
+    tot_vals = ["Total", f"{tot_o:.1f}", f"{tot_i:.1f}", f"{tot_s:.1f}",
+                f"{tot_a:.1f}"]
     for vx, va, vv in zip(hdr_x, hdr_anchor, tot_vals):
         out.append(f'<text x="{vx:.1f}" y="{tot_y:.1f}"'
                    f' text-anchor="{va}" font-family="Arial"'
@@ -795,11 +852,13 @@ def _render_wall_table(out, data):
 
     # "in feet" row
     ft_y = tot_y + row_h
-    ft_vals = ["in feet", f"{tot_o / 12:.1f}", f"{tot_i / 12:.1f}", f"{tot_s / 12:.1f}"]
+    ft_vals = ["in feet", f"{tot_o / 12:.1f}", f"{tot_i / 12:.1f}",
+               f"{tot_s / 12:.1f}", ""]
     for vx, va, vv in zip(hdr_x, hdr_anchor, ft_vals):
-        out.append(f'<text x="{vx:.1f}" y="{ft_y:.1f}"'
-                   f' text-anchor="{va}" font-family="Arial"'
-                   f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
+        if vv:
+            out.append(f'<text x="{vx:.1f}" y="{ft_y:.1f}"'
+                       f' text-anchor="{va}" font-family="Arial"'
+                       f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
 
     # Table border
     tbl_border_top = tbl_top - 8.5
