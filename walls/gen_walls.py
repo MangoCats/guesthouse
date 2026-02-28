@@ -884,10 +884,12 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
     tbl_left = data.tb_left
 
     rough_openings = compute_rough_openings(pts, layout)
-    # Map IW name → list of RO names
+    # Map IW name → list of "RO# width" strings
     ro_by_wall: dict[str, list[str]] = {}
     for ro in rough_openings:
-        ro_by_wall.setdefault(ro.wall_name, []).append(ro.name)
+        w_in = ro.width * 12
+        w_str = f"{w_in:.2f}".rstrip("0").rstrip(".")
+        ro_by_wall.setdefault(ro.wall_name, []).append(f"{ro.name} {w_str}&#8243;")
 
     def _poly_len(poly):
         """Length of longest edge of a 4-point polygon (the wall length)."""

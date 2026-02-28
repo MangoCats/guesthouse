@@ -38,6 +38,7 @@ class RoughOpening(NamedTuple):
     bbox: BBox           # w, s, e, n in survey coords (axis-aligned BB)
     wall_name: str       # "IW1", "IW2", etc.
     orientation: str     # "H", "V", or "R" (rotated)
+    width: float         # opening width in feet
     poly: list[Point] | None = None  # [SW, SE, NE, NW] for rotated openings
 
 
@@ -308,13 +309,13 @@ def compute_rough_openings(pts: dict[str, Point], layout) -> list[RoughOpening]:
     _ro5_bb = bbox_from_points(_ro5_poly)
 
     return [
-        RoughOpening("RO1", _ro1_bb, "IW1", "H", _ro1_poly),
-        RoughOpening("RO2", _ro2_bb, "IW11", "R", _ro2_poly),
-        RoughOpening("RO3", _ro3_bb, "IW9", "R", _ro3_poly),
-        RoughOpening("RO4", _ro4_bb, "IW2o", "R", _ro4_poly),
-        RoughOpening("RO5", _ro5_bb, "IW6", "H", _ro5_poly),
-        RoughOpening("RO6", _ro6_bb, "IW11", "R", _ro6_poly),
-        RoughOpening("RO7", _ro7_bb, "IW9", "R", _ro7_poly),
+        RoughOpening("RO1", _ro1_bb, "IW1", "H", IW1_RO_WIDTH, _ro1_poly),
+        RoughOpening("RO2", _ro2_bb, "IW11", "R", IW4_RO_WIDTH, _ro2_poly),
+        RoughOpening("RO3", _ro3_bb, "IW9", "R", RO3_WIDTH, _ro3_poly),
+        RoughOpening("RO4", _ro4_bb, "IW2o", "R", IW2_RO_WIDTH, _ro4_poly),
+        RoughOpening("RO5", _ro5_bb, "IW6", "H", IW6_RO_WIDTH, _ro5_poly),
+        RoughOpening("RO6", _ro6_bb, "IW11", "R", IW11_RO_WIDTH, _ro6_poly),
+        RoughOpening("RO7", _ro7_bb, "IW9", "R", IW9_RO_WIDTH, _ro7_poly),
     ]
 
 
