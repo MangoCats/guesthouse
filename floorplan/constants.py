@@ -63,9 +63,13 @@ WH_RADIUS = 14.0 / 12.0           # 14" radius (28" diameter)
 TOILET_WIDTH = 15.0 / 12.0        # 15"
 TOILET_TANK_DEPTH = 8.0 / 12.0    # 8" tank
 
-# Sink (plan view, rectangle half-dimensions — 24" Petten console)
+# UTIL sink (plan view, rectangle half-dimensions — 24" Petten console)
 SINK_RX = 11.8125 / 12.0          # 11-13/16" half-width (23-5/8" total)
 SINK_RY = 8.25 / 12.0             # 8-1/4" half-depth (16-1/2" total)
+
+# BATH sink (plan view, D-shape — Tripoli wall-mount, flat back + rounded front)
+BATH_SINK_LENGTH = 33.875 / 12.0  # 33-7/8" along wall
+BATH_SINK_DEPTH = 18.75 / 12.0    # 18-3/4" front-to-back
 
 # Kitchen appliances (feet)
 KITCHEN_SINK_WIDTH = 45.0 / 12.0   # 45" E-W

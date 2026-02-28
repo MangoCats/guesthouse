@@ -21,7 +21,7 @@ from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
 from floorplan.constants import (
     WALL_OUTER, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
     WH_RADIUS,
-    SINK_RX, SINK_RY,
+    SINK_RX, SINK_RY, BATH_SINK_LENGTH, BATH_SINK_DEPTH,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
     FRIDGE_SIZE, MINIK_FRIDGE_W, MINIK_FRIDGE_D,
@@ -243,6 +243,49 @@ def draw_sink(out, center_e, center_n, to_svg):
     out.append(f'<rect x="{x0:.1f}" y="{y0:.1f}" width="{2*rx_svg:.1f}" height="{2*ry_svg:.1f}"'
                f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
     out.append(f'<text x="{sx:.1f}" y="{sy+3:.1f}" text-anchor="middle" font-family="Arial"'
+               f' font-size="7" fill="{APPL_STROKE}">SINK</text>')
+    out.append('</a>')
+
+
+def draw_bath_sink(out, anchor_e, anchor_n, al_vec, out_vec, to_svg):
+    """Draw bath sink: D-shape (Tripoli wall-mount, 33-7/8 x 18-3/4).
+
+    Flat south edge at anchor (flush with wall), rounded north edge.
+    anchor: midpoint of flat edge on the wall face.
+    al_vec: unit vector along wall (east-ish).
+    out_vec: unit vector away from wall into room (north-ish).
+    """
+    half_len = BATH_SINK_LENGTH / 2
+    depth = BATH_SINK_DEPTH
+    # Build polygon: SE corner, flat edge to SW corner, half-ellipse back to SE
+    pts_poly = []
+    # SE corner (east end of flat edge)
+    pts_poly.append((anchor_e + half_len * al_vec[0],
+                     anchor_n + half_len * al_vec[1]))
+    # SW corner (west end of flat edge)
+    pts_poly.append((anchor_e - half_len * al_vec[0],
+                     anchor_n - half_len * al_vec[1]))
+    # Half-ellipse from SW to SE, curving in out_vec direction
+    n_arc = 32
+    for i in range(1, n_arc):
+        t = math.pi * i / n_arc
+        along = -math.cos(t) * half_len
+        outward = math.sin(t) * depth
+        pts_poly.append((anchor_e + along * al_vec[0] + outward * out_vec[0],
+                         anchor_n + along * al_vec[1] + outward * out_vec[1]))
+    svg_pts = " ".join(f"{to_svg(e, n)[0]:.1f},{to_svg(e, n)[1]:.1f}"
+                       for e, n in pts_poly)
+    _url = ("https://www.magnushomeproducts.com/products/tripoli-vitreous"
+            "-china-wall-mount-bathroom-sink")
+    cx, cy = to_svg(anchor_e, anchor_n)
+    out.append(f'<a href="{_url}" target="_blank">')
+    out.append(f'<polygon points="{svg_pts}"'
+               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+    # Label centered in the D-shape (offset into room by ~1/3 depth)
+    lx = cx + (depth / 3) * (to_svg(out_vec[0], out_vec[1])[0] - to_svg(0, 0)[0])
+    ly = cy + (depth / 3) * (to_svg(out_vec[0], out_vec[1])[1] - to_svg(0, 0)[1])
+    out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
+               f' dominant-baseline="central" font-family="Arial"'
                f' font-size="7" fill="{APPL_STROKE}">SINK</text>')
     out.append('</a>')
 
@@ -1376,11 +1419,15 @@ def _render_appliances(out, data, layout, minik=False, db=False):
                       (_dryer_cy - _iw8_n_ref[1]) * _iw8_al[1])
     _toilet_n = offset_pt(_iw8_n_ref, _d_toilet_n_al, _iw8_al)
     draw_toilet(out, _toilet_n, _iw8_out, _iw8_al, to_svg)
-    _d_sink_n_al = ((_sink_mid[0] - _iw8_n_ref[0]) * _iw8_al[0] +
-                    (_sink_mid[1] - _iw8_n_ref[1]) * _iw8_al[1])
-    _sink_n_face = offset_pt(_iw8_n_ref, _d_sink_n_al, _iw8_al)
-    _sk_n = offset_pt(_sink_n_face, SINK_RY, _iw8_out)
-    draw_sink(out, _sk_n[0], _sk_n[1], to_svg=to_svg)
+    # BATH sink: east end 9" from IW2 west face, flat side flush with IW8 north face
+    _iw2_w = layout.iw2.poly[0]  # SW corner of IW2 west face
+    _d_iw2_al = ((_iw2_w[0] - _iw8_n_ref[0]) * _iw8_al[0] +
+                 (_iw2_w[1] - _iw8_n_ref[1]) * _iw8_al[1])
+    _bath_sink_east_d = _d_iw2_al - 9.0 / 12.0
+    _bath_sink_ctr_d = _bath_sink_east_d - BATH_SINK_LENGTH / 2
+    _bath_sink_anchor = offset_pt(_iw8_n_ref, _bath_sink_ctr_d, _iw8_al)
+    draw_bath_sink(out, _bath_sink_anchor[0], _bath_sink_anchor[1],
+                   _iw8_al, _iw8_out, to_svg)
 
 
 def _render_kitchen(out, data, layout, minik=False, db=False):
