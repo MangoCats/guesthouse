@@ -1391,7 +1391,8 @@ def _render_plumbing_path(out, data, layout):
     _dw_d = (_iw2_d + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP +
              STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0 +
              KITCHEN_SINK_WIDTH + KITCHEN_APPL_GAP)
-    bp10 = offset_pt(_w9_inset, _dw_d + DW_WIDTH / 2, w9w10_al_k)
+    _ice_d = _dw_d + DW_WIDTH + 2.0 / 12.0  # ICE west side (db mode)
+    bp10 = offset_pt(_w9_inset, _ice_d, w9w10_al_k)
 
     # Blue line stroke width (1" = 1/12 ft)
     bw_svg = abs(to_svg(1.0 / 12.0, 0)[0] - to_svg(0, 0)[0])
