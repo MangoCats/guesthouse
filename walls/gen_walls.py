@@ -798,8 +798,7 @@ def _render_wall_table(out, data):
 
     # Column headers
     hdr_y = tbl_top + 10
-    hdrs = ["From&#8211;To", "Outer (in)", "Inner (in)", "Shell (in)",
-            "2:12 area (sq ft)"]
+    hdrs = ["From&#8211;To", "Outer (in)", "Inner (in)", "Shell (in)"]
     hdr_x = [tbl_left + 2, col_r[1] - 2, col_r[2] - 2, col_r[3] - 2,
              col_r[4] - 2]
     hdr_anchor = ["start", "end", "end", "end", "end"]
@@ -807,6 +806,13 @@ def _render_wall_table(out, data):
         out.append(f'<text x="{hx:.1f}" y="{hdr_y:.1f}"'
                    f' text-anchor="{ha}" font-family="Arial" font-size="6"'
                    f' font-weight="bold" fill="{CLR_TITLE}">{hd}</text>')
+    # 2:12 area header — two lines: "2:12 area" at title level, "(sq ft)" at hdr level
+    out.append(f'<text x="{hdr_x[4]:.1f}" y="{tbl_top:.1f}"'
+               f' text-anchor="end" font-family="Arial" font-size="6"'
+               f' font-weight="bold" fill="{CLR_TITLE}">2:12 area</text>')
+    out.append(f'<text x="{hdr_x[4]:.1f}" y="{hdr_y:.1f}"'
+               f' text-anchor="end" font-family="Arial" font-size="6"'
+               f' font-weight="bold" fill="{CLR_TITLE}">(sq ft)</text>')
 
     # Header underline
     line_y = hdr_y + 2.5
