@@ -1344,7 +1344,7 @@ def _render_plumbing_path(out, data, layout):
     _lx = s5[0] + 4
     _ly = s5[1] + 3
     out.append(f'<text x="{_lx:.1f}" y="{_ly:.1f}" font-family="Arial"'
-               f' font-size="8" fill="#228B22">from Well</text>')
+               f' font-size="8" fill="#1E90FF">from Well</text>')
 
     # --- Blue water supply line (1" thick) ---
     g = 1.5 / 12.0  # 1.5" offset from wall faces
@@ -1402,6 +1402,20 @@ def _render_plumbing_path(out, data, layout):
     out.append(f'<polyline points="{blue_svg}" fill="none"'
                f' stroke="#1E90FF" stroke-width="{bw_svg:.1f}"'
                f' stroke-linejoin="round" stroke-linecap="round"/>')
+
+    # Blue gradient fade from bp1 east to "from Well" label
+    _bp1_svg = to_svg(*bp1)
+    out.append('<defs>')
+    out.append(f'  <linearGradient id="blue_fade" x1="{_bp1_svg[0]:.2f}" y1="{_bp1_svg[1]:.2f}"'
+               f' x2="{_lx:.2f}" y2="{_bp1_svg[1]:.2f}" gradientUnits="userSpaceOnUse">')
+    out.append('    <stop offset="0%" stop-color="#1E90FF" stop-opacity="1"/>')
+    out.append('    <stop offset="100%" stop-color="#1E90FF" stop-opacity="0"/>')
+    out.append('  </linearGradient>')
+    out.append('</defs>')
+    out.append(f'<line x1="{_bp1_svg[0] - 1:.1f}" y1="{_bp1_svg[1]:.1f}"'
+               f' x2="{_lx:.1f}" y2="{_bp1_svg[1]:.1f}"'
+               f' stroke="url(#blue_fade)" stroke-width="{bw_svg:.1f}"'
+               f' stroke-linecap="butt"/>')
 
 
 def _render_appliances(out, data, layout, minik=False, db=False, plumbing=False):
