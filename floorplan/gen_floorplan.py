@@ -438,8 +438,8 @@ def build_floorplan_data():
     _tb_bottom = _tb_top + _tb_h
     _tb_cx = (_tb_left + _tb_right) / 2
 
-    _na_x = _tb_cx
-    _na_text_y = _tb_bottom + 15
+    _na_x = _tb_left - 15
+    _na_text_y = _tb_top + 10
     _na_tip_y = _na_text_y + 6
     _na_base_y = _na_tip_y + 36
 
