@@ -739,15 +739,12 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim10_B", line_isect(layout.iw2s.poly[0], _iw2s_w_al,
                                          pts["F5"], _ew)))
 
-    # ---- dim11: IW5-south → W18 (vertical at O11 center easting) ----
+    # ---- dim11: IW5-south → W18 (vertical at F18 easting) ----
     _iw5_s_al, _ = seg_vecs(layout.iw5.poly[0], layout.iw5.poly[1])
-    _o11 = [o for o in openings if o.name == "O11"][0]
-    _o11_ctr_e = sum(p[0] for p in _o11.poly) / 4
-    _dim11_ref = (_o11_ctr_e, 0)
     result.append(("dim11_A", line_isect(layout.iw5.poly[0], _iw5_s_al,
-                                         _dim11_ref, _ns)))
+                                         pts["F18"], _ns)))
     result.append(("dim11_B", line_isect(pts["W18"], _ew,
-                                         _dim11_ref, _ns)))
+                                         pts["F18"], _ns)))
 
     # ---- dim12: Office verticals ----
     if not bare:
@@ -819,14 +816,16 @@ def compute_dimension_endpoints(pts, layout, radii, bare=False):
     result.append(("dim18_B", line_isect(_iw9_e_mid, _iw9_e_in,
                                          layout.iw11.poly[0], _iw11_w_al)))
 
-    # ---- dim19: O11 inner → IW8-south (vertical) ----
-    _o11 = openings[10]
+    # ---- dim19: O11 center → IW8-south (vertical at O11 center easting) ----
+    _o11 = [o for o in openings if o.name == "O11"][0]
+    _o11_ctr_e = sum(p[0] for p in _o11.poly) / 4
     _o11_ic = ((_o11.poly[2][0] + _o11.poly[3][0]) / 2,
                (_o11.poly[2][1] + _o11.poly[3][1]) / 2)
     _iw8_s_al, _ = seg_vecs(layout.iw8.poly[0], layout.iw8.poly[1])
-    result.append(("dim19_A", _o11_ic))
+    _dim19_ref = (_o11_ctr_e, 0)
+    result.append(("dim19_A", (_o11_ctr_e, _o11_ic[1])))
     result.append(("dim19_B", line_isect(layout.iw8.poly[0], _iw8_s_al,
-                                         _o11_ic, _ns)))
+                                         _dim19_ref, _ns)))
 
     # ---- dim22: IW12-north-mid → IW5-south (rotated, perp to W18-W1) ----
     _iw12_n_mid = ((layout.iw12.poly[2][0] + layout.iw12.poly[3][0]) / 2,
