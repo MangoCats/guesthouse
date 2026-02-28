@@ -1444,6 +1444,41 @@ def _render_plumbing_path(out, data, layout):
                f' stroke="#FF0000" stroke-width="{bw_svg:.1f}"'
                f' stroke-linejoin="round" stroke-linecap="round"/>')
 
+    # --- 2nd red hot water line (bath sink to kitchen sink) ---
+    ghh = g + 2 * h  # total offset from wall faces
+
+    # Bath sink center easting (replicates _render_appliances logic)
+    _iw8_al_p, _ = seg_vecs(iw8.poly[0], iw8.poly[1])
+    _iw8_n_ref = iw8.poly[3]
+    _d_iw2_al_p = ((iw2.poly[0][0] - _iw8_n_ref[0]) * _iw8_al_p[0] +
+                   (iw2.poly[0][1] - _iw8_n_ref[1]) * _iw8_al_p[1])
+    _bath_ctr_d = _d_iw2_al_p - 9.0 / 12.0 - BATH_SINK_LENGTH / 2
+    _bath_anchor = offset_pt(_iw8_n_ref, _bath_ctr_d, _iw8_al_p)
+
+    rr1 = (_bath_anchor[0], iw8.poly[3][1] - ghh)
+    rr2 = (iw2.poly[0][0] + ghh, iw8.poly[3][1] - ghh)
+
+    _iw2_anchor_rr = offset_pt(iw2.poly[0], ghh, _iw2_w_in)
+    _iw2o_anchor_rr = offset_pt(iw2o.poly[1], ghh, _iw2o_in)
+    rr3 = line_isect(_iw2_anchor_rr, _iw2_w_al, _iw2o_anchor_rr, _iw2o_al)
+
+    _iw2s_anchor_rr = offset_pt(iw2s.poly[0], ghh, _iw2s_w_in)
+    rr4 = line_isect(_iw2o_anchor_rr, _iw2o_al, _iw2s_anchor_rr, _iw2s_w_al)
+
+    _w9_inset_rr = offset_pt(pts["W9"], ghh, w9w10_in_k)
+    rr5 = line_isect(_iw2s_anchor_rr, _iw2s_w_al, _w9_inset_rr, w9w10_al_k)
+
+    # Kitchen sink center distance along W9-W10
+    _ks_ctr_d = _dw_d - KITCHEN_APPL_GAP - KITCHEN_SINK_WIDTH / 2
+    rr6 = offset_pt(_w9_inset_rr, _ks_ctr_d, w9w10_al_k)
+
+    red2_pts = [rr1, rr2, rr3, rr4, rr5, rr6]
+    red2_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                        for p in red2_pts)
+    out.append(f'<polyline points="{red2_svg}" fill="none"'
+               f' stroke="#FF0000" stroke-width="{bw_svg:.1f}"'
+               f' stroke-linejoin="round" stroke-linecap="round"/>')
+
 
 def _render_appliances(out, data, layout, minik=False, db=False, plumbing=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
