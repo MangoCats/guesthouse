@@ -323,7 +323,7 @@ def generate():
         lower_section_data.append((label, tpath))
 
     # Window openings: open in middle wall only (not doors O3/O6, not O4)
-    window_names = {"O1", "O2", "O5", "O7", "O8", "O9", "O10", "O11"}
+    window_names = {"O1", "O2", "O5", "O7", "O8", "O8a", "O9", "O10", "O11"}
     window_panels = []
     panel_half = 0.5 / 12.0  # 1" thick panel, half-thickness in feet
     for op in openings:

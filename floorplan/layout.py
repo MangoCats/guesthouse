@@ -10,6 +10,7 @@ from floorplan.constants import (
     APPLIANCE_OFFSET_FROM_W1, APPLIANCE_GAP,
     COUNTER_DEPTH, COUNTER_GAP, COUNTER_LENGTH,
     BED_WIDTH, BED_LENGTH, BED_WALL_GAP,
+    O8A_HALF_WIDTH, O8A_GAP_O9,
     O9_HALF_WIDTH, O10_HALF_WIDTH, O11_HALF_WIDTH,
     O9_OFFSET_IW11, O9_O10_WALL, O10_O11_WALL, BED_GAP_O9,
     IW1_OFFSET_FROM_W9, IW1_OFFSET_FROM_W2,
@@ -90,6 +91,8 @@ class InteriorLayout(NamedTuple):
     shelves: Wall
     bed: Wall
     # South wall opening parametric positions
+    sw_t_o8a_start: float
+    sw_t_o8a_end: float
     sw_t_o9_start: float
     sw_t_o9_end: float
     sw_t_o10_start: float
@@ -129,6 +132,9 @@ def _compute_south_walls(pts, w18w1, w2w5, iw4_sw, iw11_sw, iw11_se,
               + (iw11_sw[1] - pts["F18"][1]) * _dN9) / (_dE9**2 + _dN9**2)
     _ts9 = _t_sw9 + O9_OFFSET_IW11 / _seg9_len
     _te9 = _ts9 + 2 * O9_HALF_WIDTH / _seg9_len
+    # O8a: 48" east of O9 east end, 19" wide
+    _te8a = _ts9 - O8A_GAP_O9 / _seg9_len              # O8a west end
+    _ts8a = _te8a - 2 * O8A_HALF_WIDTH / _seg9_len      # O8a east end
     _bed_t = _te9 + BED_GAP_O9 / _seg_len
     _bed_se_wall = _offset(pts["W18"], _bed_t, (_dE, _dN))
     bed_se = _offset(_bed_se_wall, BED_WALL_GAP, w18w1_in)
@@ -168,7 +174,7 @@ def _compute_south_walls(pts, w18w1, w2w5, iw4_sw, iw11_sw, iw11_se,
         _make_wall([iw9_sw, iw9_se, iw9_ne, iw9_nw]),
         _make_wall([iw3_sw, iw3_se, iw3_ne, iw3_nw]),
         _make_wall([iw7_sw, iw7_se, iw7_ne, iw7_nw]),
-        (_ts9, _te9, _ts10, _te10, _ts11, _te11),
+        (_ts8a, _te8a, _ts9, _te9, _ts10, _te10, _ts11, _te11),
     )
 
 
@@ -294,7 +300,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
 
     # --- Bed, IW9, IW3, IW7 (south wall chain) ---
     (bed, iw9, iw3, iw7,
-     (_ts9, _te9, _ts10, _te10, _ts11, _te11)) = _compute_south_walls(
+     (_ts8a, _te8a, _ts9, _te9, _ts10, _te10, _ts11, _te11)) = _compute_south_walls(
         pts, (_w18w1_al, _w18w1_in), (_w2w5_al, _w2w5_in),
         iw4_sw, iw11_sw, iw11_se, iw1_sw, iw1_se)
     iw3_sw, iw3_nw = iw3.poly[0], iw3.poly[3]
@@ -378,6 +384,7 @@ def compute_interior_layout(pts, inner_poly) -> InteriorLayout:
         dresser=_make_wall([dresser_sw, dresser_se, dresser_ne, dresser_nw]),
         shelves=_make_wall([shelves_sw, shelves_se, shelves_ne, shelves_nw]),
         bed=bed,
+        sw_t_o8a_start=_ts8a, sw_t_o8a_end=_te8a,
         sw_t_o9_start=_ts9, sw_t_o9_end=_te9,
         sw_t_o10_start=_ts10, sw_t_o10_end=_te10,
         sw_t_o11_start=_ts11, sw_t_o11_end=_te11,

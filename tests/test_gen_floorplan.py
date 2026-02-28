@@ -110,8 +110,8 @@ class TestBuildFloorplanData:
         assert len(floorplan_data.s_segs) == 18
         assert len(floorplan_data.g_segs) == 18
 
-    def test_11_openings(self, floorplan_data):
-        assert len(floorplan_data.openings) == 11
+    def test_12_openings(self, floorplan_data):
+        assert len(floorplan_data.openings) == 12
 
 
 class TestRenderFloorplanSvg:
@@ -127,7 +127,7 @@ class TestRenderFloorplanSvg:
         assert "KING BED" in rendered
 
     def test_contains_openings(self, rendered):
-        assert rendered.count('fill="rgb(220,235,255)"') == 9, "Expected 9 opening polygons (11 minus 2 doors)"
+        assert rendered.count('fill="rgb(220,235,255)"') == 10, "Expected 10 opening polygons (12 minus 2 doors)"
 
     def test_iw_area_reduces_inner_area(self, floorplan_data):
         """Interior wall area subtracted from polygon area gives usable floor area."""

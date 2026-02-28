@@ -2634,8 +2634,8 @@ def _render_openings(out, data, layout, bare=False):
     out.append(f'<polyline points="{arc_pts}" fill="none"'
                f' stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
-    # Casement windows: O8, O9, O10 (23" openings, 45° swing, hinged at S-series face)
-    for oname, hinge_idx, close_idx in [("O8", 0, 1), ("O9", 1, 0), ("O10", 0, 1)]:
+    # Casement windows: O8, O8a, O9, O10 (19-25" openings, 45° swing, hinged at S-series face)
+    for oname, hinge_idx, close_idx in [("O8", 0, 1), ("O8a", 1, 0), ("O9", 1, 0), ("O10", 0, 1)]:
         o = [o for o in outer_openings if o.name == oname][0]
         # Inward direction (outer face midpoint toward inner face midpoint)
         _omid = ((o.poly[0][0] + o.poly[1][0]) / 2, (o.poly[0][1] + o.poly[1][1]) / 2)

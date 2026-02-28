@@ -35,9 +35,9 @@ class TestGenerate2in12:
         matches = re.findall(r'^t_lower_O\d+_O\d+ = \[', scad_content, re.M)
         assert len(matches) == 2
 
-    def test_eleven_middle_sections(self, scad_content):
-        matches = re.findall(r'^t_O\d+_O\d+ = \[', scad_content, re.M)
-        assert len(matches) == 11
+    def test_twelve_middle_sections(self, scad_content):
+        matches = re.findall(r'^t_O\w+_O\w+ = \[', scad_content, re.M)
+        assert len(matches) == 12
 
     def test_output_contains_assembly(self, scad_content):
         assert "linear_extrude" in scad_content

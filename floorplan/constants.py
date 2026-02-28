@@ -167,6 +167,9 @@ O7_NW_GAP = 2.0                    # 2' from F12 to NW end
 O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
 # O8 (F14-F15)
 O8_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
+# O8a (F18-F1 south wall, east of O9)
+O8A_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width (19" total)
+O8A_GAP_O9 = 48.0 / 12.0           # 48" from O8a west end to O9 east end
 # O9, O10, O11 (F18-F1 south wall chain)
 O9_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
 O10_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width

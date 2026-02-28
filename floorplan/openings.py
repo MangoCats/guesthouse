@@ -206,9 +206,10 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
          pts["W14"][1] + _t8_end * (pts["W15"][1] - pts["W14"][1])),
     ]))
 
-    # O9, O10, O11: F18-F1 — parametric positions from layout (single source)
+    # O8a, O9, O10, O11: F18-F1 — parametric positions from layout (single source)
     _dE9, _dN9, _ = seg_vec(pts["F18"], pts["F1"])
-    for _name, _ts, _te in [("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
+    for _name, _ts, _te in [("O8a", layout.sw_t_o8a_start, layout.sw_t_o8a_end),
+                             ("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
                              ("O10", layout.sw_t_o10_start, layout.sw_t_o10_end),
                              ("O11", layout.sw_t_o11_start, layout.sw_t_o11_end)]:
         openings.append(OuterOpening(_name, "F18", "F1", [

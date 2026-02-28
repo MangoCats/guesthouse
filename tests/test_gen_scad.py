@@ -227,9 +227,9 @@ class TestTpathStructure:
         matches = re.findall(r'^t_lower_O\d+_O\d+ = \[', scad_content, re.M)
         assert len(matches) == 2
 
-    def test_eleven_middle_sections(self, scad_content):
-        matches = re.findall(r'^t_O\d+_O\d+ = \[', scad_content, re.M)
-        assert len(matches) == 11
+    def test_twelve_middle_sections(self, scad_content):
+        matches = re.findall(r'^t_O\w+_O\w+ = \[', scad_content, re.M)
+        assert len(matches) == 12
 
     def test_roof_outline_is_segments(self, scad_content):
         """roof_outline uses [0,...] / [1,...] segment format, not [x,y]."""
@@ -261,7 +261,7 @@ class TestGenerate:
         return generate_scad_content(generate)
 
     def test_output_contains_tpath_data(self, scad_content):
-        # 11 wall sections, each with a T-path variable
+        # 12 wall sections, each with a T-path variable
         assert "t_O11_O1 = [" in scad_content
         assert "t_O1_O2 = [" in scad_content
         assert "t_O10_O11 = [" in scad_content
