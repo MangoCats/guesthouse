@@ -799,7 +799,7 @@ def _render_wall_table(out, data):
     # Column headers
     hdr_y = tbl_top + 10
     hdrs = ["From&#8211;To", "Outer (in)", "Inner (in)", "Shell (in)",
-            "2:12 area"]
+            "2:12 area (sq ft)"]
     hdr_x = [tbl_left + 2, col_r[1] - 2, col_r[2] - 2, col_r[3] - 2,
              col_r[4] - 2]
     hdr_anchor = ["start", "end", "end", "end", "end"]
@@ -844,21 +844,21 @@ def _render_wall_table(out, data):
     tot_a = sum(r[4] for r in table_rows) + slope_area
     tot_y = total_line_y + row_h
     tot_vals = ["Total", f"{tot_o:.1f}", f"{tot_i:.1f}", f"{tot_s:.1f}",
-                f"{tot_a:.1f}"]
+                ""]
     for vx, va, vv in zip(hdr_x, hdr_anchor, tot_vals):
-        out.append(f'<text x="{vx:.1f}" y="{tot_y:.1f}"'
-                   f' text-anchor="{va}" font-family="Arial"'
-                   f' font-size="6" font-weight="bold" fill="{CLR_TITLE}">{vv}</text>')
+        if vv:
+            out.append(f'<text x="{vx:.1f}" y="{tot_y:.1f}"'
+                       f' text-anchor="{va}" font-family="Arial"'
+                       f' font-size="6" font-weight="bold" fill="{CLR_TITLE}">{vv}</text>')
 
     # "in feet" row
     ft_y = tot_y + row_h
     ft_vals = ["in feet", f"{tot_o / 12:.1f}", f"{tot_i / 12:.1f}",
-               f"{tot_s / 12:.1f}", ""]
+               f"{tot_s / 12:.1f}", f"{tot_a:.1f}"]
     for vx, va, vv in zip(hdr_x, hdr_anchor, ft_vals):
-        if vv:
-            out.append(f'<text x="{vx:.1f}" y="{ft_y:.1f}"'
-                       f' text-anchor="{va}" font-family="Arial"'
-                       f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
+        out.append(f'<text x="{vx:.1f}" y="{ft_y:.1f}"'
+                   f' text-anchor="{va}" font-family="Arial"'
+                   f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
 
     # Table border
     tbl_border_top = tbl_top - 8.5
