@@ -1285,7 +1285,7 @@ def _render_walls(out, data, layout, bare=False):
 
 
 
-def _render_appliances(out, data, layout, minik=False, db=False):
+def _render_appliances(out, data, layout, minik=False, db=False, plumbing=False):
     """Render utility room appliances: dryer, washer, counter, water heater, toilets, sinks."""
     pts = data.pts
     to_svg = data.to_svg
@@ -1324,6 +1324,8 @@ def _render_appliances(out, data, layout, minik=False, db=False):
                 _nw = offset_pt(_sw, minik_appl_d, w2w5_al)
                 _ne = offset_pt(_se, minik_appl_d, w2w5_al)
                 poly = [_sw, _se, _ne, _nw]
+        if plumbing and label == "DRYER":
+            continue
         link = minik_appl_links.get(label) if _small_wd else None
         _appl_poly(out, poly, to_svg, label=label, href=link, close_href=False)
         # Door swing
@@ -1350,46 +1352,47 @@ def _render_appliances(out, data, layout, minik=False, db=False):
             out.append('</a>')
     washer_poly = poly  # save last poly for hamper positioning
 
-    # Hamper: 31.5" x 19", 2" along wall from washer, 2" inward from W2-W5
-    hm_ew = 31.5 / 12.0   # width along w2w5_in
-    hm_ns = 19.0 / 12.0   # depth along w2w5_al
-    # Anchor: 2" inward from W2, washer NW + 2" along wall
-    _washer_nw_d = ((washer_poly[3][0] - pts["W2"][0]) * w2w5_al[0] +
-                    (washer_poly[3][1] - pts["W2"][1]) * w2w5_al[1])
-    _hm_sw = offset_pt(offset_pt(pts["W2"], _washer_nw_d + 2.0 / 12.0, w2w5_al),
-                        2.0 / 12.0, w2w5_in)
-    _hm_se = offset_pt(_hm_sw, hm_ew, w2w5_in)
-    _hm_nw = offset_pt(_hm_sw, hm_ns, w2w5_al)
-    _hm_ne = offset_pt(_hm_se, hm_ns, w2w5_al)
-    hm_poly = [_hm_sw, _hm_se, _hm_ne, _hm_nw]
-    hm_href = "https://www.homedepot.com/p/Casual-Home-Eco-Home-Laundry-Prep-Hamper-761-30/307595219"
-    out.append(f'<a href="{hm_href}" target="_blank">')
-    _hm_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in hm_poly)
-    out.append(f'<polygon points="{_hm_svg}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    # Dashed basket pull-out along wall
-    _hm_bo_nw = offset_pt(_hm_nw, hm_ns, w2w5_al)
-    _hm_bo_ne = offset_pt(_hm_ne, hm_ns, w2w5_al)
-    hm_bo_poly = [_hm_nw, _hm_ne, _hm_bo_ne, _hm_bo_nw]
-    _hm_bo_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in hm_bo_poly)
-    out.append(f'<polygon points="{_hm_bo_svg}" fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"'
-               f' stroke-dasharray="3,2"/>')
-    _hm_cx = sum(p[0] for p in hm_poly) / 4
-    _hm_cy = sum(p[1] for p in hm_poly) / 4
-    _hm_scx, _hm_scy = to_svg(_hm_cx, _hm_cy)
-    out.append(f'<text x="{_hm_scx:.1f}" y="{_hm_scy+3:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="6" fill="{APPL_STROKE}">HAMPER</text>')
-    out.append('</a>')
+    if not plumbing:
+        # Hamper: 31.5" x 19", 2" along wall from washer, 2" inward from W2-W5
+        hm_ew = 31.5 / 12.0   # width along w2w5_in
+        hm_ns = 19.0 / 12.0   # depth along w2w5_al
+        # Anchor: 2" inward from W2, washer NW + 2" along wall
+        _washer_nw_d = ((washer_poly[3][0] - pts["W2"][0]) * w2w5_al[0] +
+                        (washer_poly[3][1] - pts["W2"][1]) * w2w5_al[1])
+        _hm_sw = offset_pt(offset_pt(pts["W2"], _washer_nw_d + 2.0 / 12.0, w2w5_al),
+                            2.0 / 12.0, w2w5_in)
+        _hm_se = offset_pt(_hm_sw, hm_ew, w2w5_in)
+        _hm_nw = offset_pt(_hm_sw, hm_ns, w2w5_al)
+        _hm_ne = offset_pt(_hm_se, hm_ns, w2w5_al)
+        hm_poly = [_hm_sw, _hm_se, _hm_ne, _hm_nw]
+        hm_href = "https://www.homedepot.com/p/Casual-Home-Eco-Home-Laundry-Prep-Hamper-761-30/307595219"
+        out.append(f'<a href="{hm_href}" target="_blank">')
+        _hm_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in hm_poly)
+        out.append(f'<polygon points="{_hm_svg}" fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        # Dashed basket pull-out along wall
+        _hm_bo_nw = offset_pt(_hm_nw, hm_ns, w2w5_al)
+        _hm_bo_ne = offset_pt(_hm_ne, hm_ns, w2w5_al)
+        hm_bo_poly = [_hm_nw, _hm_ne, _hm_bo_ne, _hm_bo_nw]
+        _hm_bo_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in hm_bo_poly)
+        out.append(f'<polygon points="{_hm_bo_svg}" fill="none" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"'
+                   f' stroke-dasharray="3,2"/>')
+        _hm_cx = sum(p[0] for p in hm_poly) / 4
+        _hm_cy = sum(p[1] for p in hm_poly) / 4
+        _hm_scx, _hm_scy = to_svg(_hm_cx, _hm_cy)
+        out.append(f'<text x="{_hm_scx:.1f}" y="{_hm_scy+3:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="6" fill="{APPL_STROKE}">HAMPER</text>')
+        out.append('</a>')
 
-    # Counter: polygon clipped to W18-W1 south edge, IW3 west face east edge
-    ctr_poly_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
-                            for p in layout.ctr_clip)
-    out.append(f'<polygon points="{ctr_poly_svg}"'
-               f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
-    _ctr_cx = sum(p[0] for p in layout.ctr_clip) / len(layout.ctr_clip)
-    _ctr_cy = sum(p[1] for p in layout.ctr_clip) / len(layout.ctr_clip)
-    ccx, ccy = to_svg(_ctr_cx, _ctr_cy)
-    out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'
-               f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
+        # Counter: polygon clipped to W18-W1 south edge, IW3 west face east edge
+        ctr_poly_svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
+                                for p in layout.ctr_clip)
+        out.append(f'<polygon points="{ctr_poly_svg}"'
+                   f' fill="{APPL_FILL}" stroke="{APPL_STROKE}" stroke-width="{APPL_SW}"/>')
+        _ctr_cx = sum(p[0] for p in layout.ctr_clip) / len(layout.ctr_clip)
+        _ctr_cy = sum(p[1] for p in layout.ctr_clip) / len(layout.ctr_clip)
+        ccx, ccy = to_svg(_ctr_cx, _ctr_cy)
+        out.append(f'<text x="{ccx:.1f}" y="{ccy:.1f}" text-anchor="middle" font-family="Arial"'
+                   f' font-size="7" fill="{APPL_STROKE}" letter-spacing="0.5" transform="rotate(-90,{ccx:.1f},{ccy:.1f})">COUNTER</text>')
 
     # Water heater: 28" diameter circle, tangent to inner arc at C7
     # WH center lies on IW2s east face line at WH_RADIUS from face
@@ -1449,7 +1452,7 @@ def _render_appliances(out, data, layout, minik=False, db=False):
                    _iw8_al, _iw8_out, to_svg)
 
 
-def _render_kitchen(out, data, layout, minik=False, db=False):
+def _render_kitchen(out, data, layout, minik=False, db=False, plumbing=False):
     """Render kitchen: D/W, sink, stove, shelves, fridge, counters."""
     pts = data.pts
     to_svg = data.to_svg
@@ -1493,6 +1496,9 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
     if minik:
         appliances = [(l, da, aw, di0, di1, h) for l, da, aw, di0, di1, h in appliances
                       if l not in ("STOVE", "D/W")]
+    if plumbing:
+        appliances = [(l, da, aw, di0, di1, h) for l, da, aw, di0, di1, h in appliances
+                      if l not in ("STOVE",)]
     for label, da, aw, di0, di1, href in appliances:
         _c = [_nwp(da, di1), _nwp(da + aw, di1), _nwp(da + aw, di0), _nwp(da, di0)]
         _appl_poly(out, _c, to_svg, label=label, href=href)
@@ -1558,6 +1564,9 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         out.append(f'<polyline points="{arc_pts}" fill="none"'
                    f' stroke="{APPL_STROKE}" stroke-width="0.5"/>')
         out.append('</a>')
+
+    if plumbing:
+        return
 
     # ICE — positioned along north wall
     if db:
@@ -1861,8 +1870,10 @@ def _render_kitchen(out, data, layout, minik=False, db=False):
         _appl_poly(out, _cm_c, to_svg, label="C", font_size="5",
                    href="https://www.amazon.com/Holstein-Housewares-HH-0914701E-5-Cup-Coffee/dp/B08HSRCC4T/?th=1")
 
-def _render_furniture(out, data, layout, minik=False, db=False):
+def _render_furniture(out, data, layout, minik=False, db=False, plumbing=False):
     """Render furniture: bed, loveseat/sofa, ET, chair, ottoman, room labels."""
+    if plumbing:
+        return
     pts = data.pts
     to_svg = data.to_svg
     # Reference wall direction vectors for rotation-invariant placement
@@ -3161,7 +3172,7 @@ def _render_sf_extras(out, data, layout):
                f' stroke="#666" stroke-width="0.7" stroke-dasharray="4,3"/>')
 
 
-def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False, sf=False):
+def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False, sf=False, plumbing=False):
     """Render the complete floorplan SVG. Returns SVG string.
 
     If bare=True, omit appliances, kitchen, and furniture (interior objects).
@@ -3184,9 +3195,9 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
 
     _render_walls(out, data, layout, bare=bare or sf)
     if not bare and not sf:
-        _render_appliances(out, data, layout, minik=minik, db=db)
-        _render_kitchen(out, data, layout, minik=minik, db=db)
-        _render_furniture(out, data, layout, minik=minik, db=db)
+        _render_appliances(out, data, layout, minik=minik, db=db, plumbing=plumbing)
+        _render_kitchen(out, data, layout, minik=minik, db=db, plumbing=plumbing)
+        _render_furniture(out, data, layout, minik=minik, db=db, plumbing=plumbing)
     out.append('<g opacity="0.5">')
     _render_dimensions(out, data, layout, bare=bare or sf)
     out.append('</g>')
