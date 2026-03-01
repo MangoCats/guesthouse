@@ -111,12 +111,11 @@ def _compute_boundary_corners(pts):
     t_south = max(0, min(1, t_south))
     south_start = (sw[0] + t_south * s_dx, sw[1] + t_south * s_dy)
 
-    # Clip west boundary (275.08') start to building's north side + margin
+    # Clip west boundary (275.08') start to F6-F7 northing
     w_dx = west_far[0] - sw[0]
     w_dy = west_far[1] - sw[1]
     w_len = math.hypot(w_dx, w_dy)
-    # Find t where N = bld_n_max + margin along the west boundary line
-    target_n = bld_n_max + _BOUNDARY_MARGIN
+    target_n = pts["F6"][1]  # F6-F7 northing in building frame
     t_west = (target_n - sw[1]) / w_dy if abs(w_dy) > 1e-9 else 0
     t_west = max(0, min(1, t_west))
     west_start = (sw[0] + t_west * w_dx, sw[1] + t_west * w_dy)
