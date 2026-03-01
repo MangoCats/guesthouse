@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADU Editor</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <!-- ======== MENU BAR ======== -->
+  <header id="menubar">
+    <div class="menu-group">
+      <div class="menu-item" data-menu="file">
+        File
+        <div class="dropdown">
+          <button data-action="regenerate-all">Regenerate All</button>
+          <button data-action="regenerate-view">Regenerate Current View</button>
+          <hr>
+          <button data-action="export-all">Export All Products</button>
+          <hr>
+          <button data-action="reset-constants">Reset to Defaults</button>
+        </div>
+      </div>
+      <div class="menu-item" data-menu="edit">
+        Edit
+        <div class="dropdown">
+          <button data-action="undo" disabled>Undo</button>
+          <button data-action="redo" disabled>Redo</button>
+        </div>
+      </div>
+      <div class="menu-item" data-menu="view">
+        View
+        <div class="dropdown">
+          <button data-action="zoom-fit">Fit to Window</button>
+          <button data-action="zoom-in">Zoom In</button>
+          <button data-action="zoom-out">Zoom Out</button>
+          <hr>
+          <button data-action="toggle-points">Toggle Point Labels</button>
+          <button data-action="toggle-grid">Toggle Grid</button>
+          <button data-action="toggle-dims">Toggle Dimensions</button>
+        </div>
+      </div>
+      <div class="menu-item" data-menu="tools">
+        Tools
+        <div class="dropdown">
+          <button data-action="tool-select" class="active">Select</button>
+          <button data-action="tool-pan">Pan</button>
+          <button data-action="tool-measure">Measure</button>
+          <button data-action="tool-move">Move Element</button>
+        </div>
+      </div>
+    </div>
+    <div class="status-right">
+      <span id="coord-display">E: — N: —</span>
+      <span id="connection-status" class="disconnected">Disconnected</span>
+    </div>
+  </header>
+
+  <!-- ======== MAIN LAYOUT ======== -->
+  <div id="app-layout">
+    <!-- LEFT: Tool palette -->
+    <aside id="tool-palette">
+      <div class="palette-section">
+        <h3>Tools</h3>
+        <button class="tool-btn active" data-tool="select" title="Select (V)">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M7 2l10 10-4 1 3 7-2 1-3-7-4 4z" fill="currentColor"/></svg>
+          <span>Select</span>
+        </button>
+        <button class="tool-btn" data-tool="pan" title="Pan (H)">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M10 2v8H2l4-4M14 2v8h8l-4-4M10 22v-8H2l4 4M14 22v-8h8l-4 4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+          <span>Pan</span>
+        </button>
+        <button class="tool-btn" data-tool="measure" title="Measure (M)">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 21l18-18M3 21l4-1M3 21l1-4" stroke="currentColor" fill="none" stroke-width="1.5"/><path d="M8 16l2-2M11 13l2-2M14 10l2-2" stroke="currentColor" fill="none" stroke-width="1"/></svg>
+          <span>Measure</span>
+        </button>
+        <button class="tool-btn" data-tool="move" title="Move (G)">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+          <span>Move</span>
+        </button>
+      </div>
+      <div class="palette-section">
+        <h3>Display</h3>
+        <label class="toggle"><input type="checkbox" id="show-points" checked><span>Points</span></label>
+        <label class="toggle"><input type="checkbox" id="show-labels" checked><span>Labels</span></label>
+        <label class="toggle"><input type="checkbox" id="show-dims"><span>Dims</span></label>
+        <label class="toggle"><input type="checkbox" id="show-grid"><span>Grid</span></label>
+        <label class="toggle"><input type="checkbox" id="show-openings" checked><span>Openings</span></label>
+        <label class="toggle"><input type="checkbox" id="show-furniture" checked><span>Furniture</span></label>
+      </div>
+    </aside>
+
+    <!-- CENTER: Viewport with view tabs -->
+    <main id="viewport-area">
+      <div id="view-tabs">
+        <!-- Tabs populated dynamically -->
+      </div>
+      <div id="viewport">
+        <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="grid-pattern" width="1" height="1" patternUnits="userSpaceOnUse">
+              <path d="M 1 0 L 0 0 0 1" fill="none" stroke="#e0e0e0" stroke-width="0.01"/>
+            </pattern>
+          </defs>
+          <g id="canvas-transform">
+            <rect id="grid-rect" fill="url(#grid-pattern)" x="-100" y="-100" width="200" height="200" visibility="hidden"/>
+            <g id="layer-outline"></g>
+            <g id="layer-inner"></g>
+            <g id="layer-walls"></g>
+            <g id="layer-openings"></g>
+            <g id="layer-furniture"></g>
+            <g id="layer-points"></g>
+            <g id="layer-labels"></g>
+            <g id="layer-dims"></g>
+            <g id="layer-measure"></g>
+          </g>
+        </svg>
+        <div id="svg-view-container" style="display:none;">
+          <!-- For loading generated SVGs -->
+        </div>
+      </div>
+      <div id="status-bar">
+        <span id="zoom-level">100%</span>
+        <span id="selection-info">No selection</span>
+        <span id="measure-info"></span>
+      </div>
+    </main>
+
+    <!-- RIGHT: Property editor + data tables -->
+    <aside id="right-panel">
+      <div id="panel-tabs">
+        <button class="panel-tab active" data-panel="properties">Properties</button>
+        <button class="panel-tab" data-panel="constants">Constants</button>
+        <button class="panel-tab" data-panel="outline">Outline</button>
+        <button class="panel-tab" data-panel="openings">Openings</button>
+      </div>
+
+      <!-- Properties panel -->
+      <div id="panel-properties" class="panel-content active">
+        <div id="props-empty">
+          <p>Select an element to view its properties.</p>
+        </div>
+        <div id="props-detail" style="display:none;">
+          <h3 id="props-title">—</h3>
+          <table id="props-table">
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Constants panel -->
+      <div id="panel-constants" class="panel-content">
+        <div class="panel-toolbar">
+          <select id="const-category-filter">
+            <option value="">All Categories</option>
+          </select>
+          <input type="text" id="const-search" placeholder="Search...">
+        </div>
+        <div id="constants-table-wrap">
+          <table id="constants-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="name">Name</th>
+                <th class="sortable" data-sort="value">Value</th>
+                <th>Unit</th>
+                <th class="sortable" data-sort="category">Cat</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Outline panel -->
+      <div id="panel-outline" class="panel-content">
+        <table id="outline-table">
+          <thead>
+            <tr><th>#</th><th>Type</th><th>Dist/R</th><th>Sweep</th><th>End</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Openings panel -->
+      <div id="panel-openings" class="panel-content">
+        <h3>Outer Openings</h3>
+        <table id="openings-table">
+          <thead>
+            <tr><th>Name</th><th>Segment</th><th>Width (in)</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <h3>Rough Openings</h3>
+        <table id="rough-openings-table">
+          <thead>
+            <tr><th>Name</th><th>Wall</th><th>Width (in)</th><th>Orient</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </aside>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

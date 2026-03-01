@@ -11,6 +11,7 @@ requires-python = ">=3.12"
 adjust = ["numpy", "scipy"]
 gen = ["PyMuPDF", "Pillow", "numpy", "scipy"]
 test = ["pytest"]
+app = ["flask"]
 
 [tool.setuptools.packages.find]
 include = ["shared", "shared.*", "floorplan", "floorplan.*"]
