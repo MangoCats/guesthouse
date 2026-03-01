@@ -3484,22 +3484,30 @@ def _render_supplies_table(out, data):
 
 
 def _render_boundary(out, data, boundary):
-    """Render property boundary lines (south and west) with SW corner label."""
+    """Render property boundary lines (south and west) with SW corner label.
+
+    boundary keys:
+      sw: (E,N) SW corner (275.08' meets 216.73')
+      south_start: (E,N) start of south boundary near building's east side
+      west_start: (E,N) start of west boundary near building's north side
+      south_label: str label for south boundary (e.g. "216.73'")
+      west_label: str label for west boundary (e.g. "275.08'")
+    """
     to_svg = data.to_svg
 
     sw_svg = to_svg(*boundary['sw'])
-    se_svg = to_svg(*boundary['se'])
-    nw_svg = to_svg(*boundary['nw'])
+    ss_svg = to_svg(*boundary['south_start'])
+    ws_svg = to_svg(*boundary['west_start'])
 
     style = ('stroke="#8B4513" stroke-width="1.0" stroke-dasharray="8,4"'
              ' fill="none" opacity="0.6"')
 
-    # South boundary: SE corner → SW corner (275.08' line)
-    out.append(f'<line x1="{se_svg[0]:.1f}" y1="{se_svg[1]:.1f}"'
+    # South boundary (216.73' line): south_start → SW corner
+    out.append(f'<line x1="{ss_svg[0]:.1f}" y1="{ss_svg[1]:.1f}"'
                f' x2="{sw_svg[0]:.1f}" y2="{sw_svg[1]:.1f}" {style}/>')
 
-    # West boundary: NW corner → SW corner (163.69' line)
-    out.append(f'<line x1="{nw_svg[0]:.1f}" y1="{nw_svg[1]:.1f}"'
+    # West boundary (275.08' line): west_start → SW corner
+    out.append(f'<line x1="{ws_svg[0]:.1f}" y1="{ws_svg[1]:.1f}"'
                f' x2="{sw_svg[0]:.1f}" y2="{sw_svg[1]:.1f}" {style}/>')
 
     # SW corner marker and label
@@ -3508,37 +3516,45 @@ def _render_boundary(out, data, boundary):
     out.append(f'<text x="{sw_svg[0] + 5:.1f}" y="{sw_svg[1] + 4:.1f}"'
                f' font-family="Arial" font-size="8" fill="#8B4513">SW corner</text>')
 
-    # Boundary length labels
-    # South boundary: 275.08'
-    s_mx = (se_svg[0] + sw_svg[0]) / 2
-    s_my = (se_svg[1] + sw_svg[1]) / 2
-    s_dx = sw_svg[0] - se_svg[0]
-    s_dy = sw_svg[1] - se_svg[1]
-    s_angle = math.degrees(math.atan2(s_dy, s_dx))
-    s_nx = -s_dy / math.hypot(s_dx, s_dy) * 8
-    s_ny = s_dx / math.hypot(s_dx, s_dy) * 8
-    out.append(f'<text x="{s_mx + s_nx:.1f}" y="{s_my + s_ny:.1f}"'
-               f' text-anchor="middle" font-family="Arial" font-size="7"'
-               f' fill="#8B4513" transform="rotate({s_angle:.1f} {s_mx + s_nx:.1f} {s_my + s_ny:.1f})"'
-               f'>275.08\'</text>')
+    # South boundary label
+    s_label = boundary.get('south_label', '')
+    if s_label:
+        s_mx = (ss_svg[0] + sw_svg[0]) / 2
+        s_my = (ss_svg[1] + sw_svg[1]) / 2
+        s_dx = sw_svg[0] - ss_svg[0]
+        s_dy = sw_svg[1] - ss_svg[1]
+        s_slen = math.hypot(s_dx, s_dy)
+        s_angle = math.degrees(math.atan2(s_dy, s_dx))
+        if s_angle > 90:
+            s_angle -= 180
+        elif s_angle < -90:
+            s_angle += 180
+        s_nx = -s_dy / s_slen * 8
+        s_ny = s_dx / s_slen * 8
+        out.append(f'<text x="{s_mx + s_nx:.1f}" y="{s_my + s_ny:.1f}"'
+                   f' text-anchor="middle" font-family="Arial" font-size="7"'
+                   f' fill="#8B4513" transform="rotate({s_angle:.1f} {s_mx + s_nx:.1f} {s_my + s_ny:.1f})"'
+                   f'>{s_label}</text>')
 
-    # West boundary: 163.69'
-    w_mx = (nw_svg[0] + sw_svg[0]) / 2
-    w_my = (nw_svg[1] + sw_svg[1]) / 2
-    w_dx = sw_svg[0] - nw_svg[0]
-    w_dy = sw_svg[1] - nw_svg[1]
-    w_angle = math.degrees(math.atan2(w_dy, w_dx))
-    # Normalize angle for readability
-    if w_angle > 90:
-        w_angle -= 180
-    elif w_angle < -90:
-        w_angle += 180
-    w_nx = -w_dy / math.hypot(w_dx, w_dy) * 8
-    w_ny = w_dx / math.hypot(w_dx, w_dy) * 8
-    out.append(f'<text x="{w_mx + w_nx:.1f}" y="{w_my + w_ny:.1f}"'
-               f' text-anchor="middle" font-family="Arial" font-size="7"'
-               f' fill="#8B4513" transform="rotate({w_angle:.1f} {w_mx + w_nx:.1f} {w_my + w_ny:.1f})"'
-               f'>163.69\'</text>')
+    # West boundary label
+    w_label = boundary.get('west_label', '')
+    if w_label:
+        w_mx = (ws_svg[0] + sw_svg[0]) / 2
+        w_my = (ws_svg[1] + sw_svg[1]) / 2
+        w_dx = sw_svg[0] - ws_svg[0]
+        w_dy = sw_svg[1] - ws_svg[1]
+        w_slen = math.hypot(w_dx, w_dy)
+        w_angle = math.degrees(math.atan2(w_dy, w_dx))
+        if w_angle > 90:
+            w_angle -= 180
+        elif w_angle < -90:
+            w_angle += 180
+        w_nx = -w_dy / w_slen * 8
+        w_ny = w_dx / w_slen * 8
+        out.append(f'<text x="{w_mx + w_nx:.1f}" y="{w_my + w_ny:.1f}"'
+                   f' text-anchor="middle" font-family="Arial" font-size="7"'
+                   f' fill="#8B4513" transform="rotate({w_angle:.1f} {w_mx + w_nx:.1f} {w_my + w_ny:.1f})"'
+                   f'>{w_label}</text>')
 
 
 def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False, sf=False, plumbing=False, boundary=None):
@@ -3546,8 +3562,9 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
 
     If bare=True, omit appliances, kitchen, and furniture (interior objects).
     If sf=True, render like bare but add BEDROOM/OFFICE labels and RO1–O6 dashed line.
-    If boundary is provided (dict with 'sw', 'se', 'nw' keys mapping to (E,N) tuples),
-    expand viewBox to include property boundary lines from building to SW corner.
+    If boundary is provided (dict with 'sw', 'south_start', 'west_start' keys
+    mapping to (E,N) tuples), expand viewBox to include property boundary lines
+    from building to SW corner.
     """
     pts = data.pts
     to_svg = data.to_svg
@@ -3558,7 +3575,8 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
 
     if boundary:
         # Expand viewBox to include boundary corner points
-        bdy_svg = [to_svg(*boundary[k]) for k in boundary]
+        bdy_keys = ['sw', 'south_start', 'west_start']
+        bdy_svg = [to_svg(*boundary[k]) for k in bdy_keys]
         cur_x2 = vb_x + vb_w
         cur_y2 = vb_y + vb_h
         all_x = [vb_x, cur_x2] + [p[0] for p in bdy_svg]
