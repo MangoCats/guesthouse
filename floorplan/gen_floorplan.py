@@ -3443,7 +3443,7 @@ def _render_supplies_table(out, data):
     # Table title
     out.append(f'<text x="{(tbl_left + col_r[-1]) / 2:.1f}" y="{tbl_top:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7"'
-               f' font-weight="bold" fill="{clr}">Supplies</text>')
+               f' font-weight="bold" fill="{clr}">Water Services</text>')
 
     # Column headers
     hdr_y = tbl_top + 10
