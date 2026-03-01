@@ -3483,20 +3483,101 @@ def _render_supplies_table(out, data):
                f' fill="none" stroke="#999" stroke-width="0.5"/>')
 
 
-def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False, sf=False, plumbing=False):
+def _render_boundary(out, data, boundary):
+    """Render property boundary lines (south and west) with SW corner label."""
+    to_svg = data.to_svg
+
+    sw_svg = to_svg(*boundary['sw'])
+    se_svg = to_svg(*boundary['se'])
+    nw_svg = to_svg(*boundary['nw'])
+
+    style = ('stroke="#8B4513" stroke-width="1.0" stroke-dasharray="8,4"'
+             ' fill="none" opacity="0.6"')
+
+    # South boundary: SE corner → SW corner (275.08' line)
+    out.append(f'<line x1="{se_svg[0]:.1f}" y1="{se_svg[1]:.1f}"'
+               f' x2="{sw_svg[0]:.1f}" y2="{sw_svg[1]:.1f}" {style}/>')
+
+    # West boundary: NW corner → SW corner (163.69' line)
+    out.append(f'<line x1="{nw_svg[0]:.1f}" y1="{nw_svg[1]:.1f}"'
+               f' x2="{sw_svg[0]:.1f}" y2="{sw_svg[1]:.1f}" {style}/>')
+
+    # SW corner marker and label
+    out.append(f'<circle cx="{sw_svg[0]:.1f}" cy="{sw_svg[1]:.1f}" r="3"'
+               f' fill="none" stroke="#8B4513" stroke-width="1.0" opacity="0.6"/>')
+    out.append(f'<text x="{sw_svg[0] + 5:.1f}" y="{sw_svg[1] + 4:.1f}"'
+               f' font-family="Arial" font-size="8" fill="#8B4513">SW corner</text>')
+
+    # Boundary length labels
+    # South boundary: 275.08'
+    s_mx = (se_svg[0] + sw_svg[0]) / 2
+    s_my = (se_svg[1] + sw_svg[1]) / 2
+    s_dx = sw_svg[0] - se_svg[0]
+    s_dy = sw_svg[1] - se_svg[1]
+    s_angle = math.degrees(math.atan2(s_dy, s_dx))
+    s_nx = -s_dy / math.hypot(s_dx, s_dy) * 8
+    s_ny = s_dx / math.hypot(s_dx, s_dy) * 8
+    out.append(f'<text x="{s_mx + s_nx:.1f}" y="{s_my + s_ny:.1f}"'
+               f' text-anchor="middle" font-family="Arial" font-size="7"'
+               f' fill="#8B4513" transform="rotate({s_angle:.1f} {s_mx + s_nx:.1f} {s_my + s_ny:.1f})"'
+               f'>275.08\'</text>')
+
+    # West boundary: 163.69'
+    w_mx = (nw_svg[0] + sw_svg[0]) / 2
+    w_my = (nw_svg[1] + sw_svg[1]) / 2
+    w_dx = sw_svg[0] - nw_svg[0]
+    w_dy = sw_svg[1] - nw_svg[1]
+    w_angle = math.degrees(math.atan2(w_dy, w_dx))
+    # Normalize angle for readability
+    if w_angle > 90:
+        w_angle -= 180
+    elif w_angle < -90:
+        w_angle += 180
+    w_nx = -w_dy / math.hypot(w_dx, w_dy) * 8
+    w_ny = w_dx / math.hypot(w_dx, w_dy) * 8
+    out.append(f'<text x="{w_mx + w_nx:.1f}" y="{w_my + w_ny:.1f}"'
+               f' text-anchor="middle" font-family="Arial" font-size="7"'
+               f' fill="#8B4513" transform="rotate({w_angle:.1f} {w_mx + w_nx:.1f} {w_my + w_ny:.1f})"'
+               f'>163.69\'</text>')
+
+
+def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False, bare=False, sf=False, plumbing=False, boundary=None):
     """Render the complete floorplan SVG. Returns SVG string.
 
     If bare=True, omit appliances, kitchen, and furniture (interior objects).
     If sf=True, render like bare but add BEDROOM/OFFICE labels and RO1–O6 dashed line.
+    If boundary is provided (dict with 'sw', 'se', 'nw' keys mapping to (E,N) tuples),
+    expand viewBox to include property boundary lines from building to SW corner.
     """
     pts = data.pts
     to_svg = data.to_svg
     layout = data.layout
 
+    vb_x, vb_y, vb_w, vb_h = data.vb_x, data.vb_y, data.vb_w, data.vb_h
+    page_w, page_h = W, H
+
+    if boundary:
+        # Expand viewBox to include boundary corner points
+        bdy_svg = [to_svg(*boundary[k]) for k in boundary]
+        cur_x2 = vb_x + vb_w
+        cur_y2 = vb_y + vb_h
+        all_x = [vb_x, cur_x2] + [p[0] for p in bdy_svg]
+        all_y = [vb_y, cur_y2] + [p[1] for p in bdy_svg]
+        margin = 30
+        new_vb_x = min(all_x) - margin
+        new_vb_y = min(all_y) - margin
+        new_vb_w = max(all_x) - new_vb_x + margin
+        new_vb_h = max(all_y) - new_vb_y + margin
+        # Scale CSS page dimensions to maintain same zoom level
+        css_per_svg = page_w / vb_w
+        page_w = new_vb_w * css_per_svg
+        page_h = new_vb_h * css_per_svg
+        vb_x, vb_y, vb_w, vb_h = new_vb_x, new_vb_y, new_vb_w, new_vb_h
+
     out = []
-    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}"'
-               f' viewBox="{data.vb_x:.2f} {data.vb_y:.2f} {data.vb_w:.2f} {data.vb_h:.2f}">')
-    out.append(f'<rect x="{data.vb_x:.2f}" y="{data.vb_y:.2f}" width="{data.vb_w:.2f}" height="{data.vb_h:.2f}" fill="white"/>')
+    out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{page_w:.0f}" height="{page_h:.0f}"'
+               f' viewBox="{vb_x:.2f} {vb_y:.2f} {vb_w:.2f} {vb_h:.2f}">')
+    out.append(f'<rect x="{vb_x:.2f}" y="{vb_y:.2f}" width="{vb_w:.2f}" height="{vb_h:.2f}" fill="white"/>')
     out.append('<defs>')
     out.append('  <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">'
                '<polygon points="0 0, 8 3, 0 6" fill="#333"/></marker>')
@@ -3525,6 +3606,9 @@ def render_floorplan_svg(data, room_title="Parent Suite", minik=False, db=False,
         out.append('</g>')
     if sf:
         _render_sf_extras(out, data, layout)
+
+    if boundary:
+        _render_boundary(out, data, boundary)
 
     inner_area = data.inner_area - compute_iw_area(layout)
     _render_title_block(out, data, inner_area)
