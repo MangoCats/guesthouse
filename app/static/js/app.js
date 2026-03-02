@@ -390,7 +390,10 @@ function renderFurniture(g) {
 
   // Render variant items (comprehensive set) if available; empty dict = no items
   if (g.variant_items !== undefined) {
-    for (const [name, item] of Object.entries(g.variant_items)) {
+    // Sort: non-stacked items first, stacked items on top (SVG paint order)
+    const entries = Object.entries(g.variant_items);
+    entries.sort((a, b) => (a[1].stacked ? 1 : 0) - (b[1].stacked ? 1 : 0));
+    for (const [name, item] of entries) {
       const cssClass = `item-${item.type} selectable` + (item.stacked ? " item-stacked" : "");
       if (item.shape === "circle") {
         const c = item.center;
