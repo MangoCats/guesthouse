@@ -402,6 +402,33 @@ parallel after Phase 3.
 
 ---
 
+## Phase Completion Protocol
+
+Each phase is considered complete only after:
+
+1. All phase requirements pass automated tests
+2. All 703+ tests continue to pass (`python -m pytest tests/ -x -q`)
+3. All SVGs regenerate successfully (`python gen_all.py`)
+4. User acknowledgement that all phase goals are met with no known outstanding
+   issues
+
+**Before proceeding to the next phase**, perform these maintenance steps:
+
+1. **Update this ROADMAP.md** — move the completed phase into a "Completed"
+   section, record actual test count, note any deviations from the plan, and
+   update the Current State summary at the top
+2. **Update ARCHITECTURE.md** — reflect any new modules, tables, API endpoints,
+   or architectural patterns introduced by the phase
+3. **Update REQUIREMENTS.md** — mark implemented requirements (remove **(NEW)**
+   tag, update acceptance results if applicable)
+4. **Commit the documentation update** as a separate commit after the phase
+   implementation commit(s)
+
+This ensures the documentation always reflects the true state of the project
+and that fresh context windows have accurate information.
+
+---
+
 ## Requirement-to-Phase Mapping
 
 | Phase | Requirement IDs | Count |

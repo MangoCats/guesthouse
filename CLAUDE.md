@@ -128,6 +128,12 @@ generator.  Do not "fix" this by modifying files outside `app/` — it will be
 consolidated at cutover.  See `app/ARCHITECTURE.md` § NF-4 and `app/ROADMAP.md`
 for the 12-phase development plan.
 
+### Phase Completion Protocol
+After each roadmap phase is complete (user acknowledges all goals met, no
+outstanding issues), update `app/ROADMAP.md`, `app/ARCHITECTURE.md`, and
+`app/REQUIREMENTS.md` to reflect the new state before proceeding to the next
+phase.  See `app/ROADMAP.md` § Phase Completion Protocol for details.
+
 ### App Dependency Graph
 ```
 app/server.py ──→ app/database.py ──→ floorplan/constants.py (seed source)
