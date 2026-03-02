@@ -183,3 +183,4 @@ available through a browser-based GUI backed by an SQLite database:
    positioning logic from the SVG generators (wall-relative vectors,
    line intersections, arc tangency) rather than introducing new
    geometric approaches
+5. **Database driven Parametric Dependencies** — When a wall is defined as spanning from one wall surface to another, those dependencies are encoded in the database, editable such that the formula can later be changed to different wall surfaces, constant distances, changes in bearing, calculations based on constants and/or other parameters, such as: at the midpoint between two other objects.  These parametric dependencies are defined per object, and when the dependency is on another object which itself is dependent on other objects' calculations, the dependency chain is displayed for the user both as a formula table, and graphically highlighted in the drawing demonstrating what the currently selected object's parameters depend on.
