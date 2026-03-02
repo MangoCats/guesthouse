@@ -125,7 +125,8 @@ constants without changing them.
 `app/variants.py` replicates positioning math from `floorplan/gen_floorplan.py`
 and carries 24 hardcoded item-dimension constants that duplicate values in the
 generator.  Do not "fix" this by modifying files outside `app/` — it will be
-consolidated at cutover.  See `app/ARCHITECTURE.md` § NF-4 and § Roadmap.
+consolidated at cutover.  See `app/ARCHITECTURE.md` § NF-4 and `app/ROADMAP.md`
+for the 12-phase development plan.
 
 ### App Dependency Graph
 ```
