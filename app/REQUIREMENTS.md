@@ -17,12 +17,12 @@ full commit history are marked **(NEW)**.
 
 #### DB-1  Schema Initialisation
 The application SHALL create an SQLite database with tables `constants`,
-`outline_chain`, and `views` when launched for the first time.
+`outline_chain`, `views`, and `shapes` when launched for the first time.
 (Additional tables `elements` and `doors` will be added in Phase 3 —
 see DB-9 and DB-10.)
 
 **Acceptance:** Start with no `app/adu.db` file. Run `python run_app.py
---no-browser`. Verify the file is created and contains all three tables.
+--no-browser`. Verify the file is created and contains all four tables.
 
 #### DB-2  Constants Seeding
 On first initialisation the database SHALL contain every uppercase numeric
@@ -899,13 +899,37 @@ panel SHALL update the door configuration and re-render the door arc.
 **Acceptance:** Select RO3. Change hinge side from "south" to "north" via
 dropdown. Door arc flips to the opposite side.
 
-#### SEL-12  Product URL Editing **(NEW)**
-Each furniture, appliance, and fixture element SHALL have an editable URL
-field in the Properties panel for linking to product pages.
+#### SEL-12  Product URL Field **(NEW)**
+When a furniture, appliance, or fixture item is selected, the Properties
+panel SHALL display a "Link" text field. The field SHALL show the URL
+currently associated with the item, or be blank if no URL is associated.
+The field SHALL be editable: the user can type or paste a URL and press
+Enter to save it. When the field contains a valid URL (starts with
+`http://` or `https://`), an "Open" button SHALL appear beside the field.
+Clicking "Open" SHALL open the URL in a new browser tab.
 
-**Acceptance:** Select SHELVES. Enter an IKEA URL in the URL field. Press
-Enter. The URL is saved. The generated SVG wraps the element in an
-`<a>` tag linking to that URL.
+**Acceptance:** Select FRIDGE. Link field is blank. Paste
+`https://example.com/fridge`. Press Enter. URL is saved. "Open" button
+appears. Click "Open". A new browser tab navigates to that URL. Select
+FRIDGE again after reload — the URL persists. Clear the field and press
+Enter — URL is removed, "Open" button disappears.
+
+#### SEL-13  Constant Dependency Highlighting **(NEW)**
+When a constant is focused in the Properties panel constant list (e.g.,
+selecting `COUNTER_GAP` while viewing the counter appliance properties),
+all geometry elements whose position or size depends on that constant
+SHALL be highlighted on the canvas. The first-order dependent element
+(the element directly controlled by that constant) SHALL be highlighted
+in white. Second-order and downstream dependencies (elements whose
+position is indirectly affected because they are anchored to the
+first-order element) SHALL be highlighted in pink.
+
+**Acceptance:** Select the counter appliance. In the Properties panel,
+click the `COUNTER_GAP` constant row. The counter polygon highlights
+white on the canvas. Adjacent elements whose positions shift when
+`COUNTER_GAP` changes (e.g., the work counter, microwave) highlight
+pink. Clicking away or selecting a different constant clears the
+highlights.
 
 ---
 
@@ -1119,6 +1143,38 @@ rotation input. The user can type an angle or select from presets
 
 **Acceptance:** Select SHELVES. Press R. Rotation dialog appears with
 preset buttons and angle input. Select 90. SHELVES rotates 90 degrees.
+
+### 6.11  Shape Editor **(NEW)**
+
+#### TL-25  Shape Editor Dialog
+The application SHALL provide a shape editor dialog for creating and
+modifying complex item shapes stored in the `shapes` database table.
+The editor SHALL support adding/moving polygon vertices, adding circular
+arc segments between vertices (with adjustable radius), and previewing
+the resulting shape in real time.
+
+**Acceptance:** Open the shape editor from the menu. The existing
+`bath_sink` shape loads showing its semicircular bulge polygon. The user
+can drag a vertex and the preview updates. The user can add an arc
+between two vertices and adjust its radius. Save persists the shape to
+the database.
+
+#### TL-26  Shape Assignment
+The shape editor SHALL allow assigning a named shape to a furniture or
+appliance item type. Items with an assigned shape SHALL render using that
+shape polygon instead of a bounding rectangle.
+
+**Acceptance:** Create a new shape named `custom_item`. Assign it to an
+item. The canvas renders the custom polygon instead of a rectangle.
+
+#### TL-27  Shape Import from SVG
+The shape editor SHALL support importing a polygon outline from an SVG
+`<polygon>` or `<path>` element via paste or file upload, converting
+SVG coordinates to the editor's local coordinate frame.
+
+**Acceptance:** Copy a `<polygon points="...">` string from an SVG file.
+Paste into the shape editor import field. The polygon appears in the
+editor preview and can be saved.
 
 ---
 
@@ -1797,8 +1853,8 @@ history) to the requirements that enable each operation through the GUI.
 | 2 REST API | 17 | 17 | 34 |
 | 3 UI Layout | 5 | 4 | 9 |
 | 4 Canvas | 11 | 10 | 21 |
-| 5 Selection | 6 | 8 | 14 |
-| 6 Tools | 4 | 20 | 24 |
+| 5 Selection | 6 | 9 | 15 |
+| 6 Tools | 4 | 23 | 27 |
 | 7 Constants | 10 | 0 | 10 (+10 sub) |
 | 8 Data Tables | 4 | 7 | 11 |
 | 9 Element Ops | 0 | 14 | 14 |
@@ -1810,4 +1866,4 @@ history) to the requirements that enable each operation through the GUI.
 | 15 Undo/Redo | 0 | 4 | 4 |
 | 16 Real-Time | 4 | 1 | 5 |
 | 17 Application | 9 | 1 | 10 |
-| **Total** | **80** | **109** | **189** |
+| **Total** | **80** | **113** | **193** |

@@ -68,6 +68,16 @@ CREATE TABLE IF NOT EXISTS views (
     category    TEXT DEFAULT 'design',
     enabled     INTEGER DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS shapes (
+    name        TEXT PRIMARY KEY,
+    poly_json   TEXT NOT NULL,       -- JSON: [[dx, dy], ...] in local coords
+    scale       REAL DEFAULT 1.0,    -- conversion factor from poly units to feet
+    origin      TEXT DEFAULT 'center', -- 'center' or 'corner'
+    width_key   TEXT,                -- constant name for width dimension, if any
+    depth_key   TEXT,                -- constant name for depth dimension, if any
+    description TEXT DEFAULT ''
+);
 """
 
 
@@ -81,6 +91,7 @@ def init_db(db_path=None):
             _seed_constants(conn)
             _seed_outline_chain(conn)
             _seed_views(conn)
+            _seed_shapes(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +228,151 @@ def _seed_views(conn):
 
 
 # ---------------------------------------------------------------------------
+# Seed: item shapes
+# ---------------------------------------------------------------------------
+
+def _seed_shapes(conn):
+    """Register built-in special item shapes."""
+    import json
+    import math
+
+    # Toilet plan-view polygon (from gen_floorplan.py _TOILET_SVG).
+    # Local frame: dx = across width (centered on 0), dy = depth from wall.
+    # Scale: SVG units → feet via 10.0 / 30.48.
+    toilet_pts = [
+        [-1.905, 0], [-1.905, 2.032], [-0.841, 2.032],
+        [-1.078, 2.224], [-1.267, 2.455], [-1.408, 2.719],
+        [-1.495, 3.005], [-1.524, 3.302],
+        [-1.732, 5.461], [-1.699, 5.799], [-1.600, 6.124],
+        [-1.440, 6.423], [-1.225, 6.686], [-0.962, 6.901],
+        [-0.663, 7.061], [-0.338, 7.160], [0, 7.193],
+        [0.338, 7.160], [0.663, 7.061], [0.962, 6.901],
+        [1.225, 6.686], [1.440, 6.423], [1.600, 6.124],
+        [1.699, 5.799], [1.732, 5.461],
+        [1.524, 3.302], [1.495, 3.005], [1.408, 2.719],
+        [1.267, 2.455], [1.078, 2.224], [0.847, 2.035],
+        [0.841, 2.032], [1.905, 2.032], [1.905, 0],
+    ]
+    conn.execute(
+        "INSERT OR REPLACE INTO shapes "
+        "(name, poly_json, scale, origin, description) VALUES (?, ?, ?, ?, ?)",
+        ("toilet", json.dumps(toilet_pts), 10.0 / 30.48, "center",
+         "Realistic toilet plan view; center = wall face at centerline, "
+         "dy = outward from wall"),
+    )
+
+    # Bath sink (Tripoli wall-mount, 33-7/8 x 18-3/4) with semicircular bulge.
+    # Local frame: dx = along wall (centered on 0), dy = outward from wall.
+    # Dimensions in feet (scale = 1.0).
+    bs_length = 33.875 / 12.0
+    bs_depth = 18.75 / 12.0
+    half_len = bs_length / 2
+    quarter_len = bs_length / 4
+    rect_depth = bs_depth - quarter_len
+    bs_pts = [[half_len, 0], [-half_len, 0], [-half_len, rect_depth]]
+    n_arc = 32
+    for i in range(n_arc + 1):
+        t = math.pi - math.pi * i / n_arc
+        bs_pts.append([round(math.cos(t) * quarter_len, 6),
+                       round(rect_depth + math.sin(t) * quarter_len, 6)])
+    bs_pts.append([half_len, rect_depth])
+    conn.execute(
+        "INSERT OR REPLACE INTO shapes "
+        "(name, poly_json, scale, origin, width_key, depth_key, description) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("bath_sink", json.dumps(bs_pts), 1.0, "center",
+         "BATH_SINK_LENGTH", "BATH_SINK_DEPTH",
+         "Tripoli wall-mount sink; rectangle with semicircular bulge "
+         "from central 50% of far edge"),
+    )
+
+    # Dining table (Oscar triangle set): base + two tangent lines + apex arc
+    # + corner fillets.  Stored as pre-computed polygon in local frame
+    # (dx = along base centered on 0, dy = toward apex).
+    # Dimensions in feet (scale = 1.0).
+    tbl_base = 31.5 / 12.0
+    tbl_h = 35.25 / 12.0
+    apex_r = 12.0 / 12.0
+    fillet_r = 6.0 / 12.0
+    half_base = tbl_base / 2
+    apex_y = tbl_h
+    arc_cy = apex_y - apex_r
+    # Tangent from NE corner to apex arc
+    dx_r = half_base
+    dy_r = -arc_cy
+    dist_r = math.sqrt(dx_r ** 2 + dy_r ** 2)
+    angle_cp = math.atan2(dy_r, dx_r)
+    delta_a = math.acos(apex_r / dist_r)
+    alpha_r = angle_cp - delta_a
+    tr_x = apex_r * math.cos(alpha_r)
+    tr_y = arc_cy + apex_r * math.sin(alpha_r)
+    tl_x = -tr_x
+    tl_y = tr_y
+    # NE fillet
+    d_base = (-1, 0)
+    dtr_len = math.sqrt((tr_x - half_base) ** 2 + tr_y ** 2)
+    d_tang = ((tr_x - half_base) / dtr_len, tr_y / dtr_len)
+    cos_th = d_base[0] * d_tang[0] + d_base[1] * d_tang[1]
+    half_ang = math.acos(max(-1, min(1, cos_th))) / 2
+    fillet_dist = fillet_r / math.sin(half_ang)
+    bis = (d_base[0] + d_tang[0], d_base[1] + d_tang[1])
+    bis_len = math.sqrt(bis[0] ** 2 + bis[1] ** 2)
+    bis = (bis[0] / bis_len, bis[1] / bis_len)
+    fc_ne = (half_base + fillet_dist * bis[0], fillet_dist * bis[1])
+    f_ne_base_x = fc_ne[0]
+    f_ne_base_y = 0
+    v_ne = (fc_ne[0] - half_base, fc_ne[1])
+    t_proj = v_ne[0] * d_tang[0] + v_ne[1] * d_tang[1]
+    f_ne_tang = (half_base + t_proj * d_tang[0], t_proj * d_tang[1])
+    f_nw_base_x = -f_ne_base_x
+    f_nw_tang = (-f_ne_tang[0], f_ne_tang[1])
+    fc_nw = (-fc_ne[0], fc_ne[1])
+    # Build polygon
+    tbl_pts = [[round(-f_ne_base_x, 6), 0], [round(f_ne_base_x, 6), 0]]
+    # NE fillet arc
+    a0 = math.atan2(f_ne_base_y - fc_ne[1], f_ne_base_x - fc_ne[0])
+    a1 = math.atan2(f_ne_tang[1] - fc_ne[1], f_ne_tang[0] - fc_ne[0])
+    sw = (a1 - a0) % (2 * math.pi)
+    if sw > math.pi:
+        sw -= 2 * math.pi
+    for i in range(1, 8):
+        t = a0 + sw * i / 8
+        tbl_pts.append([round(fc_ne[0] + fillet_r * math.cos(t), 6),
+                        round(fc_ne[1] + fillet_r * math.sin(t), 6)])
+    tbl_pts.append([round(f_ne_tang[0], 6), round(f_ne_tang[1], 6)])
+    tbl_pts.append([round(tr_x, 6), round(tr_y, 6)])
+    # Apex arc
+    a0 = math.atan2(tr_y - arc_cy, tr_x)
+    a1 = math.atan2(tl_y - arc_cy, tl_x)
+    sw = (a1 - a0) % (2 * math.pi)
+    if sw > math.pi:
+        sw -= 2 * math.pi
+    for i in range(1, 16):
+        t = a0 + sw * i / 16
+        tbl_pts.append([round(apex_r * math.cos(t), 6),
+                        round(arc_cy + apex_r * math.sin(t), 6)])
+    tbl_pts.append([round(tl_x, 6), round(tl_y, 6)])
+    tbl_pts.append([round(f_nw_tang[0], 6), round(f_nw_tang[1], 6)])
+    # NW fillet arc
+    a0 = math.atan2(f_nw_tang[1] - fc_nw[1], f_nw_tang[0] - fc_nw[0])
+    a1 = math.atan2(-fc_nw[1], f_nw_base_x - fc_nw[0])
+    sw = (a1 - a0) % (2 * math.pi)
+    if sw > math.pi:
+        sw -= 2 * math.pi
+    for i in range(1, 8):
+        t = a0 + sw * i / 8
+        tbl_pts.append([round(fc_nw[0] + fillet_r * math.cos(t), 6),
+                        round(fc_nw[1] + fillet_r * math.sin(t), 6)])
+    conn.execute(
+        "INSERT OR REPLACE INTO shapes "
+        "(name, poly_json, scale, origin, description) VALUES (?, ?, ?, ?, ?)",
+        ("dining_table", json.dumps(tbl_pts), 1.0, "center",
+         "Oscar triangle dining table; base centered at origin, "
+         "apex arc at dy=height, 6\" corner fillets"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # CRUD operations
 # ---------------------------------------------------------------------------
 
@@ -278,6 +434,20 @@ def get_views(db_path=None):
     with get_db(db_path) as conn:
         rows = conn.execute("SELECT * FROM views WHERE enabled = 1 ORDER BY category, name").fetchall()
         return [dict(r) for r in rows]
+
+
+def get_shapes(db_path=None):
+    """Return all shape definitions as a list of dicts."""
+    with get_db(db_path) as conn:
+        rows = conn.execute("SELECT * FROM shapes ORDER BY name").fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_shape(name, db_path=None):
+    """Return a single shape definition by name, or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute("SELECT * FROM shapes WHERE name = ?", (name,)).fetchone()
+        return dict(row) if row else None
 
 
 def reset_constants(db_path=None):

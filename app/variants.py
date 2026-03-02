@@ -71,6 +71,45 @@ _SVG_TO_FT = 10.0 / 30.48
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _arc_points(center, radius, start_angle, end_angle, n=16):
+    """Discretize a circular arc into polygon points (exclusive of endpoints)."""
+    pts = []
+    for i in range(1, n):
+        t = start_angle + (end_angle - start_angle) * i / n
+        pts.append((center[0] + radius * math.cos(t),
+                     center[1] + radius * math.sin(t)))
+    return pts
+
+
+def _bath_sink_poly(anchor, al_vec, out_vec, length, depth):
+    """Build bath sink polygon with semicircular bulge from central 50%.
+
+    anchor: (e, n) center of wall-face edge
+    al_vec: unit vector along wall (length direction)
+    out_vec: unit vector outward from wall (depth direction)
+    """
+    half_len = length / 2
+    quarter_len = length / 4  # arc radius = chord half-width
+    rect_depth = depth - quarter_len
+
+    def _pt(along, outward):
+        return (anchor[0] + along * al_vec[0] + outward * out_vec[0],
+                anchor[1] + along * al_vec[1] + outward * out_vec[1])
+
+    pts = []
+    pts.append(_pt(half_len, 0))           # SE on wall
+    pts.append(_pt(-half_len, 0))          # SW on wall
+    pts.append(_pt(-half_len, rect_depth)) # NW rect top
+    # Semicircular arc from west to east, bulging outward
+    n_arc = 32
+    for i in range(n_arc + 1):
+        t = math.pi - math.pi * i / n_arc
+        pts.append(_pt(math.cos(t) * quarter_len,
+                       rect_depth + math.sin(t) * quarter_len))
+    pts.append(_pt(half_len, rect_depth))  # NE rect top
+    return pts
+
+
 def _toilet_poly(center, facing, width):
     """Transform the toilet plan-view polygon to building coordinates.
 
@@ -83,9 +122,9 @@ def _toilet_poly(center, facing, width):
             for dx, dy in _TOILET_SVG]
 
 
-def _item(name, item_type, poly, label=None, shape="rect"):
+def _item(name, item_type, poly, label=None, shape="rect", stacked=False):
     """Build a standard item dict."""
-    return {
+    d = {
         "name": name,
         "type": item_type,
         "poly": [point_to_list(p) for p in poly],
@@ -93,6 +132,9 @@ def _item(name, item_type, poly, label=None, shape="rect"):
         "label": label or name,
         "shape": shape,
     }
+    if stacked:
+        d["stacked"] = True
+    return d
 
 
 def _circle_item(name, item_type, center, radius, label=None):
@@ -217,20 +259,17 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
 
     washer_poly = items["washer"]["poly"]  # [[e,n], ...]
 
-    # --- Hamper (standard only) ---
-    if not _small_wd:
-        washer_nw_raw = layout.washer.poly[3]
-        washer_nw_shifted = (washer_nw_raw[0] + _shift[0],
-                             washer_nw_raw[1] + _shift[1])
-        _washer_nw_d = ((washer_nw_shifted[0] - pts["W2"][0]) * w2w5_al[0] +
-                        (washer_nw_shifted[1] - pts["W2"][1]) * w2w5_al[1])
-        _hm_sw = offset_pt(offset_pt(pts["W2"], _washer_nw_d + 2.0 / 12.0, w2w5_al),
-                            2.0 / 12.0, w2w5_in)
-        _hm_se = offset_pt(_hm_sw, HAMPER_W, w2w5_in)
-        _hm_nw = offset_pt(_hm_sw, HAMPER_D, w2w5_al)
-        _hm_ne = offset_pt(_hm_se, HAMPER_D, w2w5_al)
-        items["hamper"] = _item("hamper", "appliance",
-                                [_hm_sw, _hm_se, _hm_ne, _hm_nw], "HAMPER")
+    # --- Hamper (all non-bare/sf variants) ---
+    _washer_nw = (washer_poly[3][0], washer_poly[3][1])
+    _washer_nw_d = ((_washer_nw[0] - pts["W2"][0]) * w2w5_al[0] +
+                    (_washer_nw[1] - pts["W2"][1]) * w2w5_al[1])
+    _hm_sw = offset_pt(offset_pt(pts["W2"], _washer_nw_d + 2.0 / 12.0, w2w5_al),
+                        2.0 / 12.0, w2w5_in)
+    _hm_se = offset_pt(_hm_sw, HAMPER_W, w2w5_in)
+    _hm_nw = offset_pt(_hm_sw, HAMPER_D, w2w5_al)
+    _hm_ne = offset_pt(_hm_se, HAMPER_D, w2w5_al)
+    items["hamper"] = _item("hamper", "appliance",
+                            [_hm_sw, _hm_se, _hm_ne, _hm_nw], "HAMPER")
 
     # --- Counter (standard only) ---
     if not _small_wd and layout.ctr_clip:
@@ -286,20 +325,16 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
     items["util_sink"] = _item("util_sink", "fixture",
                                [_us_sw, _us_se, _us_ne, _us_nw], "SINK")
 
-    # --- Bath sink (north face of IW8) ---
+    # --- Bath sink (north face of IW8) --- semicircular bulge shape
     _iw2_w = layout.iw2.poly[0]
     _d_iw2_al = ((_iw2_w[0] - _iw8_n_ref[0]) * _iw8_al[0] +
                  (_iw2_w[1] - _iw8_n_ref[1]) * _iw8_al[1])
     _bath_sink_east_d = _d_iw2_al - 9.0 / 12.0
     _bath_sink_ctr_d = _bath_sink_east_d - C.BATH_SINK_LENGTH / 2
     _bath_sink_anchor = offset_pt(_iw8_n_ref, _bath_sink_ctr_d, _iw8_al)
-    _bs_sw = offset_pt(offset_pt(_bath_sink_anchor, -C.BATH_SINK_LENGTH / 2, _iw8_al),
-                        0, _iw8_out)
-    _bs_se = offset_pt(_bs_sw, C.BATH_SINK_LENGTH, _iw8_al)
-    _bs_nw = offset_pt(_bs_sw, C.BATH_SINK_DEPTH, _iw8_out)
-    _bs_ne = offset_pt(_bs_se, C.BATH_SINK_DEPTH, _iw8_out)
-    items["bath_sink"] = _item("bath_sink", "fixture",
-                               [_bs_sw, _bs_se, _bs_ne, _bs_nw], "BATH SINK")
+    _bs_poly = _bath_sink_poly(_bath_sink_anchor, _iw8_al, _iw8_out,
+                               C.BATH_SINK_LENGTH, C.BATH_SINK_DEPTH)
+    items["bath_sink"] = _item("bath_sink", "fixture", _bs_poly, "BATH SINK")
 
     # ===================================================================
     # KITCHEN (from _render_kitchen)
@@ -379,7 +414,8 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
         _mw_c = [_iwp(_mw_d2, _mw_d1), _iwp(_mw_d2 + MICROWAVE_W, _mw_d1),
                  _iwp(_mw_d2 + MICROWAVE_W, _mw_d1 + MICROWAVE_D),
                  _iwp(_mw_d2, _mw_d1 + MICROWAVE_D)]
-        items["microwave"] = _item("microwave", "appliance", _mw_c, "MICRO")
+        items["microwave"] = _item("microwave", "appliance", _mw_c, "MICRO",
+                                    stacked=True)
     else:
         _mw_mk_d = _iw2_d + 2.0 / 12.0
         _mw_mk_i = 3.0 / 12.0
@@ -387,7 +423,8 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                      _nwp(_mw_mk_d + MICROWAVE_W, _mw_mk_i + MICROWAVE_D),
                      _nwp(_mw_mk_d + MICROWAVE_W, _mw_mk_i),
                      _nwp(_mw_mk_d, _mw_mk_i)]
-        items["microwave"] = _item("microwave", "appliance", _mw_mk_c, "MICRO")
+        items["microwave"] = _item("microwave", "appliance", _mw_mk_c, "MICRO",
+                                    stacked=True)
 
     # Kitchen counter (minik) / North counter (standard)
     if minik:
@@ -411,7 +448,7 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                  _nwp(_cm_d + COFFEE_W, _cm_i + COFFEE_D),
                  _nwp(_cm_d + COFFEE_W, _cm_i), _nwp(_cm_d, _cm_i)]
         items["coffee_maker"] = _item("coffee_maker", "appliance",
-                                       _cm_c, "C")
+                                       _cm_c, "C", stacked=True)
     else:
         _cm_d = _iw2_d + C.NORTH_CTR_LENGTH - 2.0 / 12.0 - COFFEE_W
         _cm_i = 2.0 / 12.0
@@ -419,7 +456,7 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                  _nwp(_cm_d + COFFEE_W, _cm_i + COFFEE_D),
                  _nwp(_cm_d + COFFEE_W, _cm_i), _nwp(_cm_d, _cm_i)]
         items["coffee_maker"] = _item("coffee_maker", "appliance",
-                                       _cm_c, "C")
+                                       _cm_c, "C", stacked=True)
 
     # Cooktop (minik only)
     if minik:
@@ -428,7 +465,8 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
         _cp_i_near = _cp_i_far - COOKTOP_D
         _cp_c = [_nwp(_cp_d, _cp_i_far), _nwp(_cp_d + COOKTOP_W, _cp_i_far),
                  _nwp(_cp_d + COOKTOP_W, _cp_i_near), _nwp(_cp_d, _cp_i_near)]
-        items["cooktop"] = _item("cooktop", "appliance", _cp_c, "COOKTOP")
+        items["cooktop"] = _item("cooktop", "appliance", _cp_c, "COOKTOP",
+                                 stacked=True)
 
     # Toaster (minik only)
     if minik:
@@ -437,7 +475,8 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
         _ts_c = [_nwp(_ts_d, _ts_i + TOASTER_D),
                  _nwp(_ts_d + TOASTER_W, _ts_i + TOASTER_D),
                  _nwp(_ts_d + TOASTER_W, _ts_i), _nwp(_ts_d, _ts_i)]
-        items["toaster"] = _item("toaster", "appliance", _ts_c, "TOASTER")
+        items["toaster"] = _item("toaster", "appliance", _ts_c, "TOASTER",
+                                 stacked=True)
 
     # --- Dining set ---
     _space_ne_ref = _iwp(C.RO1_OFFSET_FROM_IW2)
@@ -457,17 +496,11 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                        _tbl_n_d_out, _iw1_n_out)
     _to_apex = (-_iw1_n_out[0], -_iw1_n_out[1])
 
-    # Simplified table as bounding rectangle
+    # Table geometry: triangle with apex arc and fillet corners
     tbl_ne = offset_pt(tbl_bc, DINING_TBL_BASE / 2, _iw1_n_al)
     tbl_nw = offset_pt(tbl_bc, -DINING_TBL_BASE / 2, _iw1_n_al)
-    tbl_se = offset_pt(tbl_ne, DINING_TBL_H, _to_apex)
-    tbl_sw = offset_pt(tbl_nw, DINING_TBL_H, _to_apex)
-    items["dining_table"] = _item("dining_table", "furniture",
-                                   [tbl_nw, tbl_ne, tbl_se, tbl_sw], "TABLE")
-
-    # Dining chairs (simplified as rects along the two tangent sides)
-    # Compute tangent points for chair placement
     apex_r = 12.0 / 12.0
+    fillet_r = 6.0 / 12.0
     _tbl_apex = offset_pt(tbl_bc, DINING_TBL_H, _to_apex)
     arc_c = offset_pt(_tbl_apex, apex_r, _iw1_n_out)
 
@@ -478,7 +511,6 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
         return (tbl_bc[0] + 2 * v_dot * _to_apex[0] - vx,
                 tbl_bc[1] + 2 * v_dot * _to_apex[1] - vy)
 
-    fillet_r = 6.0 / 12.0
     d_base_ne = (-_iw1_n_al[0], -_iw1_n_al[1])
     dx_r = tbl_ne[0] - arc_c[0]
     dn_r = tbl_ne[1] - arc_c[1]
@@ -504,6 +536,45 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
     t_proj = v_ne[0] * d_tang_ne[0] + v_ne[1] * d_tang_ne[1]
     f_ne_tang = (tbl_ne[0] + t_proj * d_tang_ne[0], tbl_ne[1] + t_proj * d_tang_ne[1])
     f_nw_tang = _sym(f_ne_tang)
+
+    # Fillet base points: project fillet center onto base line through tbl_bc
+    _fc_ne_d = ((_fc_ne[0] - tbl_bc[0]) * _iw1_n_al[0] +
+                (_fc_ne[1] - tbl_bc[1]) * _iw1_n_al[1])
+    f_ne_base = offset_pt(tbl_bc, _fc_ne_d, _iw1_n_al)
+    f_nw_base = _sym(f_ne_base)
+    _fc_nw = _sym(_fc_ne)
+
+    # Discretize arcs for polygon
+    _ne_fil_a0 = math.atan2(f_ne_base[1] - _fc_ne[1], f_ne_base[0] - _fc_ne[0])
+    _ne_fil_a1 = math.atan2(f_ne_tang[1] - _fc_ne[1], f_ne_tang[0] - _fc_ne[0])
+    _apex_a0 = math.atan2(t_right[1] - arc_c[1], t_right[0] - arc_c[0])
+    _apex_a1 = math.atan2(t_left[1] - arc_c[1], t_left[0] - arc_c[0])
+    _nw_fil_a0 = math.atan2(f_nw_tang[1] - _fc_nw[1], f_nw_tang[0] - _fc_nw[0])
+    _nw_fil_a1 = math.atan2(f_nw_base[1] - _fc_nw[1], f_nw_base[0] - _fc_nw[0])
+
+    # Ensure arcs sweep in correct direction (short arc)
+    def _norm_sweep(a0, a1):
+        d = (a1 - a0) % (2 * math.pi)
+        if d > math.pi:
+            d -= 2 * math.pi
+        return d
+
+    tbl_poly = [f_nw_base, f_ne_base]
+    # NE fillet arc
+    sweep = _norm_sweep(_ne_fil_a0, _ne_fil_a1)
+    tbl_poly += _arc_points(_fc_ne, fillet_r, _ne_fil_a0, _ne_fil_a0 + sweep, 8)
+    tbl_poly.append(f_ne_tang)
+    tbl_poly.append(t_right)
+    # Apex arc
+    sweep = _norm_sweep(_apex_a0, _apex_a1)
+    tbl_poly += _arc_points(arc_c, apex_r, _apex_a0, _apex_a0 + sweep, 16)
+    tbl_poly.append(t_left)
+    tbl_poly.append(f_nw_tang)
+    # NW fillet arc
+    sweep = _norm_sweep(_nw_fil_a0, _nw_fil_a1)
+    tbl_poly += _arc_points(_fc_nw, fillet_r, _nw_fil_a0, _nw_fil_a0 + sweep, 8)
+
+    items["dining_table"] = _item("dining_table", "furniture", tbl_poly, "TABLE")
 
     ch_short = DINING_CHAIR_W
     ch_long = DINING_CHAIR_D

@@ -334,10 +334,10 @@ function renderFurniture(g) {
   if (!App.state.showFurniture) return;
   const layer = App.els["layer-furniture"];
 
-  // Render variant items (comprehensive set) if available
-  if (g.variant_items && Object.keys(g.variant_items).length > 0) {
+  // Render variant items (comprehensive set) if available; empty dict = no items
+  if (g.variant_items !== undefined) {
     for (const [name, item] of Object.entries(g.variant_items)) {
-      const cssClass = `item-${item.type} selectable`;
+      const cssClass = `item-${item.type} selectable` + (item.stacked ? " item-stacked" : "");
       if (item.shape === "circle") {
         const c = item.center;
         const el = svgEl("circle", {
