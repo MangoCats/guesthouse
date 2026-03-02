@@ -738,8 +738,7 @@ function showProperties(type, name, data) {
 }
 
 function fmtConstProp(c) {
-  if (c.unit === "ft") return fmtFtIn(c.value);
-  return `${c.value.toFixed(6)}`;
+  return formatConstValue(c);
 }
 
 function addPropRow(tbody, label, value, editable = false, constName = null) {
@@ -843,10 +842,6 @@ function renderConstantsTable() {
     tdVal.appendChild(inp);
     tr.appendChild(tdVal);
 
-    const tdUnit = document.createElement("td");
-    tdUnit.textContent = c.unit;
-    tr.appendChild(tdUnit);
-
     const tdCat = document.createElement("td");
     tdCat.textContent = c.category;
     tdCat.style.color = categoryColor(c.category);
@@ -862,7 +857,11 @@ function formatConstValue(c) {
     const inStr = inches.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
     return `${inStr}"`;
   }
-  return c.value.toFixed(6);
+  const suffix = {cm: " cm", mm: " mm", m: " m"}[c.unit];
+  if (suffix) {
+    return c.value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') + suffix;
+  }
+  return c.value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function categoryColor(cat) {
@@ -954,13 +953,11 @@ async function handleConstantEdit(name, rawValue) {
       body: JSON.stringify({ value }),
     });
     if (!resp.ok) throw new Error((await resp.json()).error);
-    const c_ = App.state.constants.find(x => x.name === name);
-    const disp = (c_ && c_.unit === "ft") ? fmtFtIn(value) : value.toFixed(6);
-    showToast(`${name} = ${disp}`, "success");
-
     // Update local state
-    const c = App.state.constants.find(c => c.name === name);
+    const c = App.state.constants.find(x => x.name === name);
     if (c) c.value = value;
+    const disp = c ? formatConstValue(c) : value;
+    showToast(`${name} = ${disp}`, "success");
   } catch (e) {
     showToast(`Error: ${e.message}`, "error");
   }
