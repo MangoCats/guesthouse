@@ -421,9 +421,26 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   fill: #a6adc8;
   pointer-events: none;
 }
+.room-label-sf {
+  pointer-events: auto;
+}
 .room-area {
   font-size: 0.25px;
   fill: #7f849c;
+  pointer-events: auto;
+}
+.room-highlight {
+  fill: transparent;
+  stroke: none;
+  cursor: pointer;
+}
+.room-highlight:hover {
+  fill: rgba(137, 180, 250, 0.08);
+}
+.room-highlight-active {
+  fill: rgba(137, 180, 250, 0.15);
+  stroke: #89b4fa;
+  stroke-width: 0.03;
 }
 .sf-partition {
   stroke: #7f849c;

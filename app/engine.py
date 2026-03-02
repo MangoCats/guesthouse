@@ -36,14 +36,23 @@ def _wall_to_dict(wall):
     }
 
 
+def _centroid(poly):
+    """Average of polygon vertices — good enough for label placement."""
+    n = len(poly)
+    return (sum(p[0] for p in poly) / n, sum(p[1] for p in poly) / n)
+
+
 def _compute_room_labels(pts, layout, inner_segs, radii, variant):
     """Compute room label positions, areas, and SF partition lines.
 
+    Builds the actual room-area polygons (matching compute_room_areas) so
+    labels sit at the true centroid and SF variant can highlight on click.
+
     Returns dict with:
-      room_labels: [{name, pos, area (sf variant only)}]
-      sf_lines: [{start, end}]  (dashed partition lines, sf variant only)
+      room_labels: [{name, pos, area?, poly?}]
+      sf_lines: [{start, end}]  (sf variant only)
     """
-    from shared.geometry import seg_vecs, line_isect, offset_pt
+    from shared.geometry import seg_vecs, line_isect, segment_polyline
     from floorplan.openings import compute_outer_openings, compute_rough_openings
 
     ro_list = compute_rough_openings(pts, layout)
@@ -60,83 +69,135 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant):
     iw2s_e_al, _ = seg_vecs(layout.iw2s.poly[1], layout.iw2s.poly[2])
     iw2s_at_w9 = line_isect(layout.iw2s.poly[1], iw2s_e_al, pts["W9"], w9w10_al)
 
+    is_sf = (variant == "sf")
+
+    # --- Build room polygons (matching compute_room_areas) ---
+    rooms = {}
+
+    # BEDROOM
+    rooms["BEDROOM"] = [
+        (layout.iw9.poly[2][0], layout.iw1.poly[0][1]),
+        (layout.iw11.poly[3][0], layout.iw1.poly[0][1]),
+        (layout.iw11.poly[3][0], pts["W1"][1]),
+        (layout.iw9.poly[2][0], pts["W1"][1]),
+    ]
+
+    # UTIL_N
+    rooms["UTIL_N"] = [
+        iw3_w2w5,
+        layout.iw8.poly[0], layout.iw8.poly[1],
+        layout.iw1.poly[0], layout.iw9.poly[3],
+        (layout.iw9.poly[0][0], layout.iw7.poly[2][1]),
+        layout.iw7.poly[3], iw3_nw,
+    ]
+
+    # UTIL_S
+    _util_s = [iw3_nw, (layout.iw3.poly[0][0], pts["W1"][1]), pts["W1"]]
+    _util_s.extend(segment_polyline(inner_segs[0], pts)[1:])
+    _util_s.append(iw3_w2w5)
+    rooms["UTIL_S"] = _util_s
+
+    # KITCHEN
+    rooms["KITCHEN"] = [
+        o6_w, iw2s_at_w9,
+        layout.iw2s.poly[1], layout.iw2o.poly[3],
+        layout.iw2o.poly[0], layout.iw2.poly[2],
+        layout.iw2.poly[1], ro1_w_nf,
+    ]
+
+    # LIVING
+    _living = [o6_w]
+    _living.append(segment_polyline(inner_segs[6], pts)[-1])
+    for si in range(7, 13):
+        _living.extend(segment_polyline(inner_segs[si], pts)[1:])
+    _living.append(layout.iw1.poly[2])
+    _living.append(ro1_w_nf)
+    rooms["LIVING"] = _living
+
+    # BATH
+    _seg2 = segment_polyline(inner_segs[2], pts)
+    _seg3 = segment_polyline(inner_segs[3], pts)
+    _bath = [
+        layout.iw8.poly[3], layout.iw8.poly[2],
+        layout.iw2.poly[3], layout.iw2o.poly[1],
+        layout.iw2o.poly[2], layout.iw2s.poly[0],
+        layout.iw2s.poly[3], _seg3[0],
+    ]
+    _bath.extend(reversed(_seg2[:-1]))
+    rooms["BATH"] = _bath
+
+    # OFFICE
+    _office = [layout.iw5.poly[0]]
+    _office.append((pts["W15"][0], layout.iw5.poly[0][1]))
+    _office.append(pts["W15"])
+    for si in [14, 15, 16]:
+        _office.extend(segment_polyline(inner_segs[si], pts)[1:])
+    _office.append(layout.iw4.poly[1])
+    _office.append(layout.iw4.poly[2])
+    _office.append(layout.iw12.poly[2])
+    _office.append(layout.iw12.poly[3])
+    rooms["OFFICE"] = _office
+
+    # E CLOSET
+    rooms["E CLOSET"] = [
+        (layout.iw11.poly[1][0], layout.iw12.poly[0][1]),
+        (layout.iw4.poly[0][0], layout.iw12.poly[0][1]),
+        layout.iw4.poly[0],
+        (layout.iw11.poly[1][0], pts["W1"][1]),
+    ]
+
+    # W CLOSET
+    rooms["W CLOSET"] = [
+        (layout.iw3.poly[1][0], layout.iw7.poly[0][1]),
+        (layout.iw9.poly[0][0], layout.iw7.poly[0][1]),
+        (layout.iw9.poly[0][0], pts["W1"][1]),
+        (layout.iw3.poly[1][0], pts["W1"][1]),
+    ]
+
+    # STORAGE
+    rooms["STORAGE"] = [
+        (layout.iw11.poly[1][0], layout.iw5.poly[3][1]),
+        (pts["W14"][0], layout.iw5.poly[3][1]),
+        (pts["W14"][0], layout.iw1.poly[0][1]),
+        (layout.iw11.poly[1][0], layout.iw1.poly[0][1]),
+    ]
+
+    # WH
+    _seg3b = segment_polyline(inner_segs[3], pts)
+    _seg4 = segment_polyline(inner_segs[4], pts)
+    _seg5 = segment_polyline(inner_segs[5], pts)
+    _wh = [layout.iw2s.poly[2], _seg3b[-1]]
+    _wh.extend(_seg4[1:])
+    _wh.extend(_seg5[1:])
+    _wh.append((layout.iw2s.poly[2][0], pts["W9"][1]))
+    rooms["WH"] = _wh
+
+    # --- Get authoritative area values ---
+    from floorplan.gen_floorplan import compute_room_areas
+    from collections import namedtuple
+    Data = namedtuple("Data", ["pts", "inner_segs", "radii"])
+    data = Data(pts=pts, inner_segs=inner_segs, radii=radii)
+    areas = compute_room_areas(data, layout)
+
+    # --- Build label list from polygon centroids ---
     labels = []
-
-    # BEDROOM: between IW9 and IW11, IW1 south to W1 south
-    bd_e = (layout.iw9.poly[2][0] + layout.iw11.poly[3][0]) / 2
-    bd_n = (layout.iw1.poly[0][1] + pts["W1"][1]) / 2
-    labels.append({"name": "BEDROOM", "pos": point_to_list((bd_e, bd_n))})
-
-    # UTIL (north): between IW3-W2W5 line and IW8, horizontal center between IW8/IW9
-    ut_e = (layout.iw8.poly[0][0] + layout.iw9.poly[3][0]) / 2
-    ut_n = (iw3_w2w5[1] + layout.iw8.poly[0][1]) / 2
-    labels.append({"name": "UTIL", "pos": point_to_list((ut_e, ut_n))})
-
-    # KITCHEN: between RO1-O6 (E-W) and IW2-W9 (N-S)
-    k_e = (ro1_w_nf[0] + o6_w[0]) / 2
-    k_n = (layout.iw2.poly[1][1] + iw2s_at_w9[1]) / 2
-    labels.append({"name": "KITCHEN", "pos": point_to_list((k_e, k_n))})
-
-    # LIVING: between O6 and the E wall arc, N of IW1
-    o6_cx = sum(p[0] for p in o6.poly) / len(o6.poly)
-    lv_n = (layout.iw1.poly[2][1] + pts["W10"][1]) / 2
-    labels.append({"name": "LIVING", "pos": point_to_list((o6_cx, lv_n))})
-
-    # BATH: between IW2s west and W2-W5, vertically between IW8 and W6
-    ba_e = (layout.iw2s.poly[0][0] + pts["W2"][0]) / 2
-    ba_n = (layout.iw8.poly[3][1] + pts["W6"][1]) / 2
-    labels.append({"name": "BATH", "pos": point_to_list((ba_e, ba_n))})
-
-    # OFFICE: between IW4 east and W15, vertically between IW1 and IW5/counter
-    of_e = (layout.iw4.poly[1][0] + pts["W15"][0]) / 2
-    of_n = (layout.iw1.poly[0][1] + layout.iw5.poly[0][1]) / 2
-    labels.append({"name": "OFFICE", "pos": point_to_list((of_e, of_n))})
-
-    # WH: between IW2s east and W8, vertically between W7 and W9
-    wh_e = (layout.iw2s.poly[2][0] + pts["W8"][0]) / 2
-    wh_n = (pts["W7"][1] + pts["W9"][1]) / 2
-    labels.append({"name": "WH", "pos": point_to_list((wh_e, wh_n))})
-
-    # E CLOSET: between IW11 and IW4, south of IW12
-    ec_e = (layout.iw11.poly[1][0] + layout.iw4.poly[0][0]) / 2
-    ec_n = (layout.iw12.poly[0][1] + pts["W1"][1]) / 2
-    labels.append({"name": "E CLOSET", "pos": point_to_list((ec_e, ec_n))})
-
-    # W CLOSET: between IW3 and IW9, south of IW7
-    wc_e = (layout.iw3.poly[1][0] + layout.iw9.poly[0][0]) / 2
-    wc_n = (layout.iw7.poly[0][1] + pts["W1"][1]) / 2
-    labels.append({"name": "W CLOSET", "pos": point_to_list((wc_e, wc_n))})
-
-    # STORAGE: between IW11 and W14, south of IW5
-    st_e = (layout.iw11.poly[1][0] + pts["W14"][0]) / 2
-    st_n = (layout.iw5.poly[3][1] + layout.iw1.poly[0][1]) / 2
-    labels.append({"name": "STORAGE", "pos": point_to_list((st_e, st_n))})
+    for name, poly in rooms.items():
+        cx, cy = _centroid(poly)
+        lbl = {"name": name, "pos": point_to_list((cx, cy))}
+        if is_sf:
+            lbl["area"] = round(areas[name], 1)
+            lbl["poly"] = [point_to_list(p) for p in poly]
+        labels.append(lbl)
 
     result = {"room_labels": labels}
 
-    # SF-specific: room areas and dashed partition lines
-    if variant == "sf":
-        from floorplan.gen_floorplan import compute_room_areas
-        from collections import namedtuple
-        Data = namedtuple("Data", ["pts", "inner_segs", "radii"])
-        data = Data(pts=pts, inner_segs=inner_segs, radii=radii)
-        areas = compute_room_areas(data, layout)
-        for lbl in labels:
-            key = lbl["name"]
-            if key in areas:
-                lbl["area"] = round(areas[key], 1)
-            elif key == "UTIL":
-                lbl["area"] = round(areas.get("UTIL_N", 0) + areas.get("UTIL_S", 0), 1)
-
-        # Three dashed partition lines
-        sf_lines = []
-        # 1. RO1 west (IW1 north) → O6 west (W-surface)
-        sf_lines.append({"start": point_to_list(ro1_w_nf), "end": point_to_list(o6_w)})
-        # 2. W9 → IW2s east face at W9 northing
-        sf_lines.append({"start": point_to_list(pts["W9"]), "end": point_to_list(iw2s_at_w9)})
-        # 3. IW3 NW → W2-W5 face
-        sf_lines.append({"start": point_to_list(iw3_nw), "end": point_to_list(iw3_w2w5)})
-        result["sf_lines"] = sf_lines
+    # SF-specific: dashed partition lines
+    if is_sf:
+        result["sf_lines"] = [
+            {"start": point_to_list(ro1_w_nf), "end": point_to_list(o6_w)},
+            {"start": point_to_list(pts["W9"]), "end": point_to_list(iw2s_at_w9)},
+            {"start": point_to_list(iw3_nw), "end": point_to_list(iw3_w2w5)},
+        ]
 
     return result
 

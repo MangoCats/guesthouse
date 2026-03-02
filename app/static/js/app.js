@@ -468,34 +468,7 @@ function renderRoomLabels(g) {
   const layer = App.els["layer-rooms"];
   if (!g.room_labels) return;
 
-  for (const lbl of g.room_labels) {
-    const [e, n] = lbl.pos;
-    const hasArea = lbl.area !== undefined;
-    // Room name
-    const nameEl = svgEl("text", {
-      x: e, y: -n + (hasArea ? -0.15 : 0),
-      class: "room-label",
-      "text-anchor": "middle",
-      "dominant-baseline": "middle",
-      "pointer-events": "none",
-    });
-    nameEl.textContent = lbl.name;
-    layer.appendChild(nameEl);
-    // Area (SF variant only)
-    if (hasArea) {
-      const areaEl = svgEl("text", {
-        x: e, y: -n + 0.15,
-        class: "room-label room-area",
-        "text-anchor": "middle",
-        "dominant-baseline": "middle",
-        "pointer-events": "none",
-      });
-      areaEl.textContent = lbl.area + " sf";
-      layer.appendChild(areaEl);
-    }
-  }
-
-  // SF dashed partition lines
+  // SF dashed partition lines (render first, behind labels)
   if (g.sf_lines) {
     for (const line of g.sf_lines) {
       const el = svgEl("line", {
@@ -504,6 +477,66 @@ function renderRoomLabels(g) {
         class: "sf-partition",
       });
       layer.appendChild(el);
+    }
+  }
+
+  for (const lbl of g.room_labels) {
+    const [e, n] = lbl.pos;
+    const hasArea = lbl.area !== undefined;
+
+    // Clickable highlight polygon (SF variant)
+    if (lbl.poly) {
+      const hlPoly = svgEl("polygon", {
+        points: polyToStr(lbl.poly),
+        class: "room-highlight",
+        "data-room": lbl.name,
+      });
+      hlPoly.addEventListener("click", () => {
+        // Toggle: remove if already highlighted, else clear others and show
+        if (hlPoly.classList.contains("room-highlight-active")) {
+          hlPoly.classList.remove("room-highlight-active");
+        } else {
+          layer.querySelectorAll(".room-highlight-active").forEach(
+            el => el.classList.remove("room-highlight-active"));
+          hlPoly.classList.add("room-highlight-active");
+        }
+      });
+      layer.appendChild(hlPoly);
+    }
+
+    // Group for name + area text (clickable when SF)
+    const nameEl = svgEl("text", {
+      x: e, y: -n + (hasArea ? -0.15 : 0),
+      class: "room-label" + (hasArea ? " room-label-sf" : ""),
+      "text-anchor": "middle",
+      "dominant-baseline": "middle",
+    });
+    nameEl.textContent = lbl.name;
+    if (lbl.poly) {
+      nameEl.style.cursor = "pointer";
+      nameEl.addEventListener("click", () => {
+        const hl = layer.querySelector(`.room-highlight[data-room="${lbl.name}"]`);
+        if (hl) hl.dispatchEvent(new Event("click"));
+      });
+    }
+    layer.appendChild(nameEl);
+
+    if (hasArea) {
+      const areaEl = svgEl("text", {
+        x: e, y: -n + 0.15,
+        class: "room-label room-area",
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+      });
+      areaEl.textContent = lbl.area + " sf";
+      if (lbl.poly) {
+        areaEl.style.cursor = "pointer";
+        areaEl.addEventListener("click", () => {
+          const hl = layer.querySelector(`.room-highlight[data-room="${lbl.name}"]`);
+          if (hl) hl.dispatchEvent(new Event("click"));
+        });
+      }
+      layer.appendChild(areaEl);
     }
   }
 }
