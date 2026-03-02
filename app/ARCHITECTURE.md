@@ -400,9 +400,10 @@ will be unnecessary once the app owns the constants directly.
 
 The charter describes a full parametric editor; the current
 implementation is a **parametric viewer with constant editing** (Phase 0
-complete) — 80 of 200 requirements are implemented across 117 app tests
-(703 total).  Next phases: Phase 1 (foundation test coverage) and
-Phase 2 (undo/redo) can proceed in parallel.  See `app/ROADMAP.md` for
-the complete 12-phase development plan covering all 109 remaining
-requirements, phase dependencies, new file inventory, test growth
-estimates, anticipated challenges, and cutover criteria.
+complete, Phase 1 complete) — ~93 of 212 requirements are implemented
+across 188 app tests (774 total).  Phase 1 established automated test
+coverage for all implemented server-side requirements.  Next phase:
+Phase 2 (undo/redo).  See `app/ROADMAP.md` for the complete 12-phase
+development plan covering all remaining requirements, phase
+dependencies, new file inventory, test growth estimates, anticipated
+challenges, and cutover criteria.
