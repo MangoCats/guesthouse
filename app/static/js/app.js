@@ -977,7 +977,7 @@ async function loadOutlineTable() {
       <td>${seg.seq}</td>
       <td>${seg.seg_type}</td>
       <td>${seg.seg_type === "L" ? fmtFtIn(seg.distance || 0) : fmtFtIn(seg.radius || 0)}</td>
-      <td>${seg.seg_type === "L" ? "—" : fmtDeg(seg.sweep || 0)}</td>
+      <td>${seg.seg_type === "L" ? "—" : fmtDeg((seg.sweep || 0) * 180 / Math.PI)}</td>
       <td>${seg.end_name}</td>
     `;
     tbody.appendChild(tr);
