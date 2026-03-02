@@ -17,6 +17,7 @@ const App = {
     showGrid: false,
     showOpenings: true,
     showFurniture: true,
+    showRooms: true,
     variant: "standard",
     measureStart: null,
     isDragging: false,
@@ -46,7 +47,7 @@ function cacheElements() {
   const ids = [
     "canvas", "canvas-transform", "viewport",
     "layer-outline", "layer-inner", "layer-walls",
-    "layer-openings", "layer-furniture", "layer-points",
+    "layer-openings", "layer-furniture", "layer-rooms", "layer-points",
     "layer-labels", "layer-dims", "layer-measure",
     "grid-rect", "svg-view-container",
     "coord-display", "connection-status", "zoom-level",
@@ -56,7 +57,7 @@ function cacheElements() {
     "rough-openings-table",
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
-    "show-openings", "show-furniture",
+    "show-openings", "show-furniture", "show-rooms",
     "variant-select", "variant-selector",
   ];
   for (const id of ids) {
@@ -274,6 +275,7 @@ function renderCanvas() {
   renderInteriorWalls(g);
   renderOpenings(g);
   renderFurniture(g);
+  renderRoomLabels(g);
   renderPoints(g);
   renderDimensions(g);
 
@@ -286,7 +288,7 @@ function renderCanvas() {
 
 function clearLayers() {
   const layers = ["layer-outline", "layer-inner", "layer-walls",
-    "layer-openings", "layer-furniture", "layer-points",
+    "layer-openings", "layer-furniture", "layer-rooms", "layer-points",
     "layer-labels", "layer-dims", "layer-measure"];
   for (const id of layers) {
     App.els[id].innerHTML = "";
@@ -458,6 +460,51 @@ function renderFurniture(g) {
     });
     el.addEventListener("click", (e) => selectElement("furniture", name, item, e));
     layer.appendChild(el);
+  }
+}
+
+function renderRoomLabels(g) {
+  if (!App.state.showRooms) return;
+  const layer = App.els["layer-rooms"];
+  if (!g.room_labels) return;
+
+  for (const lbl of g.room_labels) {
+    const [e, n] = lbl.pos;
+    const hasArea = lbl.area !== undefined;
+    // Room name
+    const nameEl = svgEl("text", {
+      x: e, y: -n + (hasArea ? -0.15 : 0),
+      class: "room-label",
+      "text-anchor": "middle",
+      "dominant-baseline": "middle",
+      "pointer-events": "none",
+    });
+    nameEl.textContent = lbl.name;
+    layer.appendChild(nameEl);
+    // Area (SF variant only)
+    if (hasArea) {
+      const areaEl = svgEl("text", {
+        x: e, y: -n + 0.15,
+        class: "room-label room-area",
+        "text-anchor": "middle",
+        "dominant-baseline": "middle",
+        "pointer-events": "none",
+      });
+      areaEl.textContent = lbl.area + " sf";
+      layer.appendChild(areaEl);
+    }
+  }
+
+  // SF dashed partition lines
+  if (g.sf_lines) {
+    for (const line of g.sf_lines) {
+      const el = svgEl("line", {
+        x1: line.start[0], y1: -line.start[1],
+        x2: line.end[0], y2: -line.end[1],
+        class: "sf-partition",
+      });
+      layer.appendChild(el);
+    }
   }
 }
 
@@ -988,6 +1035,10 @@ function setupEventListeners() {
   });
   App.els["show-furniture"].addEventListener("change", (e) => {
     App.state.showFurniture = e.target.checked;
+    renderCanvas();
+  });
+  App.els["show-rooms"].addEventListener("change", (e) => {
+    App.state.showRooms = e.target.checked;
     renderCanvas();
   });
 
