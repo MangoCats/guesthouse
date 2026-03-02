@@ -85,6 +85,12 @@ CREATE TABLE IF NOT EXISTS variant_exclusions (
     element_name TEXT NOT NULL,       -- e.g. 'IW6', 'RO5', 'O3'
     PRIMARY KEY (variant, element_type, element_name)
 );
+
+CREATE TABLE IF NOT EXISTS room_label_offsets (
+    room_name   TEXT PRIMARY KEY,     -- e.g. 'BEDROOM', 'UTIL_N'
+    offset_e    REAL DEFAULT 0.0,     -- easting offset from centroid (feet)
+    offset_n    REAL DEFAULT 0.0      -- northing offset from centroid (feet)
+);
 """
 
 
@@ -494,6 +500,26 @@ def get_variant_exclusions(variant, db_path=None):
     for r in rows:
         result.setdefault(r["element_type"], set()).add(r["element_name"])
     return result
+
+
+def get_room_label_offsets(db_path=None):
+    """Return dict of room label offsets: {name: (offset_e, offset_n)}."""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT room_name, offset_e, offset_n FROM room_label_offsets"
+        ).fetchall()
+    return {r["room_name"]: (r["offset_e"], r["offset_n"]) for r in rows}
+
+
+def set_room_label_offset(room_name, offset_e, offset_n, db_path=None):
+    """Set the label offset for a room (relative to centroid)."""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT INTO room_label_offsets (room_name, offset_e, offset_n) "
+            "VALUES (?, ?, ?) "
+            "ON CONFLICT(room_name) DO UPDATE SET offset_e=?, offset_n=?",
+            (room_name, offset_e, offset_n, offset_e, offset_n),
+        )
 
 
 def reset_constants(db_path=None):

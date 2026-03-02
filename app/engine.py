@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from app.apputil import point_to_list, bbox_from_poly, seg_to_dict
-from app.database import get_variant_exclusions
+from app.database import get_variant_exclusions, get_room_label_offsets
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -179,11 +179,17 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant):
     data = Data(pts=pts, inner_segs=inner_segs, radii=radii)
     areas = compute_room_areas(data, layout)
 
-    # --- Build label list from polygon centroids ---
+    # --- Build label list from polygon centroids + DB offsets ---
+    offsets = get_room_label_offsets()
     labels = []
     for name, poly in rooms.items():
         cx, cy = _centroid(poly)
-        lbl = {"name": name, "pos": point_to_list((cx, cy))}
+        de, dn = offsets.get(name, (0.0, 0.0))
+        lbl = {
+            "name": name,
+            "pos": point_to_list((cx + de, cy + dn)),
+            "centroid": point_to_list((cx, cy)),
+        }
         if is_sf:
             lbl["area"] = round(areas[name], 1)
             lbl["poly"] = [point_to_list(p) for p in poly]
