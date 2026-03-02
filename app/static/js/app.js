@@ -24,6 +24,7 @@ const App = {
     lastPan: null,
     constSortKey: "name",
     constSortAsc: true,
+    svgView: { pan: { x: 0, y: 0 }, zoom: 1 },
   },
   els: {},
   sse: null,
@@ -153,8 +154,20 @@ function renderViewTabs() {
   interTab.onclick = () => switchView("interactive");
   container.appendChild(interTab);
 
-  // Generated SVG view tabs
+  // Floorplan tab (always second, right after Interactive)
+  const fp = App.state.views.find(v => v.name === "floorplan");
+  if (fp) {
+    const fpTab = document.createElement("button");
+    fpTab.className = "view-tab";
+    fpTab.textContent = fp.label;
+    fpTab.dataset.view = fp.name;
+    fpTab.onclick = () => switchView(fp.name);
+    container.appendChild(fpTab);
+  }
+
+  // Remaining generated SVG view tabs
   for (const v of App.state.views) {
+    if (v.name === "floorplan") continue; // already added above
     if (v.svg_path.endsWith(".pdf")) continue; // skip PDFs for now
     const tab = document.createElement("button");
     tab.className = "view-tab";
@@ -180,10 +193,12 @@ function switchView(viewName) {
   if (viewName === "interactive") {
     App.els["canvas"].style.display = "block";
     App.els["svg-view-container"].style.display = "none";
+    App.els["viewport"].style.cursor = App.state.activeTool === "pan" ? "grab" : "crosshair";
     renderCanvas();
   } else {
     App.els["canvas"].style.display = "none";
     App.els["svg-view-container"].style.display = "block";
+    App.els["viewport"].style.cursor = "grab";
     loadSVGView(viewName);
   }
 }
@@ -199,9 +214,48 @@ async function loadSVGView(viewName) {
     }
     const svg = await resp.text();
     container.innerHTML = svg;
+    // Initialise pan/zoom to fit the SVG in the viewport
+    const svgEl = container.querySelector("svg");
+    if (svgEl) {
+      svgEl.style.transformOrigin = "0 0";
+      svgViewFit();
+    }
   } catch (e) {
     container.innerHTML = `<p style='padding:20px;color:#f88'>Error loading SVG: ${e.message}</p>`;
   }
+}
+
+function svgViewFit() {
+  const container = App.els["svg-view-container"];
+  const svgEl = container.querySelector("svg");
+  if (!svgEl) return;
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+  // Use the SVG's intrinsic size from viewBox or width/height attributes
+  const vb = svgEl.viewBox.baseVal;
+  let sw, sh;
+  if (vb && vb.width > 0) {
+    sw = vb.width;
+    sh = vb.height;
+  } else {
+    sw = svgEl.width.baseVal.value || cw;
+    sh = svgEl.height.baseVal.value || ch;
+  }
+  const scale = Math.min(cw / sw, ch / sh) * 0.95;
+  const px = (cw - sw * scale) / 2;
+  const py = (ch - sh * scale) / 2;
+  App.state.svgView = { pan: { x: px, y: py }, zoom: scale };
+  svgViewApplyTransform();
+}
+
+function svgViewApplyTransform() {
+  const container = App.els["svg-view-container"];
+  const svgEl = container.querySelector("svg");
+  if (!svgEl) return;
+  const { pan, zoom } = App.state.svgView;
+  svgEl.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+  // Update zoom display
+  App.els["zoom-level"].textContent = `${Math.round(zoom * 100)}%`;
 }
 
 
@@ -465,6 +519,10 @@ function applyTransform() {
 }
 
 function fitToWindow() {
+  if (App.state.activeView !== "interactive") {
+    svgViewFit();
+    return;
+  }
   const g = App.state.geometry;
   if (!g || !g.bbox) return;
 
@@ -981,6 +1039,17 @@ function setupEventListeners() {
 /* ========== MOUSE HANDLERS ========== */
 
 function onMouseDown(e) {
+  // SVG view: any left-click starts pan drag
+  if (App.state.activeView !== "interactive") {
+    if (e.button === 0 || e.button === 1) {
+      App.state.isDragging = true;
+      App.state.dragStart = { x: e.clientX, y: e.clientY };
+      App.state.lastPan = { ...App.state.svgView.pan };
+      App.els["viewport"].style.cursor = "grabbing";
+      e.preventDefault();
+    }
+    return;
+  }
   if (e.button === 1 || (e.button === 0 && App.state.activeTool === "pan")) {
     // Pan mode
     App.state.isDragging = true;
@@ -996,6 +1065,17 @@ function onMouseDown(e) {
 }
 
 function onMouseMove(e) {
+  // SVG view pan drag
+  if (App.state.activeView !== "interactive") {
+    if (App.state.isDragging) {
+      const dx = e.clientX - App.state.dragStart.x;
+      const dy = e.clientY - App.state.dragStart.y;
+      App.state.svgView.pan.x = App.state.lastPan.x + dx;
+      App.state.svgView.pan.y = App.state.lastPan.y + dy;
+      svgViewApplyTransform();
+    }
+    return;
+  }
   const rect = App.els["viewport"].getBoundingClientRect();
   const sx = e.clientX - rect.left;
   const sy = e.clientY - rect.top;
@@ -1021,10 +1101,15 @@ function onMouseMove(e) {
 function onMouseUp(e) {
   if (App.state.isDragging) {
     App.state.isDragging = false;
-    App.els["viewport"].style.cursor = App.state.activeTool === "pan" ? "grab" : "crosshair";
+    if (App.state.activeView !== "interactive") {
+      App.els["viewport"].style.cursor = "grab";
+    } else {
+      App.els["viewport"].style.cursor = App.state.activeTool === "pan" ? "grab" : "crosshair";
+    }
   }
 
-  if (App.state.activeTool === "measure" && App.state.measureStart) {
+  if (App.state.activeView === "interactive" &&
+      App.state.activeTool === "measure" && App.state.measureStart) {
     const rect = App.els["viewport"].getBoundingClientRect();
     const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
     const [sx, sy] = App.state.measureStart;
@@ -1041,10 +1126,19 @@ function onWheel(e) {
   const rect = App.els["viewport"].getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
-
   const factor = e.deltaY > 0 ? 0.9 : 1.1;
-  const newZoom = App.state.zoom * factor;
 
+  if (App.state.activeView !== "interactive") {
+    // SVG view zoom toward cursor
+    const sv = App.state.svgView;
+    sv.pan.x = mx - (mx - sv.pan.x) * factor;
+    sv.pan.y = my - (my - sv.pan.y) * factor;
+    sv.zoom *= factor;
+    svgViewApplyTransform();
+    return;
+  }
+
+  const newZoom = App.state.zoom * factor;
   // Zoom toward cursor
   App.state.pan.x = mx - (mx - App.state.pan.x) * factor;
   App.state.pan.y = my - (my - App.state.pan.y) * factor;

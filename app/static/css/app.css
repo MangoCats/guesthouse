@@ -243,10 +243,14 @@ body {
 #svg-view-container {
   position: absolute;
   inset: 0;
-  overflow: auto;
+  overflow: hidden;
   background: white;
+  cursor: grab;
 }
-#svg-view-container svg { max-width: none; }
+#svg-view-container svg {
+  max-width: none;
+  transform-origin: 0 0;
+}
 
 #status-bar {
   height: var(--status-h);
