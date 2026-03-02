@@ -145,6 +145,37 @@ The `furniture` dict SHALL contain keys `bed`, `dresser`, `shelves`.
 
 **Acceptance:** Verify both key sets.
 
+#### ENG-13  Variant Item Computation
+`compute_geometry(constants_dict, variant)` SHALL accept a `variant`
+parameter (one of `standard`, `minik`, `daybed`, `bare`, `sf`) and return
+a `variant_items` dict containing all furniture, appliances, and fixtures
+for that variant. The standard variant SHALL produce at least 20 items
+including `dryer`, `washer`, `hamper`, `counter`, `water_heater`,
+`toilet_s`, `toilet_n`, `util_sink`, `bath_sink`, `stove`, `dishwasher`,
+`kitchen_sink`, `fridge`, `ice_maker`, `work_counter`, `microwave`,
+`north_counter`, `coffee_maker`, `dining_table`, `dining_chair_1`,
+`dining_chair_2`, `bed`, `dresser`, `shelves`, `loveseat`, `et`,
+`loveseat2`, `chair`, `ottoman`, `desk`, `desk_chair`. The `bare` and
+`sf` variants SHALL produce zero items. The `minik` variant SHALL include
+`sofa`, `rocker`, `cooktop`, `toaster` and exclude `loveseat`, `stove`,
+`dishwasher`. The `daybed` variant SHALL include `daybed`, `shelves2`,
+`et_east`, `et_west`, `rocker` and exclude `loveseat`, `sofa`.
+
+Each item SHALL have keys: `type` (one of `appliance`, `furniture`,
+`fixture`), `poly` (list of [E,N] coordinate pairs with >= 3 points),
+`bbox` ({`w`, `s`, `e`, `n`}), `label` (display name), `shape` (`rect`
+or `circle`). Circle items SHALL additionally have `center` ([E,N]) and
+`radius` (positive float).
+
+The response SHALL also include `variant` (the active variant name) and
+`available_variants` (list of all variant names).
+
+**Acceptance:** Call `compute_geometry` with default constants and each
+variant name. Verify standard has >= 20 items with all required keys.
+Verify bare and sf have 0 items. Verify minik contains `sofa` but not
+`loveseat`. Verify daybed contains `daybed` but not `sofa`. Verify every
+item bbox is within the building outline bbox (with 2 ft margin).
+
 #### ENG-7  Constant Propagation
 Changing a constant in the database SHALL produce different computed
 geometry when `compute_geometry` is called again.
@@ -279,10 +310,19 @@ matches the original.
 
 #### API-8  GET /api/geometry
 SHALL return HTTP 200 with a JSON object containing the complete computed
-geometry (see ENG-1 for required keys).
+geometry (see ENG-1 for required keys). SHALL accept an optional
+`?variant=` query parameter (one of `standard`, `minik`, `daybed`,
+`bare`, `sf`; default `standard`). An unrecognised variant name SHALL
+fall back to `standard`. The response SHALL include `variant` (the active
+variant name), `variant_items` (dict of items for that variant), and
+`available_variants` (list of all variant names).
 
-**Acceptance:** Response is JSON with keys `points`, `outline_poly`,
-`interior_walls`, `bbox`.
+**Acceptance:** GET `/api/geometry` returns JSON with keys `points`,
+`outline_poly`, `interior_walls`, `bbox`, `variant`, `variant_items`,
+`available_variants`. `variant` equals `"standard"` when no param given.
+GET `/api/geometry?variant=bare` returns `variant == "bare"` with 0
+variant_items. GET `/api/geometry?variant=nonexistent` returns
+`variant == "standard"`.
 
 #### API-9  GET /api/geometry -- error handling
 SHALL return HTTP 500 with `{"error": "..."}` if geometry computation
@@ -330,10 +370,22 @@ With body `{"view": "floorplan"}`: SHALL regenerate only that view.
 
 #### API-15  Geometry Cache Invalidation
 After a successful PUT to `/api/constants/<name>`, the geometry cache
-SHALL be marked dirty so the next GET `/api/geometry` recomputes.
+SHALL be marked dirty for all variants so the next GET `/api/geometry`
+recomputes.
 
 **Acceptance:** GET geometry (cache populated). PUT a constant. GET
 geometry again. Verify the response reflects the changed constant.
+
+#### API-34  GET /api/variants
+SHALL return HTTP 200 with a JSON array of variant objects. Each object
+SHALL have keys `name` (string identifier) and `label` (human-readable
+display name). The array SHALL contain exactly 5 entries: `standard`,
+`minik`, `daybed`, `bare`, `sf`.
+
+**Acceptance:** GET `/api/variants` returns 200 with a JSON array of
+length 5. The set of `name` values equals
+`{"standard", "minik", "daybed", "bare", "sf"}`. Each entry has a
+non-empty `label`.
 
 ### 2.3  Outline Chain Mutation API **(NEW)**
 
@@ -521,6 +573,21 @@ Each view variant SHALL have independently configurable layer visibility
 generated SVG for "bare" omits those layers. The main floorplan still
 shows them.
 
+#### UI-8  Variant Selector
+The view tab bar SHALL contain a "Layout" dropdown selector visible when
+the Interactive tab is active. The selector SHALL list all 5 floorplan
+variants (Standard, Small Kitchen, Daybed, Room Dimensions, Square
+Footage). Selecting a variant SHALL reload the geometry with that
+variant's furniture/appliance set. The selector SHALL be hidden when an
+SVG view tab is active.
+
+**Acceptance:** Load the page with the Interactive tab active. The
+"Layout" dropdown is visible with 5 options. Select "Small Kitchen" --
+the canvas re-renders with minik furniture (sofa, rocker, cooktop
+visible; loveseat, stove absent). Switch to an SVG view tab -- the
+dropdown is hidden. Switch back to Interactive -- the dropdown reappears
+with the previously selected variant.
+
 ### 3.3  Right Panel
 
 #### UI-7  Right Panel Tabs
@@ -557,11 +624,19 @@ outer openings and 7 rough openings.
 elements.
 
 #### CV-4  Furniture Rendering
-When the "Furniture" toggle is checked, the canvas SHALL render appliances
-(dryer, washer, counter) and furniture (bed, dresser, shelves).
+When the "Furniture" toggle is checked, the canvas SHALL render all
+variant items (appliances, furniture, and fixtures) for the currently
+selected variant. The standard variant SHALL render at least 20 items.
+Items with `shape == "rect"` SHALL be rendered as SVG `<polygon>`
+elements. Items with `shape == "circle"` SHALL be rendered as SVG
+`<circle>` elements. Each item type SHALL have a distinct CSS class:
+`item-appliance`, `item-furniture`, `item-fixture`.
 
-**Acceptance:** Count elements in `#layer-furniture`. There are 6 polygon
-elements.
+**Acceptance:** Select the standard variant. Count elements in
+`#layer-furniture`. There are >= 20 elements (polygons and circles).
+Select the bare variant. The layer contains 0 elements. Select minik.
+The layer contains elements for `sofa` and `cooktop` but not `loveseat`
+or `stove`.
 
 #### CV-5  Point Markers
 When the "Points" toggle is checked, the canvas SHALL render circle
@@ -1588,6 +1663,17 @@ or `<select>` element.
 **Acceptance:** Focus a constant value input. Press V. The tool does not
 change; the character is typed into the input instead.
 
+#### NF-6  Default Display Units
+Unless otherwise specified, all displayed dimensions SHALL use feet and
+inches. Inch values SHALL be displayed to two decimal places of precision
+with trailing zeroes removed (e.g., `5' 3.5"` not `5' 3.50"`; `12' 0"`
+not `12' 0.00"`).
+
+**Acceptance:** Inspect dimension labels, property panel values, and
+measurement tool output. All use feet-inches format. A value of exactly
+3 inches displays as `3"`, not `3.00"`. A value of 7.50 inches displays
+as `7.5"`.
+
 ---
 
 ## Appendix A: Requirement Cross-Reference by User Operation
@@ -1606,7 +1692,7 @@ history) to the requirements that enable each operation through the GUI.
 | Configure doors (hinge/swing) | ~35 | DOOR-1..4, SEL-7, SEL-11, CV-7, API-27..29 |
 | Edit site plan | ~36 | SITE-1..4 |
 | 3D/SCAD model | ~31 | SCAD-1..3 |
-| View variants | ~24 | UI-5, UI-6 |
+| View variants | ~24 | UI-5, UI-6, UI-8, ENG-13, API-8, API-34, CV-4 |
 | Plumbing plan | ~22 | PLUMB-1..3 |
 | Span/area analysis | ~22 | ANALYSIS-1..3 |
 | Resize elements | ~20 | SEL-10, DT-7, DT-10 |
@@ -1619,9 +1705,9 @@ history) to the requirements that enable each operation through the GUI.
 
 | Section | Existing | New | Total |
 |---------|----------|-----|-------|
-| 1 Data Layer | 10 | 5 | 15 |
-| 2 REST API | 17 | 16 | 33 |
-| 3 UI Layout | 5 | 3 | 8 |
+| 1 Data Layer | 10 | 6 | 16 |
+| 2 REST API | 17 | 17 | 34 |
+| 3 UI Layout | 5 | 4 | 9 |
 | 4 Canvas | 11 | 10 | 21 |
 | 5 Selection | 6 | 8 | 14 |
 | 6 Tools | 4 | 20 | 24 |
@@ -1635,5 +1721,5 @@ history) to the requirements that enable each operation through the GUI.
 | 14 Plumbing | 0 | 3 | 3 |
 | 15 Undo/Redo | 0 | 4 | 4 |
 | 16 Real-Time | 4 | 1 | 5 |
-| 17 Application | 9 | 0 | 9 |
-| **Total** | **80** | **105** | **185** |
+| 17 Application | 9 | 1 | 10 |
+| **Total** | **80** | **109** | **189** |
