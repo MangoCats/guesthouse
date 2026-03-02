@@ -234,3 +234,45 @@ class TestVariantAPI:
             assert "bbox" in item
             assert "label" in item
             assert "shape" in item
+
+
+# =========================================================================
+# TestDimensionData
+# =========================================================================
+
+class TestDimensionData:
+    def test_geometry_has_dimensions(self, fresh_db):
+        """Geometry result should include dimension line data."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "standard")
+        assert "dimensions" in geom
+        assert len(geom["dimensions"]) >= 18
+
+    def test_dimension_has_endpoints_and_dist(self, fresh_db):
+        """Each dimension should have A, B endpoints and positive dist."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "standard")
+        for name, dim in geom["dimensions"].items():
+            assert "A" in dim and "B" in dim and "dist" in dim, \
+                f"{name} missing keys"
+            assert len(dim["A"]) == 2 and len(dim["B"]) == 2, \
+                f"{name} endpoints not [E,N] pairs"
+            assert dim["dist"] > 0, f"{name} has non-positive dist"
+
+    def test_bare_variant_has_extra_dims(self, fresh_db):
+        """Bare variant should include dim20 and dim21."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "bare")
+        assert "dim20" in geom["dimensions"]
+        assert "dim21" in geom["dimensions"]
+
+    def test_dimension_api_response(self, app_client):
+        """API should return dimensions in geometry response."""
+        resp = app_client.get("/api/geometry")
+        data = resp.get_json()
+        assert "dimensions" in data
+        assert len(data["dimensions"]) >= 18
+        # Spot-check one dimension
+        dim01 = data["dimensions"].get("dim01")
+        assert dim01 is not None
+        assert dim01["dist"] > 0

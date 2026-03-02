@@ -204,6 +204,25 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
     result["variant"] = variant
     result["available_variants"] = list(VARIANTS.keys())
 
+    # Dimension lines
+    from floorplan.gen_floorplan import compute_dimension_endpoints
+    dim_endpoints = compute_dimension_endpoints(pts, layout, geom.radii, bare=(variant == "bare"))
+    ep_dict = {name: pt for name, pt in dim_endpoints}
+    dim_names = sorted(set(k.rsplit("_", 1)[0] for k in ep_dict))
+    dimensions = {}
+    for dname in dim_names:
+        a_key = f"{dname}_A"
+        b_key = f"{dname}_B"
+        if a_key in ep_dict and b_key in ep_dict:
+            pa, pb = ep_dict[a_key], ep_dict[b_key]
+            dist = math.sqrt((pb[0] - pa[0])**2 + (pb[1] - pa[1])**2)
+            dimensions[dname] = {
+                "A": _point_to_list(pa),
+                "B": _point_to_list(pb),
+                "dist": round(dist, 6),
+            }
+    result["dimensions"] = dimensions
+
     return result
 
 

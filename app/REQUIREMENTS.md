@@ -667,14 +667,24 @@ respective enclosed regions.
 **Acceptance:** `#layer-room-labels` contains text elements. Each label
 is positioned within its room boundary polygon.
 
-#### CV-9  Dimension Lines **(NEW)**
-When the "Dimensions" toggle is checked, the canvas SHALL render
-persistent dimension annotations showing distances between reference
-points/faces with extension lines, arrowheads, and value labels.
+#### CV-9  Dimension Lines
+When the "Dimensions" toggle is checked, the canvas SHALL render all
+dimension lines computed by `compute_dimension_endpoints()` (at least 18
+for standard variant). Each dimension SHALL be rendered as a line
+segment in `#layer-dims` with perpendicular tick marks at each endpoint
+and a rotated text label at the midpoint showing the distance in
+feet-inches format (NF-6 compliant). Label rotation SHALL be normalised
+to [-90, 90) degrees for readability.
 
-**Acceptance:** `#layer-dimensions` contains dimension line groups. Each
-group has two extension lines, a measurement line, and a text label
-showing the distance in feet-inches format.
+The geometry API response SHALL include a `dimensions` dict keyed by
+dimension name, each containing `A` and `B` endpoint coordinates and
+`dist` (distance in feet).
+
+**Acceptance:** Check the "Dims" toggle. `#layer-dims` contains >= 54
+child elements (18 dimensions x 3 elements each: 1 line + 2 ticks,
+plus 18 text labels). Each text label shows a value in `X' Y.YY"`
+format. GET `/api/geometry` response includes `dimensions` with >= 18
+entries, each having `A`, `B`, and `dist` keys.
 
 #### CV-10  Area Labels **(NEW)**
 When the "Areas" toggle is checked, the canvas SHALL render room area

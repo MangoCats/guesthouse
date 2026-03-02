@@ -141,6 +141,8 @@ async function loadViews() {
 
 function renderViewTabs() {
   const container = App.els["view-tabs"];
+  // Preserve variant selector before clearing (it's a static child of view-tabs)
+  const vs = App.els["variant-selector"];
   container.innerHTML = "";
 
   // Interactive view tab (always first)
@@ -161,6 +163,9 @@ function renderViewTabs() {
     tab.onclick = () => switchView(v.name);
     container.appendChild(tab);
   }
+
+  // Re-append variant selector
+  container.appendChild(vs);
 }
 
 function switchView(viewName) {
@@ -213,6 +218,7 @@ function renderCanvas() {
   renderOpenings(g);
   renderFurniture(g);
   renderPoints(g);
+  renderDimensions(g);
 
   if (App.state.zoom === 1 && App.state.pan.x === 0 && App.state.pan.y === 0) {
     fitToWindow();
@@ -232,6 +238,15 @@ function clearLayers() {
 
 function polyToStr(poly) {
   return poly.map(p => `${p[0]},${-p[1]}`).join(" ");
+}
+
+function fmtFtIn(ft) {
+  const totalIn = Math.round(Math.abs(ft) * 1200) / 100;
+  const wholeFt = Math.floor(totalIn / 12);
+  const remainIn = totalIn - wholeFt * 12;
+  const inStr = remainIn.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  const sign = ft < 0 ? '-' : '';
+  return `${sign}${wholeFt}' ${inStr}"`;
 }
 
 function renderOutline(g) {
@@ -506,59 +521,62 @@ function showProperties(type, name, data) {
   tbody.innerHTML = "";
 
   if (type === "point") {
-    addPropRow(tbody, "Easting", `${data.pos[0].toFixed(4)} ft`);
-    addPropRow(tbody, "Northing", `${data.pos[1].toFixed(4)} ft`);
-    addPropRow(tbody, "E (inches)", `${(data.pos[0] * 12).toFixed(2)}"`);
-    addPropRow(tbody, "N (inches)", `${(data.pos[1] * 12).toFixed(2)}"`);
+    addPropRow(tbody, "Easting", fmtFtIn(data.pos[0]));
+    addPropRow(tbody, "Northing", fmtFtIn(data.pos[1]));
   } else if (type === "wall") {
     const b = data.bbox;
-    addPropRow(tbody, "Width", `${((b.e - b.w) * 12).toFixed(1)}"`);
-    addPropRow(tbody, "Height", `${((b.n - b.s) * 12).toFixed(1)}"`);
-    addPropRow(tbody, "West", `${b.w.toFixed(4)} ft`);
-    addPropRow(tbody, "South", `${b.s.toFixed(4)} ft`);
-    addPropRow(tbody, "East", `${b.e.toFixed(4)} ft`);
-    addPropRow(tbody, "North", `${b.n.toFixed(4)} ft`);
+    addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
+    addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
+    addPropRow(tbody, "West", fmtFtIn(b.w));
+    addPropRow(tbody, "South", fmtFtIn(b.s));
+    addPropRow(tbody, "East", fmtFtIn(b.e));
+    addPropRow(tbody, "North", fmtFtIn(b.n));
     // Show related constants
     const related = findRelatedConstants(name);
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
       for (const c of related) {
-        addPropRow(tbody, c.name, `${c.value.toFixed(6)} ${c.unit}`, true, c.name);
+        addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
       }
     }
   } else if (type === "opening" || type === "rough_opening") {
     addPropRow(tbody, "Name", data.name);
     if (data.seg_start) addPropRow(tbody, "Segment", `${data.seg_start}–${data.seg_end}`);
     if (data.wall_name) addPropRow(tbody, "Wall", data.wall_name);
-    if (data.width) addPropRow(tbody, "Width", `${(data.width * 12).toFixed(1)}"`);
+    if (data.width) addPropRow(tbody, "Width", fmtFtIn(data.width));
     if (data.orientation) addPropRow(tbody, "Orient", data.orientation);
     if (data.poly) {
       const dx = data.poly[1][0] - data.poly[0][0];
       const dy = data.poly[1][1] - data.poly[0][1];
       const w = Math.sqrt(dx * dx + dy * dy);
-      addPropRow(tbody, "Actual width", `${(w * 12).toFixed(1)}"`);
+      addPropRow(tbody, "Actual width", fmtFtIn(w));
     }
     const related = findRelatedConstants(data.name);
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
       for (const c of related) {
-        addPropRow(tbody, c.name, `${c.value.toFixed(6)} ${c.unit}`, true, c.name);
+        addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
       }
     }
   } else if (type === "appliance" || type === "furniture") {
     const b = data.bbox;
-    addPropRow(tbody, "Width", `${((b.e - b.w) * 12).toFixed(1)}"`);
-    addPropRow(tbody, "Depth", `${((b.n - b.s) * 12).toFixed(1)}"`);
-    addPropRow(tbody, "Center E", `${((b.w + b.e) / 2).toFixed(4)} ft`);
-    addPropRow(tbody, "Center N", `${((b.s + b.n) / 2).toFixed(4)} ft`);
+    addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
+    addPropRow(tbody, "Depth", fmtFtIn(b.n - b.s));
+    addPropRow(tbody, "Center E", fmtFtIn((b.w + b.e) / 2));
+    addPropRow(tbody, "Center N", fmtFtIn((b.s + b.n) / 2));
     const related = findRelatedConstants(name);
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
       for (const c of related) {
-        addPropRow(tbody, c.name, `${c.value.toFixed(6)} ${c.unit}`, true, c.name);
+        addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
       }
     }
   }
+}
+
+function fmtConstProp(c) {
+  if (c.unit === "ft") return fmtFtIn(c.value);
+  return `${c.value.toFixed(6)}`;
 }
 
 function addPropRow(tbody, label, value, editable = false, constName = null) {
@@ -677,11 +695,9 @@ function renderConstantsTable() {
 
 function formatConstValue(c) {
   if (c.unit === "ft") {
-    const inches = c.value * 12;
-    if (Math.abs(inches - Math.round(inches)) < 0.001) {
-      return `${Math.round(inches)}"`;
-    }
-    return `${inches.toFixed(3)}"`;
+    const inches = Math.round(c.value * 1200) / 100;
+    const inStr = inches.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+    return `${inStr}"`;
   }
   return c.value.toFixed(6);
 }
@@ -726,7 +742,9 @@ async function handleConstantEdit(name, rawValue) {
       body: JSON.stringify({ value }),
     });
     if (!resp.ok) throw new Error((await resp.json()).error);
-    showToast(`${name} = ${value.toFixed(6)}`, "success");
+    const c_ = App.state.constants.find(x => x.name === name);
+    const disp = (c_ && c_.unit === "ft") ? fmtFtIn(value) : value.toFixed(6);
+    showToast(`${name} = ${disp}`, "success");
 
     // Update local state
     const c = App.state.constants.find(c => c.name === name);
@@ -749,7 +767,7 @@ async function loadOutlineTable() {
     tr.innerHTML = `
       <td>${seg.seq}</td>
       <td>${seg.seg_type}</td>
-      <td>${seg.seg_type === "L" ? (seg.distance || 0).toFixed(4) : (seg.radius || 0).toFixed(6)}</td>
+      <td>${seg.seg_type === "L" ? fmtFtIn(seg.distance || 0) : fmtFtIn(seg.radius || 0)}</td>
       <td>${seg.seg_type === "L" ? "—" : (seg.sweep || 0).toFixed(6)}</td>
       <td>${seg.end_name}</td>
     `;
@@ -770,12 +788,12 @@ function updateOpeningsTable() {
   for (const op of (g.outer_openings || [])) {
     const dx = op.poly[1][0] - op.poly[0][0];
     const dy = op.poly[1][1] - op.poly[0][1];
-    const w = Math.sqrt(dx * dx + dy * dy) * 12;
+    const w = Math.sqrt(dx * dx + dy * dy);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${op.name}</td>
       <td>${op.seg_start}–${op.seg_end}</td>
-      <td>${w.toFixed(1)}"</td>
+      <td>${fmtFtIn(w)}</td>
     `;
     tr.classList.add("selectable");
     tr.addEventListener("click", () => selectElement("opening", op.name, op));
@@ -790,7 +808,7 @@ function updateOpeningsTable() {
     tr.innerHTML = `
       <td>${ro.name}</td>
       <td>${ro.wall_name}</td>
-      <td>${(ro.width * 12).toFixed(1)}"</td>
+      <td>${fmtFtIn(ro.width)}</td>
       <td>${ro.orientation}</td>
     `;
     tr.classList.add("selectable");
@@ -922,7 +940,7 @@ function onMouseMove(e) {
 
   // Update coordinate display
   App.els["coord-display"].textContent =
-    `E: ${wx.toFixed(3)}  N: ${wy.toFixed(3)}  (${(wx*12).toFixed(1)}" / ${(wy*12).toFixed(1)}")`;
+    `E: ${fmtFtIn(wx)}  N: ${fmtFtIn(wy)}`;
 
   if (App.state.isDragging) {
     const dx = e.clientX - App.state.dragStart.x;
@@ -950,8 +968,7 @@ function onMouseUp(e) {
     const dx = wx - sx;
     const dy = wy - sy;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    App.els["measure-info"].textContent =
-      `Dist: ${dist.toFixed(4)} ft (${(dist * 12).toFixed(2)}")`;
+    App.els["measure-info"].textContent = `Dist: ${fmtFtIn(dist)}`;
     App.state.measureStart = null;
   }
 }
@@ -1019,6 +1036,52 @@ function setTool(tool) {
 }
 
 
+/* ========== DIMENSION LINES ========== */
+
+function renderDimensions(g) {
+  const layer = App.els["layer-dims"];
+  if (!App.state.showDims || !g.dimensions) return;
+
+  for (const [name, dim] of Object.entries(g.dimensions)) {
+    const x1 = dim.A[0], y1 = -dim.A[1];
+    const x2 = dim.B[0], y2 = -dim.B[1];
+
+    // Dimension line
+    layer.appendChild(svgEl("line", {
+      x1, y1, x2, y2, class: "dim-line"
+    }));
+
+    // Tick marks (perpendicular to line)
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 0.01) continue;
+    const px = -dy / len * 0.15, py = dx / len * 0.15;
+    for (const [tx, ty] of [[x1, y1], [x2, y2]]) {
+      layer.appendChild(svgEl("line", {
+        x1: tx - px, y1: ty - py, x2: tx + px, y2: ty + py,
+        class: "dim-line"
+      }));
+    }
+
+    // Label at midpoint, rotated for readability
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    let ang = Math.atan2(dy, dx) * 180 / Math.PI;
+    if (ang >= 90) ang -= 180;
+    else if (ang < -90) ang += 180;
+    const angRad = ang * Math.PI / 180;
+    const lx = mx + 0.15 * Math.sin(angRad);
+    const ly = my - 0.15 * Math.cos(angRad);
+
+    const label = svgEl("text", {
+      x: lx, y: ly, class: "dim-label",
+      transform: `rotate(${ang},${lx},${ly})`
+    });
+    label.textContent = fmtFtIn(dim.dist);
+    layer.appendChild(label);
+  }
+}
+
+
 /* ========== MEASURE ========== */
 
 function drawMeasureLine(p1, p2) {
@@ -1042,7 +1105,7 @@ function drawMeasureLine(p1, p2) {
     x: mx, y: my - 0.3,
     class: "measure-label",
   });
-  label.textContent = `${(dist * 12).toFixed(1)}" (${dist.toFixed(3)}')`;
+  label.textContent = fmtFtIn(dist);
   layer.appendChild(label);
 }
 
