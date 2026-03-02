@@ -12,8 +12,8 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ## Current State (Phase 0 — Complete)
 
-**80 of 189 requirements implemented.**  117 app tests, 586 pre-existing tests
-(703 total).
+**~93 of 193 requirements implemented.**  166 app tests, 586 pre-existing tests
+(752 total).
 
 | Capability | Status |
 |------------|--------|
@@ -22,39 +22,50 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Geometry engine: full recomputation | Done |
 | Interactive canvas: outline, walls, openings, furniture, points, dims | Done |
 | Five layout variants | Done |
-| 11 SVG view tabs | Done |
+| 11 SVG view tabs with zoom/pan | Done |
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
 | REST API: 14 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
+| Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
+| Room labels with area-weighted centroids (CV-8 partial, ENG-12 partial) | Done |
+| SF variant: room areas, partition lines, clickable highlights | Done |
+| Realistic item shapes: toilet, bath sink, dining table | Done |
+| Item labels on canvas | Done |
+| Stacked item rendering (microwave, cooktop, toaster, coffee maker) | Done |
+| Database-driven variant exclusions (bare/sf hide IW6, RO5) | Done |
+| Layout selector on Floorplan SVG tab (variant-specific SVGs) | Done |
+| DB tables: shapes, variant_exclusions, room_label_offsets | Done |
 
 **What's missing:** Element CRUD, doors, undo/redo, outline editing, move/draw
-tools, room areas, labels, styling, site plan editing, 3D integration,
+tools, shape editor UI, styling, site plan editing, 3D integration,
 plumbing editing, parametric dependencies (Charter Principle 5).
 
 ---
 
 ## Phase 1 — Foundation Test Coverage
 
-**Goal:** Achieve 100% automated test coverage for all 80 existing requirements
-before any new development.  This is the safety net.
+**Goal:** Achieve 100% automated test coverage for all ~93 implemented
+requirements before any new development.  This is the safety net.
 
-**Requirements:** DB-1–8, ENG-1–10, ENG-13, API-1–15, API-32–34, GEN-1–4,
-UI-1–4, UI-7–8, CV-1–6, CV-9, CV-13–17, DIS-1–5, SEL-1–3, SEL-5–6, SEL-9,
-TL-1–4, CT-1–10, DT-1, DT-5–6, DT-8, RT-1–4, APP-1–4, NF-1–6 (80 reqs)
+**Requirements:** DB-1–8, ENG-1–10, ENG-12 (partial), ENG-13, API-1–15,
+API-32–34, GEN-1–4, UI-1–4, UI-7–8, CV-1–6, CV-8 (partial), CV-9, CV-13–17,
+DIS-1–5, SEL-1–3, SEL-5–6, SEL-9, TL-1–4, CT-1–10, CT-7a–j, CT-8, DT-1,
+DT-5–6, DT-8, RT-1–4, APP-1–4, NF-1–6 (~93 reqs)
 
 **Work:**
-- Create `tests/test_zapp_database.py` — schema, seeding, CRUD (DB-1–8)
-- Create `tests/test_zapp_engine_full.py` — geometry keys, counts, propagation,
-  derived constants (ENG-1–10, ENG-13)
-- Create `tests/test_zapp_api_full.py` — all 14 endpoints (API-1–15, API-32–34)
-- Extend existing test files as needed for UI/canvas requirements (manual +
-  programmatic acceptance where possible)
+- Audit existing `test_zapp_*.py` coverage against all implemented requirements
+- Create `tests/test_zapp_api_full.py` — any API endpoints not yet covered
+- Extend `tests/test_zapp_engine.py` — room labels, centroids, sf_lines,
+  variant exclusions, shapes table
+- Extend `tests/test_zapp_database.py` — shapes, variant_exclusions,
+  room_label_offsets tables
+- Manual/programmatic acceptance for UI/canvas requirements where possible
 
-**Deliverable:** Every existing requirement has at least one automated test.
-~50 new tests.
+**Deliverable:** Every implemented requirement has at least one automated test.
+~30 new tests.
 
 **Dependencies:** None.
 
@@ -181,39 +192,40 @@ Extensive cross-validation tests between the two solvers are critical.
 
 ## Phase 6 — Enhanced Canvas Rendering
 
-**Goal:** Add door arcs, room labels, area labels, clearance zones, and
-hyperlink indicators to the interactive canvas.
+**Goal:** Add door arcs, clearance zones, hyperlink indicators, and display
+toggles to the interactive canvas.  Complete the room label/area system.
 
-**Requirements:** CV-7–8, CV-10–12, DIS-6–10, ENG-12, SEL-11, DOOR-1–4 (17 reqs)
+**Requirements:** CV-7, CV-10–12, DIS-6–10, SEL-11, DOOR-1–4 (13 reqs)
 
-**Work:**
-- Create `app/room_areas.py` — room boundary polygon construction + shoelace
-  area computation + centroid calculation (ENG-12)
-- Extend `app/engine.py` to include `room_areas`, `room_centroids`,
-  `clearance_zones`, `doors` in geometry result
+**Already done (Phase 0):** Room labels at area-weighted centroids (CV-8
+partial), room area computation (ENG-12 partial), SF area labels and partition
+lines, DB-driven room label offsets.  Room label rendering is inline in
+`app.js`; the area computation is in `engine.py:_compute_room_labels()`.
+
+**Remaining work:**
+- Extend `app/engine.py` to include `clearance_zones`, `doors` in geometry result
 - Create `app/static/js/canvas.js` — rendering functions:
   - `renderDoors()` — dashed arcs + hinge circles (CV-7)
-  - `renderRoomLabels()` — room names at centroids (CV-8)
-  - `renderAreaLabels()` — "125 sf" at centroids (CV-10)
   - `renderClearanceZones()` — dashed circles at fixtures (CV-11)
   - `renderHyperlinkIndicators()` — link icons (CV-12)
-- Add SVG layers and display toggles: Room Labels (DIS-6), Dimensions (DIS-7),
+- Add display toggles: Room Labels (DIS-6), Dimensions (DIS-7),
   Areas (DIS-8), Clearance (DIS-9), Doors (DIS-10)
 - Door property editing triggers re-render (SEL-11)
+- Complete CV-10 (area labels for non-SF variants as toggle-based overlay)
 
-**New files:** `app/room_areas.py`, `app/static/js/canvas.js`,
-`tests/test_zapp_areas.py`
+**New files:** `app/static/js/canvas.js`, `tests/test_zapp_areas.py`
 
 **Dependencies:** Phase 3 (doors data), Phase 5 (optional — room boundaries
 adapt to outline changes).
 
 ---
 
-## Phase 7 — Draw, Add, Delete, and Rotate Tools
+## Phase 7 — Draw, Add, Delete, Rotate, and Shape Editor Tools
 
-**Goal:** Full element creation and deletion from the canvas.
+**Goal:** Full element creation, deletion, and shape customisation from the
+canvas.
 
-**Requirements:** TL-15–24, SEL-4, SEL-10, DT-7 (14 reqs)
+**Requirements:** TL-15–27, SEL-4, SEL-10, DT-7 (17 reqs)
 
 **Work:**
 - **Draw Wall tool** (TL-15–17): click start/end to place new interior wall,
@@ -224,6 +236,10 @@ adapt to outline changes).
 - **Delete** (TL-22–23): Delete key with confirmation, cascading delete for
   walls with hosted openings
 - **Rotate** (TL-24): R key opens rotation dialog with presets
+- **Shape editor** (TL-25–27): edit polygon vertices in local coordinates
+  (TL-25), assign shapes to item types (TL-26), import from SVG (TL-27).
+  Builds on the `shapes` table already seeded with toilet, bath_sink,
+  dining_table shapes.
 - **Multi-select** (SEL-4): Shift-click and drag-select
 - **Opening width editing** (SEL-10, DT-7): inline edit in openings table
   and properties panel
@@ -231,8 +247,8 @@ adapt to outline changes).
 **New files:** `app/static/js/selection.js` (multi-select),
 `tests/test_zapp_tools.py`
 **Modified:** `app/static/js/tools.js` (expand), `app/static/js/dialogs.js`
-(catalog data, rotation dialog), `app/templates/index.html` (tool buttons,
-menu items, keyboard shortcuts)
+(catalog data, rotation dialog, shape editor), `app/templates/index.html`
+(tool buttons, menu items, keyboard shortcuts)
 
 **Dependencies:** Phase 3 (element CRUD), Phase 4 (move tool patterns),
 Phase 6 (canvas rendering).
@@ -411,7 +427,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 703+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 752+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
@@ -437,33 +453,36 @@ and that fresh context windows have accurate information.
 
 | Phase | Requirement IDs | Count |
 |-------|----------------|-------|
-| 0 (done) | DB-1–8, ENG-1–10, ENG-13, API-1–15, API-32–34, GEN-1–4, UI-1–4, UI-7–8, CV-1–6, CV-9, CV-13–17, DIS-1–5, SEL-1–3, SEL-5–6, SEL-9, TL-1–4, CT-1–10, DT-1, DT-5–6, DT-8, RT-1–4, APP-1–4, NF-1–6 | 80 |
+| 0 (done) | DB-1–8, ENG-1–10, ENG-12 (partial), ENG-13, API-1–15, API-32–34, GEN-1–4, UI-1–4, UI-7–8, CV-1–6, CV-8 (partial), CV-9, CV-13–17, DIS-1–5, SEL-1–3, SEL-5–6, SEL-9, TL-1–4, CT-1–10, CT-7a–j, CT-8, DT-1, DT-5–6, DT-8, RT-1–4, APP-1–4, NF-1–6 | ~93 |
 | 1 | (test coverage for above) | 0 new |
 | 2 | DB-11, API-30–31, UNDO-1–4 | 6 |
 | 3 | DB-9–10, API-20–22, API-24–29, DT-9–11, SEL-7–8, RT-5, UI-7 | 18 |
 | 4 | TL-5–10, API-23 | 7 |
 | 5 | ENG-11, API-16–19, OE-1–3, DT-2–4 | 10 |
-| 6 | CV-7–8, CV-10–12, DIS-6–10, ENG-12, SEL-11, DOOR-1–4 | 17 |
-| 7 | TL-15–24, SEL-4, SEL-10, DT-7 | 14 |
+| 6 | CV-7, CV-10–12, DIS-6–10, SEL-11, DOOR-1–4 | 13 |
+| 7 | TL-15–27, SEL-4, SEL-10, DT-7 | 17 |
 | 8 | TL-11–14, LABEL-1–4, DIS-7 | 8 |
 | 9 | STYLE-1–4, LINK-1–2, SEL-12, CV-12 | 8 |
 | 10 | SITE-1–4, SCAD-1–3, ANALYSIS-1–3, PLUMB-1–3 | 13 |
 | 11 | UI-5–6 | 2 |
 | 12 | Charter Principle 5 | (design spec) |
-| **Total** | | **189 + Principle 5** |
+| **Total** | | **193 + Principle 5** |
 
 ---
 
 ## New Files by Phase
 
+Files already created during Phase 0 work: `app/apputil.py`,
+`app/parse_input.py`, `tests/test_zapp_parse_input.py`.
+
 | Phase | New Python files | New JS files | New test files |
 |-------|-----------------|-------------|---------------|
-| 1 | — | — | test_zapp_database.py, test_zapp_engine_full.py, test_zapp_api_full.py |
+| 1 | — | — | test_zapp_api_full.py (extend existing as needed) |
 | 2 | undo.py | — | test_zapp_undo.py |
 | 3 | elements.py, doors.py | — | test_zapp_elements.py, test_zapp_doors.py |
 | 4 | — | tools.js, dialogs.js | test_zapp_move.py |
 | 5 | outline_solver.py | outline-editor.js | test_zapp_outline.py |
-| 6 | room_areas.py | canvas.js | test_zapp_areas.py |
+| 6 | — | canvas.js | test_zapp_areas.py |
 | 7 | — | selection.js | test_zapp_tools.py |
 | 8 | labels.py | — | test_zapp_labels.py |
 | 9 | style.py | — | test_zapp_style.py |
@@ -477,19 +496,19 @@ and that fresh context windows have accurate information.
 
 | Phase | New tests | Cumulative |
 |-------|-----------|-----------|
-| 0 (current) | — | 703 |
-| 1 | ~50 | 753 |
-| 2 | ~20 | 773 |
-| 3 | ~30 | 803 |
-| 4 | ~15 | 818 |
-| 5 | ~30 | 848 |
-| 6 | ~15 | 863 |
-| 7 | ~25 | 888 |
-| 8 | ~15 | 903 |
-| 9 | ~12 | 915 |
-| 10 | ~12 | 927 |
-| 11 | ~10 | 937 |
-| 12 | ~20 | 957 |
+| 0 (current) | — | 752 |
+| 1 | ~30 | 782 |
+| 2 | ~20 | 802 |
+| 3 | ~30 | 832 |
+| 4 | ~15 | 847 |
+| 5 | ~30 | 877 |
+| 6 | ~12 | 889 |
+| 7 | ~25 | 914 |
+| 8 | ~15 | 929 |
+| 9 | ~12 | 941 |
+| 10 | ~12 | 953 |
+| 11 | ~10 | 963 |
+| 12 | ~20 | 983 |
 
 ---
 
@@ -509,10 +528,11 @@ and that fresh context windows have accurate information.
    `d_F18_F1` as patched constants before reloading modules.  The module-scope
    solver in `floorplan/geometry.py` will otherwise run with stale values.
 
-4. **Frontend Module Splitting (Phase 4+)** — `app.js` is 1100 lines.  Adding
-   tools, canvas rendering, and selection will push past 3000 without splitting.
-   New JS files (`tools.js`, `canvas.js`, `selection.js`, etc.) share the global
-   `App` namespace via additional `<script>` tags.
+4. **Frontend Module Splitting (Phase 4+)** — `app.js` is ~1440 lines (grew
+   from 1100 with room labels, SVG zoom/pan, item labels, and SF rendering).
+   Adding tools, canvas rendering, and selection will push past 3000 without
+   splitting.  New JS files (`tools.js`, `canvas.js`, `selection.js`, etc.)
+   share the global `App` namespace via additional `<script>` tags.
 
 5. **Custom Element Overlay (Phase 3)** — The engine computes base geometry from
    constants.  Custom elements exist only in the DB and are overlaid on the
@@ -530,7 +550,7 @@ and that fresh context windows have accurate information.
 The editor is ready for cutover (dropping the NF-4 constraint and consolidating
 code across `app/` and existing packages) when:
 
-1. All 189 requirements pass automated tests
+1. All 193 requirements pass automated tests
 2. All five layout variants render identically to reference SVGs
 3. Parametric dependency system (Phase 12) replaces hardcoded positioning
 4. All 24 duplicated dimension constants in `app/variants.py` have been moved
