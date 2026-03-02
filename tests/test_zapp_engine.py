@@ -188,3 +188,94 @@ class TestENG10SVGGeneration:
     def test_generate_nonexistent_script(self):
         ok = generate_svg("fake", "nonexistent/script.py")
         assert ok is False
+
+
+# ── ENG-14  Variant Exclusion Filtering ───────────────────────────
+
+class TestENG14VariantExclusions:
+    def test_bare_excludes_iw6(self, fresh_db):
+        """Bare variant omits IW6 from interior walls."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "bare")
+        assert "IW6" not in geom["interior_walls"]
+
+    def test_bare_excludes_ro5(self, fresh_db):
+        """Bare variant omits RO5 from rough openings."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "bare")
+        ro_names = {ro["name"] for ro in geom["rough_openings"]}
+        assert "RO5" not in ro_names
+
+    def test_standard_includes_both(self, fresh_db):
+        """Standard variant includes IW6 and RO5."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "standard")
+        assert "IW6" in geom["interior_walls"]
+        ro_names = {ro["name"] for ro in geom["rough_openings"]}
+        assert "RO5" in ro_names
+
+
+# ── ENG-15  Room Label Computation ─────────────────────────────────
+
+class TestENG15RoomLabels:
+    EXPECTED_ROOMS = {
+        "BEDROOM", "UTIL_N", "UTIL_S", "KITCHEN", "LIVING",
+        "BATH", "OFFICE", "E CLOSET", "W CLOSET", "STORAGE", "WH",
+    }
+
+    def test_standard_has_11_labels(self, fresh_db):
+        """Standard variant produces 11 room labels."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "standard")
+        assert len(geom["room_labels"]) == 11
+
+    def test_all_rooms_named(self, fresh_db):
+        """All 11 expected room names are present."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "standard")
+        names = {lbl["name"] for lbl in geom["room_labels"]}
+        assert names == self.EXPECTED_ROOMS
+
+    def test_labels_have_required_keys(self, fresh_db):
+        """Each label has name, pos, and centroid keys."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "standard")
+        for lbl in geom["room_labels"]:
+            assert "name" in lbl, f"label missing 'name'"
+            assert "pos" in lbl, f"{lbl.get('name')} missing 'pos'"
+            assert "centroid" in lbl, f"{lbl.get('name')} missing 'centroid'"
+            assert len(lbl["pos"]) == 2, f"{lbl['name']} pos not [E,N]"
+            assert len(lbl["centroid"]) == 2, f"{lbl['name']} centroid not [E,N]"
+
+    def test_label_positions_within_bbox(self, fresh_db):
+        """All label positions fall within the building outline bbox."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "standard")
+        ob = geom["bbox"]
+        margin = 2.0
+        for lbl in geom["room_labels"]:
+            e, n = lbl["pos"]
+            assert ob["w"] - margin < e < ob["e"] + margin, \
+                f"{lbl['name']} pos E={e} outside bbox"
+            assert ob["s"] - margin < n < ob["n"] + margin, \
+                f"{lbl['name']} pos N={n} outside bbox"
+
+    def test_sf_has_area_and_poly(self, fresh_db):
+        """SF variant labels have area (positive number) and poly (list)."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "sf")
+        for lbl in geom["room_labels"]:
+            assert "area" in lbl, f"{lbl['name']} missing 'area'"
+            assert lbl["area"] > 0, f"{lbl['name']} area not positive"
+            assert "poly" in lbl, f"{lbl['name']} missing 'poly'"
+            assert len(lbl["poly"]) >= 3, f"{lbl['name']} poly too short"
+
+    def test_sf_has_sf_lines(self, fresh_db):
+        """SF variant includes sf_lines with 3 partition lines."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "sf")
+        assert "sf_lines" in geom
+        assert len(geom["sf_lines"]) == 3
+        for line in geom["sf_lines"]:
+            assert "start" in line and "end" in line
+            assert len(line["start"]) == 2 and len(line["end"]) == 2

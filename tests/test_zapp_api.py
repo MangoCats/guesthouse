@@ -337,3 +337,54 @@ class TestAPI33Root:
     def test_root_contains_adu_editor(self, app_client):
         resp = app_client.get("/")
         assert b"ADU Editor" in resp.data
+
+
+# ── API-9  GET /api/geometry -- error handling ─────────────────────
+
+class TestAPI9GeometryError:
+    def test_geometry_error_returns_500(self, app_client, monkeypatch):
+        """Geometry computation failure returns HTTP 500 with error message."""
+        def _raise(*a, **kw):
+            raise RuntimeError("test error")
+
+        # Patch where the name is looked up (server.py's module globals)
+        import app.server
+        monkeypatch.setattr(app.server, "compute_geometry", _raise)
+        resp = app_client.get("/api/geometry")
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert "error" in data
+
+
+# ── Variant SVG Serving ────────────────────────────────────────────
+
+class TestVariantSVGServing:
+    def test_floorplan_standard_serves_base_svg(self, app_client):
+        """Standard variant serves the base floorplan.svg."""
+        import os
+        svg_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "floorplan", "floorplan.svg",
+        )
+        if not os.path.exists(svg_path):
+            pytest.skip("floorplan.svg not yet generated")
+        resp = app_client.get("/api/svg/floorplan?variant=standard")
+        assert resp.status_code == 200
+        assert resp.content_type.startswith("image/svg+xml")
+
+    def test_floorplan_minik_attempts_variant_svg(self, app_client):
+        """Minik variant attempts to serve floorplan_minik.svg."""
+        import os
+        svg_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "floorplan", "floorplan_minik.svg",
+        )
+        if not os.path.exists(svg_path):
+            # If the variant SVG doesn't exist, the API returns 404 with a
+            # message about regeneration — this is correct behaviour
+            resp = app_client.get("/api/svg/floorplan?variant=minik")
+            assert resp.status_code == 404
+        else:
+            resp = app_client.get("/api/svg/floorplan?variant=minik")
+            assert resp.status_code == 200
+            assert resp.content_type.startswith("image/svg+xml")
