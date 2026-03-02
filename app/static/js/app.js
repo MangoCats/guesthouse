@@ -187,8 +187,9 @@ function switchView(viewName) {
     t.classList.toggle("active", t.dataset.view === viewName);
   });
 
-  // Show variant selector only for interactive view
-  App.els["variant-selector"].style.display = viewName === "interactive" ? "inline-block" : "none";
+  // Show variant selector for interactive and floorplan views
+  const showVariant = viewName === "interactive" || viewName === "floorplan";
+  App.els["variant-selector"].style.display = showVariant ? "inline-block" : "none";
 
   if (viewName === "interactive") {
     App.els["canvas"].style.display = "block";
@@ -207,7 +208,9 @@ async function loadSVGView(viewName) {
   const container = App.els["svg-view-container"];
   container.innerHTML = "<p style='padding:20px;color:#888'>Loading...</p>";
   try {
-    const resp = await fetch(`/api/svg/${viewName}`);
+    let url = `/api/svg/${viewName}`;
+    if (viewName === "floorplan") url += `?variant=${App.state.variant}`;
+    const resp = await fetch(url);
     if (!resp.ok) {
       container.innerHTML = `<p style='padding:20px;color:#f88'>SVG not available. Click File > Regenerate to generate it.</p>`;
       return;
@@ -992,6 +995,7 @@ function setupEventListeners() {
   App.els["variant-select"].addEventListener("change", (e) => {
     App.state.variant = e.target.value;
     loadGeometry();
+    if (App.state.activeView === "floorplan") loadSVGView("floorplan");
   });
 
   // Constants filters

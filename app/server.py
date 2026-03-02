@@ -161,6 +161,11 @@ def create_app(db_path=None):
     def api_views():
         return jsonify(get_views(db))
 
+    _FLOORPLAN_VARIANT_SUFFIX = {
+        "standard": "", "minik": "_minik", "daybed": "_db",
+        "bare": "_bare", "sf": "_sf",
+    }
+
     @app.route("/api/svg/<view_name>")
     def api_svg(view_name):
         views = get_views(db)
@@ -168,6 +173,11 @@ def create_app(db_path=None):
         if not view:
             return jsonify({"error": "unknown view"}), 404
         svg_path = view["svg_path"]
+        # Support variant-specific floorplan SVGs
+        variant = request.args.get("variant", "standard")
+        if view_name == "floorplan" and variant in _FLOORPLAN_VARIANT_SUFFIX:
+            suffix = _FLOORPLAN_VARIANT_SUFFIX[variant]
+            svg_path = svg_path.replace(".svg", f"{suffix}.svg")
         content = get_svg_content(svg_path)
         if content is None:
             return jsonify({"error": "SVG not found — run regenerate first"}), 404
