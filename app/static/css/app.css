@@ -403,6 +403,12 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 .item-appliance { fill: #2a3a4a; stroke: #4682B4; stroke-width: 0.02; }
 .item-furniture { fill: #2a3a2a; stroke: #5a8a5a; stroke-width: 0.02; }
 .item-fixture   { fill: #3a2a3a; stroke: #8a5a8a; stroke-width: 0.02; }
+.item-label {
+  font-family: sans-serif;
+  font-size: 0.25px;
+  fill: var(--text-dim);
+  dominant-baseline: middle;
+}
 
 .selectable { cursor: pointer; }
 .selectable:hover { filter: brightness(1.3); }

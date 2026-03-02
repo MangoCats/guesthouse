@@ -130,7 +130,11 @@ def _parse_constants_source():
 
 def _seed_constants(conn):
     """Extract constants from the Python module and insert into the database."""
+    import importlib
     import floorplan.constants as mod
+    # Reload from disk so patched-in values from engine.patch_constants()
+    # are discarded and the original source values are used.
+    importlib.reload(mod)
 
     parsed = _parse_constants_source()
     name_to_info = {name: (expr, comment) for name, expr, comment in parsed}

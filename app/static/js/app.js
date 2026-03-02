@@ -358,6 +358,20 @@ function renderFurniture(g) {
         el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
         layer.appendChild(el);
       }
+      // Add text label at bbox center
+      if (item.label && item.bbox) {
+        const bx = item.bbox;
+        const cx = (bx.w + bx.e) / 2;
+        const cy = -((bx.s + bx.n) / 2);
+        const lbl = svgEl("text", {
+          x: cx, y: cy,
+          class: "item-label",
+          "text-anchor": "middle",
+          "pointer-events": "none",
+        });
+        lbl.textContent = item.label;
+        layer.appendChild(lbl);
+      }
     }
     return;
   }

@@ -48,10 +48,40 @@ STD_FRIDGE_D = 35.0 / 12.0
 SOFA_FULL_W = 80.75 / 12.0
 SOFA_FULL_D = 34.625 / 12.0
 
+# Realistic toilet plan-view polygon (from gen_floorplan.py _TOILET_SVG).
+# Coordinates in SVG units; dx = across width (centered on 0), dy = depth from wall.
+_TOILET_SVG = [
+    (-1.905, 0), (-1.905, 2.032), (-0.841, 2.032),
+    (-1.078, 2.224), (-1.267, 2.455), (-1.408, 2.719),
+    (-1.495, 3.005), (-1.524, 3.302),
+    (-1.732, 5.461), (-1.699, 5.799), (-1.600, 6.124),
+    (-1.440, 6.423), (-1.225, 6.686), (-0.962, 6.901),
+    (-0.663, 7.061), (-0.338, 7.160), (0, 7.193),
+    (0.338, 7.160), (0.663, 7.061), (0.962, 6.901),
+    (1.225, 6.686), (1.440, 6.423), (1.600, 6.124),
+    (1.699, 5.799), (1.732, 5.461),
+    (1.524, 3.302), (1.495, 3.005), (1.408, 2.719),
+    (1.267, 2.455), (1.078, 2.224), (0.847, 2.035),
+    (0.841, 2.032), (1.905, 2.032), (1.905, 0),
+]
+_SVG_TO_FT = 10.0 / 30.48
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _toilet_poly(center, facing, width):
+    """Transform the toilet plan-view polygon to building coordinates.
+
+    center: (e, n) point on wall face at toilet center-line
+    facing: unit vector from wall toward bowl
+    width: unit vector along toilet width (perpendicular to facing)
+    """
+    return [(center[0] + dx * _SVG_TO_FT * width[0] + dy * _SVG_TO_FT * facing[0],
+             center[1] + dx * _SVG_TO_FT * width[1] + dy * _SVG_TO_FT * facing[1])
+            for dx, dy in _TOILET_SVG]
+
 
 def _item(name, item_type, poly, label=None, shape="rect"):
     """Build a standard item dict."""
@@ -227,28 +257,18 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
     _d_dryer_al = ((_dryer_cx - _iw8_s_ref[0]) * _iw8_al[0] +
                    (_dryer_cy - _iw8_s_ref[1]) * _iw8_al[1])
 
-    # South toilet: 28" x 18" rectangle on south face of IW8
-    _toilet_len = 28.0 / 12.0
-    _toilet_w = 18.0 / 12.0
-    _toilet_s_anchor = offset_pt(_iw8_s_ref, _d_dryer_al - 4.0 / 12.0, _iw8_al)
-    _ts_sw = _toilet_s_anchor
-    _ts_se = offset_pt(_ts_sw, _toilet_w, _iw8_al)
-    _ts_nw = offset_pt(_ts_sw, _toilet_len, _iw8_in)
-    _ts_ne = offset_pt(_ts_se, _toilet_len, _iw8_in)
-    items["toilet_s"] = _item("toilet_s", "fixture",
-                              [_ts_sw, _ts_se, _ts_ne, _ts_nw], "TOILET")
+    # South toilet: realistic polygon on south face of IW8
+    _toilet_s_center = offset_pt(_iw8_s_ref, _d_dryer_al - 4.0 / 12.0, _iw8_al)
+    _toilet_s_poly = _toilet_poly(_toilet_s_center, _iw8_in, _iw8_al)
+    items["toilet_s"] = _item("toilet_s", "fixture", _toilet_s_poly, "TOILET")
 
-    # North toilet: on north face of IW8
+    # North toilet: realistic polygon on north face of IW8
     _iw8_n_ref = layout.iw8.poly[3]
     _d_toilet_n_al = ((_dryer_cx - _iw8_n_ref[0]) * _iw8_al[0] +
                       (_dryer_cy - _iw8_n_ref[1]) * _iw8_al[1])
-    _toilet_n_anchor = offset_pt(_iw8_n_ref, _d_toilet_n_al - 4.0 / 12.0, _iw8_al)
-    _tn_sw = _toilet_n_anchor
-    _tn_se = offset_pt(_tn_sw, _toilet_w, _iw8_al)
-    _tn_nw = offset_pt(_tn_sw, _toilet_len, _iw8_out)
-    _tn_ne = offset_pt(_tn_se, _toilet_len, _iw8_out)
-    items["toilet_n"] = _item("toilet_n", "fixture",
-                              [_tn_sw, _tn_se, _tn_ne, _tn_nw], "TOILET")
+    _toilet_n_center = offset_pt(_iw8_n_ref, _d_toilet_n_al - 4.0 / 12.0, _iw8_al)
+    _toilet_n_poly = _toilet_poly(_toilet_n_center, _iw8_out, _iw8_al)
+    items["toilet_n"] = _item("toilet_n", "fixture", _toilet_n_poly, "TOILET")
 
     # --- Utility sink (south face of IW8) ---
     _ctr_cx = sum(p[0] for p in layout.ctr.poly) / 4
