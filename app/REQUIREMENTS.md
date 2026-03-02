@@ -1663,8 +1663,17 @@ failed.
 The app SHALL not modify any files in `shared/`, `floorplan/`, `walls/`,
 `span/`, `survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`.
 
+This constraint applies until the editor has achieved 100% functional
+completeness and has been approved for cutover to database-only data
+sources.  Until then, the existing generator scripts serve as reference
+implementations to verify the app produces identical output.  Code
+duplication between `app/` and the existing packages (e.g.,
+`app/variants.py` replicating positioning math from
+`floorplan/gen_floorplan.py`) is intentional during this period and will
+be consolidated at cutover.
+
 **Acceptance:** `git diff --name-only` shows changes only in `app/`,
-`run_app.py`, `pyproject.toml`, and `.gitignore`.
+`tests/`, `run_app.py`, `pyproject.toml`, and `.gitignore`.
 
 #### NF-5  Keyboard Shortcut Safety
 Keyboard shortcuts SHALL NOT fire when the user is typing in an `<input>`

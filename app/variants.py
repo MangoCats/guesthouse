@@ -2,10 +2,12 @@
 
 Replicates positioning math from floorplan/gen_floorplan.py for the
 interactive canvas, producing JSON-serialisable item dicts instead of SVG.
+This duplication is intentional per NF-4 (see ARCHITECTURE.md § NF-4).
 """
 import math
 
 from shared.geometry import seg_vecs, offset_pt, line_isect
+from app.apputil import point_to_list, bbox_from_poly
 
 # ---------------------------------------------------------------------------
 # Variant registry
@@ -51,25 +53,13 @@ SOFA_FULL_D = 34.625 / 12.0
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _bbox(poly):
-    """Bounding box dict from polygon list of (e, n) tuples."""
-    es = [p[0] for p in poly]
-    ns = [p[1] for p in poly]
-    return {"w": min(es), "s": min(ns), "e": max(es), "n": max(ns)}
-
-
-def _pt(p):
-    """Convert (e, n) tuple to [e, n] list for JSON."""
-    return [round(p[0], 6), round(p[1], 6)]
-
-
 def _item(name, item_type, poly, label=None, shape="rect"):
     """Build a standard item dict."""
     return {
         "name": name,
         "type": item_type,
-        "poly": [_pt(p) for p in poly],
-        "bbox": _bbox(poly),
+        "poly": [point_to_list(p) for p in poly],
+        "bbox": bbox_from_poly(poly),
         "label": label or name,
         "shape": shape,
     }
@@ -86,11 +76,11 @@ def _circle_item(name, item_type, center, radius, label=None):
     return {
         "name": name,
         "type": item_type,
-        "poly": [_pt(p) for p in poly],
-        "bbox": _bbox(poly),
+        "poly": [point_to_list(p) for p in poly],
+        "bbox": bbox_from_poly(poly),
         "label": label or name,
         "shape": "circle",
-        "center": _pt(center),
+        "center": point_to_list(center),
         "radius": round(radius, 6),
     }
 
@@ -314,18 +304,11 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                  _nwp(_dw_d + C.DW_WIDTH, 0), _nwp(_dw_d, 0)]
         items["dishwasher"] = _item("dishwasher", "appliance", _dw_c, "D/W")
 
-    # Kitchen sink
-    if not minik:
-        _ks_c = [_nwp(_ks_d, C.KITCHEN_SINK_DEPTH),
-                 _nwp(_ks_d + C.KITCHEN_SINK_WIDTH, C.KITCHEN_SINK_DEPTH),
-                 _nwp(_ks_d + C.KITCHEN_SINK_WIDTH, 0), _nwp(_ks_d, 0)]
-        items["kitchen_sink"] = _item("kitchen_sink", "fixture", _ks_c, "SINK")
-    else:
-        # Minik still has the kitchen sink
-        _ks_c = [_nwp(_ks_d, C.KITCHEN_SINK_DEPTH),
-                 _nwp(_ks_d + C.KITCHEN_SINK_WIDTH, C.KITCHEN_SINK_DEPTH),
-                 _nwp(_ks_d + C.KITCHEN_SINK_WIDTH, 0), _nwp(_ks_d, 0)]
-        items["kitchen_sink"] = _item("kitchen_sink", "fixture", _ks_c, "SINK")
+    # Kitchen sink (all variants including minik)
+    _ks_c = [_nwp(_ks_d, C.KITCHEN_SINK_DEPTH),
+             _nwp(_ks_d + C.KITCHEN_SINK_WIDTH, C.KITCHEN_SINK_DEPTH),
+             _nwp(_ks_d + C.KITCHEN_SINK_WIDTH, 0), _nwp(_ks_d, 0)]
+    items["kitchen_sink"] = _item("kitchen_sink", "fixture", _ks_c, "SINK")
 
     # Fridge
     if minik:

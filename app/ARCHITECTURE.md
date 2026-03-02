@@ -307,3 +307,103 @@ tests).  Shared fixtures in `tests/test_zapp_conftest.py` provide:
 The snapshot/restore mechanism is necessary because `compute_geometry()`
 mutates module-level state via `patch_constants()` + `importlib.reload()`.
 Without it, one test's constant changes would leak into subsequent tests.
+
+---
+
+## NF-4 Constraint: No Modification of Existing Packages
+
+The app imports from but never modifies `shared/`, `floorplan/`, `walls/`,
+`span/`, `survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`.  This
+constraint applies until the editor has achieved 100% functional
+completeness and has been approved for cutover to database-only data
+sources.
+
+**Consequence: intentional duplication.**  `app/variants.py` replicates
+~700 lines of positioning math from `floorplan/gen_floorplan.py`'s
+`_render_appliances()`, `_render_kitchen()`, and `_render_furniture()`
+functions.  It also carries 24 hardcoded item-dimension constants
+(hamper, microwave, dining table, etc.) that duplicate values scattered
+through the generator.  This duplication is deliberate: the existing
+scripts are the reference implementation, and the app must reproduce
+their output without modifying them.  At cutover, these constants will
+be consolidated into a single source (likely `floorplan/constants.py`)
+and the shared positioning math extracted into a function callable by
+both the SVG renderer and the app engine.
+
+**Consequence: module reloading.**  The engine uses
+`importlib.reload()` and `patch_constants()` to inject database values
+into the floorplan modules at runtime (see Computation Flow above).
+Five derived constants (`WALL_EXTRA`, `AIR_GAP`, `DOOR_FLAT_FACE`,
+`F8F9_INNER_TURN_R`, `CORNER_SW_R`) are recomputed in `engine.py`
+after patching because they depend on other constants and their
+derivation formulas cannot be imported without modifying source.  This
+will be unnecessary once the app owns the constants directly.
+
+---
+
+## Roadmap: Current State vs Charter Goals
+
+The charter describes a full parametric editor; the current
+implementation is a **parametric viewer with constant editing**.  This
+section documents what is implemented, what is planned, and the
+architectural additions each planned capability requires.
+
+### Implemented
+
+| Capability | Charter section | Status |
+|------------|----------------|--------|
+| Named constants: view, edit, persist, reset | Data Layer | Done |
+| Outline chain: view (read-only) | Data Layer | Done |
+| Geometry engine: full recomputation from constants | Data Layer | Done |
+| Interactive canvas: outline, walls, openings, furniture, points, dims | Interactive Canvas | Done |
+| Five layout variants switchable from UI | Variant Selector | Done |
+| SVG view tabs: 11 generated views | SVG View Tabs | Done |
+| Properties panel with related constants | Right Panel | Done |
+| Constants table: sort, filter, inline edit, category colours | Right Panel | Done |
+| Openings table: outer + rough with computed widths | Right Panel | Done |
+| REST API: constants CRUD, geometry, variants, SVG, SSE | REST API | Done |
+| Real-time update cycle: edit → recompute → broadcast → re-render | Real-Time | Done |
+| Feet-inches display (NF-6) across all value surfaces | Units Display | Done |
+
+### Not Yet Implemented
+
+| Capability | Req IDs | Architectural impact |
+|------------|---------|---------------------|
+| **`elements` table** — interior walls, furniture, appliances, fixtures as database rows with JSON properties | DB-9 | New table, seed logic, CRUD API (API-20–26) |
+| **`doors` table** — door configs per opening (hinge side, swing, type) | DB-10 | New table, seed logic, API (API-27–29), canvas rendering (CV-7) |
+| **Undo/redo** — action history with before/after state | DB-11 | New table, API (API-30–31), UI (UNDO-1–4) |
+| **Outline chain editing** — add/remove/reorder segments | API-16–19, ENG-11 | Mutation API, engine re-solve, d² test updates |
+| **Element CRUD** — create, move, delete interior elements via UI | OE-1–3, TL-5–24 | Canvas tools, hit testing, drag/drop, constraint solver |
+| **Parametric dependency tracking** (Charter Principle 5) | — | Major addition: dependency graph, formula storage per element, topological evaluation, dependency chain visualisation |
+| **Room area computation and labels** | ENG-12, LABEL-1–4 | Polygon area calculation, label positioning |
+| **Styling** — user-customisable colours, line weights | STYLE-1–4 | Preferences table or CSS variable API |
+| **Site plan integration** — interactive site plan editing | SITE-1–4 | Extend canvas to site-plan mode |
+| **3D/SCAD integration** — trigger SCAD generation from UI | SCAD-1–3 | Subprocess management, 3D viewer |
+| **Analysis views** — span analysis from UI | ANALYSIS-1–3 | Parameterise span scripts |
+| **Plumbing plan** — interactive plumbing editing | PLUMB-1–3 | Element layer for plumbing fixtures |
+
+### Parametric Dependencies (Charter Principle 5)
+
+The charter envisions that every element's position is stored as an
+editable formula referencing other elements and constants, with
+dependency chains displayed both as a formula table and as graphical
+highlights.  The current architecture has no support for this:
+
+- Positioning is computed procedurally in Python code, not stored as
+  data.
+- The three-table schema (constants, outline_chain, views) has no place
+  to encode "IW3 spans from IW2.east_face to IW1.north_face".
+- No dependency graph or topological sort exists.
+
+Implementing this requires:
+
+1. An `elements` table where each row stores positioning parameters as
+   structured data (reference element, face, offset formula).
+2. A dependency resolver that topologically sorts elements and evaluates
+   formulas in order.
+3. UI for displaying and editing dependency chains.
+4. Canvas overlay for highlighting the dependency graph of the selected
+   element.
+
+This is the largest planned architectural change and should be designed
+before incremental implementation begins.

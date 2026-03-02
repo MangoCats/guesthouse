@@ -8,6 +8,8 @@ import os
 import subprocess
 import sys
 
+from app.apputil import point_to_list, bbox_from_poly, seg_to_dict
+
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -25,15 +27,10 @@ def patch_constants(constants_dict: dict):
     mod.CORNER_SW_R = 10.0 / 12.0 + mod.WALL_EXTRA
 
 
-def _point_to_list(pt):
-    """Convert (e, n) tuple to [e, n] list for JSON."""
-    return [round(pt[0], 6), round(pt[1], 6)]
-
-
 def _wall_to_dict(wall):
     """Convert Wall namedtuple to JSON dict."""
     return {
-        "poly": [_point_to_list(p) for p in wall.poly],
+        "poly": [point_to_list(p) for p in wall.poly],
         "bbox": {"w": wall.w, "s": wall.s, "e": wall.e, "n": wall.n},
     }
 
@@ -95,7 +92,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
         "outline_segments": [],
         "inner_segments": [],
         "outline_poly": [],
-        "inner_poly": [_point_to_list(p) for p in inner_poly],
+        "inner_poly": [point_to_list(p) for p in inner_poly],
         "interior_walls": {},
         "outer_openings": [],
         "rough_openings": [],
@@ -105,38 +102,17 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
 
     # Points
     for name, pt in sorted(pts.items()):
-        result["points"][name] = _point_to_list(pt)
+        result["points"][name] = point_to_list(pt)
 
     # Outline segments
-    from shared.types import LineSeg, ArcSeg
-    for seg in geom.outline_segs:
-        if isinstance(seg, LineSeg):
-            result["outline_segments"].append({
-                "type": "line", "start": seg.start, "end": seg.end,
-            })
-        else:
-            result["outline_segments"].append({
-                "type": "arc", "start": seg.start, "end": seg.end,
-                "center": seg.center, "radius": seg.radius,
-                "direction": seg.direction, "n_pts": seg.n_pts,
-            })
+    result["outline_segments"] = [seg_to_dict(s) for s in geom.outline_segs]
 
     # Inner segments
-    for seg in inner_segs:
-        if isinstance(seg, LineSeg):
-            result["inner_segments"].append({
-                "type": "line", "start": seg.start, "end": seg.end,
-            })
-        else:
-            result["inner_segments"].append({
-                "type": "arc", "start": seg.start, "end": seg.end,
-                "center": seg.center, "radius": seg.radius,
-                "direction": seg.direction, "n_pts": seg.n_pts,
-            })
+    result["inner_segments"] = [seg_to_dict(s) for s in inner_segs]
 
     # Outline polygon
     outline_poly = path_polygon(geom.outline_segs, pts)
-    result["outline_poly"] = [_point_to_list(p) for p in outline_poly]
+    result["outline_poly"] = [point_to_list(p) for p in outline_poly]
 
     # Interior walls
     iw_names = ["iw1", "iw2", "iw2o", "iw2s", "iw3", "iw4", "iw5", "iw6",
@@ -152,7 +128,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
             "name": op.name,
             "seg_start": op.seg_start,
             "seg_end": op.seg_end,
-            "poly": [_point_to_list(p) for p in op.poly],
+            "poly": [point_to_list(p) for p in op.poly],
         })
 
     # Rough openings
@@ -165,7 +141,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
             "width": ro.width,
         }
         if ro.poly:
-            d["poly"] = [_point_to_list(p) for p in ro.poly]
+            d["poly"] = [point_to_list(p) for p in ro.poly]
         result["rough_openings"].append(d)
 
     # Appliances
@@ -180,7 +156,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
         result["appliances"]["counter"] = _wall_to_dict(ctr)
         clip = getattr(layout, "ctr_clip", None)
         if clip:
-            result["appliances"]["counter"]["clip"] = [_point_to_list(p) for p in clip]
+            result["appliances"]["counter"]["clip"] = [point_to_list(p) for p in clip]
 
     # Furniture
     for name in ("bed", "dresser", "shelves"):
@@ -191,11 +167,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
     # Bounding box
     all_pts = result["outline_poly"]
     if all_pts:
-        es = [p[0] for p in all_pts]
-        ns = [p[1] for p in all_pts]
-        result["bbox"] = {
-            "w": min(es), "s": min(ns), "e": max(es), "n": max(ns),
-        }
+        result["bbox"] = bbox_from_poly(all_pts)
 
     # Variant items
     from app.variants import compute_variant_items, VARIANTS
@@ -217,8 +189,8 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
             pa, pb = ep_dict[a_key], ep_dict[b_key]
             dist = math.sqrt((pb[0] - pa[0])**2 + (pb[1] - pa[1])**2)
             dimensions[dname] = {
-                "A": _point_to_list(pa),
-                "B": _point_to_list(pb),
+                "A": point_to_list(pa),
+                "B": point_to_list(pb),
                 "dist": round(dist, 6),
             }
     result["dimensions"] = dimensions
