@@ -96,5 +96,45 @@ The F-series outline is defined purely by:
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
 - After geometry changes, update d² regression tests: `python tests/update_d2.py` (see HOWTO §14)
 
+## App (Interactive Editor)
+
+```
+app/                 — Flask web editor: interactive canvas + constants editing
+  server.py          — Flask routes, SSE broadcast, geometry cache
+  engine.py          — Geometry computation orchestrator (patches floorplan.constants)
+  database.py        — SQLite schema, seeding from floorplan/ sources, CRUD
+  variants.py        — Variant furniture/appliance positioning (replicates gen_floorplan.py math)
+  apputil.py         — Shared JSON serialisation helpers (point_to_list, bbox_from_poly, seg_to_dict)
+  templates/         — index.html (single-page layout)
+  static/js/app.js   — Client application (~1100 lines, no build step)
+  static/css/app.css — Dark theme (Catppuccin palette)
+  ARCHITECTURE.md    — Detailed module docs, computation flow, roadmap
+  REQUIREMENTS.md    — 189 testable requirements (80 existing, 109 planned)
+  CHARTER.md         — Purpose, history, design principles
+```
+
+### NF-4: No Modification of Existing Packages
+The app SHALL NOT modify files in `shared/`, `floorplan/`, `walls/`, `span/`,
+`survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`.  This constraint holds
+until the editor achieves 100% functional completeness and is approved for
+cutover.  Until then the existing generator scripts are the reference
+implementations — the app must reproduce their output from database-driven
+constants without changing them.
+
+**Duplication between `app/` and existing packages is intentional.**
+`app/variants.py` replicates positioning math from `floorplan/gen_floorplan.py`
+and carries 24 hardcoded item-dimension constants that duplicate values in the
+generator.  Do not "fix" this by modifying files outside `app/` — it will be
+consolidated at cutover.  See `app/ARCHITECTURE.md` § NF-4 and § Roadmap.
+
+### App Dependency Graph
+```
+app/server.py ──→ app/database.py ──→ floorplan/constants.py (seed source)
+              └──→ app/engine.py  ──→ floorplan/ (geometry, layout, openings)
+                                  └──→ shared/ (geometry, survey, types)
+                                  └──→ app/variants.py ──→ shared/geometry.py
+```
+`floorplan/` and `shared/` never import from `app/`.
+
 ## HOWTO Reference
 See `HOWTO.md` for step-by-step instructions on common tasks (adding dimension lines, walls, openings, appliances, identifying wall faces). Consult it before researching the codebase from scratch. If you complete a complex task not covered there, add a section to it.
