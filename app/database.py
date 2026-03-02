@@ -78,6 +78,13 @@ CREATE TABLE IF NOT EXISTS shapes (
     depth_key   TEXT,                -- constant name for depth dimension, if any
     description TEXT DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS variant_exclusions (
+    variant      TEXT NOT NULL,       -- variant name (e.g. 'bare', 'sf')
+    element_type TEXT NOT NULL,       -- 'wall', 'opening', 'rough_opening'
+    element_name TEXT NOT NULL,       -- e.g. 'IW6', 'RO5', 'O3'
+    PRIMARY KEY (variant, element_type, element_name)
+);
 """
 
 
@@ -92,6 +99,7 @@ def init_db(db_path=None):
             _seed_outline_chain(conn)
             _seed_views(conn)
             _seed_shapes(conn)
+            _seed_variant_exclusions(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -373,6 +381,28 @@ def _seed_shapes(conn):
 
 
 # ---------------------------------------------------------------------------
+# Seed: variant exclusions
+# ---------------------------------------------------------------------------
+
+def _seed_variant_exclusions(conn):
+    """Register elements hidden in specific layout variants."""
+    exclusions = [
+        # bare (Room Dimensions): IW6 and RO5 are omitted per gen_floorplan.py
+        ("bare", "wall", "IW6"),
+        ("bare", "rough_opening", "RO5"),
+        # sf (Square Footage): same exclusions as bare
+        ("sf", "wall", "IW6"),
+        ("sf", "rough_opening", "RO5"),
+    ]
+    for variant, etype, ename in exclusions:
+        conn.execute(
+            "INSERT OR REPLACE INTO variant_exclusions "
+            "(variant, element_type, element_name) VALUES (?, ?, ?)",
+            (variant, etype, ename),
+        )
+
+
+# ---------------------------------------------------------------------------
 # CRUD operations
 # ---------------------------------------------------------------------------
 
@@ -448,6 +478,22 @@ def get_shape(name, db_path=None):
     with get_db(db_path) as conn:
         row = conn.execute("SELECT * FROM shapes WHERE name = ?", (name,)).fetchone()
         return dict(row) if row else None
+
+
+def get_variant_exclusions(variant, db_path=None):
+    """Return excluded element names for a variant, grouped by type.
+
+    Returns dict like: {"wall": {"IW6"}, "rough_opening": {"RO5"}}
+    """
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT element_type, element_name FROM variant_exclusions "
+            "WHERE variant = ?", (variant,)
+        ).fetchall()
+    result = {}
+    for r in rows:
+        result.setdefault(r["element_type"], set()).add(r["element_name"])
+    return result
 
 
 def reset_constants(db_path=None):

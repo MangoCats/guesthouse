@@ -87,7 +87,8 @@ infrastructure so every future mutation is automatically reversible.
 **Goal:** Extend the schema to represent interior elements and doors as
 first-class database objects, with full CRUD APIs.
 
-**Requirements:** DB-9–10, API-20–29, DT-9–11, SEL-7–8, RT-5, UI-7 (21 reqs)
+**Requirements:** DB-9–10, API-20–22, API-24–29, DT-9–11, SEL-7–8, RT-5, UI-7 (18 reqs)
+*(API-23 — element move — is assigned to Phase 4.)*
 
 **Work:**
 - Add `elements` table (DB-9) and `doors` table (DB-10) to database schema
@@ -183,7 +184,7 @@ Extensive cross-validation tests between the two solvers are critical.
 **Goal:** Add door arcs, room labels, area labels, clearance zones, and
 hyperlink indicators to the interactive canvas.
 
-**Requirements:** CV-7–8, CV-10–12, DIS-6–10, ENG-12, SEL-11 (13 reqs)
+**Requirements:** CV-7–8, CV-10–12, DIS-6–10, ENG-12, SEL-11, DOOR-1–4 (17 reqs)
 
 **Work:**
 - Create `app/room_areas.py` — room boundary polygon construction + shoelace
@@ -380,8 +381,8 @@ Phase 3 (Elements & Doors) ◄──┘                        │
     │         ├── Phase 4 (Move Tool)                  │
     │         │                                        │
     │         ├── Phase 5 (Outline Editing)             │
-    │         │                                        │
-    │         └── Phase 6 (Canvas Rendering)            │
+    │         │         :                              │
+    │         └── Phase 6 (Canvas Rendering) ◄── 5?    │
     │                   │                              │
     │                   │                              │
     ├── Phase 7 (Draw/Add/Delete) ◄── 3, 4, 6         │
@@ -396,6 +397,9 @@ Phase 3 (Elements & Doors) ◄──┘                        │
     │                                                  │
     └── Phase 12 (Parametric Dependencies) ◄── all ───┘
 ```
+
+(`:` and `?` denote optional dependencies — Phase 6 can start without Phase 5
+but room boundaries adapt to outline changes once Phase 5 is complete.)
 
 Phases 1 and 2 can proceed in parallel.  Phases 4, 5, and 6 can proceed in
 parallel after Phase 3.
@@ -436,10 +440,10 @@ and that fresh context windows have accurate information.
 | 0 (done) | DB-1–8, ENG-1–10, ENG-13, API-1–15, API-32–34, GEN-1–4, UI-1–4, UI-7–8, CV-1–6, CV-9, CV-13–17, DIS-1–5, SEL-1–3, SEL-5–6, SEL-9, TL-1–4, CT-1–10, DT-1, DT-5–6, DT-8, RT-1–4, APP-1–4, NF-1–6 | 80 |
 | 1 | (test coverage for above) | 0 new |
 | 2 | DB-11, API-30–31, UNDO-1–4 | 6 |
-| 3 | DB-9–10, API-20–29, DT-9–11, SEL-7–8, RT-5, UI-7 | 21 |
+| 3 | DB-9–10, API-20–22, API-24–29, DT-9–11, SEL-7–8, RT-5, UI-7 | 18 |
 | 4 | TL-5–10, API-23 | 7 |
 | 5 | ENG-11, API-16–19, OE-1–3, DT-2–4 | 10 |
-| 6 | CV-7–8, CV-10–12, DIS-6–10, ENG-12, SEL-11 | 13 |
+| 6 | CV-7–8, CV-10–12, DIS-6–10, ENG-12, SEL-11, DOOR-1–4 | 17 |
 | 7 | TL-15–24, SEL-4, SEL-10, DT-7 | 14 |
 | 8 | TL-11–14, LABEL-1–4, DIS-7 | 8 |
 | 9 | STYLE-1–4, LINK-1–2, SEL-12, CV-12 | 8 |

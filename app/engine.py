@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 from app.apputil import point_to_list, bbox_from_poly, seg_to_dict
+from app.database import get_variant_exclusions
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -86,6 +87,9 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
     # 6. Rough openings
     rough_openings = compute_rough_openings(pts, layout)
 
+    # Load variant exclusions from database
+    exclusions = get_variant_exclusions(variant)
+
     # Build result
     result = {
         "points": {},
@@ -115,9 +119,12 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
     result["outline_poly"] = [point_to_list(p) for p in outline_poly]
 
     # Interior walls
+    excluded_walls = exclusions.get("wall", set())
     iw_names = ["iw1", "iw2", "iw2o", "iw2s", "iw3", "iw4", "iw5", "iw6",
                 "iw7", "iw8", "iw9", "iw11", "iw12"]
     for name in iw_names:
+        if name.upper() in excluded_walls:
+            continue
         wall = getattr(layout, name, None)
         if wall:
             result["interior_walls"][name.upper()] = _wall_to_dict(wall)
@@ -132,7 +139,10 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
         })
 
     # Rough openings
+    excluded_openings = exclusions.get("rough_opening", set())
     for ro in rough_openings:
+        if ro.name in excluded_openings:
+            continue
         d = {
             "name": ro.name,
             "bbox": {"w": ro.bbox.w, "s": ro.bbox.s, "e": ro.bbox.e, "n": ro.bbox.n},

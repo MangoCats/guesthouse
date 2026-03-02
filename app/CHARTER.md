@@ -10,19 +10,21 @@ folders (`shared/`, `floorplan/`, `walls/`, `span/`, `survey/`, `roof/`,
 
 The editor's goal is to enable a user to **deterministically create,
 edit, view, and persist** the same building designs that were previously
-developed only through interactive chat with an AI agent.  All walls,
-openings, furniture and appliance symbols and placements, dimension
-lines, and tables of base data — as well as the parametric dependencies
-among them — can be created, edited, stored, and retrieved from a
-database without requiring further AI interaction.
+developed only through interactive chat with an AI agent.  At full
+maturity (see ROADMAP.md Phase 12), all walls, openings, furniture and
+appliance symbols and placements, dimension lines, and tables of base
+data — as well as the parametric dependencies among them — can be
+created, edited, stored, and retrieved from a database without requiring
+further AI interaction.
 
 ## What the Project Built via Chat
 
-The 869 commits span approximately three weeks of intensive AI-assisted
-design (Feb 10 – Mar 1, 2026) and cover every aspect of a curved-wall
-residential building, from outline geometry through construction
-documents and site planning.  Many commits touch multiple areas; the
-keyword-based counts below reflect this overlap.
+The ~870 commits (as of initial charter, Mar 2026) span approximately
+three weeks of intensive AI-assisted design (Feb 10 – Mar 1, 2026) and
+cover every aspect of a curved-wall residential building, from outline
+geometry through construction documents and site planning.  Many commits
+touch multiple areas; the keyword-based counts below reflect this
+overlap.
 
 ### Outline Geometry (~334 commits)
 
@@ -114,10 +116,11 @@ generation, site plan, and d² regression.  The app layer adds 117 more
 tests covering database operations, engine computation, API endpoints,
 variant items, and dimension data (703 total).
 
-## What the App Implements
+## What the App Implements (as of Phase 0)
 
 The editor makes the following subset of the above functionality
-available through a browser-based GUI backed by an SQLite database:
+available through a browser-based GUI backed by an SQLite database.
+See `ROADMAP.md` for the 12-phase plan to reach full charter capability.
 
 ### Data Layer
 - **143 named constants** seeded from `floorplan/constants.py`, editable
@@ -183,4 +186,15 @@ available through a browser-based GUI backed by an SQLite database:
    positioning logic from the SVG generators (wall-relative vectors,
    line intersections, arc tangency) rather than introducing new
    geometric approaches
-5. **Database driven Parametric Dependencies** — When a wall is defined as spanning from one wall surface to another, those dependencies are encoded in the database, editable such that the formula can later be changed to different wall surfaces, constant distances, changes in bearing, calculations based on constants and/or other parameters, such as: at the midpoint between two other objects.  These parametric dependencies are defined per object, and when the dependency is on another object which itself is dependent on other objects' calculations, the dependency chain is displayed for the user both as a formula table, and graphically highlighted in the drawing demonstrating what the currently selected object's parameters depend on.
+5. **Database driven Parametric Dependencies** *(Phase 12 goal)* — At
+   full maturity, when a wall is defined as spanning from one wall
+   surface to another, those dependencies will be encoded in the
+   database, editable such that the formula can later be changed to
+   different wall surfaces, constant distances, changes in bearing,
+   calculations based on constants and/or other parameters, such as: at
+   the midpoint between two other objects.  These parametric dependencies
+   will be defined per object, and when the dependency is on another
+   object which itself is dependent on other objects' calculations, the
+   dependency chain will be displayed for the user both as a formula
+   table, and graphically highlighted in the drawing demonstrating what
+   the currently selected object's parameters depend on.

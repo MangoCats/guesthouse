@@ -162,6 +162,17 @@ messages to all queues.  Events: `geometry_changed`, `svg_updated`,
 | POST | `/api/regenerate` | Run generator scripts |
 | GET | `/api/events` | SSE stream |
 
+### app/apputil.py — Shared Serialisation Helpers
+
+Utility functions used by both `engine.py` and `variants.py` for
+converting geometry objects to JSON-serialisable dicts:
+
+| Function | Purpose |
+|----------|---------|
+| `point_to_list(pt)` | `(E, N)` tuple → `[E, N]` list |
+| `bbox_from_poly(poly)` | Polygon → `{w, s, e, n}` bounding box |
+| `seg_to_dict(seg)` | `LineSeg`/`ArcSeg` → JSON-serialisable dict |
+
 ### app/static/js/app.js — Client
 
 Single-file client application (~1100 lines).  No build step or
@@ -295,8 +306,11 @@ generator scripts as subprocesses and broadcasts `svg_updated`.
 
 ## Test Infrastructure
 
-Tests live in `tests/test_zapp_*.py` (prefixed to sort after existing
-tests).  Shared fixtures in `tests/test_zapp_conftest.py` provide:
+Tests live in `tests/test_zapp_*.py` (the `zapp` prefix sorts them after
+the pre-existing geometry/layout tests alphabetically, ensuring app
+tests run last).  Shared fixtures in `tests/test_zapp_conftest.py`
+(imported explicitly by app test files, not auto-discovered by pytest)
+provide:
 
 - **`fresh_db`** — isolated SQLite database in `tmp_path`, with
   module-level numeric snapshot/restore across `floorplan.constants`,
@@ -344,8 +358,10 @@ will be unnecessary once the app owns the constants directly.
 ## Roadmap
 
 The charter describes a full parametric editor; the current
-implementation is a **parametric viewer with constant editing** — 80 of
-189 requirements are implemented.  See `app/ROADMAP.md` for the complete
-12-phase development plan covering all 109 remaining requirements, phase
-dependencies, new file inventory, test growth estimates, anticipated
-challenges, and cutover criteria.
+implementation is a **parametric viewer with constant editing** (Phase 0
+complete) — 80 of 189 requirements are implemented across 117 app tests
+(703 total).  Next phases: Phase 1 (foundation test coverage) and
+Phase 2 (undo/redo) can proceed in parallel.  See `app/ROADMAP.md` for
+the complete 12-phase development plan covering all 109 remaining
+requirements, phase dependencies, new file inventory, test growth
+estimates, anticipated challenges, and cutover criteria.

@@ -56,7 +56,7 @@ Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances a
 3. **Add the call** in the dimension lines section (between wall rendering and openings):
    ```python
    # Description of what the dimension measures
-   dim_line_h(out, start_e, n, end_e, fmt_dist(end_e - start_e))
+   dim_line_h(out, start_e, n, end_e, fmt_dist(end_e - start_e), to_svg)
    ```
 
 4. **Prefixed labels** — For labeled dimensions (e.g., closets, storage), pass a formatted string:
@@ -107,6 +107,8 @@ Access via `layout.<field>.w`, `.s`, `.e`, `.n` for bounding box, or `layout.<fi
 |-|-|-|-|-|-|-|
 | **IW1** (horizontal) | 6" | `layout.iw1.w` | `layout.iw1.e` | `layout.iw1.s` | `layout.iw1.n` | `layout.iw1.poly` |
 | **IW2** (vertical) | 6" | `layout.iw2.w` | `layout.iw2.e` | `layout.iw2.s` | `layout.iw2.n` | `layout.iw2.poly` |
+| **IW2O** (oblique, IW2→IW2S) | 6" | `layout.iw2o.w` | `layout.iw2o.e` | `layout.iw2o.s` | `layout.iw2o.n` | `layout.iw2o.poly` |
+| **IW2S** (shower section) | 6" | `layout.iw2s.w` | `layout.iw2s.e` | `layout.iw2s.s` | `layout.iw2s.n` | `layout.iw2s.poly` |
 | **IW3** (perp. to W20-W1) | 4" | `layout.iw3.w` | `layout.iw3.e` | `layout.iw3.s` | `layout.iw3.n` | `layout.iw3.poly` |
 | **IW4** (vertical) | 4" | `layout.iw4.w` | `layout.iw4.e` | `layout.iw4.s` | `layout.iw4.n` | `layout.iw4.poly` |
 | **IW5** (horizontal) | 3" | `layout.iw5.w` | `layout.iw5.e` | `layout.iw5.s` | `layout.iw5.n` | `layout.iw5.poly` |
@@ -116,9 +118,6 @@ Access via `layout.<field>.w`, `.s`, `.e`, `.n` for bounding box, or `layout.<fi
 | **IW9** (perp. to W20-W1) | 3" | `layout.iw9.w` | `layout.iw9.e` | `layout.iw9.s` | `layout.iw9.n` | `layout.iw9.poly` |
 | **IW11** (N-S) | 4" | `layout.iw11.w` | `layout.iw11.e` | `layout.iw11.s` | `layout.iw11.n` | `layout.iw11.poly` |
 | **IW12** (perp. to IW11) | 4" | `layout.iw12.w` | `layout.iw12.e` | `layout.iw12.s` | `layout.iw12.n` | `layout.iw12.poly` |
-| **IW14** (par. to IW12) | 3" | `layout.iw14.w` | `layout.iw14.e` | `layout.iw14.s` | `layout.iw14.n` | `layout.iw14.poly` |
-| **IW15** (N-S) | 4" | `layout.iw15.w` | `layout.iw15.e` | `layout.iw15.s` | `layout.iw15.n` | `layout.iw15.poly` |
-| **IW16** (N-S) | 4" | `layout.iw16.w` | `layout.iw16.e` | `layout.iw16.s` | `layout.iw16.n` | `layout.iw16.poly` |
 
 Appliances and furniture also use `Wall`: `layout.dryer`, `layout.washer`, `layout.ctr`, `layout.dresser`, `layout.bed`.
 

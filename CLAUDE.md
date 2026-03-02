@@ -23,7 +23,7 @@ floorplan/           — Building design: single source of truth for geometry an
                        shell thickness, air gap, opening corner radius, etc.)
   geometry.py        — compute_outline_geometry → F-series points, segments, radii
   layout.py          — compute_interior_layout → InteriorLayout (rooms, appliances, furniture)
-  openings.py        — compute_outer_openings, compute_rough_openings (single source for O1-O11, RO1-RO5)
+  openings.py        — compute_outer_openings, compute_rough_openings (single source for O1-O11, RO1-RO7)
   gen_floorplan.py   — Detailed floorplan SVG renderer. Outputs floorplan/floorplan.svg
 
 walls/               — Outer wall construction detail drawing
@@ -41,6 +41,21 @@ survey/              — Survey scripts and data (not a Python package)
   rough_survey.txt   — Raw field measurements
   distances.md       — Theoretical distances
   adjust_pentagon.py — Least-squares survey adjustment
+
+roof/                — Roof outline generation
+  gen_roof.py        — Roof outline SVG with R-series corners. Outputs roof/roof.svg
+
+site/                — Site plan generation
+  gen_site_plan.py   — Building on survey parcel PDF. Outputs site/site_plan_df.pdf, site_plan_fs.pdf
+
+scad/                — OpenSCAD 3D model and line drawing generation
+  gen_flat_roof.py   — Flat roof SCAD model
+  gen_2in12.py       — 2:12 slope roof SCAD model
+  gen_views.py       — Multi-view rendered output
+  gen_line_drawings.py — Line drawing SVGs from SCAD
+
+plumbing/            — Plumbing plan generation
+  gen_plumbing.py    — Water supply/drain plan SVG. Outputs plumbing/plumbing.svg
 ```
 
 ## Dependency Graph
@@ -54,10 +69,15 @@ walls/gen_walls.py ──→ walls/ ──→ floorplan/ ──→ shared/
                    └──→ shared/
 span/gen_span*.py ──→ floorplan/ ──→ shared/
                   └──→ shared/
+roof/gen_roof.py ──→ floorplan/ ──→ shared/
+site/gen_site_plan.py ──→ floorplan/ ──→ shared/
+scad/gen_*.py ──→ floorplan/ ──→ shared/
+              └──→ shared/
+plumbing/gen_plumbing.py ──→ floorplan/ ──→ shared/
 survey/compute_path.py ──→ shared/
 ```
 
-No circular dependencies. floorplan/ never imports from survey/, walls/, or span/.
+No circular dependencies. floorplan/ never imports from survey/, walls/, span/, roof/, site/, scad/, or plumbing/.
 
 ## Traversal Conventions
 - **Survey traverse** (POB→P2→P3→P4→P5→POB): **CCW** as viewed from above
@@ -82,7 +102,7 @@ The F-series outline is defined purely by:
 1. **Start point**: F2 position (offset from FC) and bearing
 2. **Segment definitions**: each segment is either a line (bearing, length) or an arc (radius, sweep, CW/CCW direction)
 3. **Tangency**: automatic — each segment starts at the position and bearing where the previous segment ended
-4. **Closure**: d_F2_F5 and d_F20_F1 are solved so the chain closes back to F2
+4. **Closure**: d_F2_F5 and d_F18_F1 are solved so the chain closes back to F2
 
 **That's it.** No other runtime constraints exist in the geometry code. When a change request specifies additional constraints (e.g., "keep F9-F20 fixed", "maintain clear span"), those constraints are used to DERIVE new segment parameter values. Once the values are verified to satisfy the change request plus tangency and closure, the derived values are hardcoded as segment definitions and the change-request constraints are discarded. The solver in `geometry.py` must never accumulate constraints from past change requests.
 
@@ -90,7 +110,7 @@ The F-series outline is defined purely by:
 - After each successful (as determined by passing of all tests) completed request, always: `git commit -a -m "<summary>"` then `python gen_all.py` to regenerate all SVGs.  summary shall be 25 words or less, and shall not include "Co-Authored-By: Claude".
 - Outline geometry lives in `floorplan/geometry.py`; dimension constants in `floorplan/constants.py`
 - Interior layout (rooms, furniture) lives in `floorplan/layout.py`
-- Opening positions (O1-O11, RO1-RO5) live in `floorplan/openings.py` — single source of truth
+- Opening positions (O1-O11, RO1-RO7) live in `floorplan/openings.py` — single source of truth
 - Wall construction constants (shell thickness, air gap, opening radius) defined in `floorplan/constants.py`, re-exported by `walls/constants.py`
 - Shell geometry utilities (inset paths, U-turn polygons, wall sections) live in `shared/wall_shells.py`
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
