@@ -17,6 +17,7 @@ const App = {
     showGrid: false,
     showOpenings: true,
     showFurniture: true,
+    variant: "standard",
     measureStart: null,
     isDragging: false,
     dragStart: null,
@@ -55,6 +56,7 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture",
+    "variant-select", "variant-selector",
   ];
   for (const id of ids) {
     App.els[id] = document.getElementById(id);
@@ -117,7 +119,7 @@ async function loadCategories() {
 
 async function loadGeometry() {
   try {
-    const resp = await fetch("/api/geometry");
+    const resp = await fetch(`/api/geometry?variant=${App.state.variant}`);
     if (!resp.ok) throw new Error(await resp.text());
     App.state.geometry = await resp.json();
     if (App.state.activeView === "interactive") renderCanvas();
@@ -166,6 +168,9 @@ function switchView(viewName) {
   document.querySelectorAll(".view-tab").forEach(t => {
     t.classList.toggle("active", t.dataset.view === viewName);
   });
+
+  // Show variant selector only for interactive view
+  App.els["variant-selector"].style.display = viewName === "interactive" ? "inline-block" : "none";
 
   if (viewName === "interactive") {
     App.els["canvas"].style.display = "block";
@@ -314,6 +319,35 @@ function renderFurniture(g) {
   if (!App.state.showFurniture) return;
   const layer = App.els["layer-furniture"];
 
+  // Render variant items (comprehensive set) if available
+  if (g.variant_items && Object.keys(g.variant_items).length > 0) {
+    for (const [name, item] of Object.entries(g.variant_items)) {
+      const cssClass = `item-${item.type} selectable`;
+      if (item.shape === "circle") {
+        const c = item.center;
+        const el = svgEl("circle", {
+          cx: c[0], cy: -c[1], r: item.radius,
+          class: cssClass,
+          "data-type": item.type,
+          "data-name": name,
+        });
+        el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
+        layer.appendChild(el);
+      } else {
+        const el = svgEl("polygon", {
+          points: polyToStr(item.poly),
+          class: cssClass,
+          "data-type": item.type,
+          "data-name": name,
+        });
+        el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
+        layer.appendChild(el);
+      }
+    }
+    return;
+  }
+
+  // Fallback: legacy appliances/furniture (if variant_items not present)
   for (const [name, item] of Object.entries(g.appliances || {})) {
     const poly = item.clip || item.poly;
     const el = svgEl("polygon", {
@@ -810,6 +844,12 @@ function setupEventListeners() {
   App.els["show-furniture"].addEventListener("change", (e) => {
     App.state.showFurniture = e.target.checked;
     renderCanvas();
+  });
+
+  // Variant selector
+  App.els["variant-select"].addEventListener("change", (e) => {
+    App.state.variant = e.target.value;
+    loadGeometry();
   });
 
   // Constants filters

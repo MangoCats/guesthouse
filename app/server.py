@@ -51,23 +51,26 @@ def create_app(db_path=None):
     )
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # no caching during dev
 
-    # Cache for computed geometry
-    _geom_cache = {"data": None, "dirty": True}
+    # Cache for computed geometry — keyed by variant
+    _geom_cache = {}  # {variant: {"data": ..., "dirty": True}}
     _geom_lock = threading.Lock()
 
-    def _get_geometry():
-        """Get geometry, computing if dirty."""
+    def _get_geometry(variant="standard"):
+        """Get geometry for a variant, computing if dirty."""
         with _geom_lock:
-            if _geom_cache["dirty"] or _geom_cache["data"] is None:
+            entry = _geom_cache.get(variant)
+            if entry is None or entry["dirty"] or entry["data"] is None:
                 constants = get_constants_dict(db)
-                _geom_cache["data"] = compute_geometry(constants)
-                _geom_cache["dirty"] = False
-            return _geom_cache["data"]
+                data = compute_geometry(constants, variant)
+                _geom_cache[variant] = {"data": data, "dirty": False}
+                return data
+            return entry["data"]
 
     def _invalidate():
-        """Mark geometry cache as dirty and notify clients."""
+        """Mark all variant caches as dirty and notify clients."""
         with _geom_lock:
-            _geom_cache["dirty"] = True
+            for entry in _geom_cache.values():
+                entry["dirty"] = True
         _broadcast("geometry_changed")
 
     # ------------------------------------------------------------------
@@ -132,10 +135,19 @@ def create_app(db_path=None):
     @app.route("/api/geometry")
     def api_geometry():
         try:
-            geom = _get_geometry()
+            from app.variants import VARIANTS
+            variant = request.args.get("variant", "standard")
+            if variant not in VARIANTS:
+                variant = "standard"
+            geom = _get_geometry(variant)
             return jsonify(geom)
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
+
+    @app.route("/api/variants")
+    def api_variants():
+        from app.variants import VARIANTS
+        return jsonify([{"name": k, "label": v["label"]} for k, v in VARIANTS.items()])
 
     # -- Outline chain API --
 

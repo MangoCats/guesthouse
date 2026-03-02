@@ -38,7 +38,7 @@ def _wall_to_dict(wall):
     }
 
 
-def compute_geometry(constants_dict: dict) -> dict:
+def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
     """Compute all building geometry from constants and return JSON-serialisable dict."""
     patch_constants(constants_dict)
 
@@ -196,6 +196,13 @@ def compute_geometry(constants_dict: dict) -> dict:
         result["bbox"] = {
             "w": min(es), "s": min(ns), "e": max(es), "n": max(ns),
         }
+
+    # Variant items
+    from app.variants import compute_variant_items, VARIANTS
+    variant_items = compute_variant_items(pts, inner_poly, layout, geom.radii, variant)
+    result["variant_items"] = variant_items
+    result["variant"] = variant
+    result["available_variants"] = list(VARIANTS.keys())
 
     return result
 

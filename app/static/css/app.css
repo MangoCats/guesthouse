@@ -204,6 +204,28 @@ body {
   border-color: var(--border);
 }
 
+#variant-selector {
+  display: inline-block;
+  margin-left: 12px;
+  padding: 4px 0;
+  font-size: 11px;
+  white-space: nowrap;
+}
+#variant-selector label {
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+#variant-selector select {
+  padding: 2px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+}
+#variant-selector select:focus { border-color: var(--accent-dim); }
+
 #viewport {
   flex: 1;
   position: relative;
@@ -376,6 +398,11 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 .point-label.f-series { fill: var(--yellow); font-weight: bold; }
 .point-label.w-series { fill: var(--green); }
 .point-label.c-series { fill: var(--orange); font-size: 0.28px; }
+
+/* Variant item type fills */
+.item-appliance { fill: #2a3a4a; stroke: #4682B4; stroke-width: 0.02; }
+.item-furniture { fill: #2a3a2a; stroke: #5a8a5a; stroke-width: 0.02; }
+.item-fixture   { fill: #3a2a3a; stroke: #8a5a8a; stroke-width: 0.02; }
 
 .selectable { cursor: pointer; }
 .selectable:hover { filter: brightness(1.3); }
