@@ -37,9 +37,23 @@ def _wall_to_dict(wall):
 
 
 def _centroid(poly):
-    """Average of polygon vertices — good enough for label placement."""
+    """Area-weighted centroid of a simple polygon."""
     n = len(poly)
-    return (sum(p[0] for p in poly) / n, sum(p[1] for p in poly) / n)
+    area6 = 0.0
+    cx = cy = 0.0
+    for i in range(n):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % n]
+        cross = x0 * y1 - x1 * y0
+        area6 += cross
+        cx += (x0 + x1) * cross
+        cy += (y0 + y1) * cross
+    if abs(area6) < 1e-12:
+        # Degenerate — fall back to vertex average
+        return (sum(p[0] for p in poly) / n, sum(p[1] for p in poly) / n)
+    cx /= 3.0 * area6
+    cy /= 3.0 * area6
+    return (cx, cy)
 
 
 def _compute_room_labels(pts, layout, inner_segs, radii, variant):
