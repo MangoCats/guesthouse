@@ -308,6 +308,11 @@ function fmtFtIn(ft) {
   return `${sign}${wholeFt}' ${inStr}"`;
 }
 
+function fmtDeg(deg) {
+  const s = deg.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  return `${s}°`;
+}
+
 function renderOutline(g) {
   const layer = App.els["layer-outline"];
   if (g.outline_poly && g.outline_poly.length > 0) {
@@ -975,7 +980,7 @@ async function loadOutlineTable() {
       <td>${seg.seq}</td>
       <td>${seg.seg_type}</td>
       <td>${seg.seg_type === "L" ? fmtFtIn(seg.distance || 0) : fmtFtIn(seg.radius || 0)}</td>
-      <td>${seg.seg_type === "L" ? "—" : (seg.sweep || 0).toFixed(6)}</td>
+      <td>${seg.seg_type === "L" ? "—" : fmtDeg(seg.sweep || 0)}</td>
       <td>${seg.end_name}</td>
     `;
     tbody.appendChild(tr);

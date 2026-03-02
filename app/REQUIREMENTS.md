@@ -1884,12 +1884,16 @@ change; the character is typed into the input instead.
 Unless otherwise specified, all displayed dimensions SHALL use feet and
 inches. Inch values SHALL be displayed to two decimal places of precision
 with trailing zeroes removed (e.g., `5' 3.5"` not `5' 3.50"`; `12' 0"`
-not `12' 0.00"`).
+not `12' 0.00"`). All angles SHALL be displayed in degrees to four
+decimal places of precision with trailing zeroes removed and a degree
+symbol suffix (e.g., `45.5°` not `45.5000°`; `90°` not `90.0000°`).
 
 **Acceptance:** Inspect dimension labels, property panel values, and
 measurement tool output. All use feet-inches format. A value of exactly
 3 inches displays as `3"`, not `3.00"`. A value of 7.50 inches displays
-as `7.5"`.
+as `7.5"`. Inspect the Outline table Sweep column. Arc sweep values
+display with degree symbol and trailing zeroes removed (e.g.,
+`32.5921°`).
 
 ---
 
