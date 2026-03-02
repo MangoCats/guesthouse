@@ -717,18 +717,67 @@ function categoryColor(cat) {
   return colors[cat] || "#8888aa";
 }
 
-async function handleConstantEdit(name, rawValue) {
-  // Parse value: handle inches (e.g. "35"") and fractions
-  let value;
-  const trimmed = rawValue.trim();
-  if (trimmed.endsWith('"')) {
-    value = parseFloat(trimmed.slice(0, -1)) / 12.0;
-  } else if (trimmed.includes("/")) {
+/**
+ * Unit-aware dimension parser (CT-7a through CT-7j, CT-8).
+ * Parses user input with optional unit suffixes and returns feet.
+ * Returns NaN on invalid input.
+ */
+function parseDimension(text) {
+  if (text == null) return NaN;
+  const trimmed = text.trim();
+  if (!trimmed) return NaN;
+
+  // CT-8: fraction shortcut — "1/3", "3/4", etc.
+  if (trimmed.includes("/") && !/['"\s]/.test(trimmed)) {
     const parts = trimmed.split("/");
-    value = parseFloat(parts[0]) / parseFloat(parts[1]);
-  } else {
-    value = parseFloat(trimmed);
+    if (parts.length === 2) {
+      const num = parseFloat(parts[0]), den = parseFloat(parts[1]);
+      if (!isNaN(num) && !isNaN(den) && den !== 0) return num / den;
+      return NaN;
+    }
   }
+
+  const conversions = {
+    ft: 1, feet: 1,
+    "in": 1 / 12, inches: 1 / 12,
+    cm: 1 / 30.48, centimeters: 1 / 30.48,
+    mm: 1 / 304.8, millimeters: 1 / 304.8,
+    m: 1 / 0.3048, meters: 1 / 0.3048,
+  };
+
+  const tokenRe = /(-?(?:\d+\.?\d*|\.\d+))\s*(?:(['\u2032])|(["\u2033])|(feet|ft|inches|in|centimeters|cm|millimeters|mm|meters|m)(?![a-z]))?/gi;
+  const tokens = [];
+  let match;
+  while ((match = tokenRe.exec(trimmed)) !== null) {
+    tokens.push(match);
+    if (tokens.length >= 4) break;  // CT-7i: stop after 4th (only use 3)
+  }
+  if (tokens.length === 0) return NaN;
+
+  let result = 0, bareCount = 0;
+  for (let i = 0; i < Math.min(tokens.length, 3); i++) {
+    const [, numStr, footMark, inchMark, wordUnit] = tokens[i];
+    const value = parseFloat(numStr);
+    if (isNaN(value)) return NaN;
+
+    if (footMark) {
+      result += value;
+    } else if (inchMark) {
+      result += value / 12;
+    } else if (wordUnit) {
+      const factor = conversions[wordUnit.toLowerCase()];
+      if (factor == null) return NaN;
+      result += value * factor;
+    } else {
+      bareCount++;
+      result += bareCount === 1 ? value : value / 12;
+    }
+  }
+  return result;
+}
+
+async function handleConstantEdit(name, rawValue) {
+  const value = parseDimension(rawValue);
 
   if (isNaN(value)) {
     showToast(`Invalid value: ${rawValue}`, "error");

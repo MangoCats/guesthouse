@@ -7,7 +7,7 @@ that can be verified by automated or manual testing.
 Requirements are organized into a modular tree that groups functionality
 both by **implementation layer** (data, API, UI) and by **user experience**
 (what the user can do). New requirements identified from analysis of the
-full 864-commit history are marked **(NEW)**.
+full commit history are marked **(NEW)**.
 
 ---
 
@@ -17,11 +17,12 @@ full 864-commit history are marked **(NEW)**.
 
 #### DB-1  Schema Initialisation
 The application SHALL create an SQLite database with tables `constants`,
-`outline_chain`, `views`, `elements`, and `doors` when launched for the
-first time.
+`outline_chain`, and `views` when launched for the first time.
+(Additional tables `elements` and `doors` will be added in Phase 3 —
+see DB-9 and DB-10.)
 
 **Acceptance:** Start with no `app/adu.db` file. Run `python run_app.py
---no-browser`. Verify the file is created and contains all five tables.
+--no-browser`. Verify the file is created and contains all three tables.
 
 #### DB-2  Constants Seeding
 On first initialisation the database SHALL contain every uppercase numeric
@@ -145,37 +146,6 @@ The `furniture` dict SHALL contain keys `bed`, `dresser`, `shelves`.
 
 **Acceptance:** Verify both key sets.
 
-#### ENG-13  Variant Item Computation
-`compute_geometry(constants_dict, variant)` SHALL accept a `variant`
-parameter (one of `standard`, `minik`, `daybed`, `bare`, `sf`) and return
-a `variant_items` dict containing all furniture, appliances, and fixtures
-for that variant. The standard variant SHALL produce at least 20 items
-including `dryer`, `washer`, `hamper`, `counter`, `water_heater`,
-`toilet_s`, `toilet_n`, `util_sink`, `bath_sink`, `stove`, `dishwasher`,
-`kitchen_sink`, `fridge`, `ice_maker`, `work_counter`, `microwave`,
-`north_counter`, `coffee_maker`, `dining_table`, `dining_chair_1`,
-`dining_chair_2`, `bed`, `dresser`, `shelves`, `loveseat`, `et`,
-`loveseat2`, `chair`, `ottoman`, `desk`, `desk_chair`. The `bare` and
-`sf` variants SHALL produce zero items. The `minik` variant SHALL include
-`sofa`, `rocker`, `cooktop`, `toaster` and exclude `loveseat`, `stove`,
-`dishwasher`. The `daybed` variant SHALL include `daybed`, `shelves2`,
-`et_east`, `et_west`, `rocker` and exclude `loveseat`, `sofa`.
-
-Each item SHALL have keys: `type` (one of `appliance`, `furniture`,
-`fixture`), `poly` (list of [E,N] coordinate pairs with >= 3 points),
-`bbox` ({`w`, `s`, `e`, `n`}), `label` (display name), `shape` (`rect`
-or `circle`). Circle items SHALL additionally have `center` ([E,N]) and
-`radius` (positive float).
-
-The response SHALL also include `variant` (the active variant name) and
-`available_variants` (list of all variant names).
-
-**Acceptance:** Call `compute_geometry` with default constants and each
-variant name. Verify standard has >= 20 items with all required keys.
-Verify bare and sf have 0 items. Verify minik contains `sofa` but not
-`loveseat`. Verify daybed contains `daybed` but not `sofa`. Verify every
-item bbox is within the building outline bbox (with 2 ft margin).
-
 #### ENG-7  Constant Propagation
 Changing a constant in the database SHALL produce different computed
 geometry when `compute_geometry` is called again.
@@ -222,6 +192,37 @@ region defined by interior walls and the building outline.
 
 **Acceptance:** `result["room_areas"]` contains entries for BEDROOM,
 OFFICE, BATH, UTIL, KITCHEN with positive numeric values.
+
+#### ENG-13  Variant Item Computation
+`compute_geometry(constants_dict, variant)` SHALL accept a `variant`
+parameter (one of `standard`, `minik`, `daybed`, `bare`, `sf`) and return
+a `variant_items` dict containing all furniture, appliances, and fixtures
+for that variant. The standard variant SHALL produce at least 20 items
+including `dryer`, `washer`, `hamper`, `counter`, `water_heater`,
+`toilet_s`, `toilet_n`, `util_sink`, `bath_sink`, `stove`, `dishwasher`,
+`kitchen_sink`, `fridge`, `ice_maker`, `work_counter`, `microwave`,
+`north_counter`, `coffee_maker`, `dining_table`, `dining_chair_1`,
+`dining_chair_2`, `bed`, `dresser`, `shelves`, `loveseat`, `et`,
+`loveseat2`, `chair`, `ottoman`, `desk`, `desk_chair`. The `bare` and
+`sf` variants SHALL produce zero items. The `minik` variant SHALL include
+`sofa`, `rocker`, `cooktop`, `toaster` and exclude `loveseat`, `stove`,
+`dishwasher`. The `daybed` variant SHALL include `daybed`, `shelves2`,
+`et_east`, `et_west`, `rocker` and exclude `loveseat`, `sofa`.
+
+Each item SHALL have keys: `type` (one of `appliance`, `furniture`,
+`fixture`), `poly` (list of [E,N] coordinate pairs with >= 3 points),
+`bbox` ({`w`, `s`, `e`, `n`}), `label` (display name), `shape` (`rect`
+or `circle`). Circle items SHALL additionally have `center` ([E,N]) and
+`radius` (positive float).
+
+The response SHALL also include `variant` (the active variant name) and
+`available_variants` (list of all variant names).
+
+**Acceptance:** Call `compute_geometry` with default constants and each
+variant name. Verify standard has >= 20 items with all required keys.
+Verify bare and sf have 0 items. Verify minik contains `sofa` but not
+`loveseat`. Verify daybed contains `daybed` but not `sofa`. Verify every
+item bbox is within the building outline bbox (with 2 ft margin).
 
 ### 1.3  File Generation
 
@@ -1164,11 +1165,79 @@ pressing Enter SHALL send a PUT request to the server.
 **Acceptance:** Change BED_WIDTH to `80"` and press Enter. A PUT is sent.
 Toast confirms the update.
 
-#### CT-7  Value Parsing -- Inches
-Entering a value like `35"` SHALL be parsed as `35 / 12.0` feet.
+#### CT-7  Unit-Aware Value Parsing
 
-**Acceptance:** Enter `80"` for a ft-unit constant. The value sent to the
-server is `80 / 12 = 6.6667`.
+The input parser SHALL accept numeric values with optional unit suffixes
+and convert them to feet for storage. The parser is used by both the
+constants table and any other dimension input field in the application.
+
+##### CT-7a  Raw Number
+A number with no unit suffix SHALL be interpreted as feet.
+
+**Acceptance:** Enter `6.5`. The value sent to the server is `6.5`.
+
+##### CT-7b  Feet Suffixes
+A number followed by `'`, `ft`, or `feet` SHALL be interpreted as feet.
+Whitespace between the number and suffix is optional.
+
+**Acceptance:** Enter `6.5'`. Value sent is `6.5`. Enter `6.5 ft`.
+Value sent is `6.5`. Enter `6.5feet`. Value sent is `6.5`.
+
+##### CT-7c  Inch Suffixes
+A number followed by `"`, `in`, or `inches` SHALL be interpreted as
+inches and converted to feet by dividing by 12.
+
+**Acceptance:** Enter `80"`. Value sent is `80 / 12 ≈ 6.6667`.
+Enter `6.5 in`. Value sent is `6.5 / 12 ≈ 0.5417`.
+Enter `78inches`. Value sent is `78 / 12 = 6.5`.
+
+##### CT-7d  Centimetre Suffixes
+A number followed by `cm` or `centimeters` SHALL be interpreted as
+centimetres and converted to feet (÷ 30.48).
+
+**Acceptance:** Enter `30.48cm`. Value sent is `1.0`.
+
+##### CT-7e  Millimetre Suffixes
+A number followed by `mm` or `millimeters` SHALL be interpreted as
+millimetres and converted to feet (÷ 304.8).
+
+**Acceptance:** Enter `304.8mm`. Value sent is `1.0`.
+
+##### CT-7f  Metre Suffixes
+A number followed by `m` or `meters` SHALL be interpreted as metres
+and converted to feet (÷ 0.3048).
+
+**Acceptance:** Enter `0.3048m`. Value sent is `1.0`.
+
+##### CT-7g  Two Bare Numbers as Feet-Inches
+When two numbers appear without recognised unit suffixes, the first
+SHALL be interpreted as feet and the second as inches.
+
+**Acceptance:** Enter `6 6`. Value sent is `6 + 6/12 = 6.5`.
+Enter `5 0`. Value sent is `5.0`.
+
+##### CT-7h  Multi-Token Summation
+Up to three number-unit tokens may appear on a single input line.
+The final value SHALL be the sum of all tokens converted to feet.
+Tokens may appear in any order.
+
+**Acceptance:** Enter `6' 6"`. Value sent is `6.5`.
+Enter `6.7in 6' 2cm`. Value sent is
+`6 + 6.7/12 + 2/30.48 ≈ 6.6242`.
+
+##### CT-7i  Fourth Token Ignored
+The fourth and subsequent number-unit tokens on a single input line
+SHALL be silently ignored.
+
+**Acceptance:** Enter `1' 2" 3cm 999ft`. Value sent is
+`1 + 2/12 + 3/30.48 ≈ 1.2651` (the `999ft` is ignored).
+
+##### CT-7j  Whitespace Flexibility
+Whitespace between a number and its unit suffix SHALL be optional.
+Whitespace SHALL separate consecutive tokens.
+
+**Acceptance:** Enter `6'6"`. Value sent is `6.5`.
+Enter `80 "`. Value sent is `80/12 ≈ 6.6667`.
 
 #### CT-8  Value Parsing -- Fractions
 Entering a value like `1/3` SHALL be parsed as `0.333...`.
@@ -1656,8 +1725,8 @@ Panel width shrinks.
 All pre-existing tests in `tests/` SHALL continue to pass after the app
 is added.
 
-**Acceptance:** `python -m pytest tests/ -x -q` reports 586 passed, 0
-failed.
+**Acceptance:** `python -m pytest tests/ -x -q` reports all pre-existing
+tests (i.e. non-`test_zapp_*` tests) passed, 0 failed.
 
 #### NF-4  No Modification of Existing Code
 The app SHALL not modify any files in `shared/`, `floorplan/`, `walls/`,
@@ -1697,7 +1766,7 @@ as `7.5"`.
 
 ## Appendix A: Requirement Cross-Reference by User Operation
 
-This table maps common user operations (identified from the full 864-commit
+This table maps common user operations (identified from the full commit
 history) to the requirements that enable each operation through the GUI.
 
 | Operation | Commits | Requirements |
@@ -1730,7 +1799,7 @@ history) to the requirements that enable each operation through the GUI.
 | 4 Canvas | 11 | 10 | 21 |
 | 5 Selection | 6 | 8 | 14 |
 | 6 Tools | 4 | 20 | 24 |
-| 7 Constants | 10 | 0 | 10 |
+| 7 Constants | 10 | 0 | 10 (+10 sub) |
 | 8 Data Tables | 4 | 7 | 11 |
 | 9 Element Ops | 0 | 14 | 14 |
 | 10 Styling | 0 | 4 | 4 |
