@@ -17,12 +17,13 @@ full commit history are marked **(NEW)**.
 
 #### DB-1  Schema Initialisation
 The application SHALL create an SQLite database with tables `constants`,
-`outline_chain`, `views`, and `shapes` when launched for the first time.
+`outline_chain`, `views`, `shapes`, `variant_exclusions`, and
+`room_label_offsets` when launched for the first time.
 (Additional tables `elements` and `doors` will be added in Phase 3 —
 see DB-9 and DB-10.)
 
 **Acceptance:** Start with no `app/adu.db` file. Run `python run_app.py
---no-browser`. Verify the file is created and contains all four tables.
+--no-browser`. Verify the file is created and contains all six tables.
 
 #### DB-2  Constants Seeding
 On first initialisation the database SHALL contain every uppercase numeric
@@ -102,6 +103,25 @@ snapshots of changed state, enabling undo and redo operations.
 Each row contains a `timestamp`, `action_type`, and `before_state` /
 `after_state` JSON.
 
+#### DB-12  Variant Exclusions Seeding
+On first initialisation the `variant_exclusions` table SHALL contain
+exclusion rules for the `bare` and `sf` variants, hiding interior wall
+`IW6` and rough opening `RO5` from those layouts.
+
+**Acceptance:** `SELECT count(*) FROM variant_exclusions` returns 4.
+`get_variant_exclusions("bare")` returns `{"wall": {"IW6"},
+"rough_opening": {"RO5"}}`. The `standard` variant returns empty sets.
+
+#### DB-13  Room Label Offsets
+The `room_label_offsets` table SHALL store per-room (E, N) offsets from
+computed centroids. Default is (0, 0) for all rooms (no rows).
+`set_room_label_offset(name, e, n)` SHALL upsert a row.
+`get_room_label_offsets()` SHALL return a dict of `{name: (e, n)}`.
+
+**Acceptance:** Initially `get_room_label_offsets()` returns `{}`.
+After `set_room_label_offset("BEDROOM", 0.5, -0.3)`,
+`get_room_label_offsets()` returns `{"BEDROOM": (0.5, -0.3)}`.
+
 ### 1.2  Geometry Engine
 
 #### ENG-1  Geometry Computation
@@ -127,11 +147,13 @@ inner wall segments.
 `len(result["inner_segments"]) == 18`.
 
 #### ENG-4  Interior Wall Count
-The computed geometry SHALL include exactly 13 interior walls: IW1, IW2,
-IW2O, IW2S, IW3, IW4, IW5, IW6, IW7, IW8, IW9, IW11, IW12.
+The computed geometry SHALL include 13 interior walls for the standard
+variant: IW1, IW2, IW2O, IW2S, IW3, IW4, IW5, IW6, IW7, IW8, IW9,
+IW11, IW12. Variants with exclusion rules (bare, sf) SHALL have fewer
+walls per their `variant_exclusions` entries (see ENG-14).
 
-**Acceptance:** `set(result["interior_walls"].keys())` equals the expected
-set.
+**Acceptance:** For standard: `set(result["interior_walls"].keys())`
+equals the full 13-wall set. For bare/sf: `"IW6"` is absent.
 
 #### ENG-5  Opening Counts
 The computed geometry SHALL include exactly 12 outer openings and 7 rough
@@ -188,10 +210,12 @@ All tangency constraints hold.
 
 #### ENG-12  Room Area Computation **(NEW)**
 The engine SHALL compute room areas (in square feet) for each enclosed
-region defined by interior walls and the building outline.
+region defined by interior walls and the building outline. UTIL SHALL
+be split into UTIL_N and UTIL_S by the E-W partition line.
 
-**Acceptance:** `result["room_areas"]` contains entries for BEDROOM,
-OFFICE, BATH, UTIL, KITCHEN with positive numeric values.
+**Acceptance:** `result["room_labels"]` (SF variant) contains entries for
+BEDROOM, OFFICE, BATH, UTIL_N, UTIL_S, KITCHEN, LIVING, E CLOSET,
+W CLOSET, STORAGE, WH with positive numeric `area` values.
 
 #### ENG-13  Variant Item Computation
 `compute_geometry(constants_dict, variant)` SHALL accept a `variant`
@@ -223,6 +247,31 @@ variant name. Verify standard has >= 20 items with all required keys.
 Verify bare and sf have 0 items. Verify minik contains `sofa` but not
 `loveseat`. Verify daybed contains `daybed` but not `sofa`. Verify every
 item bbox is within the building outline bbox (with 2 ft margin).
+
+#### ENG-14  Variant Exclusion Filtering
+When computing geometry for a variant with exclusion rules, the engine
+SHALL omit the excluded interior walls from `interior_walls` and excluded
+rough openings from `rough_openings`.
+
+**Acceptance:** `compute_geometry(constants, "bare")` returns
+`interior_walls` without key `"IW6"` and `rough_openings` without key
+`"RO5"`. `compute_geometry(constants, "standard")` includes both.
+
+#### ENG-15  Room Label Computation
+The engine SHALL compute room labels for 11 rooms: BEDROOM, UTIL_N,
+UTIL_S, KITCHEN, LIVING, BATH, OFFICE, E CLOSET, W CLOSET, STORAGE, WH.
+Each label SHALL have `name`, `pos` (area-weighted centroid plus DB
+offset), and `centroid` (raw centroid). For the SF variant, each label
+SHALL additionally include `area` (numeric sf) and `poly` (room boundary
+polygon for highlight rendering). The response SHALL include
+`room_labels` (list of label dicts) and optionally `sf_lines` (dashed
+partition line endpoints for SF layout).
+
+**Acceptance:** `compute_geometry(constants, "standard")["room_labels"]`
+has 11 entries. Each has `name`, `pos`, `centroid` keys. All `pos`
+values fall within the building outline bbox.
+`compute_geometry(constants, "sf")["room_labels"]` entries additionally
+have `area` and `poly` keys. `sf_lines` is present and non-empty.
 
 ### 1.3  File Generation
 
@@ -576,18 +625,23 @@ shows them.
 
 #### UI-8  Variant Selector
 The view tab bar SHALL contain a "Layout" dropdown selector visible when
-the Interactive tab is active. The selector SHALL list all 5 floorplan
-variants (Standard, Small Kitchen, Daybed, Room Dimensions, Square
-Footage). Selecting a variant SHALL reload the geometry with that
-variant's furniture/appliance set. The selector SHALL be hidden when an
-SVG view tab is active.
+the Interactive or Floorplan tab is active. The selector SHALL list all
+5 floorplan variants (Standard, Small Kitchen, Daybed, Room Dimensions,
+Square Footage). On the Interactive tab, selecting a variant SHALL
+reload the geometry with that variant's furniture/appliance set. On the
+Floorplan tab, selecting a variant SHALL load the corresponding
+variant-specific SVG file (standard → `floorplan.svg`, minik →
+`floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
+`floorplan_bare.svg`, sf → `floorplan_sf.svg`). The selector SHALL be
+hidden when any other SVG view tab is active.
 
 **Acceptance:** Load the page with the Interactive tab active. The
 "Layout" dropdown is visible with 5 options. Select "Small Kitchen" --
 the canvas re-renders with minik furniture (sofa, rocker, cooktop
-visible; loveseat, stove absent). Switch to an SVG view tab -- the
-dropdown is hidden. Switch back to Interactive -- the dropdown reappears
-with the previously selected variant.
+visible; loveseat, stove absent). Switch to the Floorplan tab -- the
+dropdown remains visible. Select "Daybed" -- the floorplan SVG switches
+to `floorplan_db.svg`. Switch to a non-floorplan SVG view tab -- the
+dropdown is hidden.
 
 ### 3.3  Right Panel
 
@@ -631,7 +685,9 @@ selected variant. The standard variant SHALL render at least 20 items.
 Items with `shape == "rect"` SHALL be rendered as SVG `<polygon>`
 elements. Items with `shape == "circle"` SHALL be rendered as SVG
 `<circle>` elements. Each item type SHALL have a distinct CSS class:
-`item-appliance`, `item-furniture`, `item-fixture`.
+`item-appliance`, `item-furniture`, `item-fixture`. Stacked items
+(e.g., MICRO on counter, coffee maker on counter) SHALL be rendered
+after their parent items so they appear on top in SVG paint order.
 
 **Acceptance:** Select the standard variant. Count elements in
 `#layer-furniture`. There are >= 20 elements (polygons and circles).
@@ -660,13 +716,16 @@ swing arc showing hinge position and sweep direction.
 **Acceptance:** An opening with a configured door displays a dashed arc
 from closed to open position. Hinge point is marked with a small circle.
 
-#### CV-8  Room Labels **(NEW)**
-When the "Room Labels" toggle is checked, the canvas SHALL render room
-name labels (BEDROOM, OFFICE, BATH, UTIL, KITCHEN) centred within their
-respective enclosed regions.
+#### CV-8  Room Labels
+When the "Room Names" toggle is checked, the canvas SHALL render room
+name labels for all 11 rooms (BEDROOM, UTIL_N, UTIL_S, KITCHEN, LIVING,
+BATH, OFFICE, E CLOSET, W CLOSET, STORAGE, WH) positioned at their
+area-weighted centroids (plus any stored DB offset). Labels are
+auto-computed from room polygons; user-placed labels (LABEL-1 through
+LABEL-4) are a future Phase 9 extension.
 
-**Acceptance:** `#layer-room-labels` contains text elements. Each label
-is positioned within its room boundary polygon.
+**Acceptance:** `#layer-rooms` contains text elements. Each label is
+positioned within its room boundary polygon. All 11 rooms have labels.
 
 #### CV-9  Dimension Lines
 When the "Dimensions" toggle is checked, the canvas SHALL render all
@@ -687,12 +746,22 @@ plus 18 text labels). Each text label shows a value in `X' Y.YY"`
 format. GET `/api/geometry` response includes `dimensions` with >= 18
 entries, each having `A`, `B`, and `dist` keys.
 
-#### CV-10  Area Labels **(NEW)**
-When the "Areas" toggle is checked, the canvas SHALL render room area
-labels (in square feet) within each enclosed region.
+#### CV-10  Area Labels
+When the SF layout variant is selected, the canvas SHALL render room area
+labels (in square feet) below each room name label. Clicking an area
+label SHALL toggle highlighting of the corresponding room polygon.
 
-**Acceptance:** `#layer-areas` contains text elements showing values like
-"125 sf" positioned within room boundaries.
+**Acceptance:** Select the SF variant. `#layer-rooms` contains area text
+elements showing values like "125 sf". Click an area label — the room
+polygon highlights with a semi-transparent fill and stroke. Click again
+— the highlight is removed.
+
+#### CV-10a  SF Partition Lines
+When the SF layout variant is selected, the canvas SHALL render dashed
+partition lines showing the boundaries used for area calculation.
+
+**Acceptance:** Select the SF variant. `#layer-rooms` contains `<line>`
+elements with class `sf-partition` and dashed stroke style.
 
 #### CV-11  Clearance Zones **(NEW)**
 The canvas SHALL render clearance circles (WW-series) as dashed circles
@@ -776,10 +845,14 @@ polygons.
 
 **Acceptance:** Uncheck Furniture. `#layer-furniture` is empty.
 
-#### DIS-6  Room Labels Toggle **(NEW)**
-Checking the "Room Labels" checkbox SHALL show/hide room name labels.
+#### DIS-6  Room Names Toggle
+Checking the "Room Names" checkbox SHALL show/hide room name labels,
+area labels (SF variant), and SF partition lines. The checkbox is
+checked by default.
 
-**Acceptance:** Toggle checkbox. Room label text elements appear/disappear.
+**Acceptance:** Toggle the "Room Names" checkbox. `#layer-rooms` is
+populated when checked, empty when unchecked. On the SF variant, area
+labels and dashed partition lines also appear/disappear with this toggle.
 
 #### DIS-7  Dimensions Toggle **(NEW)**
 Checking the "Dimensions" checkbox SHALL show/hide persistent dimension
@@ -788,9 +861,9 @@ annotations.
 **Acceptance:** Toggle checkbox. Dimension line groups appear/disappear.
 
 #### DIS-8  Areas Toggle **(NEW)**
-Checking the "Areas" checkbox SHALL show/hide room area (sf) labels.
-
-**Acceptance:** Toggle checkbox. Area label text elements appear/disappear.
+*Deferred — area labels are currently controlled by the Room Names toggle
+(DIS-6). A separate Areas checkbox may be added in a future phase if
+users need independent control of room names vs. area labels.*
 
 #### DIS-9  Clearance Toggle **(NEW)**
 Checking the "Clearance" checkbox SHALL show/hide fixture clearance
@@ -1847,17 +1920,21 @@ history) to the requirements that enable each operation through the GUI.
 
 ## Appendix B: Requirements Summary
 
+"Existing" = implemented (Phase 0 baseline + incremental additions).
+"New" = planned for future phases, marked **(NEW)** on the requirement
+line or inherited from a **(NEW)** section/subsection heading.
+
 | Section | Existing | New | Total |
 |---------|----------|-----|-------|
-| 1 Data Layer | 10 | 6 | 16 |
-| 2 REST API | 17 | 17 | 34 |
-| 3 UI Layout | 5 | 4 | 9 |
-| 4 Canvas | 11 | 10 | 21 |
-| 5 Selection | 6 | 9 | 15 |
+| 1 Data Layer | 27 | 5 | 32 |
+| 2 REST API | 18 | 16 | 34 |
+| 3 UI Layout | 6 | 2 | 8 |
+| 4 Canvas | 21 | 7 | 28 |
+| 5 Selection | 6 | 7 | 13 |
 | 6 Tools | 4 | 23 | 27 |
 | 7 Constants | 10 | 0 | 10 (+10 sub) |
 | 8 Data Tables | 4 | 7 | 11 |
-| 9 Element Ops | 0 | 14 | 14 |
+| 9 Element Ops | 0 | 13 | 13 |
 | 10 Styling | 0 | 4 | 4 |
 | 11 Site Plan | 0 | 4 | 4 |
 | 12 3D Model | 0 | 3 | 3 |
@@ -1865,5 +1942,5 @@ history) to the requirements that enable each operation through the GUI.
 | 14 Plumbing | 0 | 3 | 3 |
 | 15 Undo/Redo | 0 | 4 | 4 |
 | 16 Real-Time | 4 | 1 | 5 |
-| 17 Application | 9 | 1 | 10 |
-| **Total** | **80** | **113** | **193** |
+| 17 Application | 10 | 0 | 10 |
+| **Total** | **110** | **102** | **212** |

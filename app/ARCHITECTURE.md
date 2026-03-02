@@ -41,16 +41,19 @@ and `shared/` never import from `app/`.
 
 ### app/database.py — Persistence
 
-Three SQLite tables:
+Six SQLite tables:
 
 | Table | Rows | Purpose |
 |-------|------|---------|
 | `constants` | 143 | Named numeric constants (value, unit, category) |
 | `outline_chain` | 18 | Closed outline segments (line/arc definitions) |
 | `views` | 11 | Registered SVG generators and output paths |
+| `shapes` | ~15 | Complex item shapes (polygon coordinate lists) |
+| `variant_exclusions` | 4 | Per-variant element hiding (wall/opening exclusions) |
+| `room_label_offsets` | 0 | User-adjusted room label positions (offset from centroid) |
 
 **Seeding** — On first run, `init_db()` creates the schema and populates
-all three tables from source:
+tables from source:
 
 - **constants**: parsed from `floorplan/constants.py` source lines via
   regex, extracting name, expression, unit, and comment.  Category
@@ -59,6 +62,11 @@ all three tables from source:
 - **outline_chain**: copied from `OUTLINE_CHAIN` and `CHAIN_POINT_NAMES`
   in `floorplan/geometry.py`
 - **views**: hardcoded list of 11 generator registrations
+- **shapes**: hardcoded complex item shapes (polygon coordinates)
+- **variant_exclusions**: per-variant wall/opening exclusion rules
+  (bare and sf variants exclude IW6 and RO5)
+- **room_label_offsets**: empty by default; populated when the user
+  moves a room label from its computed centroid
 
 **CRUD functions**:
 
@@ -72,6 +80,11 @@ all three tables from source:
 | `get_categories()` | Distinct category list |
 | `get_outline_chain()` | 18 segment rows |
 | `get_views()` | Enabled view definitions |
+| `get_shapes()` | All shape rows |
+| `get_shape(name)` | Single shape by name |
+| `get_variant_exclusions(variant)` | `{element_type: {names}}` for a variant |
+| `get_room_label_offsets()` | `{name: (offset_e, offset_n)}` dict |
+| `set_room_label_offset(name, e, n)` | Upsert a room label offset |
 
 Connection management uses a context manager with WAL journaling and
 foreign keys enabled.
@@ -89,9 +102,15 @@ the full pipeline:
 4. **Inner walls** → 18 W-series inset segments, closed polygon
 5. **Interior layout** → 13 interior walls (IW1–IW12, IW2O, IW2S),
    rooms, appliance/furniture placements
-6. **Openings** → 12 outer (O1–O11, O8A), 7 rough (RO1–RO7)
-7. **Variant items** → 20–31 furniture/appliance items per variant
-8. **Dimensions** → 18–22 dimension line endpoint pairs with distances
+6. **Variant exclusions** → filter interior walls and rough openings
+   per variant (e.g., bare/sf exclude IW6 and RO5)
+7. **Openings** → 12 outer (O1–O11, O8A), 7 rough (RO1–RO7)
+8. **Variant items** → 20–31 furniture/appliance items per variant
+9. **Room labels** → area-weighted centroids for 11 rooms (BEDROOM,
+   UTIL_N, UTIL_S, KITCHEN, LIVING, BATH, OFFICE, E CLOSET,
+   W CLOSET, STORAGE, WH), with DB-stored offsets applied; for SF
+   variant, includes area values and highlight polygons
+10. **Dimensions** → 18–22 dimension line endpoint pairs with distances
 
 Returns a JSON-serialisable dict with all computed geometry.  Also
 provides `generate_svg()` (runs generator scripts via subprocess) and
@@ -122,8 +141,8 @@ Replicates positioning math from `gen_floorplan.py`'s `_render_appliances()`,
 | standard | Standard | ~31 (full set) |
 | minik | Small Kitchen | ~22 (cooktop, toaster, sofa, no stove/dishwasher) |
 | daybed | Daybed | ~24 (daybed, shelves2, no loveseat/sofa) |
-| bare | Room Dimensions | 0 (walls only) |
-| sf | Square Footage | 0 (walls only) |
+| bare | Room Dimensions | 0 (walls only, IW6/RO5 excluded) |
+| sf | Square Footage | 0 (walls only, IW6/RO5 excluded; adds SF labels + highlight polygons) |
 
 Each item is a dict with `type` (appliance/furniture/fixture), `poly`
 (coordinate list), `bbox`, `label`, `shape` (rect/circle), and for
@@ -142,6 +161,12 @@ computed geometry and a dirty flag.  Protected by a threading lock.
 Each connected client gets a `queue.Queue`; `_broadcast()` pushes
 messages to all queues.  Events: `geometry_changed`, `svg_updated`,
 `connected`.  Keepalive every 30 seconds.
+
+**Floorplan variant mapping** — When the Floorplan view is requested
+with a `?variant=` parameter, the server maps variant names to
+SVG file suffixes (standard → `floorplan.svg`, minik →
+`floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
+`floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
 **API endpoints** (14 total):
 
@@ -175,7 +200,7 @@ converting geometry objects to JSON-serialisable dicts:
 
 ### app/static/js/app.js — Client
 
-Single-file client application (~1100 lines).  No build step or
+Single-file client application (~1440 lines).  No build step or
 framework.
 
 **State** — `App.state` object holds: current geometry, constants array,
@@ -192,9 +217,17 @@ selection, sort/filter state.
 
 **Canvas rendering** — `renderCanvas()` calls layer functions in order:
 outline → inner walls → interior walls → openings → furniture →
-points → dimensions.  Each function creates SVG elements (`<polygon>`,
-`<circle>`, `<line>`, `<text>`) in the corresponding `<g>` layer.
-Display toggles control which layers are populated.
+room labels → points → dimensions.  Each function creates SVG
+elements (`<polygon>`, `<circle>`, `<line>`, `<text>`) in the
+corresponding `<g>` layer.  Display toggles control which layers
+are populated.  Stacked variant items (MICRO, coffee maker, etc.)
+are sorted to render after their parent counters so they appear
+on top in the SVG paint order.
+
+**Room labels** — `renderRoomLabels(g)` renders room name text at
+centroid positions (with DB offsets applied).  For the SF variant,
+it also renders dashed partition lines and clickable area polygons
+that highlight on click.
 
 **Units formatting** — `fmtFtIn(ft)` converts feet to `X' Y.YY"`
 format with trailing zeroes removed, matching `shared/geometry.py`'s
@@ -221,16 +254,17 @@ Single-page five-region layout:
 └────────┴─────────────────────────┴───────────┘
 ```
 
-The SVG canvas defines 9 layer groups: outline, inner, walls, openings,
-furniture, points, labels, dims, measure.
+The SVG canvas defines 10 layer groups: outline, inner, walls, openings,
+furniture, rooms, points, labels, dims, measure.
 
 ### app/static/css/app.css — Styling
 
 Dark theme (Catppuccin palette) via CSS custom properties.  18 colour
 variables, 5 layout dimension variables.  Major style sections: menu bar,
 tool palette, viewport, tabs, tables, right panel, SVG canvas classes
-(outline/wall/opening/furniture/point/dimension/measure fills and
-strokes), scrollbar, toast notifications.  Responsive breakpoint at
+(outline/wall/opening/furniture/point/dimension/measure/room-label
+fills and strokes), scrollbar, toast notifications, room label
+highlights and SF partition lines.  Responsive breakpoint at
 1000px collapses tool labels and narrows the right panel.
 
 ---
@@ -246,6 +280,9 @@ strokes), scrollbar, toast notifications.  Responsive breakpoint at
 | Variant items | Computed by `app/variants.py` from layout + constants | Indirectly (edit constants) |
 | Dimension lines | Computed by `floorplan/gen_floorplan.py` from layout | Indirectly (edit constants) |
 | SVG views | Generated by scripts listed in `views` table | Regenerate via menu |
+| Variant exclusions | `variant_exclusions` table (seeded with bare/sf rules) | Read-only |
+| Room label offsets | `room_label_offsets` table | Yes — move operation |
+| Item shapes | `shapes` table (seeded from hardcoded data) | Read-only |
 
 The constants table is the single editable root.  Every other geometric
 value is deterministically derived from it through the computation
@@ -270,10 +307,14 @@ importlib.reload()         Reload geometry, layout, openings modules
     │
     ├──► compute_interior_layout()      → 13 interior walls, rooms
     │
+    ├──► get_variant_exclusions()       → filter IW/RO per variant
+    │
     ├──► compute_outer_openings()       → 12 outer openings
     │    compute_rough_openings()       → 7 rough openings
     │
     ├──► compute_variant_items()        → 20–31 furniture/appliance items
+    │
+    ├──► _compute_room_labels()         → 11 room centroids + areas
     │
     └──► compute_dimension_endpoints()  → 18–22 dimension line pairs
               │
@@ -359,7 +400,7 @@ will be unnecessary once the app owns the constants directly.
 
 The charter describes a full parametric editor; the current
 implementation is a **parametric viewer with constant editing** (Phase 0
-complete) — 80 of 189 requirements are implemented across 117 app tests
+complete) — 80 of 200 requirements are implemented across 117 app tests
 (703 total).  Next phases: Phase 1 (foundation test coverage) and
 Phase 2 (undo/redo) can proceed in parallel.  See `app/ROADMAP.md` for
 the complete 12-phase development plan covering all 109 remaining
