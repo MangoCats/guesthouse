@@ -1165,19 +1165,26 @@ async function loadOutlineTable() {
     }
     tr.appendChild(tdDist);
 
-    // Sweep column — editable for arcs
+    // Sweep column — editable for arcs, except closure arc (last seg)
     const tdSweep = document.createElement("td");
+    const isSolvedSweep = seg.seq === n - 1;
     if (seg.seg_type !== "L") {
       const sweepDeg = (seg.sweep || 0) * 180 / Math.PI;
-      const inp = document.createElement("input");
-      inp.type = "text";
-      inp.value = fmtDeg(sweepDeg);
-      inp.dataset.origValue = String(seg.sweep);
-      inp.dataset.seq = seg.seq;
-      inp.addEventListener("focus", () => inp.select());
-      inp.addEventListener("click", (e) => e.stopPropagation());
-      inp.addEventListener("change", () => handleOutlineSweepEdit(seg.seq, inp.value));
-      tdSweep.appendChild(inp);
+      if (isSolvedSweep) {
+        tdSweep.textContent = fmtDeg(sweepDeg);
+        tdSweep.classList.add("solved");
+        tdSweep.title = "Solved by closure";
+      } else {
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.value = fmtDeg(sweepDeg);
+        inp.dataset.origValue = String(seg.sweep);
+        inp.dataset.seq = seg.seq;
+        inp.addEventListener("focus", () => inp.select());
+        inp.addEventListener("click", (e) => e.stopPropagation());
+        inp.addEventListener("change", () => handleOutlineSweepEdit(seg.seq, inp.value));
+        tdSweep.appendChild(inp);
+      }
     } else {
       tdSweep.textContent = "\u2014";
     }

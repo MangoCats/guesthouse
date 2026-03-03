@@ -24,6 +24,7 @@ class SolverResult(NamedTuple):
     valid: bool
     d_F2_F5: float              # solved distance for first line segment
     d_F18_F1: float             # solved distance for second-to-last line segment
+    sweep_closure: float        # solved sweep for closure arc (radians)
     closure_error: float        # residual (should be ~0 for valid)
     exit_bearing: float         # bearing at exit of inner chain
 
@@ -74,16 +75,18 @@ def chain_offset(chain, start_brg=0.0):
 # ---------------------------------------------------------------------------
 
 def solve_closure(chain, R_a1):
-    """Solve for d_F2_F5 (first line) and d_F18_F1 (second-to-last line).
+    """Solve for d_F2_F5, d_F18_F1, and sweep_closure.
 
-    Uses the same 2-variable linear system as floorplan/geometry.py:
-    - Chain starts at F2 heading due north (bearing 0)
-    - First segment is F2→F5 line due north (solved)
-    - Second-to-last segment is F18→F1 line at exit bearing (solved)
-    - Last segment is F1→F2: 90° CW arc of radius R_a1 (fixed)
-    - Two unknowns, two equations (easting closure, northing closure)
+    Three solved variables for full positional + angular closure:
+    - d_F2_F5: distance of first line segment (F2→F5, due north)
+    - d_F18_F1: distance of second-to-last line segment (at exit bearing)
+    - sweep_closure: sweep of the closure arc (F1→F2, CW, radius R_a1)
 
-    The "inner chain" is everything between the first and second-to-last
+    The closure arc sweep is derived from bearing closure: for a CW outline
+    the total bearing change must equal 2π.  Lines don't change bearing, so
+    sweep_closure = 2π − (sum of all other arc sweeps).
+
+    The inner chain is everything between the first and second-to-last
     segments (seq 1 through N-3 inclusive).
     """
     n = len(chain)
@@ -92,29 +95,46 @@ def solve_closure(chain, R_a1):
 
     dE_18, dN_18, brg_18 = chain_offset(inner_chain, start_brg=0.0)
 
-    # Solve: d_F18_F1 such that easting closes
+    # Angular closure: closure arc sweep absorbs remaining bearing
+    sweep_closure = (2.0 * math.pi - brg_18) % (2.0 * math.pi)
+    if sweep_closure < 1e-6:
+        sweep_closure = 2.0 * math.pi  # full circle edge case
+
+    # Compute displacement of the closure arc with solved sweep
+    closure_seg = ChainEntry(
+        seg_type="CW", distance=None, radius=R_a1,
+        sweep=sweep_closure, center_name=chain[-1].center_name,
+        n_pts=chain[-1].n_pts, end_name=chain[-1].end_name,
+    )
+    dE_arc, dN_arc, _ = chain_offset([closure_seg], start_brg=brg_18)
+
+    # Positional closure: F18→F1 line + closure arc must cancel inner offset
+    # F2→F5 is due north (brg=0), so contributes only to northing
+    # Total easting: 0 + dE_18 + d_F18_F1*sin(brg_18) + dE_arc = 0
+    # Total northing: d_F2_F5 + dN_18 + d_F18_F1*cos(brg_18) + dN_arc = 0
     sin_brg = math.sin(brg_18)
     if abs(sin_brg) < 1e-15:
-        # Degenerate: F18→F1 line is purely N-S, can't solve easting
         return SolverResult(
             valid=False, d_F2_F5=0.0, d_F18_F1=0.0,
-            closure_error=abs(R_a1 - dE_18), exit_bearing=brg_18)
+            sweep_closure=sweep_closure,
+            closure_error=abs(dE_18 + dE_arc), exit_bearing=brg_18)
 
-    d_F18_F1 = (R_a1 - dE_18) / sin_brg
-    F1_N_rel = dN_18 + d_F18_F1 * math.cos(brg_18)
-    d_F2_F5 = -(F1_N_rel + R_a1)
+    d_F18_F1 = -(dE_18 + dE_arc) / sin_brg
+    d_F2_F5 = -(dN_18 + d_F18_F1 * math.cos(brg_18) + dN_arc)
 
     # Validate: both distances should be positive
     if d_F2_F5 <= 0 or d_F18_F1 <= 0:
         error = max(0, -d_F2_F5) + max(0, -d_F18_F1)
         return SolverResult(
             valid=False, d_F2_F5=d_F2_F5, d_F18_F1=d_F18_F1,
+            sweep_closure=sweep_closure,
             closure_error=error, exit_bearing=brg_18)
 
     return SolverResult(
         valid=True,
         d_F2_F5=d_F2_F5,
         d_F18_F1=d_F18_F1,
+        sweep_closure=sweep_closure,
         closure_error=0.0,
         exit_bearing=brg_18,
     )
@@ -198,6 +218,7 @@ def validate_chain(chain, R_a1):
         "closure_error": result.closure_error,
         "d_F2_F5": result.d_F2_F5,
         "d_F18_F1": result.d_F18_F1,
+        "sweep_closure": result.sweep_closure,
     }
 
 
@@ -222,10 +243,11 @@ def solve_for_constraint(chain, R_a1, F2_E, F2_N,
         sr = solve_closure(ch, R_a1)
         if not sr.valid:
             return None
-        # Inject solved distances
+        # Inject solved values
         ch2 = list(ch)
         ch2[0] = ch2[0]._replace(distance=sr.d_F2_F5)
         ch2[-2] = ch2[-2]._replace(distance=sr.d_F18_F1)
+        ch2[-1] = ch2[-1]._replace(sweep=sr.sweep_closure)
         wr = walk_chain(ch2, F2_E, F2_N)
         p1 = wr.points.get(from_point)
         p2 = wr.points.get(to_point)

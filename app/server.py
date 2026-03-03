@@ -584,12 +584,14 @@ def create_app(db_path=None):
         if not updates:
             return jsonify({"error": "no valid fields to update"}), 400
 
-        # Protect solved segments (first line and second-to-last line distances)
+        # Protect solved segments
         chain_rows = get_outline_chain(db)
         n = len(chain_rows)
         solved_seqs_dist = {0, n - 2}  # F2→F5 and F18→F1
         if seq in solved_seqs_dist and "distance" in updates:
             return jsonify({"error": "Cannot directly edit solved distance"}), 400
+        if seq == n - 1 and "sweep" in updates:
+            return jsonify({"error": "Cannot directly edit closure arc sweep"}), 400
 
         # Snapshot before state
         before_chain = get_outline_chain(db)
@@ -613,10 +615,12 @@ def create_app(db_path=None):
                 "closure_error": solver.closure_error,
             }), 400
 
-        # Update solved distances in DB
+        # Update solved values in DB (distances + closure arc sweep)
         update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
         f18_seq = len(chain_rows) - 2
         update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
+        closure_seq = len(chain_rows) - 1
+        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
 
         # Record undo
         after_chain = get_outline_chain(db)
@@ -635,6 +639,7 @@ def create_app(db_path=None):
             "closure_valid": True,
             "d_F2_F5": solver.d_F2_F5,
             "d_F18_F1": solver.d_F18_F1,
+            "sweep_closure": solver.sweep_closure,
         })
 
     @app.route("/api/outline/validate", methods=["POST"])
@@ -737,10 +742,12 @@ def create_app(db_path=None):
                 "closure_error": solver.closure_error,
             }), 400
 
-        # Update solved distances
+        # Update solved values (distances + closure arc sweep)
         update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
         f18_seq = len(chain_rows) - 2
         update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
+        closure_seq = len(chain_rows) - 1
+        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
 
         after_chain = get_outline_chain(db)
         undo_mgr.record(
@@ -806,10 +813,12 @@ def create_app(db_path=None):
                 "closure_error": solver.closure_error,
             }), 400
 
-        # Update solved distances
+        # Update solved values (distances + closure arc sweep)
         update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
         f18_seq = len(chain_rows) - 2
         update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
+        closure_seq = len(chain_rows) - 1
+        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
 
         after_chain = get_outline_chain(db)
         undo_mgr.record(

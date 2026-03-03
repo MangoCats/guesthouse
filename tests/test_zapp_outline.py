@@ -92,6 +92,33 @@ class TestSolverCrossValidation:
             f"d_F2_F5: app={result.d_F2_F5} vs fp={fp_d_F2_F5}"
         assert abs(result.d_F18_F1 - fp_d_F18_F1) < 1e-9, \
             f"d_F18_F1: app={result.d_F18_F1} vs fp={fp_d_F18_F1}"
+        # Default closure arc sweep should be π/2 (90°)
+        assert abs(result.sweep_closure - math.pi / 2) < 1e-9, \
+            f"sweep_closure: app={result.sweep_closure} vs expected={math.pi / 2}"
+
+    def test_sweep_closure_adjusts_for_modified_sweep(self, fresh_db):
+        """Changing an arc sweep changes the closure arc sweep to compensate."""
+        chain_rows = get_outline_chain(fresh_db)
+        chain = db_rows_to_chain(chain_rows)
+        import floorplan.constants as fc
+        R_a1 = fc.CORNER_SW_R
+
+        # Default closure sweep
+        result0 = solve_closure(chain, R_a1)
+        assert result0.valid
+
+        # Reduce F5→F6 arc (seq 1) sweep by 10°
+        delta = math.radians(10)
+        chain = list(chain)
+        old_sweep = chain[1].sweep
+        chain[1] = chain[1]._replace(sweep=old_sweep - delta)
+
+        result1 = solve_closure(chain, R_a1)
+        assert result1.valid, "Modified sweep should still close"
+        # Closure sweep should increase by the same 10°
+        assert abs(result1.sweep_closure - (result0.sweep_closure + delta)) < 1e-9, \
+            f"sweep_closure should increase by {delta:.4f}: " \
+            f"got {result1.sweep_closure:.6f}, expected {result0.sweep_closure + delta:.6f}"
 
     def test_d_F2_F5_positive(self, fresh_db):
         """Solved d_F2_F5 must be positive."""
@@ -123,6 +150,7 @@ class TestSolverCrossValidation:
         chain = list(chain)
         chain[0] = chain[0]._replace(distance=sr.d_F2_F5)
         chain[-2] = chain[-2]._replace(distance=sr.d_F18_F1)
+        chain[-1] = chain[-1]._replace(sweep=sr.sweep_closure)
 
         F2_E = -18.5
         F2_N = -13.5 + R_a1
@@ -264,13 +292,15 @@ class TestAPI16UpdateOutline:
         assert data["closure_valid"] is True
 
     def test_update_arc_sweep(self, app_client):
-        """Change an arc sweep angle."""
+        """Change an arc sweep angle, verify closure arc sweep adjusts."""
         # Seq 1 is F5->F6 arc (90° CW)
         resp = app_client.put("/api/outline/1",
                               json={"sweep": math.pi / 2 + 0.01})
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
+        # Closure sweep should have decreased by 0.01 (from default π/2)
+        assert abs(data["sweep_closure"] - (math.pi / 2 - 0.01)) < 1e-9
 
     def test_reject_solved_distance_seq0(self, app_client):
         """Cannot directly edit solved distance at seq 0."""
@@ -288,6 +318,34 @@ class TestAPI16UpdateOutline:
         resp = app_client.put(f"/api/outline/{solved_seq}",
                               json={"dist_or_radius": 5.0})
         assert resp.status_code == 400
+
+    def test_reject_closure_arc_sweep(self, app_client):
+        """Cannot directly edit the closure arc sweep (last segment)."""
+        chain_resp = app_client.get("/api/outline")
+        chain = chain_resp.get_json()
+        closure_seq = len(chain) - 1
+        resp = app_client.put(f"/api/outline/{closure_seq}",
+                              json={"sweep": math.pi / 3})
+        assert resp.status_code == 400
+        assert "closure" in resp.get_json()["error"].lower()
+
+    def test_sweep_change_updates_closure_arc(self, app_client):
+        """Modifying one arc sweep adjusts the closure arc sweep in DB."""
+        # Get initial closure arc sweep
+        chain0 = app_client.get("/api/outline").get_json()
+        closure0 = chain0[-1]
+        sweep0 = closure0["sweep"]
+
+        # Change F5->F6 arc (seq 1) sweep by -0.01 rad
+        resp = app_client.put("/api/outline/1",
+                              json={"sweep": chain0[1]["sweep"] - 0.01})
+        assert resp.status_code == 200
+
+        # Re-fetch: closure arc sweep should have increased by ~0.01
+        chain1 = app_client.get("/api/outline").get_json()
+        sweep1 = chain1[-1]["sweep"]
+        assert abs(sweep1 - (sweep0 + 0.01)) < 1e-9, \
+            f"Closure sweep: {sweep1} vs expected {sweep0 + 0.01}"
 
     def test_not_found(self, app_client):
         """Non-existent seq returns 404."""

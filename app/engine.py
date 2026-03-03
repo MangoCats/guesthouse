@@ -301,10 +301,11 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
             raise ValueError(
                 f"Outline chain does not close: error={solver_result.closure_error:.6f}")
 
-        # Inject solved distances
+        # Inject solved values (distances + closure arc sweep)
         chain = list(chain)
         chain[0] = chain[0]._replace(distance=solver_result.d_F2_F5)
         chain[-2] = chain[-2]._replace(distance=solver_result.d_F18_F1)
+        chain[-1] = chain[-1]._replace(sweep=solver_result.sweep_closure)
 
         F2_E = -18.5
         F2_N = -13.5 + R_a1
