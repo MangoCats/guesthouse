@@ -317,10 +317,11 @@ appear for each updated view.
 
 #### GEN-3  Reset to Defaults
 File > Reset to Defaults SHALL prompt for confirmation, then reset all
-constants and reload the Constants table.
+constants and the outline chain, and reload the Constants and Outline tables.
 
 **Acceptance:** Click Reset to Defaults. A confirmation dialog appears.
-Confirm. Constants table refreshes with original values.
+Confirm. Constants table refreshes with original values. Outline table
+refreshes with seed values from floorplan/geometry.py.
 
 #### GEN-4  Interactive View Not Regenerable
 Clicking Regenerate Current View while on the Interactive tab SHALL show

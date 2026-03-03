@@ -283,10 +283,10 @@ class TestUndoIntegration:
         # 3. Reset
         app_client.post("/api/constants/reset")
 
-        # Undo reset
+        # Undo reset (full_reset includes constants + outline)
         resp = app_client.post("/api/undo")
         assert resp.status_code == 200
-        assert resp.get_json()["action"] == "constant_reset"
+        assert resp.get_json()["action"] == "full_reset"
         resp = app_client.get("/api/constants")
         wt = next(c for c in resp.get_json() if c["name"] == "WALL_OUTER")
         assert wt["value"] == pytest.approx(wt_orig + 2.0)

@@ -21,7 +21,7 @@ from app.database import (
     create_element, update_element, delete_element,
     get_all_doors, get_door, create_door, update_door, delete_door,
     get_outline_chain_row, update_outline_segment, insert_outline_segment,
-    delete_outline_segment, restore_outline_chain,
+    delete_outline_segment, restore_outline_chain, reset_outline_chain,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
@@ -179,11 +179,19 @@ def create_app(db_path=None):
 
     @app.route("/api/constants/reset", methods=["POST"])
     def api_reset_constants():
-        before = get_constants_dict(db)
+        before = {
+            "constants": get_constants_dict(db),
+            "outline": get_outline_chain(db),
+        }
         reset_constants(db)
-        after = get_constants_dict(db)
-        undo_mgr.record("constant_reset", before, after, "Reset all constants")
+        reset_outline_chain(db)
+        after = {
+            "constants": get_constants_dict(db),
+            "outline": get_outline_chain(db),
+        }
+        undo_mgr.record("full_reset", before, after, "Reset to defaults")
         _invalidate()
+        _broadcast("outline_changed")
         return jsonify({"ok": True})
 
     # -- Undo/Redo API --

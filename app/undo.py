@@ -136,6 +136,11 @@ class UndoManager:
             # Outline undo/redo: state is full chain snapshot (list of dicts)
             from app.database import restore_outline_chain
             restore_outline_chain(state, self._db_path)
+        elif action_type == "full_reset":
+            # Combined constants + outline reset
+            from app.database import restore_outline_chain
+            update_constants_batch(state["constants"], self._db_path)
+            restore_outline_chain(state["outline"], self._db_path)
         else:
             raise ValueError(f"Unknown undo action type: {action_type}")
 
