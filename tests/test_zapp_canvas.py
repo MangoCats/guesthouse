@@ -121,6 +121,140 @@ class TestClearanceZones:
         assert g["clearance_zones"] == []
 
 
+class TestApplianceClearanceZones:
+    """Clearance zones for stove, D/W, hamper from variant_items metadata."""
+
+    def test_stove_clearance(self, fresh_db):
+        g = _geom_with_doors(fresh_db)
+        stove = next(
+            (z for z in g["clearance_zones"] if z["name"] == "stove_clearance"),
+            None)
+        assert stove is not None
+        assert len(stove["poly"]) == 4
+        assert stove["style"] == "dashed"
+
+    def test_dishwasher_clearance(self, fresh_db):
+        g = _geom_with_doors(fresh_db)
+        dw = next(
+            (z for z in g["clearance_zones"] if z["name"] == "dishwasher_clearance"),
+            None)
+        assert dw is not None
+        assert len(dw["poly"]) == 4
+
+    def test_hamper_clearance(self, fresh_db):
+        g = _geom_with_doors(fresh_db)
+        hm = next(
+            (z for z in g["clearance_zones"] if z["name"] == "hamper_clearance"),
+            None)
+        assert hm is not None
+        assert len(hm["poly"]) == 4
+
+    def test_clearance_count_standard(self, fresh_db):
+        """Standard variant: dresser + stove + D/W + hamper = 4 clearance zones."""
+        g = _geom_with_doors(fresh_db)
+        assert len(g["clearance_zones"]) == 4
+
+    def test_minik_no_stove_dw_clearance(self, fresh_db):
+        """Minik variant has no stove or D/W, so fewer clearance zones."""
+        constants = get_constants_dict(fresh_db)
+        chain_rows = get_outline_chain(fresh_db)
+        doors = get_all_doors(fresh_db)
+        g = compute_geometry(constants, "minik", chain_rows, doors_data=doors)
+        names = {z["name"] for z in g["clearance_zones"]}
+        assert "stove_clearance" not in names
+        assert "dishwasher_clearance" not in names
+        # Still has dresser and hamper
+        assert "dresser_clearance" in names
+        assert "hamper_clearance" in names
+
+    def test_clearance_extends_outward(self, fresh_db):
+        """Clearance polygon should extend away from item centroid."""
+        g = _geom_with_doors(fresh_db)
+        stove_cz = next(z for z in g["clearance_zones"]
+                        if z["name"] == "stove_clearance")
+        stove_item = g["variant_items"]["stove"]
+        # Clearance poly[2] and poly[3] should be farther from stove centroid
+        # than poly[0] and poly[1]
+        cx = sum(p[0] for p in stove_item["poly"]) / len(stove_item["poly"])
+        cy = sum(p[1] for p in stove_item["poly"]) / len(stove_item["poly"])
+        face_mid = ((stove_cz["poly"][0][0] + stove_cz["poly"][1][0]) / 2,
+                    (stove_cz["poly"][0][1] + stove_cz["poly"][1][1]) / 2)
+        ext_mid = ((stove_cz["poly"][2][0] + stove_cz["poly"][3][0]) / 2,
+                   (stove_cz["poly"][2][1] + stove_cz["poly"][3][1]) / 2)
+        d_face = math.sqrt((face_mid[0] - cx)**2 + (face_mid[1] - cy)**2)
+        d_ext = math.sqrt((ext_mid[0] - cx)**2 + (ext_mid[1] - cy)**2)
+        assert d_ext > d_face
+
+
+class TestApplianceDoors:
+    """Appliance door arcs (fridge, washer, dryer, microwave)."""
+
+    def test_appliance_doors_in_geometry(self, fresh_db):
+        g = _geom_with_doors(fresh_db)
+        assert "appliance_doors" in g
+        names = {d["item_name"] for d in g["appliance_doors"]}
+        assert "dryer" in names
+        assert "washer" in names
+        assert "fridge" in names
+        assert "microwave" in names
+
+    def test_appliance_door_count_standard(self, fresh_db):
+        """Standard variant: dryer, washer, fridge, microwave = 4."""
+        g = _geom_with_doors(fresh_db)
+        assert len(g["appliance_doors"]) == 4
+
+    def test_appliance_door_arc_points(self, fresh_db):
+        """All appliance door arcs should have 21 points."""
+        g = _geom_with_doors(fresh_db)
+        for ad in g["appliance_doors"]:
+            assert len(ad["arc_pts"]) == 21, f"{ad['item_name']} has {len(ad['arc_pts'])} points"
+
+    def test_appliance_door_radius(self, fresh_db):
+        """Arc radius should match door width (distance from hinge to arc[0])."""
+        g = _geom_with_doors(fresh_db)
+        for ad in g["appliance_doors"]:
+            hx, hy = ad["hinge"]
+            p0 = ad["arc_pts"][0]
+            dist = math.sqrt((p0[0] - hx)**2 + (p0[1] - hy)**2)
+            # Width stored in variant_items door metadata
+            item = g["variant_items"][ad["item_name"]]
+            expected_w = item["door"]["width"]
+            assert abs(dist - expected_w) < 0.01, (
+                f"{ad['item_name']}: arc radius {dist:.4f} != width {expected_w:.4f}")
+
+    def test_appliance_door_tip_on_arc(self, fresh_db):
+        """Tip should coincide with first arc point (open position)."""
+        g = _geom_with_doors(fresh_db)
+        for ad in g["appliance_doors"]:
+            tip = ad["tip"]
+            arc0 = ad["arc_pts"][0]
+            dist = math.sqrt((tip[0] - arc0[0])**2 + (tip[1] - arc0[1])**2)
+            assert dist < 0.01, f"{ad['item_name']}: tip-arc[0] dist = {dist:.6f}"
+
+    def test_appliance_door_hinge_on_poly(self, fresh_db):
+        """Hinge should be at the specified polygon vertex."""
+        g = _geom_with_doors(fresh_db)
+        for ad in g["appliance_doors"]:
+            item = g["variant_items"][ad["item_name"]]
+            idx = item["door"]["hinge_idx"]
+            poly_pt = item["poly"][idx]
+            dist = math.sqrt((ad["hinge"][0] - poly_pt[0])**2 +
+                             (ad["hinge"][1] - poly_pt[1])**2)
+            assert dist < 0.001, f"{ad['item_name']}: hinge not at poly[{idx}]"
+
+    def test_minik_fridge_door(self, fresh_db):
+        """Minik fridge door should still be present with different hinge."""
+        constants = get_constants_dict(fresh_db)
+        chain_rows = get_outline_chain(fresh_db)
+        doors = get_all_doors(fresh_db)
+        g = compute_geometry(constants, "minik", chain_rows, doors_data=doors)
+        fridge_doors = [d for d in g["appliance_doors"] if d["item_name"] == "fridge"]
+        assert len(fridge_doors) == 1
+        # Minik fridge hinge is at idx 1 (SE corner)
+        item = g["variant_items"]["fridge"]
+        assert item["door"]["hinge_idx"] == 1
+
+
 class TestDoorArcAPI:
     """Door mutations update arc geometry."""
 

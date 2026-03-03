@@ -247,11 +247,12 @@ def _swing_arc(hinge, radius, dir_from, dir_to, n_pts=20):
     return pts
 
 
-def _compute_clearance_zones(layout, variant):
+def _compute_clearance_zones(layout, variant, variant_items=None):
     """Compute clearance zone polygons for fixture/furniture items.
 
     Returns list of clearance zone dicts with name, poly, style.
-    Currently: dresser 15" clearance on south face (matching gen_floorplan.py).
+    Reads 'clearance' metadata from variant_items and also includes the
+    dresser's hardcoded 15" clearance (matching gen_floorplan.py).
     """
     from shared.geometry import seg_vecs, offset_pt
 
@@ -275,7 +276,77 @@ def _compute_clearance_zones(layout, variant):
             "style": "dashed",
         })
 
+    # Clearance zones from variant_items metadata
+    if variant_items:
+        for item_name, item in variant_items.items():
+            cl = item.get("clearance")
+            if not cl:
+                continue
+            face = cl["face"]  # [i, j] vertex indices
+            dist = cl["distance"]
+            poly = item["poly"]  # [[e,n], ...]
+            p_i = poly[face[0]]
+            p_j = poly[face[1]]
+            # Compute face direction and perpendicular
+            dx = p_j[0] - p_i[0]
+            dy = p_j[1] - p_i[1]
+            face_len = math.sqrt(dx**2 + dy**2)
+            if face_len < 1e-12:
+                continue
+            # Right-hand perpendicular of face direction
+            perp = (-dy / face_len, dx / face_len)
+            # Check that perp points away from item centroid
+            cx = sum(p[0] for p in poly) / len(poly)
+            cy = sum(p[1] for p in poly) / len(poly)
+            mid = ((p_i[0] + p_j[0]) / 2, (p_i[1] + p_j[1]) / 2)
+            to_center = (cx - mid[0], cy - mid[1])
+            if perp[0] * to_center[0] + perp[1] * to_center[1] > 0:
+                perp = (-perp[0], -perp[1])  # flip to point outward
+            # Build extension polygon
+            ext_i = (p_i[0] + dist * perp[0], p_i[1] + dist * perp[1])
+            ext_j = (p_j[0] + dist * perp[0], p_j[1] + dist * perp[1])
+            zones.append({
+                "name": f"{item_name}_clearance",
+                "poly": [list(p_i), list(p_j), list(ext_j), list(ext_i)],
+                "style": "dashed",
+            })
+
     return zones
+
+
+def _compute_appliance_doors(variant_items):
+    """Compute door swing arcs for appliances with 'door' metadata.
+
+    Reads door metadata from variant_items (set in variants.py) and computes
+    arc geometry using _swing_arc.  Returns list of appliance_door dicts.
+    """
+    if not variant_items:
+        return []
+
+    result = []
+    for item_name, item in variant_items.items():
+        door = item.get("door")
+        if not door:
+            continue
+        poly = item["poly"]  # [[e,n], ...]
+        hinge_idx = door["hinge_idx"]
+        width = door["width"]
+        open_dir = tuple(door["open_dir"])
+        closed_dir = tuple(door["closed_dir"])
+
+        hinge_pt = (poly[hinge_idx][0], poly[hinge_idx][1])
+        tip = (hinge_pt[0] + width * open_dir[0],
+               hinge_pt[1] + width * open_dir[1])
+        arc_pts = _swing_arc(hinge_pt, width, open_dir, closed_dir)
+
+        result.append({
+            "item_name": item_name,
+            "hinge": list(hinge_pt),
+            "tip": list(tip),
+            "arc_pts": [list(p) for p in arc_pts],
+        })
+
+    return result
 
 
 def _compute_room_labels(pts, layout, inner_segs, radii, variant):
@@ -692,7 +763,10 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         outer_openings, rough_openings, doors_data or [], exclusions)
 
     # Clearance zones (Phase 6)
-    result["clearance_zones"] = _compute_clearance_zones(layout, variant)
+    result["clearance_zones"] = _compute_clearance_zones(layout, variant, variant_items)
+
+    # Appliance door arcs (Phase 6)
+    result["appliance_doors"] = _compute_appliance_doors(variant_items)
 
     return result
 

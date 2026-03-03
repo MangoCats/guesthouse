@@ -1,0 +1,1234 @@
+I now have a comprehensive understanding of the entire codebase. Let me produce the detailed implementation plan.
+
+---
+
+# ADU Editor -- Full Implementation Plan
+
+## Architecture Overview
+
+The current application is a Flask-based SPA with:
+- **Backend**: `app/database.py` (SQLite), `app/engine.py` (geometry pipeline via module patching/reloading), `app/server.py` (REST API + SSE)
+- **Frontend**: Single `index.html` template, `app.js` (1090 lines), `app.css` (436 lines)
+- **Constraint NF-4**: No modifications to `shared/`, `floorplan/`, `walls/`, `span/`, `survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`
+
+All 185 requirements are addressed across 12 phases below.
+
+---
+
+## File Organization Conventions
+
+All new Python code goes under `app/`. New JS modules go under `app/static/js/`. Test files for app code go under `tests/` with the prefix `test_app_`.
+
+```
+app/
+  database.py          (modify - add tables, CRUD)
+  engine.py            (modify - room areas, door geometry, custom elements)
+  server.py            (modify - new API routes)
+  outline_solver.py    (NEW - parallel closure solver)
+  elements.py          (NEW - custom element management)
+  doors.py             (NEW - door configuration logic)
+  undo.py              (NEW - command pattern undo/redo)
+  room_areas.py        (NEW - room area computation)
+  labels.py            (NEW - room label + dimension line management)
+  style.py             (NEW - element styling management)
+  templates/
+    index.html         (modify - new layers, toggles, panels, dialogs)
+  static/
+    js/
+      app.js           (modify - core, refactored into module calls)
+      canvas.js        (NEW - rendering: doors, room labels, dims, areas, clearance, links)
+      tools.js         (NEW - move, dimension, draw-wall, add-element, delete, rotate)
+      selection.js     (NEW - multi-select, property editing extensions)
+      undo.js          (NEW - client-side undo/redo integration)
+      dialogs.js       (NEW - modal dialogs: offset, catalog, constraint, rotation)
+      outline-editor.js(NEW - outline chain table editing + F-point dragging)
+    css/
+      app.css          (modify - new element styles)
+
+tests/
+  test_app_database.py    (NEW)
+  test_app_engine.py      (NEW)
+  test_app_api.py         (NEW)
+  test_app_outline.py     (NEW)
+  test_app_elements.py    (NEW)
+  test_app_doors.py       (NEW)
+  test_app_undo.py        (NEW)
+  test_app_areas.py       (NEW)
+  test_app_labels.py      (NEW)
+  test_app_style.py       (NEW)
+```
+
+---
+
+## Dependency Graph Between Phases
+
+```
+Phase 1 (Foundation) ──────────────────────────────┐
+    |                                               |
+Phase 2 (Undo) ────────────────────────┐           |
+    |                                   |           |
+Phase 3 (Elements DB + API)            |           |
+    |        \                          |           |
+Phase 4       Phase 5 (Doors)          |           |
+(Move Tool)      |                      |           |
+    |            |                      |           |
+Phase 6 (Outline Editing)              |           |
+    |                                   |           |
+Phase 7 (Canvas Rendering)             |           |
+    |                                   |           |
+Phase 8 (Draw/Add/Delete Tools)        |           |
+    |                                   |           |
+Phase 9 (Labels + Dimensions)          |           |
+    |                                   |           |
+Phase 10 (Styling + Links)            |           |
+    |                                   |           |
+Phase 11 (Analysis/Site/SCAD/Plumbing) |           |
+    |                                   |           |
+Phase 12 (View Variants + Polish) ─────┘           |
+                                                    |
+(All phases depend on Phase 1)──────────────────────┘
+```
+
+---
+
+## Phase 1: Foundation -- Existing Requirements Verification and Test Infrastructure
+
+**Requirements addressed:** DB-1 through DB-8, ENG-1 through ENG-10, API-1 through API-15, API-32, API-33, GEN-1 through GEN-4, UI-1 through UI-4, UI-7, CV-1 through CV-6, CV-13 through CV-17, DIS-1 through DIS-5, SEL-1 through SEL-3, SEL-5, SEL-6, SEL-9, TL-1 through TL-4, CT-1 through CT-10, DT-1, DT-5, DT-6, DT-8, RT-1 through RT-4, APP-1 through APP-4, NF-1 through NF-5 (80 existing requirements)
+
+**Purpose:** Establish comprehensive test coverage for all 80 existing requirements (which are already implemented in code). This creates the safety net before any new development.
+
+### New Files
+
+**`tests/test_app_database.py`** (~250 lines)
+- `TestSchemaInit`: Verify tables `constants`, `outline_chain`, `views` exist (DB-1, partial -- `elements` and `doors` deferred to Phase 3)
+- `TestConstantsSeeding`: Count >= 140, all uppercase float/int attrs present (DB-2)
+- `TestConstantCategories`: Verify 9 distinct categories match expected set (DB-3)
+- `TestOutlineChainSeeding`: 18 rows, valid seg_types, names match CHAIN_POINT_NAMES (DB-4)
+- `TestViewsSeeding`: >= 11 enabled views, all scripts exist (DB-5)
+- `TestConstantCRUD`: update_constant returns True, read-back matches (DB-6), batch update returns 2 (DB-7), reset restores originals (DB-8)
+
+```python
+# Key fixtures
+@pytest.fixture
+def fresh_db(tmp_path):
+    """Create a fresh database for each test."""
+    db_path = str(tmp_path / "test.db")
+    init_db(db_path)
+    return db_path
+```
+
+**`tests/test_app_engine.py`** (~200 lines)
+- `TestComputeGeometry`: All required keys present (ENG-1), >= 50 points (ENG-2), 18 outline/inner segments (ENG-3), 13 interior walls (ENG-4), 12 outer + 7 rough openings (ENG-5), appliance/furniture keys (ENG-6)
+- `TestConstantPropagation`: Change BED_WIDTH, verify bed bbox changes (ENG-7)
+- `TestDerivedConstants`: Patch WALL_OUTER, verify AIR_GAP recomputed (ENG-8)
+- `TestSVGIO`: Read existing SVG, read nonexistent returns None (ENG-9, ENG-10)
+
+**`tests/test_app_api.py`** (~350 lines)
+- Flask test client fixture, tests for every API-1 through API-15, API-32, API-33 endpoint
+- SSE connection test (connect, read first event, verify "connected")
+
+### Modifications
+
+**`app/database.py`**: No changes yet. Tests validate existing behavior.
+
+**`app/server.py`**: No changes yet.
+
+### Testing Strategy
+
+All tests use `tmp_path` fixtures for isolated databases. The Flask test client is created per-test with `app.test_client()`. Session-scoped geometry fixtures from `conftest.py` are reused where possible.
+
+**Coverage target:** 100% of existing requirements have at least one automated test.
+
+---
+
+## Phase 2: Undo/Redo System
+
+**Requirements addressed:** DB-11, API-30, API-31, UNDO-1 through UNDO-4 (6 requirements)
+
+### Database Schema
+
+Add to `app/database.py` `_SCHEMA`:
+```sql
+CREATE TABLE IF NOT EXISTS undo_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp   REAL NOT NULL,
+    action_type TEXT NOT NULL,       -- 'constant_update', 'batch_update', 'element_move', etc.
+    before_state TEXT NOT NULL,      -- JSON: state before the action
+    after_state  TEXT NOT NULL,      -- JSON: state after the action
+    undone      INTEGER DEFAULT 0    -- 1 if this action has been undone
+);
+```
+
+### New Files
+
+**`app/undo.py`** (~200 lines)
+
+```python
+class UndoManager:
+    """Command-pattern undo/redo backed by SQLite."""
+    
+    MAX_HISTORY = 50  # UNDO-3: at least 50 levels
+    
+    def record(self, action_type: str, before_state: dict, after_state: dict, db_path=None):
+        """Record an action. Clears any redo stack (undone entries after cursor)."""
+        
+    def undo(self, db_path=None) -> dict | None:
+        """Revert the most recent non-undone action. Returns before_state or None."""
+        
+    def redo(self, db_path=None) -> dict | None:
+        """Re-apply the most recently undone action. Returns after_state or None."""
+        
+    def _apply_state(self, state: dict, db_path=None):
+        """Apply a state snapshot: update constants, elements, doors, outline chain."""
+        
+    def _prune(self, db_path=None):
+        """Keep at most MAX_HISTORY entries."""
+```
+
+The `before_state`/`after_state` JSON captures the minimum delta needed to restore: `{"constants": {"BED_WIDTH": 6.333}, ...}` for constant changes, `{"elements": [{"id": 5, ...}]}` for element changes, etc.
+
+### API Endpoints
+
+**`app/server.py`** additions:
+```python
+@app.route("/api/undo", methods=["POST"])
+def api_undo():
+    # Calls undo_mgr.undo(), invalidates geometry cache, broadcasts
+
+@app.route("/api/redo", methods=["POST"])
+def api_redo():
+    # Calls undo_mgr.redo(), invalidates geometry cache, broadcasts
+```
+
+### Frontend Changes
+
+**`app/static/js/undo.js`** (~80 lines)
+- `Ctrl+Z` handler calls `POST /api/undo`
+- `Ctrl+Shift+Z` handler calls `POST /api/redo`
+- Enable/disable Edit > Undo/Redo menu items based on availability
+
+**`app/static/js/app.js`** modifications:
+- `handleConstantEdit()`: wrap existing PUT call to also record undo state (capture before-value, call API, API records undo)
+
+**`app/server.py`** modifications:
+- Wrap `api_update_constant` and `api_update_constants_batch` to call `undo_mgr.record()` before committing. The pattern: read current value(s), update, record (before, after).
+
+### Integration Pattern
+
+Every mutating API endpoint follows this pattern:
+```python
+before = capture_state(...)
+# perform mutation
+after = capture_state(...)
+undo_mgr.record(action_type, before, after, db)
+_invalidate()
+```
+
+### Tests
+
+**`tests/test_app_undo.py`** (~150 lines)
+- `test_undo_constant_edit`: Edit, undo, verify restored (UNDO-1)
+- `test_redo_after_undo`: Edit, undo, redo, verify re-applied (UNDO-2)
+- `test_undo_depth_50`: 50 edits, 50 undos, all correct (UNDO-3)
+- `test_undo_across_types`: Edit constant, move element, add door, undo each (UNDO-4)
+- `test_undo_api`: POST /api/undo returns restored state (API-30)
+- `test_redo_api`: POST /api/redo returns re-applied state (API-31)
+- `test_undo_history_table`: Verify DB-11 schema and row insertion
+
+---
+
+## Phase 3: Elements and Custom Element CRUD
+
+**Requirements addressed:** DB-9, DB-10, API-20 through API-26, DT-9 through DT-11, SEL-8, RT-5, UI-7 (13 requirements)
+
+### Database Schema
+
+Add to `app/database.py`:
+```sql
+CREATE TABLE IF NOT EXISTS elements (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    type        TEXT NOT NULL,       -- 'wall', 'furniture', 'appliance', 'fixture', 'clearance'
+    name        TEXT NOT NULL UNIQUE,
+    properties  TEXT NOT NULL DEFAULT '{}',  -- JSON: width, depth, x, y, rotation, url, etc.
+    variant     TEXT                 -- nullable, for floorplan variant membership
+);
+
+CREATE TABLE IF NOT EXISTS doors (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    opening_name    TEXT NOT NULL UNIQUE,
+    width           REAL NOT NULL,
+    hinge_side      TEXT NOT NULL,       -- 'east', 'west', 'north', 'south'
+    swing_direction TEXT NOT NULL,       -- 'north', 'south', 'east', 'west'
+    door_type       TEXT NOT NULL DEFAULT 'single'  -- 'single', 'double'
+);
+```
+
+### Seeding
+
+In `_seed_elements(conn)`: Populate elements for all 13 interior walls (from `InteriorLayout` field names), 3 appliances (dryer, washer, counter), 3 furniture items (bed, dresser, shelves), and fixtures (water heater, toilet, sinks). Properties JSON stores computed positions and dimensions.
+
+In `_seed_doors(conn)`: Populate default doors for RO1-RO7 with reasonable hinge/swing defaults.
+
+### New Files
+
+**`app/elements.py`** (~250 lines)
+
+```python
+def get_all_elements(db_path=None) -> list[dict]:
+    """Return all elements."""
+
+def get_element(element_id: int, db_path=None) -> dict | None:
+    """Return single element by ID."""
+
+def create_element(type_: str, name: str, properties: dict, variant: str = None, db_path=None) -> dict:
+    """Create a new element. Returns created element with ID."""
+
+def update_element(element_id: int, properties: dict, db_path=None) -> dict | None:
+    """Update element properties. Returns updated element."""
+
+def delete_element(element_id: int, db_path=None) -> list[int]:
+    """Delete element and cascading dependents. Returns list of removed IDs."""
+
+def move_element(element_id: int, dx: float = 0, dy: float = 0, db_path=None) -> dict:
+    """Reposition element by offset. Maps to constant changes for base elements."""
+
+def get_element_constant_mapping(name: str) -> dict:
+    """Map element name to the constants that control its position/size."""
+    # E.g., "IW1" -> {"offset_from_w9": "IW1_OFFSET_FROM_W9", ...}
+```
+
+**Key design decision:** Base elements (the 13 walls, 6 furniture/appliances from `floorplan/layout.py`) are positioned by constants. Moving them translates to changing the corresponding constants. Custom (user-added) elements are positioned by absolute coordinates stored in the `properties` JSON and overlaid on the engine output.
+
+### Engine Modifications
+
+**`app/engine.py`** additions:
+- `compute_geometry()` extended to accept optional `custom_elements` list
+- Custom elements appended to the result dict under `custom_elements` key
+- Their polygons computed from properties (x, y, width, depth, rotation)
+
+### API Endpoints
+
+**`app/server.py`** additions:
+```python
+# Element CRUD
+@app.route("/api/elements", methods=["GET"])
+@app.route("/api/elements", methods=["POST"])       # API-20
+@app.route("/api/elements/<int:id>", methods=["PUT"])   # API-21
+@app.route("/api/elements/<int:id>", methods=["DELETE"])  # API-22
+@app.route("/api/elements/<int:id>/move", methods=["POST"])  # API-23
+
+# Opening CRUD
+@app.route("/api/openings", methods=["POST"])       # API-24
+@app.route("/api/openings/<name>", methods=["PUT"])  # API-25
+@app.route("/api/openings/<name>", methods=["DELETE"])  # API-26
+```
+
+All mutations broadcast `element_changed` SSE event (RT-5).
+
+### Frontend Changes
+
+**`app/templates/index.html`** modifications:
+- Add "Elements" tab to right panel (UI-7 completion)
+- Elements panel contains interior walls table (DT-9), furniture/appliance table (DT-11)
+
+**`app/static/js/app.js`** modifications:
+- Load and render elements panel tables
+- Interior walls table editing (DT-10): click cell, edit, PUT on Enter
+- Enhanced furniture properties display (SEL-8): width, depth, rotation, URL
+
+**`app/static/js/selection.js`** (~100 lines):
+- Extended property display for furniture items showing rotation, wall reference, offset, URL field
+
+### Tests
+
+**`tests/test_app_elements.py`** (~200 lines)
+- CRUD lifecycle: create, read, update, delete
+- Cascading delete: delete wall, verify hosted openings removed
+- Move element: verify constant-based elements update the right constant
+- Custom element: verify absolute positioning
+- Elements table: verify 13+6 rows seeded
+- API integration tests via Flask test client
+
+---
+
+## Phase 4: Move Tool
+
+**Requirements addressed:** TL-5 through TL-10, API-23 (7 requirements)
+
+### Frontend Implementation
+
+**`app/static/js/tools.js`** (move tool section, ~250 lines)
+
+```javascript
+const MoveTool = {
+    active: false,
+    dragging: false,
+    dragTarget: null,
+    dragStartWorld: null,
+    originalPosition: null,
+    ghostElement: null,
+    
+    onMouseDown(e) { /* Start drag if element under cursor */ },
+    onMouseMove(e) { /* Live preview: update ghost element position */ },
+    onMouseUp(e) { /* Commit: POST /api/elements/<id>/move */ },
+    
+    constrainToAxis(dx, dy, shiftHeld) { /* TL-7: constrain to H or V */ },
+    snapToGrid(x, y, gridEnabled) { /* TL-8: snap to 1" grid */ },
+    slideAlongWall(opening, dx, dy) { /* TL-10: project movement onto wall segment */ },
+};
+```
+
+**TL-5 (Move by Drag):** When move tool active and element selected, mousedown on element starts drag. Ghost polygon follows cursor. Mouseup commits via `POST /api/elements/<id>/move`.
+
+**TL-6 (Offset Dialog):** `Enter` or double-click opens a modal dialog with dx/dy fields in inches. Submit calls `POST /api/elements/<id>/move` with the typed offset.
+
+**TL-7 (Constrained):** While Shift held during drag, `constrainToAxis()` zeroes out the smaller delta component.
+
+**TL-8 (Snap):** When grid enabled, positions round to nearest `1/12` foot (1 inch).
+
+**TL-9 (Group Move):** When multi-select active (Phase 3 selection module), move applies same offset to all selected elements via batch API call.
+
+**TL-10 (Opening Slide):** When selected element is an opening, compute projection of mouse delta onto the wall segment direction vector. Only the projected component is used.
+
+### Backend
+
+The `POST /api/elements/<id>/move` endpoint (from Phase 3) handles the mapping. For base elements, it identifies the controlling constant(s) and updates them. For custom elements, it updates the absolute position in the `properties` JSON.
+
+### New Files
+
+**`app/static/js/dialogs.js`** (offset dialog portion, ~80 lines)
+- `showOffsetDialog(element)`: Creates modal with dx/dy inputs, OK/Cancel
+- Returns promise that resolves with `{dx, dy}` in feet
+
+### Tests
+
+**`tests/test_app_move.py`** (~120 lines)
+- Test move element via API, verify constant changed
+- Test constrained movement (verify only one axis changes)
+- Test opening slide along wall (verify perpendicular distance unchanged)
+- Test group move (verify all elements move by same offset)
+- Test snap to grid (verify position is on inch boundary)
+
+---
+
+## Phase 5: Door Configuration
+
+**Requirements addressed:** API-27 through API-29, DOOR-1 through DOOR-4, SEL-7, SEL-11, CV-7, DIS-10 (10 requirements)
+
+### New Files
+
+**`app/doors.py`** (~180 lines)
+
+```python
+def compute_door_arc(opening_poly: list, width: float, hinge_side: str, 
+                     swing_direction: str, door_type: str) -> dict:
+    """Compute door arc geometry for rendering.
+    
+    Returns dict with:
+    - hinge_point: (E, N) position of the hinge
+    - arc_start: start angle (radians)
+    - arc_end: end angle (radians)  
+    - radius: door leaf length
+    - arc_points: list of (E, N) points for the arc polyline
+    """
+
+def get_all_doors(db_path=None) -> list[dict]:
+def create_door(opening_name: str, width: float, hinge_side: str,
+                swing_direction: str, door_type: str, db_path=None) -> dict:
+def update_door(opening_name: str, updates: dict, db_path=None) -> dict | None:
+def delete_door(opening_name: str, db_path=None) -> bool:
+```
+
+Door arc geometry computation:
+1. From the opening polygon (4 corners), determine the hinge corner based on `hinge_side`
+2. The door arc sweeps 90 degrees from closed (aligned with wall) to open (perpendicular)
+3. The `swing_direction` determines which way the arc sweeps
+4. For double doors (DOOR-4), compute two leaves, each half the opening width
+
+### Engine Modifications
+
+**`app/engine.py`** additions:
+- `compute_geometry()` result extended with `"doors"` key
+- Each door entry includes: `opening_name`, `hinge_point`, `arc_points`, `type`
+
+### API Endpoints
+
+**`app/server.py`** additions:
+```python
+@app.route("/api/doors", methods=["POST"])           # API-27
+@app.route("/api/doors/<name>", methods=["PUT"])     # API-28
+@app.route("/api/doors/<name>", methods=["DELETE"])  # API-29
+```
+
+### Frontend Changes
+
+**`app/static/js/canvas.js`** (door rendering, ~80 lines):
+- `renderDoors(g)`: For each door in geometry, draw dashed arc path + hinge circle
+- Controlled by `showDoors` state toggle (DIS-10)
+
+**`app/templates/index.html`**: Add "Doors" toggle checkbox (DIS-10)
+
+**`app/static/js/selection.js`** (door properties, ~60 lines):
+- When opening selected, show Door section with dropdowns for hinge_side, swing_direction, door_type (SEL-7)
+- Dropdown changes trigger PUT /api/doors/<name> (SEL-11)
+- Right-click context menu: "Add Door" (DOOR-1), "Flip Hinge" / "Flip Swing" (DOOR-2)
+- Appliance door arcs (DOOR-3): same mechanism, hinge at corner
+
+### Tests
+
+**`tests/test_app_doors.py`** (~150 lines)
+- CRUD lifecycle for doors
+- Door arc geometry: verify hinge position, arc sweep direction
+- Double door: verify two arcs computed
+- Flip hinge: verify hinge moves to opposite side
+- API integration tests
+
+---
+
+## Phase 6: Outline Chain Editing
+
+**Requirements addressed:** ENG-11, API-16 through API-19, OE-1 through OE-3, DT-2 through DT-4 (10 requirements)
+
+### New Files
+
+**`app/outline_solver.py`** (~300 lines)
+
+This is the most architecturally significant new module. Since `floorplan/geometry.py` runs the closure solver at module scope and we cannot modify it, we need a parallel solver in `app/`.
+
+```python
+def chain_offset(chain: list, start_brg: float = 0.0) -> tuple[float, float, float]:
+    """Walk chain entries from (0,0). Returns (delta_E, delta_N, exit_brg).
+    
+    Reimplements floorplan.geometry._chain_offset for use in the app solver.
+    """
+
+def solve_closure(chain_f5_to_f18: list, corner_sw_r: float) -> tuple[float, float]:
+    """Solve for d_F2_F5 and d_F18_F1 given the middle chain.
+    
+    Returns (d_F2_F5, d_F18_F1).
+    Raises ClosureError if the chain cannot close.
+    """
+
+def validate_chain(modified_chain: list, corner_sw_r: float) -> dict:
+    """Validate a proposed chain modification.
+    
+    Returns {"valid": bool, "closure_error": float, "d_F2_F5": float, "d_F18_F1": float}
+    """
+
+def apply_chain_modification(seq: int, updates: dict, db_path=None) -> dict:
+    """Update an outline chain segment and re-solve closure.
+    
+    updates: {"dist_or_radius": float, "sweep": float}
+    Returns updated segment + closure info.
+    """
+
+def add_chain_point(position: int, point_name: str, seg_type: str, 
+                    params: dict, db_path=None) -> dict:
+    """Insert a new F-point, splitting a segment. Re-solve closure."""
+
+def remove_chain_point(seq: int, db_path=None) -> dict:
+    """Remove a chain point, merging adjacent segments. Re-solve closure."""
+
+def solve_for_constraint(constraint: dict, db_path=None) -> dict:
+    """Solve chain parameters to satisfy a geometric constraint.
+    
+    constraint: {"point_a": "W20", "point_b": "W1", "metric": "clear_span", "target": 23.5}
+    Returns {"feasible": bool, "chain_updates": [...], "computed_value": float}
+    """
+```
+
+**Key design:** The solver reads the current chain from the database, applies modifications, runs the closure computation (reimplemented from `_chain_offset` logic -- this is a pure math function, not importing from `floorplan/geometry.py`), and if valid, writes back to the DB. The engine then reloads modules which pick up the modified constants/chain.
+
+For OE-3 (constraint-based editing), a simple Newton-Raphson or bisection solver iterates on chain parameters to satisfy a target distance constraint.
+
+### API Endpoints
+
+**`app/server.py`** additions:
+```python
+@app.route("/api/outline/<int:seq>", methods=["PUT"])    # API-16
+@app.route("/api/outline/validate", methods=["POST"])    # API-17
+@app.route("/api/outline/add-point", methods=["POST"])   # API-18
+@app.route("/api/outline/<int:seq>", methods=["DELETE"]) # API-19
+```
+
+### Engine Integration
+
+After outline chain modification, the engine must use the modified chain. Two approaches:
+1. **Preferred**: The solver writes modified chain parameters back to the DB, then the engine's `compute_geometry()` reads from DB and patches constants as usual. The closure solver distances `d_F2_F5` and `d_F18_F1` are stored as derived constants.
+2. The outline chain DB rows are used to reconstruct the chain list, which is injected into the geometry computation via constant patching.
+
+### Frontend Changes
+
+**`app/static/js/outline-editor.js`** (~200 lines):
+- DT-2: Make Dist/R, Sweep cells editable in the Outline table. On change, PUT `/api/outline/<seq>`
+- DT-3: Closure status indicator (green dot / red dot with error distance) at top of Outline panel
+- DT-4: "+" button per row to insert point, "-" button to remove
+- OE-1: In canvas, when Select tool active and Points toggle on, F-series point circles become draggable. Drag computes inverse: what chain parameter change produces the target position. Uses `POST /api/outline/validate` for live preview.
+- OE-2: When arc segment selected, render a drag handle at the arc midpoint. Dragging changes radius.
+- OE-3: Edit > Set Constraint opens a dialog for specifying target distances. Calls constraint solver.
+
+### Tests
+
+**`tests/test_app_outline.py`** (~250 lines)
+- `test_closure_solver`: Verify solve_closure reproduces original d_F2_F5 and d_F18_F1
+- `test_chain_offset`: Verify chain_offset matches floorplan.geometry._chain_offset
+- `test_modify_radius`: Change F13-F14 radius, verify closure re-solved (ENG-11)
+- `test_validate_valid`: Valid params return valid=True (API-17)
+- `test_validate_impossible`: Impossible params return valid=False
+- `test_add_point`: Insert F11a, verify chain length increases (API-18)
+- `test_remove_point`: Remove point, verify chain length decreases (API-19)
+- `test_constraint_solver`: Specify clear span target, verify solved
+
+---
+
+## Phase 7: Enhanced Canvas Rendering
+
+**Requirements addressed:** CV-7, CV-8, CV-9, CV-10, CV-11, CV-12, DIS-6 through DIS-9 (10 requirements)
+
+### Backend
+
+**`app/room_areas.py`** (~150 lines)
+
+```python
+def compute_room_areas(interior_walls: dict, inner_poly: list, pts: dict) -> dict:
+    """Compute area in square feet for each room.
+    
+    Rooms are defined by their bounding walls:
+    - BEDROOM: bounded by IW11, IW5, IW1, outer wall (W14-W18)
+    - OFFICE: bounded by IW9, IW3, IW7, outer wall (W18-W1)
+    - BATH: bounded by IW2s, IW6, outer wall (W5-W9)
+    - UTIL: bounded by IW2, IW8, outer wall (W1-W5)
+    - KITCHEN: bounded by IW1, outer wall (W9-W18)
+    
+    Uses shoelace formula on room boundary polygons.
+    Returns {"BEDROOM": 125.3, "OFFICE": 89.7, ...}
+    """
+
+def compute_room_centroids(room_polys: dict) -> dict:
+    """Compute centroids for each room polygon (for label positioning)."""
+```
+
+**`app/engine.py`** modifications:
+- Add `room_areas` and `room_centroids` to geometry result dict (ENG-12)
+- Add `doors` list to geometry result (from Phase 5)
+- Add `clearance_zones` to geometry result: circles at fixture locations
+
+### Frontend
+
+**`app/static/js/canvas.js`** (~300 lines total for this phase)
+
+```javascript
+// CV-8: Room Labels
+function renderRoomLabels(g) {
+    if (!App.state.showRoomLabels) return;
+    const layer = getOrCreateLayer("layer-room-labels");
+    for (const [name, centroid] of Object.entries(g.room_centroids)) {
+        // Render text element at centroid position
+    }
+}
+
+// CV-9: Dimension Lines (persistent, from DB)
+function renderDimensionLines(g) {
+    if (!App.state.showDims) return;
+    const layer = App.els["layer-dims"];
+    for (const dim of (g.dimension_lines || [])) {
+        // Extension lines, measurement line with arrowheads, value label
+    }
+}
+
+// CV-10: Area Labels
+function renderAreaLabels(g) {
+    if (!App.state.showAreas) return;
+    const layer = getOrCreateLayer("layer-areas");
+    for (const [name, area] of Object.entries(g.room_areas)) {
+        // Text showing "125 sf" at room centroid
+    }
+}
+
+// CV-11: Clearance Zones
+function renderClearanceZones(g) {
+    if (!App.state.showClearance) return;
+    const layer = getOrCreateLayer("layer-clearance");
+    for (const zone of (g.clearance_zones || [])) {
+        // Dashed circle at fixture location
+    }
+}
+
+// CV-12: Hyperlink Indicators
+function renderHyperlinkIndicators(g) {
+    // Small link icon at corner of elements with URLs
+}
+```
+
+### HTML Changes
+
+**`app/templates/index.html`** modifications:
+- Add new SVG layers: `layer-room-labels`, `layer-areas`, `layer-clearance`, `layer-doors`
+- Add new display toggles: Room Labels (DIS-6), Areas (DIS-8), Clearance (DIS-9), Doors (DIS-10, from Phase 5)
+- Note: DIS-7 (Dimensions toggle) already exists in the toggle set, just needs implementation
+
+### CSS Changes
+
+**`app/static/css/app.css`** additions:
+```css
+.room-label { font-size: 0.5px; fill: var(--text-dim); text-anchor: middle; }
+.area-label { font-size: 0.35px; fill: var(--yellow); text-anchor: middle; }
+.clearance-circle { fill: none; stroke: var(--orange); stroke-width: 0.02; stroke-dasharray: 0.1 0.05; }
+.door-arc { fill: none; stroke: var(--accent); stroke-width: 0.03; stroke-dasharray: 0.08 0.04; }
+.door-hinge { fill: var(--accent); r: 0.06; }
+.link-icon { fill: var(--accent); font-size: 0.3px; cursor: pointer; }
+```
+
+### Tests
+
+**`tests/test_app_areas.py`** (~100 lines)
+- `test_room_areas_computed`: Verify all 5 room areas present, positive values (ENG-12)
+- `test_room_centroids`: Verify centroids inside room boundaries
+- `test_clearance_zones`: Verify clearance circles at fixture positions
+
+---
+
+## Phase 8: Draw/Add/Delete Tools
+
+**Requirements addressed:** TL-15 through TL-23, TL-24, SEL-4 (12 requirements)
+
+### Frontend
+
+**`app/static/js/tools.js`** (expanded, ~400 lines total)
+
+```javascript
+// TL-15, TL-16, TL-17: Draw Wall Tool
+const DrawWallTool = {
+    active: false,
+    startPoint: null,
+    thickness: 4/12, // default 4 inches in feet
+    
+    onCanvasClick(e) {
+        if (!this.startPoint) {
+            // First click: set start point
+            this.startPoint = screenToWorld(e);
+        } else {
+            // Second click: create wall via POST /api/elements
+            const endPoint = screenToWorld(e);
+            this.createWall(this.startPoint, endPoint);
+            this.startPoint = null;
+        }
+    },
+    
+    async createWall(start, end) {
+        await fetch("/api/elements", {
+            method: "POST",
+            body: JSON.stringify({
+                type: "wall",
+                name: `CUSTOM_W${Date.now()}`,
+                properties: {
+                    start_x: start[0], start_y: start[1],
+                    end_x: end[0], end_y: end[1],
+                    thickness: this.thickness
+                }
+            })
+        });
+    }
+};
+
+// TL-18, TL-19, TL-20: Catalog-based element addition
+const AddElementTool = {
+    catalogType: null, // 'furniture', 'appliance', 'fixture'
+    selectedItem: null,
+    
+    showCatalog(type) {
+        // Open catalog panel with predefined items and dimensions
+    },
+    
+    onCanvasClick(e) {
+        // Place selected catalog item at click position
+        // POST /api/elements with type, name, position
+    }
+};
+
+// TL-21: Add Opening Tool
+const AddOpeningTool = {
+    onWallSegmentClick(segName, t) {
+        // Show dialog for width and type
+        // POST /api/openings with segment, position, width
+    }
+};
+
+// TL-22, TL-23: Delete Tool
+const DeleteTool = {
+    deleteSelected() {
+        if (!App.state.selection) return;
+        if (!confirm("Delete this element?")) return;
+        // DELETE /api/elements/<id> -- cascading handled server-side
+    }
+};
+
+// TL-24: Rotate Tool
+const RotateTool = {
+    showRotateDialog(element) {
+        // Dialog with angle input and preset buttons (0, 90, 180, 270)
+        // PUT /api/elements/<id> with new rotation
+    }
+};
+```
+
+**`app/static/js/selection.js`** (multi-select, ~100 lines):
+```javascript
+// SEL-4: Multi-Select
+function handleMultiSelect(type, name, data, event) {
+    if (event.shiftKey) {
+        // Add to selection set
+        App.state.multiSelection = App.state.multiSelection || [];
+        App.state.multiSelection.push({type, name, data});
+        // Highlight all selected
+        // Show "N elements selected" in properties panel
+    }
+}
+
+function handleDragSelect(startPt, endPt) {
+    // Select all elements whose bounding boxes intersect the drag rectangle
+}
+```
+
+### Catalog Data
+
+**`app/static/js/dialogs.js`** (catalog data, ~120 lines):
+```javascript
+const FURNITURE_CATALOG = [
+    { name: "BED_KING", label: "King Bed", width: 76, depth: 94 },
+    { name: "BED_QUEEN", label: "Queen Bed", width: 60, depth: 80 },
+    { name: "DRESSER", label: "Dresser", width: 34, depth: 19 },
+    { name: "SHELVES", label: "Bookshelf", width: 58, depth: 15 },
+    { name: "SOFA", label: "Sofa", width: 84, depth: 36 },
+    { name: "DESK", label: "Desk", width: 48, depth: 24 },
+    { name: "HAMPER", label: "Hamper", width: 18, depth: 14 },
+    // ...
+];
+
+const APPLIANCE_CATALOG = [
+    { name: "FRIDGE", label: "Refrigerator", width: 36, depth: 30 },
+    { name: "STOVE", label: "Stove", width: 30, depth: 27 },
+    // ...
+];
+
+const FIXTURE_CATALOG = [
+    { name: "TOILET", label: "Toilet", width: 15, depth: 27 },
+    { name: "SINK", label: "Sink", width: 24, depth: 17 },
+    // ...
+];
+```
+
+### HTML Changes
+
+**`app/templates/index.html`** modifications:
+- Add tool buttons for Dimension, Draw Wall in left palette (TL-1 expansion)
+- Add Tools menu items: Add Furniture, Add Appliance, Add Fixture, Add Opening
+- Add keyboard shortcut handlers for D (Dimension), W (Draw Wall), R (Rotate)
+
+### Backend
+
+No new backend files. Uses existing `/api/elements` CRUD from Phase 3 and `/api/openings` from Phase 3.
+
+The cascading delete (TL-23) is handled in `app/elements.py`'s `delete_element()`: when deleting a wall element, query doors table for openings hosted on that wall, delete those doors, then delete the wall.
+
+### Tests
+
+**`tests/test_app_tools.py`** (~180 lines)
+- Test wall creation via API (draw wall)
+- Test element placement from catalog
+- Test opening creation on wall segment
+- Test cascading delete
+- Test rotation update
+- Test multi-select state management (unit test of selection logic)
+
+---
+
+## Phase 9: Labels, Dimension Lines, and Annotations
+
+**Requirements addressed:** TL-11 through TL-14, LABEL-1 through LABEL-4, CV-9, DIS-7 (8 requirements)
+
+### New Files
+
+**`app/labels.py`** (~200 lines)
+
+```python
+class LabelManager:
+    """Manage room labels and dimension lines stored in the database."""
+    
+    def create_room_label(self, text: str, x: float, y: float, 
+                          font_size: float = 10, db_path=None) -> dict:
+        """Create a room label at the given position (LABEL-1)."""
+    
+    def update_label(self, label_id: int, updates: dict, db_path=None) -> dict:
+        """Update label text, position, or font size (LABEL-2, LABEL-3, LABEL-4)."""
+    
+    def delete_label(self, label_id: int, db_path=None) -> bool:
+        """Delete a label."""
+    
+    def create_dimension_line(self, point_a: tuple, point_b: tuple,
+                               offset: float = 0.5, db_path=None) -> dict:
+        """Create a persistent dimension line between two reference points (TL-11).
+        
+        Returns dict with: id, point_a, point_b, offset, distance, label_rotation
+        """
+    
+    def update_dimension_line(self, dim_id: int, updates: dict, db_path=None) -> dict:
+        """Update dimension line offset or label rotation (TL-12, TL-13)."""
+    
+    def delete_dimension_line(self, dim_id: int, db_path=None) -> bool:
+        """Delete a dimension line (TL-14)."""
+    
+    def get_all_labels(self, db_path=None) -> list[dict]:
+    def get_all_dimension_lines(self, db_path=None) -> list[dict]:
+```
+
+Labels and dimension lines are stored in the `elements` table with type `'label'` or `'dimension'` and properties JSON containing position, text, font size, point references, etc.
+
+### Database
+
+No new tables. Labels and dimension lines use the existing `elements` table:
+- Type `'label'`: properties `{"text": "BEDROOM", "x": 5.0, "y": -3.0, "font_size": 10}`
+- Type `'dimension'`: properties `{"point_a": "F1", "point_b": "F2", "offset": 0.5, "label_rotation": 0}`
+
+### API Endpoints
+
+```python
+@app.route("/api/labels", methods=["POST"])
+@app.route("/api/labels/<int:id>", methods=["PUT", "DELETE"])
+@app.route("/api/dimensions", methods=["POST"])
+@app.route("/api/dimensions/<int:id>", methods=["PUT", "DELETE"])
+```
+
+These are thin wrappers around the element CRUD API.
+
+### Frontend
+
+**Dimension Tool** in `app/static/js/tools.js` (~100 lines):
+```javascript
+const DimensionTool = {
+    firstPoint: null,
+    
+    onCanvasClick(e) {
+        const pt = screenToWorld(e);
+        const snapped = snapToNearestPoint(pt, App.state.geometry.points);
+        
+        if (!this.firstPoint) {
+            this.firstPoint = snapped;
+            // Visual indicator at first point
+        } else {
+            // Create dimension line between firstPoint and snapped point
+            this.createDimension(this.firstPoint, snapped);
+            this.firstPoint = null;
+        }
+    }
+};
+```
+
+**Label rendering** in `app/static/js/canvas.js`:
+- Dimension line groups: two extension lines (perpendicular ticks), measurement line with arrowheads, text label
+- Label dragging: labels become draggable with Select tool (LABEL-2)
+- Double-click label: inline text editing (LABEL-3)
+- Label font size: editable in Properties panel (LABEL-4)
+
+### Tests
+
+**`tests/test_app_labels.py`** (~120 lines)
+- Create/update/delete room labels
+- Create/update/delete dimension lines
+- Dimension line distance computation
+- Label position persistence
+
+---
+
+## Phase 10: Styling and Product Links
+
+**Requirements addressed:** STYLE-1 through STYLE-4, LINK-1, LINK-2, SEL-12, CV-12, SEL-10 (9 requirements)
+
+### New Files
+
+**`app/style.py`** (~120 lines)
+
+```python
+class StyleManager:
+    """Manage per-element and per-view styling."""
+    
+    DEFAULT_STYLES = {
+        "wall": {"fill": "#334455", "stroke": "#556677", "stroke_width": 0.02, "opacity": 1.0},
+        "opening": {"fill": "#2a4a6a", "stroke": "#4488cc", "stroke_width": 0.02, "opacity": 1.0},
+        "furniture": {"fill": "#2a3a2a", "stroke": "#5a8a5a", "stroke_width": 0.02, "opacity": 1.0},
+        "appliance": {"fill": "#3a3a2a", "stroke": "#8a8a5a", "stroke_width": 0.02, "opacity": 1.0},
+    }
+    
+    def get_style(self, element_id: int, variant: str = None, db_path=None) -> dict:
+        """Get style for an element, with per-view override support (STYLE-4)."""
+    
+    def set_style(self, element_id: int, style_updates: dict, 
+                  variant: str = None, db_path=None) -> dict:
+        """Set style properties: fill, stroke, stroke_width, stroke_style, opacity."""
+    
+    def set_product_url(self, element_id: int, url: str, db_path=None):
+        """Set product URL for an element (LINK-1)."""
+    
+    def get_product_url(self, element_id: int, db_path=None) -> str | None:
+        """Get product URL for an element."""
+```
+
+Styles are stored in the element's `properties` JSON under a `"style"` sub-key. Per-view styles use the `variant` field.
+
+### Frontend
+
+**`app/static/js/selection.js`** additions:
+- Color picker in Properties panel for fill color (STYLE-1)
+- Stroke properties inputs: color, width, style dropdown (solid/dashed/dotted) (STYLE-2)
+- Opacity slider (0-100%) (STYLE-3)
+- URL input field for product links (SEL-12, LINK-1)
+- Opening width editing (SEL-10): direct input that maps to constant PUT
+
+**`app/static/js/canvas.js`** additions:
+- Apply per-element styles when rendering (read from geometry result)
+- Hyperlink indicators (CV-12): small chain-link icon at element corner
+- Click handler on link icons opens URL in new tab
+
+### Engine Modifications
+
+**`app/engine.py`**: Include element styles and URLs in geometry result for frontend consumption.
+
+### Tests
+
+**`tests/test_app_style.py`** (~100 lines)
+- Set/get element styles
+- Per-view style override
+- Product URL persistence
+- URL appears in geometry result
+
+---
+
+## Phase 11: Domain-Specific Views (Site Plan, SCAD, Analysis, Plumbing)
+
+**Requirements addressed:** SITE-1 through SITE-4, SCAD-1 through SCAD-3, ANALYSIS-1 through ANALYSIS-3, PLUMB-1 through PLUMB-3 (13 requirements)
+
+These are primarily UI integration requirements that connect existing generator scripts to the web interface. Since NF-4 prohibits modifying the generator scripts, the implementation wraps them via the existing regeneration API.
+
+### Site Plan (SITE-1 through SITE-4)
+
+These requirements are about the site plan *view* in the editor, not about modifying the generator.
+
+**Frontend approach:**
+- SITE-1 (Structure Placement): Properties panel for site plan view shows setback input fields. Changes update constants that the site plan generator reads.
+- SITE-2 (Drainfield): Custom element tool adds drainfield rectangles stored in elements table with type `'site_element'`.
+- SITE-3 (Annotations): Text annotation tool for site plan view.
+- SITE-4 (Parcel Corners): Display P-series markers from geometry points.
+
+**`app/static/js/site-plan.js`** (~150 lines): Site plan specific UI controls.
+
+### SCAD (SCAD-1 through SCAD-3)
+
+- SCAD-1: Tools > Generate 3D Model triggers `POST /api/regenerate` with the SCAD view.
+- SCAD-2: Roof style selection stored as a constant/config, passed to SCAD generator.
+- SCAD-3: Multi-view PDF generation via existing gen_2in12.py/gen_3views.py scripts.
+
+**`app/server.py`** additions:
+```python
+@app.route("/api/generate-3d", methods=["POST"])
+def api_generate_3d():
+    # Run SCAD generator, return success/failure
+```
+
+### Analysis (ANALYSIS-1 through ANALYSIS-3)
+
+- ANALYSIS-1, ANALYSIS-2: These are existing SVG views (span, span_minmax). The tabs already exist. Just ensure they load correctly.
+- ANALYSIS-3: Room area display is implemented in Phase 7 (CV-10, ENG-12).
+
+### Plumbing (PLUMB-1 through PLUMB-3)
+
+- PLUMB-1: Existing plumbing SVG view tab.
+- PLUMB-2: Supply line routing tool for the plumbing view. Custom elements with type `'plumbing_line'`.
+- PLUMB-3: Fixtures table in the plumbing view panel.
+
+### Tests
+
+**`tests/test_app_views.py`** (~100 lines)
+- Test site plan elements CRUD
+- Test 3D generation endpoint
+- Test plumbing line elements
+- Verify existing views load correctly
+
+---
+
+## Phase 12: View Variants and Polish
+
+**Requirements addressed:** UI-5, UI-6, STYLE-4, DT-7 (4 requirements)
+
+### View Variants
+
+**Database changes in `app/database.py`:**
+```sql
+CREATE TABLE IF NOT EXISTS variants (
+    name        TEXT PRIMARY KEY,
+    label       TEXT NOT NULL,
+    source      TEXT DEFAULT 'main',  -- which variant was cloned from
+    layer_config TEXT DEFAULT '{}'     -- JSON: per-layer visibility
+);
+```
+
+**`app/variants.py`** (~120 lines):
+```python
+def create_variant(name: str, label: str, source: str = "main", db_path=None) -> dict:
+    """Create a named copy of a floorplan layout (UI-5)."""
+    # Clone elements with the variant field set
+
+def get_variant_config(name: str, db_path=None) -> dict:
+    """Get variant layer configuration (UI-6)."""
+
+def set_variant_layer_config(name: str, config: dict, db_path=None):
+    """Set per-variant layer visibility."""
+```
+
+### Frontend
+
+- UI-5: View > New Variant menu item opens dialog for variant name
+- UI-6: Each variant tab has independent toggle checkboxes
+- Variant tabs appear alongside existing view tabs
+
+### Opening Width Editing (DT-7)
+
+This is a straightforward extension of the openings table (from Phase 3): make Width cells editable, on change PUT the corresponding opening constant.
+
+### Final Polish
+
+- Verify all 185 requirements pass
+- Cross-check all keyboard shortcuts work and don't fire in inputs (NF-5)
+- Verify responsive layout (NF-2)
+- Verify existing 586 tests still pass (NF-3)
+- Verify no files modified outside `app/` and `tests/` (NF-4)
+
+### Tests
+
+**`tests/test_app_variants.py`** (~80 lines)
+- Create variant, verify cloned elements
+- Per-variant layer config
+- Variant edits don't affect main
+
+---
+
+## Testing Strategy Summary
+
+### Test Structure
+
+```
+tests/
+  conftest.py              (existing - session fixtures)
+  test_app_conftest.py     (NEW - app-specific fixtures: Flask test client, fresh DB)
+  test_app_database.py     (Phase 1 - DB schema, seeding, CRUD)
+  test_app_engine.py       (Phase 1 - geometry computation)
+  test_app_api.py          (Phase 1 - all REST endpoints)
+  test_app_undo.py         (Phase 2)
+  test_app_elements.py     (Phase 3)
+  test_app_move.py         (Phase 4)
+  test_app_doors.py        (Phase 5)
+  test_app_outline.py      (Phase 6)
+  test_app_areas.py        (Phase 7)
+  test_app_tools.py        (Phase 8)
+  test_app_labels.py       (Phase 9)
+  test_app_style.py        (Phase 10)
+  test_app_views.py        (Phase 11)
+  test_app_variants.py     (Phase 12)
+```
+
+### App Test Fixtures
+
+```python
+# tests/test_app_conftest.py
+
+@pytest.fixture
+def fresh_db(tmp_path):
+    """Isolated fresh database."""
+    db_path = str(tmp_path / "test.db")
+    init_db(db_path)
+    return db_path
+
+@pytest.fixture
+def app_client(fresh_db):
+    """Flask test client with fresh DB."""
+    app = create_app(db_path=fresh_db)
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        yield client
+
+@pytest.fixture
+def seeded_geometry(fresh_db):
+    """Pre-computed geometry from fresh DB."""
+    constants = get_constants_dict(fresh_db)
+    return compute_geometry(constants)
+```
+
+### Coverage Targets
+
+| Phase | New Tests | Cumulative | Coverage Target |
+|-------|-----------|-----------|----------------|
+| 1     | ~50       | 636       | 100% existing reqs |
+| 2     | ~20       | 656       | Undo/redo paths |
+| 3     | ~30       | 686       | Element CRUD + cascading |
+| 4     | ~15       | 701       | Move tool mechanics |
+| 5     | ~20       | 721       | Door geometry |
+| 6     | ~30       | 751       | Closure solver |
+| 7     | ~15       | 766       | Room areas + centroids |
+| 8     | ~25       | 791       | Tool operations |
+| 9     | ~15       | 806       | Labels + dimensions |
+| 10    | ~12       | 818       | Styles + URLs |
+| 11    | ~12       | 830       | View integrations |
+| 12    | ~10       | 840       | Variants |
+
+Total: ~250 new tests, bringing the total from 586 to ~840.
+
+### Key Invariants Tested Throughout
+
+1. **NF-3**: Every phase runs `pytest tests/ -x -q` to verify 586 existing tests still pass
+2. **NF-4**: Every phase verifies `git diff --name-only` shows only `app/`, `tests/`, `run_app.py` changes
+3. **ENG-7**: Constant propagation remains functional after every phase
+
+---
+
+## Requirement-to-Phase Mapping (Complete)
+
+| Requirement IDs | Count | Phase |
+|----------------|-------|-------|
+| DB-1..8, ENG-1..10, API-1..15, API-32..33, GEN-1..4, UI-1..4, UI-7, CV-1..6, CV-13..17, DIS-1..5, SEL-1..3, SEL-5..6, SEL-9, TL-1..4, CT-1..10, DT-1, DT-5..6, DT-8, RT-1..4, APP-1..4, NF-1..5 | 80 | Phase 1 |
+| DB-11, API-30..31, UNDO-1..4 | 6 | Phase 2 |
+| DB-9..10, API-20..26, DT-9..11, SEL-8, RT-5, UI-7 | 13 | Phase 3 |
+| TL-5..10, API-23 | 7 | Phase 4 |
+| API-27..29, DOOR-1..4, SEL-7, SEL-11, CV-7, DIS-10 | 10 | Phase 5 |
+| ENG-11, API-16..19, OE-1..3, DT-2..4 | 10 | Phase 6 |
+| CV-8..12, DIS-6..9, ENG-12 | 10 | Phase 7 |
+| TL-15..24, SEL-4 | 12 | Phase 8 |
+| TL-11..14, LABEL-1..4, CV-9 (rendering), DIS-7 | 8 | Phase 9 |
+| STYLE-1..4, LINK-1..2, SEL-12, CV-12, SEL-10 | 9 | Phase 10 |
+| SITE-1..4, SCAD-1..3, ANALYSIS-1..3, PLUMB-1..3 | 13 | Phase 11 |
+| UI-5..6, STYLE-4, DT-7 | 4 | Phase 12 |
+| **Total** | **185** | |
+
+Note: Some requirements (like STYLE-4) appear in multiple phases because the per-view mechanism requires the variant system from Phase 12 but the styling engine is built in Phase 10. The full capability is only complete when both phases are done.
+
+---
+
+## Anticipated Challenges
+
+1. **Closure Solver Reimplementation (Phase 6):** The `_chain_offset` function in `floorplan/geometry.py` runs at module import time. Our parallel solver in `app/outline_solver.py` must produce identical results. Extensive cross-validation tests between the two are critical.
+
+2. **Constant-to-Element Mapping (Phase 3/4):** Mapping a drag operation on, say, IW1 back to the correct constant (`IW1_OFFSET_FROM_W9`) requires a hand-maintained mapping table in `app/elements.py`. This table must be kept in sync with `floorplan/layout.py`'s computation logic.
+
+3. **Module Reloading Side Effects (Phase 6):** When we modify outline chain parameters and call `compute_geometry()`, the module-scope closure solver in `floorplan/geometry.py` will run with the *original* constants, not our modified chain. We need to either: (a) patch the module-scope variables (`_d_F2_F5`, `_d_F18_F1`, `OUTLINE_CHAIN`) before reload, or (b) use our parallel solver to compute the correct values and inject them as constants. Approach (b) is safer.
+
+4. **Frontend Module Splitting:** The current `app.js` is 1090 lines. Adding tools, canvas rendering, selection, and undo will push it past 3000+ lines if not split. The plan creates separate JS files (`canvas.js`, `tools.js`, `selection.js`, etc.) loaded as additional `<script>` tags. All modules share the global `App` namespace.
+
+5. **Custom Element Overlay:** The engine computes base geometry from constants. Custom elements (user-added furniture, walls) exist only in the DB and are overlaid in the result. This dual-source model (constants-driven base + DB-driven overlay) must be carefully handled to avoid duplication or conflict.
+
+---
+
+### Critical Files for Implementation
+
+- **`c:/Users/Mango Cat/Dev/cad/app/database.py`** -- Core modification target: add `elements`, `doors`, `undo_history` tables, seeding functions, and CRUD operations for all new entity types.
+- **`c:/Users/Mango Cat/Dev/cad/app/engine.py`** -- Must be extended to include room areas, door geometry, custom elements, styles, and clearance zones in the computed geometry result.
+- **`c:/Users/Mango Cat/Dev/cad/app/server.py`** -- All new API routes (elements CRUD, doors, undo/redo, outline mutation, labels, dimensions) are added here.
+- **`c:/Users/Mango Cat/Dev/cad/app/static/js/app.js`** -- The main frontend file that must be refactored to integrate with new JS modules for tools, canvas rendering, selection, and undo.
+- **`c:/Users/Mango Cat/Dev/cad/floorplan/layout.py`** -- READ-ONLY reference: the constant-to-position mapping in `compute_interior_layout()` must be studied to build the reverse mapping in `app/elements.py` for the move tool.

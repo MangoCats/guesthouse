@@ -403,6 +403,8 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 .door-line { stroke: var(--text); stroke-width: 0.03; fill: none; }
 .door-arc { stroke: var(--text); stroke-width: 0.015; fill: none; stroke-dasharray: 0.05,0.03; }
 .door-hinge { fill: var(--text); stroke: none; }
+.appl-door-line { stroke: var(--text-dim); stroke-width: 0.02; fill: none; }
+.appl-door-arc { stroke: var(--text-dim); stroke-width: 0.01; fill: none; stroke-dasharray: 0.04,0.02; }
 .clearance-zone { fill: none; stroke: var(--yellow); stroke-width: 0.01; stroke-dasharray: 0.04,0.03; }
 .furniture-fill { fill: #2a3a2a; stroke: #5a8a5a; stroke-width: 0.02; }
 .appliance-fill { fill: #3a3a2a; stroke: #8a8a5a; stroke-width: 0.02; }

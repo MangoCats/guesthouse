@@ -475,26 +475,37 @@ function renderOpenings(g) {
 function renderDoors(g) {
   if (!App.state.showDoors) return;
   const layer = App.els["layer-doors"];
+  // Structural door arcs (openings)
   for (const door of (g.door_arcs || [])) {
     for (const leaf of door.leaves) {
-      // Door line (hinge → open tip)
       layer.appendChild(svgEl("line", {
         x1: leaf.hinge[0], y1: -leaf.hinge[1],
         x2: leaf.tip[0], y2: -leaf.tip[1],
         class: "door-line",
       }));
-      // Swing arc polyline
       const pts = leaf.arc_pts.map(p => `${p[0]},${-p[1]}`).join(" ");
       layer.appendChild(svgEl("polyline", {
         points: pts,
         class: "door-arc",
       }));
-      // Hinge point circle
       layer.appendChild(svgEl("circle", {
         cx: leaf.hinge[0], cy: -leaf.hinge[1], r: 0.04,
         class: "door-hinge",
       }));
     }
+  }
+  // Appliance door arcs (fridge, washer, dryer, microwave)
+  for (const ad of (g.appliance_doors || [])) {
+    layer.appendChild(svgEl("line", {
+      x1: ad.hinge[0], y1: -ad.hinge[1],
+      x2: ad.tip[0], y2: -ad.tip[1],
+      class: "appl-door-line",
+    }));
+    const pts = ad.arc_pts.map(p => `${p[0]},${-p[1]}`).join(" ");
+    layer.appendChild(svgEl("polyline", {
+      points: pts,
+      class: "appl-door-arc",
+    }));
   }
 }
 

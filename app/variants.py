@@ -254,6 +254,23 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                 _ne = offset_pt(_se, MINIK_APPL_D, w2w5_al)
                 poly = [_sw, _se, _ne, _nw]
         items[label] = _item(label, "appliance", poly, label.upper())
+        # Door arc metadata: front-loading door swings inward from wall
+        _door_len = math.sqrt((poly[3][0] - poly[0][0])**2 +
+                              (poly[3][1] - poly[0][1])**2)
+        if label == "dryer":
+            items[label]["door"] = {
+                "hinge_idx": 1,   # SE corner
+                "width": _door_len,
+                "open_dir": list(w2w5_in),
+                "closed_dir": list(w2w5_al),
+            }
+        else:  # washer
+            items[label]["door"] = {
+                "hinge_idx": 2,   # NE corner
+                "width": _door_len,
+                "open_dir": list(w2w5_in),
+                "closed_dir": [- w2w5_al[0], - w2w5_al[1]],
+            }
 
     washer_poly = items["washer"]["poly"]  # [[e,n], ...]
 
@@ -268,6 +285,8 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
     _hm_ne = offset_pt(_hm_se, HAMPER_D, w2w5_al)
     items["hamper"] = _item("hamper", "appliance",
                             [_hm_sw, _hm_se, _hm_ne, _hm_nw], "HAMPER")
+    # Clearance: basket pull-out from north face (poly[3]→poly[2]), extends HAMPER_D
+    items["hamper"]["clearance"] = {"face": [3, 2], "distance": HAMPER_D}
 
     # --- Counter (standard only) ---
     if not _small_wd and layout.ctr_clip:
@@ -351,11 +370,15 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                  _nwp(_st_d + C.STOVE_WIDTH, C.KITCHEN_APPL_GAP),
                  _nwp(_st_d, C.KITCHEN_APPL_GAP)]
         items["stove"] = _item("stove", "appliance", _st_c, "STOVE")
+        # Clearance: 24" from room-facing face (poly[0]→poly[1])
+        items["stove"]["clearance"] = {"face": [0, 1], "distance": 24.0 / 12.0}
 
         # D/W
         _dw_c = [_nwp(_dw_d, C.DW_DEPTH), _nwp(_dw_d + C.DW_WIDTH, C.DW_DEPTH),
                  _nwp(_dw_d + C.DW_WIDTH, 0), _nwp(_dw_d, 0)]
         items["dishwasher"] = _item("dishwasher", "appliance", _dw_c, "D/W")
+        # Clearance: 31" from room-facing face (poly[0]→poly[1])
+        items["dishwasher"]["clearance"] = {"face": [0, 1], "distance": 31.0 / 12.0}
 
     # Kitchen sink (all variants including minik)
     _ks_c = [_nwp(_ks_d, C.KITCHEN_SINK_DEPTH),
@@ -373,6 +396,13 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
         fr_nw = _nwp(_fr_mk_d, _fr_mk_i)
         items["fridge"] = _item("fridge", "appliance",
                                 [fr_sw, fr_se, fr_ne, fr_nw], "FRIDGE")
+        # Door: hinged at SE corner, sweeps from closed (back-along-wall) to open (inward)
+        items["fridge"]["door"] = {
+            "hinge_idx": 1,
+            "width": C.MINIK_FRIDGE_W,
+            "open_dir": list(w9w10_in),
+            "closed_dir": [-w9w10_al[0], -w9w10_al[1]],
+        }
     else:
         fr_nw = _iwp(C.KITCHEN_APPL_GAP, C.KITCHEN_APPL_GAP + STD_FRIDGE_D)
         fr_se = _iwp(C.KITCHEN_APPL_GAP + STD_FRIDGE_W, C.KITCHEN_APPL_GAP)
@@ -380,6 +410,13 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
         fr_sw = _iwp(C.KITCHEN_APPL_GAP, C.KITCHEN_APPL_GAP)
         items["fridge"] = _item("fridge", "appliance",
                                 [fr_sw, fr_se, fr_ne, fr_nw], "FRIDGE")
+        # Door: hinged at NW corner, sweeps from open (northward) to closed (eastward)
+        items["fridge"]["door"] = {
+            "hinge_idx": 3,
+            "width": STD_FRIDGE_W,
+            "open_dir": list(_iw1_n_out),
+            "closed_dir": list(_iw1_n_al),
+        }
 
     # ICE
     if db:
@@ -414,6 +451,13 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                  _iwp(_mw_d2, _mw_d1 + MICROWAVE_D)]
         items["microwave"] = _item("microwave", "appliance", _mw_c, "MICRO",
                                     stacked=True)
+        # Door: hinged at NE corner (poly[2]), sweeps from open (northward) to closed (westward)
+        items["microwave"]["door"] = {
+            "hinge_idx": 2,
+            "width": MICROWAVE_W,
+            "open_dir": list(_iw1_n_out),
+            "closed_dir": [-_iw1_n_al[0], -_iw1_n_al[1]],
+        }
     else:
         _mw_mk_d = _iw2_d + 2.0 / 12.0
         _mw_mk_i = 3.0 / 12.0
@@ -423,6 +467,13 @@ def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
                      _nwp(_mw_mk_d, _mw_mk_i)]
         items["microwave"] = _item("microwave", "appliance", _mw_mk_c, "MICRO",
                                     stacked=True)
+        # Door: hinged at poly[0] (wall-start/inward corner), sweeps inward then along wall
+        items["microwave"]["door"] = {
+            "hinge_idx": 0,
+            "width": MICROWAVE_W,
+            "open_dir": list(w9w10_in),
+            "closed_dir": list(w9w10_al),
+        }
 
     # Kitchen counter (minik) / North counter (standard)
     if minik:

@@ -1,0 +1,864 @@
+266d48d outline
+22f34c0 origin shift
+9559099 counter
+91c6b77 before flattening closet S wall
+0e8a786 after flattening closet S wall
+0d17fd4 before rebase #2
+416942e P3 based
+55bb4b9 new agent cleanup
+a8662fb new agent refactor
+5cad466 file cleanup
+e8aec8f 10' main room
+974b6f3 Flat East Wall
+1bc068f Util dim
+95cc16b sharpen 60 degree and add shower notch
+6a95d0d fix fattening
+4cf28aa before relabel
+a473c72 rename points and arcs
+21cd928 rename centers
+5d04b02 reduce variations
+812faee straighten labels
+821a21d make bumps a rounded length
+fc1235c add wh
+913ab0e post refactor pre cleanup
+5e6246d refactor more
+fbd2547 remove option a
+8f0d3e7 add unit tests
+7a1b711 add README
+58ed9a1 add SHWR wall
+98127d8 add openings
+9b9268d remove old reference
+468a337 more refactor cleanup
+1afe0b7 new captions
+bb8e031 new dim lines
+df1aae7 CW CCW cleanup
+024ac24 add walls diagram
+2b90cef add walls info table
+84ff025 adding all walls view
+5f02f90 update svg generation
+3603341 add opening dimension lines to all_walls.svg with narrow-arrow style for O4
+065070f add commit-and-regenerate workflow instruction to CLAUDE.md
+ba12122 Move O5 east so O5-O6 gap is exactly 78"
+8f80b58 Move O4 9" east (now 9" west of IW2)
+eeb8cf6 Center O4 on F6-F7 midpoint
+5d34ed4 move O2 north edge to 4" south of F2
+4b0a05a uncouple O1 from O2 mirror rule, move O1 6" south
+ebcb79e Rename legacy interior wall vars to IW-series naming
+4b2a2ca Enlarge IW labels 60% and move outside walls on all_walls.svg
+97b8263 IW label font size 6.4 → 6
+1baafeb Remove O4 narrow dim style, use standard connecting line for all openings
+eb3edf8 increase opening dimension font size to 5pt on all_walls.svg
+0625e0f Add 2 toilets and 2 sinks against IW1
+50708b6 Add kitchen sink, D/W, stove and fridge to floorplan
+52042a1 Add 24x72 inch kitchen counter along IW1 north face
+ab7a118 Move fridge 2in east of kitchen counter, 2in north of IW1
+6e376c3 Add 24x38 inch counter against F9-F10 south face
+bab9ee2 Rotate north counter label 90 CW, reduce font to 6pt
+efca648 Remove rotation from north counter label
+028374a Move D/W to 2in east of north wall counter
+e81c66c Reposition sink, D/W, stove with 3in gaps
+140b65c Move sink west edge 3in east of D/W east edge
+29272db Add 30x48 inch counter 3in east of stove
+48b56b7 Extend east counter depth from 48 to 72 inches
+cb19926 Add 12in radius on both south corners of east counter
+aa51559 Shorten east counter depth from 72 to 42 inches
+15c89a0 Add 38-inch rough opening O12 in IW1 east of fridge
+b41a2ce Render IW1 rough opening with dark-red jambs and white gap
+4882bfb Split IW1 wall rendering around RO1 opening, no overdraw
+88ef3a3 Render all interior wall strokes inside wall faces
+50f0ae7 Add RO1 dark-red outline box with X on all_walls.svg
+5442a05 Add 38" rough opening RO2 in IW4 centered between IW5 and IW8
+ad076d9 Add 38" rough opening RO3 in IW3, 2" north of IW7 north face
+284011a Add 38" rough opening RO4 in IW2, 6" south of IW6 south face
+ff8b7bf Move 26'1.64" dim label 4' west to avoid overlap
+25cc74a Add RO5 rough opening in IW6, 3" west of IW2, 38" wide
+0409eca Remove O-series designator labels from floorplan.svg openings
+9b58983 Remove F-series vertex labels from floorplan.svg
+833bdf0 Fix O7 position: NW 2' from F12, SE 6" from F13, R_a13 increased
+3abb7e9 Reduce F13-F14 arc radius to 10", F10-F12 easting adjusts
+f3c06f4 Derive R_a13 from F9-F10 distance constraint of 17'6"
+9616bfb Decrease F9-F10 distance to 17'4", R_a13 now 93.1"
+7d72d4f Move stove 3" south of back wall
+6e39cc4 Adjust kitchen sink to 47.5" E-W x 27" N-S
+873daa1 Make SINK shape a clickable hyperlink in floorplan SVG
+634af43 Adjust north counter to 36" E-W x 30" N-S
+ef98848 Make north counter a clickable hyperlink
+ce78f1e Adjust kitchen counter depth to 30" N-S
+3cbc4b1 Make kitchen counter a clickable hyperlink
+556f98b Update kitchen counter link to 30x72 model
+61404fd Adjust kitchen sink to 45" E-W x 24" N-S
+0b6eed5 Update sink link to Advance Tabco model
+9cf4d4e Add loveseat 35x65 6" east of RO1, 3" north of IW1
+e09bdf7 Make loveseat a clickable IKEA hyperlink
+884aed0 Remove east counter (east of stove)
+e167984 Add WW1 circle 30" radius at stove SE corner
+05229f7 Rotate loveseat 15 deg CCW about its SW corner
+2ccbeae Move loveseat east so rotated NW corner is on WW1
+d4bf5f5 Move loveseat NW corner to eastern WW1 intersection
+1e2b416 Add WW2 circle 30" radius at loveseat NE corner
+5d76c36 Add 50cm endtable ET, 2" N of IW1, 2" E of loveseat SE
+a09a785 Move loveseat NW CCW on WW1 until WW2 touches F9-F10
+d2f2fa6 Revert "Move loveseat NW CCW on WW1 until WW2 touches F9-F10"
+4026d4d Move loveseat NW CCW on WW1 until WW2 touches F9-F10
+b3447e8 Move ET center onto extended east side of loveseat
+6442b67 Slide loveseat SE along long axis until 2" from ET
+4af40aa Shift loveseat and ET west until NW corner touches WW1
+57345ce Add SHELVES 36x15 against F9-F10, 3" east of stove
+5308c9a Add WW3 circle 30" radius at SHELVES SE corner
+b7a1559 Slide loveseat SE until NW face just touches WW3
+38463f9 NW corner on WW1, NNW side tangent to WW3 constraints
+435f899 Loveseat NNW (north) short side tangent to WW3
+5876bb5 Move ET 2" east of loveseat SE corner
+f1e215c ET 2" N of IW1 and 2" from loveseat SE corner
+21ede53 Make SHELVES a clickable IKEA link
+4a5127a Add second LOVESEAT, long side E-W, 2" E of ET
+94ae7cf Add CHAIR 32x37 rounded corners, centered W11-W12
+45ad392 Rotate CHAIR 30 deg CW, move 8" south
+0f04ff8 Move CHAIR 4" SSW along its rotated long axis
+b81ccad Move O6 6" west
+4bc5a73 Sync O6 position in walls/gen_walls.py
+a188a01 Extract opening constants to constants.py, DRY
+add41e6 Decouple O5 from O6, restore O5 original position
+e4c3f56 Make CHAIR a clickable IKEA HAVBERG link
+651f6c5 Move F10 6" west, enlarge F10-F11 arc for tangency
+89e1a44 Move O5 6" east, define relative to F7
+eee0b84 Move CHAIR 2" west
+7498bf6 Move CHAIR 1" east
+0700492 Add OTTO 29" square, 30° CW, 6" SSW of CHAIR
+1fa0c9a Remove WW series circles from floorplan SVG
+31058f4 Extract named constants and SVG style constants, add section markers
+2f34991 Replace untyped data dicts with FloorplanData and WallData NamedTuples
+f1df2d0 Add BBox type, restructure InteriorLayout fields
+eb8196d Extract openings to single source, fix O8 IW5 thickness bug
+5637528 Add IW5/IW6 to InteriorLayout, use in gen_walls
+ad3f58a Decompose render_floorplan_svg into sub-functions
+e670004 Simplify render_floorplan_svg to return SVG only
+d5c5d7c Update CLAUDE.md, HOWTO.md for new module structure
+dcd791c Fix hardcoded arc R= labels, make all dynamic
+15dc857 Reduce O5 width to 68", keep west edge fixed
+c752891 Move O6 and F10 4" west
+8c8fbfb Set R_a13 for 75-deg F10-F11 sweep, F14 fixed
+f1fd263 Add 42" door to O6, hinged east, swings south
+94462ba Fix O6 door arc to sweep west (closed) not east
+888e6e4 Add 36" door to RO1, hinged east, swings south
+0b41a5f Center RO1 door in opening (1" gap each side)
+3dc127a Label RO1-RO5 in all_walls.svg, dark red
+1a626d5 Add 36" door to RO2, hinged north, swings east
+739e626 Add 36" door to RO3, hinged south, swings west
+4886b4c Add 36" door to RO4, hinged north, swings west
+72ab655 Add 36" door to RO5, hinged east, swings north
+504a879 Add 30" door to O3, hinged north, swings east
+ee7ae38 Add 60x18 shelves against IW1 south and IW3 west
+e83a990 F8-F9 inner shell: straight-arc-straight with U-turn radius
+d2abfb6 Floorplan F8-F9 inner wall uses tight-turn path
+4235883 Add tests for interior walls, opening dims, and floorplan rendering
+bcdeef9 Swap D/W and stove, remove WW work-zone geometry
+0a678e6 Add 60x30 DESK along W16-W17 wall
+3fe3469 Add 27x24 desk chair centered in front of desk
+dfdfde4 Move OFFICE room label 8 inches north
+e0d2f24 Move Office 9'9" dim label 2 ft north
+4dd1c05 Move Office 9'9" dim label additional 6" north
+a0641d6 Remove TOILET labels, keep shapes
+661bade add a script to publish updates to the website.
+02f713b publish more svg files
+a4af9c6 Redefine top exterior dim endpoints to 4in south of F7 on arcs
+42b618a Remove generated SVGs from repo, add to .gitignore
+4fb10d1 Add .coverage to .gitignore, delete file
+ffbea96 Render double-shell walls with U-turns in floorplan.svg
+4b9dc19 Narrow floorplan opening voids to 4" centered on wall
+4dbb91c Skip opening void rectangles for doors O3, O6
+22f1d4c Add floorplan_minik.svg variant with small kitchen title
+ea7a17a Minik fridge: IKEA BERGSNAS 23-3/8x24-3/4 with link
+99bb252 Minik: reduce FRIDGE label font size to 6pt
+f97254f Minik: remove STOVE and D/W from kitchen
+8004654 Minik: remove north counter, move fridge near sink
+1ff2644 Minik: move counter to north wall, shelves east of fridge
+5fbba56 Minik: remove COUNTER label from north wall counter
+7481d3c Minik: add Empava induction cooktop on counter
+c5b9e1a Minik: rotate cooktop 90deg, shift 3in south of W9-W10
+95c6586 Minik: add IKEA GATEBO microwave on counter
+c8c4c78 Minik: MICRO font to 5pt, cooktop 3in east of MICRO
+c2d5fe8 Minik: add coffee maker, cooktop 3in east of it
+ca3a8fe Minik: coffee maker dims to 7.2in EW x 9.2in NS
+f0a4283 Minik: add 4-slot toaster east of cooktop
+cc2bbfb Minik: toaster dims to 13.7in EW x 12.5in NS
+5792afa Minik: add Oscar triangle dining set with 2 chairs
+f208bd2 Fix: compute RO1 bounds in _render_kitchen for minik
+922954b Minik: reshape dining table as isosceles triangle with rounded corners
+8f08748 Minik: table with 24in apex arc, 6in fillets, chairs on sides
+0f2939a Minik: fix table arc sweep direction to convex outward
+8e672ce Minik: move table and chairs 6in north of IW1
+5ae35ad Add floorplan_minik.svg to publish.sh
+be1e90b Move cooktop S to 2in N of counter S edge
+0d19567 Minik: resize washer/dryer to 32x27in
+882a82c Minik: link washer/dryer to Lowes products
+b5224a6 Minik: washer 1in N of dryer
+41036f7 Add 48in circle tangent to POB-P2 on SSE side
+2b3a190 Move POB-P2 circle 3ft ENE along line
+3c98fd0 Add campfire icon in POB-P2 circle
+51b3b47 Place circle tangent to POB-P2 line 3ft from POB
+8cfd2d2 Link fireplace circle/icon to Wayfair product
+bd60301 Remove shelves from IW1 south face
+c2dbc54 Move minik table+chairs north: 30in south of counter
+36d6718 Split IW3: move west to IW7 face, new IW9 at old position
+5bc6455 Add 48x30in FIREPLACE at IW3 east / IW1 south
+4573620 Move IW3 west to IW2 east face, shift RO3 north 1in
+3c7aa8b Move FIREPLACE 18in east and 6in north
+51d2b01 Add HEARTH areas around fireplace, split by IW1
+a9fc938 Center S HEARTH label between fireplace S and hearth S
+8a3905f Add RO6 in IW1 for fireplace pass-through
+29989e8 Change IW7 to straight N-S wall, 6ft from south face
+71aaafc Shorten counter on IW7 to 5ft10in, still touching W21-W0
+0555aaf Decouple IW7, IW9, closet from COUNTER_LENGTH; keep 6ft
+ae6ec2e Add IW10 4in E-W wall from IW3 east to IW9 east
+21b93b5 Fix IW10 label to use horizontal (E-W) orientation
+b776de0 Move RO3 south end to 3in north of IW10 north face
+cda3617 Center IW3 label between RO3 north and IW3 north
+ffa293f Add exposed face outlines for IW3 south and IW10 east
+79973ec Inset IW3 south and IW10 east outlines by half_sw
+d795611 Move fireplace 4in west, move IW3 2in west
+3309fed West closet dim from IW10 south face to W21-W0 wall
+4703c56 Counter: remove radius, run from IW10 south to W21-W0
+f66668e Change RO3 door to open east
+91c566e Replace SHELVES with ICE maker in minik floorplan
+36ddb0a Move fireplace 4in east and 6in north
+36b1722 Move fridge 2in east of hearth in floorplan
+a943cf1 Define RO1 as 70in west of IW4 west face
+b64e435 Remove 72in kitchen counter from floorplan.svg
+2111b4c Remove SHELVES from floorplan.svg
+4cc16f4 Add ICE to floorplan.svg 6in east of D/W
+104c72f Add SOFA to minik, replace LOVESEATs and ET
+a1594c2 Add triangle table and chairs to regular floorplan
+0915001 Resize fridge to 32.75x35in, maintain SE corner
+d8d61b8 Add fridge door arc hinged at NE corner
+5b2e397 Move RO1 6in east, fridge 7in east
+2f78c39 Move table/chairs 28in south 6in east in floorplan
+176c7b5 Move table/chairs 16in west in floorplan
+9ec3db7 Move table/chairs 8.75in west in floorplan
+20939c9 Link FRIDGE to Lowes product in floorplan.svg
+eecb62d Add fridge door arc to minik floorplan
+542aff3 Move ICE 3in south in minik floorplan
+a1e2356 Move SOFA 6in north and 24in east in minik
+4824f7a Add dimension label under FIREPLACE text
+e742003 Add ROCKER chair between ICE and SOFA in minik
+429e9c4 Rotate ROCKER 90 degrees in minik
+cba5530 Rotate ROCKER 15deg CCW and move 18in south
+6d22e03 Fix ROCKER rotation to 15deg CCW in plan
+75576bb Remove IW8 E-W arm, keep 6ft N-S from W18-W19
+479d1a3 Revert "Remove IW8 E-W arm, keep 6ft N-S from W18-W19"
+fd0d6ba Reapply "Remove IW8 E-W arm, keep 6ft N-S from W18-W19"
+0d0195a Shorten IW4, move south end 6ft north
+dddb81c Add IW11 4in wall from IW4 south to W18-W19
+ce4507b Move IW4/RO2 34in east, shorten IW5 west 34in
+5cd4907 Move bed and O9 back 34in west, define via IW9
+a19a3b2 Move RO1 and door 34in west, define via IW9
+c3b813c Redefine table easting via fridge-W/IW2-E center
+e7920fb Move IW4 south end 4in north, RO2 0.5in north
+61dcabe Define IW11 north end as 6ft north of W18-W19
+33e6ec5 Add IW12 E-W wall from IW11 west to IW4 west
+bb66cfe Center RO2 between IW12 north face and IW5 south face
+8eed039 Move East Closet dim line to IW12 center easting
+c751bb2 Move bedroom N-S dim line 12" west of IW11
+baaab8b Move east bedroom N-S dim 12" west of IW11
+8082b87 Move RO6/FIREPLACE/HEARTH east, hearth E at IW4 W
+d03d0d0 Move IW10 west and IW3 east to IW7 east face
+c18fcac Change RO2 door to hinged south, open west
+226eabe Move F19 6" W of F18, line F20-F21, O9 to F21-F0
+86d26c3 Change F19-F20 arc to 60" radius, atan(1/12) sweep
+42a5237 SE corner: 180" arcs, F20a point, F0/F1 match F21
+102b5aa Move F18 easting to 1in east of IW4 east face
+1162db0 Move O9 to F20-F20a, 37in west of IW4 east face
+63f3a18 Set F19-F20 arc radius for 28in chord length
+10e203c Set F19-F20 arc radius to 28in
+87fabbe F18 4in east of IW4, F18-F19 12in, F19-F20 chord 22in
+a75b4d0 Move RO1 48in (4ft) west along IW1
+ebe1100 Move O9 east end to 42in west of IW4 east face
+98b5a56 Set F20a-F21 arc radius for 16in chord length
+1980b3e Set F20-F20a length so F21 is 4in east of IW7
+5399f6a Restore O10 on F20-F20a, 80in wall segment from O9
+d987933 Move IW4 2in west, closet 2 now 28in
+ee803fe Add N-S dim line in utility area, centered on O11
+6bbd214 Fix utility dim line to use W0 northing (W21-W0 face)
+a816cf5 Tangent F17-F18 arc, anchor IW1 10ft from north wall
+21d7d16 Move IW4/IW8/IW11/IW12/F18/F19/F20 2in west, keep F2-F16 fixed
+deb962a Fix F16-F17 segment length at 5', adjust F17-F18 arc radius
+60ac824 Set F19-F20 chord 32in, F20a-F21 chord 16in, sweep arcsin(1/9)
+6ea1c19 Set F19-F20 chord to 24in
+c303721 Remove IW8, extend IW4 south to W18-W19
+9961d28 Move IW11 SE corner to W20-W20a/circle(W19,32in) intersection
+09eb465 Make IW11 4in thick, normal to W20-W20a, 6ft4in long
+cf4413c Reduce IW11 to 6ft, align outline strokes with rotated wall
+d3c0719 Move O9 east end to 4in west of IW11 west face
+e1b0a9b O9 east end 4in past IW11 SW corner along F20-F20a
+974014c IW12 SW at IW11 NW, perpendicular to IW11, flush with IW4 west
+214ab9f IW11 SE corner 32in from IW4 SW, circle centered on IW4 SW
+39bbe62 Rotated east closet dimension line parallel to IW11
+ed50bdd Rotate bed perpendicular to W20-W20a, 2in from wall, 1in from O9
+2bc2728 Add WW6 circle radius 30in at fireplace SW corner
+57d5ce7 Minik SOFA: reduce 24in, 6in east of hearth, 2in north of IW1
+36d4414 Minik: center table+chairs at SINK west end, keep northing
+9826fa1 Bedroom dim: O9 inner center perp to W20-W20a to IW1 south
+2e9e00b Rotate bedroom O9 dim label 90 degrees CW
+c420ef4 F21 1ft east of F0, O11 on F20-F20a, F0/F1 shift north
+1efe7b9 WW7: 36in circle at south end of south toilet
+3795584 WW8: 36in circle at north end of north toilet
+6474ce0 Remove fireplace, hearth, WW6, and RO6
+9c68809 Move IW1 west end 6ft6in east, anchor to W1 easting
+8be3b44 Add IW8 wall, define toilet/sink positions relative to IW8
+81da686 Move IW8 18in north
+e6b60f2 Dimension line IW8 north to IW6 south
+fe9479f WW9 36in diameter circle on king bed NW corner
+218385f WW9 36in radius instead of diameter
+928ff42 Move RO1 4ft east
+2a44026 Move IW1 4in south, IW2 south extends to match
+70ad1f0 Move fridge to 6in west of RO1
+142fc0f Shorten IW12 west end 4in
+25148cf IW12 east end flush with IW4 west face
+a04c1a7 Extend IW11 north end flush with IW1 south face
+cc580c1 Restore IW12 position to before IW11 extension
+93643ca Move RO2 from IW4 to IW11, 3in NNE of IW12 N face
+df4e062 Rotate RO2 label to sit on WNW face of IW11
+e356a58 Nudge RO2 label 1/3 font height outward from face
+bb417b8 Fix RO2 label nudge direction
+ecfd7d8 East closet dim line north end at IW12 south face midpoint
+43443ff Shorten IW4 north end to IW12 north face
+37ec6fc Add IW14 wall: 3in thick, parallel to IW12, north of RO2
+18e1fec Trim IW5 west end to meet IW14 SE corner
+452d2c6 Extend STORAGE dimension line west end to IW11 east face
+e2df109 RO2 door: hinge NNE side, center in opening, swing into office
+7a2a64a Extend office N-S dimension line north end to IW1 south face
+505e5d4 Remove IW3, IW7, IW9, IW10, RO3, west CLOSET and BEDROOM E-W dims
+a9002f6 Move RO1 8in west to 122in east of IW2
+e1294fb Add WW10 30in circle at bed NW corner
+f75946c Add IW3 4in thick, 78in S from IW1, west face at IW2
+af9b730 Add IW7 4in E-W wall, IW3 east to WW10 circle
+e476576 IW7 fixed 66in, add IW9 N-S from IW7 to IW1
+424b3b3 Remove F20a/F21, F0 tangent to F20 exit bearing
+9f14343 Reduce F19-F20 arc radius to 10in
+a69e8ff Set R_a19 for F1-F2 = 14'11.5"
+77a43b2 Move IW9 perpendicular to W20-W0, 8" past O10, 7'4" long
+3cd12bd Move IW3 perpendicular to W20-W0, 30" from IW9, 6'8" long
+2dc0ec0 Rotate IW7 parallel to W20-W0, NW at IW3 NE, spans to IW9
+70ae6c2 Move O9 1in, O10 3in, bed 2in toward F0
+675cba6 Move IW9/IW3/IW7 3in away from W0
+cd62202 Shorten IW9 to IW3 length, add IW3-IW11 dim
+4dfb725 Change IW3-IW11 dim to IW9-IW11
+8a3b4b3 Add west closet dim IW7 south to W20-W0
+9ac8f8b Move O10 2in, bed 1in toward F0
+9bbd0a6 Rotate KING BED label 90 CW, center at half room depth
+304ea4b Remove WW7-WW10 circles and WW10_RADIUS
+050e004 Add IW16 4in N-S wall at IW3 NW to IW1
+f34f57d Add 38in RO3 centered in IW16, door hinged north swings east
+68c1fbf Move RO3 label to east side to avoid IW16 overlap
+bfc4fee Relocate O11 to 70in past O10 along F20-F0 toward F0
+95c792e Extend counter south to W20-W0, clip east at IW3/IW16 west faces
+215186a Move utility N-S dim to O11 center on W20-W0 to IW8 south
+c40df3b Center O1 northing to match RO3/IW16 center northing
+2b86ebf Move washer/dryer west to 2in east of W1-W2 surface
+f6fcb7f Move washer/dryer rendering 2in from W1-W2, no geometry changes
+4d3142e Utility E-W dim: east end at IW3 west face, at 8ft northing
+78004a7 Move washer/dryer rendering 4in east, 2in south in floorplan
+59ace5d Center IW6 label E-W at west end of RO5
+fc4e609 Shorten IW11 north end to IW14 north face
+8bafc46 Add IW15 4in N-S, IW11 NW to IW1 south
+35d3e64 Storage dim line west end to IW15 east face
+8cf17e5 Add E-W dim line O1 east to RO3 west
+d3b4c92 Add O10 to IW1 dim line perpendicular to W20-W0
+5d0f814 Render interior dim lines at 50% opacity
+417999f Add floorplan_db.svg variant and publish it
+47a4bb6 Move ICE to IW1/IW2 corner in floorplan_db
+4f366e4 DB: remove loveseats, shift ET east to W wall
+c2b4aa7 DB: move fridge to W9-W10 wall, 6in east of DW
+7fd5bcf DB: center table and chairs under SINK west end
+c6a7da7 DB: move fridge 3in south of W9-W10 wall
+f905092 DB: use minik washer/dryer sizes and placement
+ebfcb65 Move SINK 2in east, adjust downstream appliances
+f61bde9 DB: add DAYBED 86x43in, 2in N of IW1, 3in W of ET
+1bf89a9 DB: add ROCKER between DAYBED NE and ET
+f06336f DB: reposition ROCKER between DAYBED/RO1, IW1/fridge arc
+dc09ef9 DB: center ROCKER between RO1 east and DAYBED west
+aef7171 DB: move ROCKER 8in north
+792d6f9 DB: move ROCKER 8in west
+9f33741 Add floorplan_db.svg daybed variant
+7fba5b3 Remove counter and shelves in db
+5b8c969 Remove IW1/IW2 counter in db, keep shelves
+6cc1f9d Remove shelves by D/W in db
+36969c6 Move db fridge to IW2/IW1 corner
+e47cbeb Move db ICE to north wall east of D/W
+6c5b669 Move db table and chairs 24in east
+4eb5bec Reverse db fridge door to NW hinge
+f0be3ed add daybed floorplan
+22f64cc Remove F4, 68in F2-F3 arc, 75deg F5-F6, F6 6in east, O4 3in east
+a967d7d F2 4in above IW8, derive sweeps from tangency, O2 on F3-F5
+98796ee Fix O3 door hinge to inner face, 1in from NE end
+850c84e O3 door hinge/arc at wall midline center
+2ef6fa6 O2: center at RO4 northing center
+7d5fc63 add db
+02a77bc Move F2-F14 8in north, keep F15-F20/F0/F1 fixed
+9525246 IW1 8in S, IW8 4in S; outline unchanged
+a13772f F2 4in south
+42f60d2 Fix F2-F3 sweep 10deg, F5-F6 sweep 80deg
+ce1ce65 Add N-S span measurement graph (span/gen_span.py)
+4598bfb Add IW-split green/cyan curves to span graph
+d2ad26b Add span_minmax.svg: rotated span analysis 5-175deg
+d02f152 Refine min span with 0.5deg steps around coarse minimum
+89b6f92 Add refined min panel at bottom of span_minmax
+2721866 Add 0.1deg superfine refinement; create span_min.svg
+b810386 adding span tweaks
+ff0b139 don't checking generated svg files
+5aabd85 Move fridge to IW1/IW2 corner, 3in spacing
+78ae081 Move ICE 3in south of W9-W10 wall
+214ee3b Center table and chairs under sink west end
+d6613ce Center table and chairs under sink middle
+fd4405f Fridge door hinge NW, opens north to east
+5926969 Add 60x18 work counter on IW1 north, 3in east of fridge
+6c5a6e1 Renumber F3 to F4 and W3 to W4 throughout
+08c27b9 Renumber F2 to F3 and all associated designators
+dfd8288 Rename F1/W1 to F2/W2, skip index 2->1
+e092e6b Renumber F0/W0/C0/R_a0 to F1/W1/C1/R_a1, skip index 1->0
+e1b0a47 Fix W8-F9 inner shell index after seg count 21→20
+4a9964b Swap ICE and FRIDGE in db variant to match standard layout
+911abf7 Split F11-F12 arc: add F11a-F11b 16" flat segment
+a2a39ce Split F11-F12 arc: add F11a-F11b 16" flat segment
+6fc6a82 Reduce O1,O2,O8,O11 to 19" and O9,O10 to 23", keep centers
+62b18a9 Restore IW3/7/9/16 group: bump IW9_OFFSET_O10 5->6"
+554dc5d Sync layout.py O9/O10 chain with openings.py gaps
+1ea1452 Refactor: layout exports O9-O11 anchors as SSOT
+5381c2b Move O11 2" closer to O10 (gap 74->72")
+83be3d4 Change F19-F20 arc sweep from arcsin(1/9) to arctan(1/9)
+4a07df2 Adjust R_a19 so F2 northing = 3.0000 exactly
+a9d7ed0 Move F19 2" east, adjust R_a19 to keep F2 N = 3.0
+b673dc2 Move F19 4" west, adjust R_a19 to keep F2 N = 3.0
+2189a20 Move F18 2" east, adjust R_a17 for tangency
+dfaad66 Add DRESSER with dashed clearance zone
+8b4d953 Move RO1 6" west
+7b887fe Add IW15 to all_walls.svg rendering
+27084d0 Add interior walls table to all_walls.svg
+826f197 Format IW table: Thk with ", Length as ft'in"
+901511d Move title block/tables right to clear O8 dim
+ad23f4b Change all_walls.svg title to All Walls
+68329fc Center IW2 label between RO4 north and IW2 north
+716aa97 Move RO4 6" south
+3db6cca Move RO4 3" north (offset 12->9")
+65f19e8 Adjust R_a3 for F3 N = 15'10" exactly
+537e9a5 Increase O8 from 19" to 23", center fixed
+2904baa Add 30" circle at dresser SW corner
+bd4b1d4 Increase dresser circle from 30" to 60"
+d2c9384 Add 48" circle at dresser SW corner
+efc07f6 Move dresser 4" east (gap 6->2" from IW15)
+440dd0b Add R-series roof outline with 6" overhang
+fc71d28 Add roof.svg to publish.sh
+c3a768a Add grey roof span curve to all span SVGs
+214e163 Move roof_polyline to floorplan/roof.py as SSOT
+8b04853 Expand span Y-axis for roof, add max roof span notation
+ba6ed9e Title floorplan_db.svg 'Parent Suite with Daybed'
+a7fefe1 Move ROCKER 12" N in daybed variant
+0ed91f9 Remove dresser corner circles from floorplans
+8d2643e Move ROCKER 9" N in daybed variant (was 12")
+276dfae Add ET 6" W of DAYBED in floorplan_db
+4bfdb61 Move ROCKER 9" N in floorplan_db
+f9978d3 Center table+chairs under SINK in floorplan_db
+e7e2389 Move N-S 11'0" dim line 12" east
+637d327 Add 18" COUNTER to floorplan_db
+44f35f9 Add HAMPER to all floorplans with basket pullout
+26486fc Add door arcs to washer/dryer, NE hinge
+498cdda Add west end outline to IW1
+a5ba54d Add north end construction lines to IW9 and IW4
+f718d5a Replace minik sofa with IKEA Saltsjobaden 3-seat
+f6acbde Add door to MICRO, SW hinge
+0988dc6 Add dashed door extensions to STOVE and D/W
+4b8a8fd Add MICRO on 18" COUNTER in floorplan and db
+81c0868 MICRO door NE hinge closing NW on floorplan/db
+dcb9273 MICRO door opens N, sweeps to NW corner
+91af725 Remove COUNTER label from 18" deep counter
+ecce3f4 Add coffee maker to 30" counter on floorplan/db
+8fecd6e Add site_plan.pdf with building outline on survey
+cc61b92 Fix site plan rotation: correct 216.73' line endpoints
+87cc825 Remove debug images from site/
+85d7330 Site plan: single 0.8pt outline inside F boundary
+07c8feb Site plan: thicken outline to 1.2pt
+6a0ad18 Site plan: 1.5pt stroke, shift outline 20' up
+b8e0f75 Site plan: 1.6pt, shift 5' down, 10% more inward
+e715574 Site plan: revert setback to 11' (scale verified)
+98251c2 Remove stray debug image
+b6ca734 Site plan: shift outline 10' down along line
+3b98f4d Site plan: shift 5' up, add 11.0' setback caption
+4161e60 Rotate 11.0' caption perpendicular to 216.73' line
+5024bc1 Remove debug image
+4d0ceff Fix 11.0' caption rotation to CCW
+5960352 HOWTO: add site_plan.pdf text caption notes
+1c44d15 Site plan: use ASCII apostrophe for 11.0' caption
+dc88149 Site plan: bump 11.0' caption font to 8.8pt
+c20b9ce Bump site plan caption font size to 9.0pt
+3ab7238 Add 23.5' F2-to-275.08' line distance caption
+5d3f41a Add F15-to-F2F3 dimension line with 36.0' caption
+9b900e2 Flip 36.0' caption 180 deg, shift above line
+08523bc 36.0' caption: 6pt font, move to other side
+23d36a0 Add 27.1' N-S max span line; bump dim captions to 7pt
+5f1ec41 Reduce 36.0' and 27.1' captions to 6.5pt
+af8cced Reduce 36.0' and 27.1' captions to 6pt
+63796d6 Add site_plan.pdf to publish.sh
+cdf56d2 Add PROPOSED CONC. GUEST HOUSE label inside outline
+52790ef Reduce building label to 8pt, adjust position
+856dbf1 Shift building label 5' south from previous position
+9991221 Shift building label 5' down on page
+a37863c Add leading spaces to PROPOSED to shift right
+6600956 Add 3 more leading spaces to PROPOSED
+f0940e2 Add floorplan_bare.svg without interior objects
+c62548e Add IW2-east to W14 dim line in bare floorplan
+d937fe7 Replace two IW6 dims with IW8-to-W6 in bare
+3029590 Move bare IW8-W6 dim to RO4 open door west
+db5442d Remove IW6 and RO5 door in bare floorplan
+833da12 Add W11a-W11b midpoint to IW1 dim in bare
+e893014 Set bare floorplan title to Room Dimensions
+96aba29 Add casement window illustrations for O8, O9, O10
+bf99748 Swing casement windows outward, not inward
+214f493 Add rotation direction guide to HOWTO.md
+bc1f8db Move casement hinges inward to S-series face
+3f749df Link casement window shapes to Broga catalog
+d37baeb Increase setback to 11.5', update caption
+7b7d121 Move structure up along 216.73' line to 25.5' from bottom
+4154e03 Add site_plan_df.pdf output with shared base content
+4e617d0 Add FRONT arrow annotation above 251.53' line
+aa8a75f Add site plan generator to gen_all.py
+9be749d Move FRONT label up 4' and increase to 16.8pt
+253f1d1 Add dashed drainfield rectangle to site_plan_df
+0064d22 Fix drainfield dashed outline via polyline path
+2cfbd66 Fix drainfield dashes with phase parameter
+9c2ea6d Drainfield 25x10', reduce label to 7.2pt
+27fa48f Two-line EXISTING DRAINFIELD label
+defcca8 Vertically center drainfield label in shape
+e408374 Add second drainfield left of residence
+36746cc Fix left drainfield: reverse direction, 10' up
+9fe765f Move left drainfield 10' up on page
+cb02add Adjust left drainfield offset to -1'
+f04f11f Add NEW DRAINFIELD between F2 and property corner
+7aff8c1 Rotate NEW DRAINFIELD to align with F2-corner line
+b9d9d3e Move new drainfield 4' closer to F2
+22d198b update file lists
+709aa76 Add scad/ folder with OpenSCAD wall extrusion generator
+ba016ce Model double-shell walls with openings in OpenSCAD
+25549a4 Add tests for roof, scad, and span generators (68% → 84%)
+de21673 Model per-section wall segments with cavities
+69b47bb Emit arcs and lines in flat_roof.scad instead of vertex lists
+7f10f08 T-path shell centerline approach for OpenSCAD
+de95678 Add length/bearing and radius/sweep comments to T-path segments
+6742107 Align T-path segment comments to common column
+b02ba01 Use ASCII deg instead of Unicode degree symbol in SCAD comments
+ac99a81 Increase SCAD precision: 8dp position/radius, 6dp angles
+53bcb81 Replace em dash with ASCII hyphen in SCAD header comment
+210651b Reorder arc comment: direction+sweep before radius
+81f4f87 Add R prefix before radius in arc comments
+837e96b Align CW/CCW and pad single-digit feet in comments
+647f003 Align decimal points of bearings and sweep angles in comments
+3d3ebca Align decimal points of inches in comments
+8d8d4ee Align inches to 3 digits before decimal in comments
+ae1960a Use 2-digit inches alignment for radius display
+cada2ae Add full-wall upper T-path (O4 only) at 80-112 inches
+6bf1837 Color walls adobe beige in OpenSCAD
+0539626 Add forest green roof slab at 112-130 inches
+b71b253 Darken roof color 50% toward black
+d2f1b6c Slope roof 1/4 per ft north, walls meet underside
+781459d Shrink intersection half-space cube to fix preview
+333570e Fix upper wall preview transparency with render()
+416dd45 Merge alt9 into main, adopting alt9 content
+cd97116 Add 2:12 slope variant scad/gen_2in12.py
+e14ad06 Lower 2in12 ref elev to 7'6" at F18-F19
+36777ef Add scad/gen_views.py for preview image generation
+0a20cea Add scad views to publish.sh
+39425ac Flat roof: 9'4" walls, no slope, flat slab on top
+afdbd6a Flat roof: 1/4"/ft wedge slab, 18" min at south
+1fe2146 Two-tier walls: 6'8" all openings, 6'8"-9'4" O4 only
+909f977 Add index.html, site_plan_df.png generation, publish updates
+ad8ee17 Add floorplan_minik.svg to index.html
+de5d12f Merge branch 'alt9'
+b58562d ignore pngs
+fd531c3 10" exterior walls: 2" shell / 6" gap / 2" shell
+876917f Parameterize wall thickness (8"-12")
+89e7fd6 Document wall thickness change in HOWTO.md
+ca926ae new title
+25d6225 Enlarge: F3-F14 +6" N, IW1 +6" N, IW8 +3" N
+2b17d9d N-S dim line south end at F18-F19
+78cabe4 Auto-compute site plan N-S and E-W dims
+6b1e3ee Fix F17 tangency: derive from arc C17 instead of fixed segment
+926c85f F17-F18 arc: max-radius fillet with tangency, fixed sweep, min constraints
+abe9628 Reduce wall thickness to 8"
+8ec9dc1 O5 easting relative to IW2 east face
+3fe94c8 O6 east edge 6" west of F10
+30e7d6a Move ICE 4" west in floorplan_db
+f3c677d F14 2" north of IW1 north face
+88f0588 Move F11a-F11b brg/dist label down to avoid overlap
+86c8480 Spread F11a/F11b labels apart to prevent overlap
+9be0e41 Move F11-F11a arc label up to avoid F10-F11 overlap
+7d7b54b Set F13-F14 arc radius to 28"
+e63bd7b Solve F14_N from F11a-F11b target distance (1'0")
+af8db8e Derive R_a13 from F14-F15 dist (8'8") + F11a-F11b (1')
+310be9f adding scad files
+8294ec8 Add RO6 to IW11: 62" wide, centered between IW12 S face and IW11 S end
+3953871 Add RO7 to IW9: 62" wide, centered between IW7 S face and IW9 S end
+f0b266d Move IW9 label halfway back toward original position
+31eda52 RO3 door swings west instead of east
+9dd6130 Add 60" double door in RO7 opening east
+67ddbd0 Add 60" double door in RO6 opening west
+c4b5cb9 Fix RO6 double door arc sweeps to close toward center
+399140e Change F3-F4 arc sweep to atan(1/9)
+7a4c9b3 Move F3 to 2in N of IW8 north face
+d90f5c6 Increase F3-F4 arc radius to 240in
+f426ca7 Solve F3-F4 arc radius from F6-F7 = 5'3" target length
+8498910 Center O4 on F6-F7 segment midpoint
+35c41fc adding scad files
+9c31dd6 Add d² regression tests for all interior geometry points
+801fbda Add W8-W9 shell polyline special points to d² tests
+c6081a8 Add F-series outline points to d² tests
+c55ea04 Define F-series points via chain from F2 bearing north
+3866cfc Replace world-frame refs with segment-relative offsets
+5d52bf9 Vector-based positioning for all IWs and furniture
+08ca7e8 DRY: add _poly_bbox/_proj, consolidate W20-W1 vectors
+dd2081f Add git describe/timestamp caption to site plan PDFs
+1ff0292 Add SCAD generator test coverage
+1c0fbd3 Add tests for site plan generator, refactor into testable functions
+dcac0f3 Unified Wall type replaces mixed BBox/poly/scalar layout fields
+11124b2 Add FC point midway between parallel segment pairs
+d8e9d9b Move outline area label between FC and W9-W10 midpoint
+916d55d Constraint-based site plan placement with d² regression tests
+52658b1 Draw 2' radius circles at parcel corners on site_plan.pdf
+0e0b593 Corner circles on site_plan.pdf only, not _df variant
+f398a9b FC-based site plan positioning with computed min setback labels
+cde6ad7 Add 19.1' distance label from residence corner to F11b
+8a3d555 Render proposed building and new drainfield in dark blue
+c3ef96c Color parcel corner circles 40% opaque red
+40a542d Add site_plan_fs.pdf with outer survey path in 40% opaque dark green
+386e423 Correct 3.39deg angular mismatch in outer path rendering
+6454f17 Add 11.0' distance constraint and P-series d2 tests
+add8d33 Solve optimal pivot for P-series alignment
+15f29c4 Add P-to-F cross-distance tests, fix Jacobian
+bcad29c Use path_area.svg pivot for P-series alignment
+86e850d Refactor: extract helpers, DRY, split large functions
+6721e4a Convert openings.py to rotation-invariant placement
+cd88e71 Derive furniture angles from wall segment directions
+c43d5a4 Post-process SCAD renders into line drawings
+ccd3217 Separate line drawing generation into _ld.png files
+9029a0f Add 3views.pdf: 2x2 layout of elevations + floorplan
+9e72568 Convert furniture/appliance positions to wall-relative
+d3a6073 Add 3views.pdf to publishing pipeline
+d8fda18 Remove deprecated absolute position constants
+24aefd1 Add rotation-invariant placement docs to HOWTO
+b717f3b Add appliance/furniture placement regression tests
+e575e66 Wall-relative dimension endpoints with d2 tests
+008d1e2 Move dim06 to O8 center, rotate relative to W14-W15
+f796eda Auto label placement in _rotated_dim: above/left
+ed334de Chain walk as SSOT, FC as origin
+2a6f96c Fix SCAD camera and trim box for FC origin
+d7da221 ignore new site plan with survey
+e6d404c Add P-series d2 regression tests
+cc67cde Remove axis-alignment assumptions for coordinate rotation
+c20a713 Update site plan test expected values for arctan(1/9) rotation
+468c0b9 Apply COORD_ROTATION to align F4-F5 to bearing 0
+39a7851 Add 3-tier SCAD walls: lower (0-20" doors), middle (20-80" all), upper
+cbc30ab Make all SVG rendering rotation-safe
+7e0a5b0 Remove P/Pi extra rotation, unify coordinate space
+4f9f160 Align P/Pi survey data with F-series via computed rotation
+00acf41 Translate P/Pi so F16/F17 lie on PiX-Pi5 line
+8cdde89 Two-constraint P/Pi translation: F3 on P2-P3, F16 on PiX-Pi5
+0bb0d4c Centralize P-to-F transform, remove dead anchor code
+c465ffb Remove appliance/furniture from path_area, render all IWs
+ba55543 Make IW4 north end at IW12, single source of truth
+9d2f356 Use .poly for all IW rendering in gen_walls.py
+01f0d48 Fix desk/chair to interior side of W16-W17
+35f257d Align site plan dims with floorplan externals
+a11b5ec Restore site plan dim line positions, keep aligned values
+be234e0 Add FC as d2 regression reference point
+a831871 Add 1" window panels to SCAD generators for middle-only openings
+9319a09 Remove P3 coordinate system from public API
+883c393 Add coordinate systems documentation
+e7037bc Include 0° in span rotation range as floorplan reference
+9c693bb Remove F3/F4, straighten east wall, 90° NE arc
+9221fc0 Rotate IW8 perpendicular to W2-W5, 12' from W20-W1
+9fb0dca Fix IW8 to 6" thick, add IW thickness tests
+3292593 Reduce F1-F2 arc radius to 10" (CORNER_NE_R design constant)
+58e7b5c Reorient dim05 parallel to W20-W1 at IW3 midpoint
+a1a2b26 Move IW3/IW7/IW9/IW16 group to 8'6" from W2-W5
+3ef9b0d Rotate COORD_ROTATION CCW by arctan(1/19) to arctan(14/85)
+d239363 Revert "Rotate COORD_ROTATION CCW by arctan(1/19) to arctan(14/85)"
+88c2b56 Rotate COORD_ROTATION by arctan(1/19) CCW
+3ee8afd Set COORD_ROTATION to 0, retain for future use
+9c5ad1c Set F2.E=-18' F1.N=-13' exactly, simplify anchor
+154b235 Fix F8-F9 corner indices shifted by F3/F4 removal
+d230cc7 Add segment index mapping test to catch index drift
+202a0cc Shift IW4/IW11/IW12/IW15 group for 12' IW9-IW11 gap
+1140ce5 Widen F7-F8/F10-F11 sweeps, remove IW14/IW15
+15f768e Align dresser with IW1 south face
+9acb4db Fix skewed _iwp/_lwp to use perpendicular vectors
+dc44bde Align _iwp/_lwp with IW1 north face
+35e888a Fix fridge door arc open/close swap
+eff7fa7 Make F14-F15 bearing exactly 180 degrees
+27d7c39 Set W20-W1 to W9-W10 clear span to 23.5'
+d04e4fe Move F1 6" south and 6" west of FC
+7a774eb Set C5 and C7 sweeps to 90°, simplify solver
+d0b3c9e make gen_all.py root path agnostic
+b3356e6 new scad
+8f84009 Resolve merge conflict, make all gen scripts root-path agnostic
+e8968a2 Reduce C10 sweep to 75°, C13 to 15°, align F11a/F11b to F6-F7 line
+d5a7faf Add 3views.png rendering to gen_all.py and publish.sh
+aad6c4b Link 3views and site plan images to PDF downloads
+cbcc5f1 portability for fresh clones
+5bc5619 Merge branch 'altD'
+c39222d add GOLEM link
+bbfc941 Merge branch 'altD'
+a474f59 Add F-series point labels to all_walls.svg
+7ead0d0 Set IW2 west face 5'4" from F2-F5 line
+196ca55 Add d2 regression update script
+c5c8958 Move F7-F9 east 8" for IW2 west face 5'4" from W2-W5
+f826ff6 Remove 34 unused design-reference constants
+d16c240 Break IW2 into IW2/IW2o/IW2s three-segment wall
+9ad8f72 IW4 parallel to IW11, 30" east of IW11 east face
+d003f3c Add IW2o and IW2s to all_walls.svg
+26b967e Remove F19/F20, simplify SW corner with 28" fillets
+635a530 Move F14 to 1ft north of IW1, shift F10-F12 east
+d3666ff Set F2-F5 to F14-F15 distance to exactly 36ft
+3decefd Adjust C15/C17 radius so F14-F15 = 9'8"
+c84f8fd Set d_F16_F17 to 5ft, adjust C15/C17 radius
+aa1bed2 Move F14 6in south, R_C13=R_C15, d_F9_F10=15'6"
+c350b81 Set C13 sweep=arctan(1/3), C11 sweep=90-arctan(1/3)
+52af7cd Set C10/C11a sweep to 90-arctan(1/3), release C10 radius
+e034b70 Move F14 north until d_F9_F10 = 15'6"
+aab4733 updated scad
+27fbadb Extend IW9 to IW1, move IW7 to 6', RO7 50"/48" doors, RO3 to IW9, remove IW16
+386f5e3 IW3 runs from W18-W1 to IW7 north face
+31366f8 RO3 door: hinge S side, swing west
+c45505d Add KALLAX shelves 2" S of IW1, 2" W of IW9 with IKEA link
+3e8861b Rotate shelves long axis along IW1, 1/4" gap from IW1
+15b6f7d Align IW1 west end and IW8 east end with IW2 west face
+49a08fc Center IW8 midway between W18-W1 and W6-W7
+6a81191 Move bare dim12 line to center of O4
+a271f72 dim10: measure W2-W5 to IW2s west face
+3c383d4 Add dim09: W2-W5 to IW2 west face at O2 center northing
+48e3873 Move SHELVES to 1/4" W of IW9
+8573da9 Center KING BED label in bed polygon
+586d31e RO4 door: hinge SE end, swing 90 to NW end
+fbd12c1 Reverse RO4 door swing to east face
+d09711b Fix RO4 door comments: WSW swing, not east
+0fb0e40 Reposition IW5, IW12, IW4; resize RO6/doors; recenter RO2
+6a38e41 IW12 W end at IW11 E face, E end at IW4 W face
+9ee0dba Move dim11 N end from IW1 S face to IW5 S face
+d9e1fb0 Add dim22: IW12 N mid to IW5 S face
+bb874f6 East closet 8" taller: IW12 S offset 5'0" to 5'8"
+370f0c8 Remove dim16 (O9→IW1 dimension line)
+c3b2734 Move BEDROOM label: right at RO1 W end, top at RO3 N end
+a0ee6bf Rotate/translate survey -3.39° to align F16-F17 on Pi5-Pi4-PiX line
+2f8f126 F12-F13 tangent to TC1 arc: new C15/C17 sweeps
+eece389 Site plan: constrain P4/P5 at 11' from 216.73', P3 at 25.5' from 275.08'
+8a11659 Site plan label: PROPOSED 950SF MAX ADU
+3c56752 Move ADU label: anchor at FC, shift 2 chars right
+66a2d11 ADU label: back to FC center, up 1.5 char heights
+6246f09 ADU label: nudge 0.25 char right
+f9b8f53 ADU label: combine 950SF MAX on one line
+178fe39 ADU label: shift up 1 char height
+3e39ea0 ADU label: nudge down 0.2 char height
+2e398f5 Add path_area_wo.svg with O-series openings
+40feeb1 Add path_area_ks.svg with K-series stake points
+e3488cf path_area_ks: table to upper right, remove F labels
+e13c798 opt_rot: C17 sweep illustrations 30-42 deg
+c8df278 path_area_ks: angular diversity P-point selection
+d9dc8fb path_area_ks: add K-to-K distances with angular diversity
+6c86050 path_area_ks: add opening locations table
+cb05239 path_area_ks: move opening table below distance table
+b93468a opt_rot: add alignment constraints to solver
+57b6316 path_area_ks: remove campfire icon and circle
+de45b4d path_area drawings: include IW2s and IW2o walls
+9922079 path_area_ks: deduplicate K-K pairs in distance table
+19b0819 Add arctan(7/12) C17 sweep analysis as _712
+41eb903 Add area label to opt_rot SVG drawings
+f8c6514 Add arctan(8/12) C17 sweep analysis as _812
+57c0b58 Add ABOUT_OPT_ROT.md documenting analysis
+769b88b don't check in the generated graphics files
+7eb2d3d Apply C17 = arctan(7/12) to main outline
+186ad98 Add 2nd SHELVES east of IW9 in floorplan_db only
+924f72e Move RO1 4" east (116" to 120" from IW2)
+30298a9 Widen O8, O9, O10 from 23" to 25" (half-width 12.5")
+e15ea2c Restore 6" IW9/IW11 offsets, reduce O9-O10 wall to 82"
+af04602 add animation maker
+570b026 Code review remediation: rename hut2→adu, deduplicate span/, extract constants, add types
+c1f6c50 project rename to adu
+221a369 DRY: deduplicate geometry, openings, span rendering
+43bbe67 remove adu.egg-info/ from tracking
+d274de3 update HOWTO §7 generator list (6→15)
+78c5172 document span_minmax.svg omission in publish.sh
+2779a44 extract compute_wall_table_rows() from render
+5740bbf DRY: extract _swing_arc_svg for door arcs
+b32f26b declare Pillow, numpy, scipy in gen dependencies
+53a9613 fix hardcoded /4 centroid in gen_path_svg_wo
+148c69c harden: dedup circle isect, guard empty/zero-div, fix float drift
+3935f75 guard left_norm, seg_vecs against zero-length segments
+e35cd24 Add F/P-series coordinate table PDF
+fd83254 Unify point tables, add K-series, add key measurements
+0d66404 Add generated timestamp + repo footer to points.pdf
+fe6a774 Add F12-F13/TC1 and F18-F1/TC3 distances to points.pdf
+0dfba38 Add floorplan_sf.svg with room labels and RO1-O6 dashed line
+87e5102 Move OFFICE label up 18"
+316205c Add UTIL label between toilet and sink
+badbf3f Add KITCHEN label centered beneath sink
+09013bf Add W9-to-IW2s dashed line in floorplan_sf
+c26f285 Add kitchen sf label, move KITCHEN closer to dim
+9de90b3 Align sf label top below dim line symmetrically
+1b579f0 Add LIVING label and 168.8 sf area to floorplans
+ee9e95c Add sf labels for BEDROOM, UTIL, OFFICE rooms
+4f35f60 Fix UTIL area: include full 8'6"x12'9" + above IW3/IW7
+2033e45 Add sf labels for closets and storage rooms
+bfa0258 Add BATH label and 45.8 sf area to floorplans
+40bb329 Fix BATH area: ignore IW6, extend to NW corner
+85080d6 Add WH label and 6.2 sf area to sf floorplan
+45c449a Center WH labels between IW2s/W8 and W6-W7/W9-W10, font size 6
+f14dff4 Fix room sf polygons: IW2o face, UTIL T-shape, BATH IW6 subtraction
+082d63a Extract compute_room_areas(); add sf sum test
+caf83d6 Replace UTIL sink ellipse with linked 24×19 rectangle (Empire NSB24)
+f4c70a9 Update UTIL sink to 24" Petten console (23-5/8 x 16-1/2)
+e0d6f88 Add 19" opening O8a on F18-F1 wall, 48" east of O9
+2ab7b69 Add 2:12 area column and slope wall row to Wall Segments table
+af96de4 Move 2:12 total to in-feet row; add (sq ft) to header
+cb0864a BATH sink: Tripoli D-shape, 9" from IW2, flush IW8 north
+b976b7f BATH sink: rect with semicircle from central 50%
+526b5b8 Move both toilets 4" west along IW8
+7a13a46 Move O3 4" south; fix wall direction comments
+2a722de Set O2 to 48" south of O3 on F2-F5 west wall
+8db2b77 Split 2:12 area column header onto two lines
+d0edbc9 Set O1 to 72" south of O2 on F2-F5 west wall
+e875fb5 Fix dim08: O1 W-series face to IW9 west face
+ef16a68 Make dim08 horizontal E-W at O1 center northing
+3d59e8e Center dim09 label at bath toilet easting
+e218ac4 Move dim11 easting to center of O11
+f884934 Move dim19 (12'9") easting to center of O11
+debd2d3 Change O8a from casement to normal window
+767645f Move dryer door hinge to SE, swing shut on NE
+3cd95c2 Restore washer door hinge to NE corner
+508af3e Add dashed line from IW3 NW to W2-W5 in SF view
+916df73 Split UTIL sf into north/south at IW3 NW dashed line
+1b8ae89 Add plumbing plan SVG with selected fixtures
+1c19e02 Add green utility path to plumbing SVG
+0885e44 Shift outside E-W dim line 9" south in plumbing view
+ecab99c Overlap gradient start to fix seam at transition
+4711558 Add 'from Well' label east of gradient
+740f29f Add blue water supply line to plumbing SVG
+2d87a3f Plumbing SVG: doors 20% opacity, appliances 60%
+d268415 Blue fade on supply line, blue from Well label
+7fe6d39 Add red hot water line parallel to blue supply
+8978853 Add 2nd red line from bath sink to kitchen sink
+3d058ca Reduce blue line interior wall offset by 0.5 inch
+5b2071c T-connect 2nd red line ends to 1st red line
+0601849 Add blue T-stub 12 inch north at WH center
+9c7720a Move WH T-stub to blue E-W segment at WH easting
+47e1b3b Break 1st red line at WH T-stub with north stubs
+7c946fa Add RO width in inches to Interior Walls table
+30d69c2 Widen Interior Walls table to match Wall Segments width
+910eeb5 Add Supplies table to plumbing plan SVG
+2e538e7 Move N arrow up and west of title block
+887e736 Fix DISHWASHER supplies checks, add ICE to plumbing
+14e35e4 Extend blue supply line east to ICE west side
+f2001ca Move 2nd red line west end to toilet east side
+ac7fa11 Rename Supplies table to Water Services
+2a451d3 Add property boundary lines to plumbing SVG
+60df666 Fix SW corner to 275.08'/216.73' intersection
+e227132 Clip 275.08' line at F6-F7 northing, trim SVG
+74b8fa6 Add interactive web editor app
+24b5925 Add *.db to gitignore
+6d3103a Add REQUIREMENTS.md for editor app
