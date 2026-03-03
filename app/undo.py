@@ -6,7 +6,11 @@ stack with a position pointer and persists entries to the undo_history table.
 import json
 import time
 
-from app.database import get_db, update_constants_batch
+from app.database import (
+    get_db, update_constants_batch,
+    create_element_raw, update_element, delete_element,
+    create_door_raw, update_door, delete_door,
+)
 
 
 class UndoManager:
@@ -70,12 +74,56 @@ class UndoManager:
     def _apply(self, action_type, state):
         """Apply a state snapshot to the database.
 
-        For Phase 2, all action types (constant_update, constant_batch,
-        constant_reset) store name→value dicts and apply via batch update.
-        Future phases extend this with additional action type dispatch.
+        Dispatches by action_type:
+        - constant_*: batch-update constants from name→value dict
+        - element_create undo: delete the created element (state = {"id": N})
+        - element_delete undo: re-insert full record (state = full element dict)
+        - element_update: restore old field values (state = {"id": N, ...fields})
+        - door_create undo: delete the created door (state = {"opening_name": X})
+        - door_delete undo: re-insert full record (state = full door dict)
+        - door_update: restore old field values (state = {"opening_name": X, ...})
+        - opening_*: same pattern as element_* (openings are elements)
         """
         if action_type in ("constant_update", "constant_batch", "constant_reset"):
             update_constants_batch(state, self._db_path)
+        elif action_type == "element_create":
+            # Undo: delete the element that was created
+            delete_element(state["id"], self._db_path)
+        elif action_type == "element_delete":
+            # Undo: re-insert the deleted element(s)
+            if isinstance(state, list):
+                for rec in state:
+                    create_element_raw(rec, self._db_path)
+            else:
+                create_element_raw(state, self._db_path)
+        elif action_type == "element_update":
+            # Undo: restore old field values
+            eid = state["id"]
+            fields = {k: v for k, v in state.items() if k != "id"}
+            update_element(eid, fields, self._db_path)
+        elif action_type == "door_create":
+            # Undo: delete the door that was created
+            delete_door(state["opening_name"], self._db_path)
+        elif action_type == "door_delete":
+            # Undo: re-insert the deleted door
+            create_door_raw(state, self._db_path)
+        elif action_type == "door_update":
+            # Undo: restore old field values
+            oname = state["opening_name"]
+            fields = {k: v for k, v in state.items() if k != "opening_name" and k != "id"}
+            update_door(oname, fields, self._db_path)
+        elif action_type == "opening_create":
+            delete_element(state["id"], self._db_path)
+        elif action_type == "opening_delete":
+            if isinstance(state, list):
+                for rec in state:
+                    create_element_raw(rec, self._db_path)
+            else:
+                create_element_raw(state, self._db_path)
+        elif action_type == "opening_update":
+            eid = state["id"]
+            fields = {k: v for k, v in state.items() if k != "id"}
+            update_element(eid, fields, self._db_path)
         else:
             raise ValueError(f"Unknown undo action type: {action_type}")
 

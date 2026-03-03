@@ -100,6 +100,23 @@ CREATE TABLE IF NOT EXISTS undo_history (
     after_state  TEXT NOT NULL,       -- JSON serialised new state
     description TEXT DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS elements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    type       TEXT NOT NULL,          -- wall, furniture, appliance, fixture, opening, clearance, label, dimension
+    name       TEXT NOT NULL UNIQUE,
+    properties TEXT DEFAULT '{}',      -- JSON: metadata, dimensions, position
+    variant    TEXT                    -- NULL = all variants; non-null restricts to one
+);
+
+CREATE TABLE IF NOT EXISTS doors (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    opening_name    TEXT NOT NULL UNIQUE,     -- e.g. 'RO1'
+    width           REAL NOT NULL,            -- door width in inches
+    hinge_side      TEXT NOT NULL,            -- 'east', 'west', 'north', 'south'
+    swing_direction TEXT NOT NULL,            -- 'east', 'west', 'north', 'south'
+    door_type       TEXT NOT NULL DEFAULT 'single'  -- 'single' or 'double'
+);
 """
 
 
@@ -115,6 +132,8 @@ def init_db(db_path=None):
             _seed_views(conn)
             _seed_shapes(conn)
             _seed_variant_exclusions(conn)
+            _seed_elements(conn)
+            _seed_doors(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +437,76 @@ def _seed_variant_exclusions(conn):
 
 
 # ---------------------------------------------------------------------------
+# Seed: elements (13 interior walls)
+# ---------------------------------------------------------------------------
+
+# IW name → (thickness constant, orientation)
+_IW_SEED = [
+    ("IW1",  "WALL_6IN",        "H"),
+    ("IW2",  "WALL_6IN",        "V"),
+    ("IW2O", "IW2O_THICKNESS",  "R"),
+    ("IW2S", "WALL_6IN",        "V"),
+    ("IW3",  "WALL_4IN",        "V"),
+    ("IW4",  "WALL_4IN",        "V"),
+    ("IW5",  "WALL_4IN",        "H"),
+    ("IW6",  "IW6_THICKNESS",   "H"),
+    ("IW7",  "WALL_4IN",        "H"),
+    ("IW8",  "WALL_4IN",        "V"),
+    ("IW9",  "WALL_4IN",        "V"),
+    ("IW11", "WALL_4IN",        "V"),
+    ("IW12", "WALL_4IN",        "H"),
+]
+
+
+def _seed_elements(conn):
+    """Seed the elements table with the 13 interior walls."""
+    import json
+    for name, thickness_const, orientation in _IW_SEED:
+        props = json.dumps({
+            "thickness_constant": thickness_const,
+            "orientation": orientation,
+        })
+        conn.execute(
+            "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
+            "VALUES (?, ?, ?, ?)",
+            ("wall", name, props, None),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Seed: doors (RO1–RO7 defaults)
+# ---------------------------------------------------------------------------
+
+# (opening_name, door_width_constant, hinge_side, swing_direction, door_type)
+_DOOR_SEED = [
+    ("RO1", "RO1_DOOR_WIDTH", "east",  "south", "single"),
+    ("RO2", "RO2_DOOR_WIDTH", "north", "east",  "single"),
+    ("RO3", "RO3_DOOR_WIDTH", "south", "west",  "single"),
+    ("RO4", "RO4_DOOR_WIDTH", "south", "west",  "single"),
+    ("RO5", "RO5_DOOR_WIDTH", "east",  "north", "single"),
+    ("RO6", "RO6_DOOR_WIDTH", "west",  "west",  "double"),
+    ("RO7", "RO7_DOOR_WIDTH", "east",  "east",  "double"),
+]
+
+
+def _seed_doors(conn):
+    """Seed the doors table with default configurations for RO1–RO7."""
+    import importlib
+    import floorplan.constants as mod
+    importlib.reload(mod)
+
+    for opening_name, width_const, hinge, swing, dtype in _DOOR_SEED:
+        width_ft = getattr(mod, width_const, 3.0)
+        width_in = round(width_ft * 12.0, 2)
+        conn.execute(
+            "INSERT OR REPLACE INTO doors "
+            "(opening_name, width, hinge_side, swing_direction, door_type) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (opening_name, width_in, hinge, swing, dtype),
+        )
+
+
+# ---------------------------------------------------------------------------
 # CRUD operations
 # ---------------------------------------------------------------------------
 
@@ -546,3 +635,196 @@ def reset_constants(db_path=None):
     with get_db(db_path) as conn:
         conn.execute("DELETE FROM constants")
         _seed_constants(conn)
+
+
+# ---------------------------------------------------------------------------
+# CRUD: elements
+# ---------------------------------------------------------------------------
+
+def get_all_elements(db_path=None):
+    """Return all elements as a list of dicts."""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, type, name, properties, variant FROM elements ORDER BY type, name"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_element(element_id, db_path=None):
+    """Return a single element by ID, or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT id, type, name, properties, variant FROM elements WHERE id = ?",
+            (element_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_element_by_name(name, db_path=None):
+    """Return a single element by name, or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT id, type, name, properties, variant FROM elements WHERE name = ?",
+            (name,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def create_element(type_, name, properties=None, variant=None, db_path=None):
+    """Create a new element. Returns the created record dict with assigned id."""
+    import json
+    props = json.dumps(properties or {})
+    with get_db(db_path) as conn:
+        cur = conn.execute(
+            "INSERT INTO elements (type, name, properties, variant) VALUES (?, ?, ?, ?)",
+            (type_, name, props, variant),
+        )
+        return {
+            "id": cur.lastrowid, "type": type_, "name": name,
+            "properties": props, "variant": variant,
+        }
+
+
+def create_element_raw(record, db_path=None):
+    """Re-insert an element from a full record dict (used by undo)."""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT INTO elements (id, type, name, properties, variant) VALUES (?, ?, ?, ?, ?)",
+            (record["id"], record["type"], record["name"],
+             record["properties"], record.get("variant")),
+        )
+
+
+def update_element(element_id, updates, db_path=None):
+    """Update element fields.  Returns updated record or None if not found."""
+    import json
+    allowed = {"type", "name", "properties", "variant"}
+    sets = []
+    vals = []
+    for k, v in updates.items():
+        if k in allowed:
+            if k == "properties" and isinstance(v, dict):
+                v = json.dumps(v)
+            sets.append(f"{k} = ?")
+            vals.append(v)
+    if not sets:
+        return get_element(element_id, db_path)
+    vals.append(element_id)
+    with get_db(db_path) as conn:
+        conn.execute(
+            f"UPDATE elements SET {', '.join(sets)} WHERE id = ?", vals
+        )
+    return get_element(element_id, db_path)
+
+
+def delete_element(element_id, db_path=None):
+    """Delete an element by ID.  Returns list of deleted IDs (includes cascade)."""
+    deleted = []
+    with get_db(db_path) as conn:
+        # Check for hosted openings if deleting a wall
+        row = conn.execute("SELECT type, name FROM elements WHERE id = ?", (element_id,)).fetchone()
+        if not row:
+            return deleted
+        if row["type"] == "wall":
+            # Cascade: delete openings that reference this wall
+            hosted = conn.execute(
+                "SELECT id FROM elements WHERE type = 'opening' AND "
+                "json_extract(properties, '$.host_wall') = ?",
+                (row["name"],),
+            ).fetchall()
+            for h in hosted:
+                # Also remove door for the opening
+                opening_row = conn.execute(
+                    "SELECT name FROM elements WHERE id = ?", (h["id"],)
+                ).fetchone()
+                if opening_row:
+                    conn.execute(
+                        "DELETE FROM doors WHERE opening_name = ?",
+                        (opening_row["name"],),
+                    )
+                conn.execute("DELETE FROM elements WHERE id = ?", (h["id"],))
+                deleted.append(h["id"])
+        conn.execute("DELETE FROM elements WHERE id = ?", (element_id,))
+        deleted.append(element_id)
+    return deleted
+
+
+# ---------------------------------------------------------------------------
+# CRUD: doors
+# ---------------------------------------------------------------------------
+
+def get_all_doors(db_path=None):
+    """Return all doors as a list of dicts."""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, opening_name, width, hinge_side, swing_direction, door_type "
+            "FROM doors ORDER BY opening_name"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_door(opening_name, db_path=None):
+    """Return a door by opening name, or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT id, opening_name, width, hinge_side, swing_direction, door_type "
+            "FROM doors WHERE opening_name = ?",
+            (opening_name,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def create_door(opening_name, width, hinge_side, swing_direction, door_type="single", db_path=None):
+    """Create a new door. Returns the created record dict."""
+    with get_db(db_path) as conn:
+        cur = conn.execute(
+            "INSERT INTO doors (opening_name, width, hinge_side, swing_direction, door_type) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (opening_name, float(width), hinge_side, swing_direction, door_type),
+        )
+        return {
+            "id": cur.lastrowid, "opening_name": opening_name,
+            "width": float(width), "hinge_side": hinge_side,
+            "swing_direction": swing_direction, "door_type": door_type,
+        }
+
+
+def create_door_raw(record, db_path=None):
+    """Re-insert a door from a full record dict (used by undo)."""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT INTO doors (id, opening_name, width, hinge_side, swing_direction, door_type) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (record["id"], record["opening_name"], record["width"],
+             record["hinge_side"], record["swing_direction"], record["door_type"]),
+        )
+
+
+def update_door(opening_name, updates, db_path=None):
+    """Update door fields.  Returns updated record or None if not found."""
+    allowed = {"width", "hinge_side", "swing_direction", "door_type"}
+    sets = []
+    vals = []
+    for k, v in updates.items():
+        if k in allowed:
+            if k == "width":
+                v = float(v)
+            sets.append(f"{k} = ?")
+            vals.append(v)
+    if not sets:
+        return get_door(opening_name, db_path)
+    vals.append(opening_name)
+    with get_db(db_path) as conn:
+        conn.execute(
+            f"UPDATE doors SET {', '.join(sets)} WHERE opening_name = ?", vals
+        )
+    return get_door(opening_name, db_path)
+
+
+def delete_door(opening_name, db_path=None):
+    """Delete a door by opening name.  Returns True if deleted."""
+    with get_db(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM doors WHERE opening_name = ?", (opening_name,)
+        )
+        return cur.rowcount > 0

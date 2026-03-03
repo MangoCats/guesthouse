@@ -15,7 +15,11 @@ from app.database import (
     DB_PATH, init_db, get_all_constants, get_constants_dict,
     get_constant_value, update_constant, update_constants_batch,
     get_categories, get_outline_chain, get_views, reset_constants,
+    get_all_elements, get_element, get_element_by_name,
+    create_element, update_element, delete_element,
+    get_all_doors, get_door, create_door, update_door, delete_door,
 )
+from app.doors import validate_door
 from app.engine import compute_geometry, generate_svg, get_svg_content, patch_constants
 from app.undo import UndoManager
 
@@ -173,6 +177,208 @@ def create_app(db_path=None):
             "action": entry["action_type"],
             "description": entry["description"],
         })
+
+    # -- Elements API --
+
+    @app.route("/api/elements")
+    def api_elements():
+        variant = request.args.get("variant")
+        if variant:
+            from app.elements import get_elements_for_variant
+            return jsonify(get_elements_for_variant(variant, db))
+        return jsonify(get_all_elements(db))
+
+    @app.route("/api/elements", methods=["POST"])
+    def api_create_element():
+        body = request.get_json(force=True)
+        type_ = body.get("type")
+        name = body.get("name")
+        if not type_ or not name:
+            return jsonify({"error": "missing type or name"}), 400
+        properties = body.get("properties", {})
+        variant = body.get("variant")
+        try:
+            record = create_element(type_, name, properties, variant, db)
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+        undo_mgr.record(
+            "element_create", record, record,
+            f"Create {type_} {name}",
+        )
+        _broadcast("element_changed")
+        return jsonify(record), 201
+
+    @app.route("/api/elements/<int:element_id>", methods=["PUT"])
+    def api_update_element(element_id):
+        old = get_element(element_id, db)
+        if not old:
+            return jsonify({"error": "not found"}), 404
+        body = request.get_json(force=True)
+        updated = update_element(element_id, body, db)
+        undo_mgr.record(
+            "element_update", old, updated,
+            f"Update {old['name']}",
+        )
+        _broadcast("element_changed")
+        return jsonify(updated)
+
+    @app.route("/api/elements/<int:element_id>", methods=["DELETE"])
+    def api_delete_element(element_id):
+        old = get_element(element_id, db)
+        if not old:
+            return jsonify({"error": "not found"}), 404
+        # Collect all records that will be deleted (for undo)
+        deleted_records = [old]
+        # Check for cascade targets (openings hosted by this wall)
+        if old["type"] == "wall":
+            from app.database import get_db as _get_db
+            with _get_db(db) as conn:
+                hosted = conn.execute(
+                    "SELECT id, type, name, properties, variant FROM elements "
+                    "WHERE type = 'opening' AND "
+                    "json_extract(properties, '$.host_wall') = ?",
+                    (old["name"],),
+                ).fetchall()
+                for h in hosted:
+                    deleted_records.append(dict(h))
+        deleted_ids = delete_element(element_id, db)
+        undo_mgr.record(
+            "element_delete", deleted_records, {"ids": deleted_ids},
+            f"Delete {old['name']}",
+        )
+        _broadcast("element_changed")
+        return jsonify({"ok": True, "deleted": deleted_ids})
+
+    # -- Openings API (stored as type='opening' elements) --
+
+    @app.route("/api/openings", methods=["POST"])
+    def api_create_opening():
+        body = request.get_json(force=True)
+        name = body.get("name")
+        segment = body.get("segment")
+        if not name or not segment:
+            return jsonify({"error": "missing name or segment"}), 400
+        properties = {
+            "segment": segment,
+            "width": body.get("width", 0),
+            "offset": body.get("offset", 0),
+            "host_wall": body.get("host_wall"),
+        }
+        variant = body.get("variant")
+        try:
+            record = create_element("opening", name, properties, variant, db)
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+        undo_mgr.record(
+            "opening_create", record, record,
+            f"Create opening {name}",
+        )
+        _broadcast("element_changed")
+        return jsonify(record), 201
+
+    @app.route("/api/openings/<name>", methods=["PUT"])
+    def api_update_opening(name):
+        old = get_element_by_name(name, db)
+        if not old or old["type"] != "opening":
+            return jsonify({"error": "not found"}), 404
+        body = request.get_json(force=True)
+        # Merge updates into properties
+        import json as _json
+        props = _json.loads(old["properties"]) if isinstance(old["properties"], str) else old["properties"]
+        for k in ("width", "offset", "segment", "host_wall"):
+            if k in body:
+                props[k] = body[k]
+        updated = update_element(old["id"], {"properties": props}, db)
+        undo_mgr.record(
+            "opening_update", old, updated,
+            f"Update opening {name}",
+        )
+        _broadcast("element_changed")
+        return jsonify(updated)
+
+    @app.route("/api/openings/<name>", methods=["DELETE"])
+    def api_delete_opening(name):
+        old = get_element_by_name(name, db)
+        if not old or old["type"] != "opening":
+            return jsonify({"error": "not found"}), 404
+        # Also collect door record if exists
+        deleted_records = [old]
+        door = get_door(name, db)
+        if door:
+            deleted_records.append({"_type": "door", **door})
+            delete_door(name, db)
+        deleted_ids = delete_element(old["id"], db)
+        undo_mgr.record(
+            "opening_delete", deleted_records, {"ids": deleted_ids},
+            f"Delete opening {name}",
+        )
+        _broadcast("element_changed")
+        return jsonify({"ok": True, "deleted": deleted_ids})
+
+    # -- Doors API --
+
+    @app.route("/api/doors")
+    def api_doors():
+        return jsonify(get_all_doors(db))
+
+    @app.route("/api/doors", methods=["POST"])
+    def api_create_door():
+        body = request.get_json(force=True)
+        opening = body.get("opening")
+        if not opening:
+            return jsonify({"error": "missing opening"}), 400
+        hinge = body.get("hinge_side", "east")
+        swing = body.get("swing_direction", "south")
+        width = body.get("width", 36)
+        dtype = body.get("door_type", "single")
+        err = validate_door(hinge, swing, dtype)
+        if err:
+            return jsonify({"error": err}), 400
+        try:
+            record = create_door(opening, width, hinge, swing, dtype, db)
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+        undo_mgr.record(
+            "door_create", record, record,
+            f"Create door on {opening}",
+        )
+        _broadcast("element_changed")
+        return jsonify(record), 201
+
+    @app.route("/api/doors/<opening_name>", methods=["PUT"])
+    def api_update_door(opening_name):
+        old = get_door(opening_name, db)
+        if not old:
+            return jsonify({"error": "not found"}), 404
+        body = request.get_json(force=True)
+        if "hinge_side" in body or "swing_direction" in body or "door_type" in body:
+            err = validate_door(
+                body.get("hinge_side", old["hinge_side"]),
+                body.get("swing_direction", old["swing_direction"]),
+                body.get("door_type", old["door_type"]),
+            )
+            if err:
+                return jsonify({"error": err}), 400
+        updated = update_door(opening_name, body, db)
+        undo_mgr.record(
+            "door_update", old, updated,
+            f"Update door on {opening_name}",
+        )
+        _broadcast("element_changed")
+        return jsonify(updated)
+
+    @app.route("/api/doors/<opening_name>", methods=["DELETE"])
+    def api_delete_door(opening_name):
+        old = get_door(opening_name, db)
+        if not old:
+            return jsonify({"error": "not found"}), 404
+        delete_door(opening_name, db)
+        undo_mgr.record(
+            "door_delete", old, {"opening_name": opening_name},
+            f"Delete door on {opening_name}",
+        )
+        _broadcast("element_changed")
+        return jsonify({"ok": True, "opening_name": opening_name})
 
     # -- Geometry API --
 

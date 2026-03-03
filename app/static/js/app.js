@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadViews();
   loadConstants();
   loadGeometry();
+  loadElements();
 });
 
 function cacheElements() {
@@ -54,7 +55,7 @@ function cacheElements() {
     "selection-info", "measure-info",
     "view-tabs", "const-category-filter", "const-search",
     "constants-table", "outline-table", "openings-table",
-    "rough-openings-table",
+    "rough-openings-table", "interior-walls-table", "furniture-table",
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
@@ -79,6 +80,10 @@ function connectSSE() {
 
   App.sse.addEventListener("constants_changed", () => {
     loadConstants();
+  });
+
+  App.sse.addEventListener("element_changed", () => {
+    loadElements();
   });
 
   App.sse.addEventListener("geometry_changed", () => {
@@ -130,6 +135,7 @@ async function loadGeometry() {
     App.state.geometry = await resp.json();
     if (App.state.activeView === "interactive") renderCanvas();
     updateOpeningsTable();
+    updateElementsTable();
   } catch (e) {
     console.error("Geometry load failed:", e);
     showToast("Geometry computation error", "error");
@@ -718,6 +724,10 @@ function showProperties(type, name, data) {
       const w = Math.sqrt(dx * dx + dy * dy);
       addPropRow(tbody, "Actual width", fmtFtIn(w));
     }
+    // SEL-7: Door properties for rough openings
+    if (type === "rough_opening" && data.name) {
+      showDoorProperties(tbody, data.name);
+    }
     const related = findRelatedConstants(data.name);
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
@@ -726,11 +736,21 @@ function showProperties(type, name, data) {
       }
     }
   } else if (type === "appliance" || type === "furniture") {
+    // SEL-8: Enhanced furniture/appliance properties
     const b = data.bbox;
-    addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
-    addPropRow(tbody, "Depth", fmtFtIn(b.n - b.s));
-    addPropRow(tbody, "Center E", fmtFtIn((b.w + b.e) / 2));
-    addPropRow(tbody, "Center N", fmtFtIn((b.s + b.n) / 2));
+    const w = b.e - b.w;
+    const d = b.n - b.s;
+    addPropRow(tbody, "Type", type);
+    addPropRow(tbody, "Width", fmtFtIn(w));
+    addPropRow(tbody, "Depth", fmtFtIn(d));
+    if (data.center) {
+      addPropRow(tbody, "Center E", fmtFtIn(data.center[0]));
+      addPropRow(tbody, "Center N", fmtFtIn(data.center[1]));
+    } else {
+      addPropRow(tbody, "Center E", fmtFtIn((b.w + b.e) / 2));
+      addPropRow(tbody, "Center N", fmtFtIn((b.s + b.n) / 2));
+    }
+    if (data.rotation !== undefined) addPropRow(tbody, "Rotation", data.rotation.toFixed(1) + "°");
     const related = findRelatedConstants(name);
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
@@ -1031,6 +1051,110 @@ function updateOpeningsTable() {
 }
 
 
+/* ========== ELEMENTS TABLE ========== */
+
+async function loadElements() {
+  try {
+    const [elemResp, doorResp] = await Promise.all([
+      fetch("/api/elements"),
+      fetch("/api/doors"),
+    ]);
+    App.state.elements = await elemResp.json();
+    App.state.doors = await doorResp.json();
+    updateElementsTable();
+  } catch (e) {
+    console.error("Elements load failed:", e);
+  }
+}
+
+function updateElementsTable() {
+  const g = App.state.geometry;
+  const elements = App.state.elements || [];
+  const doors = App.state.doors || [];
+
+  // Interior walls table
+  const tbody1 = App.els["interior-walls-table"]
+    ? App.els["interior-walls-table"].querySelector("tbody") : null;
+  if (tbody1) {
+    tbody1.innerHTML = "";
+    const walls = elements.filter(e => e.type === "wall");
+    for (const wall of walls) {
+      const tr = document.createElement("tr");
+      const iwData = g ? g.interior_walls[wall.name] : null;
+      let thickness = "—";
+      let length = "—";
+      let orientation = "—";
+      let openings = "—";
+      if (iwData) {
+        const b = iwData.bbox;
+        const ew = b.e - b.w;
+        const ns = b.n - b.s;
+        // Thickness is the smaller dimension, length is the larger
+        const thick = Math.min(ew, ns);
+        const len = Math.max(ew, ns);
+        thickness = (thick * 12).toFixed(1).replace(/\.0$/, '') + '"';
+        length = fmtFtIn(len);
+        orientation = ew > ns ? "H" : "V";
+      }
+      // Find hosted openings from rough_openings data
+      const hosted = g ? (g.rough_openings || [])
+        .filter(ro => ro.wall_name === wall.name)
+        .map(ro => ro.name) : [];
+      openings = hosted.length > 0 ? hosted.join(", ") : "—";
+
+      tr.innerHTML = `
+        <td>${wall.name}</td>
+        <td>${thickness}</td>
+        <td>${length}</td>
+        <td>${orientation}</td>
+        <td>${openings}</td>
+      `;
+      tr.classList.add("selectable");
+      tr.addEventListener("click", (e) => {
+        if (iwData) selectElement("wall", wall.name, iwData, e);
+      });
+      tbody1.appendChild(tr);
+    }
+  }
+
+  // Furniture & Appliances table
+  const tbody2 = App.els["furniture-table"]
+    ? App.els["furniture-table"].querySelector("tbody") : null;
+  if (tbody2) {
+    tbody2.innerHTML = "";
+    const items = g ? g.variant_items || {} : {};
+    for (const [name, item] of Object.entries(items)) {
+      const tr = document.createElement("tr");
+      const b = item.bbox;
+      const w = b.e - b.w;
+      const d = b.n - b.s;
+      tr.innerHTML = `
+        <td>${item.label || name.toUpperCase()}</td>
+        <td>${item.type || "—"}</td>
+        <td>${fmtFtIn(w)}</td>
+        <td>${fmtFtIn(d)}</td>
+      `;
+      tr.classList.add("selectable");
+      tr.addEventListener("click", (e) => {
+        selectElement(item.type || "furniture", name, item, e);
+      });
+      tbody2.appendChild(tr);
+    }
+  }
+}
+
+function showDoorProperties(tbody, roName) {
+  const doors = App.state.doors || [];
+  const door = doors.find(d => d.opening_name === roName);
+  if (!door) return;
+  addPropRow(tbody, "—", "Door");
+  addPropRow(tbody, "Width", door.width + '"');
+  addPropRow(tbody, "Hinge", door.hinge_side);
+  addPropRow(tbody, "Swing", door.swing_direction);
+  addPropRow(tbody, "Type", door.door_type);
+}
+
+
 /* ========== EVENT LISTENERS ========== */
 
 function setupEventListeners() {
@@ -1116,6 +1240,7 @@ function setupEventListeners() {
       if (panel) panel.classList.add("active");
       // Load data for panel if needed
       if (tab.dataset.panel === "outline") loadOutlineTable();
+      if (tab.dataset.panel === "elements") updateElementsTable();
     });
   });
 
