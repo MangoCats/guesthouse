@@ -7,7 +7,7 @@ import json
 import time
 
 from app.database import (
-    get_db, update_constants_batch,
+    get_db, update_constant, update_constants_batch,
     create_element_raw, update_element, delete_element,
     create_door_raw, update_door, delete_door,
 )
@@ -124,6 +124,13 @@ class UndoManager:
             eid = state["id"]
             fields = {k: v for k, v in state.items() if k != "id"}
             update_element(eid, fields, self._db_path)
+        elif action_type == "element_move":
+            # Move undo/redo: state contains move_type + details
+            if state.get("move_type") == "constant":
+                update_constant(state["constant"], state["value"], self._db_path)
+            else:
+                update_element(state["id"],
+                               {"properties": state["properties"]}, self._db_path)
         else:
             raise ValueError(f"Unknown undo action type: {action_type}")
 

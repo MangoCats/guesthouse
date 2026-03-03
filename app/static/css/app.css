@@ -499,6 +499,88 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+/* ========== MOVE TOOL GHOST ========== */
+.move-ghost {
+  opacity: 0.4;
+  stroke-dasharray: 0.08 0.04;
+  pointer-events: none;
+}
+
+/* ========== MULTI-SELECT ========== */
+.multi-selected {
+  stroke: var(--yellow) !important;
+  stroke-width: 0.05 !important;
+}
+
+/* ========== OFFSET DIALOG ========== */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+.dialog {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 280px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.dialog h3 {
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.dialog-field {
+  margin-bottom: 10px;
+}
+.dialog-field label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.dialog-field input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  outline: none;
+}
+.dialog-field input:focus { border-color: var(--accent); }
+.dialog-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.dialog-buttons button {
+  padding: 5px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 12px;
+}
+.dialog-btn-primary {
+  background: var(--accent-dim);
+  color: var(--text-bright);
+  border-color: var(--accent-dim) !important;
+}
+.dialog-btn-primary:hover { background: var(--accent); }
+.dialog-btn-cancel {
+  background: var(--bg-surface);
+  color: var(--text);
+}
+.dialog-btn-cancel:hover { background: var(--bg-hover); }
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1000px) {
   :root { --palette-w: 50px; --panel-w: 240px; }

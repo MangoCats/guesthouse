@@ -26,10 +26,54 @@ IW_CONSTANT_MAP = {
     "IW6":  "IW6_OFFSET_FROM_W6",
     "IW7":  "IW7_OFFSET_FROM_W18W1",
     "IW8":  None,                   # derived from IW1 + IW2 positions
-    "IW9":  "IW9_OFFSET_O10",
+    "IW9":  "IW3_OFFSET_IW9",
     "IW11": "IW9_IW11_GAP",
     "IW12": "IW12_S_OFFSET_W18W1",
 }
+
+# ---------------------------------------------------------------------------
+# IW → move axis mapping (Phase 4)
+# ---------------------------------------------------------------------------
+# Each moveable IW wall has one degree of freedom controlled by its constant.
+# axis: "x" or "y" — the world-coordinate axis the constant affects.
+# sign: +1 or -1 — delta_constant = drag_delta_on_axis * sign.
+#   e.g. IW1 sign=-1: dragging south (dy<0) increases the constant.
+
+IW_MOVE_AXIS = {
+    "IW1":  ("y", -1),   # IW1_OFFSET_FROM_W9: +const = further south
+    "IW2":  ("x", +1),   # IW2_DIST_W2W5: +const = further east
+    "IW2O": None,         # oblique — not directly movable
+    "IW2S": ("x", +1),   # IW2S_W2REF_OFFSET: +const = further east
+    "IW3":  ("x", +1),   # IW3_DIST_W2W5: +const = further east
+    "IW4":  ("x", +1),   # IW4_GAP_IW11: +const = further east
+    "IW5":  ("y", -1),   # IW5_S_OFFSET_FROM_IW1: +const = further south
+    "IW6":  ("y", -1),   # IW6_OFFSET_FROM_W6: +const = further south
+    "IW7":  ("y", +1),   # IW7_OFFSET_FROM_W18W1: +const = further north
+    "IW8":  None,         # derived — not directly movable
+    "IW9":  ("x", +1),   # IW3_OFFSET_IW9: +const = further east
+    "IW11": ("x", +1),   # IW9_IW11_GAP: +const = further east
+    "IW12": ("y", +1),   # IW12_S_OFFSET_W18W1: +const = further north
+}
+
+
+def compute_constant_delta(iw_name, dx, dy):
+    """Translate a world-coordinate move (dx, dy) into a constant change.
+
+    Returns (constant_name, delta) or None if the wall is not movable.
+    """
+    axis_info = IW_MOVE_AXIS.get(iw_name)
+    if axis_info is None:
+        return None
+    const_name = IW_CONSTANT_MAP.get(iw_name)
+    if const_name is None:
+        return None
+    axis, sign = axis_info
+    drag = dx if axis == "x" else dy
+    delta = drag * sign
+    if delta == 0:
+        return None
+    return (const_name, delta)
+
 
 # Hosted rough openings per interior wall
 IW_HOSTED_OPENINGS = {

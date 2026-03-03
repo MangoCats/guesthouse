@@ -9,6 +9,7 @@ const App = {
     activeView: "interactive",
     activeTool: "select",
     selection: null,
+    selections: [],
     pan: { x: 0, y: 0 },
     zoom: 1,
     showPoints: true,
@@ -425,15 +426,32 @@ function renderFurniture(g) {
 
   // Render variant items (comprehensive set) if available; empty dict = no items
   if (g.variant_items !== undefined) {
+    // Build override lookup from DB elements
+    const overrides = {};
+    for (const e of (App.state.elements || [])) {
+      if (e.type === "furniture" || e.type === "appliance" || e.type === "fixture") {
+        let props = e.properties;
+        if (typeof props === "string") props = JSON.parse(props);
+        if (props && props.source === "override") {
+          overrides[e.name] = props;
+        }
+      }
+    }
+
     // Sort: non-stacked items first, stacked items on top (SVG paint order)
     const entries = Object.entries(g.variant_items);
     entries.sort((a, b) => (a[1].stacked ? 1 : 0) - (b[1].stacked ? 1 : 0));
     for (const [name, item] of entries) {
       const cssClass = `item-${item.type} selectable` + (item.stacked ? " item-stacked" : "");
+      // Apply override offset if present
+      const ov = overrides[name];
+      const ox = ov ? (ov.offset_x || 0) : 0;
+      const oy = ov ? (ov.offset_y || 0) : 0;
+
       if (item.shape === "circle") {
         const c = item.center;
         const el = svgEl("circle", {
-          cx: c[0], cy: -c[1], r: item.radius,
+          cx: c[0] + ox, cy: -(c[1] + oy), r: item.radius,
           class: cssClass,
           "data-type": item.type,
           "data-name": name,
@@ -441,8 +459,13 @@ function renderFurniture(g) {
         el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
         layer.appendChild(el);
       } else {
+        // Shift polygon points by override offset
+        let poly = item.poly;
+        if (ox !== 0 || oy !== 0) {
+          poly = poly.map(p => [p[0] + ox, p[1] + oy]);
+        }
         const el = svgEl("polygon", {
-          points: polyToStr(item.poly),
+          points: polyToStr(poly),
           class: cssClass,
           "data-type": item.type,
           "data-name": name,
@@ -450,11 +473,11 @@ function renderFurniture(g) {
         el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
         layer.appendChild(el);
       }
-      // Add text label at bbox center
+      // Add text label at bbox center (shifted by override)
       if (item.label && item.bbox) {
         const bx = item.bbox;
-        const cx = (bx.w + bx.e) / 2;
-        const cy = -((bx.s + bx.n) / 2);
+        const cx = (bx.w + bx.e) / 2 + ox;
+        const cy = -((bx.s + bx.n) / 2 + oy);
         const lbl = svgEl("text", {
           x: cx, y: cy,
           class: "item-label",
@@ -675,6 +698,38 @@ function screenToWorld(sx, sy) {
 function selectElement(type, name, data, event) {
   if (event) event.stopPropagation();
 
+  // Ctrl+Click: toggle in/out of multi-selection
+  if (event && (event.ctrlKey || event.metaKey)) {
+    const idx = App.state.selections.findIndex(s => s.name === name && s.type === type);
+    if (idx >= 0) {
+      App.state.selections.splice(idx, 1);
+    } else {
+      App.state.selections.push({ type, name, data });
+    }
+    // Update highlight for multi-select
+    document.querySelectorAll(".multi-selected").forEach(el => {
+      el.classList.remove("multi-selected");
+    });
+    for (const s of App.state.selections) {
+      const el = document.querySelector(`[data-name="${s.name}"][data-type="${s.type}"]`);
+      if (el) el.classList.add("multi-selected");
+    }
+    // Keep last-clicked as primary selection
+    App.state.selection = { type, name, data };
+    App.els["selection-info"].textContent =
+      App.state.selections.length > 1
+        ? `${App.state.selections.length} selected`
+        : `${type}: ${name}`;
+    showProperties(type, name, data);
+    return;
+  }
+
+  // Regular click: clear multi-selection, set single
+  App.state.selections = [];
+  document.querySelectorAll(".multi-selected").forEach(el => {
+    el.classList.remove("multi-selected");
+  });
+
   // Remove previous selection highlight
   document.querySelectorAll(".selected-highlight").forEach(el => {
     el.classList.remove("selected-highlight");
@@ -694,7 +749,11 @@ function clearSelection() {
   document.querySelectorAll(".selected-highlight").forEach(el => {
     el.classList.remove("selected-highlight");
   });
+  document.querySelectorAll(".multi-selected").forEach(el => {
+    el.classList.remove("multi-selected");
+  });
   App.state.selection = null;
+  App.state.selections = [];
   App.els["selection-info"].textContent = "No selection";
   App.els["props-empty"].style.display = "block";
   App.els["props-detail"].style.display = "none";
@@ -1294,6 +1353,8 @@ function onMouseDown(e) {
     App.state.lastPan = { ...App.state.pan };
     App.els["viewport"].style.cursor = "grabbing";
     e.preventDefault();
+  } else if (e.button === 0 && App.state.activeTool === "move") {
+    moveToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "measure") {
     const rect = App.els["viewport"].getBoundingClientRect();
     const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
@@ -1322,6 +1383,12 @@ function onMouseMove(e) {
   App.els["coord-display"].textContent =
     `E: ${fmtFtIn(wx)}  N: ${fmtFtIn(wy)}`;
 
+  // Move tool drag
+  if (MoveTool.active) {
+    moveToolMouseMove(e);
+    return;
+  }
+
   if (App.state.isDragging) {
     const dx = e.clientX - App.state.dragStart.x;
     const dy = e.clientY - App.state.dragStart.y;
@@ -1336,6 +1403,12 @@ function onMouseMove(e) {
 }
 
 function onMouseUp(e) {
+  // Move tool drag end
+  if (MoveTool.active) {
+    moveToolMouseUp(e);
+    return;
+  }
+
   if (App.state.isDragging) {
     App.state.isDragging = false;
     if (App.state.activeView !== "interactive") {
@@ -1407,7 +1480,21 @@ function onKeyDown(e) {
     case "m": case "M": setTool("measure"); break;
     case "g": case "G": setTool("move"); break;
     case "f": case "F": fitToWindow(); break;
+    case "Enter":
+      if (App.state.activeTool === "move" && App.state.selection) {
+        showOffsetDialog();
+      }
+      break;
     case "Escape":
+      if (MoveTool.active) {
+        // Cancel drag: remove ghosts, reset state
+        for (const g of MoveTool.origTransforms) {
+          if (g.ghost && g.ghost.parentNode) g.ghost.remove();
+        }
+        MoveTool.active = false;
+        MoveTool.origTransforms = [];
+        break;
+      }
       clearSelection();
       clearMeasure();
       break;

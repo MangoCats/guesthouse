@@ -22,6 +22,7 @@ from app.database import (
     get_all_doors, get_door, create_door, update_door, delete_door,
 )
 from app.doors import validate_door
+from app.elements import compute_constant_delta, IW_CONSTANT_MAP
 from app.engine import compute_geometry, generate_svg, get_svg_content, patch_constants
 from app.undo import UndoManager
 
@@ -275,6 +276,112 @@ def create_app(db_path=None):
         _broadcast("element_changed")
         _broadcast_undo_status()
         return jsonify({"ok": True, "deleted": deleted_ids})
+
+    @app.route("/api/elements/<int:element_id>/move", methods=["POST"])
+    def api_move_element(element_id):
+        el = get_element(element_id, db)
+        if not el:
+            return jsonify({"error": "not found"}), 404
+        body = request.get_json(force=True)
+
+        # Resolve anchor-based format to dx/dy
+        if "anchor" in body:
+            anchor_name = body["anchor"]
+            face = body.get("face")
+            offset_in = body.get("offset", 0)
+            if not face or face not in ("north", "south", "east", "west"):
+                return jsonify({"error": "invalid face"}), 400
+            anchor_el = get_element_by_name(anchor_name, db)
+            if not anchor_el:
+                return jsonify({"error": f"anchor '{anchor_name}' not found"}), 404
+            # Get anchor bbox from geometry
+            variant = el.get("variant")
+            geom = _get_geometry(variant)
+            el_geom = geom.get("elements", {}).get(anchor_name)
+            if not el_geom or "bbox" not in el_geom:
+                return jsonify({"error": f"no geometry for anchor '{anchor_name}'"}), 400
+            abbox = el_geom["bbox"]  # [min_x, min_y, max_x, max_y]
+            # Current element geometry
+            cur_geom = geom.get("elements", {}).get(el["name"])
+            if not cur_geom or "bbox" not in cur_geom:
+                return jsonify({"error": "no geometry for this element"}), 400
+            cbbox = cur_geom["bbox"]
+            offset_ft = offset_in / 12.0
+            # Compute target position based on anchor face
+            if face == "east":
+                target_x = abbox[2] + offset_ft
+                dx = target_x - cbbox[0]
+                dy = 0
+            elif face == "west":
+                target_x = abbox[0] - offset_ft
+                dx = target_x - cbbox[2]
+                dy = 0
+            elif face == "north":
+                target_y = abbox[3] + offset_ft
+                dx = 0
+                dy = target_y - cbbox[1]
+            else:  # south
+                target_y = abbox[1] - offset_ft
+                dx = 0
+                dy = target_y - cbbox[3]
+        else:
+            dx = body.get("dx", 0)
+            dy = body.get("dy", 0)
+            if dx == 0 and dy == 0:
+                return jsonify({"error": "no movement specified"}), 400
+
+        name = el["name"]
+
+        # Case 1: IW wall — update controlling constant
+        if el["type"] == "wall" and name in IW_CONSTANT_MAP:
+            result = compute_constant_delta(name, dx, dy)
+            if result is None:
+                return jsonify({"error": f"wall {name} is not movable"}), 400
+            const_name, delta = result
+            old_val = get_constant_value(const_name, db)
+            if old_val is None:
+                return jsonify({"error": f"constant {const_name} not found"}), 500
+            new_val = old_val + delta
+            update_constant(const_name, new_val, db)
+            undo_mgr.record(
+                "element_move",
+                {"move_type": "constant", "constant": const_name, "value": old_val},
+                {"move_type": "constant", "constant": const_name, "value": new_val},
+                f"Move {name}",
+            )
+            _invalidate()
+            return jsonify({
+                "ok": True, "constant": const_name,
+                "old_value": old_val, "new_value": new_val,
+                "can_undo": undo_mgr.can_undo,
+                "can_redo": undo_mgr.can_redo,
+            })
+
+        # Case 2: Custom/override element with offset properties
+        props = el.get("properties") or {}
+        if isinstance(props, str):
+            props = json.loads(props)
+        old_ox = props.get("offset_x", 0)
+        old_oy = props.get("offset_y", 0)
+        new_ox = old_ox + dx
+        new_oy = old_oy + dy
+        old_props = dict(props)
+        new_props = dict(props, offset_x=new_ox, offset_y=new_oy)
+        update_element(element_id, {"properties": new_props}, db)
+        undo_mgr.record(
+            "element_move",
+            {"move_type": "position", "id": element_id, "properties": old_props},
+            {"move_type": "position", "id": element_id, "properties": new_props},
+            f"Move {name}",
+        )
+        _broadcast("element_changed")
+        _broadcast_undo_status()
+        return jsonify({
+            "ok": True,
+            "offset_x": new_ox, "offset_y": new_oy,
+            "can_undo": undo_mgr.can_undo,
+            "can_redo": undo_mgr.can_redo,
+        })
 
     # -- Openings API (stored as type='opening' elements) --
 
