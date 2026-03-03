@@ -12,8 +12,8 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ## Current State (Phase 5 — Complete)
 
-**163 of 226 requirements implemented.**  307 app tests, 589 pre-existing tests
-(896 total).  All implemented requirements have automated test coverage.
+**163 of 226 requirements implemented.**  310 app tests, 589 pre-existing tests
+(899 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -251,7 +251,7 @@ lengths, add/remove points — with automatic closure re-solving.
 
 **Requirements:** ENG-11, API-16–19, OE-1–3, DT-2–4 (11 reqs)
 
-**Actual:** 34 new tests, 896 total (307 app + 589 pre-existing).  All 11
+**Actual:** 37 new tests, 899 total (310 app + 589 pre-existing).  All 11
 requirements implemented.  OE-3 (constraint dialog) deferred to future phase
 as the solver infrastructure is in place but the UI dialog is not yet needed.
 
@@ -260,9 +260,11 @@ as the solver infrastructure is in place but the UI dialog is not yet needed.
   `floorplan/geometry.py`'s `_chain_offset` logic (pure math, no import from
   `floorplan/`).  This is the most architecturally significant new module.
   - `chain_offset()` — walk chain entries from origin
-  - `solve_closure()` — solve for `d_F2_F5` and `d_F18_F1`
+  - `solve_closure()` — solve for `d_F2_F5`, `d_F18_F1`, and `sweep_closure`
+    (3 variables: two line distances plus the closure arc's sweep angle for
+    full positional + angular closure)
   - `validate_chain()` — check proposed modifications
-  - `solve_for_constraint()` — Newton/bisection solver for target distances
+  - `solve_for_constraint()` — secant method solver for target distances
 - Add mutation APIs: `PUT /api/outline/<seq>` (API-16),
   `POST /api/outline/validate` (API-17), `POST /api/outline/add-point` (API-18),
   `DELETE /api/outline/<seq>` (API-19)
@@ -749,8 +751,8 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 2 (done) | 20 | 794 |
 | 3 (done) | 45 | 839 |
 | 4 (done) | 20 | 862 |
-| 5 | ~30 | 892 |
-| 6 | ~12 | 904 |
+| 5 (done) | 37 | 899 |
+| 6 | ~12 | 911 |
 | 7 | ~25 | 929 |
 | 8 | ~15 | 944 |
 | 9 | ~12 | 956 |

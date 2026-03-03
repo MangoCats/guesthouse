@@ -197,7 +197,7 @@ Pure-math reimplementation of the outline closure solver from
 | Function | Purpose |
 |----------|---------|
 | `chain_offset(chain, start_brg)` | Walk chain entries, return (dE, dN, exit_brg) |
-| `solve_closure(chain, R_a1)` | Solve d_F2_F5 and d_F18_F1 for chain closure |
+| `solve_closure(chain, R_a1)` | Solve d_F2_F5, d_F18_F1, and sweep_closure for chain closure |
 | `db_rows_to_chain(rows)` | Convert DB row dicts to ChainEntry NamedTuples |
 | `walk_chain(chain, F2_E, F2_N)` | Full point generation → WalkResult(points, radii) |
 | `validate_chain(chain, R_a1)` | Dry-run validation → {valid, closure_error, ...} |
@@ -319,6 +319,7 @@ of undo entries with a position pointer.  Entries are persisted to the
 | `outline_update` | Restore full chain snapshot via `restore_outline_chain()` |
 | `outline_add_point` | Restore full chain snapshot (N rows → N-1) |
 | `outline_remove_point` | Restore full chain snapshot (N rows → N+1) |
+| `full_reset` | Restore both constants dict and outline chain snapshot |
 
 **Lifecycle:**
 - On startup: loads stack from DB, sets position to end
@@ -595,14 +596,16 @@ will be unnecessary once the app owns the constants directly (Phase 12).
 
 The charter describes a full parametric editor; the current
 implementation is a **parametric viewer with constant editing, undo,
-element/door CRUD, and move tool** (Phases 0–4 complete) — 152 of 226
-requirements are implemented across 273 app tests (862 total).  Phase 1
-established automated test coverage for all implemented server-side
-requirements.  Phase 2 added undo/redo infrastructure.  Phase 3 added
-elements and doors as first-class database objects with full CRUD APIs.
-Phase 4 added the move tool with drag-to-reposition, ghost preview,
-axis constraints, grid snap, multi-select group move, and offset dialog.
-Next phase: Phase 5 (outline chain editing).
+element/door CRUD, move tool, and outline chain editing** (Phases 0–5
+complete) — 163 of 226 requirements are implemented across 310 app tests
+(899 total).  Phase 1 established automated test coverage for all
+implemented server-side requirements.  Phase 2 added undo/redo
+infrastructure.  Phase 3 added elements and doors as first-class
+database objects with full CRUD APIs.  Phase 4 added the move tool with
+drag-to-reposition, ghost preview, axis constraints, grid snap,
+multi-select group move, and offset dialog.  Phase 5 added the outline
+closure solver, editable chain parameters, and canvas F-point dragging.
+Next phase: Phase 6 (enhanced canvas rendering).
 
 The development arc follows three stages:
 
