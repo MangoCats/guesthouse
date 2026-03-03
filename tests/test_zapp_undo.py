@@ -179,6 +179,25 @@ class TestAPI30Undo:
         wt = next(c for c in resp.get_json() if c["name"] == "WALL_OUTER")
         assert wt["value"] == pytest.approx(original)
 
+    def test_undo_returns_can_undo_can_redo(self, app_client):
+        """Undo response includes can_undo/can_redo status."""
+        resp = app_client.get("/api/constants")
+        wt = next(c for c in resp.get_json() if c["name"] == "WALL_OUTER")
+        original = wt["value"]
+        # Two edits
+        app_client.put("/api/constants/WALL_OUTER", json={"value": original + 1.0})
+        app_client.put("/api/constants/WALL_OUTER", json={"value": original + 2.0})
+        # Undo first — should still have more to undo, and can redo
+        resp = app_client.post("/api/undo")
+        data = resp.get_json()
+        assert data["can_undo"] is True
+        assert data["can_redo"] is True
+        # Undo second — nothing left to undo, can still redo
+        resp = app_client.post("/api/undo")
+        data = resp.get_json()
+        assert data["can_undo"] is False
+        assert data["can_redo"] is True
+
     def test_undo_nothing_400(self, app_client):
         resp = app_client.post("/api/undo")
         assert resp.status_code == 400
@@ -204,6 +223,19 @@ class TestAPI31Redo:
         resp = app_client.get("/api/constants")
         wt = next(c for c in resp.get_json() if c["name"] == "WALL_OUTER")
         assert wt["value"] == pytest.approx(new_val)
+
+    def test_redo_returns_can_undo_can_redo(self, app_client):
+        """Redo response includes can_undo/can_redo status."""
+        resp = app_client.get("/api/constants")
+        wt = next(c for c in resp.get_json() if c["name"] == "WALL_OUTER")
+        original = wt["value"]
+        app_client.put("/api/constants/WALL_OUTER", json={"value": original + 1.0})
+        app_client.post("/api/undo")
+        # Redo — should be able to undo again, no more redo
+        resp = app_client.post("/api/redo")
+        data = resp.get_json()
+        assert data["can_undo"] is True
+        assert data["can_redo"] is False
 
     def test_redo_nothing_400(self, app_client):
         resp = app_client.post("/api/redo")

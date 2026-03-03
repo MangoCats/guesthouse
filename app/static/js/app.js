@@ -90,6 +90,11 @@ function connectSSE() {
     loadGeometry();
   });
 
+  App.sse.addEventListener("undo_status", (e) => {
+    const data = JSON.parse(e.data);
+    updateUndoButtons(data.can_undo, data.can_redo);
+  });
+
   App.sse.addEventListener("svg_updated", (e) => {
     const data = JSON.parse(e.data);
     if (data.view && App.state.activeView === data.view) {
@@ -1407,11 +1412,19 @@ function onKeyDown(e) {
   }
 }
 
+function updateUndoButtons(canUndo, canRedo) {
+  const undoBtn = document.querySelector('[data-action="undo"]');
+  const redoBtn = document.querySelector('[data-action="redo"]');
+  if (undoBtn) undoBtn.disabled = !canUndo;
+  if (redoBtn) redoBtn.disabled = !canRedo;
+}
+
 async function doUndo() {
   const resp = await fetch("/api/undo", { method: "POST" });
   const data = await resp.json();
   if (resp.ok) {
     showToast("Undo: " + (data.description || data.action), "success");
+    updateUndoButtons(data.can_undo, data.can_redo);
   } else {
     showToast(data.error || "Nothing to undo", "warning");
   }
@@ -1422,6 +1435,7 @@ async function doRedo() {
   const data = await resp.json();
   if (resp.ok) {
     showToast("Redo: " + (data.description || data.action), "success");
+    updateUndoButtons(data.can_undo, data.can_redo);
   } else {
     showToast(data.error || "Nothing to redo", "warning");
   }

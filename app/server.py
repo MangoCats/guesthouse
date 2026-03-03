@@ -81,6 +81,14 @@ def create_app(db_path=None):
                 entry["dirty"] = True
         _broadcast("constants_changed")
         _broadcast("geometry_changed")
+        _broadcast_undo_status()
+
+    def _broadcast_undo_status():
+        """Broadcast current undo/redo availability to all clients."""
+        _broadcast("undo_status", {
+            "can_undo": undo_mgr.can_undo,
+            "can_redo": undo_mgr.can_redo,
+        })
 
     # ------------------------------------------------------------------
     # Routes
@@ -164,6 +172,8 @@ def create_app(db_path=None):
             "ok": True,
             "action": entry["action_type"],
             "description": entry["description"],
+            "can_undo": undo_mgr.can_undo,
+            "can_redo": undo_mgr.can_redo,
         })
 
     @app.route("/api/redo", methods=["POST"])
@@ -176,6 +186,8 @@ def create_app(db_path=None):
             "ok": True,
             "action": entry["action_type"],
             "description": entry["description"],
+            "can_undo": undo_mgr.can_undo,
+            "can_redo": undo_mgr.can_redo,
         })
 
     # -- Elements API --
@@ -206,6 +218,7 @@ def create_app(db_path=None):
             f"Create {type_} {name}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify(record), 201
 
     @app.route("/api/elements/<int:element_id>", methods=["PUT"])
@@ -220,6 +233,7 @@ def create_app(db_path=None):
             f"Update {old['name']}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify(updated)
 
     @app.route("/api/elements/<int:element_id>", methods=["DELETE"])
@@ -247,6 +261,7 @@ def create_app(db_path=None):
             f"Delete {old['name']}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify({"ok": True, "deleted": deleted_ids})
 
     # -- Openings API (stored as type='opening' elements) --
@@ -274,6 +289,7 @@ def create_app(db_path=None):
             f"Create opening {name}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify(record), 201
 
     @app.route("/api/openings/<name>", methods=["PUT"])
@@ -294,6 +310,7 @@ def create_app(db_path=None):
             f"Update opening {name}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify(updated)
 
     @app.route("/api/openings/<name>", methods=["DELETE"])
@@ -313,6 +330,7 @@ def create_app(db_path=None):
             f"Delete opening {name}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify({"ok": True, "deleted": deleted_ids})
 
     # -- Doors API --
@@ -343,6 +361,7 @@ def create_app(db_path=None):
             f"Create door on {opening}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify(record), 201
 
     @app.route("/api/doors/<opening_name>", methods=["PUT"])
@@ -365,6 +384,7 @@ def create_app(db_path=None):
             f"Update door on {opening_name}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify(updated)
 
     @app.route("/api/doors/<opening_name>", methods=["DELETE"])
@@ -378,6 +398,7 @@ def create_app(db_path=None):
             f"Delete door on {opening_name}",
         )
         _broadcast("element_changed")
+        _broadcast_undo_status()
         return jsonify({"ok": True, "opening_name": opening_name})
 
     # -- Geometry API --
