@@ -85,7 +85,9 @@ def create_app(db_path=None):
             if entry is None or entry["dirty"] or entry["data"] is None:
                 constants = get_constants_dict(db)
                 chain_rows = get_outline_chain(db)
-                data = compute_geometry(constants, variant, chain_rows)
+                doors_data = get_all_doors(db)
+                data = compute_geometry(constants, variant, chain_rows,
+                                        doors_data=doors_data)
                 _geom_cache[variant] = {"data": data, "dirty": False}
                 return data
             return entry["data"]
@@ -482,9 +484,9 @@ def create_app(db_path=None):
     @app.route("/api/doors", methods=["POST"])
     def api_create_door():
         body = request.get_json(force=True)
-        opening = body.get("opening")
+        opening = body.get("opening_name") or body.get("opening")
         if not opening:
-            return jsonify({"error": "missing opening"}), 400
+            return jsonify({"error": "missing opening_name"}), 400
         hinge = body.get("hinge_side", "east")
         swing = body.get("swing_direction", "south")
         width = body.get("width", 36)
@@ -500,6 +502,7 @@ def create_app(db_path=None):
             "door_create", record, record,
             f"Create door on {opening}",
         )
+        _invalidate()
         _broadcast("element_changed")
         _broadcast_undo_status()
         return jsonify(record), 201
@@ -523,6 +526,7 @@ def create_app(db_path=None):
             "door_update", old, updated,
             f"Update door on {opening_name}",
         )
+        _invalidate()
         _broadcast("element_changed")
         _broadcast_undo_status()
         return jsonify(updated)
@@ -537,6 +541,7 @@ def create_app(db_path=None):
             "door_delete", old, {"opening_name": opening_name},
             f"Delete door on {opening_name}",
         )
+        _invalidate()
         _broadcast("element_changed")
         _broadcast_undo_status()
         return jsonify({"ok": True, "opening_name": opening_name})

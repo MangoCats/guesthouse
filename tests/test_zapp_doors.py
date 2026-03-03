@@ -28,11 +28,11 @@ class TestDB10Doors:
             ).fetchall()}
         assert "doors" in names
 
-    def test_7_doors_seeded(self, fresh_db):
+    def test_9_doors_seeded(self, fresh_db):
         doors = get_all_doors(fresh_db)
-        assert len(doors) == 7
+        assert len(doors) == 9
         names = {d["opening_name"] for d in doors}
-        assert names == {"RO1", "RO2", "RO3", "RO4", "RO5", "RO6", "RO7"}
+        assert names == {"O3", "O6", "RO1", "RO2", "RO3", "RO4", "RO5", "RO6", "RO7"}
 
     def test_door_defaults_valid(self, fresh_db):
         doors = get_all_doors(fresh_db)

@@ -19,6 +19,8 @@ const App = {
     showOpenings: true,
     showFurniture: true,
     showRooms: true,
+    showDoors: true,
+    showClearance: false,
     variant: "standard",
     measureStart: null,
     isDragging: false,
@@ -53,7 +55,8 @@ function cacheElements() {
   const ids = [
     "canvas", "canvas-transform", "viewport",
     "layer-outline", "layer-inner", "layer-walls",
-    "layer-openings", "layer-furniture", "layer-rooms", "layer-points",
+    "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
+    "layer-rooms", "layer-points",
     "layer-labels", "layer-dims", "layer-measure",
     "grid-rect", "svg-view-container",
     "coord-display", "connection-status", "zoom-level",
@@ -65,6 +68,7 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
+    "show-doors", "show-clearance",
     "variant-select", "variant-selector",
   ];
   for (const id of ids) {
@@ -345,7 +349,9 @@ function renderCanvas() {
   renderInnerWalls(g);
   renderInteriorWalls(g);
   renderOpenings(g);
+  renderDoors(g);
   renderFurniture(g);
+  renderClearanceZones(g);
   renderRoomLabels(g);
   renderPoints(g);
   renderDimensions(g);
@@ -359,7 +365,8 @@ function renderCanvas() {
 
 function clearLayers() {
   const layers = ["layer-outline", "layer-inner", "layer-walls",
-    "layer-openings", "layer-furniture", "layer-rooms", "layer-points",
+    "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
+    "layer-rooms", "layer-points",
     "layer-labels", "layer-dims", "layer-measure"];
   for (const id of layers) {
     App.els[id].innerHTML = "";
@@ -462,6 +469,43 @@ function renderOpenings(g) {
       el.addEventListener("click", (e) => selectElement("rough_opening", ro.name, ro, e));
       layer.appendChild(el);
     }
+  }
+}
+
+function renderDoors(g) {
+  if (!App.state.showDoors) return;
+  const layer = App.els["layer-doors"];
+  for (const door of (g.door_arcs || [])) {
+    for (const leaf of door.leaves) {
+      // Door line (hinge → open tip)
+      layer.appendChild(svgEl("line", {
+        x1: leaf.hinge[0], y1: -leaf.hinge[1],
+        x2: leaf.tip[0], y2: -leaf.tip[1],
+        class: "door-line",
+      }));
+      // Swing arc polyline
+      const pts = leaf.arc_pts.map(p => `${p[0]},${-p[1]}`).join(" ");
+      layer.appendChild(svgEl("polyline", {
+        points: pts,
+        class: "door-arc",
+      }));
+      // Hinge point circle
+      layer.appendChild(svgEl("circle", {
+        cx: leaf.hinge[0], cy: -leaf.hinge[1], r: 0.04,
+        class: "door-hinge",
+      }));
+    }
+  }
+}
+
+function renderClearanceZones(g) {
+  if (!App.state.showClearance) return;
+  const layer = App.els["layer-clearance"];
+  for (const cz of (g.clearance_zones || [])) {
+    layer.appendChild(svgEl("polygon", {
+      points: polyToStr(cz.poly),
+      class: "clearance-zone",
+    }));
   }
 }
 
@@ -849,8 +893,8 @@ function showProperties(type, name, data) {
       const w = Math.sqrt(dx * dx + dy * dy);
       addPropRow(tbody, "Actual width", fmtFtIn(w));
     }
-    // SEL-7: Door properties for rough openings
-    if (type === "rough_opening" && data.name) {
+    // SEL-7: Door properties for openings
+    if ((type === "rough_opening" || type === "opening") && data.name) {
       showDoorProperties(tbody, data.name);
     }
     const related = findRelatedConstants(data.name);
@@ -1463,12 +1507,125 @@ function updateElementsTable() {
 function showDoorProperties(tbody, roName) {
   const doors = App.state.doors || [];
   const door = doors.find(d => d.opening_name === roName);
-  if (!door) return;
+  if (!door) {
+    // No door — show "Add Door" button
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 2;
+    const btn = document.createElement("button");
+    btn.textContent = "Add Door";
+    btn.className = "prop-btn";
+    btn.addEventListener("click", () => showAddDoorDialog(roName));
+    td.appendChild(btn);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
   addPropRow(tbody, "—", "Door");
   addPropRow(tbody, "Width", door.width + '"');
-  addPropRow(tbody, "Hinge", door.hinge_side);
-  addPropRow(tbody, "Swing", door.swing_direction);
-  addPropRow(tbody, "Type", door.door_type);
+  addDoorDropdownRow(tbody, "Hinge", door.hinge_side, roName, "hinge_side");
+  addDoorDropdownRow(tbody, "Swing", door.swing_direction, roName, "swing_direction");
+  addDoorDropdownRow(tbody, "Type", door.door_type, roName, "door_type",
+    ["single", "double"]);
+
+  // Flip buttons
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = 2;
+  td.style.display = "flex";
+  td.style.gap = "4px";
+  for (const [label, field] of [["Flip Hinge", "hinge_side"], ["Flip Swing", "swing_direction"]]) {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.className = "prop-btn";
+    btn.addEventListener("click", () => flipDoorProperty(roName, field, door));
+    td.appendChild(btn);
+  }
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+function addDoorDropdownRow(tbody, label, value, openingName, field, options) {
+  const dirs = options || ["east", "west", "north", "south"];
+  const tr = document.createElement("tr");
+  const tdLabel = document.createElement("td");
+  tdLabel.textContent = label;
+  tr.appendChild(tdLabel);
+  const tdVal = document.createElement("td");
+  const sel = document.createElement("select");
+  sel.className = "prop-select";
+  for (const d of dirs) {
+    const opt = document.createElement("option");
+    opt.value = d;
+    opt.textContent = d;
+    if (d === value) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener("change", async () => {
+    try {
+      await apiFetch(`/api/doors/${openingName}`, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({[field]: sel.value}),
+      });
+    } catch (e) {
+      showToast("Door update failed: " + e.message, "error");
+    }
+  });
+  tdVal.appendChild(sel);
+  tr.appendChild(tdVal);
+  tbody.appendChild(tr);
+}
+
+const FLIP_MAP = {
+  east: "west", west: "east", north: "south", south: "north",
+};
+
+async function flipDoorProperty(openingName, field, door) {
+  const cur = door[field];
+  const flipped = FLIP_MAP[cur] || cur;
+  try {
+    await apiFetch(`/api/doors/${openingName}`, {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({[field]: flipped}),
+    });
+  } catch (e) {
+    showToast("Flip failed: " + e.message, "error");
+  }
+}
+
+function showAddDoorDialog(openingName) {
+  Dialog.show({
+    title: "Add Door — " + openingName,
+    fields: [
+      {name: "width", label: "Width (inches)", type: "number", value: "36"},
+      {name: "hinge_side", label: "Hinge side", type: "select",
+       options: ["east", "west", "north", "south"], value: "east"},
+      {name: "swing_direction", label: "Swing direction", type: "select",
+       options: ["east", "west", "north", "south"], value: "south"},
+      {name: "door_type", label: "Type", type: "select",
+       options: ["single", "double"], value: "single"},
+    ],
+    onSubmit: async (vals) => {
+      try {
+        await apiFetch("/api/doors", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            opening_name: openingName,
+            width: parseFloat(vals.width) || 36,
+            hinge_side: vals.hinge_side,
+            swing_direction: vals.swing_direction,
+            door_type: vals.door_type,
+          }),
+        });
+        Dialog.close();
+      } catch (e) {
+        showToast("Add door failed: " + e.message, "error");
+      }
+    },
+  });
 }
 
 
@@ -1519,6 +1676,14 @@ function setupEventListeners() {
   });
   App.els["show-rooms"].addEventListener("change", (e) => {
     App.state.showRooms = e.target.checked;
+    renderCanvas();
+  });
+  App.els["show-doors"].addEventListener("change", (e) => {
+    App.state.showDoors = e.target.checked;
+    renderCanvas();
+  });
+  App.els["show-clearance"].addEventListener("change", (e) => {
+    App.state.showClearance = e.target.checked;
     renderCanvas();
   });
 

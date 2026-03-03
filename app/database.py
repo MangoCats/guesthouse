@@ -475,11 +475,13 @@ def _seed_elements(conn):
 
 
 # ---------------------------------------------------------------------------
-# Seed: doors (RO1–RO7 defaults)
+# Seed: doors (O3, O6, RO1–RO7 defaults)
 # ---------------------------------------------------------------------------
 
 # (opening_name, door_width_constant, hinge_side, swing_direction, door_type)
 _DOOR_SEED = [
+    ("O3",  "O3_DOOR_WIDTH",  "north", "west",  "single"),
+    ("O6",  "O6_DOOR_WIDTH",  "east",  "south", "single"),
     ("RO1", "RO1_DOOR_WIDTH", "east",  "south", "single"),
     ("RO2", "RO2_DOOR_WIDTH", "north", "east",  "single"),
     ("RO3", "RO3_DOOR_WIDTH", "south", "west",  "single"),
@@ -491,7 +493,7 @@ _DOOR_SEED = [
 
 
 def _seed_doors(conn):
-    """Seed the doors table with default configurations for RO1–RO7."""
+    """Seed the doors table with default configurations for O3, O6, RO1–RO7."""
     import importlib
     import floorplan.constants as mod
     importlib.reload(mod)

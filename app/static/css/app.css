@@ -383,12 +383,27 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   margin-bottom: 8px;
 }
 
+.prop-btn {
+  padding: 2px 8px; font-size: 11px;
+  background: var(--surface1); color: var(--text); border: 1px solid var(--border);
+  border-radius: 3px; cursor: pointer;
+}
+.prop-btn:hover { background: var(--surface2); }
+.prop-select {
+  background: var(--surface0); color: var(--text); border: 1px solid var(--border);
+  padding: 1px 4px; font-size: 12px; width: 100%;
+}
+
 /* ========== SVG CANVAS STYLES ========== */
 .outline-fill { fill: #1a2030; stroke: none; }
 .outline-stroke { fill: none; stroke: var(--text); stroke-width: 0.05; }
 .inner-stroke { fill: none; stroke: var(--accent-dim); stroke-width: 0.04; stroke-dasharray: 0.15 0.08; }
 .wall-fill { fill: #334; stroke: #556; stroke-width: 0.02; }
 .opening-fill { fill: #2a4a6a; stroke: #4488cc; stroke-width: 0.02; }
+.door-line { stroke: var(--text); stroke-width: 0.03; fill: none; }
+.door-arc { stroke: var(--text); stroke-width: 0.015; fill: none; stroke-dasharray: 0.05,0.03; }
+.door-hinge { fill: var(--text); stroke: none; }
+.clearance-zone { fill: none; stroke: var(--yellow); stroke-width: 0.01; stroke-dasharray: 0.04,0.03; }
 .furniture-fill { fill: #2a3a2a; stroke: #5a8a5a; stroke-width: 0.02; }
 .appliance-fill { fill: #3a3a2a; stroke: #8a8a5a; stroke-width: 0.02; }
 .point-marker { fill: var(--accent); stroke: none; }

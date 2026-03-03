@@ -56,6 +56,222 @@ def _centroid(poly):
     return (cx, cy)
 
 
+def _compute_door_arcs(outer_openings, rough_openings, doors_data, exclusions):
+    """Compute door swing arc geometry for all openings with doors.
+
+    Returns list of door_arc dicts, each with opening_name, door_type,
+    and leaves list (each leaf has hinge, tip, arc_pts).
+    """
+    if not doors_data:
+        return []
+
+    # Build lookup: opening_name → door config dict
+    door_lookup = {d["opening_name"]: d for d in doors_data}
+
+    # Gather all openings with their polys
+    all_ops = []
+    for op in outer_openings:
+        all_ops.append({"name": op.name, "poly": op.poly})
+    excluded_openings = exclusions.get("rough_opening", set())
+    for ro in rough_openings:
+        if ro.name in excluded_openings:
+            continue
+        if ro.poly:
+            all_ops.append({"name": ro.name, "poly": ro.poly})
+        elif ro.bbox:
+            b = ro.bbox
+            all_ops.append({"name": ro.name, "poly": [
+                (b.w, b.s), (b.e, b.s), (b.e, b.n), (b.w, b.n)]})
+
+    result = []
+    for op in all_ops:
+        door = door_lookup.get(op["name"])
+        if not door:
+            continue
+
+        poly = op["poly"]
+        if len(poly) < 4:
+            continue
+
+        leaves = _compute_door_leaves(poly, door)
+        if leaves:
+            result.append({
+                "opening_name": op["name"],
+                "door_type": door.get("door_type", "single"),
+                "leaves": leaves,
+            })
+
+    return result
+
+
+def _compute_door_leaves(poly, door):
+    """Compute door leaf geometry from opening polygon and door config.
+
+    poly: 4 vertices [start_a, end_a, end_b, start_b] defining the opening.
+    For outer openings: [outer_start, outer_end, inner_end, inner_start].
+    For rough openings: [SW, SE, NE, NW].
+
+    door: dict with opening_name, width, hinge_side, swing_direction, door_type.
+    """
+    # Edge A: poly[0]→poly[1] (one face of the opening)
+    # Edge B: poly[3]→poly[2] (opposite face)
+    # Cross: poly[0]→poly[3] (start_a → start_b, across the wall thickness)
+
+    p0, p1, p2, p3 = poly[0], poly[1], poly[2], poly[3]
+
+    # Along direction (edge A: poly[0] → poly[1])
+    dx_a = p1[0] - p0[0]
+    dy_a = p1[1] - p0[1]
+    len_a = math.sqrt(dx_a**2 + dy_a**2)
+    if len_a < 1e-12:
+        return []
+    along = (dx_a / len_a, dy_a / len_a)
+
+    # Cross direction (poly[0] → poly[3], across the wall)
+    dx_c = p3[0] - p0[0]
+    dy_c = p3[1] - p0[1]
+    len_c = math.sqrt(dx_c**2 + dy_c**2)
+    if len_c < 1e-12:
+        return []
+    cross = (dx_c / len_c, dy_c / len_c)
+
+    # Wall midline endpoints (halfway between the two faces)
+    mid_start = ((p0[0] + p3[0]) / 2, (p0[1] + p3[1]) / 2)
+    mid_end = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
+
+    # Door width in feet
+    door_width_ft = door.get("width", 36) / 12.0
+    hinge_side = door.get("hinge_side", "east")
+    swing_dir = door.get("swing_direction", "south")
+    door_type = door.get("door_type", "single")
+
+    # Determine which end is the hinge side by projecting cardinal directions
+    # onto the opening's along vector
+    cardinals = {
+        "east": (1, 0), "west": (-1, 0),
+        "north": (0, 1), "south": (0, -1),
+    }
+
+    hinge_vec = cardinals.get(hinge_side, (1, 0))
+    # Dot product of hinge direction with along vector
+    # Positive → hinge at "end" (poly[1] side), Negative → hinge at "start" (poly[0] side)
+    dot_hinge = hinge_vec[0] * along[0] + hinge_vec[1] * along[1]
+
+    # Swing direction vector
+    swing_vec = cardinals.get(swing_dir, (0, -1))
+    # Determine swing unit vector: project onto cross and along, pick the
+    # perpendicular direction that best matches
+    dot_swing_cross = swing_vec[0] * cross[0] + swing_vec[1] * cross[1]
+    dot_swing_along = swing_vec[0] * along[0] + swing_vec[1] * along[1]
+
+    # The swing direction in opening-local coords
+    if abs(dot_swing_cross) >= abs(dot_swing_along):
+        # Swing is perpendicular to the opening (through the wall)
+        swing_unit = cross if dot_swing_cross > 0 else (-cross[0], -cross[1])
+    else:
+        # Swing is along the opening direction
+        swing_unit = along if dot_swing_along > 0 else (-along[0], -along[1])
+
+    gap = (len_a - door_width_ft) / 2.0
+    if gap < 0:
+        gap = 0
+
+    if door_type == "double":
+        # Double door: two leaves, hinged at opposite ends
+        leaf_width = door_width_ft  # width per leaf (from DB, already per-leaf)
+        total = 2 * leaf_width
+        d_gap = (len_a - total) / 2.0
+        if d_gap < 0:
+            d_gap = 0
+
+        # Leaf 1: hinge at start end
+        h1 = (mid_start[0] + d_gap * along[0], mid_start[1] + d_gap * along[1])
+        # Leaf 2: hinge at end end
+        h2 = (mid_end[0] - d_gap * along[0], mid_end[1] - d_gap * along[1])
+
+        leaves = []
+        for hinge_pt, closed_dir in [(h1, along), (h2, (-along[0], -along[1]))]:
+            tip = (hinge_pt[0] + leaf_width * swing_unit[0],
+                   hinge_pt[1] + leaf_width * swing_unit[1])
+            arc_pts = _swing_arc(hinge_pt, leaf_width, swing_unit, closed_dir)
+            leaves.append({
+                "hinge": list(hinge_pt),
+                "tip": list(tip),
+                "arc_pts": [list(p) for p in arc_pts],
+            })
+        return leaves
+    else:
+        # Single door: hinge at one end
+        if dot_hinge > 0:
+            # Hinge at end (poly[1] side)
+            hinge_pt = (mid_end[0] - gap * along[0], mid_end[1] - gap * along[1])
+            closed_dir = (-along[0], -along[1])
+        else:
+            # Hinge at start (poly[0] side)
+            hinge_pt = (mid_start[0] + gap * along[0], mid_start[1] + gap * along[1])
+            closed_dir = along
+
+        tip = (hinge_pt[0] + door_width_ft * swing_unit[0],
+               hinge_pt[1] + door_width_ft * swing_unit[1])
+        arc_pts = _swing_arc(hinge_pt, door_width_ft, swing_unit, closed_dir)
+
+        return [{
+            "hinge": list(hinge_pt),
+            "tip": list(tip),
+            "arc_pts": [list(p) for p in arc_pts],
+        }]
+
+
+def _swing_arc(hinge, radius, dir_from, dir_to, n_pts=20):
+    """Compute 90-degree door swing arc points.
+
+    Replicates floorplan/gen_floorplan.py::_swing_arc_svg math.
+    Rotates dir_from toward dir_to (perpendicular unit vectors).
+    Returns list of (E, N) tuples.
+    """
+    cross = dir_from[0] * dir_to[1] - dir_from[1] * dir_to[0]
+    sweep = math.pi / 2 if cross > 0 else -math.pi / 2
+    pts = []
+    for i in range(n_pts + 1):
+        a = sweep * i / n_pts
+        ca, sa = math.cos(a), math.sin(a)
+        ae = hinge[0] + radius * (dir_from[0] * ca - dir_from[1] * sa)
+        an = hinge[1] + radius * (dir_from[0] * sa + dir_from[1] * ca)
+        pts.append((ae, an))
+    return pts
+
+
+def _compute_clearance_zones(layout, variant):
+    """Compute clearance zone polygons for fixture/furniture items.
+
+    Returns list of clearance zone dicts with name, poly, style.
+    Currently: dresser 15" clearance on south face (matching gen_floorplan.py).
+    """
+    from shared.geometry import seg_vecs, offset_pt
+
+    zones = []
+    # Bare and SF variants have no furniture
+    if variant in ("bare", "sf"):
+        return zones
+
+    dresser = getattr(layout, "dresser", None)
+    if dresser:
+        # Dresser clearance: 15" south from south face (poly[0]→poly[1] = SW→SE)
+        al, outward = seg_vecs(dresser.poly[0], dresser.poly[1])
+        cl_sw = offset_pt(dresser.poly[0], 15.0 / 12.0, outward)
+        cl_se = offset_pt(dresser.poly[1], 15.0 / 12.0, outward)
+        zones.append({
+            "name": "dresser_clearance",
+            "poly": [point_to_list(dresser.poly[0]),
+                     point_to_list(dresser.poly[1]),
+                     point_to_list(cl_se),
+                     point_to_list(cl_sw)],
+            "style": "dashed",
+        })
+
+    return zones
+
+
 def _compute_room_labels(pts, layout, inner_segs, radii, variant):
     """Compute room label positions, areas, and SF partition lines.
 
@@ -250,12 +466,16 @@ def _build_outline_segs_from_chain(chain):
 
 
 def compute_geometry(constants_dict: dict, variant: str = "standard",
-                     chain_rows: list[dict] | None = None) -> dict:
+                     chain_rows: list[dict] | None = None,
+                     doors_data: list[dict] | None = None) -> dict:
     """Compute all building geometry from constants and return JSON-serialisable dict.
 
     If chain_rows is provided (Phase 5+), the app solver computes the
     outline from DB chain data, bypassing the module-scope solver in
     floorplan/geometry.py.
+
+    If doors_data is provided (Phase 6+), door swing arcs are computed
+    from opening polygons and door configurations.
     """
     patch_constants(constants_dict)
 
@@ -460,6 +680,13 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     result["room_labels"] = room_data["room_labels"]
     if "sf_lines" in room_data:
         result["sf_lines"] = room_data["sf_lines"]
+
+    # Door arcs (Phase 6)
+    result["door_arcs"] = _compute_door_arcs(
+        outer_openings, rough_openings, doors_data or [], exclusions)
+
+    # Clearance zones (Phase 6)
+    result["clearance_zones"] = _compute_clearance_zones(layout, variant)
 
     return result
 
