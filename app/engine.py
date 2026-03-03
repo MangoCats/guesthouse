@@ -339,12 +339,15 @@ def _compute_appliance_doors(variant_items):
                hinge_pt[1] + width * open_dir[1])
         arc_pts = _swing_arc(hinge_pt, width, open_dir, closed_dir)
 
-        result.append({
+        entry = {
             "item_name": item_name,
             "hinge": list(hinge_pt),
             "tip": list(tip),
             "arc_pts": [list(p) for p in arc_pts],
-        })
+        }
+        if item.get("stacked"):
+            entry["stacked"] = True
+        result.append(entry)
 
     return result
 

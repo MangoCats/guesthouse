@@ -495,7 +495,11 @@ function renderDoors(g) {
     }
   }
   // Appliance door arcs (fridge, washer, dryer, microwave)
+  // Stacked appliance doors are rendered in renderFurniture() so they
+  // appear above the counter they sit on (layer-furniture paints after
+  // layer-doors in SVG paint order).
   for (const ad of (g.appliance_doors || [])) {
+    if (ad.stacked) continue;
     layer.appendChild(svgEl("line", {
       x1: ad.hinge[0], y1: -ad.hinge[1],
       x2: ad.tip[0], y2: -ad.tip[1],
@@ -586,6 +590,24 @@ function renderFurniture(g) {
         });
         lbl.textContent = item.label;
         layer.appendChild(lbl);
+      }
+    }
+
+    // Stacked appliance door arcs: rendered here (above all items) so they
+    // are not hidden by counter polygons in this same layer.
+    if (App.state.showDoors) {
+      for (const ad of (g.appliance_doors || [])) {
+        if (!ad.stacked) continue;
+        layer.appendChild(svgEl("line", {
+          x1: ad.hinge[0], y1: -ad.hinge[1],
+          x2: ad.tip[0], y2: -ad.tip[1],
+          class: "appl-door-line",
+        }));
+        const pts = ad.arc_pts.map(p => `${p[0]},${-p[1]}`).join(" ");
+        layer.appendChild(svgEl("polyline", {
+          points: pts,
+          class: "appl-door-arc",
+        }));
       }
     }
     return;
