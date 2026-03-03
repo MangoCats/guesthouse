@@ -136,6 +136,9 @@ def init_db(db_path=None):
             _seed_variant_exclusions(conn)
             _seed_elements(conn)
             _seed_doors(conn)
+        else:
+            # Ensure all seed doors exist (handles additions like O3, O6)
+            _seed_doors(conn)
 
 
 # ---------------------------------------------------------------------------
