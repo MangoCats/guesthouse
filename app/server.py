@@ -13,10 +13,11 @@ from flask import Flask, jsonify, render_template, request, Response, send_file
 
 from app.database import (
     DB_PATH, init_db, get_all_constants, get_constants_dict,
-    update_constant, update_constants_batch, get_categories,
-    get_outline_chain, get_views, reset_constants,
+    get_constant_value, update_constant, update_constants_batch,
+    get_categories, get_outline_chain, get_views, reset_constants,
 )
 from app.engine import compute_geometry, generate_svg, get_svg_content, patch_constants
+from app.undo import UndoManager
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -51,6 +52,9 @@ def create_app(db_path=None):
     )
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # no caching during dev
 
+    # Undo/redo manager
+    undo_mgr = UndoManager(db)
+
     # Cache for computed geometry — keyed by variant
     _geom_cache = {}  # {variant: {"data": ..., "dirty": True}}
     _geom_lock = threading.Lock()
@@ -71,6 +75,7 @@ def create_app(db_path=None):
         with _geom_lock:
             for entry in _geom_cache.values():
                 entry["dirty"] = True
+        _broadcast("constants_changed")
         _broadcast("geometry_changed")
 
     # ------------------------------------------------------------------
@@ -105,8 +110,13 @@ def create_app(db_path=None):
             value = float(value)
         except (TypeError, ValueError):
             return jsonify({"error": "invalid value"}), 400
+        old = get_constant_value(name, db)
         ok = update_constant(name, value, db)
         if ok:
+            undo_mgr.record(
+                "constant_update", {name: old}, {name: value},
+                f"Change {name}",
+            )
             _invalidate()
             return jsonify({"ok": True, "name": name, "value": value})
         return jsonify({"error": "not found"}), 404
@@ -119,16 +129,50 @@ def create_app(db_path=None):
             updates = {k: float(v) for k, v in updates.items()}
         except (TypeError, ValueError):
             return jsonify({"error": "invalid values"}), 400
+        before = {k: v for k, v in get_constants_dict(db).items() if k in updates}
         n = update_constants_batch(updates, db)
         if n > 0:
+            undo_mgr.record(
+                "constant_batch", before, updates,
+                f"Batch update {n} constants",
+            )
             _invalidate()
         return jsonify({"ok": True, "changed": n})
 
     @app.route("/api/constants/reset", methods=["POST"])
     def api_reset_constants():
+        before = get_constants_dict(db)
         reset_constants(db)
+        after = get_constants_dict(db)
+        undo_mgr.record("constant_reset", before, after, "Reset all constants")
         _invalidate()
         return jsonify({"ok": True})
+
+    # -- Undo/Redo API --
+
+    @app.route("/api/undo", methods=["POST"])
+    def api_undo():
+        entry = undo_mgr.undo()
+        if entry is None:
+            return jsonify({"error": "nothing to undo"}), 400
+        _invalidate()
+        return jsonify({
+            "ok": True,
+            "action": entry["action_type"],
+            "description": entry["description"],
+        })
+
+    @app.route("/api/redo", methods=["POST"])
+    def api_redo():
+        entry = undo_mgr.redo()
+        if entry is None:
+            return jsonify({"error": "nothing to redo"}), 400
+        _invalidate()
+        return jsonify({
+            "ok": True,
+            "action": entry["action_type"],
+            "description": entry["description"],
+        })
 
     # -- Geometry API --
 

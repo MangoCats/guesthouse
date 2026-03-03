@@ -91,6 +91,15 @@ CREATE TABLE IF NOT EXISTS room_label_offsets (
     offset_e    REAL DEFAULT 0.0,     -- easting offset from centroid (feet)
     offset_n    REAL DEFAULT 0.0      -- northing offset from centroid (feet)
 );
+
+CREATE TABLE IF NOT EXISTS undo_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp   REAL NOT NULL,
+    action_type TEXT NOT NULL,        -- e.g. 'constant_update', 'constant_batch', 'constant_reset'
+    before_state TEXT NOT NULL,       -- JSON serialised previous state
+    after_state  TEXT NOT NULL,       -- JSON serialised new state
+    description TEXT DEFAULT ''
+);
 """
 
 
@@ -426,6 +435,15 @@ def get_constants_dict(db_path=None):
     with get_db(db_path) as conn:
         rows = conn.execute("SELECT name, value FROM constants").fetchall()
         return {r["name"]: r["value"] for r in rows}
+
+
+def get_constant_value(name, db_path=None):
+    """Return the current value of a single constant, or None if not found."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT value FROM constants WHERE name = ?", (name,)
+        ).fetchone()
+        return row["value"] if row else None
 
 
 def update_constant(name, value, db_path=None):

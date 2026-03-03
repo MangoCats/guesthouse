@@ -77,6 +77,10 @@ function connectSSE() {
     App.els["connection-status"].className = "connected";
   });
 
+  App.sse.addEventListener("constants_changed", () => {
+    loadConstants();
+  });
+
   App.sse.addEventListener("geometry_changed", () => {
     loadGeometry();
   });
@@ -1250,6 +1254,13 @@ function onViewportClick(e) {
 function onKeyDown(e) {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
 
+  // Undo / Redo
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+    e.preventDefault();
+    if (e.shiftKey) { doRedo(); } else { doUndo(); }
+    return;
+  }
+
   switch (e.key) {
     case "v": case "V": setTool("select"); break;
     case "h": case "H": setTool("pan"); break;
@@ -1268,6 +1279,26 @@ function onKeyDown(e) {
       App.state.zoom *= 0.8;
       applyTransform();
       break;
+  }
+}
+
+async function doUndo() {
+  const resp = await fetch("/api/undo", { method: "POST" });
+  const data = await resp.json();
+  if (resp.ok) {
+    showToast("Undo: " + (data.description || data.action), "success");
+  } else {
+    showToast(data.error || "Nothing to undo", "warning");
+  }
+}
+
+async function doRedo() {
+  const resp = await fetch("/api/redo", { method: "POST" });
+  const data = await resp.json();
+  if (resp.ok) {
+    showToast("Redo: " + (data.description || data.action), "success");
+  } else {
+    showToast(data.error || "Nothing to redo", "warning");
   }
 }
 
