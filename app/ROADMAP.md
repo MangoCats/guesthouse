@@ -652,7 +652,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 774+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 862+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
@@ -738,16 +738,16 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 1 (done) | 22 | 774 |
 | 2 (done) | 20 | 794 |
 | 3 (done) | 45 | 839 |
-| 4 | ~15 | 847 |
-| 5 | ~30 | 877 |
-| 6 | ~12 | 889 |
-| 7 | ~25 | 914 |
-| 8 | ~15 | 929 |
-| 9 | ~12 | 941 |
-| 10 | ~20 | 961 |
-| 11 | ~10 | 971 |
-| 12 | ~20 | 991 |
-| 13 | ~20 | 1011 |
+| 4 (done) | 20 | 862 |
+| 5 | ~30 | 892 |
+| 6 | ~12 | 904 |
+| 7 | ~25 | 929 |
+| 8 | ~15 | 944 |
+| 9 | ~12 | 956 |
+| 10 | ~20 | 976 |
+| 11 | ~10 | 986 |
+| 12 | ~20 | 1006 |
+| 13 | ~20 | 1026 |
 
 ---
 

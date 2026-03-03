@@ -292,11 +292,14 @@ of undo entries with a position pointer.  Entries are persisted to the
 
 ### app/apputil.py — Shared Serialisation Helpers
 
-Utility functions used by both `engine.py` and `variants.py` for
-converting geometry objects to JSON-serialisable dicts:
+Utility functions and constants used by `engine.py`, `variants.py`, and
+`database.py` for converting geometry objects to JSON-serialisable dicts
+and standardising polygon approximations:
 
-| Function | Purpose |
-|----------|---------|
+| Constant / Function | Purpose |
+|---------------------|---------|
+| `ARC_N_SEMICIRCLE` | Arc discretisation: 32 segments for semicircular arcs (bath sink bulge) |
+| `ARC_N_CIRCLE` | Arc discretisation: 24 segments for full circles (water heater, ET) |
 | `point_to_list(pt)` | `(E, N)` tuple → `[E, N]` list |
 | `bbox_from_poly(poly)` | Polygon → `{w, s, e, n}` bounding box |
 | `seg_to_dict(seg)` | `LineSeg`/`ArcSeg` → JSON-serialisable dict |
@@ -328,8 +331,13 @@ Client-side move tool with drag, ghost preview, axis constraints, and snap.
 
 ### app/static/js/app.js — Client
 
-Single-file client application (~1600 lines).  No build step or
+Single-file client application (~1700 lines).  No build step or
 framework.
+
+**API helper** — `apiFetch(url, opts)` wraps `fetch()` and throws on
+non-ok responses, extracting error messages from JSON bodies.  All data
+loading and mutation calls use this wrapper so HTTP errors surface as
+readable messages rather than silent JSON parse failures.
 
 **State** — `App.state` object holds: current geometry, constants array,
 views list, active view/tool, zoom/pan, display toggles, variant
@@ -550,13 +558,15 @@ will be unnecessary once the app owns the constants directly (Phase 12).
 ## Roadmap
 
 The charter describes a full parametric editor; the current
-implementation is a **parametric viewer with constant editing, undo, and
-element/door CRUD** (Phases 0–3 complete) — 145 of 226 requirements are
-implemented across 253 app tests (839 total).  Phase 1 established
-automated test coverage for all implemented server-side requirements.
-Phase 2 added undo/redo infrastructure.  Phase 3 added elements and doors
-as first-class database objects with full CRUD APIs.  Next phase: Phase 4
-(move tool).
+implementation is a **parametric viewer with constant editing, undo,
+element/door CRUD, and move tool** (Phases 0–4 complete) — 152 of 226
+requirements are implemented across 273 app tests (862 total).  Phase 1
+established automated test coverage for all implemented server-side
+requirements.  Phase 2 added undo/redo infrastructure.  Phase 3 added
+elements and doors as first-class database objects with full CRUD APIs.
+Phase 4 added the move tool with drag-to-reposition, ghost preview,
+axis constraints, grid snap, multi-select group move, and offset dialog.
+Next phase: Phase 5 (outline chain editing).
 
 The development arc follows three stages:
 
