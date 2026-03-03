@@ -480,7 +480,7 @@ def _seed_elements(conn):
 
 # (opening_name, door_width_constant, hinge_side, swing_direction, door_type)
 _DOOR_SEED = [
-    ("O3",  "O3_DOOR_WIDTH",  "north", "west",  "single"),
+    ("O3",  "O3_DOOR_WIDTH",  "north", "east",  "single"),
     ("O6",  "O6_DOOR_WIDTH",  "east",  "south", "single"),
     ("RO1", "RO1_DOOR_WIDTH", "east",  "south", "single"),
     ("RO2", "RO2_DOOR_WIDTH", "north", "east",  "single"),

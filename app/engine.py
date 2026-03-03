@@ -107,37 +107,43 @@ def _compute_door_arcs(outer_openings, rough_openings, doors_data, exclusions):
 def _compute_door_leaves(poly, door):
     """Compute door leaf geometry from opening polygon and door config.
 
-    poly: 4 vertices [start_a, end_a, end_b, start_b] defining the opening.
-    For outer openings: [outer_start, outer_end, inner_end, inner_start].
-    For rough openings: [SW, SE, NE, NW].
+    poly: 4 vertices of the opening rectangle.  Vertex winding varies by
+    opening type — some have poly[0]→poly[1] along the opening width, others
+    have it across the wall thickness.  We detect which edge pair is the
+    opening width (longer) vs wall thickness (shorter) and orient accordingly.
 
     door: dict with opening_name, width, hinge_side, swing_direction, door_type.
     """
-    # Edge A: poly[0]→poly[1] (one face of the opening)
-    # Edge B: poly[3]→poly[2] (opposite face)
-    # Cross: poly[0]→poly[3] (start_a → start_b, across the wall thickness)
-
     p0, p1, p2, p3 = poly[0], poly[1], poly[2], poly[3]
 
-    # Along direction (edge A: poly[0] → poly[1])
-    dx_a = p1[0] - p0[0]
-    dy_a = p1[1] - p0[1]
-    len_a = math.sqrt(dx_a**2 + dy_a**2)
-    if len_a < 1e-12:
-        return []
-    along = (dx_a / len_a, dy_a / len_a)
+    # Compute both edge lengths
+    dx_01 = p1[0] - p0[0]
+    dy_01 = p1[1] - p0[1]
+    len_01 = math.sqrt(dx_01**2 + dy_01**2)
 
-    # Cross direction (poly[0] → poly[3], across the wall)
-    dx_c = p3[0] - p0[0]
-    dy_c = p3[1] - p0[1]
-    len_c = math.sqrt(dx_c**2 + dy_c**2)
-    if len_c < 1e-12:
-        return []
-    cross = (dx_c / len_c, dy_c / len_c)
+    dx_03 = p3[0] - p0[0]
+    dy_03 = p3[1] - p0[1]
+    len_03 = math.sqrt(dx_03**2 + dy_03**2)
 
-    # Wall midline endpoints (halfway between the two faces)
-    mid_start = ((p0[0] + p3[0]) / 2, (p0[1] + p3[1]) / 2)
-    mid_end = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
+    if len_01 < 1e-12 or len_03 < 1e-12:
+        return []
+
+    # "along" = opening width direction (longer edge pair)
+    # "cross" = wall thickness direction (shorter edge pair)
+    if len_01 >= len_03:
+        # Normal: poly[0]→poly[1] is along the opening width
+        along_len = len_01
+        along = (dx_01 / len_01, dy_01 / len_01)
+        cross = (dx_03 / len_03, dy_03 / len_03)
+        mid_start = ((p0[0] + p3[0]) / 2, (p0[1] + p3[1]) / 2)
+        mid_end = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
+    else:
+        # Swapped: poly[0]→poly[3] is along the opening width
+        along_len = len_03
+        along = (dx_03 / len_03, dy_03 / len_03)
+        cross = (dx_01 / len_01, dy_01 / len_01)
+        mid_start = ((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2)
+        mid_end = ((p3[0] + p2[0]) / 2, (p3[1] + p2[1]) / 2)
 
     # Door width in feet
     door_width_ft = door.get("width", 36) / 12.0
@@ -172,7 +178,7 @@ def _compute_door_leaves(poly, door):
         # Swing is along the opening direction
         swing_unit = along if dot_swing_along > 0 else (-along[0], -along[1])
 
-    gap = (len_a - door_width_ft) / 2.0
+    gap = (along_len - door_width_ft) / 2.0
     if gap < 0:
         gap = 0
 
@@ -180,7 +186,7 @@ def _compute_door_leaves(poly, door):
         # Double door: two leaves, hinged at opposite ends
         leaf_width = door_width_ft  # width per leaf (from DB, already per-leaf)
         total = 2 * leaf_width
-        d_gap = (len_a - total) / 2.0
+        d_gap = (along_len - total) / 2.0
         if d_gap < 0:
             d_gap = 0
 
