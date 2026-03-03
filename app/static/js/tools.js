@@ -369,10 +369,11 @@ async function commitMove(targets, dx, dy) {
       }
     }
 
-    // Reload state — await so canvas isn't rebuilt mid-interaction
-    await loadGeometry();
+    // Reload state: elements/constants FIRST (updates App.state data),
+    // then geometry LAST (calls renderCanvas which reads that data).
     await loadElements();
     await loadConstants();
+    await loadGeometry();
   } finally {
     MoveTool._committing = false;
   }
