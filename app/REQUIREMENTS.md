@@ -17,10 +17,9 @@ full commit history are marked **(NEW)**.
 
 #### DB-1  Schema Initialisation
 The application SHALL create an SQLite database with tables `constants`,
-`outline_chain`, `views`, `shapes`, `variant_exclusions`, and
-`room_label_offsets` when launched for the first time.
-(Additional tables `elements` and `doors` will be added in Phase 3 —
-see DB-9 and DB-10.)
+`outline_chain`, `views`, `shapes`, `variant_exclusions`,
+`room_label_offsets`, `undo_history`, `elements`, and `doors` when
+launched for the first time.
 
 **Acceptance:** Start with no `app/adu.db` file. Run `python run_app.py
 --no-browser`. Verify the file is created and contains all six tables.
@@ -78,7 +77,7 @@ re-seed from `floorplan/constants.py`, restoring original values.
 **Acceptance:** Modify `BED_WIDTH`. Call `reset_constants()`. Read
 `BED_WIDTH`. Verify it equals the value in the Python source module.
 
-#### DB-9  Elements Table **(NEW)**
+#### DB-9  Elements Table
 The `elements` table SHALL store interior walls and user-added elements
 with columns: `id`, `type` (wall / furniture / appliance / fixture /
 clearance / label / dimension), `name`, `properties` (JSON), `variant`
@@ -107,7 +106,7 @@ formulas.
 `SELECT count(*) FROM elements WHERE type = 'wall'` returns 13.
 `SELECT count(*) FROM elements WHERE type != 'wall'` returns 0.
 
-#### DB-10  Doors Table **(NEW)**
+#### DB-10  Doors Table
 The `doors` table SHALL store door configurations with columns: `id`,
 `opening_name`, `width`, `hinge_side`, `swing_direction`, `door_type`
 (single / double).
@@ -503,7 +502,7 @@ SHALL remove a point from the outline chain and re-solve for closure.
 **Acceptance:** DELETE `/api/outline/3` (removing F4). Chain length
 decreases by 1. Closure is re-solved.
 
-### 2.4  Element CRUD API **(NEW)**
+### 2.4  Element CRUD API
 
 #### API-20  POST /api/elements
 SHALL create a new element (interior wall, furniture, appliance, fixture)
@@ -553,7 +552,7 @@ SHALL remove an opening and its associated door (if any).
 
 **Acceptance:** DELETE O8a. Opening no longer appears in computed geometry.
 
-### 2.5  Door API **(NEW)**
+### 2.5  Door API
 
 #### API-27  POST /api/doors
 SHALL create a door on an opening with hinge side, swing direction, width,
@@ -974,7 +973,7 @@ segment reference, width, and actual computed width.
 **Acceptance:** Select O3. Panel shows Name, Segment (F2-F5), and Width
 values.
 
-#### SEL-7  Door Properties **(NEW)**
+#### SEL-7  Door Properties
 When an opening with a door is selected, the Properties panel SHALL
 display door width, hinge side, swing direction, and door type, all
 editable.
@@ -983,7 +982,7 @@ editable.
 dropdown (east/west/north/south), Swing Direction dropdown, and Type
 dropdown (single/double).
 
-#### SEL-8  Furniture Properties **(NEW)**
+#### SEL-8  Furniture Properties
 When a furniture or appliance item is selected, the Properties panel
 SHALL display its width, depth, rotation angle, position (wall-relative
 offset), and product URL (if any).
@@ -1499,7 +1498,7 @@ element on the canvas and show its properties.
 corresponding polygon on the canvas receives the `selected-highlight`
 class.
 
-### 8.3  Interior Walls Table **(NEW)**
+### 8.3  Interior Walls Table
 
 #### DT-9  Interior Walls Table
 The Elements panel SHALL display an interior walls table with columns:
@@ -1508,14 +1507,14 @@ Name, Thickness (inches), Length (ft-in), Orientation, Hosted Openings.
 **Acceptance:** Table shows 13 rows matching ENG-4 wall names. Thickness
 values are in inches. Length is formatted as ft'in".
 
-#### DT-10  Interior Walls Table Editing **(NEW)**
+#### DT-10  Interior Walls Table Editing
 Clicking a wall row SHALL select it on the canvas. Thickness and length
 cells SHALL be editable.
 
 **Acceptance:** Click IW8 row. IW8 highlights on canvas. Change thickness
 from 4 to 6. Press Enter. Geometry recomputes.
 
-### 8.4  Furniture/Appliance Table **(NEW)**
+### 8.4  Furniture/Appliance Table
 
 #### DT-11  Furniture/Appliance Table
 The Elements panel SHALL display a furniture/appliance table with columns:
@@ -1916,7 +1915,7 @@ If the SSE connection drops, the browser SHALL attempt to reconnect after
 **Acceptance:** Stop and restart the server. Within a few seconds the
 browser reconnects and the status returns to "Connected".
 
-#### RT-5  Element Change Notification **(NEW)**
+#### RT-5  Element Change Notification
 When an element is added, moved, deleted, or modified via the API, the
 server SHALL broadcast an `element_changed` event so all connected
 browsers update in real time.
@@ -2051,14 +2050,14 @@ line or inherited from a **(NEW)** section/subsection heading.
 
 | Section | Existing | New | Total |
 |---------|----------|-----|-------|
-| 1 Data Layer | 29 | 3 | 32 |
-| 2 REST API | 20 | 14 | 34 |
+| 1 Data Layer | 31 | 1 | 32 |
+| 2 REST API | 29 | 5 | 34 |
 | 3 UI Layout | 6 | 2 | 8 |
 | 4 Canvas | 21 | 6 | 27 |
-| 5 Selection | 6 | 7 | 13 |
+| 5 Selection | 8 | 5 | 13 |
 | 6 Tools | 4 | 23 | 27 |
 | 7 Constants | 20 | 0 | 20 |
-| 8 Data Tables | 4 | 7 | 11 |
+| 8 Data Tables | 7 | 4 | 11 |
 | 9 Element Ops | 0 | 13 | 13 |
 | 10 Styling | 0 | 4 | 4 |
 | 11 Site Plan | 0 | 4 | 4 |
@@ -2066,9 +2065,9 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 13 Analysis | 0 | 3 | 3 |
 | 14 Plumbing | 0 | 8 | 8 |
 | 15 Undo/Redo | 4 | 0 | 4 |
-| 16 Real-Time | 4 | 1 | 5 |
+| 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **128** | **98** | **226** |
+| **Total** | **145** | **81** | **226** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

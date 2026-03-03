@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 2 — Complete)
+## Current State (Phase 3 — Complete)
 
-**128 of 226 requirements implemented.**  208 app tests, 586 pre-existing tests
-(794 total).  All implemented requirements have automated test coverage.
+**145 of 226 requirements implemented.**  253 app tests, 586 pre-existing tests
+(839 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -26,7 +26,7 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
-| REST API: 16 endpoints, SSE | Done |
+| REST API: 27 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
 | Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
@@ -39,14 +39,21 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Layout selector on Floorplan SVG tab (variant-specific SVGs) | Done |
 | DB tables: shapes, variant_exclusions, room_label_offsets, undo_history | Done |
 | Undo/redo: 50-level, Ctrl+Z / Ctrl+Shift+Z, cross-type | Done |
+| Elements table: 13 IW seeds, CRUD, variant filtering | Done |
+| Doors table: 7 RO seeds, CRUD, validation | Done |
+| Element/door/opening undo support (9 action types) | Done |
+| Elements tab: interior walls table, furniture/appliance table | Done |
+| Door properties in selection panel (hinge, swing, type) | Done |
+| Furniture/appliance properties in selection panel | Done |
+| element_changed SSE event on mutations | Done |
 
-**What's missing:** Element CRUD, doors, outline editing, move/draw
-tools, shape editor UI, styling, site plan editing, 3D integration,
-plumbing layout (interactive canvas with DB-stored elements), electrical
-layout (aspirational), parametric dependencies and cutover to fully
-database-driven design (Charter Principle 5).  The current implementation
-uses constants as the single editable root; the target architecture makes
-every element a database entity with parametric position formulas.
+**What's missing:** Outline editing, move/draw tools, shape editor UI,
+styling, site plan editing, 3D integration, plumbing layout (interactive
+canvas with DB-stored elements), electrical layout (aspirational),
+parametric dependencies and cutover to fully database-driven design
+(Charter Principle 5).  The current implementation uses constants as
+the single editable root; the target architecture makes every element
+a database entity with parametric position formulas.
 
 ---
 
@@ -105,7 +112,7 @@ infrastructure so every future mutation is automatically reversible.
 
 ---
 
-## Phase 3 — Elements & Doors Database
+## Phase 3 — Elements & Doors Database (Complete)
 
 **Goal:** Extend the schema to represent interior elements and doors as
 first-class database objects, with full CRUD APIs.
@@ -114,22 +121,33 @@ first-class database objects, with full CRUD APIs.
 *(API-23 — element move — is assigned to Phase 4.  UI-7 — Elements tab —
 is counted in Phase 0 as partial; this phase completes it.)*
 
-**Work:**
-- Add `elements` table (DB-9) and `doors` table (DB-10) to database schema
-- Seed elements with the 13 interior walls only (furniture/appliances/fixtures
-  are computed per-variant, not seeded); seed doors from RO1–RO7 defaults
-- Create `app/elements.py` — CRUD, cascading delete, constant-to-element mapping
-- Create `app/doors.py` — door arc geometry computation, CRUD
-- Add 9 new API endpoints: elements CRUD (API-20–22, API-24–26), doors (API-27–29)
-- Complete "Elements" tab in right panel (UI-7) with interior walls table
-  (DT-9–10) and furniture/appliance table (DT-11)
-- Enhanced property display for furniture (SEL-8) and doors (SEL-7)
-- Broadcast `element_changed` SSE event on mutations (RT-5)
+**Completed.** 45 new tests added (839 total, up from 794).
+
+**Implementation:**
+- `elements` and `doors` tables added to `app/database.py` (DB-9, DB-10)
+- 13 IW records seeded; 7 RO door records seeded with widths from constants
+- `app/elements.py` — IW→constant mapping, variant-aware queries, hosted
+  openings lookup
+- `app/doors.py` — door validation (hinge side, swing direction, door type)
+- `app/undo.py` — extended `_apply()` with 9 new action types:
+  element_create/delete/update, door_create/delete/update,
+  opening_create/delete/update
+- 11 new API endpoints in `app/server.py`: elements CRUD (4), openings
+  CRUD (3), doors CRUD (4), all with undo recording + SSE broadcast
+- Elements tab in `index.html` with interior walls table (DT-9) and
+  furniture/appliance table (DT-11)
+- `app.js`: `loadElements()`, `updateElementsTable()`, door property
+  editing (SEL-7), furniture/appliance properties (SEL-8),
+  `element_changed` SSE listener (RT-5)
 
 **New files:** `app/elements.py`, `app/doors.py`, `tests/test_zapp_elements.py`,
 `tests/test_zapp_doors.py`
-**Modified:** `app/database.py`, `app/server.py`, `app/engine.py`,
+**Modified:** `app/database.py`, `app/server.py`, `app/undo.py`,
 `app/templates/index.html`, `app/static/js/app.js`
+
+**Deviation from estimate:** 45 new tests vs. estimated ~38.  Additional
+tests cover element business logic (variant filtering, constant mapping,
+hosted openings) and door validation.
 
 **Key design — dual-source element model (transitional):**
 
@@ -691,7 +709,7 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 0 | — | 752 |
 | 1 (done) | 22 | 774 |
 | 2 (done) | 20 | 794 |
-| 3 | ~38 | 832 |
+| 3 (done) | 45 | 839 |
 | 4 | ~15 | 847 |
 | 5 | ~30 | 877 |
 | 6 | ~12 | 889 |

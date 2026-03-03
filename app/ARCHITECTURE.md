@@ -19,8 +19,14 @@ app/server.py          Flask routes, SSE broadcast, geometry cache
     │      └─ floorplan/constants.py    (seed source)
     │      └─ floorplan/geometry.py     (outline chain source)
     │
+    ├─ app/elements.py     Element business logic, IW→constant mapping
+    │      └─ app/database.py     (element CRUD)
+    │
+    ├─ app/doors.py        Door validation (hinge/swing/type)
+    │      └─ app/database.py     (door CRUD)
+    │
     ├─ app/undo.py         Undo/redo manager (50-level command stack)
-    │      └─ app/database.py     (state application via batch update)
+    │      └─ app/database.py     (state application via CRUD functions)
     │
     ├─ app/engine.py       Geometry computation orchestrator
     │      ├─ floorplan/geometry.py     (outline, F-series)
@@ -44,7 +50,7 @@ and `shared/` never import from `app/`.
 
 ### app/database.py — Persistence
 
-Seven SQLite tables:
+Nine SQLite tables:
 
 | Table | Rows | Purpose |
 |-------|------|---------|
@@ -55,6 +61,8 @@ Seven SQLite tables:
 | `variant_exclusions` | 4 | Per-variant element hiding (wall/opening exclusions) |
 | `room_label_offsets` | 0 | User-adjusted room label positions (offset from centroid) |
 | `undo_history` | 0–50 | Serialised undo/redo entries (action type, before/after state) |
+| `elements` | 13+ | Interior walls (seeded) + user-added elements (type, name, properties JSON, variant) |
+| `doors` | 7+ | Door configurations per opening (width, hinge side, swing direction, type) |
 
 **Seeding** — On first run, `init_db()` creates the schema and populates
 tables from source:
@@ -90,9 +98,44 @@ tables from source:
 | `get_variant_exclusions(variant)` | `{element_type: {names}}` for a variant |
 | `get_room_label_offsets()` | `{name: (offset_e, offset_n)}` dict |
 | `set_room_label_offset(name, e, n)` | Upsert a room label offset |
+| `get_all_elements()` | All element rows |
+| `get_element(id)` | Single element by ID |
+| `get_element_by_name(name)` | Single element by name |
+| `create_element(type, name, props, variant)` | Insert element, return row |
+| `create_element_raw(record)` | Insert element from full dict (undo re-insert) |
+| `update_element(id, fields)` | Update element fields |
+| `delete_element(id)` | Delete element + cascade openings hosted on it |
+| `get_all_doors()` | All door rows |
+| `get_door(opening_name)` | Single door by opening name |
+| `create_door(opening, width, hinge, swing, type)` | Insert door, return row |
+| `create_door_raw(record)` | Insert door from full dict (undo re-insert) |
+| `update_door(opening_name, fields)` | Update door fields |
+| `delete_door(opening_name)` | Delete door by opening name |
 
 Connection management uses a context manager with WAL journaling and
 foreign keys enabled.
+
+### app/elements.py — Element Business Logic
+
+Maps interior walls to their controlling constants and hosted openings.
+
+| Data / Function | Purpose |
+|-----------------|---------|
+| `IW_CONSTANT_MAP` | Dict mapping IW name → controlling constant name (e.g., `"IW1"` → `"IW1_OFFSET_FROM_W9"`) |
+| `IW_HOSTED_OPENINGS` | Dict mapping IW name → list of hosted RO names (e.g., `"IW9"` → `["RO3", "RO7"]`) |
+| `get_elements_for_variant(variant)` | Return elements visible to a variant (variant=NULL or matching) |
+| `get_controlling_constant(iw_name)` | Return the constant that controls an IW's position |
+| `get_hosted_openings(iw_name)` | Return list of RO names hosted by an IW |
+
+### app/doors.py — Door Validation
+
+Validates door parameters against allowed values.
+
+| Data / Function | Purpose |
+|-----------------|---------|
+| `VALID_SIDES` | Set of allowed hinge/swing values: `{east, west, north, south}` |
+| `VALID_TYPES` | Set of allowed door types: `{single, double}` |
+| `validate_door(hinge, swing, type)` | Return error string or `None` |
 
 ### app/engine.py — Computation
 
@@ -165,7 +208,7 @@ computed geometry and a dirty flag.  Protected by a threading lock.
 **SSE** — `GET /api/events` returns a `text/event-stream` response.
 Each connected client gets a `queue.Queue`; `_broadcast()` pushes
 messages to all queues.  Events: `constants_changed`, `geometry_changed`,
-`svg_updated`, `connected`.  Keepalive every 30 seconds.
+`svg_updated`, `element_changed`, `connected`.  Keepalive every 30 seconds.
 
 **Floorplan variant mapping** — When the Floorplan view is requested
 with a `?variant=` parameter, the server maps variant names to
@@ -173,7 +216,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (16 total):
+**API endpoints** (27 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -193,6 +236,17 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | GET | `/api/svg/<name>/file` | File download |
 | POST | `/api/regenerate` | Run generator scripts |
 | GET | `/api/events` | SSE stream |
+| GET | `/api/elements` | List elements (optional `?variant=`) |
+| POST | `/api/elements` | Create element (API-20) |
+| PUT | `/api/elements/<id>` | Update element (API-21) |
+| DELETE | `/api/elements/<id>` | Delete element + cascade (API-22) |
+| POST | `/api/openings` | Create opening (API-24) |
+| PUT | `/api/openings/<name>` | Update opening (API-25) |
+| DELETE | `/api/openings/<name>` | Delete opening + door (API-26) |
+| GET | `/api/doors` | List doors |
+| POST | `/api/doors` | Create door (API-27) |
+| PUT | `/api/doors/<opening_name>` | Update door (API-28) |
+| DELETE | `/api/doors/<opening_name>` | Delete door (API-29) |
 
 ### app/undo.py — Undo/Redo Manager
 
@@ -209,10 +263,20 @@ of undo entries with a position pointer.  Entries are persisted to the
 | `redo()` | Apply `after_state`, return entry or `None` |
 | `can_undo` / `can_redo` | Boolean properties |
 
-**State dispatch (`_apply`):** All Phase 2 action types (`constant_update`,
-`constant_batch`, `constant_reset`) store `{name: value}` dicts and apply
-via `update_constants_batch()`.  Future phases extend dispatch for new
-action types (e.g., `element_add`, `element_move`).
+**State dispatch (`_apply`):** Dispatches by `action_type`:
+
+| Action type | Undo behaviour |
+|-------------|---------------|
+| `constant_update`, `constant_batch`, `constant_reset` | Apply `{name: value}` dict via `update_constants_batch()` |
+| `element_create` | Delete the created element by ID |
+| `element_delete` | Re-insert full element record(s) via `create_element_raw()` |
+| `element_update` | Restore old field values via `update_element()` |
+| `door_create` | Delete the created door by opening name |
+| `door_delete` | Re-insert full door record via `create_door_raw()` |
+| `door_update` | Restore old field values via `update_door()` |
+| `opening_create` | Delete the created opening (element) by ID |
+| `opening_delete` | Re-insert full opening record(s) via `create_element_raw()` |
+| `opening_update` | Restore old field values via `update_element()` |
 
 **Lifecycle:**
 - On startup: loads stack from DB, sets position to end
@@ -455,11 +519,13 @@ will be unnecessary once the app owns the constants directly (Phase 12).
 ## Roadmap
 
 The charter describes a full parametric editor; the current
-implementation is a **parametric viewer with constant editing and undo**
-(Phases 0–2 complete) — 128 of 226 requirements are implemented across
-208 app tests (794 total).  Phase 1 established automated test coverage
-for all implemented server-side requirements.  Phase 2 added undo/redo
-infrastructure.  Next phase: Phase 3 (elements & doors).
+implementation is a **parametric viewer with constant editing, undo, and
+element/door CRUD** (Phases 0–3 complete) — 145 of 226 requirements are
+implemented across 253 app tests (839 total).  Phase 1 established
+automated test coverage for all implemented server-side requirements.
+Phase 2 added undo/redo infrastructure.  Phase 3 added elements and doors
+as first-class database objects with full CRUD APIs.  Next phase: Phase 4
+(move tool).
 
 The development arc follows three stages:
 
