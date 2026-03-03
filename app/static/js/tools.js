@@ -30,6 +30,8 @@ const MoveTool = {
   active: false,
   /** True from mousedown until mouseup (pending drag). */
   pending: false,
+  /** True while commitMove is in progress (prevents new drags during reload). */
+  _committing: false,
   startScreen: null,   // {x, y} screen coords at mousedown
   startWorld: null,     // [wx, wy] at mousedown
   targets: [],          // [{type, name, elementId, svgEl}]
@@ -149,6 +151,9 @@ function findMovableAtPoint(clientX, clientY) {
 function moveToolMouseDown(e) {
   if (e.button !== 0) return;
   if (App.state.activeView !== "interactive") return;
+
+  // Don't start a new drag while a previous move is being committed/reloaded
+  if (MoveTool._committing) return;
 
   // Find the topmost movable element at the click point, looking through
   // non-movable elements like point markers, labels, and openings.
@@ -301,61 +306,66 @@ function moveToolMouseUp(e) {
  * Commit a move to the server for one or more targets.
  */
 async function commitMove(targets, dx, dy) {
-  for (const t of targets) {
-    let elementId = t.elementId;
+  MoveTool._committing = true;
+  try {
+    for (const t of targets) {
+      let elementId = t.elementId;
 
-    // For furniture/appliance with no DB record, create override first
-    if (!elementId && (t.type === "furniture" || t.type === "appliance" || t.type === "fixture")) {
-      try {
-        const resp = await fetch("/api/elements", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: t.type,
-            name: t.name,
-            variant: App.state.variant,
-            properties: { offset_x: 0, offset_y: 0, source: "override" },
-          }),
-        });
-        if (resp.ok) {
-          const created = await resp.json();
-          elementId = created.id;
-        } else {
-          showToast(`Failed to create override for ${t.name}`, "error");
+      // For furniture/appliance with no DB record, create override first
+      if (!elementId && (t.type === "furniture" || t.type === "appliance" || t.type === "fixture")) {
+        try {
+          const resp = await fetch("/api/elements", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: t.type,
+              name: t.name,
+              variant: App.state.variant,
+              properties: { offset_x: 0, offset_y: 0, source: "override" },
+            }),
+          });
+          if (resp.ok) {
+            const created = await resp.json();
+            elementId = created.id;
+          } else {
+            showToast(`Failed to create override for ${t.name}`, "error");
+            continue;
+          }
+        } catch (err) {
+          showToast(`Error creating override: ${err.message}`, "error");
           continue;
         }
-      } catch (err) {
-        showToast(`Error creating override: ${err.message}`, "error");
+      }
+
+      if (!elementId) {
+        showToast(`Cannot move ${t.name}: no element record`, "error");
         continue;
       }
-    }
 
-    if (!elementId) {
-      showToast(`Cannot move ${t.name}: no element record`, "error");
-      continue;
-    }
-
-    try {
-      const resp = await fetch(`/api/elements/${elementId}/move`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dx, dy }),
-      });
-      const data = await resp.json();
-      if (resp.ok) {
-        updateUndoButtons(data.can_undo, data.can_redo);
-      } else {
-        showToast(data.error || `Move failed for ${t.name}`, "error");
+      try {
+        const resp = await fetch(`/api/elements/${elementId}/move`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dx, dy }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          updateUndoButtons(data.can_undo, data.can_redo);
+        } else {
+          showToast(data.error || `Move failed for ${t.name}`, "error");
+        }
+      } catch (err) {
+        showToast(`Move error: ${err.message}`, "error");
       }
-    } catch (err) {
-      showToast(`Move error: ${err.message}`, "error");
     }
-  }
 
-  // Reload state — await so canvas isn't rebuilt mid-interaction
-  await loadGeometry();
-  await loadElements();
-  await loadConstants();
+    // Reload state — await so canvas isn't rebuilt mid-interaction
+    await loadGeometry();
+    await loadElements();
+    await loadConstants();
+  } finally {
+    MoveTool._committing = false;
+  }
 }
 
 
