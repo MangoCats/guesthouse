@@ -136,19 +136,13 @@ const MOVABLE_TYPES = new Set(["wall", "furniture", "appliance", "fixture"]);
  */
 function findMovableAtPoint(clientX, clientY) {
   const hits = document.elementsFromPoint(clientX, clientY);
-  let fallback = null;
   for (const hit of hits) {
     const el = hit.closest("[data-name][data-type]");
     if (el && MOVABLE_TYPES.has(el.getAttribute("data-type"))) {
-      // Prefer non-selected elements: the selected-highlight stroke-width
-      // inflates the hit area and can steal clicks from nearby elements.
-      if (!el.classList.contains("selected-highlight")) {
-        return el;
-      }
-      if (!fallback) fallback = el;
+      return el;
     }
   }
-  return fallback;
+  return null;
 }
 
 
