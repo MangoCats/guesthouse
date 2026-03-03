@@ -1425,6 +1425,9 @@ async function doUndo() {
   if (resp.ok) {
     showToast("Undo: " + (data.description || data.action), "success");
     updateUndoButtons(data.can_undo, data.can_redo);
+    loadConstants();
+    loadGeometry();
+    loadElements();
   } else {
     showToast(data.error || "Nothing to undo", "warning");
   }
@@ -1436,6 +1439,9 @@ async function doRedo() {
   if (resp.ok) {
     showToast("Redo: " + (data.description || data.action), "success");
     updateUndoButtons(data.can_undo, data.can_redo);
+    loadConstants();
+    loadGeometry();
+    loadElements();
   } else {
     showToast(data.error || "Nothing to redo", "warning");
   }
