@@ -205,6 +205,11 @@
 
       <!-- Outline panel -->
       <div id="panel-outline" class="panel-content">
+        <div id="outline-closure-indicator"></div>
+        <div id="outline-toolbar">
+          <button id="outline-add-btn" title="Add point (split segment)">+</button>
+          <button id="outline-remove-btn" title="Remove selected segment">−</button>
+        </div>
         <table id="outline-table">
           <thead>
             <tr><th>#</th><th>Type</th><th>Dist/R</th><th>Sweep</th><th>End</th></tr>
@@ -235,6 +240,7 @@
 
   <script src="/static/js/dialogs.js"></script>
   <script src="/static/js/tools.js"></script>
+  <script src="/static/js/outline-editor.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

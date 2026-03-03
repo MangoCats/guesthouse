@@ -573,6 +573,110 @@ def get_outline_chain(db_path=None):
         return [dict(r) for r in rows]
 
 
+def get_outline_chain_row(seq, db_path=None):
+    """Return a single outline chain row by seq, or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM outline_chain WHERE seq = ?", (seq,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def update_outline_segment(seq, updates, db_path=None):
+    """Update outline chain segment fields.  Returns updated row or None."""
+    allowed = {"distance", "radius", "sweep", "sweep_name", "seg_type",
+               "center_name", "n_pts", "end_name"}
+    sets = []
+    vals = []
+    for k, v in updates.items():
+        if k in allowed:
+            sets.append(f"{k} = ?")
+            vals.append(v)
+    if not sets:
+        return get_outline_chain_row(seq, db_path)
+    vals.append(seq)
+    with get_db(db_path) as conn:
+        conn.execute(
+            f"UPDATE outline_chain SET {', '.join(sets)} WHERE seq = ?", vals
+        )
+    return get_outline_chain_row(seq, db_path)
+
+
+def insert_outline_segment(seq, row_data, db_path=None):
+    """Insert a new outline chain segment at seq.
+
+    All segments with seq >= target are shifted up by 1.
+    Returns the inserted row.
+    """
+    with get_db(db_path) as conn:
+        # Negate affected seqs to avoid UNIQUE collision, then flip back +1
+        conn.execute(
+            "UPDATE outline_chain SET seq = -(seq + 1) WHERE seq >= ?", (seq,)
+        )
+        conn.execute(
+            "UPDATE outline_chain SET seq = -seq WHERE seq < 0"
+        )
+        conn.execute(
+            "INSERT INTO outline_chain "
+            "(seq, seg_type, distance, radius, sweep_name, sweep, "
+            "center_name, n_pts, end_name) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (seq, row_data["seg_type"], row_data.get("distance"),
+             row_data.get("radius"), row_data.get("sweep_name"),
+             row_data.get("sweep"), row_data.get("center_name"),
+             row_data.get("n_pts", 60), row_data["end_name"]),
+        )
+    return get_outline_chain_row(seq, db_path)
+
+
+def delete_outline_segment(seq, db_path=None):
+    """Delete an outline chain segment and renumber.
+
+    Returns the deleted row dict (for undo) or None.
+    """
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM outline_chain WHERE seq = ?", (seq,)
+        ).fetchone()
+        if not row:
+            return None
+        deleted = dict(row)
+        conn.execute("DELETE FROM outline_chain WHERE seq = ?", (seq,))
+        # Negate affected seqs to avoid UNIQUE collision, then flip back -1
+        conn.execute(
+            "UPDATE outline_chain SET seq = -seq WHERE seq > ?", (seq,)
+        )
+        conn.execute(
+            "UPDATE outline_chain SET seq = (-seq) - 1 WHERE seq < 0"
+        )
+    return deleted
+
+
+def reset_outline_chain(db_path=None):
+    """Reset outline chain to seed values from floorplan/geometry.py."""
+    db_path = db_path or DB_PATH
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM outline_chain")
+        _seed_outline_chain(conn)
+
+
+def restore_outline_chain(snapshot, db_path=None):
+    """Restore outline_chain table from a full snapshot (for undo/rollback)."""
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM outline_chain")
+        for row in snapshot:
+            conn.execute(
+                "INSERT INTO outline_chain "
+                "(seq, seg_type, distance, radius, sweep_name, sweep, "
+                "center_name, n_pts, end_name) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (row["seq"], row["seg_type"], row.get("distance"),
+                 row.get("radius"), row.get("sweep_name"),
+                 row.get("sweep"), row.get("center_name"),
+                 row.get("n_pts", 60), row["end_name"]),
+            )
+
+
 def get_views(db_path=None):
     """Return all registered views."""
     with get_db(db_path) as conn:

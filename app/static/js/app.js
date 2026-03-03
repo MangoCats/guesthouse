@@ -27,6 +27,8 @@ const App = {
     constSortKey: "name",
     constSortAsc: true,
     svgView: { pan: { x: 0, y: 0 }, zoom: 1 },
+    outlineChain: [],
+    outlineSelectedSeq: null,
   },
   els: {},
   sse: null,
@@ -38,6 +40,7 @@ const App = {
 document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
   setupEventListeners();
+  setupOutlineToolbar();
   connectSSE();
   loadViews();
   loadConstants();
@@ -56,7 +59,8 @@ function cacheElements() {
     "coord-display", "connection-status", "zoom-level",
     "selection-info", "measure-info",
     "view-tabs", "const-category-filter", "const-search",
-    "constants-table", "outline-table", "openings-table",
+    "constants-table", "outline-table", "outline-closure-indicator",
+    "outline-add-btn", "outline-remove-btn", "openings-table",
     "rough-openings-table", "interior-walls-table", "furniture-table",
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
@@ -95,6 +99,10 @@ function connectSSE() {
   App.sse.addEventListener("undo_status", (e) => {
     const data = JSON.parse(e.data);
     updateUndoButtons(data.can_undo, data.can_redo);
+  });
+
+  App.sse.addEventListener("outline_changed", () => {
+    loadOutlineTable();
   });
 
   App.sse.addEventListener("svg_updated", (e) => {
@@ -1110,18 +1118,203 @@ async function handleConstantEdit(name, rawValue) {
 async function loadOutlineTable() {
   const resp = await apiFetch("/api/outline");
   const chain = await resp.json();
+  App.state.outlineChain = chain;
+  const n = chain.length;
+
+  // Update closure indicator
+  updateClosureIndicator();
+
   const tbody = App.els["outline-table"].querySelector("tbody");
   tbody.innerHTML = "";
   for (const seg of chain) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${seg.seq}</td>
-      <td>${seg.seg_type}</td>
-      <td>${seg.seg_type === "L" ? fmtFtIn(seg.distance || 0) : fmtFtIn(seg.radius || 0)}</td>
-      <td>${seg.seg_type === "L" ? "—" : fmtDeg((seg.sweep || 0) * 180 / Math.PI)}</td>
-      <td>${seg.end_name}</td>
-    `;
+    tr.dataset.seq = seg.seq;
+    if (seg.seq === App.state.outlineSelectedSeq) {
+      tr.classList.add("outline-selected");
+    }
+    tr.addEventListener("click", () => selectOutlineRow(seg.seq));
+
+    // Seq column
+    const tdSeq = document.createElement("td");
+    tdSeq.textContent = seg.seq;
+    tr.appendChild(tdSeq);
+
+    // Type column
+    const tdType = document.createElement("td");
+    tdType.textContent = seg.seg_type;
+    tr.appendChild(tdType);
+
+    // Dist/R column — editable for non-solved segments
+    const tdDist = document.createElement("td");
+    const isSolvedDist = seg.seq === 0 || seg.seq === n - 2;
+    const distVal = seg.seg_type === "L" ? (seg.distance || 0) : (seg.radius || 0);
+    if (isSolvedDist && seg.seg_type === "L") {
+      tdDist.textContent = fmtFtIn(distVal);
+      tdDist.classList.add("solved");
+      tdDist.title = "Solved by closure";
+    } else {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = fmtFtIn(distVal);
+      inp.dataset.origValue = String(distVal);
+      inp.dataset.seq = seg.seq;
+      inp.addEventListener("focus", () => inp.select());
+      inp.addEventListener("click", (e) => e.stopPropagation());
+      inp.addEventListener("change", () => handleOutlineEdit(seg.seq, "dist_or_radius", inp.value));
+      tdDist.appendChild(inp);
+    }
+    tr.appendChild(tdDist);
+
+    // Sweep column — editable for arcs
+    const tdSweep = document.createElement("td");
+    if (seg.seg_type !== "L") {
+      const sweepDeg = (seg.sweep || 0) * 180 / Math.PI;
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = fmtDeg(sweepDeg);
+      inp.dataset.origValue = String(seg.sweep);
+      inp.dataset.seq = seg.seq;
+      inp.addEventListener("focus", () => inp.select());
+      inp.addEventListener("click", (e) => e.stopPropagation());
+      inp.addEventListener("change", () => handleOutlineSweepEdit(seg.seq, inp.value));
+      tdSweep.appendChild(inp);
+    } else {
+      tdSweep.textContent = "\u2014";
+    }
+    tr.appendChild(tdSweep);
+
+    // End name column
+    const tdEnd = document.createElement("td");
+    tdEnd.textContent = seg.end_name;
+    tr.appendChild(tdEnd);
+
     tbody.appendChild(tr);
+  }
+}
+
+function selectOutlineRow(seq) {
+  App.state.outlineSelectedSeq = seq;
+  const tbody = App.els["outline-table"].querySelector("tbody");
+  for (const tr of tbody.querySelectorAll("tr")) {
+    tr.classList.toggle("outline-selected",
+      String(tr.dataset.seq) === String(seq));
+  }
+}
+
+async function updateClosureIndicator() {
+  const indicator = App.els["outline-closure-indicator"];
+  if (!indicator) return;
+  try {
+    const resp = await apiFetch("/api/outline/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ changes: {} }),
+    });
+    const data = await resp.json();
+    if (data.valid) {
+      indicator.className = "closed";
+      indicator.innerHTML = '<span class="dot"></span>Closed';
+    } else {
+      indicator.className = "open";
+      indicator.innerHTML = `<span class="dot"></span>Open (error: ${data.closure_error.toFixed(6)})`;
+    }
+  } catch (e) {
+    indicator.className = "open";
+    indicator.innerHTML = '<span class="dot"></span>Unknown';
+  }
+}
+
+async function handleOutlineEdit(seq, field, rawValue) {
+  const value = parseDimension(rawValue);
+  if (isNaN(value)) {
+    showToast(`Invalid value: ${rawValue}`, "error");
+    return;
+  }
+  try {
+    const body = {};
+    body[field] = value;
+    const resp = await apiFetch(`/api/outline/${seq}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    showToast(`Seg ${seq}: ${fmtFtIn(value)}`, "success");
+    loadOutlineTable();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+    loadOutlineTable();
+  }
+}
+
+async function handleOutlineSweepEdit(seq, rawValue) {
+  // Parse degrees — strip trailing degree sign
+  const cleaned = rawValue.replace(/[°\u00b0]/g, "").trim();
+  const deg = parseFloat(cleaned);
+  if (isNaN(deg)) {
+    showToast(`Invalid angle: ${rawValue}`, "error");
+    return;
+  }
+  const rad = deg * Math.PI / 180;
+  try {
+    const resp = await apiFetch(`/api/outline/${seq}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sweep: rad }),
+    });
+    const data = await resp.json();
+    showToast(`Seg ${seq}: ${fmtDeg(deg)}`, "success");
+    loadOutlineTable();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+    loadOutlineTable();
+  }
+}
+
+function setupOutlineToolbar() {
+  const addBtn = App.els["outline-add-btn"];
+  const removeBtn = App.els["outline-remove-btn"];
+
+  if (addBtn) {
+    addBtn.addEventListener("click", async () => {
+      const seq = App.state.outlineSelectedSeq;
+      if (seq == null) {
+        showToast("Select a segment first", "error");
+        return;
+      }
+      const name = prompt("New point name (e.g., F9a):");
+      if (!name) return;
+      try {
+        await apiFetch("/api/outline/add-point", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ after_seq: seq, end_name: name }),
+        });
+        showToast(`Added point ${name}`, "success");
+        loadOutlineTable();
+      } catch (e) {
+        showToast(`Error: ${e.message}`, "error");
+      }
+    });
+  }
+
+  if (removeBtn) {
+    removeBtn.addEventListener("click", async () => {
+      const seq = App.state.outlineSelectedSeq;
+      if (seq == null) {
+        showToast("Select a segment first", "error");
+        return;
+      }
+      if (!confirm(`Delete segment at seq ${seq}?`)) return;
+      try {
+        await apiFetch(`/api/outline/${seq}`, { method: "DELETE" });
+        App.state.outlineSelectedSeq = null;
+        showToast(`Removed segment ${seq}`, "success");
+        loadOutlineTable();
+      } catch (e) {
+        showToast(`Error: ${e.message}`, "error");
+      }
+    });
   }
 }
 
@@ -1396,6 +1589,11 @@ function onMouseDown(e) {
     App.state.lastPan = { ...App.state.pan };
     App.els["viewport"].style.cursor = "grabbing";
     e.preventDefault();
+  } else if (e.button === 0 && App.state.activeTool === "select") {
+    // OE-1: outline F-point drag (only if select tool + points visible)
+    if (typeof outlineEditorMouseDown === "function") {
+      outlineEditorMouseDown(e);
+    }
   } else if (e.button === 0 && App.state.activeTool === "move") {
     moveToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "measure") {
@@ -1426,6 +1624,12 @@ function onMouseMove(e) {
   App.els["coord-display"].textContent =
     `E: ${fmtFtIn(wx)}  N: ${fmtFtIn(wy)}`;
 
+  // Outline editor drag
+  if (typeof OutlineEditor !== "undefined" && (OutlineEditor.active || OutlineEditor.pending)) {
+    outlineEditorMouseMove(e);
+    return;
+  }
+
   // Move tool drag (active or pending threshold check)
   if (MoveTool.active || MoveTool.pending) {
     moveToolMouseMove(e);
@@ -1446,6 +1650,12 @@ function onMouseMove(e) {
 }
 
 function onMouseUp(e) {
+  // Outline editor drag end
+  if (typeof OutlineEditor !== "undefined" && (OutlineEditor.active || OutlineEditor.pending)) {
+    outlineEditorMouseUp(e);
+    return;
+  }
+
   // Move tool drag end (or pending click release)
   if (MoveTool.active || MoveTool.pending) {
     moveToolMouseUp(e);

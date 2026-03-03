@@ -227,8 +227,36 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant):
     return result
 
 
-def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
-    """Compute all building geometry from constants and return JSON-serialisable dict."""
+def _build_outline_segs_from_chain(chain):
+    """Build outline_segs from solved chain (matching geometry.py rotation).
+
+    Returns list of LineSeg/ArcSeg in outline convention (F1->F2 first).
+    """
+    from shared.types import LineSeg, ArcSeg
+
+    point_names = [seg.end_name for seg in chain]
+    start_names = ["F2"] + point_names[:-1]
+
+    segs = []
+    for entry, start, end in zip(chain, start_names, point_names):
+        if entry.seg_type == "L":
+            segs.append(LineSeg(start, end))
+        else:
+            segs.append(ArcSeg(start, end, entry.center_name,
+                               entry.radius, entry.seg_type, entry.n_pts))
+
+    # Rotate: F1->F2 first (last entry becomes first)
+    return segs[-1:] + segs[:-1]
+
+
+def compute_geometry(constants_dict: dict, variant: str = "standard",
+                     chain_rows: list[dict] | None = None) -> dict:
+    """Compute all building geometry from constants and return JSON-serialisable dict.
+
+    If chain_rows is provided (Phase 5+), the app solver computes the
+    outline from DB chain data, bypassing the module-scope solver in
+    floorplan/geometry.py.
+    """
     patch_constants(constants_dict)
 
     # Reload all floorplan modules so module-scope code re-executes with
@@ -261,12 +289,42 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
     align_pts_to_f_series(trav_pts)
 
     # 2. F-series outline
-    geom = compute_outline_geometry()
-    pts = dict(geom.fp_pts)
-    pts.update(trav_pts)
+    if chain_rows is not None:
+        # Phase 5+: use app solver with DB chain
+        from app.outline_solver import db_rows_to_chain, solve_closure, walk_chain
+        chain = db_rows_to_chain(chain_rows)
+        import floorplan.constants as fc
+        R_a1 = fc.CORNER_SW_R
+
+        solver_result = solve_closure(chain, R_a1)
+        if not solver_result.valid:
+            raise ValueError(
+                f"Outline chain does not close: error={solver_result.closure_error:.6f}")
+
+        # Inject solved distances
+        chain = list(chain)
+        chain[0] = chain[0]._replace(distance=solver_result.d_F2_F5)
+        chain[-2] = chain[-2]._replace(distance=solver_result.d_F18_F1)
+
+        F2_E = -18.5
+        F2_N = -13.5 + R_a1
+        walk_result = walk_chain(chain, F2_E, F2_N)
+
+        fp_pts = walk_result.points
+        radii = walk_result.radii
+        outline_segs = _build_outline_segs_from_chain(chain)
+
+        pts = dict(fp_pts)
+        pts.update(trav_pts)
+    else:
+        geom = compute_outline_geometry()
+        pts = dict(geom.fp_pts)
+        pts.update(trav_pts)
+        outline_segs = geom.outline_segs
+        radii = geom.radii
 
     # 3. Inner walls (W-series)
-    inner_segs = compute_inner_walls(geom.outline_segs, pts, constants_dict.get("WALL_OUTER", 8.0/12.0), geom.radii)
+    inner_segs = compute_inner_walls(outline_segs, pts, constants_dict.get("WALL_OUTER", 8.0/12.0), radii)
     inner_poly = path_polygon(inner_segs, pts)
 
     # 4. Interior layout
@@ -300,13 +358,13 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
         result["points"][name] = point_to_list(pt)
 
     # Outline segments
-    result["outline_segments"] = [seg_to_dict(s) for s in geom.outline_segs]
+    result["outline_segments"] = [seg_to_dict(s) for s in outline_segs]
 
     # Inner segments
     result["inner_segments"] = [seg_to_dict(s) for s in inner_segs]
 
     # Outline polygon
-    outline_poly = path_polygon(geom.outline_segs, pts)
+    outline_poly = path_polygon(outline_segs, pts)
     result["outline_poly"] = [point_to_list(p) for p in outline_poly]
 
     # Interior walls
@@ -372,14 +430,14 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
 
     # Variant items
     from app.variants import compute_variant_items, VARIANTS
-    variant_items = compute_variant_items(pts, inner_poly, layout, geom.radii, variant)
+    variant_items = compute_variant_items(pts, inner_poly, layout, radii, variant)
     result["variant_items"] = variant_items
     result["variant"] = variant
     result["available_variants"] = list(VARIANTS.keys())
 
     # Dimension lines
     from floorplan.gen_floorplan import compute_dimension_endpoints
-    dim_endpoints = compute_dimension_endpoints(pts, layout, geom.radii, bare=(variant == "bare"))
+    dim_endpoints = compute_dimension_endpoints(pts, layout, radii, bare=(variant == "bare"))
     ep_dict = {name: pt for name, pt in dim_endpoints}
     dim_names = sorted(set(k.rsplit("_", 1)[0] for k in ep_dict))
     dimensions = {}
@@ -397,7 +455,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard") -> dict:
     result["dimensions"] = dimensions
 
     # Room labels and SF extras
-    room_data = _compute_room_labels(pts, layout, inner_segs, geom.radii, variant)
+    room_data = _compute_room_labels(pts, layout, inner_segs, radii, variant)
     result["room_labels"] = room_data["room_labels"]
     if "sf_lines" in room_data:
         result["sf_lines"] = room_data["sf_lines"]
