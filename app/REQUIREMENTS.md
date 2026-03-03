@@ -79,13 +79,33 @@ re-seed from `floorplan/constants.py`, restoring original values.
 `BED_WIDTH`. Verify it equals the value in the Python source module.
 
 #### DB-9  Elements Table **(NEW)**
-The `elements` table SHALL store interior walls, furniture, appliances,
-fixtures, and clearance zones with columns: `id`, `type` (wall /
-furniture / appliance / fixture / clearance), `name`, `properties` (JSON),
-`variant` (nullable — for floorplan variant membership).
+The `elements` table SHALL store interior walls and user-added elements
+with columns: `id`, `type` (wall / furniture / appliance / fixture /
+clearance / label / dimension), `name`, `properties` (JSON), `variant`
+(nullable — for floorplan variant membership).
 
-**Acceptance:** Table exists with the specified columns. Seeding populates
-rows for all 13 interior walls, 6 furniture/appliance items, and fixtures.
+**Variant membership:** A `NULL` variant means the element appears in all
+variants.  A non-null value (e.g., `"standard"`) restricts the element to
+that variant only.
+
+Seeding populates rows for the 13 interior walls only (IW1–IW9, IW11–IW12,
+IW2O, IW2S; no IW10).  Furniture, appliances, and fixtures are **not**
+seeded — they are computed by the engine per-variant from constants and
+layout logic (see ENG-13).  User-created elements (custom furniture,
+additional walls, etc.) are stored here with absolute positions in
+`properties` JSON.
+
+**Dual-source model (transitional, Phases 3–11):** The canvas merges
+engine-computed items (from constants/layout logic) with DB-stored custom
+elements.  If a custom element shares a name with an engine-computed item,
+the custom element takes precedence and the engine-computed item is hidden
+for that variant.  This dual-source model is eliminated at Phase 12
+cutover, when all items become database-stored elements with parametric
+formulas.
+
+**Acceptance:** Table exists with the specified columns. After seeding,
+`SELECT count(*) FROM elements WHERE type = 'wall'` returns 13.
+`SELECT count(*) FROM elements WHERE type != 'wall'` returns 0.
 
 #### DB-10  Doors Table **(NEW)**
 The `doors` table SHALL store door configurations with columns: `id`,
@@ -95,7 +115,7 @@ The `doors` table SHALL store door configurations with columns: `id`,
 **Acceptance:** Table exists. Seeding populates rows for all openings that
 have doors (RO1-RO7, appliance doors).
 
-#### DB-11  Undo History Table **(NEW)**
+#### DB-11  Undo History Table
 The database SHALL maintain an `undo_history` table storing serialised
 snapshots of changed state, enabling undo and redo operations.
 
@@ -201,14 +221,21 @@ Verify it returns `True` and the SVG file is updated.
 
 #### ENG-11  Outline Chain Mutation **(NEW)**
 The engine SHALL accept modified outline chain parameters (radius, sweep,
-bearing, length) and re-solve for closure/tangency before recomputing
-geometry.
+bearing, length) from the `outline_chain` database table and re-solve for
+closure/tangency before recomputing geometry.  After Phase 5, the DB chain
+is authoritative — the engine reads chain data from the DB rather than
+from `floorplan/geometry.py`'s hardcoded chain.  All chain parameter types
+(distances, bearings, arc radii, sweep angles) are editable.  "Reset to
+Defaults" resets the chain (and all constants) to values seeded from the
+existing scripts.  The app's outline solver and `floorplan/geometry.py`'s
+solver must produce bit-identical results for default chain parameters;
+for user-modified parameters, the app solver is authoritative.
 
 **Acceptance:** Change F13-F14 arc radius from 28 to 30 inches. Engine
 re-solves closure distances. Computed geometry reflects the new radius.
 All tangency constraints hold.
 
-#### ENG-12  Room Area Computation **(NEW)**
+#### ENG-12  Room Area Computation
 The engine SHALL compute room areas (in square feet) for each enclosed
 region defined by interior walls and the building outline. UTIL SHALL
 be split into UTIL_N and UTIL_S by the E-W partition line.
@@ -439,10 +466,17 @@ non-empty `label`.
 
 ### 2.3  Outline Chain Mutation API **(NEW)**
 
+After Phase 5, the `outline_chain` database table is the authoritative
+source for all chain parameters.  The engine reads chain data from the DB
+and injects it as patched constants before reloading floorplan modules.
+All chain parameter types (distances, bearings, arc radii, sweep angles)
+are editable.  "Reset to Defaults" resets the chain to the values seeded
+from `floorplan/geometry.py`.
+
 #### API-16  PUT /api/outline/<seq>
 SHALL accept a JSON body with optional keys `dist_or_radius`, `sweep`,
-`bearing` and update the specified outline chain segment. SHALL trigger
-closure re-solve and geometry recomputation.
+`bearing` and update the specified outline chain segment in the database.
+SHALL trigger closure re-solve and geometry recomputation.
 
 **Acceptance:** PUT `/api/outline/5` with `{"dist_or_radius": 30.0}`.
 Response contains the updated segment and `closure_valid: true`. GET
@@ -540,7 +574,7 @@ SHALL remove the door from an opening.
 
 **Acceptance:** DELETE RO1 door. Opening remains but door arc is removed.
 
-### 2.6  Undo/Redo API **(NEW)**
+### 2.6  Undo/Redo API
 
 #### API-30  POST /api/undo
 SHALL revert the most recent edit operation and return the restored state.
@@ -720,9 +754,19 @@ from closed to open position. Hinge point is marked with a small circle.
 When the "Room Names" toggle is checked, the canvas SHALL render room
 name labels for all 11 rooms (BEDROOM, UTIL_N, UTIL_S, KITCHEN, LIVING,
 BATH, OFFICE, E CLOSET, W CLOSET, STORAGE, WH) positioned at their
-area-weighted centroids (plus any stored DB offset). Labels are
-auto-computed from room polygons; user-placed labels (LABEL-1 through
-LABEL-4) are a future Phase 9 extension.
+area-weighted centroids (plus any stored DB offset and rotation).
+
+**Phases 0–7:** Labels are auto-computed from room polygons.  The
+`room_label_offsets` table stores `(de, dn)` offsets from centroids.
+
+**Phase 8 transition:** Labels migrate to the `elements` table (type
+`'label'`) with offset, rotation, font size, and text stored per-element.
+The `room_label_offsets` table is deprecated.  The 11 auto-computed room
+labels become editable label elements.  Users can also add additional
+custom labels beyond the 11 defaults (LABEL-1 through LABEL-4).
+"Reset to Defaults" back-computes label positions from the existing SVG
+generation scripts' output and stores the corresponding offsets and
+rotations.
 
 **Acceptance:** `#layer-rooms` contains text elements. Each label is
 positioned within its room boundary polygon. All 11 rooms have labels.
@@ -854,16 +898,16 @@ checked by default.
 populated when checked, empty when unchecked. On the SF variant, area
 labels and dashed partition lines also appear/disappear with this toggle.
 
-#### DIS-7  Dimensions Toggle **(NEW)**
-Checking the "Dimensions" checkbox SHALL show/hide persistent dimension
-annotations.
+#### DIS-7  User Dimensions Toggle **(NEW)**
+Checking the "User Dims" checkbox SHALL show/hide user-created persistent
+dimension annotations (placed via TL-11).  This is distinct from the
+existing "Dims" toggle (CV-9), which controls engine-computed dimension
+lines.  Both toggles operate independently.
 
-**Acceptance:** Toggle checkbox. Dimension line groups appear/disappear.
-
-#### DIS-8  Areas Toggle **(NEW)**
-*Deferred — area labels are currently controlled by the Room Names toggle
-(DIS-6). A separate Areas checkbox may be added in a future phase if
-users need independent control of room names vs. area labels.*
+**Acceptance:** Create a user dimension via TL-11.  Toggle "User Dims"
+off — user-created dimension disappears; engine-computed dimensions
+(controlled by CV-9 toggle) remain visible.  Toggle "User Dims" on —
+user dimension reappears.
 
 #### DIS-9  Clearance Toggle **(NEW)**
 Checking the "Clearance" checkbox SHALL show/hide fixture clearance
@@ -1562,19 +1606,34 @@ SVG in a browser. Clicking FRIDGE opens the product URL.
 
 ### 9.4  Room Labels & Annotations
 
+Phase 8 unifies room labels under the `elements` table (type `'label'`),
+superseding the `room_label_offsets` table from Phase 0.  Each room label
+is stored as an element whose default position is the area-weighted
+centroid of its room boundary polygon.  The database stores an offset
+`(de, dn)` from that centroid and a rotation angle (defaults: `(0, 0)`
+offset, `0°` rotation).  "Reset to Defaults" back-computes label
+positions from the existing SVG generation scripts' output.  The 11
+auto-computed room labels become editable label elements; users can also
+add additional custom labels.
+
 #### LABEL-1  Add Room Label **(NEW)**
 Edit > Add Room Label SHALL allow the user to place a room name label by
 clicking a position on the canvas and typing the label text (e.g.,
-"BEDROOM", "OFFICE").
+"BEDROOM", "OFFICE").  The label SHALL be stored as an element in the
+`elements` table with type `'label'`.
 
 **Acceptance:** Add Room Label. Click in the bedroom area. Type "BEDROOM".
-Press Enter. Label appears on the canvas and persists in the database.
+Press Enter. Label appears on the canvas and persists in the database
+(`SELECT * FROM elements WHERE type = 'label' AND name = 'BEDROOM'`
+returns a row).
 
 #### LABEL-2  Move Label **(NEW)**
 With the Select tool, labels SHALL be draggable to reposition them.
+Dragging SHALL update the stored offset from the room centroid.
 
 **Acceptance:** Select the "OFFICE" room label. Drag it 1 foot north.
-Label position updates. Generated SVGs reflect the new position.
+Label position updates. The stored offset reflects the new position.
+Generated SVGs reflect the new position.
 
 #### LABEL-3  Edit Label Text **(NEW)**
 Double-clicking a label SHALL open an inline text editor to change the
@@ -1636,7 +1695,9 @@ Building repositions. Setback distance labels update.
 
 #### SITE-2  Drainfield Operations
 The site plan SHALL support adding, positioning, and sizing drainfield
-rectangles.
+rectangles.  The drainfield SHALL be stored as a single element in the
+`elements` table (type `'site_element'`), shared across both the site
+plan and plumbing views — moving it in one view updates the other.
 
 **Acceptance:** Tools > Add Drainfield. Click on the site plan. Enter
 dimensions 25x10 feet. Drainfield rectangle appears. Drag to reposition.
@@ -1706,14 +1767,23 @@ correctly. Values update when walls are moved.
 
 ---
 
-## 14  Plumbing Plan **(NEW)**
+## 14  Plumbing Layout **(NEW)**
 
-#### PLUMB-1  Plumbing View
-The plumbing plan view SHALL display the building outline with fixture
-locations, supply lines, and drain lines.
+The plumbing view SHALL be a full interactive layout — like the floorplan
+layouts (standard, minik, daybed, bare, sf) — with plumbing-specific editing
+tools, database-stored element configuration, and CRUD APIs.  Plumbing
+elements include pipes (supply and drain), fittings (T-stubs, elbows, valves),
+and fixture connections.
 
-**Acceptance:** Switch to Plumbing tab. SVG shows fixtures (toilets, sinks,
-washer) with blue supply lines and coloured drain lines.
+#### PLUMB-1  Plumbing Interactive Canvas
+The plumbing layout SHALL render the building outline with all plumbing
+elements on an interactive canvas (not a static SVG), supporting the same
+zoom, pan, and selection interactions as the floorplan canvas.
+
+**Acceptance:** Switch to Plumbing tab. Canvas shows the building outline
+with fixtures (toilets, sinks, washer), supply lines, and drain lines.
+Pan and zoom work. Clicking a pipe or fixture selects it and shows
+properties in the right panel.
 
 #### PLUMB-2  Supply Line Routing **(NEW)**
 The plumbing plan editor SHALL allow drawing supply line paths from the
@@ -1730,9 +1800,54 @@ fixture with its supply and drain connections.
 **Acceptance:** Table shows rows for each plumbing fixture with type,
 supply pipe size, and drain pipe size.
 
+#### PLUMB-4  Plumbing Elements Database **(NEW)**
+Plumbing elements (pipes, fittings, fixture connections) SHALL be stored
+in a `plumbing_elements` table with columns for element type, geometry
+(path coordinates), properties (pipe size, material, hot/cold), and
+fixture associations.
+
+**Acceptance:** Create a supply line via the drawing tool. Query
+`SELECT * FROM plumbing_elements WHERE type = 'supply_pipe'` — returns the
+created pipe with path coordinates and properties.  Close and reopen the
+app — the pipe persists.
+
+#### PLUMB-5  Plumbing CRUD API **(NEW)**
+The API SHALL provide CRUD endpoints for plumbing elements:
+`GET /api/plumbing`, `POST /api/plumbing`, `PUT /api/plumbing/<id>`,
+`DELETE /api/plumbing/<id>`.
+
+**Acceptance:** `POST /api/plumbing` with pipe JSON returns 201. `GET`
+returns the created element.  `PUT` updates properties.  `DELETE` removes
+it.  Each mutation broadcasts an SSE event.
+
+#### PLUMB-6  Drain Line Routing **(NEW)**
+The plumbing editor SHALL allow drawing drain line paths from fixtures to
+the waste outlet, with slope annotations.
+
+**Acceptance:** Select drain line tool. Draw a path from toilet to waste
+outlet.  Line renders in the drain colour.  Slope annotation displays
+grade (e.g., "1/4 in/ft").
+
+#### PLUMB-7  Fixture Placement Tool **(NEW)**
+The plumbing editor SHALL provide a fixture placement tool for adding
+plumbing fixtures (toilets, sinks, washer, water heater) with automatic
+supply and drain stub connections.
+
+**Acceptance:** Select fixture tool, choose "sink" from catalog.  Click
+to place on canvas.  Fixture renders with supply and drain stubs.  Stubs
+are selectable and connectable to supply/drain lines.
+
+#### PLUMB-8  Pipe Fitting Editing **(NEW)**
+The plumbing editor SHALL support placing and editing pipe fittings
+(T-stubs, elbows, valves) at pipe junctions and along pipe runs.
+
+**Acceptance:** Select fitting tool, choose "T-stub."  Click on a pipe
+intersection.  Fitting renders at the junction.  Properties panel shows
+fitting type and size.  Changing fitting type re-renders.
+
 ---
 
-## 15  Undo/Redo **(NEW)**
+## 15  Undo/Redo
 
 #### UNDO-1  Undo Last Action
 Edit > Undo or Ctrl+Z SHALL revert the most recent edit operation
@@ -1754,12 +1869,18 @@ The undo history SHALL support at least 50 levels of undo.
 **Acceptance:** Perform 50 edits. Undo all 50. Each undo correctly
 restores the previous state.
 
-#### UNDO-4  Undo Across Element Types
-Undo SHALL work for all element operations: constant edits, element moves,
-adds, deletes, door changes, outline edits, label changes.
+#### UNDO-4  Undo Across All Mutation Operations
+Undo SHALL work for all mutation operations introduced in any phase:
+constant edits, element moves, adds, deletes, door changes, outline edits,
+label changes, styling changes, site plan edits, and variant operations.
+Each phase that introduces new mutation types SHALL extend undo coverage
+to include those mutations.  This is enforced by the Phase Completion
+Protocol (see ROADMAP.md), which requires undo verification for all new
+mutation types as a gate for phase completion from Phase 3 onward.
 
 **Acceptance:** Add a door, move a wall, change a constant. Undo three
-times. All three operations are correctly reverted.
+times. All three operations are correctly reverted. As new mutation types
+are added in later phases, each SHALL be verified undoable.
 
 ---
 
@@ -1914,7 +2035,7 @@ history) to the requirements that enable each operation through the GUI.
 | Edit site plan | ~36 | SITE-1..4 |
 | 3D/SCAD model | ~31 | SCAD-1..3 |
 | View variants | ~24 | UI-5, UI-6, UI-8, ENG-13, API-8, API-34, CV-4 |
-| Plumbing plan | ~22 | PLUMB-1..3 |
+| Plumbing layout | ~22 | PLUMB-1..8 |
 | Span/area analysis | ~22 | ANALYSIS-1..3 |
 | Resize elements | ~20 | SEL-10, DT-7, DT-10 |
 | Element styling (colour/opacity) | ~18 | STYLE-1..4 |
@@ -1930,21 +2051,26 @@ line or inherited from a **(NEW)** section/subsection heading.
 
 | Section | Existing | New | Total |
 |---------|----------|-----|-------|
-| 1 Data Layer | 27 | 5 | 32 |
-| 2 REST API | 18 | 16 | 34 |
+| 1 Data Layer | 29 | 3 | 32 |
+| 2 REST API | 20 | 14 | 34 |
 | 3 UI Layout | 6 | 2 | 8 |
-| 4 Canvas | 21 | 7 | 28 |
+| 4 Canvas | 21 | 6 | 27 |
 | 5 Selection | 6 | 7 | 13 |
 | 6 Tools | 4 | 23 | 27 |
-| 7 Constants | 10 | 0 | 10 (+10 sub) |
+| 7 Constants | 20 | 0 | 20 |
 | 8 Data Tables | 4 | 7 | 11 |
 | 9 Element Ops | 0 | 13 | 13 |
 | 10 Styling | 0 | 4 | 4 |
 | 11 Site Plan | 0 | 4 | 4 |
 | 12 3D Model | 0 | 3 | 3 |
 | 13 Analysis | 0 | 3 | 3 |
-| 14 Plumbing | 0 | 3 | 3 |
-| 15 Undo/Redo | 0 | 4 | 4 |
+| 14 Plumbing | 0 | 8 | 8 |
+| 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 4 | 1 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **110** | **102** | **212** |
+| **Total** | **128** | **98** | **226** |
+
+CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
+its 10 sub-requirements CT-7a through CT-7j, which are also counted
+individually.  This gives 11 items from the CT-7 family: the parent
+requirement plus its 10 lettered children.

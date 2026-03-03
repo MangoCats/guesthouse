@@ -37,7 +37,8 @@ against unintended drift.
 
 ### Walls & Interior Layout (~267 commits)
 
-Thirteen interior walls (IW1–IW12 plus IW2O, IW2S) divide the interior
+Thirteen interior walls (IW1–IW9, IW11–IW12 plus IW2O, IW2S; no IW10)
+divide the interior
 into rooms: bedroom, office, bathroom, utility, kitchen, living, and
 storage areas.  Work included wall-relative positioning of all interior
 elements, parameterised wall thickness, double-shell construction
@@ -112,15 +113,15 @@ dependency hierarchy.
 ### Testing (~53 commits)
 
 586 pre-existing tests covering geometry, layout, openings, walls, SVG
-generation, site plan, and d² regression.  The app layer adds 117 more
+generation, site plan, and d² regression.  The app layer adds 188 more
 tests covering database operations, engine computation, API endpoints,
-variant items, and dimension data (703 total).
+variant items, and dimension data (774 total).
 
 ## What the App Implements (as of Phase 0)
 
 The editor makes the following subset of the above functionality
 available through a browser-based GUI backed by an SQLite database.
-See `ROADMAP.md` for the 12-phase plan to reach full charter capability.
+See `ROADMAP.md` for the 13-phase plan to reach full charter capability.
 
 ### Data Layer
 - **143 named constants** seeded from `floorplan/constants.py`, editable
@@ -173,28 +174,86 @@ See `ROADMAP.md` for the 12-phase plan to reach full charter capability.
 
 ## Design Principles
 
-1. **No modification of existing code** — the app imports from but never
-   modifies `shared/`, `floorplan/`, `walls/`, or other existing
-   packages (NF-4)
-2. **Parametric from constants** — every geometric decision traces back
-   to named constants in the database; changing a constant recomputes
-   the entire design
-3. **Deterministic without AI** — once the constants and chain are set,
-   the geometry is fully determined by the computation pipeline; no AI
-   agent is needed to reproduce or edit the design
-4. **Same math, different interface** — the app replicates the same
+1. **No modification of existing code (NF-4)** — the app imports from
+   but never modifies `shared/`, `floorplan/`, `walls/`, or other
+   existing packages.  This constraint holds during Phases 0–12;
+   see Principle 4 for why and Principle 5 for when it ends.
+
+2. **Parametric from database** — every geometric decision traces back
+   to named values in the database; changing a value recomputes the
+   entire design.  During Phases 0–11 the editable root is the
+   `constants` table (seeded from `floorplan/constants.py`).  After
+   Phase 12 the editable roots are per-element parametric formulas
+   stored in the database, with constants as one possible input.
+
+3. **Deterministic without AI** — once the database state is set, the
+   geometry is fully determined by the computation pipeline; no AI
+   agent is needed to reproduce or edit the design.
+
+4. **Same math, different interface (transitional)** — during Phases
+   0–11, while NF-4 is in effect, the app replicates the same
    positioning logic from the SVG generators (wall-relative vectors,
    line intersections, arc tangency) rather than introducing new
-   geometric approaches
-5. **Database driven Parametric Dependencies** *(Phase 12 goal)* — At
-   full maturity, when a wall is defined as spanning from one wall
-   surface to another, those dependencies will be encoded in the
-   database, editable such that the formula can later be changed to
-   different wall surfaces, constant distances, changes in bearing,
-   calculations based on constants and/or other parameters, such as: at
-   the midpoint between two other objects.  These parametric dependencies
-   will be defined per object, and when the dependency is on another
-   object which itself is dependent on other objects' calculations, the
-   dependency chain will be displayed for the user both as a formula
-   table, and graphically highlighted in the drawing demonstrating what
-   the currently selected object's parameters depend on.
+   geometric approaches.  The existing scripts remain the reference
+   implementation; the app must reproduce their output for default
+   values.  This principle is retired at cutover (see Principle 5).
+
+5. **Database-driven parametric dependencies (target architecture)** —
+   the charter's end state.  At full maturity (Phase 12 and beyond),
+   **every** element — exterior walls, interior walls, openings,
+   furniture, appliances, fixtures, dimension lines, labels — is a
+   database-stored entity whose position and size are defined by
+   editable formulas referencing other entities and/or constants.
+
+   The parametric model supports:
+   - **Fixed positions** — an element can be locked to absolute
+     coordinates, independent of other elements
+   - **Relative positions** — an element's position defined as an
+     offset, bearing, or parametric expression referencing one or more
+     other elements (e.g., "6 inches south of IW2 east face",
+     "midpoint between W9 and W10")
+   - **Mixed** — some parameters fixed, others relative (e.g., a wall
+     with a fixed bearing but endpoints anchored to other walls)
+   - **Lock/unlock** — any parametric dependency can be "locked" to
+     freeze it at its current computed value, converting it to a fixed
+     position so that upstream changes no longer propagate through it
+
+   The dependency graph is a DAG persisted in the database.  A
+   topological evaluator resolves formulas in dependency order to
+   produce concrete positions.  When an element is selected, its
+   dependency chain is displayed both as a formula table and
+   graphically highlighted on the canvas.
+
+   **Design-first workflow:** the system supports building a design
+   from any starting point — place a bed, then define walls relative
+   to it, then anchor openings to walls.  Or define the exterior shell
+   first and position everything inward.  Dependencies can later be
+   edited, reversed, or locked as the design matures.
+
+   After Phase 12, the existing generator scripts (`floorplan/`,
+   `shared/`, etc.) are no longer the authoritative source for
+   positioning logic.  They remain only as seed sources: "Reset to
+   Defaults" regenerates the database from their output to reproduce
+   the reference design.  NF-4 is lifted, and code duplication between
+   `app/` and the existing packages is consolidated.
+
+## Transition from Principles 4 → 5
+
+During development (Phases 0–11), Principle 4 governs: the app
+replicates existing script logic and must produce bit-identical results
+for default values.  Principle 5 describes the target architecture that
+replaces Principle 4 at cutover.
+
+The transition happens in two stages:
+
+1. **Phases 0–11 (NF-4 in effect):** the database stores constants and
+   element overrides; the computation pipeline patches existing modules
+   and reloads them.  Existing scripts are the reference implementation.
+   d² regression tests enforce bit-identical output for default values.
+
+2. **Phase 12+ (cutover):** the parametric dependency system replaces
+   procedural computation.  Constants become database-stored values
+   (not Python module attributes).  Element positions are defined by
+   formulas.  The existing scripts are retained only as seed sources
+   for "Reset to Defaults."  NF-4 is lifted.  Code duplication is
+   consolidated.

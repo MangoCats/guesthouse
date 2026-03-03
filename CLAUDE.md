@@ -126,10 +126,10 @@ app/                 — Flask web editor: interactive canvas + constants editin
   variants.py        — Variant furniture/appliance positioning (replicates gen_floorplan.py math)
   apputil.py         — Shared JSON serialisation helpers (point_to_list, bbox_from_poly, seg_to_dict)
   templates/         — index.html (single-page layout)
-  static/js/app.js   — Client application (~1100 lines, no build step)
+  static/js/app.js   — Client application (~1440 lines, no build step)
   static/css/app.css — Dark theme (Catppuccin palette)
   ARCHITECTURE.md    — Detailed module docs, computation flow, roadmap
-  REQUIREMENTS.md    — 189 testable requirements (80 existing, 109 planned)
+  REQUIREMENTS.md    — 226 testable requirements (121 existing, 105 planned)
   CHARTER.md         — Purpose, history, design principles
 ```
 

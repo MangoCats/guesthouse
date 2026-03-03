@@ -19,6 +19,9 @@ app/server.py          Flask routes, SSE broadcast, geometry cache
     │      └─ floorplan/constants.py    (seed source)
     │      └─ floorplan/geometry.py     (outline chain source)
     │
+    ├─ app/undo.py         Undo/redo manager (50-level command stack)
+    │      └─ app/database.py     (state application via batch update)
+    │
     ├─ app/engine.py       Geometry computation orchestrator
     │      ├─ floorplan/geometry.py     (outline, F-series)
     │      ├─ floorplan/layout.py       (interior walls, rooms)
@@ -41,7 +44,7 @@ and `shared/` never import from `app/`.
 
 ### app/database.py — Persistence
 
-Six SQLite tables:
+Seven SQLite tables:
 
 | Table | Rows | Purpose |
 |-------|------|---------|
@@ -51,6 +54,7 @@ Six SQLite tables:
 | `shapes` | ~15 | Complex item shapes (polygon coordinate lists) |
 | `variant_exclusions` | 4 | Per-variant element hiding (wall/opening exclusions) |
 | `room_label_offsets` | 0 | User-adjusted room label positions (offset from centroid) |
+| `undo_history` | 0–50 | Serialised undo/redo entries (action type, before/after state) |
 
 **Seeding** — On first run, `init_db()` creates the schema and populates
 tables from source:
@@ -73,6 +77,7 @@ tables from source:
 | Function | Purpose |
 |----------|---------|
 | `get_constants_dict()` | `{name: value}` dict for engine |
+| `get_constant_value(name)` | Single constant value (for undo capture) |
 | `get_all_constants()` | Full rows for UI table |
 | `update_constant()` | Single constant update |
 | `update_constants_batch()` | Multi-constant transaction |
@@ -100,7 +105,7 @@ the full pipeline:
 2. **Survey traverse** → F-series alignment
 3. **Outline geometry** → 20 F-series points, 18 segments, arc radii
 4. **Inner walls** → 18 W-series inset segments, closed polygon
-5. **Interior layout** → 13 interior walls (IW1–IW12, IW2O, IW2S),
+5. **Interior layout** → 13 interior walls (IW1–IW9, IW11–IW12, IW2O, IW2S; no IW10),
    rooms, appliance/furniture placements
 6. **Variant exclusions** → filter interior walls and rough openings
    per variant (e.g., bare/sf exclude IW6 and RO5)
@@ -159,8 +164,8 @@ computed geometry and a dirty flag.  Protected by a threading lock.
 
 **SSE** — `GET /api/events` returns a `text/event-stream` response.
 Each connected client gets a `queue.Queue`; `_broadcast()` pushes
-messages to all queues.  Events: `geometry_changed`, `svg_updated`,
-`connected`.  Keepalive every 30 seconds.
+messages to all queues.  Events: `constants_changed`, `geometry_changed`,
+`svg_updated`, `connected`.  Keepalive every 30 seconds.
 
 **Floorplan variant mapping** — When the Floorplan view is requested
 with a `?variant=` parameter, the server maps variant names to
@@ -168,7 +173,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (14 total):
+**API endpoints** (16 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -178,6 +183,8 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | PUT | `/api/constants/<name>` | Update one constant |
 | PUT | `/api/constants/batch` | Batch update |
 | POST | `/api/constants/reset` | Reset to source defaults |
+| POST | `/api/undo` | Undo last mutation |
+| POST | `/api/redo` | Redo last undone mutation |
 | GET | `/api/geometry` | Computed geometry (`?variant=`) |
 | GET | `/api/variants` | Variant names and labels |
 | GET | `/api/outline` | Outline chain (18 segments) |
@@ -186,6 +193,32 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | GET | `/api/svg/<name>/file` | File download |
 | POST | `/api/regenerate` | Run generator scripts |
 | GET | `/api/events` | SSE stream |
+
+### app/undo.py — Undo/Redo Manager
+
+Command-pattern undo system with 50-level depth (UNDO-3).
+
+**`UndoManager(db_path, max_depth=50)`** — maintains an in-memory stack
+of undo entries with a position pointer.  Entries are persisted to the
+`undo_history` table.
+
+| Method | Purpose |
+|--------|---------|
+| `record(action_type, before_state, after_state, desc)` | Append entry, trim redo, enforce depth |
+| `undo()` | Apply `before_state`, return entry or `None` |
+| `redo()` | Apply `after_state`, return entry or `None` |
+| `can_undo` / `can_redo` | Boolean properties |
+
+**State dispatch (`_apply`):** All Phase 2 action types (`constant_update`,
+`constant_batch`, `constant_reset`) store `{name: value}` dicts and apply
+via `update_constants_batch()`.  Future phases extend dispatch for new
+action types (e.g., `element_add`, `element_move`).
+
+**Lifecycle:**
+- On startup: loads stack from DB, sets position to end
+- On record: truncates redo entries, appends, trims oldest if > 50, persists
+- On undo/redo: applies state, adjusts position (no DB write needed — the
+  database state changes happen through the apply function)
 
 ### app/apputil.py — Shared Serialisation Helpers
 
@@ -271,11 +304,13 @@ highlights and SF partition lines.  Responsive breakpoint at
 
 ## Sources of Truth
 
+### Current State (Phases 0–1)
+
 | Data | Source of truth | Editable via app? |
 |------|----------------|-------------------|
 | Named constants | `constants` table (seeded from `floorplan/constants.py`) | Yes — inline editing |
-| Outline chain | `outline_chain` table (seeded from `floorplan/geometry.py`) | Read-only |
-| Interior layout | Computed by `floorplan/layout.py` from constants | Indirectly (edit constants) |
+| Outline chain | `outline_chain` table (seeded from `floorplan/geometry.py`) | Read-only (editable in Phase 5) |
+| Interior walls | Computed by `floorplan/layout.py` from constants | Indirectly (edit constants) |
 | Openings | Computed by `floorplan/openings.py` from constants | Indirectly (edit constants) |
 | Variant items | Computed by `app/variants.py` from layout + constants | Indirectly (edit constants) |
 | Dimension lines | Computed by `floorplan/gen_floorplan.py` from layout | Indirectly (edit constants) |
@@ -287,6 +322,27 @@ highlights and SF partition lines.  Responsive breakpoint at
 The constants table is the single editable root.  Every other geometric
 value is deterministically derived from it through the computation
 pipeline.
+
+### Evolution Through Phases
+
+The sources of truth evolve as phases are completed:
+
+| Phase | Change to data model |
+|-------|---------------------|
+| 3 | `elements` and `doors` tables added.  Interior walls seeded as DB entities.  User-added custom elements stored with absolute positions.  Engine-computed items (furniture/appliances) overlaid with DB-stored custom items on the canvas. |
+| 5 | `outline_chain` becomes editable.  DB chain is authoritative — the engine uses DB-stored chain parameters, not `floorplan/geometry.py`'s hardcoded chain. |
+| 8 | Room labels stored as `elements` (type `'label'`).  `room_label_offsets` table subsumed — offsets and rotation stored per-element.  Auto-computed centroids remain the default position; DB stores offset + rotation from centroid. |
+| 12 | **Cutover.**  All positioning becomes formula-driven.  Constants become DB-stored values (no longer Python module attributes).  Element positions defined by parametric formulas referencing other elements and/or constants.  Existing scripts retained only as seed sources for "Reset to Defaults." |
+
+### Target Architecture (Phase 12+)
+
+After cutover, the database is the **sole** authoritative source for all
+design data.  Every element — exterior walls, interior walls, openings,
+furniture, appliances, fixtures, labels, dimensions — is a database
+entity with parametric position formulas.  "Reset to Defaults" regenerates
+the entire database from the existing generator scripts' output,
+reproducing the reference design.  See CHARTER.md § Design Principles
+for the full parametric dependency model.
 
 ---
 
@@ -369,9 +425,9 @@ Without it, one test's constant changes would leak into subsequent tests.
 
 The app imports from but never modifies `shared/`, `floorplan/`, `walls/`,
 `span/`, `survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`.  This
-constraint applies until the editor has achieved 100% functional
-completeness and has been approved for cutover to database-only data
-sources.
+constraint applies during Phases 0–12.  It is lifted at cutover, when
+the database becomes the sole authoritative source and code duplication
+is consolidated (see CHARTER.md § Transition from Principles 4 → 5).
 
 **Consequence: intentional duplication.**  `app/variants.py` replicates
 ~700 lines of positioning math from `floorplan/gen_floorplan.py`'s
@@ -380,10 +436,10 @@ functions.  It also carries 24 hardcoded item-dimension constants
 (hamper, microwave, dining table, etc.) that duplicate values scattered
 through the generator.  This duplication is deliberate: the existing
 scripts are the reference implementation, and the app must reproduce
-their output without modifying them.  At cutover, these constants will
-be consolidated into a single source (likely `floorplan/constants.py`)
-and the shared positioning math extracted into a function callable by
-both the SVG renderer and the app engine.
+their output without modifying them.  At cutover, these constants move
+into the database as the single source, and the shared positioning math
+is extracted into functions callable by both the SVG renderer and the
+app engine.
 
 **Consequence: module reloading.**  The engine uses
 `importlib.reload()` and `patch_constants()` to inject database values
@@ -392,18 +448,33 @@ Five derived constants (`WALL_EXTRA`, `AIR_GAP`, `DOOR_FLAT_FACE`,
 `F8F9_INNER_TURN_R`, `CORNER_SW_R`) are recomputed in `engine.py`
 after patching because they depend on other constants and their
 derivation formulas cannot be imported without modifying source.  This
-will be unnecessary once the app owns the constants directly.
+will be unnecessary once the app owns the constants directly (Phase 12).
 
 ---
 
 ## Roadmap
 
 The charter describes a full parametric editor; the current
-implementation is a **parametric viewer with constant editing** (Phase 0
-complete, Phase 1 complete) — ~93 of 212 requirements are implemented
-across 188 app tests (774 total).  Phase 1 established automated test
-coverage for all implemented server-side requirements.  Next phase:
-Phase 2 (undo/redo).  See `app/ROADMAP.md` for the complete 12-phase
-development plan covering all remaining requirements, phase
-dependencies, new file inventory, test growth estimates, anticipated
-challenges, and cutover criteria.
+implementation is a **parametric viewer with constant editing and undo**
+(Phases 0–2 complete) — 128 of 226 requirements are implemented across
+208 app tests (794 total).  Phase 1 established automated test coverage
+for all implemented server-side requirements.  Phase 2 added undo/redo
+infrastructure.  Next phase: Phase 3 (elements & doors).
+
+The development arc follows three stages:
+
+1. **Phases 0–1 (complete):** Parametric viewer.  Constants-only
+   editing, read-only chain, engine-computed geometry.
+2. **Phases 2–11:** Progressive element CRUD, canvas tools, and domain
+   views.  The database gradually becomes authoritative (chain editing
+   in Phase 5, element storage in Phase 3, room labels in Phase 8).
+   Existing scripts remain the reference for default-value output.
+3. **Phase 12 (cutover):** Parametric dependency system replaces
+   procedural computation.  All constants and positions become
+   database-driven formulas.  NF-4 is lifted.  Code duplication
+   consolidated.
+
+See `app/ROADMAP.md` for the complete 13-phase development plan
+covering all remaining requirements, phase dependencies, new file
+inventory, test growth estimates, anticipated challenges, and cutover
+criteria.
