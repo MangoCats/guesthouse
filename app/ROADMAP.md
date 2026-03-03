@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 3 — Complete)
+## Current State (Phase 4 — Complete)
 
-**145 of 226 requirements implemented.**  253 app tests, 586 pre-existing tests
-(839 total).  All implemented requirements have automated test coverage.
+**152 of 226 requirements implemented.**  273 app tests, 589 pre-existing tests
+(862 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -46,8 +46,15 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Door properties in selection panel (hinge, swing, type) | Done |
 | Furniture/appliance properties in selection panel | Done |
 | element_changed SSE event on mutations | Done |
+| Move tool: drag IW walls (constant-based) | Done |
+| Move tool: drag furniture/appliance (offset override) | Done |
+| Move tool: ghost preview, shift-constrain, grid snap | Done |
+| Move tool: offset dialog (Enter key, parsed input) | Done |
+| Move tool: multi-select (Ctrl+Click) + group move | Done |
+| Move tool: undo/redo for all move types | Done |
+| Dialog framework (dialogs.js) | Done |
 
-**What's missing:** Outline editing, move/draw tools, shape editor UI,
+**What's missing:** Outline editing, draw tools, shape editor UI,
 styling, site plan editing, 3D integration, plumbing layout (interactive
 canvas with DB-stored elements), electrical layout (aspirational),
 parametric dependencies and cutover to fully database-driven design
@@ -186,25 +193,46 @@ distinction.  See CHARTER.md § Design Principle 5.
 
 ---
 
-## Phase 4 — Move Tool
+## Phase 4 — Move Tool (Complete)
 
 **Goal:** Enable drag-to-reposition for walls, furniture, and openings.
 
 **Requirements:** TL-5–10, API-23 (7 reqs)
 
-**Work:**
-- Implement `MoveTool` in new `app/static/js/tools.js`:
-  - Drag with live ghost preview (TL-5)
-  - Offset dialog for precise entry (TL-6)
-  - Shift-constrained axis movement (TL-7)
-  - Snap to 1" grid when enabled (TL-8)
-  - Group move for multi-selected elements (TL-9)
-  - Opening slides along host wall segment only (TL-10)
-- Backend: `POST /api/elements/<id>/move` maps to constant changes for base
-  elements, absolute position updates for custom elements (API-23)
+**Completed.** 20 new tests added (862 total, up from 842).
+
+**Implementation:**
+- `app/elements.py` — fixed `IW_CONSTANT_MAP["IW9"]` (was `IW9_OFFSET_O10`,
+  now `IW3_OFFSET_IW9`), added `IW_MOVE_AXIS` dict mapping each IW wall to
+  its move axis and sign, added `compute_constant_delta(iw_name, dx, dy)`
+- `app/undo.py` — added `element_move` action type to `_apply()` dispatch,
+  handles both `move_type="constant"` and `move_type="position"` states
+- `app/server.py` — `POST /api/elements/<id>/move` endpoint: IW walls
+  translate dx/dy to constant changes; custom elements update offset
+  properties; anchor-based format supported
+- `app/static/js/tools.js` — `MoveTool` state machine with drag, ghost
+  preview (TL-5), axis constraint for IW walls, shift-constrain (TL-7),
+  grid snap to 1" (TL-8), group move from multi-selection (TL-9), offset
+  dialog via Enter key (TL-6)
+- `app/static/js/dialogs.js` — generic modal dialog framework with
+  `Dialog.show()`, `Dialog.close()`, `parseOffsetString()` for text input
+  (e.g. "6in east", "2ft north")
+- `app/static/js/app.js` — multi-select (Ctrl+Click toggles selections,
+  SEL-4 subset for TL-9), mouse handler hooks for move tool, Escape
+  cancels drag, furniture override rendering merge (applies offset_x/
+  offset_y from DB override elements to engine-computed variant items)
+- `app/static/css/app.css` — `.move-ghost`, `.multi-selected`,
+  `.dialog-overlay/.dialog` styles (Catppuccin palette)
+- `app/templates/index.html` — script tags for dialogs.js and tools.js
+
+**Bug fix:** `IW_CONSTANT_MAP["IW9"]` pointed to `"IW9_OFFSET_O10"` which
+is defined in `floorplan/constants.py` but never used in `layout.py`. The
+actual controlling constant is `IW3_OFFSET_IW9` (layout.py:160).
 
 **New files:** `app/static/js/tools.js`, `app/static/js/dialogs.js`,
 `tests/test_zapp_move.py`
+**Modified:** `app/elements.py`, `app/undo.py`, `app/server.py`,
+`app/static/js/app.js`, `app/static/css/app.css`, `app/templates/index.html`
 
 **Dependencies:** Phase 3 (element CRUD, constant-to-element mapping).
 

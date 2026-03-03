@@ -122,7 +122,9 @@ Maps interior walls to their controlling constants and hosted openings.
 | Data / Function | Purpose |
 |-----------------|---------|
 | `IW_CONSTANT_MAP` | Dict mapping IW name → controlling constant name (e.g., `"IW1"` → `"IW1_OFFSET_FROM_W9"`) |
+| `IW_MOVE_AXIS` | Dict mapping IW name → `(axis, sign)` or `None`; axis is `"x"`/`"y"`, sign is `+1`/`-1` |
 | `IW_HOSTED_OPENINGS` | Dict mapping IW name → list of hosted RO names (e.g., `"IW9"` → `["RO3", "RO7"]`) |
+| `compute_constant_delta(iw_name, dx, dy)` | Translate world-coordinate move to `(constant_name, delta)` or `None` |
 | `get_elements_for_variant(variant)` | Return elements visible to a variant (variant=NULL or matching) |
 | `get_controlling_constant(iw_name)` | Return the constant that controls an IW's position |
 | `get_hosted_openings(iw_name)` | Return list of RO names hosted by an IW |
@@ -208,7 +210,7 @@ computed geometry and a dirty flag.  Protected by a threading lock.
 **SSE** — `GET /api/events` returns a `text/event-stream` response.
 Each connected client gets a `queue.Queue`; `_broadcast()` pushes
 messages to all queues.  Events: `constants_changed`, `geometry_changed`,
-`svg_updated`, `element_changed`, `connected`.  Keepalive every 30 seconds.
+`svg_updated`, `element_changed`, `undo_status`, `connected`.  Keepalive every 30 seconds.
 
 **Floorplan variant mapping** — When the Floorplan view is requested
 with a `?variant=` parameter, the server maps variant names to
@@ -216,7 +218,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (27 total):
+**API endpoints** (29 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -240,6 +242,8 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | POST | `/api/elements` | Create element (API-20) |
 | PUT | `/api/elements/<id>` | Update element (API-21) |
 | DELETE | `/api/elements/<id>` | Delete element + cascade (API-22) |
+| POST | `/api/elements/<id>/move` | Move element: constant-based (IW) or offset (API-23) |
+| GET | `/api/version` | Server git describe + start time |
 | POST | `/api/openings` | Create opening (API-24) |
 | PUT | `/api/openings/<name>` | Update opening (API-25) |
 | DELETE | `/api/openings/<name>` | Delete opening + door (API-26) |
@@ -277,6 +281,8 @@ of undo entries with a position pointer.  Entries are persisted to the
 | `opening_create` | Delete the created opening (element) by ID |
 | `opening_delete` | Re-insert full opening record(s) via `create_element_raw()` |
 | `opening_update` | Restore old field values via `update_element()` |
+| `element_move` (constant) | Restore constant value via `update_constant()` |
+| `element_move` (position) | Restore element properties via `update_element()` |
 
 **Lifecycle:**
 - On startup: loads stack from DB, sets position to end
@@ -295,14 +301,39 @@ converting geometry objects to JSON-serialisable dicts:
 | `bbox_from_poly(poly)` | Polygon → `{w, s, e, n}` bounding box |
 | `seg_to_dict(seg)` | `LineSeg`/`ArcSeg` → JSON-serialisable dict |
 
+### app/static/js/dialogs.js — Dialog Framework
+
+Generic modal dialog system.
+
+| Function | Purpose |
+|----------|---------|
+| `Dialog.show(opts)` | Show dialog with title, fields, onSubmit/onCancel |
+| `Dialog.close()` | Remove overlay |
+| `parseOffsetString(str)` | Parse "6in east" → `{dx, dy}` in feet |
+
+### app/static/js/tools.js — Move Tool
+
+Client-side move tool with drag, ghost preview, axis constraints, and snap.
+
+| Object/Function | Purpose |
+|-----------------|---------|
+| `IW_MOVE_AXIS` | Client-side mirror of `elements.py` axis mapping |
+| `MoveTool` | State machine: active, startWorld, ghost, targets, origTransforms |
+| `moveToolMouseDown(e)` | Start drag, create ghost clones |
+| `moveToolMouseMove(e)` | Update ghost positions (shift-constrain, grid snap) |
+| `moveToolMouseUp(e)` | Remove ghosts, commit move via API |
+| `commitMove(targets, dx, dy)` | POST move for each target; auto-create override for furniture |
+| `showOffsetDialog()` | Show offset dialog (Enter key trigger) |
+| `findElementRecord(type, name)` | Look up DB record from App.state.elements |
+
 ### app/static/js/app.js — Client
 
-Single-file client application (~1440 lines).  No build step or
+Single-file client application (~1600 lines).  No build step or
 framework.
 
 **State** — `App.state` object holds: current geometry, constants array,
 views list, active view/tool, zoom/pan, display toggles, variant
-selection, sort/filter state.
+selection, sort/filter state, selections array (multi-select).
 
 **Initialisation** (on DOMContentLoaded):
 1. `cacheElements()` — populate `App.els` with ~30 DOM references

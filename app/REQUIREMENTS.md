@@ -1131,7 +1131,7 @@ positions when the Grid toggle is enabled.
 **Acceptance:** Enable Grid. Move tool. Drag an element. It snaps to the
 nearest inch boundary.
 
-#### TL-9  Group Move **(NEW)**
+#### TL-9  Group Move
 When multiple elements are selected (via SEL-4), the Move tool SHALL move
 all selected elements by the same offset, preserving their relative
 positions.
@@ -1140,7 +1140,7 @@ positions.
 west. All three walls move 2 inches west. Their relative spacing is
 unchanged.
 
-#### TL-10  Move Opening Along Wall **(NEW)**
+#### TL-10  Move Opening Along Wall
 When an opening is selected with the Move tool, dragging SHALL slide the
 opening along its host wall segment (not in arbitrary directions).
 
@@ -2051,11 +2051,11 @@ line or inherited from a **(NEW)** section/subsection heading.
 | Section | Existing | New | Total |
 |---------|----------|-----|-------|
 | 1 Data Layer | 31 | 1 | 32 |
-| 2 REST API | 29 | 5 | 34 |
+| 2 REST API | 30 | 4 | 34 |
 | 3 UI Layout | 6 | 2 | 8 |
 | 4 Canvas | 21 | 6 | 27 |
 | 5 Selection | 8 | 5 | 13 |
-| 6 Tools | 4 | 23 | 27 |
+| 6 Tools | 10 | 17 | 27 |
 | 7 Constants | 20 | 0 | 20 |
 | 8 Data Tables | 7 | 4 | 11 |
 | 9 Element Ops | 0 | 13 | 13 |
