@@ -4,6 +4,11 @@ Small helpers used by both engine.py and variants.py to avoid
 duplicating JSON serialisation logic within app/.
 """
 
+# Arc discretisation constants — single source of truth for polygon
+# approximations of arcs/circles within the app layer.
+ARC_N_SEMICIRCLE = 32   # segments for semicircular arcs (bath sink bulge)
+ARC_N_CIRCLE = 24       # segments for full circles (water heater, ET)
+
 
 def point_to_list(pt):
     """Convert (e, n) tuple to [e, n] list for JSON."""

@@ -7,7 +7,7 @@ This duplication is intentional per NF-4 (see ARCHITECTURE.md § NF-4).
 import math
 
 from shared.geometry import seg_vecs, offset_pt, line_isect
-from app.apputil import point_to_list, bbox_from_poly
+from app.apputil import point_to_list, bbox_from_poly, ARC_N_SEMICIRCLE, ARC_N_CIRCLE
 
 # ---------------------------------------------------------------------------
 # Variant registry
@@ -101,9 +101,8 @@ def _bath_sink_poly(anchor, al_vec, out_vec, length, depth):
     pts.append(_pt(-half_len, 0))          # SW on wall
     pts.append(_pt(-half_len, rect_depth)) # NW rect top
     # Semicircular arc from west to east, bulging outward
-    n_arc = 32
-    for i in range(n_arc + 1):
-        t = math.pi - math.pi * i / n_arc
+    for i in range(ARC_N_SEMICIRCLE + 1):
+        t = math.pi - math.pi * i / ARC_N_SEMICIRCLE
         pts.append(_pt(math.cos(t) * quarter_len,
                        rect_depth + math.sin(t) * quarter_len))
     pts.append(_pt(half_len, rect_depth))  # NE rect top
@@ -139,10 +138,9 @@ def _item(name, item_type, poly, label=None, shape="rect", stacked=False):
 
 def _circle_item(name, item_type, center, radius, label=None):
     """Build a circle item dict with bounding poly."""
-    n_pts = 24
     poly = []
-    for i in range(n_pts):
-        a = 2 * math.pi * i / n_pts
+    for i in range(ARC_N_CIRCLE):
+        a = 2 * math.pi * i / ARC_N_CIRCLE
         poly.append((center[0] + radius * math.cos(a),
                       center[1] + radius * math.sin(a)))
     return {

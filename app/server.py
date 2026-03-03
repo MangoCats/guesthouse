@@ -47,14 +47,14 @@ def _broadcast(event: str, data: dict | None = None):
     """Send an SSE event to all connected clients."""
     msg = f"event: {event}\ndata: {json.dumps(data or {})}\n\n"
     with _sse_lock:
-        dead = []
+        alive = []
         for q in _sse_clients:
             try:
                 q.put_nowait(msg)
+                alive.append(q)
             except queue.Full:
-                dead.append(q)
-        for q in dead:
-            _sse_clients.remove(q)
+                pass  # drop dead/full clients
+        _sse_clients[:] = alive
 
 
 def create_app(db_path=None):

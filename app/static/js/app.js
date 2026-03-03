@@ -113,6 +113,20 @@ function connectSSE() {
 }
 
 
+/* ========== API HELPERS ========== */
+
+async function apiFetch(url, opts) {
+  const resp = await fetch(url, opts);
+  if (!resp.ok) {
+    const body = await resp.text();
+    let msg;
+    try { msg = JSON.parse(body).error; } catch (_) { msg = body; }
+    throw new Error(msg || `HTTP ${resp.status}`);
+  }
+  return resp;
+}
+
+
 /* ========== DATA LOADING ========== */
 
 async function loadBuildLabel() {
@@ -136,14 +150,18 @@ async function loadBuildLabel() {
 }
 
 async function loadConstants() {
-  const resp = await fetch("/api/constants");
-  App.state.constants = await resp.json();
-  renderConstantsTable();
-  loadCategories();
+  try {
+    const resp = await apiFetch("/api/constants");
+    App.state.constants = await resp.json();
+    renderConstantsTable();
+    loadCategories();
+  } catch (e) {
+    console.error("Constants load failed:", e);
+  }
 }
 
 async function loadCategories() {
-  const resp = await fetch("/api/constants/categories");
+  const resp = await apiFetch("/api/constants/categories");
   const cats = await resp.json();
   const sel = App.els["const-category-filter"];
   sel.innerHTML = '<option value="">All Categories</option>';
@@ -170,9 +188,13 @@ async function loadGeometry() {
 }
 
 async function loadViews() {
-  const resp = await fetch("/api/views");
-  App.state.views = await resp.json();
-  renderViewTabs();
+  try {
+    const resp = await apiFetch("/api/views");
+    App.state.views = await resp.json();
+    renderViewTabs();
+  } catch (e) {
+    console.error("Views load failed:", e);
+  }
 }
 
 
@@ -262,7 +284,11 @@ async function loadSVGView(viewName) {
       svgViewFit();
     }
   } catch (e) {
-    container.innerHTML = `<p style='padding:20px;color:#f88'>Error loading SVG: ${e.message}</p>`;
+    const p = document.createElement("p");
+    p.style.cssText = "padding:20px;color:#f88";
+    p.textContent = "Error loading SVG: " + e.message;
+    container.innerHTML = "";
+    container.appendChild(p);
   }
 }
 
@@ -1082,7 +1108,7 @@ async function handleConstantEdit(name, rawValue) {
 /* ========== OUTLINE TABLE ========== */
 
 async function loadOutlineTable() {
-  const resp = await fetch("/api/outline");
+  const resp = await apiFetch("/api/outline");
   const chain = await resp.json();
   const tbody = App.els["outline-table"].querySelector("tbody");
   tbody.innerHTML = "";
@@ -1667,9 +1693,10 @@ async function handleMenuAction(action) {
   switch (action) {
     case "regenerate-all": {
       showToast("Regenerating all views...");
-      const resp = await fetch("/api/regenerate", { method: "POST" });
-      const data = await resp.json();
-      showToast("All views regenerated", "success");
+      try {
+        await apiFetch("/api/regenerate", { method: "POST" });
+        showToast("All views regenerated", "success");
+      } catch (e) { showToast(`Regenerate failed: ${e.message}`, "error"); }
       break;
     }
     case "regenerate-view": {
@@ -1678,24 +1705,31 @@ async function handleMenuAction(action) {
         return;
       }
       showToast(`Regenerating ${App.state.activeView}...`);
-      const resp = await fetch("/api/regenerate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ view: App.state.activeView }),
-      });
+      try {
+        await apiFetch("/api/regenerate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ view: App.state.activeView }),
+        });
+        showToast(`${App.state.activeView} regenerated`, "success");
+      } catch (e) { showToast(`Regenerate failed: ${e.message}`, "error"); }
       break;
     }
     case "export-all": {
       showToast("Exporting all products...");
-      const resp = await fetch("/api/regenerate", { method: "POST" });
-      showToast("Export complete", "success");
+      try {
+        await apiFetch("/api/regenerate", { method: "POST" });
+        showToast("Export complete", "success");
+      } catch (e) { showToast(`Export failed: ${e.message}`, "error"); }
       break;
     }
     case "reset-constants": {
       if (!confirm("Reset all constants to original values?")) return;
-      await fetch("/api/constants/reset", { method: "POST" });
-      await loadConstants();
-      showToast("Constants reset to defaults", "success");
+      try {
+        await apiFetch("/api/constants/reset", { method: "POST" });
+        await loadConstants();
+        showToast("Constants reset to defaults", "success");
+      } catch (e) { showToast(`Reset failed: ${e.message}`, "error"); }
       break;
     }
     case "zoom-fit": fitToWindow(); break;

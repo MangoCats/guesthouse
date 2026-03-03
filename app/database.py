@@ -9,6 +9,8 @@ import re
 import sqlite3
 from contextlib import contextmanager
 
+from app.apputil import ARC_N_SEMICIRCLE
+
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT = os.path.dirname(_DIR)
 DB_PATH = os.path.join(_PROJECT, "app", "adu.db")
@@ -312,9 +314,8 @@ def _seed_shapes(conn):
     quarter_len = bs_length / 4
     rect_depth = bs_depth - quarter_len
     bs_pts = [[half_len, 0], [-half_len, 0], [-half_len, rect_depth]]
-    n_arc = 32
-    for i in range(n_arc + 1):
-        t = math.pi - math.pi * i / n_arc
+    for i in range(ARC_N_SEMICIRCLE + 1):
+        t = math.pi - math.pi * i / ARC_N_SEMICIRCLE
         bs_pts.append([round(math.cos(t) * quarter_len, 6),
                        round(rect_depth + math.sin(t) * quarter_len, 6)])
     bs_pts.append([half_len, rect_depth])

@@ -71,9 +71,14 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant):
 
     ro_list = compute_rough_openings(pts, layout)
     outer_openings = compute_outer_openings(pts, layout)
-    o6 = next(o for o in outer_openings if o.name == "O6")
+    o6 = next((o for o in outer_openings if o.name == "O6"), None)
+    if o6 is None:
+        return []
     o6_w = o6.poly[0]
-    ro1_bd = next(r for r in ro_list if r.name == "RO1").poly
+    ro1 = next((r for r in ro_list if r.name == "RO1"), None)
+    if ro1 is None:
+        return []
+    ro1_bd = ro1.poly
     ro1_w_nf = ro1_bd[3]
     w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
     w2w5_al, _ = seg_vecs(pts["W2"], pts["W5"])
