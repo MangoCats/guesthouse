@@ -698,6 +698,12 @@ function screenToWorld(sx, sy) {
 function selectElement(type, name, data, event) {
   if (event) event.stopPropagation();
 
+  // After a move-tool drag, suppress the click that fires on mouseup
+  if (MoveTool._suppressClick) {
+    MoveTool._suppressClick = false;
+    return;
+  }
+
   // Ctrl+Click: toggle in/out of multi-selection
   if (event && (event.ctrlKey || event.metaKey)) {
     const idx = App.state.selections.findIndex(s => s.name === name && s.type === type);
@@ -1383,8 +1389,8 @@ function onMouseMove(e) {
   App.els["coord-display"].textContent =
     `E: ${fmtFtIn(wx)}  N: ${fmtFtIn(wy)}`;
 
-  // Move tool drag
-  if (MoveTool.active) {
+  // Move tool drag (active or pending threshold check)
+  if (MoveTool.active || MoveTool.pending) {
     moveToolMouseMove(e);
     return;
   }
@@ -1403,8 +1409,8 @@ function onMouseMove(e) {
 }
 
 function onMouseUp(e) {
-  // Move tool drag end
-  if (MoveTool.active) {
+  // Move tool drag end (or pending click release)
+  if (MoveTool.active || MoveTool.pending) {
     moveToolMouseUp(e);
     return;
   }
@@ -1458,6 +1464,11 @@ function onWheel(e) {
 }
 
 function onViewportClick(e) {
+  // After a move-tool drag, suppress this click
+  if (MoveTool._suppressClick) {
+    MoveTool._suppressClick = false;
+    return;
+  }
   // If clicking on the viewport background (not on an element), clear selection
   if (e.target === App.els["canvas"] || e.target === App.els["viewport"]) {
     clearSelection();

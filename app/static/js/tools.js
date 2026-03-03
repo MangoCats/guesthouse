@@ -22,13 +22,20 @@ const IW_MOVE_AXIS = {
   IW12: { axis: "y", sign: +1 },
 };
 
+/** Minimum screen-pixel drag distance before a drag actually starts. */
+const DRAG_THRESHOLD = 4;
+
 const MoveTool = {
+  /** True once drag threshold is exceeded and ghosts are created. */
   active: false,
+  /** True from mousedown until mouseup (pending drag). */
+  pending: false,
   startScreen: null,   // {x, y} screen coords at mousedown
   startWorld: null,     // [wx, wy] at mousedown
-  ghost: null,          // cloned SVG group
-  targets: [],          // [{type, name, data, elementId, svgEl}]
+  targets: [],          // [{type, name, elementId, svgEl}]
   origTransforms: [],   // original transform data for ghosts
+  /** Suppress the next selectElement() call after a committed drag. */
+  _suppressClick: false,
 };
 
 
@@ -75,7 +82,6 @@ function createGhost(svgEl) {
 
 /**
  * Shift polygon points string by (dx, dy) in SVG coordinates.
- * SVG Y is negated from world Y.
  */
 function shiftPolygonPoints(originalPoints, dxSvg, dySvg) {
   return originalPoints.split(/\s+/).map(pair => {
@@ -85,91 +91,15 @@ function shiftPolygonPoints(originalPoints, dxSvg, dySvg) {
 }
 
 
-/* ========== Move Tool Mouse Handlers ========== */
-
-function moveToolMouseDown(e) {
-  if (e.button !== 0) return;
-  if (App.state.activeView !== "interactive") return;
-
-  // Need a selection to move
-  const sel = App.state.selection;
-  if (!sel) return;
-
-  const svgEl = getSelectionSvgEl(sel);
-  if (!svgEl) return;
-
-  // Build targets from selections (multi-select) or single selection
-  const selections = App.state.selections && App.state.selections.length > 0
-    ? App.state.selections
-    : [sel];
-
-  MoveTool.targets = [];
-  for (const s of selections) {
-    const rec = findElementRecord(s.type, s.name);
-    const el = getSelectionSvgEl(s);
-    if (el) {
-      MoveTool.targets.push({
-        type: s.type,
-        name: s.name,
-        data: s.data,
-        elementId: rec ? rec.id : null,
-        svgEl: el,
-      });
-    }
-  }
-
-  if (MoveTool.targets.length === 0) return;
-
-  const rect = App.els["viewport"].getBoundingClientRect();
-  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-
-  MoveTool.active = true;
-  MoveTool.startScreen = { x: e.clientX, y: e.clientY };
-  MoveTool.startWorld = [wx, wy];
-
-  // Create ghosts
-  MoveTool.origTransforms = [];
-  for (const t of MoveTool.targets) {
-    const ghost = createGhost(t.svgEl);
-    if (ghost) {
-      // Store original points/position for shifting
-      if (ghost.tagName === "polygon") {
-        MoveTool.origTransforms.push({
-          ghost,
-          origPoints: ghost.getAttribute("points"),
-          isCircle: false,
-        });
-      } else if (ghost.tagName === "circle") {
-        MoveTool.origTransforms.push({
-          ghost,
-          origCx: parseFloat(ghost.getAttribute("cx")),
-          origCy: parseFloat(ghost.getAttribute("cy")),
-          isCircle: true,
-        });
-      }
-    }
-  }
-
-  e.preventDefault();
-  e.stopPropagation();
-}
-
-function moveToolMouseMove(e) {
-  if (!MoveTool.active) return;
-
-  const rect = App.els["viewport"].getBoundingClientRect();
-  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-
-  let dx = wx - MoveTool.startWorld[0];
-  let dy = wy - MoveTool.startWorld[1];
-
+/**
+ * Apply axis constraint, shift-constrain, and grid snap to a delta.
+ * Returns [dx, dy] in world coordinates.
+ */
+function applyMoveConstraints(dx, dy, shiftKey) {
   // Shift key: constrain to dominant axis (TL-7)
-  if (e.shiftKey) {
-    if (Math.abs(dx) > Math.abs(dy)) {
-      dy = 0;
-    } else {
-      dx = 0;
-    }
+  if (shiftKey) {
+    if (Math.abs(dx) > Math.abs(dy)) dy = 0;
+    else dx = 0;
   }
 
   // Grid snap (TL-8): snap to 1 inch = 1/12 ft
@@ -179,7 +109,7 @@ function moveToolMouseMove(e) {
     dy = Math.round(dy / snap) * snap;
   }
 
-  // For IW walls, constrain to move axis
+  // For single IW walls, constrain to move axis
   if (MoveTool.targets.length === 1) {
     const t = MoveTool.targets[0];
     if (t.type === "wall" && IW_MOVE_AXIS[t.name]) {
@@ -188,6 +118,105 @@ function moveToolMouseMove(e) {
       else dx = 0;
     }
   }
+
+  return [dx, dy];
+}
+
+
+/* ========== Move Tool Mouse Handlers ========== */
+
+function moveToolMouseDown(e) {
+  if (e.button !== 0) return;
+  if (App.state.activeView !== "interactive") return;
+
+  // Determine what element was actually clicked (from the event target,
+  // NOT from App.state.selection — that might be a different element).
+  const targetEl = e.target.closest("[data-name][data-type]");
+  if (!targetEl) return; // clicked empty space — let viewport click handler clear selection
+
+  const targetName = targetEl.getAttribute("data-name");
+  const targetType = targetEl.getAttribute("data-type");
+
+  // If this element is part of a multi-selection, move the whole group.
+  // Otherwise, move just the clicked element.
+  const inMultiSel = App.state.selections.length > 0 &&
+    App.state.selections.some(s => s.name === targetName && s.type === targetType);
+
+  let targets;
+  if (inMultiSel) {
+    targets = [];
+    for (const s of App.state.selections) {
+      const rec = findElementRecord(s.type, s.name);
+      const el = getSelectionSvgEl(s);
+      if (el) {
+        targets.push({ type: s.type, name: s.name, elementId: rec ? rec.id : null, svgEl: el });
+      }
+    }
+  } else {
+    const rec = findElementRecord(targetType, targetName);
+    targets = [{ type: targetType, name: targetName, elementId: rec ? rec.id : null, svgEl: targetEl }];
+  }
+
+  if (targets.length === 0) return;
+
+  const rect = App.els["viewport"].getBoundingClientRect();
+  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+  // Enter "pending" state — don't create ghosts yet.
+  // Ghosts are created only after the drag threshold is exceeded (in mousemove).
+  MoveTool.pending = true;
+  MoveTool.active = false;
+  MoveTool.startScreen = { x: e.clientX, y: e.clientY };
+  MoveTool.startWorld = [wx, wy];
+  MoveTool.targets = targets;
+  MoveTool.origTransforms = [];
+
+  e.preventDefault();
+}
+
+function moveToolMouseMove(e) {
+  if (!MoveTool.pending && !MoveTool.active) return;
+
+  // Check drag threshold before starting actual drag
+  if (MoveTool.pending && !MoveTool.active) {
+    const dx = e.clientX - MoveTool.startScreen.x;
+    const dy = e.clientY - MoveTool.startScreen.y;
+    if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+
+    // Threshold exceeded — promote to active drag, create ghosts
+    MoveTool.active = true;
+    MoveTool.pending = false;
+    for (const t of MoveTool.targets) {
+      const ghost = createGhost(t.svgEl);
+      if (ghost) {
+        if (ghost.tagName === "polygon") {
+          MoveTool.origTransforms.push({
+            ghost,
+            origPoints: ghost.getAttribute("points"),
+            isCircle: false,
+          });
+        } else if (ghost.tagName === "circle") {
+          MoveTool.origTransforms.push({
+            ghost,
+            origCx: parseFloat(ghost.getAttribute("cx")),
+            origCy: parseFloat(ghost.getAttribute("cy")),
+            isCircle: true,
+          });
+        }
+      }
+    }
+  }
+
+  if (!MoveTool.active) return;
+
+  const rect = App.els["viewport"].getBoundingClientRect();
+  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+  let [dx, dy] = applyMoveConstraints(
+    wx - MoveTool.startWorld[0],
+    wy - MoveTool.startWorld[1],
+    e.shiftKey,
+  );
 
   // SVG coordinates: dx stays same, dy is negated
   const dxSvg = dx;
@@ -205,45 +234,43 @@ function moveToolMouseMove(e) {
 }
 
 function moveToolMouseUp(e) {
-  if (!MoveTool.active) return;
+  if (!MoveTool.pending && !MoveTool.active) return;
+
+  const wasActive = MoveTool.active;
+
+  // Remove ghosts
+  for (const g of MoveTool.origTransforms) {
+    if (g.ghost && g.ghost.parentNode) g.ghost.remove();
+  }
+
+  // If the drag never started (below threshold), treat as a click-to-select.
+  if (!wasActive) {
+    MoveTool.pending = false;
+    MoveTool.active = false;
+    MoveTool.origTransforms = [];
+    // Let the click event fire normally to select the element
+    return;
+  }
 
   const rect = App.els["viewport"].getBoundingClientRect();
   const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 
-  let dx = wx - MoveTool.startWorld[0];
-  let dy = wy - MoveTool.startWorld[1];
-
-  // Apply same constraints as mousemove
-  if (e.shiftKey) {
-    if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-    else dx = 0;
-  }
-  if (App.state.showGrid) {
-    const snap = 1.0 / 12.0;
-    dx = Math.round(dx / snap) * snap;
-    dy = Math.round(dy / snap) * snap;
-  }
-  if (MoveTool.targets.length === 1) {
-    const t = MoveTool.targets[0];
-    if (t.type === "wall" && IW_MOVE_AXIS[t.name]) {
-      const axis = IW_MOVE_AXIS[t.name].axis;
-      if (axis === "x") dy = 0;
-      else dx = 0;
-    }
-  }
-
-  // Remove ghosts
-  for (const g of MoveTool.origTransforms) {
-    if (g.ghost && g.ghost.parentNode) {
-      g.ghost.remove();
-    }
-  }
+  let [dx, dy] = applyMoveConstraints(
+    wx - MoveTool.startWorld[0],
+    wy - MoveTool.startWorld[1],
+    e.shiftKey,
+  );
 
   MoveTool.active = false;
+  MoveTool.pending = false;
   MoveTool.origTransforms = [];
 
   // Only commit if there was actual movement
   if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return;
+
+  // Suppress the click event that will fire after this mouseup,
+  // so it doesn't re-select/change selection after the move.
+  MoveTool._suppressClick = true;
 
   commitMove(MoveTool.targets, dx, dy);
 }
