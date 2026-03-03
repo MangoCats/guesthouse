@@ -3,9 +3,11 @@
 Provides REST API for constants/geometry/SVG, WebSocket for real-time
 updates, and serves the single-page frontend.
 """
+import datetime
 import json
 import os
 import queue
+import subprocess
 import threading
 import time
 
@@ -24,6 +26,16 @@ from app.engine import compute_geometry, generate_svg, get_svg_content, patch_co
 from app.undo import UndoManager
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Build/version info — computed once at import time
+_START_TIME = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+try:
+    _GIT_DESCRIBE = subprocess.check_output(
+        ["git", "describe", "--always", "--dirty"],
+        cwd=_PROJECT, stderr=subprocess.DEVNULL, text=True,
+    ).strip()
+except Exception:
+    _GIT_DESCRIBE = "unknown"
 
 # SSE event bus — all connected clients get geometry update notifications
 _sse_clients: list[queue.Queue] = []
@@ -523,5 +535,14 @@ def create_app(db_path=None):
 
         return Response(stream(), mimetype="text/event-stream",
                         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    # -- Version endpoint --
+
+    @app.route("/api/version")
+    def api_version():
+        return jsonify({
+            "git": _GIT_DESCRIBE,
+            "started": _START_TIME,
+        })
 
     return app

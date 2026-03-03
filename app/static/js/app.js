@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadConstants();
   loadGeometry();
   loadElements();
+  loadBuildLabel();
 });
 
 function cacheElements() {
@@ -112,6 +113,15 @@ function connectSSE() {
 
 
 /* ========== DATA LOADING ========== */
+
+async function loadBuildLabel() {
+  try {
+    const resp = await fetch("/api/version");
+    const data = await resp.json();
+    const el = document.getElementById("build-label");
+    if (el) el.textContent = `${data.git} | ${data.started}`;
+  } catch (_) {}
+}
 
 async function loadConstants() {
   const resp = await fetch("/api/constants");

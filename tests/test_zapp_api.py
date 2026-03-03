@@ -327,6 +327,16 @@ class TestAPI32SSE:
         assert "text/event-stream" in resp.content_type
 
 
+class TestAPIVersion:
+    def test_version_returns_git_and_started(self, app_client):
+        resp = app_client.get("/api/version")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "git" in data
+        assert "started" in data
+        assert len(data["started"]) == 19  # YYYY-MM-DD HH:MM:SS
+
+
 # ── API-33  GET / (root) ────────────────────────────────────────────
 
 class TestAPI33Root:
