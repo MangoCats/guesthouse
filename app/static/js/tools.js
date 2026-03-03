@@ -123,16 +123,37 @@ function applyMoveConstraints(dx, dy, shiftKey) {
 }
 
 
+/** Element types that can be dragged with the move tool. */
+const MOVABLE_TYPES = new Set(["wall", "furniture", "appliance", "fixture"]);
+
+
+/**
+ * Find the topmost movable SVG element at a screen coordinate.
+ * Uses elementsFromPoint to look through overlapping layers
+ * (e.g. point markers above walls) and find the first movable element.
+ */
+function findMovableAtPoint(clientX, clientY) {
+  const hits = document.elementsFromPoint(clientX, clientY);
+  for (const hit of hits) {
+    const el = hit.closest("[data-name][data-type]");
+    if (el && MOVABLE_TYPES.has(el.getAttribute("data-type"))) {
+      return el;
+    }
+  }
+  return null;
+}
+
+
 /* ========== Move Tool Mouse Handlers ========== */
 
 function moveToolMouseDown(e) {
   if (e.button !== 0) return;
   if (App.state.activeView !== "interactive") return;
 
-  // Determine what element was actually clicked (from the event target,
-  // NOT from App.state.selection — that might be a different element).
-  const targetEl = e.target.closest("[data-name][data-type]");
-  if (!targetEl) return; // clicked empty space — let viewport click handler clear selection
+  // Find the topmost movable element at the click point, looking through
+  // non-movable elements like point markers, labels, and openings.
+  const targetEl = findMovableAtPoint(e.clientX, e.clientY);
+  if (!targetEl) return; // clicked empty space or non-movable element
 
   const targetName = targetEl.getAttribute("data-name");
   const targetType = targetEl.getAttribute("data-type");
@@ -331,10 +352,10 @@ async function commitMove(targets, dx, dy) {
     }
   }
 
-  // Reload state
-  loadGeometry();
-  loadElements();
-  loadConstants();
+  // Reload state — await so canvas isn't rebuilt mid-interaction
+  await loadGeometry();
+  await loadElements();
+  await loadConstants();
 }
 
 

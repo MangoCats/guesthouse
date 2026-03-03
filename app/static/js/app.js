@@ -120,7 +120,18 @@ async function loadBuildLabel() {
     const resp = await fetch("/api/version");
     const data = await resp.json();
     const el = document.getElementById("build-label");
-    if (el) el.textContent = `${data.git} | ${data.started}`;
+    if (!el) return;
+    const text = `${data.git} | ${data.started}`;
+    el.textContent = text;
+    const btn = document.getElementById("build-copy");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        navigator.clipboard.writeText(text).then(
+          () => { btn.textContent = "\u2713"; setTimeout(() => { btn.textContent = "\u2398"; }, 1200); },
+          () => { btn.textContent = "!"; setTimeout(() => { btn.textContent = "\u2398"; }, 1200); }
+        );
+      });
+    }
   } catch (_) {}
 }
 
