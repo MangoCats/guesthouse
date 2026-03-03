@@ -107,6 +107,16 @@ def create_app(db_path=None):
         })
 
     # ------------------------------------------------------------------
+    # Prevent browser caching of API JSON responses
+    # ------------------------------------------------------------------
+
+    @app.after_request
+    def add_no_cache(response):
+        if request.path.startswith("/api/") and "text/event-stream" not in (response.content_type or ""):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    # ------------------------------------------------------------------
     # Routes
     # ------------------------------------------------------------------
 

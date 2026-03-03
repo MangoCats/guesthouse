@@ -176,6 +176,7 @@ async function outlineEditorMouseUp(e) {
       });
     }
     showToast(`Adjusted ${orig.name}`, "success");
+    await loadOutlineTable();
   } catch (err) {
     showToast(`Error: ${err.message}`, "error");
   } finally {

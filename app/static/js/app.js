@@ -1116,7 +1116,7 @@ async function handleConstantEdit(name, rawValue) {
 /* ========== OUTLINE TABLE ========== */
 
 async function loadOutlineTable() {
-  const resp = await apiFetch("/api/outline");
+  const resp = await apiFetch("/api/outline?_=" + Date.now());
   const chain = await resp.json();
   App.state.outlineChain = chain;
   const n = chain.length;
@@ -1240,10 +1240,10 @@ async function handleOutlineEdit(seq, field, rawValue) {
     });
     const data = await resp.json();
     showToast(`Seg ${seq}: ${fmtFtIn(value)}`, "success");
-    loadOutlineTable();
+    await loadOutlineTable();
   } catch (e) {
     showToast(`Error: ${e.message}`, "error");
-    loadOutlineTable();
+    await loadOutlineTable();
   }
 }
 
@@ -1264,10 +1264,10 @@ async function handleOutlineSweepEdit(seq, rawValue) {
     });
     const data = await resp.json();
     showToast(`Seg ${seq}: ${fmtDeg(deg)}`, "success");
-    loadOutlineTable();
+    await loadOutlineTable();
   } catch (e) {
     showToast(`Error: ${e.message}`, "error");
-    loadOutlineTable();
+    await loadOutlineTable();
   }
 }
 
