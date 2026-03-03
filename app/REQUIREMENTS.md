@@ -218,7 +218,7 @@ return `True` on success, `False` on failure or timeout.
 **Acceptance:** Call with `("floorplan", "floorplan/gen_floorplan.py")`.
 Verify it returns `True` and the SVG file is updated.
 
-#### ENG-11  Outline Chain Mutation **(NEW)**
+#### ENG-11  Outline Chain Mutation
 The engine SHALL accept modified outline chain parameters (radius, sweep,
 bearing, length) from the `outline_chain` database table and re-solve for
 closure/tangency before recomputing geometry.  After Phase 5, the DB chain
@@ -1443,7 +1443,7 @@ Sweep, End. It SHALL contain 18 rows.
 **Acceptance:** Switch to the Outline tab. Table has 18 rows. Line
 segments show distance; arc segments show radius and sweep.
 
-#### DT-2  Outline Chain Editing **(NEW)**
+#### DT-2  Outline Chain Editing
 Clicking a cell in the Dist/R, Sweep, or Bearing columns SHALL make it
 editable. Pressing Enter SHALL commit the change, trigger closure
 re-solve, and recompute geometry.
@@ -1452,7 +1452,7 @@ re-solve, and recompute geometry.
 value from 28 to 30. Press Enter. Engine re-solves closure. Canvas
 re-renders with the updated outline.
 
-#### DT-3  Outline Closure Indicator **(NEW)**
+#### DT-3  Outline Closure Indicator
 The Outline panel SHALL display a closure status indicator showing whether
 the current chain parameters produce a valid closed outline. Red = open,
 green = closed.
@@ -1460,7 +1460,7 @@ green = closed.
 **Acceptance:** After a valid edit, indicator is green. After setting an
 impossible radius, indicator turns red with an error distance.
 
-#### DT-4  Add/Remove Chain Segment **(NEW)**
+#### DT-4  Add/Remove Chain Segment
 The Outline panel SHALL have "+" and "-" buttons to insert a new F-point
 (splitting a segment) or remove an existing F-point.
 
@@ -1529,7 +1529,7 @@ Items with product URLs show clickable links.
 
 ### 9.1  Outline Editing
 
-#### OE-1  Drag F-Points **(NEW)**
+#### OE-1  Drag F-Points
 When the Select tool is active and the "Points" toggle is on, clicking
 and dragging an F-series point SHALL reshape the building outline. The
 engine SHALL re-solve the outline chain parameters to match the dragged
@@ -1538,14 +1538,14 @@ position while maintaining tangency and closure constraints.
 **Acceptance:** Drag F10 2 inches west. Engine derives new segment
 parameters. Outline re-renders. Tangency holds at all arc junctions.
 
-#### OE-2  Arc Radius Handle **(NEW)**
+#### OE-2  Arc Radius Handle
 When an arc segment is selected, a radius adjustment handle SHALL appear.
 Dragging the handle SHALL change the arc radius with live preview.
 
 **Acceptance:** Select the F13-F14 arc. A handle appears on the arc
 midpoint. Drag inward. Radius decreases. Release. Engine re-solves.
 
-#### OE-3  Constraint-Based Outline Editing **(NEW)**
+#### OE-3  Constraint-Based Outline Editing
 Edit > Set Constraint SHALL allow the user to specify a target distance
 between two named points (e.g., "F6-F7 = 5'3""). The engine SHALL solve
 for chain parameters that satisfy the constraint while maintaining

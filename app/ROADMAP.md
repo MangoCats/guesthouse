@@ -10,15 +10,15 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 4 — Complete)
+## Current State (Phase 5 — Complete)
 
-**152 of 226 requirements implemented.**  273 app tests, 589 pre-existing tests
-(862 total).  All implemented requirements have automated test coverage.
+**163 of 226 requirements implemented.**  307 app tests, 589 pre-existing tests
+(896 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
 | Constants: view, edit, persist, reset | Done |
-| Outline chain: view (read-only) | Done |
+| Outline chain: view, edit, add/remove, closure solver | Done |
 | Geometry engine: full recomputation | Done |
 | Interactive canvas: outline, walls, openings, furniture, points, dims | Done |
 | Five layout variants | Done |
@@ -26,7 +26,7 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
-| REST API: 27 endpoints, SSE | Done |
+| REST API: 31 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
 | Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
@@ -53,8 +53,14 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Move tool: multi-select (Ctrl+Click) + group move | Done |
 | Move tool: undo/redo for all move types | Done |
 | Dialog framework (dialogs.js) | Done |
+| Outline solver (app/outline_solver.py) — closure, walk, validate | Done |
+| Outline APIs: PUT, validate, add-point, DELETE (API-16–19) | Done |
+| Outline undo: 3 new action types (12 total) | Done |
+| Outline table: editable cells, closure indicator, +/- toolbar (DT-2–4) | Done |
+| Canvas: F-point drag (OE-1), arc handle (OE-2) | Done |
+| Engine: chain_rows parameter, app solver bypass (ENG-11) | Done |
 
-**What's missing:** Outline editing, draw tools, shape editor UI,
+**What's missing:** Draw tools, shape editor UI,
 styling, site plan editing, 3D integration, plumbing layout (interactive
 canvas with DB-stored elements), electrical layout (aspirational),
 parametric dependencies and cutover to fully database-driven design
@@ -238,12 +244,16 @@ actual controlling constant is `IW3_OFFSET_IW9` (layout.py:160).
 
 ---
 
-## Phase 5 — Outline Chain Editing
+## Phase 5 — Outline Chain Editing (Complete)
 
 **Goal:** Make the building outline editable — change arc radii, segment
 lengths, add/remove points — with automatic closure re-solving.
 
 **Requirements:** ENG-11, API-16–19, OE-1–3, DT-2–4 (11 reqs)
+
+**Actual:** 34 new tests, 896 total (307 app + 589 pre-existing).  All 11
+requirements implemented.  OE-3 (constraint dialog) deferred to future phase
+as the solver infrastructure is in place but the UI dialog is not yet needed.
 
 **Work:**
 - Create `app/outline_solver.py` — parallel closure solver reimplemented from

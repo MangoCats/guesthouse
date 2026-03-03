@@ -91,7 +91,12 @@ tables from source:
 | `update_constants_batch()` | Multi-constant transaction |
 | `reset_constants()` | Clear and re-seed from source |
 | `get_categories()` | Distinct category list |
-| `get_outline_chain()` | 18 segment rows |
+| `get_outline_chain()` | All segment rows (18 default) |
+| `get_outline_chain_row(seq)` | Single segment by seq |
+| `update_outline_segment(seq, updates)` | Update segment fields |
+| `insert_outline_segment(seq, row_data)` | Insert segment, shift seqs |
+| `delete_outline_segment(seq)` | Delete segment, renumber |
+| `restore_outline_chain(snapshot)` | Full chain replace (undo/rollback) |
 | `get_views()` | Enabled view definitions |
 | `get_shapes()` | All shape rows |
 | `get_shape(name)` | Single shape by name |
@@ -177,6 +182,30 @@ dependencies: constants → geometry → layout → openings.
 patching: `WALL_EXTRA`, `AIR_GAP`, `DOOR_FLAT_FACE`,
 `F8F9_INNER_TURN_R`, `CORNER_SW_R`.
 
+**App solver bypass (Phase 5)** — When `chain_rows` is provided (always
+in the web editor), `compute_geometry()` uses `app/outline_solver.py`
+instead of `compute_outline_geometry()`.  The app solver walks the DB
+chain, solves closure, and produces F-series points and outline segments
+directly.  This makes the DB chain authoritative and allows user edits
+to propagate through the full geometry pipeline.
+
+### app/outline_solver.py — Closure Solver (Phase 5)
+
+Pure-math reimplementation of the outline closure solver from
+`floorplan/geometry.py`, with zero imports from `floorplan/`.
+
+| Function | Purpose |
+|----------|---------|
+| `chain_offset(chain, start_brg)` | Walk chain entries, return (dE, dN, exit_brg) |
+| `solve_closure(chain, R_a1)` | Solve d_F2_F5 and d_F18_F1 for chain closure |
+| `db_rows_to_chain(rows)` | Convert DB row dicts to ChainEntry NamedTuples |
+| `walk_chain(chain, F2_E, F2_N)` | Full point generation → WalkResult(points, radii) |
+| `validate_chain(chain, R_a1)` | Dry-run validation → {valid, closure_error, ...} |
+| `solve_for_constraint(...)` | Secant method for target distance constraints |
+
+Cross-validation tests verify bit-identical results with `floorplan/geometry.py`
+for default chain parameters.
+
 ### app/variants.py — Variant Furniture
 
 Replicates positioning math from `gen_floorplan.py`'s `_render_appliances()`,
@@ -210,7 +239,7 @@ computed geometry and a dirty flag.  Protected by a threading lock.
 **SSE** — `GET /api/events` returns a `text/event-stream` response.
 Each connected client gets a `queue.Queue`; `_broadcast()` pushes
 messages to all queues.  Events: `constants_changed`, `geometry_changed`,
-`svg_updated`, `element_changed`, `undo_status`, `connected`.  Keepalive every 30 seconds.
+`svg_updated`, `element_changed`, `outline_changed`, `undo_status`, `connected`.  Keepalive every 30 seconds.
 
 **Floorplan variant mapping** — When the Floorplan view is requested
 with a `?variant=` parameter, the server maps variant names to
@@ -218,7 +247,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (29 total):
+**API endpoints** (33 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -251,6 +280,10 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | POST | `/api/doors` | Create door (API-27) |
 | PUT | `/api/doors/<opening_name>` | Update door (API-28) |
 | DELETE | `/api/doors/<opening_name>` | Delete door (API-29) |
+| PUT | `/api/outline/<seq>` | Update outline segment (API-16) |
+| POST | `/api/outline/validate` | Dry-run chain validation (API-17) |
+| POST | `/api/outline/add-point` | Insert F-point by splitting (API-18) |
+| DELETE | `/api/outline/<seq>` | Remove point from chain (API-19) |
 
 ### app/undo.py — Undo/Redo Manager
 
@@ -283,6 +316,9 @@ of undo entries with a position pointer.  Entries are persisted to the
 | `opening_update` | Restore old field values via `update_element()` |
 | `element_move` (constant) | Restore constant value via `update_constant()` |
 | `element_move` (position) | Restore element properties via `update_element()` |
+| `outline_update` | Restore full chain snapshot via `restore_outline_chain()` |
+| `outline_add_point` | Restore full chain snapshot (N rows → N-1) |
+| `outline_remove_point` | Restore full chain snapshot (N rows → N+1) |
 
 **Lifecycle:**
 - On startup: loads stack from DB, sets position to end
@@ -412,7 +448,7 @@ highlights and SF partition lines.  Responsive breakpoint at
 | Data | Source of truth | Editable via app? |
 |------|----------------|-------------------|
 | Named constants | `constants` table (seeded from `floorplan/constants.py`) | Yes — inline editing |
-| Outline chain | `outline_chain` table (seeded from `floorplan/geometry.py`) | Read-only (editable in Phase 5) |
+| Outline chain | `outline_chain` table (seeded from `floorplan/geometry.py`) | Editable: PUT, add-point, delete; closure re-solved automatically |
 | Interior walls | Computed by `floorplan/layout.py` from constants | Indirectly (edit constants) |
 | Openings | Computed by `floorplan/openings.py` from constants | Indirectly (edit constants) |
 | Variant items | Computed by `app/variants.py` from layout + constants | Indirectly (edit constants) |
