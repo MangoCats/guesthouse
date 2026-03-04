@@ -1056,6 +1056,17 @@ Checking the "Doors" checkbox SHALL show/hide door swing arcs.
 **Acceptance:** Toggle checkbox. Door arc elements appear/disappear.
 **Tested:** Client-side toggle (manual verification).
 
+#### DIS-11  Open Links Toggle
+The "Open Links" checkbox SHALL be checked by default. When unchecked,
+canvas elements SHALL NOT be wrapped in `<a xlink:href>` tags and link
+icon overlays (CV-12) SHALL be hidden, suppressing link-opening on click
+in the interactive view. The Properties panel "Open" button is unaffected.
+
+**Acceptance:** Uncheck "Open Links". Click an item with a product URL —
+no new tab opens; link icon is not visible. Check "Open Links" — link
+icons reappear and clicking opens the URL.
+**Tested:** Client-side toggle (manual verification).
+
 ---
 
 ## 5  Selection & Properties
@@ -2242,7 +2253,7 @@ history) to the requirements that enable each operation through the GUI.
 | Span/area analysis | ~22 | ANALYSIS-1..3 |
 | Resize elements | ~20 | SEL-10, DT-7, DT-10 |
 | Element styling (colour/opacity) | ~18 | STYLE-1..4 |
-| Product hyperlinks | ~14 | LINK-1, LINK-2, SEL-12, CV-12 |
+| Product hyperlinks | ~14 | LINK-1, LINK-2, SEL-12, CV-12, DIS-11 |
 | Delete elements | ~8 | TL-22, TL-23, SEL-13, API-22, API-26, API-29 |
 | Undo/redo | implicit | UNDO-1..4, API-30, API-31 |
 
