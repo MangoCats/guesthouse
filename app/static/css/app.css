@@ -400,6 +400,37 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   border-radius: 3px; cursor: pointer;
 }
 .prop-delete-btn:hover { background: #e78284; color: var(--base); }
+
+/* Style controls */
+.prop-color-input {
+  width: 28px; height: 22px; padding: 0 1px; border: 1px solid var(--border);
+  background: transparent; cursor: pointer; vertical-align: middle;
+  border-radius: 3px;
+}
+.prop-reset-btn {
+  padding: 1px 6px; font-size: 10px; margin-left: 4px;
+  background: var(--surface1); color: var(--text-dim); border: 1px solid var(--border);
+  border-radius: 3px; cursor: pointer;
+}
+.prop-reset-btn:hover { background: var(--surface2); }
+.prop-opacity-input {
+  width: 80px; vertical-align: middle;
+}
+.prop-url-open {
+  padding: 2px 8px; font-size: 11px; white-space: nowrap;
+  background: var(--surface1); color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 3px; cursor: pointer;
+}
+.prop-url-open:hover { background: var(--accent); color: var(--base); }
+
+/* Link icon on canvas */
+.link-icon {
+  cursor: pointer; pointer-events: auto;
+  font-size: 0.18px; fill: var(--accent);
+  dominant-baseline: hanging; opacity: 0.7;
+}
+.link-icon:hover { opacity: 1; }
+
 .prop-select {
   background: var(--surface0); color: var(--text); border: 1px solid var(--border);
   padding: 1px 4px; font-size: 12px; width: 100%;

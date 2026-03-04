@@ -422,6 +422,29 @@ for user labels/dimensions.
 | `next_dimension_name(elements)` | Return next auto-name for a user dimension (`UD1`, `UD2`, ...) via `_next_auto_name` |
 | `next_label_name(elements)` | Return next auto-name for a user label (`UL1`, `UL2`, ...) via `_next_auto_name` |
 
+### app/style.py — Per-Element Style Management (Phase 9)
+
+Defaults, validation, and per-view resolution for element visual properties
+(fill colour, stroke colour/width/style, opacity).  Style properties are
+stored in the element `properties` JSON column — no schema changes required.
+
+| Data / Function | Purpose |
+|-----------------|---------|
+| `TYPE_DEFAULTS` | Dict mapping element type → default style dict (fill_color, stroke_color, stroke_width, stroke_style, opacity) matching the CSS class defaults in `app.css` |
+| `STYLE_KEYS` | Tuple of the five style property names |
+| `VALID_STROKE_STYLES` | Tuple: `"solid"`, `"dashed"`, `"dotted"` |
+| `validate_color(value)` | Return `True` if value is `None` or valid CSS hex colour (`#rgb` / `#rrggbb`) |
+| `validate_opacity(value)` | Return `True` if value is a number in [0, 100] |
+| `validate_stroke_style(value)` | Return `True` if value is a recognised stroke style |
+| `validate_stroke_width(value)` | Return `True` if value is a non-negative number |
+| `validate_style_props(props)` | Validate all style keys present in a properties dict; returns `(ok, error_msg)` |
+| `get_defaults(element_type)` | Return a copy of the default style dict for the given type |
+| `resolve_style(element_type, props, variant=None)` | Three-layer merge: type defaults → base element props → `view_overrides[variant]`.  Returns a fully-populated style dict |
+
+**Per-view overrides** are stored in `properties.view_overrides` as a dict
+keyed by variant name, each value a partial style dict.  The frontend resolves
+styles client-side using the same merge order.
+
 ### app/parse_input.py — Unit-Aware Dimension Parser
 
 Parses user-entered dimension strings and returns a value in feet.

@@ -604,6 +604,8 @@ function renderFurniture(g, overrides) {
       const cssClass = `item-${item.type} selectable` + (item.stacked ? " item-stacked" : "");
       const [ox, oy] = itemOffset(overrides, name);
 
+      const itemStyle = resolveItemStyle(overrides, name, App.state.variant);
+
       if (item.shape === "circle") {
         const c = item.center;
         const el = svgEl("circle", {
@@ -612,8 +614,18 @@ function renderFurniture(g, overrides) {
           "data-type": item.type,
           "data-name": name,
         });
+        applyElementStyle(el, itemStyle);
         el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
-        layer.appendChild(el);
+        // Wrap in link if product URL exists
+        if (itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url)) {
+          const a = document.createElementNS("http://www.w3.org/2000/svg", "a");
+          a.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", itemStyle.product_url);
+          a.setAttribute("target", "_blank");
+          a.appendChild(el);
+          layer.appendChild(a);
+        } else {
+          layer.appendChild(el);
+        }
       } else {
         // Shift polygon points by override offset
         let poly = item.poly;
@@ -626,9 +638,36 @@ function renderFurniture(g, overrides) {
           "data-type": item.type,
           "data-name": name,
         });
+        applyElementStyle(el, itemStyle);
         el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
-        layer.appendChild(el);
+        if (itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url)) {
+          const a = document.createElementNS("http://www.w3.org/2000/svg", "a");
+          a.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", itemStyle.product_url);
+          a.setAttribute("target", "_blank");
+          a.appendChild(el);
+          layer.appendChild(a);
+        } else {
+          layer.appendChild(el);
+        }
       }
+
+      // Link icon overlay (CV-12)
+      if (itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url) && item.bbox) {
+        const bx = item.bbox;
+        const iconX = bx.e + ox - 0.1;
+        const iconY = -(bx.n + oy) + 0.15;
+        const icon = svgEl("text", {
+          x: iconX, y: iconY,
+          class: "link-icon",
+        });
+        icon.textContent = "\u{1F517}";
+        icon.addEventListener("click", (e) => {
+          e.stopPropagation();
+          window.open(itemStyle.product_url, "_blank");
+        });
+        layer.appendChild(icon);
+      }
+
       // Add text label at bbox center (shifted by override)
       if (item.label && item.bbox) {
         const bx = item.bbox;
@@ -1085,7 +1124,15 @@ function showProperties(type, name, data) {
         addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
       }
     }
-    addElementActions(tbody, elemRec || (App.state.elements || []).find(e => e.name === name));
+    // Style controls and product URL
+    const _elemRec = elemRec || (App.state.elements || []).find(e => e.name === name);
+    if (_elemRec) {
+      const _props = typeof _elemRec.properties === "string" ? JSON.parse(_elemRec.properties) : (_elemRec.properties || {});
+      addStyleControls(tbody, _elemRec, _props, type);
+      addViewOverrideControls(tbody, _elemRec, _props);
+      addProductUrlField(tbody, _elemRec, _props);
+    }
+    addElementActions(tbody, _elemRec);
   } else if (type === "dimension") {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
     if (elemRec) {
@@ -1141,6 +1188,8 @@ function showProperties(type, name, data) {
       };
       addPropRow(tbody, "Start Anchor", fmtAnchor(props.start_anchor));
       addPropRow(tbody, "End Anchor", fmtAnchor(props.end_anchor));
+      addStyleControls(tbody, elemRec, props, "dimension");
+      addViewOverrideControls(tbody, elemRec, props);
       addElementActions(tbody, elemRec);
     }
   } else if (type === "label") {
@@ -1172,6 +1221,8 @@ function showProperties(type, name, data) {
       fsTd2.appendChild(fsInp);
       fsTr.appendChild(fsTd2);
       tbody.appendChild(fsTr);
+      addStyleControls(tbody, elemRec, props, "label");
+      addViewOverrideControls(tbody, elemRec, props);
       addElementActions(tbody, elemRec);
     }
   }
@@ -1181,6 +1232,298 @@ const VARIANT_LABELS = {
   standard: "Standard", minik: "Small Kitchen", daybed: "Daybed",
   bare: "Room Dimensions", sf: "Square Footage",
 };
+
+// ── Style defaults matching CSS classes ─────────────────────────
+const STYLE_DEFAULTS = {
+  appliance: { fill_color: "#2a3a4a", stroke_color: "#4682B4", stroke_width: 0.02, stroke_style: "solid", opacity: 100 },
+  furniture: { fill_color: "#2a3a2a", stroke_color: "#5a8a5a", stroke_width: 0.02, stroke_style: "solid", opacity: 100 },
+  fixture:   { fill_color: "#3a2a3a", stroke_color: "#8a5a8a", stroke_width: 0.02, stroke_style: "solid", opacity: 100 },
+  wall:      { fill_color: "#334",    stroke_color: "#556",    stroke_width: 0.02, stroke_style: "solid", opacity: 100 },
+  opening:   { fill_color: "#2a4a6a", stroke_color: "#4488cc", stroke_width: 0.02, stroke_style: "solid", opacity: 100 },
+  dimension: { fill_color: null,      stroke_color: null,      stroke_width: 0.02, stroke_style: "solid", opacity: 100 },
+  label:     { fill_color: null,      stroke_color: null,      stroke_width: null,  stroke_style: null,    opacity: 100 },
+};
+
+/** Apply inline style overrides to an SVG element from resolved properties. */
+function applyElementStyle(el, props) {
+  if (!props) return;
+  if (props.fill_color) el.style.fill = props.fill_color;
+  if (props.stroke_color) el.style.stroke = props.stroke_color;
+  if (props.stroke_width != null) el.style.strokeWidth = props.stroke_width;
+  if (props.stroke_style === "dashed") el.style.strokeDasharray = "0.06 0.03";
+  else if (props.stroke_style === "dotted") el.style.strokeDasharray = "0.02 0.02";
+  else if (props.stroke_style === "solid") el.style.strokeDasharray = "none";
+  if (props.opacity != null && props.opacity !== 100) el.style.opacity = props.opacity / 100;
+}
+
+/** Resolve style properties with per-view override merging. */
+function resolveItemStyle(overrides, name, variant) {
+  const ov = overrides[name];
+  if (!ov) return null;
+  const resolved = { ...ov };
+  const viewOv = (ov.view_overrides || {})[variant];
+  if (viewOv) Object.assign(resolved, viewOv);
+  return resolved;
+}
+
+/** Add style controls (fill, stroke, opacity) to properties panel. */
+function addStyleControls(tbody, elemRec, props, elementType) {
+  if (!elemRec) return;
+  const defaults = STYLE_DEFAULTS[elementType] || STYLE_DEFAULTS.furniture;
+
+  // Helper to save a style property
+  async function saveStyleProp(key, value) {
+    const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
+    const curProps = cur
+      ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
+      : props;
+    const newProps = { ...curProps, [key]: value };
+    await fetch(`/api/elements/${elemRec.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: newProps }),
+    });
+    await loadElements();
+    await loadGeometry();
+  }
+
+  // Fill colour (not for dimension/label)
+  if (defaults.fill_color !== null) {
+    const tr = document.createElement("tr");
+    const td1 = document.createElement("td"); td1.textContent = "Fill";
+    tr.appendChild(td1);
+    const td2 = document.createElement("td");
+    const inp = document.createElement("input");
+    inp.type = "color";
+    inp.className = "prop-color-input";
+    inp.value = props.fill_color || defaults.fill_color || "#333333";
+    inp.addEventListener("change", () => saveStyleProp("fill_color", inp.value));
+    td2.appendChild(inp);
+    if (props.fill_color) {
+      const rst = document.createElement("button");
+      rst.textContent = "Reset";
+      rst.className = "prop-reset-btn";
+      rst.addEventListener("click", () => saveStyleProp("fill_color", null));
+      td2.appendChild(rst);
+    }
+    tr.appendChild(td2);
+    tbody.appendChild(tr);
+  }
+
+  // Stroke colour (not for label)
+  if (defaults.stroke_color !== null || elementType === "dimension") {
+    const tr = document.createElement("tr");
+    const td1 = document.createElement("td"); td1.textContent = "Stroke";
+    tr.appendChild(td1);
+    const td2 = document.createElement("td");
+    const inp = document.createElement("input");
+    inp.type = "color";
+    inp.className = "prop-color-input";
+    inp.value = props.stroke_color || defaults.stroke_color || "#666666";
+    inp.addEventListener("change", () => saveStyleProp("stroke_color", inp.value));
+    td2.appendChild(inp);
+    if (props.stroke_color) {
+      const rst = document.createElement("button");
+      rst.textContent = "Reset";
+      rst.className = "prop-reset-btn";
+      rst.addEventListener("click", () => saveStyleProp("stroke_color", null));
+      td2.appendChild(rst);
+    }
+    tr.appendChild(td2);
+    tbody.appendChild(tr);
+  }
+
+  // Stroke style (not for label)
+  if (defaults.stroke_style !== null) {
+    const tr = document.createElement("tr");
+    const td1 = document.createElement("td"); td1.textContent = "Line Style";
+    tr.appendChild(td1);
+    const td2 = document.createElement("td");
+    const sel = document.createElement("select");
+    sel.className = "prop-edit-input";
+    const curSS = props.stroke_style || defaults.stroke_style;
+    for (const [val, lbl] of [["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"]]) {
+      const opt = document.createElement("option");
+      opt.value = val; opt.textContent = lbl;
+      if (val === curSS) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener("change", () => saveStyleProp("stroke_style", sel.value));
+    td2.appendChild(sel);
+    tr.appendChild(td2);
+    tbody.appendChild(tr);
+  }
+
+  // Opacity (all types)
+  {
+    const tr = document.createElement("tr");
+    const td1 = document.createElement("td"); td1.textContent = "Opacity";
+    tr.appendChild(td1);
+    const td2 = document.createElement("td");
+    td2.style.display = "flex";
+    td2.style.alignItems = "center";
+    td2.style.gap = "6px";
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.className = "prop-opacity-input";
+    slider.min = "0"; slider.max = "100"; slider.step = "1";
+    slider.value = props.opacity != null ? props.opacity : defaults.opacity;
+    const readout = document.createElement("span");
+    readout.style.fontSize = "11px";
+    readout.style.minWidth = "30px";
+    readout.textContent = slider.value + "%";
+    slider.addEventListener("input", () => { readout.textContent = slider.value + "%"; });
+    slider.addEventListener("change", () => saveStyleProp("opacity", parseInt(slider.value)));
+    td2.appendChild(slider);
+    td2.appendChild(readout);
+    tr.appendChild(td2);
+    tbody.appendChild(tr);
+  }
+}
+
+/** Add per-view style override controls for the current variant. */
+function addViewOverrideControls(tbody, elemRec, props) {
+  if (!elemRec) return;
+  const variant = App.state.variant;
+  const variantLabel = VARIANT_LABELS[variant] || variant;
+  const viewOv = (props.view_overrides || {})[variant] || {};
+
+  // Header
+  const hdr = document.createElement("tr");
+  const hTd = document.createElement("td");
+  hTd.colSpan = 2;
+  hTd.style.paddingTop = "8px";
+  hTd.style.fontStyle = "italic";
+  hTd.style.fontSize = "11px";
+  hTd.textContent = `Override for ${variantLabel}`;
+  hdr.appendChild(hTd);
+  tbody.appendChild(hdr);
+
+  async function saveViewOverride(key, value) {
+    const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
+    const curProps = cur
+      ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
+      : props;
+    const allOverrides = { ...(curProps.view_overrides || {}) };
+    const curView = { ...(allOverrides[variant] || {}) };
+    if (value === null) {
+      delete curView[key];
+    } else {
+      curView[key] = value;
+    }
+    if (Object.keys(curView).length === 0) {
+      delete allOverrides[variant];
+    } else {
+      allOverrides[variant] = curView;
+    }
+    const newProps = { ...curProps, view_overrides: allOverrides };
+    await fetch(`/api/elements/${elemRec.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: newProps }),
+    });
+    await loadElements();
+    await loadGeometry();
+  }
+
+  // Opacity override for current view
+  {
+    const tr = document.createElement("tr");
+    const td1 = document.createElement("td"); td1.textContent = "Opacity";
+    tr.appendChild(td1);
+    const td2 = document.createElement("td");
+    td2.style.display = "flex";
+    td2.style.alignItems = "center";
+    td2.style.gap = "6px";
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.className = "prop-opacity-input";
+    slider.min = "0"; slider.max = "100"; slider.step = "1";
+    slider.value = viewOv.opacity != null ? viewOv.opacity : "";
+    const readout = document.createElement("span");
+    readout.style.fontSize = "11px";
+    readout.style.minWidth = "30px";
+    readout.textContent = viewOv.opacity != null ? viewOv.opacity + "%" : "—";
+    slider.addEventListener("input", () => { readout.textContent = slider.value + "%"; });
+    slider.addEventListener("change", () => saveViewOverride("opacity", parseInt(slider.value)));
+    td2.appendChild(slider);
+    td2.appendChild(readout);
+    if (viewOv.opacity != null) {
+      const clr = document.createElement("button");
+      clr.textContent = "Clear";
+      clr.className = "prop-reset-btn";
+      clr.addEventListener("click", () => saveViewOverride("opacity", null));
+      td2.appendChild(clr);
+    }
+    tr.appendChild(td2);
+    tbody.appendChild(tr);
+  }
+
+  // Fill override for current view
+  if (viewOv.fill_color != null || true) {
+    const tr = document.createElement("tr");
+    const td1 = document.createElement("td"); td1.textContent = "Fill";
+    tr.appendChild(td1);
+    const td2 = document.createElement("td");
+    const inp = document.createElement("input");
+    inp.type = "color";
+    inp.className = "prop-color-input";
+    inp.value = viewOv.fill_color || props.fill_color || "#333333";
+    inp.addEventListener("change", () => saveViewOverride("fill_color", inp.value));
+    td2.appendChild(inp);
+    if (viewOv.fill_color) {
+      const clr = document.createElement("button");
+      clr.textContent = "Clear";
+      clr.className = "prop-reset-btn";
+      clr.addEventListener("click", () => saveViewOverride("fill_color", null));
+      td2.appendChild(clr);
+    }
+    tr.appendChild(td2);
+    tbody.appendChild(tr);
+  }
+}
+
+/** Add product URL field to properties panel. */
+function addProductUrlField(tbody, elemRec, props) {
+  if (!elemRec) return;
+  const tr = document.createElement("tr");
+  const td1 = document.createElement("td"); td1.textContent = "Link";
+  tr.appendChild(td1);
+  const td2 = document.createElement("td");
+  td2.style.display = "flex";
+  td2.style.gap = "4px";
+  td2.style.alignItems = "center";
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "prop-edit-input";
+  inp.placeholder = "https://...";
+  inp.style.flex = "1";
+  inp.value = props.product_url || "";
+  inp.addEventListener("change", async () => {
+    const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
+    const curProps = cur
+      ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
+      : props;
+    const newProps = { ...curProps, product_url: inp.value || null };
+    await fetch(`/api/elements/${elemRec.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: newProps }),
+    });
+    await loadElements();
+    await loadGeometry();
+  });
+  td2.appendChild(inp);
+  if (props.product_url && /^https?:\/\//.test(props.product_url)) {
+    const btn = document.createElement("button");
+    btn.textContent = "Open";
+    btn.className = "prop-url-open";
+    btn.addEventListener("click", () => window.open(props.product_url, "_blank"));
+    td2.appendChild(btn);
+  }
+  tr.appendChild(td2);
+  tbody.appendChild(tr);
+}
 
 function addElementActions(tbody, elemRec) {
   if (!elemRec) return;
@@ -2777,6 +3120,11 @@ function renderUserDimensions(g) {
       class: `${lineCls} selectable`,
       "data-type": "dimension", "data-name": ud.name,
     });
+    // Apply inline style overrides (STYLE-1..3)
+    if (p.stroke_color) mainLine.style.stroke = p.stroke_color;
+    if (p.stroke_style === "dashed") mainLine.style.strokeDasharray = "0.06 0.03";
+    else if (p.stroke_style === "dotted") mainLine.style.strokeDasharray = "0.02 0.02";
+    if (p.opacity != null && p.opacity !== 100) mainLine.style.opacity = p.opacity / 100;
     mainLine.addEventListener("click", (e) => selectElement("dimension", ud.name, ud, e));
     layer.appendChild(mainLine);
 
@@ -2812,6 +3160,8 @@ function renderUserDimensions(g) {
       "data-type": "dimension", "data-name": ud.name,
       transform: `rotate(${ang},${lx},${ly})`,
     });
+    if (p.stroke_color) label.style.fill = p.stroke_color;
+    if (p.opacity != null && p.opacity !== 100) label.style.opacity = p.opacity / 100;
     label.textContent = fmtFtIn(dist);
     label.addEventListener("click", (e) => selectElement("dimension", ud.name, ud, e));
     layer.appendChild(label);
@@ -2840,6 +3190,8 @@ function renderUserLabels(g) {
       "data-type": "label", "data-name": le.name,
     });
     el.style.fontSize = fontSize + "px";
+    if (p.fill_color) el.style.fill = p.fill_color;
+    if (p.opacity != null && p.opacity !== 100) el.style.opacity = p.opacity / 100;
     if (rotation) el.setAttribute("transform", `rotate(${-rotation},${ex},${-en})`);
     el.textContent = text;
     el.addEventListener("click", (e) => selectElement("label", le.name, le, e));

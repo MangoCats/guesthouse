@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 8 — Complete, Phase 9 next)
+## Current State (Phase 9 — Complete, Phase 10 next)
 
-**216 of 236 requirements implemented.**  458 app tests, 586 pre-existing tests
-(1044 total).  All implemented requirements have automated test coverage.
+**224 of 236 requirements implemented.**  515 app tests, 586 pre-existing tests
+(1101 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -85,9 +85,16 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Multi-layout visibility: per-element variant checkbox list | Done |
 | Cache invalidation on element/opening/door CRUD | Done |
 | Delete button in properties panel | Done |
+| Per-element fill colour, stroke colour/width/style (STYLE-1, STYLE-2) | Done |
+| Per-element opacity slider (STYLE-3) | Done |
+| Per-view style overrides (STYLE-4) | Done |
+| Product URL field + Open button (LINK-1, SEL-12) | Done |
+| SVG link wrapping for elements with URLs (LINK-2) | Done |
+| Canvas link icon overlay (CV-12) | Done |
+| Style module: defaults, validation, resolution (app/style.py) | Done |
 
 **What's missing:** Endpoint drag handles (TL-17 partial), Add Opening tool (TL-21),
-styling, site plan editing, 3D integration, plumbing layout (interactive
+site plan editing, 3D integration, plumbing layout (interactive
 canvas with DB-stored elements), electrical layout (aspirational),
 parametric dependencies and cutover to fully database-driven design
 (Charter Principle 5).  The current implementation uses constants as
@@ -517,25 +524,32 @@ label is stored as an element with type `'label'`.  The model:
 
 ---
 
-## Phase 9 — Styling and Product Links
+## Phase 9 — Styling and Product Links (Complete)
 
 **Goal:** Per-element visual customisation and product URL attachments.
 
-**Requirements:** STYLE-1–4, LINK-1–2, SEL-12, CV-12 (8 reqs)
+**Requirements:** STYLE-1–4, LINK-1–2, SEL-12, CV-12 (8 reqs) — all implemented
 
-**Work:**
-- Create `app/style.py` — per-element and per-view style management stored in
-  element `properties` JSON
-- Properties panel: colour picker (STYLE-1), stroke inputs (STYLE-2), opacity
-  slider (STYLE-3)
-- Per-view style overrides (STYLE-4)
-- URL field in properties panel (SEL-12, LINK-1)
-- SVG generation wraps elements with URLs in `<a xlink:href>` tags (LINK-2)
-- Canvas hyperlink indicators (CV-12)
+**Implemented:**
+- `app/style.py` — TYPE_DEFAULTS (7 element types), validation (colour, opacity,
+  stroke), resolve_style() with 3-layer merge (defaults → base → view overrides)
+- Properties panel: colour picker (STYLE-1), stroke colour/style (STYLE-2),
+  opacity range slider (STYLE-3), per-view override section (STYLE-4)
+- Product URL text field with "Open" button (SEL-12, LINK-1)
+- SVG `<a xlink:href>` wrapping on interactive canvas (LINK-2)
+- Canvas link icon overlay at item corner (CV-12)
+- Inline style application in renderFurniture(), renderUserDimensions(),
+  renderUserLabels() — overrides CSS class defaults
+- Reset buttons to revert individual style properties to defaults
+- Override auto-creation for engine-computed items (same pattern as move tool)
 
-**New files:** `app/style.py`, `tests/test_zapp_style.py`
+**New files:** `app/style.py`, `tests/test_zapp_style.py` (57 tests)
 
 **Dependencies:** Phase 3 (elements), Phase 6 (canvas rendering).
+
+### Post-phase enhancements
+- None yet.  Style system designed for extensibility — new element types can
+  add entries to TYPE_DEFAULTS and get full style editing automatically.
 
 ---
 
@@ -780,7 +794,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 1044+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 1101+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues

@@ -946,12 +946,15 @@ and hamper locations as dashed rectangles extending from the item face.
 **Tested:** `test_zapp_canvas.py::TestClearanceZones` (3 tests),
 `TestApplianceClearanceZones` (7 tests).
 
-#### CV-12  Hyperlink Indicators **(NEW)**
+#### CV-12  Hyperlink Indicators
 Elements with attached product URLs SHALL display a small link icon
 overlay on the canvas.
 
 **Acceptance:** A furniture item with a URL shows a link icon at its
 corner. Clicking the icon opens the URL in a new tab.
+
+**Tested:** `test_zapp_style.py::TestProductUrl` (URL storage),
+`test_zapp_style.py::TestStyleAPI::test_put_product_url` (API round-trip).
 
 ### 4.2  Canvas Navigation
 
@@ -1154,7 +1157,7 @@ panel SHALL update the door configuration and re-render the door arc.
 dropdown. Door arc flips to the opposite side.
 **Tested:** `test_zapp_canvas.py::TestDoorArcAPI::test_door_invalidation_via_api`.
 
-#### SEL-12  Product URL Field **(NEW)**
+#### SEL-12  Product URL Field
 When a furniture, appliance, or fixture item is selected, the Properties
 panel SHALL display a "Link" text field. The field SHALL show the URL
 currently associated with the item, or be blank if no URL is associated.
@@ -1168,6 +1171,9 @@ Clicking "Open" SHALL open the URL in a new browser tab.
 appears. Click "Open". A new browser tab navigates to that URL. Select
 FRIDGE again after reload — the URL persists. Clear the field and press
 Enter — URL is removed, "Open" button disappears.
+
+**Tested:** `test_zapp_style.py::TestStyleAPI::test_put_product_url`,
+`test_zapp_style.py::TestProductUrl`.
 
 #### SEL-13  Delete Button
 When an element has a database record (i.e., is stored in the `elements`
@@ -1767,19 +1773,25 @@ one hinged on each side of the opening.
 
 ### 9.3  Hyperlinks
 
-#### LINK-1  Attach Product URL **(NEW)**
+#### LINK-1  Attach Product URL
 Each furniture, appliance, fixture, and opening element SHALL have an
 optional product URL property.
 
 **Acceptance:** Select SHELVES. In Properties panel, enter an IKEA URL.
 Save. The URL persists across page reloads.
 
-#### LINK-2  Clickable SVG Links **(NEW)**
+**Tested:** `test_zapp_style.py::TestProductUrl`,
+`test_zapp_style.py::TestStyleAPI::test_put_product_url`.
+
+#### LINK-2  Clickable SVG Links
 Elements with product URLs SHALL be wrapped in `<a xlink:href="...">` tags
 in generated SVGs, making them clickable in browsers and PDF viewers.
 
 **Acceptance:** Assign a URL to FRIDGE. Regenerate floorplan SVG. Open the
 SVG in a browser. Clicking FRIDGE opens the product URL.
+
+**Tested:** Interactive canvas wraps elements with `<a xlink:href>` tags.
+`test_zapp_style.py::TestStyleAPI::test_put_product_url`.
 
 ### 9.4  Room Labels & Annotations
 
@@ -1828,7 +1840,7 @@ field. Change from 10pt to 14pt. Label re-renders at the new size.
 
 ---
 
-## 10  Styling **(NEW)**
+## 10  Styling (Phase 9)
 
 #### STYLE-1  Element Fill Colour
 Each element type (wall, opening, furniture, etc.) SHALL have a
@@ -1838,12 +1850,19 @@ picker.
 **Acceptance:** Select a wall. Open colour picker. Change fill from
 default grey to light brown. Wall re-renders with the new fill colour.
 
+**Tested:** `test_zapp_style.py::TestStyleDefaults` (defaults match CSS),
+`test_zapp_style.py::TestStyleAPI::test_put_style_properties`.
+
 #### STYLE-2  Element Stroke Properties
 Each element SHALL have configurable stroke colour, width, and style
 (solid, dashed, dotted).
 
 **Acceptance:** Select a dimension line. Change stroke style to dashed.
 Line re-renders as dashed.
+
+**Tested:** `test_zapp_style.py::TestStyleValidation` (stroke_style,
+stroke_width validation),
+`test_zapp_style.py::TestStyleResolution::test_resolve_base_override`.
 
 #### STYLE-3  Element Opacity
 Each element SHALL have a configurable opacity (0-100%), editable in the
@@ -1852,12 +1871,19 @@ Properties panel.
 **Acceptance:** Select interior dim lines. Set opacity to 50%. Lines
 render at half opacity.
 
-#### STYLE-4  Per-View Styling **(NEW)**
+**Tested:** `test_zapp_style.py::TestStyleValidation` (opacity range),
+`test_zapp_style.py::TestStyleResolution::test_resolve_partial_override`.
+
+#### STYLE-4  Per-View Styling
 View variants SHALL support per-view element styling (e.g., doors at 20%
 opacity in the plumbing view).
 
 **Acceptance:** In plumbing view variant, set door opacity to 20%. Doors
 render faintly. Main floorplan view still shows doors at 100%.
+
+**Tested:** `test_zapp_style.py::TestStyleResolution::test_resolve_view_override`,
+`test_zapp_style.py::TestPerViewStyleResolution`,
+`test_zapp_style.py::TestStyleAPI::test_put_view_overrides`.
 
 ---
 
@@ -2231,13 +2257,13 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 1 Data Layer | 39 | 1 | 40 |
 | 2 REST API | 30 | 4 | 34 |
 | 3 UI Layout | 6 | 2 | 8 |
-| 4 Canvas | 21 | 6 | 27 |
-| 5 Selection | 10 | 5 | 15 |
+| 4 Canvas | 22 | 5 | 27 |
+| 5 Selection | 11 | 4 | 15 |
 | 6 Tools | 10 | 17 | 27 |
 | 7 Constants | 20 | 0 | 20 |
 | 8 Data Tables | 7 | 4 | 11 |
-| 9 Element Ops | 0 | 13 | 13 |
-| 10 Styling | 0 | 4 | 4 |
+| 9 Element Ops | 2 | 11 | 13 |
+| 10 Styling | 4 | 0 | 4 |
 | 11 Site Plan | 0 | 4 | 4 |
 | 12 3D Model | 0 | 3 | 3 |
 | 13 Analysis | 0 | 3 | 3 |
@@ -2245,7 +2271,7 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **155** | **81** | **236** |
+| **Total** | **163** | **73** | **236** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted
