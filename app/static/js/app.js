@@ -652,11 +652,35 @@ function renderFurniture(g, overrides) {
         }
       }
 
-      // Link icon overlay (CV-12)
-      if (App.state.openLinks && itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url) && item.bbox) {
-        const bx = item.bbox;
-        const iconX = bx.e + ox - 0.1;
-        const iconY = -(bx.n + oy) + 0.15;
+      // Link icon overlay (CV-12) — anchor to actual shape, not bbox
+      if (App.state.openLinks && itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url)) {
+        let iconX, iconY;
+        if (item.shape === "circle") {
+          const c = item.center;
+          // Top-right of circle at 45 degrees
+          const r = item.radius || 0;
+          iconX = c[0] + ox + r * 0.707;
+          iconY = -(c[1] + oy + r * 0.707);
+        } else if (item.poly) {
+          // Find the topmost-rightmost vertex of the actual polygon
+          let best = null;
+          const pts = item.poly;
+          for (const p of pts) {
+            const px = p[0] + ox, py = p[1] + oy;
+            // Prefer high N (large py) then high E (large px)
+            if (!best || py > best[1] || (py === best[1] && px > best[0]))
+              best = [px, py];
+          }
+          iconX = best[0];
+          iconY = -best[1];
+        } else if (item.bbox) {
+          const bx = item.bbox;
+          iconX = bx.e + ox - 0.1;
+          iconY = -(bx.n + oy) + 0.15;
+        } else {
+          iconX = null;
+        }
+        if (iconX == null) continue;
         const icon = svgEl("text", {
           x: iconX, y: iconY,
           class: "link-icon",
