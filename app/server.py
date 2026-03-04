@@ -88,7 +88,7 @@ def create_app(db_path=None):
                 chain_rows = get_outline_chain(db)
                 doors_data = get_all_doors(db)
                 data = compute_geometry(constants, variant, chain_rows,
-                                        doors_data=doors_data)
+                                        doors_data=doors_data, db_path=db)
                 _geom_cache[variant] = {"data": data, "dirty": False}
                 return data
             return entry["data"]

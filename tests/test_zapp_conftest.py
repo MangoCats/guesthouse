@@ -74,4 +74,4 @@ def geometry(fresh_db):
     """Pre-computed geometry from a fresh database."""
     from app.engine import compute_geometry
     constants = get_constants_dict(fresh_db)
-    return compute_geometry(constants)
+    return compute_geometry(constants, db_path=fresh_db)

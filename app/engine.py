@@ -353,6 +353,9 @@ def _compute_appliance_doors(variant_items):
     return result
 
 
+_FACE_MAP = {"south": (0, 1), "east": (1, 2), "north": (2, 3), "west": (3, 0)}
+
+
 def _face_midpoint(poly, face):
     """Midpoint of a named face of a 4-vertex polygon.
 
@@ -360,8 +363,7 @@ def _face_midpoint(poly, face):
     north=poly[2]→poly[3], west=poly[3]→poly[0].
     poly vertices are [E, N] lists or tuples.
     """
-    face_map = {"south": (0, 1), "east": (1, 2), "north": (2, 3), "west": (3, 0)}
-    indices = face_map.get(face)
+    indices = _FACE_MAP.get(face)
     if not indices or len(poly) < 4:
         return None
     i, j = indices
@@ -369,31 +371,231 @@ def _face_midpoint(poly, face):
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
 
 
+def _face_vertices(poly, face):
+    """Return (vertex_i, vertex_j) for a named face of a 4-vertex polygon."""
+    indices = _FACE_MAP.get(face)
+    if not indices or len(poly) < 4:
+        return None, None
+    i, j = indices
+    return poly[i], poly[j]
+
+
+def _find_wall_poly(geom, name):
+    """Look up a wall polygon by name from geometry result."""
+    wall = geom.get("interior_walls", {}).get(name)
+    return wall["poly"] if wall else None
+
+
+def _find_opening_poly(geom, name):
+    """Look up an opening polygon by name from geometry result."""
+    for op in geom.get("outer_openings", []):
+        if op["name"] == name and "poly" in op:
+            return op["poly"]
+    for ro in geom.get("rough_openings", []):
+        if ro["name"] == name and "poly" in ro:
+            return ro["poly"]
+    return None
+
+
+def _resolve_point_spec(spec, geom):
+    """Resolve a point spec to [E, N] coordinates.
+
+    Point specs:
+      str            → geom["points"][spec]
+      {face_mid: T, face: F}          → midpoint of wall face
+      {opening_face_mid: T, face: F}  → midpoint of opening face
+      {opening_centroid: T}            → centroid of opening poly vertices
+      {midpoint: [A, B]}              → midpoint of two point specs
+      {offset: base, dir: D, dist: N} → base + dist * direction
+      {arc_point: {...}}              → point on arc at reference northing
+    """
+    if spec is None:
+        return None
+    if isinstance(spec, str):
+        pt = geom.get("points", {}).get(spec)
+        return list(pt) if pt else None
+
+    if isinstance(spec, dict):
+        if "face_mid" in spec:
+            poly = _find_wall_poly(geom, spec["face_mid"])
+            if poly:
+                return _face_midpoint(poly, spec.get("face"))
+            return None
+
+        if "opening_face_mid" in spec:
+            poly = _find_opening_poly(geom, spec["opening_face_mid"])
+            if poly:
+                return _face_midpoint(poly, spec.get("face"))
+            return None
+
+        if "opening_centroid" in spec:
+            poly = _find_opening_poly(geom, spec["opening_centroid"])
+            if poly and len(poly) >= 3:
+                n = len(poly)
+                return [sum(p[0] for p in poly) / n, sum(p[1] for p in poly) / n]
+            return None
+
+        if "midpoint" in spec:
+            pair = spec["midpoint"]
+            if len(pair) != 2:
+                return None
+            a = _resolve_point_spec(pair[0], geom)
+            b = _resolve_point_spec(pair[1], geom)
+            if a and b:
+                return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+            return None
+
+        if "offset" in spec:
+            base = _resolve_point_spec(spec["offset"], geom)
+            direction = _resolve_dir_spec(spec.get("dir"), geom)
+            dist = spec.get("dist", 0)
+            if base and direction:
+                return [base[0] + dist * direction[0], base[1] + dist * direction[1]]
+            return None
+
+        if "arc_point" in spec:
+            ap = spec["arc_point"]
+            center = _resolve_point_spec(ap.get("center"), geom)
+            radii = geom.get("radii", {})
+            radius = radii.get(ap.get("radius_key"))
+            ref = _resolve_point_spec(ap.get("reference"), geom)
+            side = ap.get("side", "east")
+            if center and radius and ref:
+                # Find point on circle at reference's northing
+                ns_dir = _resolve_dir_spec("north", geom)
+                ew_dir = _resolve_dir_spec("east", geom)
+                dn = (ref[0] - center[0]) * ns_dir[0] + (ref[1] - center[1]) * ns_dir[1]
+                disc = radius**2 - dn**2
+                if disc < 0:
+                    return None
+                de = math.sqrt(disc)
+                if side == "west":
+                    de = -de
+                base = [center[0] + dn * ns_dir[0], center[1] + dn * ns_dir[1]]
+                return [base[0] + de * ew_dir[0], base[1] + de * ew_dir[1]]
+            return None
+
+    return None
+
+
+def _resolve_dir_spec(spec, geom):
+    """Resolve a direction spec to [dE, dN] unit vector.
+
+    Direction specs:
+      "east"  → [1, 0]
+      "north" → [0, 1]
+      {face_along: T, face: F}   → along direction of wall face
+      {face_perp: T, face: F}    → perpendicular of wall face (right-hand)
+      {segment: [A, B]}          → unit vector from A to B
+      {segment_perp: [A, B]}     → perpendicular of A→B (right-hand)
+    """
+    if spec is None:
+        return None
+    if isinstance(spec, str):
+        if spec == "east":
+            return [1.0, 0.0]
+        if spec == "north":
+            return [0.0, 1.0]
+        return None
+
+    if isinstance(spec, dict):
+        if "face_along" in spec:
+            poly = _find_wall_poly(geom, spec["face_along"])
+            if not poly:
+                return None
+            a, b = _face_vertices(poly, spec.get("face"))
+            if a is None:
+                return None
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            length = math.sqrt(dx * dx + dy * dy)
+            if length < 1e-12:
+                return None
+            return [dx / length, dy / length]
+
+        if "face_perp" in spec:
+            poly = _find_wall_poly(geom, spec["face_perp"])
+            if not poly:
+                return None
+            a, b = _face_vertices(poly, spec.get("face"))
+            if a is None:
+                return None
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            length = math.sqrt(dx * dx + dy * dy)
+            if length < 1e-12:
+                return None
+            # Right-hand perpendicular: (dy, -dx) / length
+            return [dy / length, -dx / length]
+
+        if "segment" in spec:
+            pair = spec["segment"]
+            if len(pair) != 2:
+                return None
+            a = _resolve_point_spec(pair[0], geom)
+            b = _resolve_point_spec(pair[1], geom)
+            if a and b:
+                dx, dy = b[0] - a[0], b[1] - a[1]
+                length = math.sqrt(dx * dx + dy * dy)
+                if length < 1e-12:
+                    return None
+                return [dx / length, dy / length]
+            return None
+
+        if "segment_perp" in spec:
+            pair = spec["segment_perp"]
+            if len(pair) != 2:
+                return None
+            a = _resolve_point_spec(pair[0], geom)
+            b = _resolve_point_spec(pair[1], geom)
+            if a and b:
+                dx, dy = b[0] - a[0], b[1] - a[1]
+                length = math.sqrt(dx * dx + dy * dy)
+                if length < 1e-12:
+                    return None
+                return [dy / length, -dx / length]
+            return None
+
+    return None
+
+
 def _resolve_anchor(anchor, geometry_result):
     """Resolve a dimension anchor to [E, N] coordinates.
 
+    Anchor types:
+      point            → named geometry point
+      wall_face        → midpoint of wall polygon face
+      opening_face     → midpoint of opening polygon face
+      line_intersection → intersection of two infinite lines
+      computed         → arbitrary point via _resolve_point_spec
     Returns [E, N] or None if the target is not found.
     """
     if not anchor:
         return None
     atype = anchor.get("type")
-    target = anchor.get("target")
-    if not atype or not target:
+    if not atype:
         return None
 
     if atype == "point":
+        target = anchor.get("target")
+        if not target:
+            return None
         pt = geometry_result.get("points", {}).get(target)
         return list(pt) if pt else None
 
     if atype == "wall_face":
+        target = anchor.get("target")
         face = anchor.get("face")
+        if not target or not face:
+            return None
         wall = geometry_result.get("interior_walls", {}).get(target)
-        if wall and face:
+        if wall:
             return _face_midpoint(wall["poly"], face)
         return None
 
     if atype == "opening_face":
+        target = anchor.get("target")
         face = anchor.get("face")
+        if not target or not face:
+            return None
         for op in geometry_result.get("outer_openings", []):
             if op["name"] == target and "poly" in op:
                 return _face_midpoint(op["poly"], face)
@@ -402,10 +604,26 @@ def _resolve_anchor(anchor, geometry_result):
                 return _face_midpoint(ro["poly"], face)
         return None
 
+    if atype == "line_intersection":
+        p1 = _resolve_point_spec(anchor.get("line1_point"), geometry_result)
+        d1 = _resolve_dir_spec(anchor.get("line1_dir"), geometry_result)
+        p2 = _resolve_point_spec(anchor.get("line2_point"), geometry_result)
+        d2 = _resolve_dir_spec(anchor.get("line2_dir"), geometry_result)
+        if p1 and d1 and p2 and d2:
+            det = d1[0] * d2[1] - d1[1] * d2[0]
+            if abs(det) < 1e-12:
+                return None
+            t = ((p2[0] - p1[0]) * d2[1] - (p2[1] - p1[1]) * d2[0]) / det
+            return [p1[0] + t * d1[0], p1[1] + t * d1[1]]
+        return None
+
+    if atype == "computed":
+        return _resolve_point_spec(anchor.get("spec"), geometry_result)
+
     return None
 
 
-def _compute_room_labels(pts, layout, inner_segs, radii, variant):
+def _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path=None):
     """Compute room label positions, areas, and SF partition lines.
 
     Builds the actual room-area polygons (matching compute_room_areas) so
@@ -551,7 +769,7 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant):
     # Try label elements first (Phase 8), fall back to room_label_offsets
     label_offsets = {}
     try:
-        all_elems = get_all_elements()
+        all_elems = get_all_elements(db_path)
         for e in all_elems:
             if e["type"] == "label":
                 props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
@@ -616,7 +834,8 @@ def _build_outline_segs_from_chain(chain):
 
 def compute_geometry(constants_dict: dict, variant: str = "standard",
                      chain_rows: list[dict] | None = None,
-                     doors_data: list[dict] | None = None) -> dict:
+                     doors_data: list[dict] | None = None,
+                     db_path: str | None = None) -> dict:
     """Compute all building geometry from constants and return JSON-serialisable dict.
 
     If chain_rows is provided (Phase 5+), the app solver computes the
@@ -707,7 +926,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     rough_openings = compute_rough_openings(pts, layout)
 
     # Load variant exclusions from database
-    exclusions = get_variant_exclusions(variant)
+    exclusions = get_variant_exclusions(variant, db_path)
 
     # Build result
     result = {
@@ -798,6 +1017,9 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     if all_pts:
         result["bbox"] = bbox_from_poly(all_pts)
 
+    # Radii (needed for arc_point anchor resolution)
+    result["radii"] = {k: v for k, v in radii.items()}
+
     # Variant items
     from app.variants import compute_variant_items, VARIANTS
     variant_items = compute_variant_items(pts, inner_poly, layout, radii, variant)
@@ -805,27 +1027,8 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     result["variant"] = variant
     result["available_variants"] = list(VARIANTS.keys())
 
-    # Dimension lines
-    from floorplan.gen_floorplan import compute_dimension_endpoints
-    dim_endpoints = compute_dimension_endpoints(pts, layout, radii, bare=(variant == "bare"))
-    ep_dict = {name: pt for name, pt in dim_endpoints}
-    dim_names = sorted(set(k.rsplit("_", 1)[0] for k in ep_dict))
-    dimensions = {}
-    for dname in dim_names:
-        a_key = f"{dname}_A"
-        b_key = f"{dname}_B"
-        if a_key in ep_dict and b_key in ep_dict:
-            pa, pb = ep_dict[a_key], ep_dict[b_key]
-            dist = math.sqrt((pb[0] - pa[0])**2 + (pb[1] - pa[1])**2)
-            dimensions[dname] = {
-                "A": point_to_list(pa),
-                "B": point_to_list(pb),
-                "dist": round(dist, 6),
-            }
-    result["dimensions"] = dimensions
-
     # Room labels and SF extras
-    room_data = _compute_room_labels(pts, layout, inner_segs, radii, variant)
+    room_data = _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path)
     result["room_labels"] = room_data["room_labels"]
     if "sf_lines" in room_data:
         result["sf_lines"] = room_data["sf_lines"]
@@ -840,13 +1043,21 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     # Appliance door arcs (Phase 6)
     result["appliance_doors"] = _compute_appliance_doors(variant_items)
 
-    # User dimensions and label elements (Phase 8)
-    all_elements = get_all_elements()
+    # Dimension and label elements (unified — both builtin and user-created)
+    all_elements = get_all_elements(db_path)
+    excluded_dims = exclusions.get("dimension", set())
     user_dims = []
     label_elems = []
     for e in all_elements:
         props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
         if e["type"] == "dimension":
+            # Variant filtering: skip if element's variant doesn't match
+            elem_variant = e.get("variant")
+            if elem_variant is not None and elem_variant != variant:
+                continue
+            # Exclusion filtering (e.g. dim12a/dim12b excluded in bare)
+            if e["name"] in excluded_dims:
+                continue
             # Resolve anchors to absolute coordinates
             for anchor_key, coord_key in [("start_anchor", "start"), ("end_anchor", "end")]:
                 anchor = props.get(anchor_key)

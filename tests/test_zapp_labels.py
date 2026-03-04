@@ -1,20 +1,26 @@
-"""Tests for Phase 8: Labels, Dimensions, and Annotations.
+"""Tests for Phase 8: Labels, Dimensions, Annotations, and Unified Dimensions.
 
-Covers: TL-11–14, LABEL-1–4, DIS-7 (9 reqs).
+Covers: TL-11–14, LABEL-1–4, DIS-7 (9 reqs), plus unified dimension tests.
 """
 import json
+import math
 
 import pytest
 
 from app.database import (
     get_db, init_db, get_all_elements, get_element,
     create_element, update_element, delete_element,
+    reset_elements,
 )
 from app.labels import (
-    seed_room_labels, next_dimension_name, next_label_name,
-    ROOM_LABEL_NAMES,
+    seed_room_labels, seed_builtin_dimensions,
+    next_dimension_name, next_label_name,
+    ROOM_LABEL_NAMES, BUILTIN_DIMENSIONS,
 )
-from app.engine import compute_geometry, _resolve_anchor, _face_midpoint
+from app.engine import (
+    compute_geometry, _resolve_anchor, _face_midpoint,
+    _resolve_point_spec, _resolve_dir_spec,
+)
 from app.database import get_constants_dict
 
 from tests.test_zapp_conftest import fresh_db, app_client  # noqa: F401
@@ -257,29 +263,32 @@ class TestGeometryOutput:
 
     def test_geometry_has_user_dimensions(self, fresh_db):
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants)
+        geom = compute_geometry(constants, db_path=fresh_db)
         assert "user_dimensions" in geom
         assert isinstance(geom["user_dimensions"], list)
 
     def test_geometry_has_label_elements(self, fresh_db):
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants)
+        geom = compute_geometry(constants, db_path=fresh_db)
         assert "label_elements" in geom
         assert len(geom["label_elements"]) == 11  # room labels
 
     def test_label_elements_have_centroid(self, fresh_db):
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants)
+        geom = compute_geometry(constants, db_path=fresh_db)
         for le in geom["label_elements"]:
             if le["properties"]["source"] == "room":
                 assert "centroid" in le
                 assert "pos" in le
 
-    def test_geometry_user_dims_initially_empty(self, fresh_db):
-        """No user dimensions exist in a fresh DB."""
+    def test_geometry_has_builtin_dims(self, fresh_db):
+        """Fresh DB has builtin dimensions in user_dimensions."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants)
-        assert geom["user_dimensions"] == []
+        geom = compute_geometry(constants, db_path=fresh_db)
+        builtin = [d for d in geom["user_dimensions"]
+                   if d["properties"].get("source") == "builtin"]
+        # Standard variant: 20 normal dims (no dim12bare, dim20, dim21)
+        assert len(builtin) == 20
 
 
 # ── Anchor resolution ───────────────────────────────────────────────
@@ -440,3 +449,367 @@ class TestDimensionAnchorCRUD:
         props = json.loads(resp.get_json()["properties"])
         assert "start_anchor" not in props
         assert props["start"] == [1, 2]
+
+
+# ── Builtin dimension seeding ──────────────────────────────────────
+
+class TestBuiltinDimensionSeeding:
+    """Built-in dimensions are seeded as elements on fresh DB."""
+
+    def test_builtin_dims_count(self, fresh_db):
+        elements = get_all_elements(fresh_db)
+        dims = [e for e in elements if e["type"] == "dimension"]
+        assert len(dims) == len(BUILTIN_DIMENSIONS)
+
+    def test_builtin_dim_names(self, fresh_db):
+        elements = get_all_elements(fresh_db)
+        dim_names = {e["name"] for e in elements if e["type"] == "dimension"}
+        expected = {d["name"] for d in BUILTIN_DIMENSIONS}
+        assert dim_names == expected
+
+    def test_builtin_dim_has_anchors(self, fresh_db):
+        elements = get_all_elements(fresh_db)
+        for e in elements:
+            if e["type"] != "dimension":
+                continue
+            props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
+            assert props["source"] == "builtin"
+            assert "start_anchor" in props
+            assert "end_anchor" in props
+
+    def test_seed_idempotent(self, fresh_db):
+        with get_db(fresh_db) as conn:
+            seed_builtin_dimensions(conn)
+        elements = get_all_elements(fresh_db)
+        dims = [e for e in elements if e["type"] == "dimension"]
+        assert len(dims) == len(BUILTIN_DIMENSIONS)
+
+    def test_dim12a_variant_null(self, fresh_db):
+        elements = get_all_elements(fresh_db)
+        dim12a = next(e for e in elements if e["name"] == "dim12a")
+        assert dim12a["variant"] is None
+
+    def test_dim12bare_variant_bare(self, fresh_db):
+        elements = get_all_elements(fresh_db)
+        dim12bare = next(e for e in elements if e["name"] == "dim12bare")
+        assert dim12bare["variant"] == "bare"
+
+    def test_dim20_dim21_variant_bare(self, fresh_db):
+        elements = get_all_elements(fresh_db)
+        for name in ("dim20", "dim21"):
+            dim = next(e for e in elements if e["name"] == name)
+            assert dim["variant"] == "bare", f"{name} should be bare-only"
+
+    def test_reset_restores_builtin_dims(self, fresh_db):
+        """Deleting a builtin dim and resetting restores it."""
+        elements = get_all_elements(fresh_db)
+        dim01 = next(e for e in elements if e["name"] == "dim01")
+        delete_element(dim01["id"], fresh_db)
+        # Verify it's gone
+        assert get_element(dim01["id"], fresh_db) is None
+        # Reset restores it
+        reset_elements(fresh_db)
+        elements = get_all_elements(fresh_db)
+        dim_names = {e["name"] for e in elements if e["type"] == "dimension"}
+        assert "dim01" in dim_names
+
+
+# ── Point spec resolution ──────────────────────────────────────────
+
+MOCK_GEOM = {
+    "points": {
+        "W9": [5.0, 3.0], "F9": [6.0, 4.0], "F11": [8.0, 4.0],
+        "W2": [-2.0, 0.0], "F5": [-2.0, 5.0],
+        "W14": [3.0, -5.0], "W15": [4.0, -5.0],
+        "W18": [-1.0, -3.0], "W1": [-1.0, 3.0],
+        "C7": [4.0, 2.0],
+    },
+    "interior_walls": {
+        "IW1": {"poly": [[0, 0], [10, 0], [10, 0.667], [0, 0.667]]},
+        "IW2": {"poly": [[-2.0, 1.0], [-1.5, 1.0], [-1.5, 4.0], [-2.0, 4.0]]},
+        "IW9": {"poly": [[1, 1], [1.5, 1], [1.5, 3], [1, 3]]},
+        "IW11": {"poly": [[3, 1], [3.5, 1], [3.5, 3], [3, 3]]},
+    },
+    "outer_openings": [
+        {"name": "O1", "poly": [[2, 0], [5, 0], [5, 0.5], [2, 0.5]]},
+        {"name": "O6", "poly": [[2, 0], [5, 0], [5, 0.5], [2, 0.5]]},
+    ],
+    "rough_openings": [
+        {"name": "RO1", "poly": [[3, 1], [4, 1], [4, 1.667], [3, 1.667]]},
+    ],
+    "radii": {"R_a7": 3.0, "R_a11": 4.0},
+}
+
+
+class TestResolvePointSpec:
+    """Unit tests for _resolve_point_spec."""
+
+    def test_string_point(self):
+        assert _resolve_point_spec("W9", MOCK_GEOM) == [5.0, 3.0]
+
+    def test_string_point_missing(self):
+        assert _resolve_point_spec("ZZZZ", MOCK_GEOM) is None
+
+    def test_face_mid(self):
+        result = _resolve_point_spec({"face_mid": "IW1", "face": "north"}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 5.0) < 0.001
+        assert abs(result[1] - 0.667) < 0.001
+
+    def test_opening_face_mid(self):
+        result = _resolve_point_spec(
+            {"opening_face_mid": "O1", "face": "south"}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 3.5) < 0.001
+        assert abs(result[1] - 0.0) < 0.001
+
+    def test_opening_centroid(self):
+        result = _resolve_point_spec({"opening_centroid": "O1"}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 3.5) < 0.001
+        assert abs(result[1] - 0.25) < 0.001
+
+    def test_midpoint(self):
+        result = _resolve_point_spec({"midpoint": ["F9", "F11"]}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 7.0) < 0.001
+        assert abs(result[1] - 4.0) < 0.001
+
+    def test_offset(self):
+        result = _resolve_point_spec(
+            {"offset": "W9", "dir": "east", "dist": 2.0}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 7.0) < 0.001
+        assert abs(result[1] - 3.0) < 0.001
+
+    def test_offset_north(self):
+        result = _resolve_point_spec(
+            {"offset": "W9", "dir": "north", "dist": -1.0}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 5.0) < 0.001
+        assert abs(result[1] - 2.0) < 0.001
+
+    def test_arc_point_east(self):
+        # Circle at C7=(4,2), R=3, reference at N=2 (same height as center)
+        # dn = 0, de = sqrt(9-0) = 3, east side → point = (4+3, 2) = (7, 2)
+        result = _resolve_point_spec({
+            "arc_point": {
+                "center": "C7", "radius_key": "R_a7",
+                "reference": "C7",  # same point gives dn=0
+                "side": "east",
+            }
+        }, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 7.0) < 0.001
+        assert abs(result[1] - 2.0) < 0.001
+
+    def test_arc_point_west(self):
+        result = _resolve_point_spec({
+            "arc_point": {
+                "center": "C7", "radius_key": "R_a7",
+                "reference": "C7",
+                "side": "west",
+            }
+        }, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 1.0) < 0.001  # 4 - 3
+
+    def test_none_spec(self):
+        assert _resolve_point_spec(None, MOCK_GEOM) is None
+
+
+# ── Direction spec resolution ──────────────────────────────────────
+
+class TestResolveDirSpec:
+    """Unit tests for _resolve_dir_spec."""
+
+    def test_east(self):
+        assert _resolve_dir_spec("east", MOCK_GEOM) == [1.0, 0.0]
+
+    def test_north(self):
+        assert _resolve_dir_spec("north", MOCK_GEOM) == [0.0, 1.0]
+
+    def test_face_along(self):
+        # IW1 south face: poly[0]=[0,0] → poly[1]=[10,0] → along = [1, 0]
+        result = _resolve_dir_spec(
+            {"face_along": "IW1", "face": "south"}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 1.0) < 0.001
+        assert abs(result[1] - 0.0) < 0.001
+
+    def test_face_perp(self):
+        # IW1 south face: along = [1, 0], perp (right-hand) = [0, -1]
+        result = _resolve_dir_spec(
+            {"face_perp": "IW1", "face": "south"}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 0.0) < 0.001
+        assert abs(result[1] - (-1.0)) < 0.001
+
+    def test_segment(self):
+        # W14=[3,-5] → W15=[4,-5] → along = [1, 0]
+        result = _resolve_dir_spec(
+            {"segment": ["W14", "W15"]}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 1.0) < 0.001
+        assert abs(result[1] - 0.0) < 0.001
+
+    def test_segment_perp(self):
+        # W14→W15 along [1, 0], perp (right-hand) = [0, -1]
+        result = _resolve_dir_spec(
+            {"segment_perp": ["W14", "W15"]}, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 0.0) < 0.001
+        assert abs(result[1] - (-1.0)) < 0.001
+
+    def test_none_spec(self):
+        assert _resolve_dir_spec(None, MOCK_GEOM) is None
+
+    def test_unknown_string(self):
+        assert _resolve_dir_spec("diagonal", MOCK_GEOM) is None
+
+
+# ── Line intersection anchor ──────────────────────────────────────
+
+class TestLineIntersectionAnchor:
+    """Tests for the line_intersection anchor type."""
+
+    def test_perpendicular_lines(self):
+        """Intersection of horizontal and vertical lines."""
+        anchor = {
+            "type": "line_intersection",
+            "line1_point": "W9",      # [5, 3]
+            "line1_dir": "east",       # horizontal at N=3
+            "line2_point": "F9",       # [6, 4]
+            "line2_dir": "north",      # vertical at E=6
+        }
+        result = _resolve_anchor(anchor, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 6.0) < 0.001
+        assert abs(result[1] - 3.0) < 0.001
+
+    def test_face_based_intersection(self):
+        """Intersection using face midpoints and face directions."""
+        anchor = {
+            "type": "line_intersection",
+            "line1_point": {"face_mid": "IW1", "face": "north"},
+            "line1_dir": {"face_along": "IW1", "face": "north"},
+            "line2_point": "F9",
+            "line2_dir": "north",
+        }
+        result = _resolve_anchor(anchor, MOCK_GEOM)
+        assert result is not None
+        # IW1 north face is at N=0.667, F9 at E=6.0
+        assert abs(result[0] - 6.0) < 0.001
+        assert abs(result[1] - 0.667) < 0.001
+
+    def test_parallel_lines_returns_none(self):
+        """Parallel lines should return None (no intersection)."""
+        anchor = {
+            "type": "line_intersection",
+            "line1_point": "W9", "line1_dir": "east",
+            "line2_point": "F9", "line2_dir": "east",
+        }
+        assert _resolve_anchor(anchor, MOCK_GEOM) is None
+
+    def test_missing_point_returns_none(self):
+        anchor = {
+            "type": "line_intersection",
+            "line1_point": "MISSING", "line1_dir": "east",
+            "line2_point": "W9", "line2_dir": "north",
+        }
+        assert _resolve_anchor(anchor, MOCK_GEOM) is None
+
+
+class TestComputedAnchor:
+    """Tests for the computed anchor type."""
+
+    def test_computed_midpoint(self):
+        anchor = {
+            "type": "computed",
+            "spec": {"midpoint": ["W9", "F9"]},
+        }
+        result = _resolve_anchor(anchor, MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 5.5) < 0.001
+        assert abs(result[1] - 3.5) < 0.001
+
+
+# ── Variant filtering ──────────────────────────────────────────────
+
+class TestDimensionVariantFiltering:
+    """Variant filtering for builtin dimensions."""
+
+    def test_standard_excludes_bare_only(self, fresh_db):
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, variant="standard", db_path=fresh_db)
+        dim_names = {d["name"] for d in geom["user_dimensions"]}
+        assert "dim12a" in dim_names
+        assert "dim12b" in dim_names
+        assert "dim12bare" not in dim_names
+        assert "dim20" not in dim_names
+        assert "dim21" not in dim_names
+
+    def test_bare_excludes_dim12a_dim12b(self, fresh_db):
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, variant="bare", db_path=fresh_db)
+        dim_names = {d["name"] for d in geom["user_dimensions"]}
+        assert "dim12a" not in dim_names
+        assert "dim12b" not in dim_names
+        assert "dim12bare" in dim_names
+        assert "dim20" in dim_names
+        assert "dim21" in dim_names
+
+    def test_bare_has_correct_count(self, fresh_db):
+        """Bare variant: 20 normal dims - 2 (dim12a/b) + 3 (bare-only) = 21."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, variant="bare", db_path=fresh_db)
+        builtin = [d for d in geom["user_dimensions"]
+                   if d["properties"].get("source") == "builtin"]
+        assert len(builtin) == 21
+
+
+# ── Geometry response with resolved builtin dims ───────────────────
+
+class TestBuiltinDimGeometry:
+    """Builtin dimensions resolve to valid coordinates."""
+
+    def test_all_builtin_dims_resolve(self, fresh_db):
+        """Every builtin dim has resolved start and end coordinates."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, db_path=fresh_db)
+        builtin = [d for d in geom["user_dimensions"]
+                   if d["properties"].get("source") == "builtin"]
+        for dim in builtin:
+            p = dim["properties"]
+            assert "start" in p, f"{dim['name']} missing start"
+            assert "end" in p, f"{dim['name']} missing end"
+            assert len(p["start"]) == 2, f"{dim['name']} start not [E,N]"
+            assert len(p["end"]) == 2, f"{dim['name']} end not [E,N]"
+
+    def test_dim01_has_positive_distance(self, fresh_db):
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, db_path=fresh_db)
+        dim01 = next(d for d in geom["user_dimensions"] if d["name"] == "dim01")
+        p = dim01["properties"]
+        dist = math.sqrt((p["end"][0] - p["start"][0])**2 +
+                         (p["end"][1] - p["start"][1])**2)
+        assert dist > 0.5  # should be several feet
+
+    def test_radii_in_geometry(self, fresh_db):
+        """Geometry response includes radii dict."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, db_path=fresh_db)
+        assert "radii" in geom
+        assert "R_a7" in geom["radii"]
+
+    def test_user_dim_still_works(self, fresh_db):
+        """User-created dimensions still appear alongside builtins."""
+        create_element("dimension", "UD1", {
+            "source": "user", "start": [0, 0], "end": [5, 0],
+            "offset": 0,
+        }, None, fresh_db)
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, db_path=fresh_db)
+        names = {d["name"] for d in geom["user_dimensions"]}
+        assert "UD1" in names
+        assert "dim01" in names  # builtin still there

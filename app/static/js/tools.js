@@ -844,10 +844,10 @@ async function createDimension(start, end, startAnchor, endAnchor) {
   });
   if (resp.ok) {
     showToast(`Created dimension ${name}`, "success");
-    // Auto-enable User Dims if not already
-    if (!App.state.showUserDims) {
-      App.state.showUserDims = true;
-      App.els["show-user-dims"].checked = true;
+    // Auto-enable Dims if not already
+    if (!App.state.showDims) {
+      App.state.showDims = true;
+      App.els["show-dims"].checked = true;
     }
     await loadElements();
     await loadGeometry();

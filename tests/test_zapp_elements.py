@@ -39,10 +39,11 @@ class TestDB9Elements:
             ).fetchone()[0]
         assert count == 13
 
-    def test_only_walls_and_labels_seeded(self, fresh_db):
+    def test_only_walls_labels_dims_seeded(self, fresh_db):
         with get_db(fresh_db) as conn:
             count = conn.execute(
-                "SELECT count(*) FROM elements WHERE type NOT IN ('wall', 'label')"
+                "SELECT count(*) FROM elements "
+                "WHERE type NOT IN ('wall', 'label', 'dimension')"
             ).fetchone()[0]
         assert count == 0
 
@@ -110,9 +111,9 @@ class TestElementCRUD:
 class TestElementBusinessLogic:
 
     def test_get_elements_for_variant_all(self, fresh_db):
-        # 13 IW walls + 11 room labels have variant=NULL, visible to all variants
+        # 13 IW walls + 11 room labels + 20 builtin dims (variant=NULL)
         elems = get_elements_for_variant("standard", fresh_db)
-        assert len(elems) == 24  # 13 walls + 11 labels
+        assert len(elems) == 44  # 13 walls + 11 labels + 20 dims
 
     def test_get_elements_for_variant_specific(self, fresh_db):
         create_element("furniture", "VARIANT_ITEM", {}, "standard", fresh_db)

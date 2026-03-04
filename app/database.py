@@ -136,16 +136,19 @@ def init_db(db_path=None):
             _seed_variant_exclusions(conn)
             _seed_elements(conn)
             _seed_doors(conn)
-            from app.labels import seed_room_labels
+            from app.labels import seed_room_labels, seed_builtin_dimensions
             seed_room_labels(conn)
+            seed_builtin_dimensions(conn)
         else:
             # Ensure all seed doors exist (handles additions like O3, O6)
             _seed_doors(conn)
             # Ensure variant exclusions exist (Phase 7 upgrade)
             _seed_variant_exclusions(conn)
             # Ensure room label elements exist (Phase 8 upgrade)
-            from app.labels import seed_room_labels
+            from app.labels import seed_room_labels, seed_builtin_dimensions
             seed_room_labels(conn)
+            # Ensure builtin dimension elements exist (unified dims upgrade)
+            seed_builtin_dimensions(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -435,9 +438,14 @@ def _seed_variant_exclusions(conn):
         # bare (Room Dimensions): IW6 and RO5 are omitted per gen_floorplan.py
         ("bare", "wall", "IW6"),
         ("bare", "rough_opening", "RO5"),
+        # bare: dim12a/dim12b replaced by dim12bare
+        ("bare", "dimension", "dim12a"),
+        ("bare", "dimension", "dim12b"),
         # sf (Square Footage): same exclusions as bare
         ("sf", "wall", "IW6"),
         ("sf", "rough_opening", "RO5"),
+        ("sf", "dimension", "dim12a"),
+        ("sf", "dimension", "dim12b"),
     ]
     for variant, etype, ename in exclusions:
         conn.execute(
@@ -808,8 +816,9 @@ def reset_elements(db_path=None):
         conn.execute("DELETE FROM doors")
         _seed_elements(conn)
         _seed_doors(conn)
-        from app.labels import seed_room_labels
+        from app.labels import seed_room_labels, seed_builtin_dimensions
         seed_room_labels(conn)
+        seed_builtin_dimensions(conn)
 
 
 def restore_elements(elements, doors, db_path=None):

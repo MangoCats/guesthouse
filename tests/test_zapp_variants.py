@@ -242,37 +242,52 @@ class TestVariantAPI:
 
 class TestDimensionData:
     def test_geometry_has_dimensions(self, fresh_db):
-        """Geometry result should include dimension line data."""
+        """Geometry result should include dimension line data via user_dimensions."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
-        assert "dimensions" in geom
-        assert len(geom["dimensions"]) >= 18
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
+        assert "user_dimensions" in geom
+        builtin = [d for d in geom["user_dimensions"]
+                   if d["properties"].get("source") == "builtin"]
+        assert len(builtin) >= 18
 
-    def test_dimension_has_endpoints_and_dist(self, fresh_db):
-        """Each dimension should have A, B endpoints and positive dist."""
+    def test_dimension_has_endpoints(self, fresh_db):
+        """Each builtin dimension should have start, end endpoints."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
-        for name, dim in geom["dimensions"].items():
-            assert "A" in dim and "B" in dim and "dist" in dim, \
-                f"{name} missing keys"
-            assert len(dim["A"]) == 2 and len(dim["B"]) == 2, \
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
+        import math
+        for dim in geom["user_dimensions"]:
+            p = dim["properties"]
+            if p.get("source") != "builtin":
+                continue
+            name = dim["name"]
+            assert "start" in p and "end" in p, f"{name} missing endpoints"
+            assert len(p["start"]) == 2 and len(p["end"]) == 2, \
                 f"{name} endpoints not [E,N] pairs"
-            assert dim["dist"] > 0, f"{name} has non-positive dist"
+            dist = math.sqrt((p["end"][0] - p["start"][0])**2 +
+                             (p["end"][1] - p["start"][1])**2)
+            assert dist > 0, f"{name} has non-positive dist"
 
     def test_bare_variant_has_extra_dims(self, fresh_db):
         """Bare variant should include dim20 and dim21."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "bare")
-        assert "dim20" in geom["dimensions"]
-        assert "dim21" in geom["dimensions"]
+        geom = compute_geometry(constants, "bare", db_path=fresh_db)
+        dim_names = {d["name"] for d in geom["user_dimensions"]}
+        assert "dim20" in dim_names
+        assert "dim21" in dim_names
 
     def test_dimension_api_response(self, app_client):
         """API should return dimensions in geometry response."""
         resp = app_client.get("/api/geometry")
         data = resp.get_json()
-        assert "dimensions" in data
-        assert len(data["dimensions"]) >= 18
+        assert "user_dimensions" in data
+        builtin = [d for d in data["user_dimensions"]
+                   if d["properties"].get("source") == "builtin"]
+        assert len(builtin) >= 18
         # Spot-check one dimension
-        dim01 = data["dimensions"].get("dim01")
+        import math
+        dim01 = next((d for d in builtin if d["name"] == "dim01"), None)
         assert dim01 is not None
-        assert dim01["dist"] > 0
+        p = dim01["properties"]
+        dist = math.sqrt((p["end"][0] - p["start"][0])**2 +
+                         (p["end"][1] - p["start"][1])**2)
+        assert dist > 0

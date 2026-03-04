@@ -193,17 +193,20 @@ class TestDB8ResetConstants:
 
 class TestDB12VariantExclusions:
     def test_exclusion_count(self, fresh_db):
-        """Variant exclusions table has exactly 4 rows."""
+        """Variant exclusions table has 8 rows (walls, openings, dimensions)."""
         with get_db(fresh_db) as conn:
             count = conn.execute(
                 "SELECT count(*) FROM variant_exclusions"
             ).fetchone()[0]
-        assert count == 4
+        assert count == 8
 
     def test_bare_exclusions(self, fresh_db):
-        """Bare variant excludes IW6 (wall) and RO5 (rough_opening)."""
+        """Bare variant excludes IW6, RO5, dim12a, dim12b."""
         excl = get_variant_exclusions("bare", fresh_db)
-        assert excl == {"wall": {"IW6"}, "rough_opening": {"RO5"}}
+        assert excl == {
+            "wall": {"IW6"}, "rough_opening": {"RO5"},
+            "dimension": {"dim12a", "dim12b"},
+        }
 
     def test_standard_no_exclusions(self, fresh_db):
         """Standard variant has no exclusions."""

@@ -21,7 +21,6 @@ const App = {
     showRooms: true,
     showDoors: true,
     showClearance: false,
-    showUserDims: false,
     variant: "standard",
     measureStart: null,
     rubberBand: null,
@@ -71,7 +70,7 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
-    "show-doors", "show-clearance", "show-user-dims",
+    "show-doors", "show-clearance",
     "variant-select", "variant-selector",
   ];
   for (const id of ids) {
@@ -359,7 +358,6 @@ function renderCanvas() {
   renderClearanceZones(g, overrides);
   renderRoomLabels(g);
   renderPoints(g);
-  renderDimensions(g);
   renderUserDimensions(g);
   renderUserLabels(g);
 
@@ -1091,6 +1089,7 @@ function showProperties(type, name, data) {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
     if (elemRec) {
       const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+      addPropRow(tbody, "Source", props.source || "user");
       if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
       if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
       const dist = props.start && props.end ?
@@ -1104,6 +1103,8 @@ function showProperties(type, name, data) {
         if (a.type === "point") return `${a.target} (point)`;
         if (a.type === "wall_face") return `${a.target} ${a.face} face`;
         if (a.type === "opening_face") return `${a.target} ${a.face} face`;
+        if (a.type === "line_intersection") return "line intersection";
+        if (a.type === "computed") return "computed";
         return JSON.stringify(a);
       };
       addPropRow(tbody, "Start Anchor", fmtAnchor(props.start_anchor));
@@ -1935,6 +1936,7 @@ function setupEventListeners() {
     App.state.showDims = e.target.checked;
     renderCanvas();
   });
+  // Note: showUserDims removed — "Dims" toggle now controls all dimensions
   App.els["show-grid"].addEventListener("change", (e) => {
     App.state.showGrid = e.target.checked;
     applyTransform();
@@ -1957,10 +1959,6 @@ function setupEventListeners() {
   });
   App.els["show-clearance"].addEventListener("change", (e) => {
     App.state.showClearance = e.target.checked;
-    renderCanvas();
-  });
-  App.els["show-user-dims"].addEventListener("change", (e) => {
-    App.state.showUserDims = e.target.checked;
     renderCanvas();
   });
 
@@ -2620,51 +2618,8 @@ function setTool(tool) {
 
 /* ========== DIMENSION LINES ========== */
 
-function renderDimensions(g) {
-  const layer = App.els["layer-dims"];
-  if (!App.state.showDims || !g.dimensions) return;
-
-  for (const [name, dim] of Object.entries(g.dimensions)) {
-    const x1 = dim.A[0], y1 = -dim.A[1];
-    const x2 = dim.B[0], y2 = -dim.B[1];
-
-    // Dimension line
-    layer.appendChild(svgEl("line", {
-      x1, y1, x2, y2, class: "dim-line"
-    }));
-
-    // Tick marks (perpendicular to line)
-    const dx = x2 - x1, dy = y2 - y1;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    if (len < 0.01) continue;
-    const px = -dy / len * 0.15, py = dx / len * 0.15;
-    for (const [tx, ty] of [[x1, y1], [x2, y2]]) {
-      layer.appendChild(svgEl("line", {
-        x1: tx - px, y1: ty - py, x2: tx + px, y2: ty + py,
-        class: "dim-line"
-      }));
-    }
-
-    // Label at midpoint, rotated for readability
-    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    let ang = Math.atan2(dy, dx) * 180 / Math.PI;
-    if (ang >= 90) ang -= 180;
-    else if (ang < -90) ang += 180;
-    const angRad = ang * Math.PI / 180;
-    const lx = mx + 0.15 * Math.sin(angRad);
-    const ly = my - 0.15 * Math.cos(angRad);
-
-    const label = svgEl("text", {
-      x: lx, y: ly, class: "dim-label",
-      transform: `rotate(${ang},${lx},${ly})`
-    });
-    label.textContent = fmtFtIn(dim.dist);
-    layer.appendChild(label);
-  }
-}
-
 function renderUserDimensions(g) {
-  if (!App.state.showUserDims || !g.user_dimensions) return;
+  if (!App.state.showDims || !g.user_dimensions) return;
   const layer = App.els["layer-labels"];
 
   for (const ud of g.user_dimensions) {
@@ -2673,6 +2628,9 @@ function renderUserDimensions(g) {
     const offset = p.offset || 0;
     const ax = p.start[0], ay = p.start[1];
     const bx = p.end[0], by = p.end[1];
+    const isBuiltin = p.source === "builtin";
+    const lineCls = isBuiltin ? "dim-line" : "user-dim-line";
+    const labelCls = isBuiltin ? "dim-label" : "user-dim-label";
 
     // Direction and perpendicular
     const dx = bx - ax, dy = by - ay;
@@ -2698,7 +2656,7 @@ function renderUserDimensions(g) {
     // Main dimension line (A'→B')
     const mainLine = svgEl("line", {
       x1: ax2, y1: -ay2, x2: bx2, y2: -by2,
-      class: "user-dim-line selectable",
+      class: `${lineCls} selectable`,
       "data-type": "dimension", "data-name": ud.name,
     });
     layer.appendChild(mainLine);
@@ -2709,7 +2667,7 @@ function renderUserDimensions(g) {
       layer.appendChild(svgEl("line", {
         x1: tx - px * tw, y1: ty + py * tw,
         x2: tx + px * tw, y2: ty - py * tw,
-        class: "user-dim-line",
+        class: lineCls,
       }));
     }
 
@@ -2731,7 +2689,7 @@ function renderUserDimensions(g) {
     const ly = my - 0.15 * Math.cos(angRad);
 
     const label = svgEl("text", {
-      x: lx, y: ly, class: "user-dim-label selectable",
+      x: lx, y: ly, class: `${labelCls} selectable`,
       "data-type": "dimension", "data-name": ud.name,
       transform: `rotate(${ang},${lx},${ly})`,
     });
