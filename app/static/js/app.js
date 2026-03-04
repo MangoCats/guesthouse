@@ -1098,6 +1098,16 @@ function showProperties(type, name, data) {
       addPropRow(tbody, "Distance", fmtFtIn(dist));
       addPropRow(tbody, "Offset", fmtFtIn(props.offset || 0));
       addPropRow(tbody, "Label Rot.", props.label_rotation || "parallel");
+      // Anchor info
+      const fmtAnchor = (a) => {
+        if (!a) return "(absolute)";
+        if (a.type === "point") return `${a.target} (point)`;
+        if (a.type === "wall_face") return `${a.target} ${a.face} face`;
+        if (a.type === "opening_face") return `${a.target} ${a.face} face`;
+        return JSON.stringify(a);
+      };
+      addPropRow(tbody, "Start Anchor", fmtAnchor(props.start_anchor));
+      addPropRow(tbody, "End Anchor", fmtAnchor(props.end_anchor));
     }
   } else if (type === "label") {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "label");
@@ -2095,8 +2105,8 @@ function onMouseMove(e) {
     drawWallMouseMove(e);
   }
 
-  // Dimension tool preview
-  if (App.state.activeTool === "dimension" && DimTool.start) {
+  // Dimension tool preview + snap indicator
+  if (App.state.activeTool === "dimension") {
     dimToolMouseMove(e);
   }
 
@@ -2288,12 +2298,26 @@ function onContextMenu(e) {
   if (!target) return;
   e.preventDefault();
   const name = target.getAttribute("data-name");
-  showContextMenu(e.clientX, e.clientY, [
+  const items = [
     { label: "Horizontal", action: () => setDimRotation(name, "horizontal") },
     { label: "Vertical", action: () => setDimRotation(name, "vertical") },
     { label: "Parallel", action: () => setDimRotation(name, "parallel") },
     { label: "Perpendicular", action: () => setDimRotation(name, "perpendicular") },
-  ]);
+  ];
+  // Add detach options if anchors are present
+  const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
+  if (elemRec) {
+    const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+    const hasStart = !!props.start_anchor;
+    const hasEnd = !!props.end_anchor;
+    if (hasStart || hasEnd) {
+      items.push({ label: "---" }); // separator
+      if (hasStart) items.push({ label: "Detach Start", action: () => detachAnchor(name, "start") });
+      if (hasEnd) items.push({ label: "Detach End", action: () => detachAnchor(name, "end") });
+      if (hasStart && hasEnd) items.push({ label: "Detach Both", action: () => detachAnchor(name, "both") });
+    }
+  }
+  showContextMenu(e.clientX, e.clientY, items);
 }
 
 function showContextMenu(x, y, items) {
@@ -2303,6 +2327,12 @@ function showContextMenu(x, y, items) {
   menu.style.left = x + "px";
   menu.style.top = y + "px";
   for (const item of items) {
+    if (item.label === "---") {
+      const hr = document.createElement("hr");
+      hr.style.margin = "4px 0"; hr.style.border = "none"; hr.style.borderTop = "1px solid var(--border)";
+      menu.appendChild(hr);
+      continue;
+    }
     const btn = document.createElement("div");
     btn.className = "context-menu-item";
     btn.textContent = item.label;
@@ -2324,6 +2354,21 @@ async function setDimRotation(name, rotation) {
   if (!elemRec) return;
   const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
   props.label_rotation = rotation;
+  await fetch(`/api/elements/${elemRec.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ properties: props }),
+  });
+  await loadElements();
+  await loadGeometry();
+}
+
+async function detachAnchor(name, which) {
+  const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
+  if (!elemRec) return;
+  const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+  if (which === "start" || which === "both") delete props.start_anchor;
+  if (which === "end" || which === "both") delete props.end_anchor;
   await fetch(`/api/elements/${elemRec.id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

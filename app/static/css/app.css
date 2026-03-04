@@ -547,6 +547,9 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   dominant-baseline: middle;
 }
 
+/* ========== SNAP INDICATOR ========== */
+.snap-indicator { fill: none; stroke: var(--green); stroke-width: 0.02; }
+
 /* ========== USER LABELS ========== */
 .user-label {
   font-family: sans-serif;

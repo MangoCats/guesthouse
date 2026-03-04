@@ -616,8 +616,115 @@ function showOffsetDialog() {
 
 const DimTool = {
   start: null,
+  startAnchor: null,
   previewLine: null,
+  snapIndicator: null,
+  snapTargets: null,
 };
+
+/**
+ * Build flat list of snap targets from current geometry.
+ * Each entry: { type, target, face?, pos: [E, N] }
+ */
+function buildSnapTargets(g) {
+  const targets = [];
+  if (!g) return targets;
+
+  // Points (F/W/C-series)
+  if (g.points) {
+    for (const [name, pt] of Object.entries(g.points)) {
+      targets.push({ type: "point", target: name, pos: pt });
+    }
+  }
+
+  // Wall faces
+  if (g.interior_walls) {
+    const faces = [
+      ["south", 0, 1], ["east", 1, 2], ["north", 2, 3], ["west", 3, 0],
+    ];
+    for (const [wname, wall] of Object.entries(g.interior_walls)) {
+      const poly = wall.poly;
+      if (!poly || poly.length < 4) continue;
+      for (const [face, i, j] of faces) {
+        const mid = [(poly[i][0] + poly[j][0]) / 2, (poly[i][1] + poly[j][1]) / 2];
+        targets.push({ type: "wall_face", target: wname, face, pos: mid });
+      }
+    }
+  }
+
+  // Outer opening faces
+  if (g.outer_openings) {
+    const faces = [
+      ["south", 0, 1], ["east", 1, 2], ["north", 2, 3], ["west", 3, 0],
+    ];
+    for (const op of g.outer_openings) {
+      if (!op.poly || op.poly.length < 4) continue;
+      for (const [face, i, j] of faces) {
+        const mid = [(op.poly[i][0] + op.poly[j][0]) / 2, (op.poly[i][1] + op.poly[j][1]) / 2];
+        targets.push({ type: "opening_face", target: op.name, face, pos: mid });
+      }
+    }
+  }
+
+  // Rough opening faces
+  if (g.rough_openings) {
+    const faces = [
+      ["south", 0, 1], ["east", 1, 2], ["north", 2, 3], ["west", 3, 0],
+    ];
+    for (const ro of g.rough_openings) {
+      if (!ro.poly || ro.poly.length < 4) continue;
+      for (const [face, i, j] of faces) {
+        const mid = [(ro.poly[i][0] + ro.poly[j][0]) / 2, (ro.poly[i][1] + ro.poly[j][1]) / 2];
+        targets.push({ type: "opening_face", target: ro.name, face, pos: mid });
+      }
+    }
+  }
+
+  return targets;
+}
+
+/**
+ * Find nearest snap target within pixel threshold.
+ * Returns { anchor: {type, target, face?}, pos: [E, N] } or null.
+ */
+function findNearestSnap(wx, wy, snapTargets, thresholdPx) {
+  if (!snapTargets || snapTargets.length === 0) return null;
+  const worldThreshold = (thresholdPx || 12) / (App.state.zoom || 1);
+  let best = null;
+  let bestDist = worldThreshold;
+  for (const t of snapTargets) {
+    const dx = t.pos[0] - wx;
+    const dy = t.pos[1] - wy;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < bestDist) {
+      bestDist = d;
+      const anchor = { type: t.type, target: t.target };
+      if (t.face) anchor.face = t.face;
+      best = { anchor, pos: t.pos };
+    }
+  }
+  return best;
+}
+
+/**
+ * Show or update the snap indicator circle.
+ */
+function updateSnapIndicator(snapResult) {
+  const layer = document.getElementById("layer-measure");
+  if (!snapResult) {
+    if (DimTool.snapIndicator && DimTool.snapIndicator.parentNode) {
+      DimTool.snapIndicator.remove();
+    }
+    DimTool.snapIndicator = null;
+    return;
+  }
+  if (!DimTool.snapIndicator) {
+    DimTool.snapIndicator = svgEl("circle", { class: "snap-indicator", r: 0.1 });
+    layer.appendChild(DimTool.snapIndicator);
+  }
+  DimTool.snapIndicator.setAttribute("cx", snapResult.pos[0]);
+  DimTool.snapIndicator.setAttribute("cy", -snapResult.pos[1]);
+}
 
 function nextDimensionName() {
   const elements = App.state.elements || [];
@@ -636,7 +743,19 @@ function dimToolMouseDown(e) {
   const rect = App.els["viewport"].getBoundingClientRect();
   let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 
-  if (App.state.showGrid) {
+  // Build snap targets on first use
+  if (!DimTool.snapTargets) {
+    DimTool.snapTargets = buildSnapTargets(App.state.geometry);
+  }
+
+  // Try geometry snap first, then grid snap
+  let anchor = null;
+  const snapResult = findNearestSnap(wx, wy, DimTool.snapTargets, 12);
+  if (snapResult) {
+    wx = snapResult.pos[0];
+    wy = snapResult.pos[1];
+    anchor = snapResult.anchor;
+  } else if (App.state.showGrid) {
     const snap = 1.0 / 12.0;
     wx = Math.round(wx / snap) * snap;
     wy = Math.round(wy / snap) * snap;
@@ -644,26 +763,41 @@ function dimToolMouseDown(e) {
 
   if (!DimTool.start) {
     DimTool.start = [wx, wy];
+    DimTool.startAnchor = anchor;
   } else {
-    createDimension(DimTool.start, [wx, wy]);
+    createDimension(DimTool.start, [wx, wy], DimTool.startAnchor, anchor);
     if (DimTool.previewLine && DimTool.previewLine.parentNode) {
       DimTool.previewLine.remove();
     }
     DimTool.previewLine = null;
     DimTool.start = null;
+    DimTool.startAnchor = null;
+    updateSnapIndicator(null);
   }
 }
 
 function dimToolMouseMove(e) {
-  if (!DimTool.start) return;
   const rect = App.els["viewport"].getBoundingClientRect();
   let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 
-  if (App.state.showGrid) {
+  // Build snap targets on first use
+  if (!DimTool.snapTargets) {
+    DimTool.snapTargets = buildSnapTargets(App.state.geometry);
+  }
+
+  // Show snap indicator even before first click
+  const snapResult = findNearestSnap(wx, wy, DimTool.snapTargets, 12);
+  updateSnapIndicator(snapResult);
+  if (snapResult) {
+    wx = snapResult.pos[0];
+    wy = snapResult.pos[1];
+  } else if (App.state.showGrid) {
     const snap = 1.0 / 12.0;
     wx = Math.round(wx / snap) * snap;
     wy = Math.round(wy / snap) * snap;
   }
+
+  if (!DimTool.start) return;
 
   const layer = document.getElementById("layer-measure");
   if (!DimTool.previewLine) {
@@ -679,27 +813,33 @@ function dimToolMouseMove(e) {
 
 function cancelDimTool() {
   DimTool.start = null;
+  DimTool.startAnchor = null;
+  DimTool.snapTargets = null;
   if (DimTool.previewLine && DimTool.previewLine.parentNode) {
     DimTool.previewLine.remove();
   }
   DimTool.previewLine = null;
+  updateSnapIndicator(null);
 }
 
-async function createDimension(start, end) {
+async function createDimension(start, end, startAnchor, endAnchor) {
   const name = nextDimensionName();
+  const props = {
+    source: "user",
+    start: start,
+    end: end,
+    offset: 0.0,
+    label_rotation: "parallel",
+  };
+  if (startAnchor) props.start_anchor = startAnchor;
+  if (endAnchor) props.end_anchor = endAnchor;
   const resp = await fetch("/api/elements", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       type: "dimension",
       name: name,
-      properties: {
-        source: "user",
-        start: start,
-        end: end,
-        offset: 0.0,
-        label_rotation: "parallel",
-      },
+      properties: props,
     }),
   });
   if (resp.ok) {

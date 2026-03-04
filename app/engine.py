@@ -353,6 +353,58 @@ def _compute_appliance_doors(variant_items):
     return result
 
 
+def _face_midpoint(poly, face):
+    """Midpoint of a named face of a 4-vertex polygon.
+
+    Convention: south=poly[0]→poly[1], east=poly[1]→poly[2],
+    north=poly[2]→poly[3], west=poly[3]→poly[0].
+    poly vertices are [E, N] lists or tuples.
+    """
+    face_map = {"south": (0, 1), "east": (1, 2), "north": (2, 3), "west": (3, 0)}
+    indices = face_map.get(face)
+    if not indices or len(poly) < 4:
+        return None
+    i, j = indices
+    a, b = poly[i], poly[j]
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+
+
+def _resolve_anchor(anchor, geometry_result):
+    """Resolve a dimension anchor to [E, N] coordinates.
+
+    Returns [E, N] or None if the target is not found.
+    """
+    if not anchor:
+        return None
+    atype = anchor.get("type")
+    target = anchor.get("target")
+    if not atype or not target:
+        return None
+
+    if atype == "point":
+        pt = geometry_result.get("points", {}).get(target)
+        return list(pt) if pt else None
+
+    if atype == "wall_face":
+        face = anchor.get("face")
+        wall = geometry_result.get("interior_walls", {}).get(target)
+        if wall and face:
+            return _face_midpoint(wall["poly"], face)
+        return None
+
+    if atype == "opening_face":
+        face = anchor.get("face")
+        for op in geometry_result.get("outer_openings", []):
+            if op["name"] == target and "poly" in op:
+                return _face_midpoint(op["poly"], face)
+        for ro in geometry_result.get("rough_openings", []):
+            if ro["name"] == target and "poly" in ro:
+                return _face_midpoint(ro["poly"], face)
+        return None
+
+    return None
+
+
 def _compute_room_labels(pts, layout, inner_segs, radii, variant):
     """Compute room label positions, areas, and SF partition lines.
 
@@ -795,6 +847,13 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     for e in all_elements:
         props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
         if e["type"] == "dimension":
+            # Resolve anchors to absolute coordinates
+            for anchor_key, coord_key in [("start_anchor", "start"), ("end_anchor", "end")]:
+                anchor = props.get(anchor_key)
+                if anchor:
+                    resolved = _resolve_anchor(anchor, result)
+                    if resolved:
+                        props[coord_key] = resolved
             user_dims.append({
                 "id": e["id"], "name": e["name"], "properties": props,
             })

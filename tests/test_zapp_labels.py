@@ -14,7 +14,7 @@ from app.labels import (
     seed_room_labels, next_dimension_name, next_label_name,
     ROOM_LABEL_NAMES,
 )
-from app.engine import compute_geometry
+from app.engine import compute_geometry, _resolve_anchor, _face_midpoint
 from app.database import get_constants_dict
 
 from tests.test_zapp_conftest import fresh_db, app_client  # noqa: F401
@@ -280,3 +280,163 @@ class TestGeometryOutput:
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants)
         assert geom["user_dimensions"] == []
+
+
+# ── Anchor resolution ───────────────────────────────────────────────
+
+class TestFaceMidpoint:
+    """Unit tests for _face_midpoint helper."""
+
+    def test_south_face(self):
+        poly = [[0, 0], [4, 0], [4, 2], [0, 2]]
+        assert _face_midpoint(poly, "south") == [2.0, 0.0]
+
+    def test_north_face(self):
+        poly = [[0, 0], [4, 0], [4, 2], [0, 2]]
+        assert _face_midpoint(poly, "north") == [2.0, 2.0]
+
+    def test_east_face(self):
+        poly = [[0, 0], [4, 0], [4, 2], [0, 2]]
+        assert _face_midpoint(poly, "east") == [4.0, 1.0]
+
+    def test_west_face(self):
+        poly = [[0, 0], [4, 0], [4, 2], [0, 2]]
+        assert _face_midpoint(poly, "west") == [0.0, 1.0]
+
+    def test_invalid_face(self):
+        poly = [[0, 0], [4, 0], [4, 2], [0, 2]]
+        assert _face_midpoint(poly, "top") is None
+
+    def test_short_poly(self):
+        poly = [[0, 0], [4, 0]]
+        assert _face_midpoint(poly, "south") is None
+
+
+class TestResolveAnchor:
+    """Unit tests for _resolve_anchor using mock geometry dicts."""
+
+    MOCK_GEOM = {
+        "points": {
+            "W9": [5.0, 3.0],
+            "F9": [6.0, 4.0],
+        },
+        "interior_walls": {
+            "IW1": {"poly": [[0, 0], [10, 0], [10, 0.667], [0, 0.667]]},
+            "IW2S": {"poly": [[1, 1], [1.5, 1], [1.5, 3], [1, 3]]},
+        },
+        "outer_openings": [
+            {"name": "O6", "poly": [[2, 0], [5, 0], [5, 0.5], [2, 0.5]]},
+        ],
+        "rough_openings": [
+            {"name": "RO1", "poly": [[3, 1], [4, 1], [4, 1.667], [3, 1.667]]},
+        ],
+    }
+
+    def test_resolve_point(self):
+        anchor = {"type": "point", "target": "W9"}
+        assert _resolve_anchor(anchor, self.MOCK_GEOM) == [5.0, 3.0]
+
+    def test_resolve_point_missing(self):
+        anchor = {"type": "point", "target": "ZZZZ"}
+        assert _resolve_anchor(anchor, self.MOCK_GEOM) is None
+
+    def test_resolve_wall_face_north(self):
+        anchor = {"type": "wall_face", "target": "IW1", "face": "north"}
+        result = _resolve_anchor(anchor, self.MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 5.0) < 0.001  # midpoint of poly[2]→poly[3]
+        assert abs(result[1] - 0.667) < 0.001
+
+    def test_resolve_wall_face_south(self):
+        anchor = {"type": "wall_face", "target": "IW1", "face": "south"}
+        result = _resolve_anchor(anchor, self.MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 5.0) < 0.001
+        assert abs(result[1] - 0.0) < 0.001
+
+    def test_resolve_wall_face_missing_wall(self):
+        anchor = {"type": "wall_face", "target": "IW99", "face": "north"}
+        assert _resolve_anchor(anchor, self.MOCK_GEOM) is None
+
+    def test_resolve_opening_face_outer(self):
+        anchor = {"type": "opening_face", "target": "O6", "face": "south"}
+        result = _resolve_anchor(anchor, self.MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 3.5) < 0.001
+        assert abs(result[1] - 0.0) < 0.001
+
+    def test_resolve_opening_face_rough(self):
+        anchor = {"type": "opening_face", "target": "RO1", "face": "east"}
+        result = _resolve_anchor(anchor, self.MOCK_GEOM)
+        assert result is not None
+        assert abs(result[0] - 4.0) < 0.001
+        assert abs(result[1] - 1.3335) < 0.001
+
+    def test_resolve_opening_face_missing(self):
+        anchor = {"type": "opening_face", "target": "O99", "face": "south"}
+        assert _resolve_anchor(anchor, self.MOCK_GEOM) is None
+
+    def test_resolve_none_anchor(self):
+        assert _resolve_anchor(None, self.MOCK_GEOM) is None
+
+    def test_resolve_empty_anchor(self):
+        assert _resolve_anchor({}, self.MOCK_GEOM) is None
+
+    def test_resolve_unknown_type(self):
+        anchor = {"type": "foobar", "target": "W9"}
+        assert _resolve_anchor(anchor, self.MOCK_GEOM) is None
+
+
+class TestDimensionAnchorCRUD:
+    """Dimension elements with anchors via API."""
+
+    def test_create_dimension_with_anchors(self, app_client):
+        resp = app_client.post("/api/elements", json={
+            "type": "dimension", "name": "UD1",
+            "properties": {
+                "source": "user", "start": [0, 0], "end": [5, 0],
+                "offset": 0, "label_rotation": "parallel",
+                "start_anchor": {"type": "point", "target": "W9"},
+                "end_anchor": {"type": "wall_face", "target": "IW1", "face": "north"},
+            },
+        })
+        assert resp.status_code == 201
+        props = json.loads(resp.get_json()["properties"])
+        assert props["start_anchor"]["type"] == "point"
+        assert props["end_anchor"]["face"] == "north"
+
+    def test_detach_anchor(self, app_client):
+        resp = app_client.post("/api/elements", json={
+            "type": "dimension", "name": "UD1",
+            "properties": {
+                "source": "user", "start": [0, 0], "end": [5, 0],
+                "start_anchor": {"type": "point", "target": "W9"},
+                "end_anchor": {"type": "point", "target": "F9"},
+            },
+        })
+        eid = resp.get_json()["id"]
+        # Detach start anchor
+        resp = app_client.put(f"/api/elements/{eid}", json={
+            "properties": {
+                "source": "user", "start": [0, 0], "end": [5, 0],
+                "end_anchor": {"type": "point", "target": "F9"},
+            },
+        })
+        assert resp.status_code == 200
+        props = json.loads(resp.get_json()["properties"])
+        assert "start_anchor" not in props
+        assert props["end_anchor"]["target"] == "F9"
+
+    def test_dimension_without_anchors_unchanged(self, app_client):
+        """Dimensions without anchors work as before."""
+        resp = app_client.post("/api/elements", json={
+            "type": "dimension", "name": "UD1",
+            "properties": {
+                "source": "user", "start": [1, 2], "end": [3, 4],
+                "offset": 0.5,
+            },
+        })
+        assert resp.status_code == 201
+        props = json.loads(resp.get_json()["properties"])
+        assert "start_anchor" not in props
+        assert props["start"] == [1, 2]
