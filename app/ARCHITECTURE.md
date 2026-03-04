@@ -368,28 +368,57 @@ Generic modal dialog system.
 
 | Function | Purpose |
 |----------|---------|
-| `Dialog.show(opts)` | Show dialog with title, fields, onSubmit/onCancel |
+| `Dialog.show(opts)` | Show dialog with title, fields, onSubmit/onCancel. Supports `customContent` (DOM node) and `presetButtons` (target + values array) |
 | `Dialog.close()` | Remove overlay |
 | `parseOffsetString(str)` | Parse "6in east" → `{dx, dy}` in feet |
 
-### app/static/js/tools.js — Move Tool
+### app/static/js/tools.js — Move & Draw Tools
 
-Client-side move tool with drag, ghost preview, axis constraints, and snap.
+Client-side move tool, draw wall tool, and shared utilities.
 
 | Object/Function | Purpose |
 |-----------------|---------|
 | `IW_MOVE_AXIS` | Client-side mirror of `elements.py` axis mapping |
+| `IW_HOSTED_OPENINGS` | Client-side mirror for cascade delete warnings |
 | `MoveTool` | State machine: active, startWorld, ghost, targets, origTransforms |
-| `moveToolMouseDown(e)` | Start drag, create ghost clones |
-| `moveToolMouseMove(e)` | Update ghost positions (shift-constrain, grid snap) |
-| `moveToolMouseUp(e)` | Remove ghosts, commit move via API |
+| `moveToolMouseDown/Move/Up` | Move tool mouse handlers |
 | `commitMove(targets, dx, dy)` | POST move for each target; auto-create override for furniture |
 | `showOffsetDialog()` | Show offset dialog (Enter key trigger) |
 | `findElementRecord(type, name)` | Look up DB record from App.state.elements |
+| `DrawWallTool` | State machine: start point, preview line, default thickness |
+| `drawWallMouseDown/Move` | Two-click wall drawing handlers |
+| `createDrawnWall(start, end)` | POST drawn wall element with computed polygon |
+| `wallPoly(start, end, thickness)` | Compute rectangle polygon from centerline |
+| `cancelDrawWall()` | Reset draw tool state |
+
+### app/static/js/catalog.js — Catalog & Placement Tool
+
+Hardcoded catalog data and click-to-place element creation.
+
+| Object/Function | Purpose |
+|-----------------|---------|
+| `CATALOG` | Furniture (8), appliance (6), fixture (3) item arrays |
+| `PlaceTool` | Placement state: active, itemTemplate, itemType |
+| `showCatalog(type)` | Open catalog grid dialog for item type |
+| `startPlacement(item, type)` | Enter placement mode |
+| `placeToolMouseDown(e)` | Canvas click creates element at position |
+| `placeElement(wx, wy)` | POST placed element with `rectPoly()` polygon |
+
+### app/static/js/shape-editor.js — Shape Editor
+
+Interactive shape editing dialog with SVG canvas and API integration.
+
+| Object/Function | Purpose |
+|-----------------|---------|
+| `ShapeEditor.shapes` | Cached shapes from API |
+| `loadShapes()` | GET /api/shapes into cache |
+| `showShapeEditor(name, cb)` | Open modal with draggable vertex handles |
+| `parseSvgPolygon(text)` | Extract points from SVG polygon/path markup |
+| `addShapePicker(tbody, rec, props)` | Shape dropdown in properties panel |
 
 ### app/static/js/app.js — Client
 
-Single-file client application (~1700 lines).  No build step or
+Single-file client application (~2100 lines).  No build step or
 framework.
 
 **API helper** — `apiFetch(url, opts)` wraps `fetch()` and throws on
@@ -637,7 +666,10 @@ constraints, grid snap, multi-select group move, and offset dialog.
 Phase 5 added the outline closure solver, editable chain parameters,
 and canvas F-point dragging.  Phase 6 added door arc rendering
 (structural + appliance), clearance zones, and display toggles.
-Next phase: Phase 7 (draw, add, delete, rotate, and shape editor tools).
+Phase 7 added draw wall tool, catalog placement (furniture/appliance/fixture),
+delete with cascade, rotate, multi-select (shift+rubber-band), opening width
+editing, and shape editor with SVG import.
+Next phase: Phase 8 (labels, dimensions, and annotations).
 
 The development arc follows three stages:
 

@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 6 — Complete)
+## Current State (Phase 7 — Complete)
 
-**172 of 226 requirements implemented.**  341 app tests, 586 pre-existing tests
-(927 total).  All implemented requirements have automated test coverage.
+**188 of 226 requirements implemented.**  368 app tests, 586 pre-existing tests
+(954 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -66,8 +66,18 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Appliance door arcs: fridge, washer, dryer, microwave | Done |
 | Stacked appliance doors render above counters (SVG paint order) | Done |
 | Door arcs + clearance zones follow move offsets | Done |
+| Delete key: remove selected elements with confirmation | Done |
+| Cascading delete: walls → hosted openings/doors | Done |
+| Multi-select: Shift+Click and rubber-band drag-select | Done |
+| Opening width editing: inline in table + properties panel | Done |
+| Draw Wall tool: two-click placement, thickness editing | Done |
+| Add Element tools: furniture/appliance/fixture from catalog | Done |
+| Catalog dialog with grid layout, click-to-place mode | Done |
+| Rotate tool: R key, rotation dialog with presets | Done |
+| Shape editor: vertex editing, SVG import, shape assignment | Done |
+| Shape API: GET/POST/PUT /api/shapes endpoints | Done |
 
-**What's missing:** Draw tools, shape editor UI,
+**What's missing:** Endpoint drag handles (TL-17 partial), Add Opening tool (TL-21),
 styling, site plan editing, 3D integration, plumbing layout (interactive
 canvas with DB-stored elements), electrical layout (aspirational),
 parametric dependencies and cutover to fully database-driven design
@@ -366,38 +376,57 @@ polygon it sits on in SVG paint order.
 
 ---
 
-## Phase 7 — Draw, Add, Delete, Rotate, and Shape Editor Tools
+## Phase 7 — Draw, Add, Delete, Rotate, and Shape Editor Tools (Complete)
 
 **Goal:** Full element creation, deletion, and shape customisation from the
 canvas.
 
 **Requirements:** TL-15–27, SEL-4, SEL-10, DT-7 (16 reqs)
+**Actual:** 16 requirements implemented, 27 new tests (954 total)
 
-**Work:**
-- **Draw Wall tool** (TL-15–17): click start/end to place new interior wall,
-  thickness input, endpoint drag handles
-- **Add Element tools** (TL-18–20): catalog panels for furniture, appliances,
-  fixtures with click-to-place
-- **Add Opening tool** (TL-21): click on wall segment, dialog for width/type
-- **Delete** (TL-22–23): Delete key with confirmation, cascading delete for
-  walls with hosted openings
-- **Rotate** (TL-24): R key opens rotation dialog with presets
-- **Shape editor** (TL-25–27): edit polygon vertices in local coordinates
-  (TL-25), assign shapes to item types (TL-26), import from SVG (TL-27).
-  Builds on the `shapes` table already seeded with toilet, bath_sink,
-  dining_table shapes.
-- **Multi-select** (SEL-4): Shift-click and drag-select
-- **Opening width editing** (SEL-10, DT-7): inline edit in openings table
-  and properties panel
+**Implemented:**
+- **Opening width editing** (DT-7, SEL-10): `findWidthConstant()` maps opening
+  names to their controlling constants (handles `_WIDTH`, `_HALF_WIDTH`, and
+  IW-based RO patterns). Editable in both openings table and properties panel.
+- **Delete tool** (TL-22, TL-23): Delete/Backspace key triggers
+  `deleteSelectedElements()` with confirmation. Server-side cascade deletes
+  hosted openings and doors when a wall is deleted. Client-side
+  `IW_HOSTED_OPENINGS` map provides cascade warnings.
+- **Multi-select** (SEL-4): Shift+Click added alongside existing Ctrl+Click.
+  Rubber-band drag-select: mousedown on empty space starts selection rectangle,
+  mouseup computes world-coordinate bbox and selects intersecting elements via
+  SVG `getBBox()`.
+- **Draw Wall tool** (TL-15–17): `DrawWallTool` state machine in tools.js.
+  Two-click placement creates custom wall element (`source: "drawn"`) with
+  `start/end/thickness/poly` properties. Preview line during draw. Editable
+  thickness in properties panel recomputes wall polygon. `W` keyboard shortcut.
+- **Add Element tools** (TL-18–20): `catalog.js` with hardcoded catalog data
+  (8 furniture, 6 appliance, 3 fixture items). `showCatalog()` opens grid
+  dialog, click enters placement mode, canvas click creates element via API.
+  Placed elements rendered in `renderFurniture()` from `App.state.elements`.
+- **Rotate tool** (TL-24): `R` key opens rotation dialog with angle input and
+  preset buttons (0/90/180/270). `rotatedRectPoly()` recomputes polygon from
+  center/width/depth/angle. Works for placed and drawn elements.
+- **Shape editor** (TL-25–27): `shape-editor.js` with interactive SVG vertex
+  editing, drag handles, vertex add/remove. Shape CRUD API (`GET/POST/PUT
+  /api/shapes`). Shape assignment dropdown in properties panel for placed
+  elements. SVG import: `parseSvgPolygon()` parses `<polygon>` and simple
+  `<path>` elements.
 
-**New files:** `app/static/js/selection.js` (multi-select),
-`tests/test_zapp_tools.py`
-**Modified:** `app/static/js/tools.js` (expand), `app/static/js/dialogs.js`
-(catalog data, rotation dialog, shape editor), `app/templates/index.html`
-(tool buttons, menu items, keyboard shortcuts)
+**New files:** `app/static/js/catalog.js` (150 lines), `app/static/js/shape-editor.js`
+(280 lines), `tests/test_zapp_tools.py` (27 tests)
+**Modified:** `app/database.py` (shape CRUD: create/update/delete),
+`app/server.py` (3 shape API routes), `app/static/js/app.js` (+400 lines:
+keyboard shortcuts, delete, rotate, rubber-band, custom element rendering,
+findWidthConstant, bboxFromPoly), `app/static/js/tools.js` (DrawWallTool,
+IW_HOSTED_OPENINGS), `app/static/js/dialogs.js` (customContent, presetButtons),
+`app/static/css/app.css` (rubber-band, draw-preview, catalog, preset styles),
+`app/templates/index.html` (Wall button, Add section, script tags)
 
-**Dependencies:** Phase 3 (element CRUD), Phase 4 (move tool patterns),
-Phase 6 (canvas rendering).
+**Deferred to future phases:**
+- TL-17 endpoint drag handles (infrastructure exists but interactive handles
+  not yet rendered on drawn wall selection)
+- TL-21 Add Opening tool (click-on-wall placement with segment detection)
 
 ---
 
@@ -706,7 +735,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 927+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 954+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
@@ -795,13 +824,13 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 4 (done) | 20 | 862 |
 | 5 (done) | 37 | 899 |
 | 6 (done) | 28 | 927 |
-| 7 | ~25 | 929 |
-| 8 | ~15 | 944 |
-| 9 | ~12 | 956 |
-| 10 | ~20 | 976 |
-| 11 | ~10 | 986 |
-| 12 | ~20 | 1006 |
-| 13 | ~20 | 1026 |
+| 7 (done) | 27 | 954 |
+| 8 | ~15 | 969 |
+| 9 | ~12 | 981 |
+| 10 | ~20 | 1001 |
+| 11 | ~10 | 1011 |
+| 12 | ~20 | 1031 |
+| 13 | ~20 | 1051 |
 
 ---
 

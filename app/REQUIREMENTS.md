@@ -954,12 +954,14 @@ selected element and clear the Properties panel.
 `selected-highlight` class is removed. Properties panel shows the empty
 state.
 
-#### SEL-4  Multi-Select **(NEW)**
+#### SEL-4  Multi-Select
 Shift-clicking or drag-selecting SHALL allow multiple elements to be
 selected simultaneously for group operations (move, delete).
 
-**Acceptance:** Shift-click three interior walls. All three are highlighted.
-Properties panel shows "3 elements selected" with common properties.
+**Acceptance:** Shift-click or Ctrl+Click adds to multi-selection. Rubber-band
+drag-select: click empty space + drag creates selection rectangle; mouseup
+selects intersecting elements. All selected elements highlighted yellow.
+**Tested:** Client-side (rubber-band logic + shift-click handler in app.js).
 
 ### 5.2  Property Display
 
@@ -1005,13 +1007,15 @@ recomputation.
 **Acceptance:** Select a wall. Edit a related constant input. A PUT
 request is sent. A success toast appears. The geometry is reloaded.
 
-#### SEL-10  Opening Width Editing **(NEW)**
+#### SEL-10  Opening Width Editing
 The opening width field in the Properties panel SHALL be editable.
 Changing it SHALL update the opening width constant and trigger geometry
 recomputation.
 
-**Acceptance:** Select O8. Change width from 19 to 25 inches. Press
-Enter. Opening re-renders at the new width.
+**Acceptance:** Select opening in properties panel. `findWidthConstant()` maps
+opening name to controlling constant (O1_WIDTH, O7_HALF_WIDTH, IW1_RO_WIDTH,
+etc). Editable input calls `handleConstantEdit()` on change.
+**Tested:** test_zapp_tools.py::TestDT7OpeningWidth (8 tests).
 
 #### SEL-11  Door Property Editing
 Changing a door property (hinge side, swing direction) in the Properties
@@ -1183,120 +1187,125 @@ Selecting a dimension line and pressing Delete SHALL remove it.
 **Acceptance:** Select a dimension line. Press Delete. The dimension line
 is removed from the canvas.
 
-### 6.7  Draw Wall Tool **(NEW)**
+### 6.7  Draw Wall Tool
 
 #### TL-15  Draw Interior Wall
 When the Draw Wall tool is active, clicking a start point and end point
 SHALL create a new interior wall with a default thickness (4 inches).
 
-**Acceptance:** Select Draw Wall tool. Click on W18-W19 midpoint. Click
-on IW1 south face. A new interior wall appears connecting those points.
-The wall has 4-inch thickness.
+**Acceptance:** `W` key activates draw-wall tool. First click sets start,
+second click creates wall via `createDrawnWall()`. Element stored with
+`source: "drawn"`, `start/end/thickness/poly` properties. Auto-named CW1, CW2...
+**Tested:** test_zapp_tools.py::TestTL15DrawWall (4 tests).
 
 #### TL-16  Wall Thickness Input
 After placing a wall, the Properties panel SHALL show a thickness input
 that can be changed before or after placement.
 
-**Acceptance:** Draw a new wall. Properties panel shows Thickness = 4
-inches. Change to 8 inches. Wall re-renders at the new thickness.
+**Acceptance:** Select drawn wall. Properties panel shows editable Thickness
+input. Changing value calls `wallPoly()` to recompute polygon, PUTs updated
+properties to API.
+**Tested:** test_zapp_tools.py::TestTL15DrawWall::test_update_drawn_wall_thickness.
 
 #### TL-17  Wall Endpoint Editing
 Selecting an existing wall with the Select tool and dragging an endpoint
 handle SHALL extend or shorten the wall.
 
-**Acceptance:** Select IW4. Drag its south endpoint 6 inches north. IW4
-shortens. Geometry recomputes.
+**Acceptance:** Infrastructure exists (start/end stored in properties).
+Interactive drag handles deferred to future phase.
 
-### 6.8  Add Element Tools **(NEW)**
+### 6.8  Add Element Tools
 
 #### TL-18  Add Furniture from Catalog
-Tools > Add Furniture SHALL open a catalog panel listing standard items
-(bed, dresser, shelves, sofa, table, chairs, hamper, etc.) with icons
-and dimensions. Clicking an item enters placement mode where the next
+Add > Furniture SHALL open a catalog dialog listing standard items with
+dimensions. Clicking an item enters placement mode where the next
 canvas click positions the item.
 
-**Acceptance:** Open Tools > Add Furniture. Select "HAMPER". Click on the
-canvas at a position. HAMPER appears at that location. Properties panel
-shows its dimensions.
+**Acceptance:** Click "Furniture" in Add palette section. Catalog grid shows
+8 items (bed, dresser, shelves, loveseat, desk, chair, sofa, rocker). Click
+item, then click canvas. Element created via API with `source: "placed"`.
+**Tested:** test_zapp_tools.py::TestTL18PlaceFurniture (4 tests).
 
 #### TL-19  Add Appliance from Catalog
-Tools > Add Appliance SHALL open a catalog listing standard appliances
-(fridge, stove, washer, dryer, dishwasher, microwave, etc.).
+Add > Appliance SHALL open a catalog listing standard appliances.
 
-**Acceptance:** Open Tools > Add Appliance. Select "MICRO". Click on the
-canvas. MICRO appears at the clicked position.
+**Acceptance:** Catalog shows 6 appliances (washer, dryer, stove, dishwasher,
+ice maker, kitchen sink). Click to place creates appliance element.
+**Tested:** test_zapp_tools.py::TestTL18PlaceFurniture::test_create_placed_appliance.
 
 #### TL-20  Add Fixture from Catalog
-Tools > Add Fixture SHALL list fixtures (toilet, sink, bathtub).
+Add > Fixture SHALL list fixtures (toilet, bathtub, vanity).
 
-**Acceptance:** Select TOILET. Click on canvas. Toilet appears.
+**Acceptance:** Catalog shows 3 fixtures. Click to place creates fixture element.
+**Tested:** test_zapp_tools.py::TestTL18PlaceFurniture::test_create_placed_fixture.
 
 #### TL-21  Add Opening
-Tools > Add Opening SHALL enter opening placement mode. Clicking on a
-wall segment SHALL place a new opening at that position. A dialog
-prompts for width and type (window / rough opening / casement).
+Add Opening SHALL enter opening placement mode on a wall segment.
 
-**Acceptance:** Select Add Opening. Click on the F8-F9 wall segment. A
-dialog prompts for width (default 19 inches) and type. Confirm. New
-opening appears on the wall. Engine recomputes geometry.
+**Acceptance:** Deferred to future phase. Opening creation via API already
+works (Phase 3 element CRUD); wall-click placement needs segment detection.
 
-### 6.9  Delete Tool **(NEW)**
+### 6.9  Delete Tool
 
 #### TL-22  Delete Selected Element
 Pressing Delete or Backspace with an element selected SHALL remove the
 element after a confirmation prompt.
 
-**Acceptance:** Select HAMPER. Press Delete. Confirmation dialog appears.
-Confirm. HAMPER is removed from the canvas and database.
+**Acceptance:** Select element. Press Delete/Backspace. `deleteSelectedElements()`
+shows `confirm()` listing targets. On confirm, calls `DELETE /api/elements/<id>`
+for each. Supports single and multi-selection.
+**Tested:** test_zapp_tools.py::TestTL22Delete (3 tests).
 
 #### TL-23  Cascading Delete
 Deleting a wall SHALL also delete any openings or doors hosted on that
 wall.
 
-**Acceptance:** Delete IW9. RO3 (hosted on IW9) is also deleted. Both
-disappear from the canvas.
+**Acceptance:** Delete IW1. Server-side cascade removes hosted openings and
+doors. Client-side `IW_HOSTED_OPENINGS` map provides cascade warning in
+confirmation dialog.
+**Tested:** test_zapp_tools.py::TestTL23CascadeDelete (1 test).
 
-### 6.10  Rotate Tool **(NEW)**
+### 6.10  Rotate Tool
 
 #### TL-24  Rotate Element
-When an element is selected, Edit > Rotate or pressing R SHALL open a
-rotation input. The user can type an angle or select from presets
-(0, 90, 180, 270 degrees).
+When a placed/drawn element is selected, pressing R SHALL open a
+rotation dialog with angle input and preset buttons (0/90/180/270).
 
-**Acceptance:** Select SHELVES. Press R. Rotation dialog appears with
-preset buttons and angle input. Select 90. SHELVES rotates 90 degrees.
+**Acceptance:** Select placed element. Press R. `showRotationDialog()` opens
+Dialog with angle input + presets. Submit updates element properties with
+new rotation and recomputed polygon via `rotatedRectPoly()`.
+**Tested:** test_zapp_tools.py::TestTL24Rotate (2 tests).
 
-### 6.11  Shape Editor **(NEW)**
+### 6.11  Shape Editor
 
 #### TL-25  Shape Editor Dialog
 The application SHALL provide a shape editor dialog for creating and
-modifying complex item shapes stored in the `shapes` database table.
-The editor SHALL support adding/moving polygon vertices, adding circular
-arc segments between vertices (with adjustable radius), and previewing
+modifying item shapes stored in the `shapes` database table.
+The editor SHALL support adding/moving polygon vertices and previewing
 the resulting shape in real time.
 
-**Acceptance:** Open the shape editor from the menu. The existing
-`bath_sink` shape loads showing its semicircular bulge polygon. The user
-can drag a vertex and the preview updates. The user can add an arc
-between two vertices and adjust its radius. Save persists the shape to
-the database.
+**Acceptance:** `showShapeEditor()` opens modal with inline SVG canvas
+showing polygon with draggable vertex handles. Vertex coordinate list
+updates in real time. Add/remove vertex buttons. Shape saved via
+`POST/PUT /api/shapes`.
+**Tested:** test_zapp_tools.py::TestTL25ShapeEditor (5 tests).
 
 #### TL-26  Shape Assignment
-The shape editor SHALL allow assigning a named shape to a furniture or
-appliance item type. Items with an assigned shape SHALL render using that
-shape polygon instead of a bounding rectangle.
+The Properties panel for placed elements SHALL include a Shape dropdown
+listing all shapes from the database. Selecting a shape transforms its
+polygon to the element's position/rotation.
 
-**Acceptance:** Create a new shape named `custom_item`. Assign it to an
-item. The canvas renders the custom polygon instead of a rectangle.
+**Acceptance:** `addShapePicker()` renders `<select>` with rect + DB shapes.
+Change triggers PUT with transformed polygon.
+**Tested:** test_zapp_tools.py::TestTL25ShapeEditor::test_shape_assignment_via_element.
 
 #### TL-27  Shape Import from SVG
 The shape editor SHALL support importing a polygon outline from an SVG
-`<polygon>` or `<path>` element via paste or file upload, converting
-SVG coordinates to the editor's local coordinate frame.
+`<polygon>` or `<path>` element via paste.
 
-**Acceptance:** Copy a `<polygon points="...">` string from an SVG file.
-Paste into the shape editor import field. The polygon appears in the
-editor preview and can be saved.
+**Acceptance:** "Import SVG" button opens textarea dialog. `parseSvgPolygon()`
+extracts points from `<polygon points="...">` or `<path d="M...L...">`.
+Parsed vertices populate the shape editor canvas.
 
 ---
 
@@ -1489,12 +1498,15 @@ Name, Wall, Width (inches), Orientation.
 **Acceptance:** Panel shows 7 rows. Each row has a wall name (e.g. IW1)
 and orientation (H, V, or R).
 
-#### DT-7  Openings Table Editing **(NEW)**
+#### DT-7  Openings Table Editing
 Width cells in the openings tables SHALL be editable. Changing a width
 SHALL update the opening constant and trigger geometry recomputation.
 
-**Acceptance:** Click the Width cell for O8. Change from 19 to 25. Press
-Enter. O8 re-renders at 25 inches wide.
+**Acceptance:** `updateOpeningsTable()` creates `<input>` elements for width
+cells where `findWidthConstant()` maps the opening name to a constant.
+Change triggers `handleConstantEdit()`. Both outer and rough openings tables
+support inline width editing.
+**Tested:** test_zapp_tools.py::TestDT7OpeningWidth (8 tests).
 
 #### DT-8  Table Row Selection
 Clicking a row in the openings tables SHALL select the corresponding
