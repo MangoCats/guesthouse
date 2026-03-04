@@ -261,7 +261,7 @@ def create_app(db_path=None):
             f"Create {type_} {name}",
         )
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify(record), 201
 
     @app.route("/api/elements/<int:element_id>", methods=["PUT"])
@@ -276,7 +276,7 @@ def create_app(db_path=None):
             f"Update {old['name']}",
         )
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify(updated)
 
     @app.route("/api/elements/<int:element_id>", methods=["DELETE"])
@@ -304,7 +304,7 @@ def create_app(db_path=None):
             f"Delete {old['name']}",
         )
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify({"ok": True, "deleted": deleted_ids})
 
     @app.route("/api/elements/<int:element_id>/move", methods=["POST"])
@@ -405,7 +405,7 @@ def create_app(db_path=None):
             f"Move {name}",
         )
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify({
             "ok": True,
             "offset_x": new_ox, "offset_y": new_oy,
@@ -438,7 +438,7 @@ def create_app(db_path=None):
             f"Create opening {name}",
         )
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify(record), 201
 
     @app.route("/api/openings/<name>", methods=["PUT"])
@@ -459,7 +459,7 @@ def create_app(db_path=None):
             f"Update opening {name}",
         )
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify(updated)
 
     @app.route("/api/openings/<name>", methods=["DELETE"])
@@ -479,7 +479,7 @@ def create_app(db_path=None):
             f"Delete opening {name}",
         )
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify({"ok": True, "deleted": deleted_ids})
 
     # -- Doors API --

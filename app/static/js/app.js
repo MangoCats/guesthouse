@@ -1090,6 +1090,7 @@ function showProperties(type, name, data) {
     if (elemRec) {
       const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
       addPropRow(tbody, "Source", props.source || "user");
+      addPropRow(tbody, "Layouts", elemRec.variant ? elemRec.variant : "All");
       if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
       if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
       const dist = props.start && props.end ?
@@ -1097,6 +1098,33 @@ function showProperties(type, name, data) {
       addPropRow(tbody, "Distance", fmtFtIn(dist));
       addPropRow(tbody, "Offset", fmtFtIn(props.offset || 0));
       addPropRow(tbody, "Label Rot.", props.label_rotation || "parallel");
+      // Style selector (solid = builtin look, dashed = user look)
+      const styleTr = document.createElement("tr");
+      const styleTd1 = document.createElement("td"); styleTd1.textContent = "Style";
+      styleTr.appendChild(styleTd1);
+      const styleTd2 = document.createElement("td");
+      const styleSel = document.createElement("select");
+      styleSel.className = "prop-edit-input";
+      const curStyle = props.dim_style || (props.source === "builtin" ? "solid" : "dashed");
+      for (const [val, lbl] of [["solid", "Solid"], ["dashed", "Dashed"]]) {
+        const opt = document.createElement("option");
+        opt.value = val; opt.textContent = lbl;
+        if (val === curStyle) opt.selected = true;
+        styleSel.appendChild(opt);
+      }
+      styleSel.addEventListener("change", async () => {
+        const newProps = { ...props, dim_style: styleSel.value };
+        await fetch(`/api/elements/${elemRec.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ properties: newProps }),
+        });
+        await loadElements();
+        await loadGeometry();
+      });
+      styleTd2.appendChild(styleSel);
+      styleTr.appendChild(styleTd2);
+      tbody.appendChild(styleTr);
       // Anchor info
       const fmtAnchor = (a) => {
         if (!a) return "(absolute)";
@@ -2629,8 +2657,9 @@ function renderUserDimensions(g) {
     const ax = p.start[0], ay = p.start[1];
     const bx = p.end[0], by = p.end[1];
     const isBuiltin = p.source === "builtin";
-    const lineCls = isBuiltin ? "dim-line" : "user-dim-line";
-    const labelCls = isBuiltin ? "dim-label" : "user-dim-label";
+    const dimStyle = p.dim_style || (isBuiltin ? "solid" : "dashed");
+    const lineCls = dimStyle === "solid" ? "dim-line" : "user-dim-line";
+    const labelCls = dimStyle === "solid" ? "dim-label" : "user-dim-label";
 
     // Direction and perpendicular
     const dx = bx - ax, dy = by - ay;
@@ -2659,6 +2688,7 @@ function renderUserDimensions(g) {
       class: `${lineCls} selectable`,
       "data-type": "dimension", "data-name": ud.name,
     });
+    mainLine.addEventListener("click", (e) => selectElement("dimension", ud.name, ud, e));
     layer.appendChild(mainLine);
 
     // Tick marks at endpoints
@@ -2694,6 +2724,7 @@ function renderUserDimensions(g) {
       transform: `rotate(${ang},${lx},${ly})`,
     });
     label.textContent = fmtFtIn(dist);
+    label.addEventListener("click", (e) => selectElement("dimension", ud.name, ud, e));
     layer.appendChild(label);
   }
 }
@@ -2722,6 +2753,7 @@ function renderUserLabels(g) {
     el.style.fontSize = fontSize + "px";
     if (rotation) el.setAttribute("transform", `rotate(${-rotation},${ex},${-en})`);
     el.textContent = text;
+    el.addEventListener("click", (e) => selectElement("label", le.name, le, e));
     layer.appendChild(el);
   }
 }
