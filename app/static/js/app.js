@@ -1113,7 +1113,11 @@ function showProperties(type, name, data) {
         styleSel.appendChild(opt);
       }
       styleSel.addEventListener("change", async () => {
-        const newProps = { ...props, dim_style: styleSel.value };
+        const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
+        const curProps = cur
+          ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
+          : props;
+        const newProps = { ...curProps, dim_style: styleSel.value };
         await fetch(`/api/elements/${elemRec.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -1209,7 +1213,12 @@ function addElementActions(tbody, elemRec) {
     cb.checked = checked.has(val);
     cb.addEventListener("change", async () => {
       const selected = boxes.filter(b => b.checked).map(b => b.value);
-      const newProps = { ...props, variants: selected };
+      // Re-read current properties from App.state to avoid stale closure
+      const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
+      const curProps = cur
+        ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
+        : props;
+      const newProps = { ...curProps, variants: selected };
       await fetch(`/api/elements/${elemRec.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
