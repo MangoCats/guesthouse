@@ -350,7 +350,7 @@ td {
 tr:hover td { background: var(--bg-hover); }
 tr.selected td { background: var(--selection); }
 
-td input {
+td input:not([type="checkbox"]) {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -360,7 +360,7 @@ td input {
   font-size: 11px;
   font-family: 'Cascadia Code', 'Fira Code', monospace;
 }
-td input:focus { border-color: var(--accent); outline: none; }
+td input:not([type="checkbox"]):focus { border-color: var(--accent); outline: none; }
 td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 0.1); }
 
 #constants-table-wrap {
