@@ -2538,12 +2538,14 @@ async function handleMenuAction(action) {
       break;
     }
     case "reset-constants": {
-      if (!confirm("Reset all constants and outline to original values?")) return;
+      if (!confirm("Reset all constants, outline, and elements to original values?")) return;
       try {
         await apiFetch("/api/constants/reset", { method: "POST" });
         await loadConstants();
         await loadOutlineTable();
-        showToast("Constants and outline reset to defaults", "success");
+        await loadElements();
+        await loadGeometry();
+        showToast("Reset to defaults", "success");
       } catch (e) { showToast(`Reset failed: ${e.message}`, "error"); }
       break;
     }

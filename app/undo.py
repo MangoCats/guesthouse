@@ -137,10 +137,13 @@ class UndoManager:
             from app.database import restore_outline_chain
             restore_outline_chain(state, self._db_path)
         elif action_type == "full_reset":
-            # Combined constants + outline reset
-            from app.database import restore_outline_chain
+            # Combined constants + outline + elements + doors reset
+            from app.database import restore_outline_chain, restore_elements
             update_constants_batch(state["constants"], self._db_path)
             restore_outline_chain(state["outline"], self._db_path)
+            if "elements" in state:
+                restore_elements(state["elements"], state.get("doors", []),
+                                 self._db_path)
         else:
             raise ValueError(f"Unknown undo action type: {action_type}")
 

@@ -22,6 +22,7 @@ from app.database import (
     get_all_doors, get_door, create_door, update_door, delete_door,
     get_outline_chain_row, update_outline_segment, insert_outline_segment,
     delete_outline_segment, restore_outline_chain, reset_outline_chain,
+    reset_elements,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
@@ -184,15 +185,21 @@ def create_app(db_path=None):
         before = {
             "constants": get_constants_dict(db),
             "outline": get_outline_chain(db),
+            "elements": get_all_elements(db),
+            "doors": get_all_doors(db),
         }
         reset_constants(db)
         reset_outline_chain(db)
+        reset_elements(db)
         after = {
             "constants": get_constants_dict(db),
             "outline": get_outline_chain(db),
+            "elements": get_all_elements(db),
+            "doors": get_all_doors(db),
         }
         undo_mgr.record("full_reset", before, after, "Reset to defaults")
         _invalidate()
+        _broadcast("element_changed")
         _broadcast("outline_changed")
         return jsonify({"ok": True})
 

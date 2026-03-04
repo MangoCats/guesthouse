@@ -789,6 +789,45 @@ def reset_constants(db_path=None):
         _seed_constants(conn)
 
 
+def reset_elements(db_path=None):
+    """Reset elements and doors to seed state.
+
+    Deletes all non-seeded elements (overrides, placed items, drawn walls)
+    and re-seeds the 13 IW walls and default doors.
+    """
+    db_path = db_path or DB_PATH
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM elements")
+        conn.execute("DELETE FROM doors")
+        _seed_elements(conn)
+        _seed_doors(conn)
+
+
+def restore_elements(elements, doors, db_path=None):
+    """Restore elements and doors tables from a snapshot (for undo/redo)."""
+    import json
+    db_path = db_path or DB_PATH
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM elements")
+        conn.execute("DELETE FROM doors")
+        for e in elements:
+            props = e.get("properties", "{}")
+            if isinstance(props, dict):
+                props = json.dumps(props)
+            conn.execute(
+                "INSERT INTO elements (id, type, name, properties, variant) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (e["id"], e["type"], e["name"], props, e.get("variant")),
+            )
+        for d in doors:
+            conn.execute(
+                "INSERT INTO doors (opening_name, width, hinge_side, "
+                "swing_direction, door_type) VALUES (?, ?, ?, ?, ?)",
+                (d["opening_name"], d["width"], d["hinge_side"],
+                 d["swing_direction"], d["door_type"]),
+            )
+
+
 # ---------------------------------------------------------------------------
 # CRUD: elements
 # ---------------------------------------------------------------------------
