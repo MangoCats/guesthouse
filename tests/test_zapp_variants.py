@@ -9,7 +9,9 @@ if _PROJECT not in sys.path:
     sys.path.insert(0, _PROJECT)
 
 from tests.test_zapp_conftest import fresh_db, app_client, geometry
-from app.variants import compute_variant_items, VARIANTS
+from app.variants import (compute_variant_items, VARIANTS,
+                          _resolve_product_url, _PRODUCT_URLS_BASE,
+                          _PRODUCT_URLS_VARIANT)
 from app.database import get_constants_dict
 from app.engine import compute_geometry
 
@@ -234,6 +236,76 @@ class TestVariantAPI:
             assert "bbox" in item
             assert "label" in item
             assert "shape" in item
+
+
+# =========================================================================
+# TestProductUrls — _resolve_product_url and variant item URLs
+# =========================================================================
+
+class TestProductUrls:
+    """Product URL resolution from _PRODUCT_URLS_BASE and _PRODUCT_URLS_VARIANT."""
+
+    def test_base_url_returns_for_any_variant(self):
+        """Items in _PRODUCT_URLS_BASE get the same URL regardless of flags."""
+        url = _resolve_product_url("hamper", False, False)
+        assert url and "homedepot.com" in url
+        assert _resolve_product_url("hamper", True, False) == url
+        assert _resolve_product_url("hamper", False, True) == url
+
+    def test_variant_url_minik(self):
+        """Fridge in minik gets the IKEA URL, not the Lowe's default."""
+        url = _resolve_product_url("fridge", True, False)
+        assert url and "ikea.com" in url
+
+    def test_variant_url_default(self):
+        """Fridge in standard (not minik, not db) gets the default Lowe's URL."""
+        url = _resolve_product_url("fridge", False, False)
+        assert url and "lowes.com" in url
+
+    def test_variant_url_db_flag(self):
+        """Rocker with db flag gets the db-specific URL."""
+        url = _resolve_product_url("rocker", False, True)
+        assert url and "ikea.com" in url
+
+    def test_minik_only_items_absent_in_standard(self):
+        """Dryer/washer have URLs only for minik; standard returns None."""
+        assert _resolve_product_url("dryer", False, False) is None
+        assert _resolve_product_url("dryer", True, False) is not None
+
+    def test_unknown_item_returns_none(self):
+        assert _resolve_product_url("nonexistent_xyz", False, False) is None
+
+    def test_standard_items_have_urls(self, variant_items_standard):
+        """Items with base URLs should have product_url in variant output."""
+        for name in ("hamper", "kitchen_sink", "shelves", "dining_table"):
+            item = variant_items_standard.get(name)
+            assert item is not None, f"{name} missing"
+            assert "product_url" in item, f"{name} has no product_url"
+            assert item["product_url"].startswith("http"), f"{name} URL invalid"
+
+    def test_minik_fridge_url_differs_from_standard(self, all_variant_items):
+        """Fridge URL should differ between standard and minik."""
+        std_url = all_variant_items["standard"]["fridge"]["product_url"]
+        mk_url = all_variant_items["minik"]["fridge"]["product_url"]
+        assert std_url != mk_url
+
+    def test_minik_has_dryer_washer_urls(self, all_variant_items):
+        mk = all_variant_items["minik"]
+        assert "product_url" in mk["dryer"]
+        assert "product_url" in mk["washer"]
+
+    def test_standard_dryer_washer_no_url(self, variant_items_standard):
+        """Dryer/washer in standard have no product URL (minik-only)."""
+        assert "product_url" not in variant_items_standard.get("dryer", {})
+        assert "product_url" not in variant_items_standard.get("washer", {})
+
+    def test_api_returns_product_urls(self, app_client):
+        """Geometry API response includes product_url on items."""
+        resp = app_client.get("/api/geometry?variant=standard")
+        data = resp.get_json()
+        shelves = data["variant_items"].get("shelves")
+        assert shelves is not None
+        assert "product_url" in shelves
 
 
 # =========================================================================
