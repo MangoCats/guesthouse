@@ -509,9 +509,8 @@ def create_app(db_path=None):
             "door_create", record, record,
             f"Create door on {opening}",
         )
-        _invalidate()
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify(record), 201
 
     @app.route("/api/doors/<opening_name>", methods=["PUT"])
@@ -533,9 +532,8 @@ def create_app(db_path=None):
             "door_update", old, updated,
             f"Update door on {opening_name}",
         )
-        _invalidate()
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify(updated)
 
     @app.route("/api/doors/<opening_name>", methods=["DELETE"])
@@ -548,9 +546,8 @@ def create_app(db_path=None):
             "door_delete", old, {"opening_name": opening_name},
             f"Delete door on {opening_name}",
         )
-        _invalidate()
         _broadcast("element_changed")
-        _broadcast_undo_status()
+        _invalidate()
         return jsonify({"ok": True, "opening_name": opening_name})
 
     # -- Geometry API --

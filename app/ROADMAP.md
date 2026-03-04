@@ -12,8 +12,8 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ## Current State (Phase 8 — Complete, Phase 9 next)
 
-**197 of 226 requirements implemented.**  395 app tests, 586 pre-existing tests
-(982 total).  All implemented requirements have automated test coverage.
+**216 of 236 requirements implemented.**  458 app tests, 586 pre-existing tests
+(1044 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -76,6 +76,15 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Rotate tool: R key, rotation dialog with presets | Done |
 | Shape editor: vertex editing, SVG import, shape assignment | Done |
 | Shape API: GET/POST/PUT /api/shapes endpoints | Done |
+| Dimension line tool: two-click placement with ft-in labels | Done |
+| Room label tool: click-to-place, inline text editing, font size | Done |
+| Anchored dimensions: snap-to-geometry (point, wall_face, opening_face) | Done |
+| Unified builtin dimensions: 22 seeded anchored elements (line_intersection) | Done |
+| Dimension/label selectability: click to select, properties panel | Done |
+| Per-dimension style: solid/dashed visual control | Done |
+| Multi-layout visibility: per-element variant checkbox list | Done |
+| Cache invalidation on element/opening/door CRUD | Done |
+| Delete button in properties panel | Done |
 
 **What's missing:** Endpoint drag handles (TL-17 partial), Add Opening tool (TL-21),
 styling, site plan editing, 3D integration, plumbing layout (interactive
@@ -444,12 +453,23 @@ IW_HOSTED_OPENINGS), `app/static/js/dialogs.js` (customContent, presetButtons),
 **Goal:** User-placeable room labels, custom dimension lines, and annotation
 editing.  Unifies the room label system under the `elements` table.
 
-**Requirements:** TL-11–14, LABEL-1–4, DIS-7 (9 reqs) — all implemented
+**Requirements:** TL-11–14, LABEL-1–4, DIS-7, DIM-1–5, VAR-1–3, SEL-13–14 (19 reqs) — all implemented
 
-**Completed.** 27 new tests in `tests/test_zapp_labels.py`.
+**Completed.** 90 new tests (1044 total, up from 954).  27 base tests in
+`tests/test_zapp_labels.py`, 63 additional tests across existing test files
+for post-phase enhancements.
 
 Post-phase fixes:
 - Fixed variant exclusion seeding on DB upgrade path (pre-existing issue from Phase 7).
+
+Post-phase enhancements:
+- Anchored dimensions: snap-to-geometry with point, wall_face, opening_face anchor types
+- Unified dimensions: all 22 builtin dimensions converted to seeded anchored elements with line_intersection anchor type
+- Dimension selectability: click to select, properties panel shows source/anchors/style
+- Per-dimension style: solid/dashed visual style control
+- Multi-layout visibility: properties.variants checkbox list for per-element layout control
+- Cache invalidation: element/opening/door CRUD endpoints now invalidate geometry cache
+- Delete button in properties panel
 
 **Work:**
 - Create `app/labels.py` — label and dimension line management using the
@@ -598,7 +618,7 @@ base layout is complete.
   - Toggling a layer in one variant does not affect other variants
 - User-defined variants can add/remove element overrides (e.g., hide a
   wall, add custom furniture) without affecting other variants
-- Final polish: cross-check all 226 requirements, keyboard shortcut audit
+- Final polish: cross-check all 236 requirements, keyboard shortcut audit
   (NF-5), responsive layout verification (NF-2), NF-3 (586 existing tests
   pass), NF-4 (no files modified outside `app/` and `tests/`)
 
@@ -625,9 +645,9 @@ standalone specification before implementation begins.  Given its scope, it
 will likely be implemented as multiple sub-phases (12a, 12b, 12c...) once
 the design spec is finalised.
 
-**Requirements:** SEL-13 (1 req) + design specification for Charter Principle 5
+**Requirements:** SEL-15 (1 req) + design specification for Charter Principle 5
 
-SEL-13 (Constant Dependency Highlighting) is the first concrete requirement
+SEL-15 (Constant Dependency Highlighting) is the first concrete requirement
 for this phase: when a constant is focused in the Properties panel, all
 geometry elements whose position depends on that constant are highlighted
 on the canvas (first-order in white, downstream in pink).
@@ -760,7 +780,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 954+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 1044+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
@@ -805,13 +825,13 @@ persistent data worth preserving.
 | 5 | ENG-11, API-16–19, OE-1–3, DT-2–4 | 11 |
 | 6 | CV-7, CV-11, DIS-9–10, SEL-11, DOOR-1–4 | 9 |
 | 7 | TL-15–27, SEL-4, SEL-10, DT-7 | 16 |
-| 8 | TL-11–14, LABEL-1–4, DIS-7 | 9 |
+| 8 (done) | TL-11–14, LABEL-1–4, DIS-7, DIM-1–5, VAR-1–3, SEL-13–14 | 19 |
 | 9 | STYLE-1–4, LINK-1–2, SEL-12, CV-12 | 8 |
 | 10 | SITE-1–4, SCAD-1–3, ANALYSIS-1–3, PLUMB-1–8 | 18 |
 | 11 | UI-5–6 | 2 |
-| 12 | SEL-13, Charter Principle 5 | 1 + design spec |
+| 12 | SEL-15, Charter Principle 5 | 1 + design spec |
 | 13 | (aspirational — to be specified) | TBD |
-| **Total** | | **226 + Phase 13 TBD** |
+| **Total** | | **236 + Phase 13 TBD** |
 
 ---
 
@@ -850,12 +870,12 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 5 (done) | 37 | 899 |
 | 6 (done) | 28 | 927 |
 | 7 (done) | 27 | 954 |
-| 8 | ~15 | 969 |
-| 9 | ~12 | 981 |
-| 10 | ~20 | 1001 |
-| 11 | ~10 | 1011 |
-| 12 | ~20 | 1031 |
-| 13 | ~20 | 1051 |
+| 8 (done) | 90 | 1044 |
+| 9 | ~12 | 1056 |
+| 10 | ~20 | 1076 |
+| 11 | ~10 | 1086 |
+| 12 | ~20 | 1106 |
+| 13 | ~20 | 1126 |
 
 ---
 
@@ -910,7 +930,7 @@ Files already created during Phase 0 work: `app/apputil.py`,
 The editor is ready for cutover (dropping the NF-4 constraint and
 transitioning to fully database-driven design) when:
 
-1. All 226 requirements pass automated tests
+1. All 236 requirements pass automated tests
 2. The parametric dependency system (Phase 12) replaces hardcoded
    positioning — all element positions are database-stored formulas
 3. All constants live in the database (no longer Python module attributes);

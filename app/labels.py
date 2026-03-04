@@ -446,25 +446,23 @@ def seed_builtin_dimensions(conn):
         )
 
 
-def next_dimension_name(elements):
-    """Return the next auto-name for a user dimension (UD1, UD2, ...)."""
+def _next_auto_name(elements, prefix, pattern):
+    """Return next auto-name for a given prefix (e.g. 'UD', 'UL')."""
     max_n = 0
     for e in elements:
-        m = re.match(r"^UD(\d+)$", e.get("name", ""))
+        m = re.match(pattern, e.get("name", ""))
         if m:
             n = int(m.group(1))
             if n > max_n:
                 max_n = n
-    return f"UD{max_n + 1}"
+    return f"{prefix}{max_n + 1}"
+
+
+def next_dimension_name(elements):
+    """Return the next auto-name for a user dimension (UD1, UD2, ...)."""
+    return _next_auto_name(elements, "UD", r"^UD(\d+)$")
 
 
 def next_label_name(elements):
     """Return the next auto-name for a user label (UL1, UL2, ...)."""
-    max_n = 0
-    for e in elements:
-        m = re.match(r"^UL(\d+)$", e.get("name", ""))
-        if m:
-            n = int(m.group(1))
-            if n > max_n:
-                max_n = n
-    return f"UL{max_n + 1}"
+    return _next_auto_name(elements, "UL", r"^UL(\d+)$")

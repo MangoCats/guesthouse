@@ -330,6 +330,135 @@ a toast explaining that the interactive view cannot be regenerated.
 **Acceptance:** Select Interactive tab. Click Regenerate Current View.
 Toast reads "Cannot regenerate interactive view".
 
+### 1.4  Anchored Dimensions
+
+Dimension elements support anchor-based endpoint resolution, where each
+endpoint is defined by an anchor spec that resolves to absolute
+coordinates during geometry computation. Builtin dimensions are seeded
+as database elements and re-anchored on every geometry recomputation.
+
+#### DIM-1  Dimension Anchor Properties
+Dimension elements SHALL support `start_anchor` and `end_anchor`
+properties that resolve to absolute coordinates during geometry
+computation. Each anchor is a JSON object specifying the anchor type
+and its parameters. The resolved coordinates are stored as `start` and
+`end` ([E, N]) in the dimension's properties after computation.
+
+**Acceptance:** Query `SELECT properties FROM elements WHERE type =
+'dimension'`. Each row's JSON contains `start_anchor` and `end_anchor`
+objects. After geometry computation, each also contains `start` and
+`end` coordinate arrays that match the resolved anchor positions.
+**Tested:** Implemented in `app/engine.py` dimension anchor resolver.
+
+#### DIM-2  Anchor Type Repertoire
+The anchor resolver SHALL support the following anchor types:
+- `point`: resolves to a named geometry point (F-series, W-series, etc.)
+- `wall_face`: resolves to a point on a specified face (N/S/E/W) of a
+  named interior wall
+- `opening_face`: resolves to a point on a specified face of a named
+  opening
+- `line_intersection`: resolves to the intersection of two infinite
+  lines (see DIM-4)
+- `computed`: resolves to a previously computed coordinate stored in the
+  anchor spec
+
+**Acceptance:** Create dimension elements using each anchor type. After
+geometry computation, verify that the resolved `start` and `end`
+coordinates match the expected positions for each anchor type.
+**Tested:** Implemented in `app/engine.py` `resolve_anchor()`.
+
+#### DIM-3  Builtin Dimension Seeding
+Builtin dimensions SHALL be seeded as elements with `type='dimension'`
+and `source='builtin'` during database initialisation and reset. The
+seeded dimensions correspond to the standard measurement annotations
+produced by the existing floorplan generator scripts. On "Reset to
+Defaults", all builtin dimension elements are deleted and re-seeded
+from the canonical definition list.
+
+**Acceptance:** After a fresh database init, `SELECT count(*) FROM
+elements WHERE type = 'dimension' AND source = 'builtin'` returns
+>= 18. After modifying a builtin dimension and clicking "Reset to
+Defaults", the dimension reverts to its seeded anchor configuration.
+**Tested:** Implemented in `app/database.py` seeding and
+`app/engine.py` dimension computation.
+
+#### DIM-4  Line Intersection Anchor
+The `line_intersection` anchor type SHALL compute the intersection of
+two infinite lines. Each line is defined by a point spec (a named
+geometry point or [E, N] coordinate) and a direction spec (a bearing
+angle in degrees, a named geometry point defining the direction from
+the line's point, or an axis keyword like `"E-W"` or `"N-S"`). The
+resolver returns the intersection coordinate, or skips the dimension
+if the lines are parallel.
+
+**Acceptance:** Create a dimension with a `line_intersection` anchor
+where line 1 passes through W5 bearing east and line 2 passes through
+W9 bearing north. The resolved coordinate is the intersection of those
+two infinite lines. Verify the coordinate is correct by manual
+calculation.
+**Tested:** Implemented in `app/engine.py` `resolve_anchor()`.
+
+#### DIM-5  Dimension Visual Style
+Dimension elements SHALL support a `dim_style` property controlling
+per-dimension visual appearance. Supported styles are `"solid"` (the
+default, rendering a solid line with tick marks) and `"dashed"`
+(rendering a dashed line). The style is stored in the element's
+`properties` JSON and applied during canvas rendering.
+
+**Acceptance:** Create two dimensions: one with `dim_style: "solid"` and
+one with `dim_style: "dashed"`. On the canvas, the solid dimension
+renders with a continuous line; the dashed dimension renders with a
+dashed stroke pattern. Verify via SVG inspection that the dashed
+dimension's `<line>` element has a `stroke-dasharray` attribute.
+**Tested:** Implemented in `app/static/js/app.js` dimension rendering.
+
+### 1.5  Variant Filtering
+
+Elements support fine-grained variant membership control via a
+`properties.variants` array, complementing the top-level `variant`
+column in the `elements` table.
+
+#### VAR-1  Element Variant Array
+Elements SHALL support a `properties.variants` array specifying which
+layout variants the element appears in. The array contains variant name
+strings (e.g., `["standard", "minik"]`). When `properties.variants` is
+absent or null, the element's visibility is governed by the top-level
+`variant` column (DB-9 rules: `NULL` = all variants, non-null = that
+variant only).
+
+**Acceptance:** Create an element with `properties.variants =
+["standard", "daybed"]`. When viewing the `standard` variant, the
+element is visible. When viewing the `minik` variant, the element is
+hidden. When viewing the `daybed` variant, the element is visible.
+**Tested:** Implemented in `app/engine.py` variant filtering logic.
+
+#### VAR-2  Properties Variants Precedence
+When `properties.variants` is set (non-null, non-empty array), it
+SHALL take precedence over the top-level `variant` column for
+determining element visibility. The `variant` column value is ignored
+for filtering purposes when `properties.variants` is present.
+
+**Acceptance:** Create an element with `variant = "standard"` and
+`properties.variants = ["minik", "daybed"]`. When viewing the
+`standard` variant, the element is hidden (despite the `variant` column
+matching). When viewing the `minik` variant, the element is visible.
+**Tested:** Implemented in `app/engine.py` variant filtering logic.
+
+#### VAR-3  Layout Checkbox UI
+The Properties panel for elements SHALL display layout checkboxes
+allowing users to select any subset of layout variants in which the
+element should appear. The checkboxes SHALL reflect the current
+`properties.variants` array (or all-checked if the array is absent/null
+and `variant` is NULL). Toggling a checkbox SHALL update the
+`properties.variants` array via `PUT /api/elements/<id>` and trigger
+geometry recomputation for affected variants.
+
+**Acceptance:** Select a furniture element. The Properties panel shows
+checkboxes for Standard, Small Kitchen, Daybed, Room Dimensions, and
+Square Footage. Uncheck "Daybed". The element disappears when switching
+to the Daybed variant. Re-check "Daybed". The element reappears.
+**Tested:** Implemented in `app/static/js/app.js` properties panel.
+
 ---
 
 ## 2  REST API
@@ -1040,7 +1169,33 @@ appears. Click "Open". A new browser tab navigates to that URL. Select
 FRIDGE again after reload — the URL persists. Clear the field and press
 Enter — URL is removed, "Open" button disappears.
 
-#### SEL-13  Constant Dependency Highlighting **(NEW)**
+#### SEL-13  Delete Button
+When an element has a database record (i.e., is stored in the `elements`
+table, not purely engine-computed), the Properties panel SHALL include a
+Delete button. Clicking the button SHALL prompt for confirmation and then
+remove the element via `DELETE /api/elements/<id>`.
+
+**Acceptance:** Select a user-placed furniture item. The Properties panel
+shows a Delete button. Click Delete. Confirmation dialog appears. Confirm.
+The element is removed from the canvas and the database. Select an
+engine-computed item (e.g., standard-variant `bed` with no DB record).
+No Delete button appears.
+**Tested:** Implemented in `app.js` properties panel rendering.
+
+#### SEL-14  Dimension and Label Selectability
+Dimension elements and label elements SHALL be selectable via click on
+the interactive canvas. Clicking a dimension line or label SHALL select
+it, apply the `selected-highlight` visual indicator, and populate the
+Properties panel with its properties (name, type, anchors, style, text).
+
+**Acceptance:** Click on a dimension line in `#layer-dims`. The dimension
+receives `selected-highlight`. Properties panel shows dimension name,
+start/end anchors, distance, and dim_style. Click on a room label in
+`#layer-rooms`. The label receives `selected-highlight`. Properties
+panel shows label name, text, position offset, rotation, and font size.
+**Tested:** Implemented in `app.js` click handler and properties panel.
+
+#### SEL-15  Constant Dependency Highlighting **(NEW)**
 When a constant is focused in the Properties panel constant list (e.g.,
 selecting `COUNTER_GAP` while viewing the counter appliance properties),
 all geometry elements whose position or size depends on that constant
@@ -2049,20 +2204,20 @@ history) to the requirements that enable each operation through the GUI.
 |-----------|---------|-------------|
 | Move element (wall/furniture/opening) | ~146 | TL-5, TL-6, TL-7, TL-8, TL-9, TL-10, API-23 |
 | Edit outline geometry (F-series chain) | ~79 | OE-1, OE-2, OE-3, DT-2, DT-3, DT-4, API-16..19 |
-| Add/edit dimension lines & labels | ~78 | TL-11..14, CV-9, DIS-7, LABEL-1..4 |
+| Add/edit dimension lines & labels | ~78 | TL-11..14, CV-9, DIS-7, DIM-1..5, SEL-14, LABEL-1..4 |
 | Add/resize/rotate furniture | ~67 | TL-18..20, TL-24, SEL-8, DT-11 |
 | Add/edit/remove interior walls | ~52 | TL-15..17, TL-22, TL-23, DT-9, DT-10 |
 | Add/edit openings | ~42 | TL-21, DT-7, SEL-10, API-24..26 |
 | Configure doors (hinge/swing) | ~35 | DOOR-1..4, SEL-7, SEL-11, CV-7, API-27..29 |
 | Edit site plan | ~36 | SITE-1..4 |
 | 3D/SCAD model | ~31 | SCAD-1..3 |
-| View variants | ~24 | UI-5, UI-6, UI-8, ENG-13, API-8, API-34, CV-4 |
+| View variants | ~24 | UI-5, UI-6, UI-8, ENG-13, API-8, API-34, CV-4, VAR-1..3 |
 | Plumbing layout | ~22 | PLUMB-1..8 |
 | Span/area analysis | ~22 | ANALYSIS-1..3 |
 | Resize elements | ~20 | SEL-10, DT-7, DT-10 |
 | Element styling (colour/opacity) | ~18 | STYLE-1..4 |
 | Product hyperlinks | ~14 | LINK-1, LINK-2, SEL-12, CV-12 |
-| Delete elements | ~8 | TL-22, TL-23, API-22, API-26, API-29 |
+| Delete elements | ~8 | TL-22, TL-23, SEL-13, API-22, API-26, API-29 |
 | Undo/redo | implicit | UNDO-1..4, API-30, API-31 |
 
 ## Appendix B: Requirements Summary
@@ -2073,11 +2228,11 @@ line or inherited from a **(NEW)** section/subsection heading.
 
 | Section | Existing | New | Total |
 |---------|----------|-----|-------|
-| 1 Data Layer | 31 | 1 | 32 |
+| 1 Data Layer | 39 | 1 | 40 |
 | 2 REST API | 30 | 4 | 34 |
 | 3 UI Layout | 6 | 2 | 8 |
 | 4 Canvas | 21 | 6 | 27 |
-| 5 Selection | 8 | 5 | 13 |
+| 5 Selection | 10 | 5 | 15 |
 | 6 Tools | 10 | 17 | 27 |
 | 7 Constants | 20 | 0 | 20 |
 | 8 Data Tables | 7 | 4 | 11 |
@@ -2090,7 +2245,7 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **145** | **81** | **226** |
+| **Total** | **155** | **81** | **236** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

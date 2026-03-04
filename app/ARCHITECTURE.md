@@ -170,7 +170,9 @@ orchestrates the full pipeline:
    UTIL_N, UTIL_S, KITCHEN, LIVING, BATH, OFFICE, E CLOSET,
    W CLOSET, STORAGE, WH), with DB-stored offsets applied; for SF
    variant, includes area values and highlight polygons
-11. **Dimensions** → 18–22 dimension line endpoint pairs with distances
+11. **Dimensions** → all dimension elements (builtin + user) from the
+   `elements` table are resolved via `_resolve_anchor()` to produce
+   18–22 dimension line endpoint pairs with distances
 
 Returns a JSON-serialisable dict with all computed geometry.  Also
 provides `generate_svg()` (runs generator scripts via subprocess) and
@@ -201,6 +203,58 @@ dependencies: constants → geometry → layout → openings.
 **Derived constants** — Five constants are recomputed from others after
 patching: `WALL_EXTRA`, `AIR_GAP`, `DOOR_FLAT_FACE`,
 `F8F9_INNER_TURN_R`, `CORNER_SW_R`.
+
+**Radii exposure** — `result["radii"]` is included in the geometry
+response, exposing all arc radii (R_a1, R_a5, ..., R_a19).  This is
+needed by the `arc_point` point spec to resolve dimension anchors that
+reference points on arc segments.
+
+**Anchor resolution system** — `_resolve_anchor(anchor, geometry_result)`
+resolves a dimension anchor dict to `[E, N]` coordinates.  Supports
+five anchor types:
+
+| Anchor type | Resolution |
+|-------------|------------|
+| `point` | Named geometry point from `result["points"]` |
+| `wall_face` | Midpoint of a named face (south/east/north/west) on an interior wall polygon |
+| `opening_face` | Midpoint of a named face on an outer or rough opening polygon |
+| `line_intersection` | Intersection of two infinite lines, each defined by a point spec + direction spec |
+| `computed` | Arbitrary point resolved via `_resolve_point_spec` |
+
+**Point spec resolution** — `_resolve_point_spec(spec, geom)` resolves
+a point specification to `[E, N]` coordinates.  Point specs can be:
+
+| Spec form | Resolution |
+|-----------|------------|
+| `str` | Named point from `geom["points"]` (e.g. `"F9"`, `"W18"`) |
+| `{face_mid: T, face: F}` | Midpoint of wall face |
+| `{opening_face_mid: T, face: F}` | Midpoint of opening face |
+| `{opening_centroid: T}` | Vertex-average centroid of opening polygon |
+| `{midpoint: [A, B]}` | Midpoint of two recursively resolved point specs |
+| `{offset: base, dir: D, dist: N}` | Base point + distance along direction |
+| `{arc_point: {center, radius_key, reference, side}}` | Point on arc circle at reference northing |
+
+**Direction spec resolution** — `_resolve_dir_spec(spec, geom)` resolves
+a direction specification to a `[dE, dN]` unit vector:
+
+| Spec form | Resolution |
+|-----------|------------|
+| `"east"` | `[1, 0]` |
+| `"north"` | `[0, 1]` |
+| `{face_along: T, face: F}` | Unit vector along wall face direction |
+| `{face_perp: T, face: F}` | Right-hand perpendicular of wall face |
+| `{segment: [A, B]}` | Unit vector from point A to point B |
+| `{segment_perp: [A, B]}` | Right-hand perpendicular of A-to-B direction |
+
+**Unified variant filtering** — When resolving dimension and label
+elements, `properties["variants"]` (a list of variant names) takes
+precedence over the DB `variant` column.  If `variants` is present in
+properties, the element appears only in those listed variants.  If
+absent, the DB `variant` column is used (NULL = all variants, specific
+value = that variant only).  This allows builtin dimensions like
+`dim12bare` to target specific variants via the DB column, while
+user-created elements can use the properties list for multi-variant
+visibility.
 
 **App solver bypass (Phase 5)** — When `chain_rows` is provided (always
 in the web editor), `compute_geometry()` uses `app/outline_solver.py`
@@ -270,7 +324,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (33 total):
+**API endpoints** (36 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -284,6 +338,9 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | POST | `/api/redo` | Redo last undone mutation |
 | GET | `/api/geometry` | Computed geometry (`?variant=`) |
 | GET | `/api/variants` | Variant names and labels |
+| GET | `/api/shapes` | List all shapes |
+| POST | `/api/shapes` | Create shape |
+| PUT | `/api/shapes/<name>` | Update shape |
 | GET | `/api/outline` | Outline chain (18 segments) |
 | GET | `/api/views` | Registered views |
 | GET | `/api/svg/<name>` | SVG content |
@@ -352,13 +409,30 @@ of undo entries with a position pointer.  Entries are persisted to the
 
 ### app/labels.py — Label & Dimension Helpers (Phase 8)
 
-Room label seeding and auto-name generators for user labels/dimensions.
+Room label seeding, builtin dimension seeding, and auto-name generators
+for user labels/dimensions.
 
-| Function | Purpose |
-|----------|---------|
-| `seed_room_labels(conn)` | Create 11 room label elements if not present; migrate offsets from `room_label_offsets` |
-| `next_dimension_name(elements)` | Scan for `UD\d+`, return next (e.g. `UD4`) |
-| `next_label_name(elements)` | Scan for `UL\d+`, return next (e.g. `UL3`) |
+| Data / Function | Purpose |
+|-----------------|---------|
+| `ROOM_LABEL_NAMES` | List of 11 room label names (BEDROOM, UTIL_N, UTIL_S, KITCHEN, LIVING, BATH, OFFICE, E CLOSET, W CLOSET, STORAGE, WH) |
+| `BUILTIN_DIMENSIONS` | List of 22 anchor-based dimension specs.  Each entry is a dict with `name`, `variant` (None or specific), `start_anchor`, and `end_anchor`.  Anchors use the five anchor types supported by `_resolve_anchor()` in `engine.py` (point, wall_face, opening_face, line_intersection, computed).  Shared sub-expressions (e.g. `_F9F11_MID_OFFSET`, `_W18W1_DIR`) are factored out as module-level constants. |
+| `seed_room_labels(conn)` | Create 11 room label elements (type `'label'`, source `'room'`) if not present; migrate offsets from legacy `room_label_offsets` table |
+| `seed_builtin_dimensions(conn)` | Create 22 builtin dimension elements (type `'dimension'`, source `'builtin'`) if not present.  Each dimension stores its start/end anchors in properties JSON for resolution during `compute_geometry()` |
+| `_next_auto_name(elements, prefix, pattern)` | Shared helper: scan element names matching `pattern`, return next sequential name with `prefix` (e.g. `UD4`, `UL3`) |
+| `next_dimension_name(elements)` | Return next auto-name for a user dimension (`UD1`, `UD2`, ...) via `_next_auto_name` |
+| `next_label_name(elements)` | Return next auto-name for a user label (`UL1`, `UL2`, ...) via `_next_auto_name` |
+
+### app/parse_input.py — Unit-Aware Dimension Parser
+
+Parses user-entered dimension strings and returns a value in feet.
+Supports feet, inches, centimetres, millimetres, and metres, with
+flexible whitespace and foot-mark/inch-mark symbols.
+
+| Data / Function | Purpose |
+|-----------------|---------|
+| `_CONVERSIONS` | Dict mapping unit names to feet conversion factors (`ft`, `in`, `cm`, `mm`, `m` and long forms) |
+| `_TOKEN_RE` | Regex pattern matching number + optional unit (foot-mark `'`, inch-mark `"`, or word unit) |
+| `parse_dimension(text)` | Parse a dimension string, return value in feet or `None`.  Rules: bare number = feet; number + unit = converted; two bare numbers = feet + inches; fractions (`1/3`) evaluated as division; up to 3 tokens summed |
 
 ### app/apputil.py — Shared Serialisation Helpers
 
@@ -583,7 +657,12 @@ importlib.reload()         Reload geometry, layout, openings modules
     │
     ├──► _compute_room_labels()         → 11 room centroids + areas
     │
-    └──► compute_dimension_endpoints()  → 18–22 dimension line pairs
+    ├──► resolve dimensions (builtin + user) from elements table
+    │         _resolve_anchor()          → resolve start/end anchors
+    │         _resolve_point_spec()      → resolve point specs (string, face_mid, etc.)
+    │         _resolve_dir_spec()        → resolve direction specs (east, north, etc.)
+    │
+    └──► resolve label elements          → room labels + user labels
               │
               ▼
          JSON response → browser → canvas rendering

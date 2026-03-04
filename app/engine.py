@@ -1043,14 +1043,16 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     # Appliance door arcs (Phase 6)
     result["appliance_doors"] = _compute_appliance_doors(variant_items)
 
-    # Dimension and label elements (unified — both builtin and user-created)
+    # Dimension and label elements (unified — both builtin and user-created).
+    # Variant filtering: if properties["variants"] is a list, element appears
+    # only in those variants.  Otherwise falls back to the DB variant column
+    # (NULL = all variants, specific value = that variant only).
     all_elements = get_all_elements(db_path)
     excluded_dims = exclusions.get("dimension", set())
     user_dims = []
     label_elems = []
     for e in all_elements:
         props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
-        # Unified variant filtering for all element types
         variants_list = props.get("variants")
         if variants_list is not None:
             # Explicit layout list in properties takes precedence

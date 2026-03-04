@@ -768,6 +768,49 @@ class TestDimensionVariantFiltering:
         assert len(builtin) == 21
 
 
+class TestPropertiesVariantsFiltering:
+    """properties.variants list overrides the variant column."""
+
+    def test_variants_list_restricts_to_selected(self, fresh_db):
+        create_element("dimension", "VF_TEST", {
+            "source": "user", "start": [0, 0], "end": [5, 5],
+            "variants": ["standard", "minik"],
+        }, None, fresh_db)
+        constants = get_constants_dict(fresh_db)
+        std = compute_geometry(constants, "standard", db_path=fresh_db)
+        mk = compute_geometry(constants, "minik", db_path=fresh_db)
+        bare = compute_geometry(constants, "bare", db_path=fresh_db)
+        std_names = {d["name"] for d in std["user_dimensions"]}
+        mk_names = {d["name"] for d in mk["user_dimensions"]}
+        bare_names = {d["name"] for d in bare["user_dimensions"]}
+        assert "VF_TEST" in std_names
+        assert "VF_TEST" in mk_names
+        assert "VF_TEST" not in bare_names
+
+    def test_empty_variants_list_hides_from_all(self, fresh_db):
+        create_element("dimension", "VF_EMPTY", {
+            "source": "user", "start": [0, 0], "end": [5, 5],
+            "variants": [],
+        }, None, fresh_db)
+        constants = get_constants_dict(fresh_db)
+        std = compute_geometry(constants, "standard", db_path=fresh_db)
+        mk = compute_geometry(constants, "minik", db_path=fresh_db)
+        assert "VF_EMPTY" not in {d["name"] for d in std["user_dimensions"]}
+        assert "VF_EMPTY" not in {d["name"] for d in mk["user_dimensions"]}
+
+    def test_variants_list_overrides_column(self, fresh_db):
+        """If both properties.variants and variant column are set, list wins."""
+        create_element("dimension", "VF_OVERRIDE", {
+            "source": "user", "start": [0, 0], "end": [5, 5],
+            "variants": ["bare"],
+        }, "standard", fresh_db)  # column says standard, list says bare
+        constants = get_constants_dict(fresh_db)
+        std = compute_geometry(constants, "standard", db_path=fresh_db)
+        bare = compute_geometry(constants, "bare", db_path=fresh_db)
+        assert "VF_OVERRIDE" not in {d["name"] for d in std["user_dimensions"]}
+        assert "VF_OVERRIDE" in {d["name"] for d in bare["user_dimensions"]}
+
+
 # ── Geometry response with resolved builtin dims ───────────────────
 
 class TestBuiltinDimGeometry:
