@@ -377,6 +377,27 @@ function polyToStr(poly) {
   return poly.map(p => `${p[0]},${-p[1]}`).join(" ");
 }
 
+/** Build override offset lookup from App.state.elements. */
+function itemOverrides() {
+  const ov = {};
+  for (const e of (App.state.elements || [])) {
+    if (e.type === "furniture" || e.type === "appliance" || e.type === "fixture") {
+      let props = e.properties;
+      if (typeof props === "string") props = JSON.parse(props);
+      if (props && props.source === "override") {
+        ov[e.name] = props;
+      }
+    }
+  }
+  return ov;
+}
+
+/** Get (ox, oy) offset for a named item from an overrides map. */
+function itemOffset(overrides, name) {
+  const ov = overrides[name];
+  return [ov ? (ov.offset_x || 0) : 0, ov ? (ov.offset_y || 0) : 0];
+}
+
 function fmtFtIn(ft) {
   const totalIn = Math.round(Math.abs(ft) * 1200) / 100;
   const wholeFt = Math.floor(totalIn / 12);
@@ -498,14 +519,16 @@ function renderDoors(g) {
   // Stacked appliance doors are rendered in renderFurniture() so they
   // appear above the counter they sit on (layer-furniture paints after
   // layer-doors in SVG paint order).
+  const adOverrides = itemOverrides();
   for (const ad of (g.appliance_doors || [])) {
     if (ad.stacked) continue;
+    const [adx, ady] = itemOffset(adOverrides, ad.item_name);
     layer.appendChild(svgEl("line", {
-      x1: ad.hinge[0], y1: -ad.hinge[1],
-      x2: ad.tip[0], y2: -ad.tip[1],
+      x1: ad.hinge[0] + adx, y1: -(ad.hinge[1] + ady),
+      x2: ad.tip[0] + adx, y2: -(ad.tip[1] + ady),
       class: "appl-door-line",
     }));
-    const pts = ad.arc_pts.map(p => `${p[0]},${-p[1]}`).join(" ");
+    const pts = ad.arc_pts.map(p => `${p[0] + adx},${-(p[1] + ady)}`).join(" ");
     layer.appendChild(svgEl("polyline", {
       points: pts,
       class: "appl-door-arc",
@@ -516,9 +539,17 @@ function renderDoors(g) {
 function renderClearanceZones(g) {
   if (!App.state.showClearance) return;
   const layer = App.els["layer-clearance"];
+  const overrides = itemOverrides();
   for (const cz of (g.clearance_zones || [])) {
+    // Extract parent item name from "itemname_clearance"
+    const parentName = cz.name.replace(/_clearance$/, "");
+    const [ox, oy] = itemOffset(overrides, parentName);
+    let poly = cz.poly;
+    if (ox !== 0 || oy !== 0) {
+      poly = poly.map(p => [p[0] + ox, p[1] + oy]);
+    }
     layer.appendChild(svgEl("polygon", {
-      points: polyToStr(cz.poly),
+      points: polyToStr(poly),
       class: "clearance-zone",
     }));
   }
@@ -530,27 +561,14 @@ function renderFurniture(g) {
 
   // Render variant items (comprehensive set) if available; empty dict = no items
   if (g.variant_items !== undefined) {
-    // Build override lookup from DB elements
-    const overrides = {};
-    for (const e of (App.state.elements || [])) {
-      if (e.type === "furniture" || e.type === "appliance" || e.type === "fixture") {
-        let props = e.properties;
-        if (typeof props === "string") props = JSON.parse(props);
-        if (props && props.source === "override") {
-          overrides[e.name] = props;
-        }
-      }
-    }
+    const overrides = itemOverrides();
 
     // Sort: non-stacked items first, stacked items on top (SVG paint order)
     const entries = Object.entries(g.variant_items);
     entries.sort((a, b) => (a[1].stacked ? 1 : 0) - (b[1].stacked ? 1 : 0));
     for (const [name, item] of entries) {
       const cssClass = `item-${item.type} selectable` + (item.stacked ? " item-stacked" : "");
-      // Apply override offset if present
-      const ov = overrides[name];
-      const ox = ov ? (ov.offset_x || 0) : 0;
-      const oy = ov ? (ov.offset_y || 0) : 0;
+      const [ox, oy] = itemOffset(overrides, name);
 
       if (item.shape === "circle") {
         const c = item.center;
@@ -598,12 +616,13 @@ function renderFurniture(g) {
     if (App.state.showDoors) {
       for (const ad of (g.appliance_doors || [])) {
         if (!ad.stacked) continue;
+        const [adx, ady] = itemOffset(overrides, ad.item_name);
         layer.appendChild(svgEl("line", {
-          x1: ad.hinge[0], y1: -ad.hinge[1],
-          x2: ad.tip[0], y2: -ad.tip[1],
+          x1: ad.hinge[0] + adx, y1: -(ad.hinge[1] + ady),
+          x2: ad.tip[0] + adx, y2: -(ad.tip[1] + ady),
           class: "appl-door-line",
         }));
-        const pts = ad.arc_pts.map(p => `${p[0]},${-p[1]}`).join(" ");
+        const pts = ad.arc_pts.map(p => `${p[0] + adx},${-(p[1] + ady)}`).join(" ");
         layer.appendChild(svgEl("polyline", {
           points: pts,
           class: "appl-door-arc",
