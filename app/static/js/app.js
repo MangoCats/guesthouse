@@ -718,31 +718,23 @@ function renderFurniture(g, overrides) {
         renderApplDoor(layer, ad, ox, oy);
       }
     }
-    return;
   }
 
-  // Fallback: legacy appliances/furniture (if variant_items not present)
-  for (const [name, item] of Object.entries(g.appliances || {})) {
-    const poly = item.clip || item.poly;
-    const el = svgEl("polygon", {
-      points: polyToStr(poly),
-      class: "appliance-fill selectable",
-      "data-type": "appliance",
-      "data-name": name,
-    });
-    el.addEventListener("click", (e) => selectElement("appliance", name, item, e));
-    layer.appendChild(el);
-  }
-
-  for (const [name, item] of Object.entries(g.furniture || {})) {
-    const el = svgEl("polygon", {
-      points: polyToStr(item.poly),
-      class: "furniture-fill selectable",
-      "data-type": "furniture",
-      "data-name": name,
-    });
-    el.addEventListener("click", (e) => selectElement("furniture", name, item, e));
-    layer.appendChild(el);
+  // Render custom placed elements from elements table
+  for (const elem of (App.state.elements || [])) {
+    const props = typeof elem.properties === "string"
+      ? JSON.parse(elem.properties) : elem.properties;
+    if (props && props.source === "placed" && props.poly) {
+      const cssClass = `item-${elem.type} selectable`;
+      const el = svgEl("polygon", {
+        points: polyToStr(props.poly),
+        class: cssClass,
+        "data-type": elem.type,
+        "data-name": elem.name,
+      });
+      el.addEventListener("click", (e) => selectElement(elem.type, elem.name, { ...props, bbox: bboxFromPoly(props.poly) }, e));
+      layer.appendChild(el);
+    }
   }
 
   // Render custom placed elements from elements table
