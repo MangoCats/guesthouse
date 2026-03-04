@@ -1493,7 +1493,8 @@ function addViewOverrideControls(tbody, elemRec, props) {
 
 /** Add product URL field to properties panel. */
 function addProductUrlField(tbody, elemRec, props) {
-  if (!elemRec) return;
+  const url = (props && props.product_url) || "";
+  if (!elemRec && !url) return;
   const tr = document.createElement("tr");
   const td1 = document.createElement("td"); td1.textContent = "Link";
   tr.appendChild(td1);
@@ -1506,27 +1507,30 @@ function addProductUrlField(tbody, elemRec, props) {
   inp.className = "prop-edit-input";
   inp.placeholder = "https://...";
   inp.style.flex = "1";
-  inp.value = props.product_url || "";
-  inp.addEventListener("change", async () => {
-    const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
-    const curProps = cur
-      ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
-      : props;
-    const newProps = { ...curProps, product_url: inp.value || null };
-    await fetch(`/api/elements/${elemRec.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ properties: newProps }),
+  inp.value = url;
+  if (!elemRec) inp.readOnly = true;
+  if (elemRec) {
+    inp.addEventListener("change", async () => {
+      const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
+      const curProps = cur
+        ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
+        : props;
+      const newProps = { ...curProps, product_url: inp.value || null };
+      await fetch(`/api/elements/${elemRec.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: newProps }),
+      });
+      await loadElements();
+      await loadGeometry();
     });
-    await loadElements();
-    await loadGeometry();
-  });
+  }
   td2.appendChild(inp);
-  if (props.product_url && /^https?:\/\//.test(props.product_url)) {
+  if (url && /^https?:\/\//.test(url)) {
     const btn = document.createElement("button");
     btn.textContent = "Open";
     btn.className = "prop-url-open";
-    btn.addEventListener("click", () => window.open(props.product_url, "_blank"));
+    btn.addEventListener("click", () => window.open(url, "_blank"));
     td2.appendChild(btn);
   }
   tr.appendChild(td2);
