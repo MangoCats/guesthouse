@@ -1180,35 +1180,49 @@ const VARIANT_LABELS = {
 
 function addElementActions(tbody, elemRec) {
   if (!elemRec) return;
-  // Variant / layout picker
+  const props = typeof elemRec.properties === "string"
+    ? JSON.parse(elemRec.properties) : (elemRec.properties || {});
+  // Determine which layouts are currently checked
+  const allVariants = Object.keys(VARIANT_LABELS);
+  let checked;
+  if (Array.isArray(props.variants)) {
+    checked = new Set(props.variants);
+  } else if (elemRec.variant) {
+    checked = new Set([elemRec.variant]);
+  } else {
+    checked = new Set(allVariants); // NULL variant = all
+  }
+  // Layout checkboxes
   const vTr = document.createElement("tr");
-  const vTd1 = document.createElement("td"); vTd1.textContent = "Layout";
+  const vTd1 = document.createElement("td");
+  vTd1.textContent = "Layouts";
+  vTd1.style.verticalAlign = "top";
   vTr.appendChild(vTd1);
   const vTd2 = document.createElement("td");
-  const vSel = document.createElement("select");
-  vSel.className = "prop-edit-input";
-  const curVariant = elemRec.variant || "";
-  const allOpt = document.createElement("option");
-  allOpt.value = ""; allOpt.textContent = "All";
-  if (!curVariant) allOpt.selected = true;
-  vSel.appendChild(allOpt);
+  const boxes = [];
   for (const [val, lbl] of Object.entries(VARIANT_LABELS)) {
-    const opt = document.createElement("option");
-    opt.value = val; opt.textContent = lbl;
-    if (val === curVariant) opt.selected = true;
-    vSel.appendChild(opt);
-  }
-  vSel.addEventListener("change", async () => {
-    const newVariant = vSel.value || null;
-    await fetch(`/api/elements/${elemRec.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ variant: newVariant }),
+    const label = document.createElement("label");
+    label.className = "prop-checkbox-label";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = val;
+    cb.checked = checked.has(val);
+    cb.addEventListener("change", async () => {
+      const selected = boxes.filter(b => b.checked).map(b => b.value);
+      const newProps = { ...props, variants: selected };
+      await fetch(`/api/elements/${elemRec.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: newProps }),
+      });
+      await loadElements();
+      await loadGeometry();
     });
-    await loadElements();
-    await loadGeometry();
-  });
-  vTd2.appendChild(vSel);
+    boxes.push(cb);
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + lbl));
+    vTd2.appendChild(label);
+  }
   vTr.appendChild(vTd2);
   tbody.appendChild(vTr);
   // Delete button

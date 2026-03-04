@@ -1050,11 +1050,18 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     label_elems = []
     for e in all_elements:
         props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
-        if e["type"] == "dimension":
-            # Variant filtering: skip if element's variant doesn't match
+        # Unified variant filtering for all element types
+        variants_list = props.get("variants")
+        if variants_list is not None:
+            # Explicit layout list in properties takes precedence
+            if variant not in variants_list:
+                continue
+        else:
+            # Fall back to variant column (NULL = all, value = that one only)
             elem_variant = e.get("variant")
             if elem_variant is not None and elem_variant != variant:
                 continue
+        if e["type"] == "dimension":
             # Exclusion filtering (e.g. dim12a/dim12b excluded in bare)
             if e["name"] in excluded_dims:
                 continue

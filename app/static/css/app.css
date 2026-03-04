@@ -389,6 +389,10 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   border-radius: 3px; cursor: pointer;
 }
 .prop-btn:hover { background: var(--surface2); }
+.prop-checkbox-label {
+  display: block; font-size: 11px; cursor: pointer; padding: 1px 0;
+}
+.prop-checkbox-label input { margin-right: 4px; vertical-align: middle; }
 .prop-delete-btn {
   padding: 3px 16px; font-size: 11px; margin-top: 4px;
   background: var(--surface1); color: #e78284; border: 1px solid #e78284;
