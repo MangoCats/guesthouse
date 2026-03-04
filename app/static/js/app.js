@@ -40,15 +40,15 @@ const App = {
 
 /* ========== INITIALISATION ========== */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   cacheElements();
   setupEventListeners();
   setupOutlineToolbar();
   connectSSE();
   loadViews();
   loadConstants();
+  await loadElements();  // must complete before first render
   loadGeometry();
-  loadElements();
   loadShapes();
   loadBuildLabel();
 });
@@ -94,8 +94,9 @@ function connectSSE() {
     loadConstants();
   });
 
-  App.sse.addEventListener("element_changed", () => {
-    loadElements();
+  App.sse.addEventListener("element_changed", async () => {
+    await loadElements();
+    if (App.state.activeView === "interactive" && App.state.geometry) renderCanvas();
   });
 
   App.sse.addEventListener("geometry_changed", () => {
