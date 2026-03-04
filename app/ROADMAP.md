@@ -484,6 +484,17 @@ label is stored as an element with type `'label'`.  The model:
 
 **Dependencies:** Phase 3 (elements table), Phase 7 (draw tool patterns).
 
+**Deferred dimension editing features:**
+- TL-17D endpoint drag handles for dimensions: render draggable handles at
+  start/end points; on drag-release, snap to nearest geometry point and
+  re-anchor the endpoint (updating `start_anchor`/`end_anchor` properties)
+- Editable Start/End coordinate fields in properties panel: text inputs with
+  ft-in parsing that update absolute coordinates (detaching any existing
+  anchor on that endpoint)
+- Reattach anchor: right-click endpoint handle → "Attach to nearest" snaps
+  the endpoint to geometry and sets an anchor (complement to existing
+  "Detach" context menu items)
+
 ---
 
 ## Phase 9 — Styling and Product Links
