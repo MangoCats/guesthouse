@@ -2537,6 +2537,8 @@ function onMouseDown(e) {
     App.state.lastPan = { ...App.state.pan };
     App.els["viewport"].style.cursor = "grabbing";
     e.preventDefault();
+  } else if (e.button === 0 && PlaceTool.active) {
+    placeToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "select") {
     // OE-1: outline F-point drag (only if select tool + points visible)
     if (typeof outlineEditorMouseDown === "function") {
@@ -2557,8 +2559,6 @@ function onMouseDown(e) {
     dimToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "label") {
     labelToolMouseDown(e);
-  } else if (e.button === 0 && PlaceTool.active) {
-    placeToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "measure") {
     const rect = App.els["viewport"].getBoundingClientRect();
     const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
