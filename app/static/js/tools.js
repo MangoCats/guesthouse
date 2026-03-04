@@ -138,7 +138,7 @@ function applyMoveConstraints(dx, dy, shiftKey) {
 
 
 /** Element types that can be dragged with the move tool. */
-const MOVABLE_TYPES = new Set(["wall", "furniture", "appliance", "fixture"]);
+const MOVABLE_TYPES = new Set(["wall", "furniture", "appliance", "fixture", "dimension", "label"]);
 
 
 /**
@@ -328,6 +328,53 @@ async function commitMove(targets, dx, dy) {
       let elementId = t.elementId;
 
       // For furniture/appliance with no DB record, create override first
+      // Dimension move: update perpendicular offset (TL-12)
+      if (t.type === "dimension" && elementId) {
+        const elemRec = (App.state.elements || []).find(e => e.id === elementId);
+        if (elemRec) {
+          const props = typeof elemRec.properties === "string"
+            ? JSON.parse(elemRec.properties) : elemRec.properties;
+          if (props.start && props.end) {
+            // Compute perpendicular component of drag
+            const sdx = props.end[0] - props.start[0];
+            const sdy = props.end[1] - props.start[1];
+            const slen = Math.sqrt(sdx * sdx + sdy * sdy);
+            if (slen > 1e-9) {
+              const perpX = -sdy / slen, perpY = sdx / slen;
+              const perpDelta = dx * perpX + dy * perpY;
+              props.offset = (props.offset || 0) + perpDelta;
+              await fetch(`/api/elements/${elementId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ properties: props }),
+              });
+            }
+          }
+        }
+        continue;
+      }
+
+      // Label move: update offset or position (LABEL-2)
+      if (t.type === "label" && elementId) {
+        const elemRec = (App.state.elements || []).find(e => e.id === elementId);
+        if (elemRec) {
+          const props = typeof elemRec.properties === "string"
+            ? JSON.parse(elemRec.properties) : elemRec.properties;
+          if (props.source === "room") {
+            props.offset_e = (props.offset_e || 0) + dx;
+            props.offset_n = (props.offset_n || 0) + dy;
+          } else if (props.position) {
+            props.position = [props.position[0] + dx, props.position[1] + dy];
+          }
+          await fetch(`/api/elements/${elementId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ properties: props }),
+          });
+        }
+        continue;
+      }
+
       if (!elementId && (t.type === "furniture" || t.type === "appliance" || t.type === "fixture")) {
         try {
           const resp = await fetch("/api/elements", {
@@ -562,4 +609,173 @@ function showOffsetDialog() {
       commitMove(targets, parsed.dx, parsed.dy);
     },
   });
+}
+
+
+/* ========== Dimension Tool (TL-11) ========== */
+
+const DimTool = {
+  start: null,
+  previewLine: null,
+};
+
+function nextDimensionName() {
+  const elements = App.state.elements || [];
+  let max = 0;
+  for (const e of elements) {
+    if (e.type === "dimension" && e.name && e.name.startsWith("UD")) {
+      const n = parseInt(e.name.slice(2), 10);
+      if (n > max) max = n;
+    }
+  }
+  return `UD${max + 1}`;
+}
+
+function dimToolMouseDown(e) {
+  if (e.button !== 0) return;
+  const rect = App.els["viewport"].getBoundingClientRect();
+  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+  if (App.state.showGrid) {
+    const snap = 1.0 / 12.0;
+    wx = Math.round(wx / snap) * snap;
+    wy = Math.round(wy / snap) * snap;
+  }
+
+  if (!DimTool.start) {
+    DimTool.start = [wx, wy];
+  } else {
+    createDimension(DimTool.start, [wx, wy]);
+    if (DimTool.previewLine && DimTool.previewLine.parentNode) {
+      DimTool.previewLine.remove();
+    }
+    DimTool.previewLine = null;
+    DimTool.start = null;
+  }
+}
+
+function dimToolMouseMove(e) {
+  if (!DimTool.start) return;
+  const rect = App.els["viewport"].getBoundingClientRect();
+  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+  if (App.state.showGrid) {
+    const snap = 1.0 / 12.0;
+    wx = Math.round(wx / snap) * snap;
+    wy = Math.round(wy / snap) * snap;
+  }
+
+  const layer = document.getElementById("layer-measure");
+  if (!DimTool.previewLine) {
+    DimTool.previewLine = svgEl("line", { class: "draw-preview" });
+    layer.appendChild(DimTool.previewLine);
+  }
+  const s = DimTool.start;
+  DimTool.previewLine.setAttribute("x1", s[0]);
+  DimTool.previewLine.setAttribute("y1", -s[1]);
+  DimTool.previewLine.setAttribute("x2", wx);
+  DimTool.previewLine.setAttribute("y2", -wy);
+}
+
+function cancelDimTool() {
+  DimTool.start = null;
+  if (DimTool.previewLine && DimTool.previewLine.parentNode) {
+    DimTool.previewLine.remove();
+  }
+  DimTool.previewLine = null;
+}
+
+async function createDimension(start, end) {
+  const name = nextDimensionName();
+  const resp = await fetch("/api/elements", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "dimension",
+      name: name,
+      properties: {
+        source: "user",
+        start: start,
+        end: end,
+        offset: 0.0,
+        label_rotation: "parallel",
+      },
+    }),
+  });
+  if (resp.ok) {
+    showToast(`Created dimension ${name}`, "success");
+    // Auto-enable User Dims if not already
+    if (!App.state.showUserDims) {
+      App.state.showUserDims = true;
+      App.els["show-user-dims"].checked = true;
+    }
+    await loadElements();
+    await loadGeometry();
+  } else {
+    const data = await resp.json();
+    showToast(data.error || "Failed to create dimension", "error");
+  }
+}
+
+
+/* ========== Label Tool (LABEL-1) ========== */
+
+function labelToolMouseDown(e) {
+  if (e.button !== 0) return;
+  const rect = App.els["viewport"].getBoundingClientRect();
+  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+  if (App.state.showGrid) {
+    const snap = 1.0 / 12.0;
+    wx = Math.round(wx / snap) * snap;
+    wy = Math.round(wy / snap) * snap;
+  }
+
+  Dialog.show({
+    title: "New Label",
+    fields: [{ label: "Text", name: "text", placeholder: "Label text" }],
+    async onSubmit(vals) {
+      if (!vals.text || !vals.text.trim()) {
+        showToast("Label text required", "error");
+        return;
+      }
+      const name = nextLabelName();
+      const resp = await fetch("/api/elements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "label",
+          name: name,
+          properties: {
+            source: "user",
+            text: vals.text.trim(),
+            position: [wx, wy],
+            rotation: 0,
+            font_size: 0.25,
+          },
+        }),
+      });
+      Dialog.close();
+      if (resp.ok) {
+        showToast(`Created label ${name}`, "success");
+        await loadElements();
+        await loadGeometry();
+      } else {
+        const data = await resp.json();
+        showToast(data.error || "Failed to create label", "error");
+      }
+    },
+  });
+}
+
+function nextLabelName() {
+  const elements = App.state.elements || [];
+  let max = 0;
+  for (const e of elements) {
+    if (e.type === "label" && e.name && e.name.startsWith("UL")) {
+      const n = parseInt(e.name.slice(2), 10);
+      if (n > max) max = n;
+    }
+  }
+  return `UL${max + 1}`;
 }

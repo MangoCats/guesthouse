@@ -136,9 +136,16 @@ def init_db(db_path=None):
             _seed_variant_exclusions(conn)
             _seed_elements(conn)
             _seed_doors(conn)
+            from app.labels import seed_room_labels
+            seed_room_labels(conn)
         else:
             # Ensure all seed doors exist (handles additions like O3, O6)
             _seed_doors(conn)
+            # Ensure variant exclusions exist (Phase 7 upgrade)
+            _seed_variant_exclusions(conn)
+            # Ensure room label elements exist (Phase 8 upgrade)
+            from app.labels import seed_room_labels
+            seed_room_labels(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -792,8 +799,8 @@ def reset_constants(db_path=None):
 def reset_elements(db_path=None):
     """Reset elements and doors to seed state.
 
-    Deletes all non-seeded elements (overrides, placed items, drawn walls)
-    and re-seeds the 13 IW walls and default doors.
+    Deletes all non-seeded elements (overrides, placed items, drawn walls,
+    user labels, user dimensions) and re-seeds IW walls, doors, and room labels.
     """
     db_path = db_path or DB_PATH
     with get_db(db_path) as conn:
@@ -801,6 +808,8 @@ def reset_elements(db_path=None):
         conn.execute("DELETE FROM doors")
         _seed_elements(conn)
         _seed_doors(conn)
+        from app.labels import seed_room_labels
+        seed_room_labels(conn)
 
 
 def restore_elements(elements, doors, db_path=None):

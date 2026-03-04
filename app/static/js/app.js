@@ -21,6 +21,7 @@ const App = {
     showRooms: true,
     showDoors: true,
     showClearance: false,
+    showUserDims: false,
     variant: "standard",
     measureStart: null,
     rubberBand: null,
@@ -70,7 +71,7 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
-    "show-doors", "show-clearance",
+    "show-doors", "show-clearance", "show-user-dims",
     "variant-select", "variant-selector",
   ];
   for (const id of ids) {
@@ -359,6 +360,8 @@ function renderCanvas() {
   renderRoomLabels(g);
   renderPoints(g);
   renderDimensions(g);
+  renderUserDimensions(g);
+  renderUserLabels(g);
 
   if (App.state.zoom === 1 && App.state.pan.x === 0 && App.state.pan.y === 0) {
     fitToWindow();
@@ -739,13 +742,19 @@ function renderRoomLabels(g) {
       layer.appendChild(hlPoly);
     }
 
+    // Look up font_size from label_elements
+    const leRec = (g.label_elements || []).find(le => le.name === lbl.name);
+    const fontSize = leRec && leRec.properties.font_size ? leRec.properties.font_size : null;
+
     // Group for name + area text (clickable when SF)
     const nameEl = svgEl("text", {
       x: e, y: -n + (hasArea ? -0.15 : 0),
-      class: "room-label" + (hasArea ? " room-label-sf" : ""),
+      class: "room-label selectable" + (hasArea ? " room-label-sf" : ""),
       "text-anchor": "middle",
       "dominant-baseline": "middle",
+      "data-type": "label", "data-name": lbl.name,
     });
+    if (fontSize) nameEl.style.fontSize = fontSize + "px";
     nameEl.textContent = lbl.name;
     if (lbl.poly) {
       nameEl.style.cursor = "pointer";
@@ -1077,6 +1086,48 @@ function showProperties(type, name, data) {
       for (const c of related) {
         addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
       }
+    }
+  } else if (type === "dimension") {
+    const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
+    if (elemRec) {
+      const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+      if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
+      if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
+      const dist = props.start && props.end ?
+        Math.sqrt((props.end[0] - props.start[0]) ** 2 + (props.end[1] - props.start[1]) ** 2) : 0;
+      addPropRow(tbody, "Distance", fmtFtIn(dist));
+      addPropRow(tbody, "Offset", fmtFtIn(props.offset || 0));
+      addPropRow(tbody, "Label Rot.", props.label_rotation || "parallel");
+    }
+  } else if (type === "label") {
+    const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "label");
+    if (elemRec) {
+      const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+      addPropRow(tbody, "Source", props.source || "unknown");
+      addPropRow(tbody, "Text", props.text || name);
+      // Editable font size
+      const fsTr = document.createElement("tr");
+      const fsTd1 = document.createElement("td"); fsTd1.textContent = "Font Size";
+      fsTr.appendChild(fsTd1);
+      const fsTd2 = document.createElement("td");
+      const fsInp = document.createElement("input");
+      fsInp.type = "text"; fsInp.className = "prop-edit-input";
+      fsInp.value = (props.font_size || 0.25).toString();
+      fsInp.addEventListener("change", async () => {
+        const newFs = parseFloat(fsInp.value);
+        if (isNaN(newFs) || newFs <= 0) { showToast("Invalid font size", "error"); return; }
+        const newProps = { ...props, font_size: newFs };
+        await fetch(`/api/elements/${elemRec.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ properties: newProps }),
+        });
+        await loadElements();
+        await loadGeometry();
+      });
+      fsTd2.appendChild(fsInp);
+      fsTr.appendChild(fsTd2);
+      tbody.appendChild(fsTr);
     }
   }
 }
@@ -1847,6 +1898,12 @@ function setupEventListeners() {
   vp.addEventListener("wheel", onWheel, { passive: false });
   vp.addEventListener("click", onViewportClick);
 
+  // Context menu for dimensions
+  vp.addEventListener("contextmenu", onContextMenu);
+
+  // Double-click for inline label editing (LABEL-3)
+  vp.addEventListener("dblclick", onLabelDblClick);
+
   // Keyboard shortcuts
   document.addEventListener("keydown", onKeyDown);
 
@@ -1890,6 +1947,10 @@ function setupEventListeners() {
   });
   App.els["show-clearance"].addEventListener("change", (e) => {
     App.state.showClearance = e.target.checked;
+    renderCanvas();
+  });
+  App.els["show-user-dims"].addEventListener("change", (e) => {
+    App.state.showUserDims = e.target.checked;
     renderCanvas();
   });
 
@@ -1983,6 +2044,10 @@ function onMouseDown(e) {
     moveToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "draw-wall") {
     drawWallMouseDown(e);
+  } else if (e.button === 0 && App.state.activeTool === "dimension") {
+    dimToolMouseDown(e);
+  } else if (e.button === 0 && App.state.activeTool === "label") {
+    labelToolMouseDown(e);
   } else if (e.button === 0 && PlaceTool.active) {
     placeToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "measure") {
@@ -2028,6 +2093,11 @@ function onMouseMove(e) {
   // Draw wall preview
   if (App.state.activeTool === "draw-wall" && DrawWallTool.start) {
     drawWallMouseMove(e);
+  }
+
+  // Dimension tool preview
+  if (App.state.activeTool === "dimension" && DimTool.start) {
+    dimToolMouseMove(e);
   }
 
   // SEL-4: Rubber-band drag-select
@@ -2188,6 +2258,81 @@ function onViewportClick(e) {
   }
 }
 
+function onLabelDblClick(e) {
+  const target = e.target.closest("[data-type='label']");
+  if (!target) return;
+  const name = target.getAttribute("data-name");
+  const elemRec = (App.state.elements || []).find(el => el.name === name && el.type === "label");
+  if (!elemRec) return;
+  const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+
+  Dialog.show({
+    title: `Edit Label: ${name}`,
+    fields: [{ label: "Text", name: "text", value: props.text || name }],
+    async onSubmit(vals) {
+      props.text = vals.text;
+      await fetch(`/api/elements/${elemRec.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: props }),
+      });
+      Dialog.close();
+      await loadElements();
+      await loadGeometry();
+    },
+  });
+}
+
+function onContextMenu(e) {
+  const target = e.target.closest("[data-type='dimension']");
+  if (!target) return;
+  e.preventDefault();
+  const name = target.getAttribute("data-name");
+  showContextMenu(e.clientX, e.clientY, [
+    { label: "Horizontal", action: () => setDimRotation(name, "horizontal") },
+    { label: "Vertical", action: () => setDimRotation(name, "vertical") },
+    { label: "Parallel", action: () => setDimRotation(name, "parallel") },
+    { label: "Perpendicular", action: () => setDimRotation(name, "perpendicular") },
+  ]);
+}
+
+function showContextMenu(x, y, items) {
+  hideContextMenu();
+  const menu = document.createElement("div");
+  menu.className = "context-menu";
+  menu.style.left = x + "px";
+  menu.style.top = y + "px";
+  for (const item of items) {
+    const btn = document.createElement("div");
+    btn.className = "context-menu-item";
+    btn.textContent = item.label;
+    btn.addEventListener("click", () => { hideContextMenu(); item.action(); });
+    menu.appendChild(btn);
+  }
+  document.body.appendChild(menu);
+  // Close on click outside
+  setTimeout(() => document.addEventListener("click", hideContextMenu, { once: true }), 0);
+}
+
+function hideContextMenu() {
+  const existing = document.querySelector(".context-menu");
+  if (existing) existing.remove();
+}
+
+async function setDimRotation(name, rotation) {
+  const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
+  if (!elemRec) return;
+  const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+  props.label_rotation = rotation;
+  await fetch(`/api/elements/${elemRec.id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ properties: props }),
+  });
+  await loadElements();
+  await loadGeometry();
+}
+
 function onKeyDown(e) {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
 
@@ -2204,6 +2349,8 @@ function onKeyDown(e) {
     case "m": case "M": setTool("measure"); break;
     case "g": case "G": setTool("move"); break;
     case "w": case "W": setTool("draw-wall"); break;
+    case "d": setTool("dimension"); break;
+    case "l": setTool("label"); break;
     case "r": case "R": showRotationDialog(); break;
     case "f": case "F": fitToWindow(); break;
     case "Delete": case "Backspace":
@@ -2227,6 +2374,10 @@ function onKeyDown(e) {
       }
       if (DrawWallTool.start) {
         cancelDrawWall();
+        break;
+      }
+      if (DimTool.start) {
+        cancelDimTool();
         break;
       }
       clearSelection();
@@ -2413,11 +2564,12 @@ function setTool(tool) {
   document.querySelectorAll(".tool-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.tool === tool);
   });
-  const cursors = { select: "crosshair", pan: "grab", measure: "crosshair", move: "move", "draw-wall": "crosshair" };
+  const cursors = { select: "crosshair", pan: "grab", measure: "crosshair", move: "move", "draw-wall": "crosshair", dimension: "crosshair", label: "crosshair" };
   App.els["viewport"].style.cursor = cursors[tool] || "crosshair";
 
   if (tool !== "measure") clearMeasure();
   if (tool !== "draw-wall") cancelDrawWall();
+  if (tool !== "dimension" && typeof cancelDimTool === "function") cancelDimTool();
 }
 
 
@@ -2463,6 +2615,111 @@ function renderDimensions(g) {
     });
     label.textContent = fmtFtIn(dim.dist);
     layer.appendChild(label);
+  }
+}
+
+function renderUserDimensions(g) {
+  if (!App.state.showUserDims || !g.user_dimensions) return;
+  const layer = App.els["layer-labels"];
+
+  for (const ud of g.user_dimensions) {
+    const p = ud.properties;
+    if (!p.start || !p.end) continue;
+    const offset = p.offset || 0;
+    const ax = p.start[0], ay = p.start[1];
+    const bx = p.end[0], by = p.end[1];
+
+    // Direction and perpendicular
+    const dx = bx - ax, dy = by - ay;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 0.01) continue;
+    const ux = dx / len, uy = dy / len;
+    const px = -uy, py = ux;
+
+    // Offset endpoints
+    const ax2 = ax + offset * px, ay2 = ay + offset * py;
+    const bx2 = bx + offset * px, by2 = by + offset * py;
+
+    // Extension lines (A→A', B→B')
+    if (Math.abs(offset) > 0.01) {
+      layer.appendChild(svgEl("line", {
+        x1: ax, y1: -ay, x2: ax2, y2: -ay2, class: "user-dim-ext",
+      }));
+      layer.appendChild(svgEl("line", {
+        x1: bx, y1: -by, x2: bx2, y2: -by2, class: "user-dim-ext",
+      }));
+    }
+
+    // Main dimension line (A'→B')
+    const mainLine = svgEl("line", {
+      x1: ax2, y1: -ay2, x2: bx2, y2: -by2,
+      class: "user-dim-line selectable",
+      "data-type": "dimension", "data-name": ud.name,
+    });
+    layer.appendChild(mainLine);
+
+    // Tick marks at endpoints
+    const tw = 0.15;
+    for (const [tx, ty] of [[ax2, -ay2], [bx2, -by2]]) {
+      layer.appendChild(svgEl("line", {
+        x1: tx - px * tw, y1: ty + py * tw,
+        x2: tx + px * tw, y2: ty - py * tw,
+        class: "user-dim-line",
+      }));
+    }
+
+    // Label at midpoint
+    const mx = (ax2 + bx2) / 2, my = (-ay2 + -by2) / 2;
+    const dist = Math.sqrt((bx2 - ax2) ** 2 + (by2 - ay2) ** 2);
+    let ang = Math.atan2(-by2 - (-ay2), bx2 - ax2) * 180 / Math.PI;
+    // Determine rotation based on label_rotation property
+    const rot = p.label_rotation || "parallel";
+    if (rot === "horizontal") ang = 0;
+    else if (rot === "vertical") ang = -90;
+    else if (rot === "perpendicular") ang += 90;
+    // Keep readable (not upside-down)
+    if (ang >= 90) ang -= 180;
+    else if (ang < -90) ang += 180;
+
+    const angRad = ang * Math.PI / 180;
+    const lx = mx + 0.15 * Math.sin(angRad);
+    const ly = my - 0.15 * Math.cos(angRad);
+
+    const label = svgEl("text", {
+      x: lx, y: ly, class: "user-dim-label selectable",
+      "data-type": "dimension", "data-name": ud.name,
+      transform: `rotate(${ang},${lx},${ly})`,
+    });
+    label.textContent = fmtFtIn(dist);
+    layer.appendChild(label);
+  }
+}
+
+function renderUserLabels(g) {
+  if (!g.label_elements) return;
+  const layer = App.els["layer-labels"];
+
+  for (const le of g.label_elements) {
+    const p = le.properties;
+    if (p.source === "room") continue; // rendered by renderRoomLabels
+    if (!p.position) continue;
+
+    const [ex, en] = p.position;
+    const fontSize = p.font_size || 0.25;
+    const rotation = p.rotation || 0;
+    const text = p.text || le.name;
+
+    const el = svgEl("text", {
+      x: ex, y: -en,
+      class: "user-label selectable",
+      "text-anchor": "middle",
+      "dominant-baseline": "middle",
+      "data-type": "label", "data-name": le.name,
+    });
+    el.style.fontSize = fontSize + "px";
+    if (rotation) el.setAttribute("transform", `rotate(${-rotation},${ex},${-en})`);
+    el.textContent = text;
+    layer.appendChild(el);
   }
 }
 

@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 7 — Complete)
+## Current State (Phase 8 — Complete, Phase 9 next)
 
-**188 of 226 requirements implemented.**  368 app tests, 586 pre-existing tests
-(954 total).  All implemented requirements have automated test coverage.
+**197 of 226 requirements implemented.**  395 app tests, 586 pre-existing tests
+(982 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -423,6 +423,15 @@ IW_HOSTED_OPENINGS), `app/static/js/dialogs.js` (customContent, presetButtons),
 `app/static/css/app.css` (rubber-band, draw-preview, catalog, preset styles),
 `app/templates/index.html` (Wall button, Add section, script tags)
 
+**Post-phase fixes:**
+- Fixed race condition: `loadElements()` now awaits before first
+  `loadGeometry()` call so item overrides are applied on initial render.
+  SSE `element_changed` handler now re-renders the canvas.
+- Fixed Reset to Defaults: now clears override elements (move offsets),
+  placed items, and drawn walls via `reset_elements()`.  Elements and doors
+  snapshots included in undo state for full_reset.  Client reloads elements
+  and geometry after reset (no page reload required).
+
 **Deferred to future phases:**
 - TL-17 endpoint drag handles (infrastructure exists but interactive handles
   not yet rendered on drawn wall selection)
@@ -430,12 +439,17 @@ IW_HOSTED_OPENINGS), `app/static/js/dialogs.js` (customContent, presetButtons),
 
 ---
 
-## Phase 8 — Labels, Dimensions, and Annotations
+## Phase 8 — Labels, Dimensions, and Annotations ✓
 
 **Goal:** User-placeable room labels, custom dimension lines, and annotation
 editing.  Unifies the room label system under the `elements` table.
 
-**Requirements:** TL-11–14, LABEL-1–4, DIS-7 (9 reqs)
+**Requirements:** TL-11–14, LABEL-1–4, DIS-7 (9 reqs) — all implemented
+
+**Completed.** 27 new tests in `tests/test_zapp_labels.py`.
+
+Post-phase fixes:
+- Fixed variant exclusion seeding on DB upgrade path (pre-existing issue from Phase 7).
 
 **Work:**
 - Create `app/labels.py` — label and dimension line management using the

@@ -90,6 +90,8 @@ tables from source:
 | `update_constant()` | Single constant update |
 | `update_constants_batch()` | Multi-constant transaction |
 | `reset_constants()` | Clear and re-seed from source |
+| `reset_elements()` | Clear elements/doors, re-seed IW walls + doors |
+| `restore_elements(elems, doors)` | Full replace from snapshot (undo) |
 | `get_categories()` | Distinct category list |
 | `get_outline_chain()` | All segment rows (18 default) |
 | `get_outline_chain_row(seq)` | Single segment by seq |
@@ -347,6 +349,16 @@ of undo entries with a position pointer.  Entries are persisted to the
 - On record: truncates redo entries, appends, trims oldest if > 50, persists
 - On undo/redo: applies state, adjusts position (no DB write needed — the
   database state changes happen through the apply function)
+
+### app/labels.py — Label & Dimension Helpers (Phase 8)
+
+Room label seeding and auto-name generators for user labels/dimensions.
+
+| Function | Purpose |
+|----------|---------|
+| `seed_room_labels(conn)` | Create 11 room label elements if not present; migrate offsets from `room_label_offsets` |
+| `next_dimension_name(elements)` | Scan for `UD\d+`, return next (e.g. `UD4`) |
+| `next_label_name(elements)` | Scan for `UL\d+`, return next (e.g. `UL3`) |
 
 ### app/apputil.py — Shared Serialisation Helpers
 
@@ -655,9 +667,10 @@ will be unnecessary once the app owns the constants directly (Phase 12).
 
 The charter describes a full parametric editor; the current
 implementation is a **parametric viewer with constant editing, undo,
-element/door CRUD, move tool, outline chain editing, and enhanced canvas
-rendering** (Phases 0–6 complete) — 172 of 226 requirements are
-implemented across 341 app tests (927 total).  Phase 1 established
+element/door CRUD, move tool, outline chain editing, enhanced canvas
+rendering, element creation/deletion/rotation tools, and label/dimension
+annotations** (Phases 0–8 complete) — 197 of 226 requirements are
+implemented across 395 app tests (982 total).  Phase 1 established
 automated test coverage for all implemented server-side requirements.
 Phase 2 added undo/redo infrastructure.  Phase 3 added elements and
 doors as first-class database objects with full CRUD APIs.  Phase 4
@@ -666,10 +679,12 @@ constraints, grid snap, multi-select group move, and offset dialog.
 Phase 5 added the outline closure solver, editable chain parameters,
 and canvas F-point dragging.  Phase 6 added door arc rendering
 (structural + appliance), clearance zones, and display toggles.
-Phase 7 added draw wall tool, catalog placement (furniture/appliance/fixture),
-delete with cascade, rotate, multi-select (shift+rubber-band), opening width
-editing, and shape editor with SVG import.
-Next phase: Phase 8 (labels, dimensions, and annotations).
+Phase 7 added draw wall tool, catalog placement, delete with cascade,
+rotate, multi-select, opening width editing, and shape editor.
+Phase 8 added user dimension tool, label tool, room label migration
+to elements table, context menu for dimension rotation, inline label
+editing, and font size control.
+Next phase: Phase 9 (styling and product links).
 
 The development arc follows three stages:
 

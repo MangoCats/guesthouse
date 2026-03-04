@@ -3,13 +3,14 @@
 Patches floorplan.constants with DB values, runs existing computation
 pipeline, and returns JSON-serialisable results.
 """
+import json
 import math
 import os
 import subprocess
 import sys
 
 from app.apputil import point_to_list, bbox_from_poly, seg_to_dict
-from app.database import get_variant_exclusions, get_room_label_offsets
+from app.database import get_variant_exclusions, get_room_label_offsets, get_all_elements
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -494,12 +495,28 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant):
     data = Data(pts=pts, inner_segs=inner_segs, radii=radii)
     areas = compute_room_areas(data, layout)
 
-    # --- Build label list from polygon centroids + DB offsets ---
-    offsets = get_room_label_offsets()
+    # --- Build label list from polygon centroids + element offsets ---
+    # Try label elements first (Phase 8), fall back to room_label_offsets
+    label_offsets = {}
+    try:
+        all_elems = get_all_elements()
+        for e in all_elems:
+            if e["type"] == "label":
+                props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
+                if props.get("source") == "room":
+                    label_offsets[e["name"]] = (
+                        props.get("offset_e", 0.0),
+                        props.get("offset_n", 0.0),
+                    )
+    except Exception:
+        pass
+    if not label_offsets:
+        label_offsets = get_room_label_offsets()
+
     labels = []
     for name, poly in rooms.items():
         cx, cy = _centroid(poly)
-        de, dn = offsets.get(name, (0.0, 0.0))
+        de, dn = label_offsets.get(name, (0.0, 0.0))
         lbl = {
             "name": name,
             "pos": point_to_list((cx + de, cy + dn)),
@@ -770,6 +787,28 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
 
     # Appliance door arcs (Phase 6)
     result["appliance_doors"] = _compute_appliance_doors(variant_items)
+
+    # User dimensions and label elements (Phase 8)
+    all_elements = get_all_elements()
+    user_dims = []
+    label_elems = []
+    for e in all_elements:
+        props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
+        if e["type"] == "dimension":
+            user_dims.append({
+                "id": e["id"], "name": e["name"], "properties": props,
+            })
+        elif e["type"] == "label":
+            entry = {"id": e["id"], "name": e["name"], "properties": props}
+            if props.get("source") == "room":
+                # Merge centroid position from room_labels
+                rl = next((r for r in result["room_labels"] if r["name"] == e["name"]), None)
+                if rl:
+                    entry["centroid"] = rl["centroid"]
+                    entry["pos"] = rl["pos"]
+            label_elems.append(entry)
+    result["user_dimensions"] = user_dims
+    result["label_elements"] = label_elems
 
     return result
 

@@ -39,12 +39,19 @@ class TestDB9Elements:
             ).fetchone()[0]
         assert count == 13
 
-    def test_no_non_wall_elements_seeded(self, fresh_db):
+    def test_only_walls_and_labels_seeded(self, fresh_db):
         with get_db(fresh_db) as conn:
             count = conn.execute(
-                "SELECT count(*) FROM elements WHERE type != 'wall'"
+                "SELECT count(*) FROM elements WHERE type NOT IN ('wall', 'label')"
             ).fetchone()[0]
         assert count == 0
+
+    def test_11_room_labels_seeded(self, fresh_db):
+        with get_db(fresh_db) as conn:
+            count = conn.execute(
+                "SELECT count(*) FROM elements WHERE type = 'label'"
+            ).fetchone()[0]
+        assert count == 11
 
     def test_element_properties_json_valid(self, fresh_db):
         elements = get_all_elements(fresh_db)
@@ -103,9 +110,9 @@ class TestElementCRUD:
 class TestElementBusinessLogic:
 
     def test_get_elements_for_variant_all(self, fresh_db):
-        # All 13 IW walls have variant=NULL, so any variant should see them
+        # 13 IW walls + 11 room labels have variant=NULL, visible to all variants
         elems = get_elements_for_variant("standard", fresh_db)
-        assert len(elems) == 13
+        assert len(elems) == 24  # 13 walls + 11 labels
 
     def test_get_elements_for_variant_specific(self, fresh_db):
         create_element("furniture", "VARIANT_ITEM", {}, "standard", fresh_db)
