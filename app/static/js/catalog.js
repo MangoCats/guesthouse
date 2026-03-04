@@ -34,7 +34,7 @@ const PlaceTool = {
   active: false,
   itemTemplate: null,
   itemType: null,
-  previewEl: null,
+  previewEl: null, // reserved for future hover-preview during placement
 };
 
 

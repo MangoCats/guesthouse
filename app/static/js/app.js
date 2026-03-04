@@ -736,23 +736,6 @@ function renderFurniture(g, overrides) {
       layer.appendChild(el);
     }
   }
-
-  // Render custom placed elements from elements table
-  for (const elem of (App.state.elements || [])) {
-    const props = typeof elem.properties === "string"
-      ? JSON.parse(elem.properties) : elem.properties;
-    if (props && props.source === "placed" && props.poly) {
-      const cssClass = `item-${elem.type} selectable`;
-      const el = svgEl("polygon", {
-        points: polyToStr(props.poly),
-        class: cssClass,
-        "data-type": elem.type,
-        "data-name": elem.name,
-      });
-      el.addEventListener("click", (e) => selectElement(elem.type, elem.name, { ...props, bbox: bboxFromPoly(props.poly) }, e));
-      layer.appendChild(el);
-    }
-  }
 }
 
 function renderRoomLabels(g) {
@@ -1150,11 +1133,11 @@ function showProperties(type, name, data) {
       addStyleControls(tbody, _elemRec, _props, type);
       addViewOverrideControls(tbody, _elemRec, _props);
       addProductUrlField(tbody, _elemRec, _props);
+      addElementActions(tbody, _elemRec);
     } else if (data && data.product_url) {
       // No DB record but variant item has a product URL — show read-only
       addProductUrlField(tbody, null, { product_url: data.product_url });
     }
-    addElementActions(tbody, _elemRec);
   } else if (type === "dimension") {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
     if (elemRec) {
