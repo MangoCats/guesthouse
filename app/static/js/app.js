@@ -23,6 +23,7 @@ const App = {
     showClearance: false,
     variant: "standard",
     measureStart: null,
+    rubberBand: null,
     isDragging: false,
     dragStart: null,
     lastPan: null,
@@ -48,6 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadConstants();
   loadGeometry();
   loadElements();
+  loadShapes();
   loadBuildLabel();
 });
 
@@ -378,6 +380,18 @@ function polyToStr(poly) {
   return poly.map(p => `${p[0]},${-p[1]}`).join(" ");
 }
 
+/** Compute bounding box {w, e, s, n} from a polygon. */
+function bboxFromPoly(poly) {
+  let w = Infinity, e = -Infinity, s = Infinity, n = -Infinity;
+  for (const p of poly) {
+    if (p[0] < w) w = p[0];
+    if (p[0] > e) e = p[0];
+    if (p[1] < s) s = p[1];
+    if (p[1] > n) n = p[1];
+  }
+  return { w, e, s, n };
+}
+
 /** Build override offset lookup from App.state.elements. */
 function itemOverrides() {
   const ov = {};
@@ -453,6 +467,21 @@ function renderInteriorWalls(g) {
     });
     el.addEventListener("click", (e) => selectElement("wall", name, wall, e));
     layer.appendChild(el);
+  }
+  // Render custom drawn walls from elements
+  for (const elem of (App.state.elements || [])) {
+    const props = typeof elem.properties === "string"
+      ? JSON.parse(elem.properties) : elem.properties;
+    if (elem.type === "wall" && props && props.source === "drawn" && props.poly) {
+      const el = svgEl("polygon", {
+        points: polyToStr(props.poly),
+        class: "wall-fill selectable",
+        "data-type": "wall",
+        "data-name": elem.name,
+      });
+      el.addEventListener("click", (e) => selectElement("wall", elem.name, { poly: props.poly, ...props }, e));
+      layer.appendChild(el);
+    }
   }
 }
 
@@ -649,6 +678,23 @@ function renderFurniture(g, overrides) {
     el.addEventListener("click", (e) => selectElement("furniture", name, item, e));
     layer.appendChild(el);
   }
+
+  // Render custom placed elements from elements table
+  for (const elem of (App.state.elements || [])) {
+    const props = typeof elem.properties === "string"
+      ? JSON.parse(elem.properties) : elem.properties;
+    if (props && props.source === "placed" && props.poly) {
+      const cssClass = `item-${elem.type} selectable`;
+      const el = svgEl("polygon", {
+        points: polyToStr(props.poly),
+        class: cssClass,
+        "data-type": elem.type,
+        "data-name": elem.name,
+      });
+      el.addEventListener("click", (e) => selectElement(elem.type, elem.name, { ...props, bbox: bboxFromPoly(props.poly) }, e));
+      layer.appendChild(el);
+    }
+  }
 }
 
 function renderRoomLabels(g) {
@@ -839,8 +885,8 @@ function selectElement(type, name, data, event) {
     return;
   }
 
-  // Ctrl+Click: toggle in/out of multi-selection
-  if (event && (event.ctrlKey || event.metaKey)) {
+  // Ctrl+Click or Shift+Click: toggle in/out of multi-selection
+  if (event && (event.ctrlKey || event.metaKey || event.shiftKey)) {
     const idx = App.state.selections.findIndex(s => s.name === name && s.type === type);
     if (idx >= 0) {
       App.state.selections.splice(idx, 1);
@@ -912,13 +958,54 @@ function showProperties(type, name, data) {
     addPropRow(tbody, "Easting", fmtFtIn(data.pos[0]));
     addPropRow(tbody, "Northing", fmtFtIn(data.pos[1]));
   } else if (type === "wall") {
-    const b = data.bbox;
-    addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
-    addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
-    addPropRow(tbody, "West", fmtFtIn(b.w));
-    addPropRow(tbody, "South", fmtFtIn(b.s));
-    addPropRow(tbody, "East", fmtFtIn(b.e));
-    addPropRow(tbody, "North", fmtFtIn(b.n));
+    // Check if this is a drawn wall
+    const elemRec = (App.state.elements || []).find(e => e.name === name);
+    const props = elemRec ? (typeof elemRec.properties === "string"
+      ? JSON.parse(elemRec.properties) : elemRec.properties) : null;
+    if (props && props.source === "drawn") {
+      // TL-16: Drawn wall — show editable thickness
+      addPropRow(tbody, "Source", "drawn");
+      if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
+      if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
+      // Editable thickness
+      const thickTr = document.createElement("tr");
+      const thickTd1 = document.createElement("td");
+      thickTd1.textContent = "Thickness";
+      thickTr.appendChild(thickTd1);
+      const thickTd2 = document.createElement("td");
+      const thickInp = document.createElement("input");
+      thickInp.type = "text";
+      thickInp.className = "prop-edit-input";
+      thickInp.value = fmtFtIn(props.thickness || 4.0 / 12.0);
+      thickInp.addEventListener("change", async () => {
+        const newThick = parseDimension(thickInp.value);
+        if (newThick === null || newThick <= 0) {
+          showToast("Invalid thickness", "error");
+          return;
+        }
+        const newPoly = wallPoly(props.start, props.end, newThick);
+        if (!newPoly) return;
+        const newProps = { ...props, thickness: newThick, poly: newPoly };
+        await fetch(`/api/elements/${elemRec.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ properties: newProps }),
+        });
+        await loadElements();
+        await loadGeometry();
+      });
+      thickTd2.appendChild(thickInp);
+      thickTr.appendChild(thickTd2);
+      tbody.appendChild(thickTr);
+    } else {
+      const b = data.bbox;
+      addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
+      addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
+      addPropRow(tbody, "West", fmtFtIn(b.w));
+      addPropRow(tbody, "South", fmtFtIn(b.s));
+      addPropRow(tbody, "East", fmtFtIn(b.e));
+      addPropRow(tbody, "North", fmtFtIn(b.n));
+    }
     // Show related constants
     const related = findRelatedConstants(name);
     if (related.length > 0) {
@@ -931,7 +1018,15 @@ function showProperties(type, name, data) {
     addPropRow(tbody, "Name", data.name);
     if (data.seg_start) addPropRow(tbody, "Segment", `${data.seg_start}–${data.seg_end}`);
     if (data.wall_name) addPropRow(tbody, "Wall", data.wall_name);
-    if (data.width) addPropRow(tbody, "Width", fmtFtIn(data.width));
+    // SEL-10: Editable width via controlling constant
+    const widthConstName = findWidthConstant(data.name);
+    const widthConst = widthConstName && App.state.constants.find(c => c.name === widthConstName);
+    if (widthConst) {
+      const label = widthConstName.includes("HALF") ? "Half-width" : "Width";
+      addPropRow(tbody, label, formatConstValue(widthConst), true, widthConstName);
+    } else if (data.width) {
+      addPropRow(tbody, "Width", fmtFtIn(data.width));
+    }
     if (data.orientation) addPropRow(tbody, "Orient", data.orientation);
     if (data.poly) {
       const dx = data.poly[1][0] - data.poly[0][0];
@@ -966,6 +1061,15 @@ function showProperties(type, name, data) {
       addPropRow(tbody, "Center N", fmtFtIn((b.s + b.n) / 2));
     }
     if (data.rotation !== undefined) addPropRow(tbody, "Rotation", data.rotation.toFixed(1) + "°");
+    // TL-26: Shape assignment for placed elements
+    const elemRec = (App.state.elements || []).find(e => e.name === name);
+    if (elemRec) {
+      const props = typeof elemRec.properties === "string"
+        ? JSON.parse(elemRec.properties) : elemRec.properties;
+      if (props && props.source === "placed" && typeof addShapePicker === "function") {
+        addShapePicker(tbody, elemRec, props);
+      }
+    }
     const related = findRelatedConstants(name);
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
@@ -999,6 +1103,25 @@ function addPropRow(tbody, label, value, editable = false, constName = null) {
   }
   tr.appendChild(tdVal);
   tbody.appendChild(tr);
+}
+
+/** Return the width-controlling constant name for an opening, or null. */
+function findWidthConstant(openingName) {
+  // Outer openings: O1-O6 use {name}_WIDTH; O4,O7-O11 use {name}_HALF_WIDTH
+  // Rough openings: RO1→IW1_RO_WIDTH, RO2→IW2_RO_WIDTH, RO3→RO3_WIDTH,
+  //   RO4→IW2_RO_WIDTH, RO5→IW4_RO_WIDTH, RO6→IW11_RO_WIDTH, RO7→IW9_RO_WIDTH
+  const RO_MAP = {
+    RO1: "IW1_RO_WIDTH", RO2: "IW2_RO_WIDTH", RO3: "RO3_WIDTH",
+    RO4: "IW2_RO_WIDTH", RO5: "IW4_RO_WIDTH", RO6: "IW11_RO_WIDTH",
+    RO7: "IW9_RO_WIDTH",
+  };
+  const n = openingName.toUpperCase();
+  if (RO_MAP[n]) return RO_MAP[n];
+  // Try direct WIDTH, then HALF_WIDTH
+  for (const suffix of ["_WIDTH", "_HALF_WIDTH"]) {
+    if (App.state.constants.find(c => c.name === n + suffix)) return n + suffix;
+  }
+  return null;
 }
 
 function findRelatedConstants(elementName) {
@@ -1430,11 +1553,28 @@ function updateOpeningsTable() {
     const dy = op.poly[1][1] - op.poly[0][1];
     const w = Math.sqrt(dx * dx + dy * dy);
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${op.name}</td>
-      <td>${op.seg_start}–${op.seg_end}</td>
-      <td>${fmtFtIn(w)}</td>
-    `;
+    const tdName = document.createElement("td");
+    tdName.textContent = op.name;
+    tr.appendChild(tdName);
+    const tdSeg = document.createElement("td");
+    tdSeg.textContent = `${op.seg_start}–${op.seg_end}`;
+    tr.appendChild(tdSeg);
+    // DT-7: Editable width cell
+    const tdW = document.createElement("td");
+    const wConstName = findWidthConstant(op.name);
+    const wConst = wConstName && App.state.constants.find(c => c.name === wConstName);
+    if (wConst) {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = "table-edit-input";
+      inp.value = formatConstValue(wConst);
+      inp.addEventListener("change", () => handleConstantEdit(wConstName, inp.value));
+      inp.addEventListener("click", (e) => e.stopPropagation());
+      tdW.appendChild(inp);
+    } else {
+      tdW.textContent = fmtFtIn(w);
+    }
+    tr.appendChild(tdW);
     tr.classList.add("selectable");
     tr.addEventListener("click", () => selectElement("opening", op.name, op));
     tbody1.appendChild(tr);
@@ -1445,12 +1585,31 @@ function updateOpeningsTable() {
   tbody2.innerHTML = "";
   for (const ro of (g.rough_openings || [])) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${ro.name}</td>
-      <td>${ro.wall_name}</td>
-      <td>${fmtFtIn(ro.width)}</td>
-      <td>${ro.orientation}</td>
-    `;
+    const tdName = document.createElement("td");
+    tdName.textContent = ro.name;
+    tr.appendChild(tdName);
+    const tdWall = document.createElement("td");
+    tdWall.textContent = ro.wall_name;
+    tr.appendChild(tdWall);
+    // DT-7: Editable width cell
+    const tdW = document.createElement("td");
+    const wConstName = findWidthConstant(ro.name);
+    const wConst = wConstName && App.state.constants.find(c => c.name === wConstName);
+    if (wConst) {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = "table-edit-input";
+      inp.value = formatConstValue(wConst);
+      inp.addEventListener("change", () => handleConstantEdit(wConstName, inp.value));
+      inp.addEventListener("click", (e) => e.stopPropagation());
+      tdW.appendChild(inp);
+    } else {
+      tdW.textContent = fmtFtIn(ro.width);
+    }
+    tr.appendChild(tdW);
+    const tdOri = document.createElement("td");
+    tdOri.textContent = ro.orientation;
+    tr.appendChild(tdOri);
     tr.classList.add("selectable");
     tr.addEventListener("click", () => selectElement("rough_opening", ro.name, ro));
     tbody2.appendChild(tr);
@@ -1812,8 +1971,19 @@ function onMouseDown(e) {
     if (typeof outlineEditorMouseDown === "function") {
       outlineEditorMouseDown(e);
     }
+    // SEL-4: Start rubber-band drag-select if clicking empty space
+    if (!OutlineEditor || !OutlineEditor.pending) {
+      const rect = App.els["viewport"].getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      App.state.rubberBand = { sx, sy, active: false };
+    }
   } else if (e.button === 0 && App.state.activeTool === "move") {
     moveToolMouseDown(e);
+  } else if (e.button === 0 && App.state.activeTool === "draw-wall") {
+    drawWallMouseDown(e);
+  } else if (e.button === 0 && PlaceTool.active) {
+    placeToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "measure") {
     const rect = App.els["viewport"].getBoundingClientRect();
     const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
@@ -1854,6 +2024,39 @@ function onMouseMove(e) {
     return;
   }
 
+  // Draw wall preview
+  if (App.state.activeTool === "draw-wall" && DrawWallTool.start) {
+    drawWallMouseMove(e);
+  }
+
+  // SEL-4: Rubber-band drag-select
+  if (App.state.rubberBand) {
+    const rb = App.state.rubberBand;
+    const dx = sx - rb.sx;
+    const dy = sy - rb.sy;
+    if (!rb.active && Math.abs(dx) + Math.abs(dy) > 4) {
+      rb.active = true;
+      // Create rubber-band SVG rect in screen coords projected to world
+      const el = svgEl("rect", { class: "rubber-band" });
+      document.getElementById("layer-measure").appendChild(el);
+      rb.el = el;
+    }
+    if (rb.active && rb.el) {
+      // Convert screen corners to world SVG coords
+      const [wx1, wy1] = screenToWorld(Math.min(rb.sx, sx), Math.min(rb.sy, sy));
+      const [wx2, wy2] = screenToWorld(Math.max(rb.sx, sx), Math.max(rb.sy, sy));
+      // SVG uses (E, -N): x = world E, y = -world N
+      const svgX = Math.min(wx1, wx2);
+      const svgY = Math.min(-wy1, -wy2);
+      const svgW = Math.abs(wx2 - wx1);
+      const svgH = Math.abs(wy2 - wy1);
+      rb.el.setAttribute("x", svgX);
+      rb.el.setAttribute("y", svgY);
+      rb.el.setAttribute("width", svgW);
+      rb.el.setAttribute("height", svgH);
+    }
+  }
+
   if (App.state.isDragging) {
     const dx = e.clientX - App.state.dragStart.x;
     const dy = e.clientY - App.state.dragStart.y;
@@ -1878,6 +2081,50 @@ function onMouseUp(e) {
   if (MoveTool.active || MoveTool.pending) {
     moveToolMouseUp(e);
     return;
+  }
+
+  // SEL-4: Complete rubber-band drag-select
+  if (App.state.rubberBand) {
+    const rb = App.state.rubberBand;
+    if (rb.active) {
+      // Compute world-coordinate bbox
+      const rect = App.els["viewport"].getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const [wx1, wy1] = screenToWorld(Math.min(rb.sx, sx), Math.min(rb.sy, sy));
+      const [wx2, wy2] = screenToWorld(Math.max(rb.sx, sx), Math.max(rb.sy, sy));
+      const minE = Math.min(wx1, wx2), maxE = Math.max(wx1, wx2);
+      const minN = Math.min(wy1, wy2), maxN = Math.max(wy1, wy2);
+
+      // Find all elements that intersect the rubber-band bbox
+      clearSelection();
+      const hits = document.querySelectorAll("[data-name][data-type]");
+      for (const el of hits) {
+        const elName = el.getAttribute("data-name");
+        const elType = el.getAttribute("data-type");
+        // Use SVG bounding box for hit test
+        try {
+          const bb = el.getBBox();
+          // SVG coords: x = E, y = -N
+          const elMinE = bb.x, elMaxE = bb.x + bb.width;
+          const elMinN = -bb.y - bb.height, elMaxN = -bb.y;
+          // Check overlap
+          if (elMaxE >= minE && elMinE <= maxE &&
+              elMaxN >= minN && elMinN <= maxN) {
+            App.state.selections.push({ type: elType, name: elName, data: {} });
+            el.classList.add("multi-selected");
+          }
+        } catch (_) { /* ignore elements without bbox */ }
+      }
+      if (App.state.selections.length > 0) {
+        App.state.selection = App.state.selections[App.state.selections.length - 1];
+        App.els["selection-info"].textContent =
+          `${App.state.selections.length} selected`;
+      }
+      // Remove rubber-band rect
+      if (rb.el && rb.el.parentNode) rb.el.remove();
+    }
+    App.state.rubberBand = null;
   }
 
   if (App.state.isDragging) {
@@ -1955,7 +2202,13 @@ function onKeyDown(e) {
     case "h": case "H": setTool("pan"); break;
     case "m": case "M": setTool("measure"); break;
     case "g": case "G": setTool("move"); break;
+    case "w": case "W": setTool("draw-wall"); break;
+    case "r": case "R": showRotationDialog(); break;
     case "f": case "F": fitToWindow(); break;
+    case "Delete": case "Backspace":
+      e.preventDefault();
+      deleteSelectedElements();
+      break;
     case "Enter":
       if (App.state.activeTool === "move" && App.state.selection) {
         showOffsetDialog();
@@ -1971,6 +2224,10 @@ function onKeyDown(e) {
         MoveTool.origTransforms = [];
         break;
       }
+      if (DrawWallTool.start) {
+        cancelDrawWall();
+        break;
+      }
       clearSelection();
       clearMeasure();
       break;
@@ -1983,6 +2240,133 @@ function onKeyDown(e) {
       applyTransform();
       break;
   }
+}
+
+/** Delete selected elements after confirmation (TL-22, TL-23). */
+async function deleteSelectedElements() {
+  // Gather targets from multi-selection or single selection
+  const targets = App.state.selections.length > 0
+    ? App.state.selections
+    : (App.state.selection ? [App.state.selection] : []);
+  if (targets.length === 0) return;
+
+  // Find DB element records for each target
+  const elements = App.state.elements || [];
+  const toDelete = [];
+  for (const t of targets) {
+    const el = elements.find(e => e.name === t.name);
+    if (el) toDelete.push(el);
+  }
+  if (toDelete.length === 0) {
+    showToast("Selected items cannot be deleted", "warning");
+    return;
+  }
+
+  // Build confirmation message with cascade warnings
+  const lines = toDelete.map(el => {
+    let line = el.name;
+    if (el.type === "wall") {
+      const hosted = IW_HOSTED_OPENINGS[el.name] || [];
+      if (hosted.length > 0) {
+        line += ` (will also delete ${hosted.join(", ")})`;
+      }
+    }
+    return line;
+  });
+  const msg = `Delete ${lines.join(", ")}?`;
+  if (!confirm(msg)) return;
+
+  // Delete each element via API
+  for (const el of toDelete) {
+    const resp = await fetch(`/api/elements/${el.id}`, { method: "DELETE" });
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(data.error || "Delete failed", "error");
+      return;
+    }
+  }
+
+  clearSelection();
+  await loadElements();
+  await loadGeometry();
+  showToast(`Deleted ${toDelete.map(e => e.name).join(", ")}`, "success");
+}
+
+/** Compute a rotated rectangle polygon from center, width, depth, angle (degrees). */
+function rotatedRectPoly(cx, cy, w, d, angleDeg) {
+  const rad = angleDeg * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const hw = w / 2, hd = d / 2;
+  // Local corners before rotation
+  const corners = [[-hw, hd], [hw, hd], [hw, -hd], [-hw, -hd]];
+  return corners.map(([lx, ly]) => [
+    cx + lx * cos - ly * sin,
+    cy + lx * sin + ly * cos,
+  ]);
+}
+
+/** Show rotation dialog for selected placed/drawn element (TL-24). */
+function showRotationDialog() {
+  const sel = App.state.selection;
+  if (!sel) {
+    showToast("Select an element first", "warning");
+    return;
+  }
+  const elements = App.state.elements || [];
+  const elemRec = elements.find(e => e.name === sel.name);
+  if (!elemRec) {
+    showToast("Only custom elements can be rotated", "warning");
+    return;
+  }
+  const props = typeof elemRec.properties === "string"
+    ? JSON.parse(elemRec.properties) : elemRec.properties;
+  if (!props || (props.source !== "placed" && props.source !== "drawn")) {
+    showToast("Only placed/drawn elements can be rotated", "warning");
+    return;
+  }
+
+  const currentAngle = props.rotation || 0;
+  Dialog.show({
+    title: `Rotate ${sel.name}`,
+    fields: [
+      { label: "Angle (degrees)", name: "angle", value: String(currentAngle) },
+    ],
+    presetButtons: {
+      target: "angle",
+      values: [
+        { label: "0", value: "0" },
+        { label: "90", value: "90" },
+        { label: "180", value: "180" },
+        { label: "270", value: "270" },
+      ],
+    },
+    async onSubmit(values) {
+      const angle = parseFloat(values.angle);
+      if (isNaN(angle)) {
+        showToast("Invalid angle", "error");
+        return;
+      }
+      const newProps = { ...props, rotation: angle };
+      // Recompute poly for placed elements
+      if (props.source === "placed" && props.center && props.width && props.depth) {
+        newProps.poly = rotatedRectPoly(
+          props.center[0], props.center[1],
+          props.width, props.depth, angle
+        );
+      }
+      // For drawn walls, recompute poly from start/end/thickness with rotation
+      // (drawn walls use the poly from wallPoly, rotation not applicable the same way)
+
+      await fetch(`/api/elements/${elemRec.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: newProps }),
+      });
+      await loadElements();
+      await loadGeometry();
+      showToast(`Rotated ${sel.name} to ${angle}°`, "success");
+    },
+  });
 }
 
 function updateUndoButtons(canUndo, canRedo) {
@@ -2028,10 +2412,11 @@ function setTool(tool) {
   document.querySelectorAll(".tool-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.tool === tool);
   });
-  const cursors = { select: "crosshair", pan: "grab", measure: "crosshair", move: "move" };
+  const cursors = { select: "crosshair", pan: "grab", measure: "crosshair", move: "move", "draw-wall": "crosshair" };
   App.els["viewport"].style.cursor = cursors[tool] || "crosshair";
 
   if (tool !== "measure") clearMeasure();
+  if (tool !== "draw-wall") cancelDrawWall();
 }
 
 

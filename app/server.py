@@ -565,6 +565,48 @@ def create_app(db_path=None):
         from app.variants import VARIANTS
         return jsonify([{"name": k, "label": v["label"]} for k, v in VARIANTS.items()])
 
+    # -- Shapes API --
+
+    @app.route("/api/shapes")
+    def api_shapes():
+        from app.database import get_shapes
+        return jsonify(get_shapes(db))
+
+    @app.route("/api/shapes", methods=["POST"])
+    def api_create_shape():
+        from app.database import create_shape
+        body = request.get_json(force=True)
+        name = body.get("name")
+        poly_json = body.get("poly_json")
+        if not name or poly_json is None:
+            return jsonify({"error": "name and poly_json required"}), 400
+        try:
+            shape = create_shape(
+                name, poly_json,
+                scale=body.get("scale", 1.0),
+                origin=body.get("origin", "center"),
+                width_key=body.get("width_key"),
+                depth_key=body.get("depth_key"),
+                description=body.get("description", ""),
+                db_path=db,
+            )
+            return jsonify(shape), 201
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    @app.route("/api/shapes/<name>", methods=["PUT"])
+    def api_update_shape(name):
+        from app.database import get_shape, update_shape
+        if not get_shape(name, db):
+            return jsonify({"error": "not found"}), 404
+        body = request.get_json(force=True)
+        update_shape(name, db_path=db, **{
+            k: body[k] for k in
+            ("poly_json", "scale", "origin", "width_key", "depth_key", "description")
+            if k in body
+        })
+        return jsonify(get_shape(name, db))
+
     # -- Outline chain API --
 
     @app.route("/api/outline")

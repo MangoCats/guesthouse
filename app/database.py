@@ -703,6 +703,48 @@ def get_shape(name, db_path=None):
         return dict(row) if row else None
 
 
+def create_shape(name, poly_json, scale=1.0, origin="center",
+                 width_key=None, depth_key=None, description="", db_path=None):
+    """Create a new shape. Returns the created record dict."""
+    import json as _json
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT INTO shapes (name, poly_json, scale, origin, width_key, depth_key, description) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, _json.dumps(poly_json) if isinstance(poly_json, list) else poly_json,
+             scale, origin, width_key, depth_key, description),
+        )
+    return get_shape(name, db_path)
+
+
+def update_shape(name, **kwargs):
+    """Update a shape by name. Accepted kwargs: poly_json, scale, origin,
+    width_key, depth_key, description. Returns True if updated."""
+    import json as _json
+    db_path = kwargs.pop("db_path", None)
+    sets, vals = [], []
+    for key in ("poly_json", "scale", "origin", "width_key", "depth_key", "description"):
+        if key in kwargs:
+            v = kwargs[key]
+            if key == "poly_json" and isinstance(v, list):
+                v = _json.dumps(v)
+            sets.append(f"{key} = ?")
+            vals.append(v)
+    if not sets:
+        return False
+    vals.append(name)
+    with get_db(db_path) as conn:
+        cur = conn.execute(f"UPDATE shapes SET {', '.join(sets)} WHERE name = ?", vals)
+        return cur.rowcount > 0
+
+
+def delete_shape(name, db_path=None):
+    """Delete a shape by name. Returns True if deleted."""
+    with get_db(db_path) as conn:
+        cur = conn.execute("DELETE FROM shapes WHERE name = ?", (name,))
+        return cur.rowcount > 0
+
+
 def get_variant_exclusions(variant, db_path=None):
     """Return excluded element names for a variant, grouped by type.
 

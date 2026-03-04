@@ -25,8 +25,13 @@ const Dialog = {
     title.textContent = opts.title;
     dialog.appendChild(title);
 
+    // Custom content (e.g. catalog grid)
+    if (opts.customContent) {
+      dialog.appendChild(opts.customContent);
+    }
+
     const inputs = {};
-    for (const f of opts.fields) {
+    for (const f of (opts.fields || [])) {
       const field = document.createElement("div");
       field.className = "dialog-field";
       const label = document.createElement("label");
@@ -40,6 +45,20 @@ const Dialog = {
       field.appendChild(input);
       dialog.appendChild(field);
       inputs[f.name] = input;
+    }
+
+    // Preset buttons (e.g. rotation presets)
+    if (opts.presetButtons && inputs[opts.presetButtons.target]) {
+      const presetDiv = document.createElement("div");
+      presetDiv.className = "dialog-presets";
+      for (const preset of opts.presetButtons.values) {
+        const btn = document.createElement("button");
+        btn.className = "dialog-preset-btn";
+        btn.textContent = preset.label;
+        btn.onclick = () => { inputs[opts.presetButtons.target].value = preset.value; };
+        presetDiv.appendChild(btn);
+      }
+      dialog.appendChild(presetDiv);
     }
 
     const buttons = document.createElement("div");
