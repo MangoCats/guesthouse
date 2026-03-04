@@ -130,6 +130,26 @@ def validate_style_props(props):
     if "opacity" in props and op is not None and not validate_opacity(op):
         return False, f"invalid opacity: {op!r}"
 
+    # Validate view_overrides structure and contents
+    vo = props.get("view_overrides")
+    if vo is not None:
+        if not isinstance(vo, dict):
+            return False, "view_overrides must be a dict"
+        for variant_name, variant_ov in vo.items():
+            if not isinstance(variant_ov, dict):
+                return False, f"view_overrides[{variant_name!r}] must be a dict"
+            ok, err = validate_style_props(variant_ov)
+            if not ok:
+                return False, f"view_overrides[{variant_name!r}]: {err}"
+
+    # Validate product_url format
+    url = props.get("product_url")
+    if url is not None and url != "":
+        if not isinstance(url, str):
+            return False, f"invalid product_url: {url!r}"
+        if not url.startswith(("http://", "https://")):
+            return False, f"product_url must start with http:// or https://: {url!r}"
+
     return True, None
 
 

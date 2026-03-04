@@ -113,9 +113,9 @@ dependency hierarchy.
 ### Testing (~53 commits)
 
 586 pre-existing tests covering geometry, layout, openings, walls, SVG
-generation, site plan, and d² regression.  The app layer adds 188 more
+generation, site plan, and d² regression.  The app layer adds 515 more
 tests covering database operations, engine computation, API endpoints,
-variant items, and dimension data (774 total).
+variant items, dimensions, labels, styling, and undo/redo (1113 total).
 
 ## What the App Implements (as of Phase 0)
 

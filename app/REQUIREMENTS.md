@@ -593,7 +593,7 @@ length 5. The set of `name` values equals
 `{"standard", "minik", "daybed", "bare", "sf"}`. Each entry has a
 non-empty `label`.
 
-### 2.3  Outline Chain Mutation API **(NEW)**
+### 2.3  Outline Chain Mutation API
 
 After Phase 5, the `outline_chain` database table is the authoritative
 source for all chain parameters.  The engine reads chain data from the DB
@@ -1268,7 +1268,7 @@ measurement line and info.
 **Acceptance:** Measure between two points. Press Escape. Line and info
 text are gone.
 
-### 6.5  Move Tool **(NEW)**
+### 6.5  Move Tool
 
 #### TL-5  Move by Drag
 When the Move tool is active and an element is selected, clicking and
@@ -1318,7 +1318,7 @@ opening along its host wall segment (not in arbitrary directions).
 **Acceptance:** Select O5. Move tool. Drag. O5 slides along the F8-F9
 wall segment. Its perpendicular distance from the wall does not change.
 
-### 6.6  Dimension Line Tool **(NEW)**
+### 6.6  Dimension Line Tool
 
 #### TL-11  Place Dimension Line
 When the Dimension tool is active, clicking two reference points or
@@ -1805,7 +1805,7 @@ positions from the existing SVG generation scripts' output.  The 11
 auto-computed room labels become editable label elements; users can also
 add additional custom labels.
 
-#### LABEL-1  Add Room Label **(NEW)**
+#### LABEL-1  Add Room Label
 Edit > Add Room Label SHALL allow the user to place a room name label by
 clicking a position on the canvas and typing the label text (e.g.,
 "BEDROOM", "OFFICE").  The label SHALL be stored as an element in the
@@ -1816,7 +1816,7 @@ Press Enter. Label appears on the canvas and persists in the database
 (`SELECT * FROM elements WHERE type = 'label' AND name = 'BEDROOM'`
 returns a row).
 
-#### LABEL-2  Move Label **(NEW)**
+#### LABEL-2  Move Label
 With the Select tool, labels SHALL be draggable to reposition them.
 Dragging SHALL update the stored offset from the room centroid.
 
@@ -1824,14 +1824,14 @@ Dragging SHALL update the stored offset from the room centroid.
 Label position updates. The stored offset reflects the new position.
 Generated SVGs reflect the new position.
 
-#### LABEL-3  Edit Label Text **(NEW)**
+#### LABEL-3  Edit Label Text
 Double-clicking a label SHALL open an inline text editor to change the
 label text.
 
 **Acceptance:** Double-click "BATH" label. Text becomes editable. Change
 to "BATHROOM". Press Enter. Label updates.
 
-#### LABEL-4  Label Font Size **(NEW)**
+#### LABEL-4  Label Font Size
 Each label SHALL have a configurable font size property, editable in the
 Properties panel.
 
@@ -2248,21 +2248,21 @@ history) to the requirements that enable each operation through the GUI.
 
 ## Appendix B: Requirements Summary
 
-"Existing" = implemented (Phase 0 baseline + incremental additions).
-"New" = planned for future phases, marked **(NEW)** on the requirement
+"Implemented" = working with test coverage (Phases 0–9).
+"Planned" = future phases, marked **(NEW)** on the requirement
 line or inherited from a **(NEW)** section/subsection heading.
 
-| Section | Existing | New | Total |
-|---------|----------|-----|-------|
-| 1 Data Layer | 39 | 1 | 40 |
-| 2 REST API | 30 | 4 | 34 |
+| Section | Implemented | Planned | Total |
+|---------|-------------|---------|-------|
+| 1 Data Layer | 40 | 0 | 40 |
+| 2 REST API | 34 | 0 | 34 |
 | 3 UI Layout | 6 | 2 | 8 |
-| 4 Canvas | 22 | 5 | 27 |
-| 5 Selection | 11 | 4 | 15 |
-| 6 Tools | 10 | 17 | 27 |
+| 4 Canvas | 26 | 1 | 27 |
+| 5 Selection | 14 | 1 | 15 |
+| 6 Tools | 27 | 0 | 27 |
 | 7 Constants | 20 | 0 | 20 |
-| 8 Data Tables | 7 | 4 | 11 |
-| 9 Element Ops | 2 | 11 | 13 |
+| 8 Data Tables | 11 | 0 | 11 |
+| 9 Element Ops | 12 | 1 | 13 |
 | 10 Styling | 4 | 0 | 4 |
 | 11 Site Plan | 0 | 4 | 4 |
 | 12 3D Model | 0 | 3 | 3 |
@@ -2271,7 +2271,7 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **163** | **73** | **236** |
+| **Total** | **213** | **23** | **236** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

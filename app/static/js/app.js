@@ -1460,7 +1460,7 @@ function addViewOverrideControls(tbody, elemRec, props) {
   }
 
   // Fill override for current view
-  if (viewOv.fill_color != null || true) {
+  {
     const tr = document.createElement("tr");
     const td1 = document.createElement("td"); td1.textContent = "Fill";
     tr.appendChild(td1);

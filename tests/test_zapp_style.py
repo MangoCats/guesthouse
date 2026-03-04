@@ -174,6 +174,66 @@ class TestStyleValidation:
         ok, err = validate_style_props("not a dict")
         assert ok is False
 
+    def test_validate_view_overrides_valid(self):
+        ok, err = validate_style_props({
+            "view_overrides": {"bare": {"opacity": 20}},
+        })
+        assert ok is True
+
+    def test_validate_view_overrides_invalid_opacity(self):
+        ok, err = validate_style_props({
+            "view_overrides": {"bare": {"opacity": 200}},
+        })
+        assert ok is False
+        assert "bare" in err
+        assert "opacity" in err
+
+    def test_validate_view_overrides_invalid_color(self):
+        ok, err = validate_style_props({
+            "view_overrides": {"sf": {"fill_color": "red"}},
+        })
+        assert ok is False
+        assert "sf" in err
+
+    def test_validate_view_overrides_not_dict(self):
+        ok, err = validate_style_props({"view_overrides": "not a dict"})
+        assert ok is False
+        assert "view_overrides" in err
+
+    def test_validate_view_overrides_value_not_dict(self):
+        ok, err = validate_style_props({"view_overrides": {"bare": "bad"}})
+        assert ok is False
+        assert "bare" in err
+
+    def test_validate_view_overrides_empty(self):
+        ok, err = validate_style_props({"view_overrides": {}})
+        assert ok is True
+
+    def test_validate_product_url_valid(self):
+        ok, err = validate_style_props({"product_url": "https://example.com"})
+        assert ok is True
+
+    def test_validate_product_url_http(self):
+        ok, err = validate_style_props({"product_url": "http://example.com"})
+        assert ok is True
+
+    def test_validate_product_url_invalid_scheme(self):
+        ok, err = validate_style_props({"product_url": "ftp://example.com"})
+        assert ok is False
+        assert "product_url" in err
+
+    def test_validate_product_url_no_scheme(self):
+        ok, err = validate_style_props({"product_url": "example.com"})
+        assert ok is False
+
+    def test_validate_product_url_null(self):
+        ok, err = validate_style_props({"product_url": None})
+        assert ok is True
+
+    def test_validate_product_url_empty_string(self):
+        ok, err = validate_style_props({"product_url": ""})
+        assert ok is True
+
 
 # ── Resolution ──────────────────────────────────────────────────────
 

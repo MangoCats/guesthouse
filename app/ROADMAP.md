@@ -12,8 +12,8 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ## Current State (Phase 9 — Complete, Phase 10 next)
 
-**224 of 236 requirements implemented.**  515 app tests, 586 pre-existing tests
-(1101 total).  All implemented requirements have automated test coverage.
+**213 of 236 requirements implemented.**  527 app tests, 586 pre-existing tests
+(1113 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -26,7 +26,7 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
-| REST API: 33 endpoints, SSE | Done |
+| REST API: 36 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
 | Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
@@ -543,7 +543,7 @@ label is stored as an element with type `'label'`.  The model:
 - Reset buttons to revert individual style properties to defaults
 - Override auto-creation for engine-computed items (same pattern as move tool)
 
-**New files:** `app/style.py`, `tests/test_zapp_style.py` (57 tests)
+**New files:** `app/style.py`, `tests/test_zapp_style.py` (69 tests)
 
 **Dependencies:** Phase 3 (elements), Phase 6 (canvas rendering).
 
@@ -794,7 +794,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 1101+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 1113+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
