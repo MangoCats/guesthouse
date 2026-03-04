@@ -21,6 +21,7 @@ const App = {
     showRooms: true,
     showDoors: true,
     showClearance: false,
+    openLinks: true,
     variant: "standard",
     measureStart: null,
     rubberBand: null,
@@ -70,7 +71,7 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
-    "show-doors", "show-clearance",
+    "show-doors", "show-clearance", "open-links",
     "variant-select", "variant-selector",
   ];
   for (const id of ids) {
@@ -616,8 +617,8 @@ function renderFurniture(g, overrides) {
         });
         applyElementStyle(el, itemStyle);
         el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
-        // Wrap in link if product URL exists
-        if (itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url)) {
+        // Wrap in link if product URL exists and links enabled
+        if (App.state.openLinks && itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url)) {
           const a = document.createElementNS("http://www.w3.org/2000/svg", "a");
           a.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", itemStyle.product_url);
           a.setAttribute("target", "_blank");
@@ -640,7 +641,7 @@ function renderFurniture(g, overrides) {
         });
         applyElementStyle(el, itemStyle);
         el.addEventListener("click", (e) => selectElement(item.type, name, item, e));
-        if (itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url)) {
+        if (App.state.openLinks && itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url)) {
           const a = document.createElementNS("http://www.w3.org/2000/svg", "a");
           a.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", itemStyle.product_url);
           a.setAttribute("target", "_blank");
@@ -652,7 +653,7 @@ function renderFurniture(g, overrides) {
       }
 
       // Link icon overlay (CV-12)
-      if (itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url) && item.bbox) {
+      if (App.state.openLinks && itemStyle && itemStyle.product_url && /^https?:\/\//.test(itemStyle.product_url) && item.bbox) {
         const bx = item.bbox;
         const iconX = bx.e + ox - 0.1;
         const iconY = -(bx.n + oy) + 0.15;
@@ -2431,6 +2432,10 @@ function setupEventListeners() {
   });
   App.els["show-clearance"].addEventListener("change", (e) => {
     App.state.showClearance = e.target.checked;
+    renderCanvas();
+  });
+  App.els["open-links"].addEventListener("change", (e) => {
+    App.state.openLinks = e.target.checked;
     renderCanvas();
   });
 
