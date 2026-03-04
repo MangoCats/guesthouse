@@ -743,12 +743,13 @@ adjacent to each point marker showing the point name.
 **Acceptance:** `#layer-labels` contains text elements with content such
 as `"F1"`, `"W2"`, `"C5"`.
 
-#### CV-7  Door Arc Rendering **(NEW)**
+#### CV-7  Door Arc Rendering
 When a door is configured on an opening, the canvas SHALL render the door
 swing arc showing hinge position and sweep direction.
 
 **Acceptance:** An opening with a configured door displays a dashed arc
 from closed to open position. Hinge point is marked with a small circle.
+**Tested:** `test_zapp_canvas.py::TestDoorArcs` (8 tests).
 
 #### CV-8  Room Labels
 When the "Room Names" toggle is checked, the canvas SHALL render room
@@ -807,12 +808,14 @@ partition lines showing the boundaries used for area calculation.
 **Acceptance:** Select the SF variant. `#layer-rooms` contains `<line>`
 elements with class `sf-partition` and dashed stroke style.
 
-#### CV-11  Clearance Zones **(NEW)**
-The canvas SHALL render clearance circles (WW-series) as dashed circles
-at fixture locations when the "Clearance" toggle is checked.
+#### CV-11  Clearance Zones
+The canvas SHALL render clearance zones as dashed polygons extending
+from item faces when the "Clearance" toggle is checked.
 
-**Acceptance:** Clearance circles appear at toilet, sink, and bed
-locations with the specified radii.
+**Acceptance:** Clearance zones appear at dresser, stove, dishwasher,
+and hamper locations as dashed rectangles extending from the item face.
+**Tested:** `test_zapp_canvas.py::TestClearanceZones` (3 tests),
+`TestApplianceClearanceZones` (7 tests).
 
 #### CV-12  Hyperlink Indicators **(NEW)**
 Elements with attached product URLs SHALL display a small link icon
@@ -909,16 +912,17 @@ off — user-created dimension disappears; engine-computed dimensions
 (controlled by CV-9 toggle) remain visible.  Toggle "User Dims" on —
 user dimension reappears.
 
-#### DIS-9  Clearance Toggle **(NEW)**
-Checking the "Clearance" checkbox SHALL show/hide fixture clearance
-circles.
+#### DIS-9  Clearance Toggle
+Checking the "Clearance" checkbox SHALL show/hide clearance zones.
 
-**Acceptance:** Toggle checkbox. WW-series dashed circles appear/disappear.
+**Acceptance:** Toggle checkbox. Clearance zone polygons appear/disappear.
+**Tested:** Client-side toggle (manual verification).
 
-#### DIS-10  Doors Toggle **(NEW)**
+#### DIS-10  Doors Toggle
 Checking the "Doors" checkbox SHALL show/hide door swing arcs.
 
 **Acceptance:** Toggle checkbox. Door arc elements appear/disappear.
+**Tested:** Client-side toggle (manual verification).
 
 ---
 
@@ -1009,12 +1013,13 @@ recomputation.
 **Acceptance:** Select O8. Change width from 19 to 25 inches. Press
 Enter. Opening re-renders at the new width.
 
-#### SEL-11  Door Property Editing **(NEW)**
+#### SEL-11  Door Property Editing
 Changing a door property (hinge side, swing direction) in the Properties
 panel SHALL update the door configuration and re-render the door arc.
 
 **Acceptance:** Select RO3. Change hinge side from "south" to "north" via
 dropdown. Door arc flips to the opposite side.
+**Tested:** `test_zapp_canvas.py::TestDoorArcAPI::test_door_invalidation_via_api`.
 
 #### SEL-12  Product URL Field **(NEW)**
 When a furniture, appliance, or fixture item is selected, the Properties
@@ -1558,35 +1563,40 @@ measuring the span in the computed geometry.
 
 ### 9.2  Door Configuration
 
-#### DOOR-1  Add Door to Opening **(NEW)**
+#### DOOR-1  Add Door to Opening
 Right-clicking an opening SHALL offer "Add Door". A dialog SHALL prompt
 for door width, hinge side, swing direction, and type (single/double).
 
 **Acceptance:** Right-click RO1. Select "Add Door". Dialog appears. Set
 hinge = east, swing = south, type = single. Confirm. Door arc renders on
 the canvas.
+**Tested:** `test_zapp_canvas.py::TestDoorArcAPI::test_door_arc_after_door_create`.
 
-#### DOOR-2  Edit Door Hinge and Swing **(NEW)**
+#### DOOR-2  Edit Door Hinge and Swing
 Selecting a door arc and clicking a "Flip Hinge" button SHALL move the
 hinge to the opposite side. "Flip Swing" SHALL reverse the swing
 direction.
 
 **Acceptance:** Select RO3 door. Click "Flip Hinge". Door hinge moves
 from south to north. Door arc re-renders.
+**Tested:** `test_zapp_canvas.py::TestDoorArcAPI::test_door_invalidation_via_api`.
 
-#### DOOR-3  Appliance Door Arcs **(NEW)**
-Appliances (fridge, washer, dryer, microwave) SHALL support door arc
-configuration with hinge corner and swing direction.
+#### DOOR-3  Appliance Door Arcs
+Appliances (fridge, washer, dryer, microwave) SHALL render door arcs
+with hinge corner and swing direction defined by variant item metadata.
 
-**Acceptance:** Select FRIDGE. Add door with hinge at NE corner, swing
-NW. A door arc renders showing the fridge door swing.
+**Acceptance:** Fridge, washer, dryer, and microwave display door arcs.
+Stacked appliance doors (microwave) render above their parent counter.
+**Tested:** `test_zapp_canvas.py::TestApplianceDoors` (7 tests).
 
-#### DOOR-4  Double Door **(NEW)**
+#### DOOR-4  Double Door
 Openings SHALL support double-door configuration with two leaves, each
 with independent hinge side.
 
 **Acceptance:** Configure RO7 as a double door. Two door arcs render,
 one hinged on each side of the opening.
+**Tested:** `test_zapp_canvas.py::TestDoorArcs::test_door_arc_ro7_double`,
+`test_door_arc_ro6_double`.
 
 ### 9.3  Hyperlinks
 

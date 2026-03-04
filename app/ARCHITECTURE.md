@@ -62,7 +62,7 @@ Nine SQLite tables:
 | `room_label_offsets` | 0 | User-adjusted room label positions (offset from centroid) |
 | `undo_history` | 0–50 | Serialised undo/redo entries (action type, before/after state) |
 | `elements` | 13+ | Interior walls (seeded) + user-added elements (type, name, properties JSON, variant) |
-| `doors` | 7+ | Door configurations per opening (width, hinge side, swing direction, type) |
+| `doors` | 9+ | Door configurations per opening (width, hinge side, swing direction, type) |
 
 **Seeding** — On first run, `init_db()` creates the schema and populates
 tables from source:
@@ -146,8 +146,8 @@ Validates door parameters against allowed values.
 
 ### app/engine.py — Computation
 
-**`compute_geometry(constants_dict, variant="standard")`** orchestrates
-the full pipeline:
+**`compute_geometry(constants_dict, variant="standard", chain_rows=None, doors_data=None)`**
+orchestrates the full pipeline:
 
 1. **Patch** `floorplan.constants` with database values, then reload
    `floorplan.geometry`, `.layout`, `.openings` so module-scope code
@@ -161,15 +161,33 @@ the full pipeline:
    per variant (e.g., bare/sf exclude IW6 and RO5)
 7. **Openings** → 12 outer (O1–O11, O8A), 7 rough (RO1–RO7)
 8. **Variant items** → 20–31 furniture/appliance items per variant
-9. **Room labels** → area-weighted centroids for 11 rooms (BEDROOM,
+9. **Door arcs** → structural door arcs (from `doors_data`), appliance
+   door arcs (from variant item metadata), clearance zones (from variant
+   item metadata)
+10. **Room labels** → area-weighted centroids for 11 rooms (BEDROOM,
    UTIL_N, UTIL_S, KITCHEN, LIVING, BATH, OFFICE, E CLOSET,
    W CLOSET, STORAGE, WH), with DB-stored offsets applied; for SF
    variant, includes area values and highlight polygons
-10. **Dimensions** → 18–22 dimension line endpoint pairs with distances
+11. **Dimensions** → 18–22 dimension line endpoint pairs with distances
 
 Returns a JSON-serialisable dict with all computed geometry.  Also
 provides `generate_svg()` (runs generator scripts via subprocess) and
 `get_svg_content()` (reads SVG files from disk).
+
+**Door arc computation** — `_compute_door_arcs(opening_polys, doors_data)`
+resolves abstract hinge/swing directions (east/west/north/south) to
+concrete positions by projecting onto opening polygon geometry.  For each
+door, computes hinge position, open-tip position, and a 21-point 90° arc
+polyline.  Double doors produce two leaves hinged at opposite ends.
+
+**Clearance zone computation** — `_compute_clearance_zones(layout, variant, variant_items)`
+reads clearance metadata from variant items (face vertex indices + distance).
+Computes outward-extending rectangles using centroid-based direction check.
+
+**Appliance door computation** — `_compute_appliance_doors(variant_items)`
+reads door metadata (hinge vertex index, width, open/closed direction
+vectors) and computes arcs via `_swing_arc()`.  Propagates `stacked` flag
+for SVG paint-order correctness.
 
 **Module reloading** — The engine uses `importlib.reload()` on four
 floorplan modules after patching constants.  This is necessary because
@@ -225,7 +243,10 @@ Replicates positioning math from `gen_floorplan.py`'s `_render_appliances()`,
 
 Each item is a dict with `type` (appliance/furniture/fixture), `poly`
 (coordinate list), `bbox`, `label`, `shape` (rect/circle), and for
-circles: `center` and `radius`.
+circles: `center` and `radius`.  Items may also carry optional metadata:
+`door` (hinge_idx, width, open_dir, closed_dir) for appliance door arcs,
+`clearance` (face vertex indices, distance) for clearance zones, and
+`stacked` (boolean) for items rendered above their parent counter.
 
 ### app/server.py — HTTP & SSE
 
@@ -389,13 +410,18 @@ selection, sort/filter state, selections array (multi-select).
 6. `loadGeometry()` → `renderCanvas()` — draw interactive view
 
 **Canvas rendering** — `renderCanvas()` calls layer functions in order:
-outline → inner walls → interior walls → openings → furniture →
-room labels → points → dimensions.  Each function creates SVG
-elements (`<polygon>`, `<circle>`, `<line>`, `<text>`) in the
-corresponding `<g>` layer.  Display toggles control which layers
-are populated.  Stacked variant items (MICRO, coffee maker, etc.)
-are sorted to render after their parent counters so they appear
-on top in the SVG paint order.
+outline → inner walls → interior walls → openings → doors →
+furniture → clearance zones → room labels → points → dimensions.
+Each function creates SVG elements (`<polygon>`, `<circle>`, `<line>`,
+`<text>`) in the corresponding `<g>` layer.  Display toggles control
+which layers are populated.  Stacked variant items (MICRO, coffee
+maker, etc.) are sorted to render after their parent counters so they
+appear on top in the SVG paint order.  Stacked appliance door arcs
+(e.g., microwave) are rendered inside `renderFurniture()` after all
+item polygons, rather than in `renderDoors()`, so they appear above
+their parent counter in SVG paint order.  Move offsets are computed
+once per render cycle via `itemOverrides()` and passed to
+`renderDoors()`, `renderFurniture()`, and `renderClearanceZones()`.
 
 **Room labels** — `renderRoomLabels(g)` renders room name text at
 centroid positions (with DB offsets applied).  For the SF variant,
@@ -427,8 +453,8 @@ Single-page five-region layout:
 └────────┴─────────────────────────┴───────────┘
 ```
 
-The SVG canvas defines 10 layer groups: outline, inner, walls, openings,
-furniture, rooms, points, labels, dims, measure.
+The SVG canvas defines 12 layer groups: outline, inner, walls, openings,
+doors, furniture, clearance, rooms, points, labels, dims, measure.
 
 ### app/static/css/app.css — Styling
 
@@ -509,6 +535,10 @@ importlib.reload()         Reload geometry, layout, openings modules
     │    compute_rough_openings()       → 7 rough openings
     │
     ├──► compute_variant_items()        → 20–31 furniture/appliance items
+    │
+    ├──► _compute_door_arcs()           → structural door arcs (9 openings)
+    │    _compute_appliance_doors()     → appliance door arcs (4 items)
+    │    _compute_clearance_zones()     → clearance zone polygons (4 zones)
     │
     ├──► _compute_room_labels()         → 11 room centroids + areas
     │
@@ -596,16 +626,18 @@ will be unnecessary once the app owns the constants directly (Phase 12).
 
 The charter describes a full parametric editor; the current
 implementation is a **parametric viewer with constant editing, undo,
-element/door CRUD, move tool, and outline chain editing** (Phases 0–5
-complete) — 163 of 226 requirements are implemented across 310 app tests
-(899 total).  Phase 1 established automated test coverage for all
-implemented server-side requirements.  Phase 2 added undo/redo
-infrastructure.  Phase 3 added elements and doors as first-class
-database objects with full CRUD APIs.  Phase 4 added the move tool with
-drag-to-reposition, ghost preview, axis constraints, grid snap,
-multi-select group move, and offset dialog.  Phase 5 added the outline
-closure solver, editable chain parameters, and canvas F-point dragging.
-Next phase: Phase 6 (enhanced canvas rendering).
+element/door CRUD, move tool, outline chain editing, and enhanced canvas
+rendering** (Phases 0–6 complete) — 172 of 226 requirements are
+implemented across 341 app tests (927 total).  Phase 1 established
+automated test coverage for all implemented server-side requirements.
+Phase 2 added undo/redo infrastructure.  Phase 3 added elements and
+doors as first-class database objects with full CRUD APIs.  Phase 4
+added the move tool with drag-to-reposition, ghost preview, axis
+constraints, grid snap, multi-select group move, and offset dialog.
+Phase 5 added the outline closure solver, editable chain parameters,
+and canvas F-point dragging.  Phase 6 added door arc rendering
+(structural + appliance), clearance zones, and display toggles.
+Next phase: Phase 7 (draw, add, delete, rotate, and shape editor tools).
 
 The development arc follows three stages:
 

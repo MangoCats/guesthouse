@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 5 — Complete)
+## Current State (Phase 6 — Complete)
 
-**163 of 226 requirements implemented.**  310 app tests, 589 pre-existing tests
-(899 total).  All implemented requirements have automated test coverage.
+**172 of 226 requirements implemented.**  341 app tests, 586 pre-existing tests
+(927 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -26,7 +26,7 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
-| REST API: 31 endpoints, SSE | Done |
+| REST API: 33 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
 | Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
@@ -40,7 +40,7 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | DB tables: shapes, variant_exclusions, room_label_offsets, undo_history | Done |
 | Undo/redo: 50-level, Ctrl+Z / Ctrl+Shift+Z, cross-type | Done |
 | Elements table: 13 IW seeds, CRUD, variant filtering | Done |
-| Doors table: 7 RO seeds, CRUD, validation | Done |
+| Doors table: 9 seeds (7 RO + O3, O6), CRUD, validation | Done |
 | Element/door/opening undo support (9 action types) | Done |
 | Elements tab: interior walls table, furniture/appliance table | Done |
 | Door properties in selection panel (hinge, swing, type) | Done |
@@ -59,6 +59,13 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Outline table: editable cells, closure indicator, +/- toolbar (DT-2–4) | Done |
 | Canvas: F-point drag (OE-1), arc handle (OE-2) | Done |
 | Engine: chain_rows parameter, app solver bypass (ENG-11) | Done |
+| Door arc rendering: structural (9 openings) + appliance (4 items) | Done |
+| Double door rendering (RO6, RO7 two-leaf arcs) | Done |
+| Clearance zones: dresser, stove, D/W, hamper (4 per standard variant) | Done |
+| Display toggles: Doors (DIS-10), Clearance (DIS-9) | Done |
+| Appliance door arcs: fridge, washer, dryer, microwave | Done |
+| Stacked appliance doors render above counters (SVG paint order) | Done |
+| Door arcs + clearance zones follow move offsets | Done |
 
 **What's missing:** Draw tools, shape editor UI,
 styling, site plan editing, 3D integration, plumbing layout (interactive
@@ -298,29 +305,64 @@ still pass for default values after reset).
 
 ---
 
-## Phase 6 — Enhanced Canvas Rendering
+## Phase 6 — Enhanced Canvas Rendering (Complete)
 
 **Goal:** Add door arcs, clearance zones, and display toggles to the
 interactive canvas.
 
 **Requirements:** CV-7, CV-11, DIS-9–10, SEL-11, DOOR-1–4 (9 reqs)
 
-*(DIS-6 and CV-10 are already implemented in Phase 0.  DIS-7 is assigned to
-Phase 8 alongside dimension line creation.  CV-12 is assigned to Phase 9
-alongside the product link infrastructure.)*
+**Completed.** 28 new tests added (927 total, up from 899).  All 9
+requirements implemented.
 
-**Work:**
-- Extend `app/engine.py` to include `clearance_zones`, `doors` in geometry result
-- Create `app/static/js/canvas.js` — rendering functions:
-  - `renderDoors()` — dashed arcs + hinge circles (CV-7)
-  - `renderClearanceZones()` — dashed circles at fixtures (CV-11)
-- Add display toggles: Clearance (DIS-9), Doors (DIS-10)
-- Door property editing triggers re-render (SEL-11)
+**Implementation:**
+- `app/engine.py` — `_compute_door_arcs()` computes structural door arcs
+  from DB door data (hinge/swing resolution via wall unit vectors);
+  `_compute_clearance_zones()` computes clearance polygons from variant item
+  metadata (face vertices + distance); `_compute_appliance_doors()` computes
+  appliance door arcs from variant item door metadata (hinge vertex, open/closed
+  direction vectors).  All three integrated into `compute_geometry()` with
+  `doors_data` parameter.
+- `app/database.py` — O3 and O6 added to `_DOOR_SEED` (9 doors total).
+  Door seeding changed from `INSERT OR REPLACE` to `INSERT OR IGNORE` to
+  preserve user edits across app restarts.
+- `app/variants.py` — Door metadata (hinge_idx, width, open_dir, closed_dir)
+  added to dryer, washer, fridge, microwave.  Clearance metadata (face,
+  distance) added to stove, dishwasher, hamper.  Stacked flag propagated
+  for SVG paint-order correctness.
+- `app/server.py` — `_get_geometry()` loads doors and passes `doors_data`
+  to `compute_geometry()`
+- `app/static/js/app.js` — `renderDoors()` renders structural door arcs
+  (hinge circle + line + dashed arc polyline) and non-stacked appliance
+  door arcs; `renderClearanceZones()` renders dashed clearance polygons;
+  stacked appliance doors rendered in `renderFurniture()` above counter
+  items.  `renderApplDoor()` shared helper eliminates rendering duplication.
+  `itemOverrides()` computed once per render cycle and passed to all
+  offset-aware render functions.
+- `app/templates/index.html` — Doors and Clearance toggle checkboxes,
+  `#layer-doors` and `#layer-clearance` SVG groups
+- `app/static/css/app.css` — `.door-line`, `.door-arc`, `.door-hinge`,
+  `.appl-door-line`, `.appl-door-arc`, `.clearance-zone` styles
 
-**New files:** `app/static/js/canvas.js`, `tests/test_zapp_canvas.py`
+**New files:** `tests/test_zapp_canvas.py`
+**Modified:** `app/engine.py`, `app/database.py`, `app/variants.py`,
+`app/server.py`, `app/static/js/app.js`, `app/static/css/app.css`,
+`app/templates/index.html`
 
-**Dependencies:** Phase 3 (doors data), Phase 5 (optional — room boundaries
-adapt to outline changes).
+**Key design — server-side door arc computation:**
+Door arc geometry (hinge position, open-tip position, arc polyline with
+21 points) is computed server-side in `engine.py` and returned as part of
+the geometry JSON.  The client just renders the pre-computed points.  This
+follows the existing pattern: the server computes all geometry, the client
+renders it.
+
+**Key design — stacked appliance door paint order:**
+Appliance doors flagged as `stacked: true` (e.g., microwave) are rendered
+in `renderFurniture()` after all item polygons, rather than in
+`renderDoors()`.  This ensures the door arc appears above the counter
+polygon it sits on in SVG paint order.
+
+**Dependencies:** Phase 3 (doors data), Phase 5 (outline chain editing).
 
 ---
 
@@ -664,7 +706,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 862+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 927+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
@@ -731,7 +773,7 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 3 | elements.py, doors.py | — | test_zapp_elements.py, test_zapp_doors.py |
 | 4 | — | tools.js, dialogs.js | test_zapp_move.py |
 | 5 | outline_solver.py | outline-editor.js | test_zapp_outline.py |
-| 6 | — | canvas.js | test_zapp_canvas.py |
+| 6 (done) | — | — | test_zapp_canvas.py |
 | 7 | — | selection.js | test_zapp_tools.py |
 | 8 | labels.py | — | test_zapp_labels.py |
 | 9 | style.py | — | test_zapp_style.py |
@@ -752,7 +794,7 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 3 (done) | 45 | 839 |
 | 4 (done) | 20 | 862 |
 | 5 (done) | 37 | 899 |
-| 6 | ~12 | 911 |
+| 6 (done) | 28 | 927 |
 | 7 | ~25 | 929 |
 | 8 | ~15 | 944 |
 | 9 | ~12 | 956 |

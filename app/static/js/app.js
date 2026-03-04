@@ -345,13 +345,14 @@ function renderCanvas() {
   if (!g) return;
 
   clearLayers();
+  const overrides = itemOverrides();
   renderOutline(g);
   renderInnerWalls(g);
   renderInteriorWalls(g);
   renderOpenings(g);
-  renderDoors(g);
-  renderFurniture(g);
-  renderClearanceZones(g);
+  renderDoors(g, overrides);
+  renderFurniture(g, overrides);
+  renderClearanceZones(g, overrides);
   renderRoomLabels(g);
   renderPoints(g);
   renderDimensions(g);
@@ -493,7 +494,21 @@ function renderOpenings(g) {
   }
 }
 
-function renderDoors(g) {
+/** Render a single appliance door arc (line + polyline) into a layer. */
+function renderApplDoor(layer, ad, ox, oy) {
+  layer.appendChild(svgEl("line", {
+    x1: ad.hinge[0] + ox, y1: -(ad.hinge[1] + oy),
+    x2: ad.tip[0] + ox, y2: -(ad.tip[1] + oy),
+    class: "appl-door-line",
+  }));
+  const pts = ad.arc_pts.map(p => `${p[0] + ox},${-(p[1] + oy)}`).join(" ");
+  layer.appendChild(svgEl("polyline", {
+    points: pts,
+    class: "appl-door-arc",
+  }));
+}
+
+function renderDoors(g, overrides) {
   if (!App.state.showDoors) return;
   const layer = App.els["layer-doors"];
   // Structural door arcs (openings)
@@ -519,27 +534,16 @@ function renderDoors(g) {
   // Stacked appliance doors are rendered in renderFurniture() so they
   // appear above the counter they sit on (layer-furniture paints after
   // layer-doors in SVG paint order).
-  const adOverrides = itemOverrides();
   for (const ad of (g.appliance_doors || [])) {
     if (ad.stacked) continue;
-    const [adx, ady] = itemOffset(adOverrides, ad.item_name);
-    layer.appendChild(svgEl("line", {
-      x1: ad.hinge[0] + adx, y1: -(ad.hinge[1] + ady),
-      x2: ad.tip[0] + adx, y2: -(ad.tip[1] + ady),
-      class: "appl-door-line",
-    }));
-    const pts = ad.arc_pts.map(p => `${p[0] + adx},${-(p[1] + ady)}`).join(" ");
-    layer.appendChild(svgEl("polyline", {
-      points: pts,
-      class: "appl-door-arc",
-    }));
+    const [ox, oy] = itemOffset(overrides, ad.item_name);
+    renderApplDoor(layer, ad, ox, oy);
   }
 }
 
-function renderClearanceZones(g) {
+function renderClearanceZones(g, overrides) {
   if (!App.state.showClearance) return;
   const layer = App.els["layer-clearance"];
-  const overrides = itemOverrides();
   for (const cz of (g.clearance_zones || [])) {
     // Extract parent item name from "itemname_clearance"
     const parentName = cz.name.replace(/_clearance$/, "");
@@ -555,13 +559,12 @@ function renderClearanceZones(g) {
   }
 }
 
-function renderFurniture(g) {
+function renderFurniture(g, overrides) {
   if (!App.state.showFurniture) return;
   const layer = App.els["layer-furniture"];
 
   // Render variant items (comprehensive set) if available; empty dict = no items
   if (g.variant_items !== undefined) {
-    const overrides = itemOverrides();
 
     // Sort: non-stacked items first, stacked items on top (SVG paint order)
     const entries = Object.entries(g.variant_items);
@@ -616,17 +619,8 @@ function renderFurniture(g) {
     if (App.state.showDoors) {
       for (const ad of (g.appliance_doors || [])) {
         if (!ad.stacked) continue;
-        const [adx, ady] = itemOffset(overrides, ad.item_name);
-        layer.appendChild(svgEl("line", {
-          x1: ad.hinge[0] + adx, y1: -(ad.hinge[1] + ady),
-          x2: ad.tip[0] + adx, y2: -(ad.tip[1] + ady),
-          class: "appl-door-line",
-        }));
-        const pts = ad.arc_pts.map(p => `${p[0] + adx},${-(p[1] + ady)}`).join(" ");
-        layer.appendChild(svgEl("polyline", {
-          points: pts,
-          class: "appl-door-arc",
-        }));
+        const [ox, oy] = itemOffset(overrides, ad.item_name);
+        renderApplDoor(layer, ad, ox, oy);
       }
     }
     return;

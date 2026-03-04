@@ -505,7 +505,7 @@ def _seed_doors(conn):
         width_ft = getattr(mod, width_const, 3.0)
         width_in = round(width_ft * 12.0, 2)
         conn.execute(
-            "INSERT OR REPLACE INTO doors "
+            "INSERT OR IGNORE INTO doors "
             "(opening_name, width, hinge_side, swing_direction, door_type) "
             "VALUES (?, ?, ?, ?, ?)",
             (opening_name, width_in, hinge, swing, dtype),
