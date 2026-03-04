@@ -1092,7 +1092,7 @@ function showProperties(type, name, data) {
         addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
       }
     }
-  } else if (type === "appliance" || type === "furniture") {
+  } else if (type === "appliance" || type === "furniture" || type === "fixture") {
     // SEL-8: Enhanced furniture/appliance properties
     const b = data.bbox;
     const w = b.e - b.w;
