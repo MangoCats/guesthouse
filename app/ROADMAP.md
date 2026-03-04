@@ -696,19 +696,24 @@ on the canvas (first-order in white, downstream in pink).
 3. The 24 duplicated dimension constants in `app/variants.py` and the ~700
    lines of replicated positioning math are consolidated — the database
    formulas become the single source
-4. NF-4 is lifted; existing generator scripts are retained as seed sources
+4. All hardcoded metadata moves to the database: product URLs (currently
+   in `variants.py`), style defaults (currently in `style.py` and
+   `app.js`), door/clearance metadata, item dimensions, and variant
+   configurations.  No design content remains in code
+5. NF-4 is lifted; existing generator scripts are retained as seed sources
    for "Reset to Defaults" (which regenerates the entire database from
-   their output)
-5. All five built-in variants and user-defined variants render correctly
+   their output — positions, metadata, URLs, styles, and all)
+6. All five built-in variants and user-defined variants render correctly
    from database-driven formulas
-6. d² regression tests pass for default database values (matching original
+7. d² regression tests pass for default database values (matching original
    script output)
 
 **Impact:** Replaces the current procedural Python computation with a
-data-driven evaluation model.  The positioning logic currently baked into
-`floorplan/layout.py` and `app/variants.py` is encoded as database-stored
-formulas.  After cutover, the existing scripts are no longer the
-authoritative source for positioning — they are seed-only.
+data-driven evaluation model.  The positioning logic and all design
+metadata currently baked into `floorplan/layout.py`, `floorplan/
+gen_floorplan.py`, and `app/variants.py` are encoded as database-stored
+records and formulas.  After cutover, the existing scripts are no longer
+the authoritative source for any design content — they are seed-only.
 
 **Dependencies:** All prior phases (the formula system builds on the element
 CRUD, canvas rendering, and property editing infrastructure).

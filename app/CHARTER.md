@@ -11,11 +11,16 @@ folders (`shared/`, `floorplan/`, `walls/`, `span/`, `survey/`, `roof/`,
 The editor's goal is to enable a user to **deterministically create,
 edit, view, and persist** the same building designs that were previously
 developed only through interactive chat with an AI agent.  At full
-maturity (see ROADMAP.md Phase 12), all walls, openings, furniture and
-appliance symbols and placements, dimension lines, and tables of base
-data — as well as the parametric dependencies among them — can be
-created, edited, stored, and retrieved from a database without requiring
-further AI interaction.
+maturity (see ROADMAP.md Phase 12), **no content is hardcoded** — every
+aspect of the design lives in the database: walls, openings, furniture
+and appliance symbols and placements, dimension lines, product URLs,
+style defaults, item dimensions, variant membership, and the parametric
+dependencies among them.  All of this can be created, edited, stored,
+and retrieved from the database without requiring further AI interaction.
+
+The database is initially populated with the default content defined by
+the existing generator scripts (`floorplan/`, `shared/`, etc.) and can
+be restored to that state at any time via "Reset to Defaults."
 
 ## What the Project Built via Chat
 
@@ -204,6 +209,11 @@ See `ROADMAP.md` for the 13-phase plan to reach full charter capability.
    furniture, appliances, fixtures, dimension lines, labels — is a
    database-stored entity whose position and size are defined by
    editable formulas referencing other entities and/or constants.
+   **All content** is database-stored: positions, dimensions, product
+   URLs, visual styles, variant membership, door/clearance metadata,
+   and inter-element relationships.  Nothing is hardcoded in Python or
+   JavaScript — the code provides computation and rendering, while the
+   database provides all design content.
 
    The parametric model supports:
    - **Fixed positions** — an element can be locked to absolute
@@ -231,11 +241,13 @@ See `ROADMAP.md` for the 13-phase plan to reach full charter capability.
    edited, reversed, or locked as the design matures.
 
    After Phase 12, the existing generator scripts (`floorplan/`,
-   `shared/`, etc.) are no longer the authoritative source for
-   positioning logic.  They remain only as seed sources: "Reset to
-   Defaults" regenerates the database from their output to reproduce
-   the reference design.  NF-4 is lifted, and code duplication between
-   `app/` and the existing packages is consolidated.
+   `shared/`, etc.) are no longer the authoritative source for any
+   design content.  They remain only as seed sources: "Reset to
+   Defaults" regenerates the entire database from their output —
+   constants, element positions, product URLs, style defaults, item
+   dimensions, variant configurations — to reproduce the reference
+   design.  NF-4 is lifted, and code duplication between `app/` and
+   the existing packages is consolidated.
 
 ## Transition from Principles 4 → 5
 
@@ -253,7 +265,10 @@ The transition happens in two stages:
 
 2. **Phase 12+ (cutover):** the parametric dependency system replaces
    procedural computation.  Constants become database-stored values
-   (not Python module attributes).  Element positions are defined by
-   formulas.  The existing scripts are retained only as seed sources
-   for "Reset to Defaults."  NF-4 is lifted.  Code duplication is
-   consolidated.
+   (not Python module attributes).  Element positions, dimensions,
+   product URLs, style defaults, door/clearance metadata, and variant
+   configurations are all defined by database records — no content
+   remains hardcoded.  The existing scripts are retained only as seed
+   sources for "Reset to Defaults" (which repopulates the entire
+   database to reproduce the reference design).  NF-4 is lifted.
+   Code duplication is consolidated.

@@ -604,7 +604,7 @@ function renderFurniture(g, overrides) {
       const cssClass = `item-${item.type} selectable` + (item.stacked ? " item-stacked" : "");
       const [ox, oy] = itemOffset(overrides, name);
 
-      const itemStyle = resolveItemStyle(overrides, name, App.state.variant);
+      const itemStyle = resolveItemStyle(overrides, name, App.state.variant, item);
 
       if (item.shape === "circle") {
         const c = item.center;
@@ -1128,9 +1128,14 @@ function showProperties(type, name, data) {
     const _elemRec = elemRec || (App.state.elements || []).find(e => e.name === name);
     if (_elemRec) {
       const _props = typeof _elemRec.properties === "string" ? JSON.parse(_elemRec.properties) : (_elemRec.properties || {});
+      // Use variant item's product_url as fallback if not in DB props
+      if (!_props.product_url && data && data.product_url) _props.product_url = data.product_url;
       addStyleControls(tbody, _elemRec, _props, type);
       addViewOverrideControls(tbody, _elemRec, _props);
       addProductUrlField(tbody, _elemRec, _props);
+    } else if (data && data.product_url) {
+      // No DB record but variant item has a product URL — show read-only
+      addProductUrlField(tbody, null, { product_url: data.product_url });
     }
     addElementActions(tbody, _elemRec);
   } else if (type === "dimension") {
@@ -1257,10 +1262,13 @@ function applyElementStyle(el, props) {
 }
 
 /** Resolve style properties with per-view override merging. */
-function resolveItemStyle(overrides, name, variant) {
+function resolveItemStyle(overrides, name, variant, variantItem) {
   const ov = overrides[name];
-  if (!ov) return null;
-  const resolved = { ...ov };
+  // Start with variant item's product_url (from engine) as base
+  const base = {};
+  if (variantItem && variantItem.product_url) base.product_url = variantItem.product_url;
+  if (!ov) return Object.keys(base).length ? base : null;
+  const resolved = { ...base, ...ov };
   const viewOv = (ov.view_overrides || {})[variant];
   if (viewOv) Object.assign(resolved, viewOv);
   return resolved;
