@@ -1085,12 +1085,12 @@ function showProperties(type, name, data) {
         addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
       }
     }
+    addElementActions(tbody, elemRec || (App.state.elements || []).find(e => e.name === name));
   } else if (type === "dimension") {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
     if (elemRec) {
       const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
       addPropRow(tbody, "Source", props.source || "user");
-      addPropRow(tbody, "Layouts", elemRec.variant ? elemRec.variant : "All");
       if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
       if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
       const dist = props.start && props.end ?
@@ -1137,6 +1137,7 @@ function showProperties(type, name, data) {
       };
       addPropRow(tbody, "Start Anchor", fmtAnchor(props.start_anchor));
       addPropRow(tbody, "End Anchor", fmtAnchor(props.end_anchor));
+      addElementActions(tbody, elemRec);
     }
   } else if (type === "label") {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "label");
@@ -1167,8 +1168,73 @@ function showProperties(type, name, data) {
       fsTd2.appendChild(fsInp);
       fsTr.appendChild(fsTd2);
       tbody.appendChild(fsTr);
+      addElementActions(tbody, elemRec);
     }
   }
+}
+
+const VARIANT_LABELS = {
+  standard: "Standard", minik: "Small Kitchen", daybed: "Daybed",
+  bare: "Room Dimensions", sf: "Square Footage",
+};
+
+function addElementActions(tbody, elemRec) {
+  if (!elemRec) return;
+  // Variant / layout picker
+  const vTr = document.createElement("tr");
+  const vTd1 = document.createElement("td"); vTd1.textContent = "Layout";
+  vTr.appendChild(vTd1);
+  const vTd2 = document.createElement("td");
+  const vSel = document.createElement("select");
+  vSel.className = "prop-edit-input";
+  const curVariant = elemRec.variant || "";
+  const allOpt = document.createElement("option");
+  allOpt.value = ""; allOpt.textContent = "All";
+  if (!curVariant) allOpt.selected = true;
+  vSel.appendChild(allOpt);
+  for (const [val, lbl] of Object.entries(VARIANT_LABELS)) {
+    const opt = document.createElement("option");
+    opt.value = val; opt.textContent = lbl;
+    if (val === curVariant) opt.selected = true;
+    vSel.appendChild(opt);
+  }
+  vSel.addEventListener("change", async () => {
+    const newVariant = vSel.value || null;
+    await fetch(`/api/elements/${elemRec.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variant: newVariant }),
+    });
+    await loadElements();
+    await loadGeometry();
+  });
+  vTd2.appendChild(vSel);
+  vTr.appendChild(vTd2);
+  tbody.appendChild(vTr);
+  // Delete button
+  const dTr = document.createElement("tr");
+  const dTd = document.createElement("td");
+  dTd.colSpan = 2;
+  dTd.style.textAlign = "center";
+  const dBtn = document.createElement("button");
+  dBtn.textContent = "Delete";
+  dBtn.className = "prop-delete-btn";
+  dBtn.addEventListener("click", async () => {
+    if (!confirm(`Delete ${elemRec.name}?`)) return;
+    const resp = await fetch(`/api/elements/${elemRec.id}`, { method: "DELETE" });
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(data.error || "Delete failed", "error");
+      return;
+    }
+    clearSelection();
+    await loadElements();
+    await loadGeometry();
+    showToast(`Deleted ${elemRec.name}`, "success");
+  });
+  dTd.appendChild(dBtn);
+  dTr.appendChild(dTd);
+  tbody.appendChild(dTr);
 }
 
 function fmtConstProp(c) {
