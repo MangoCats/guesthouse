@@ -27,7 +27,10 @@ from app.database import (
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
-from app.engine import compute_geometry, generate_svg, get_svg_content, patch_constants
+from app.engine import (
+    compute_geometry, generate_svg, get_svg_content, patch_constants,
+    compute_survey_points,
+)
 from app.undo import UndoManager
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1001,6 +1004,26 @@ def create_app(db_path=None):
         _broadcast("element_changed")
         _broadcast("outline_changed")
         return jsonify({"ok": ok, "issues": issues})
+
+    # -- Survey Points API (SITE-4) --
+
+    @app.route("/api/survey-points")
+    def api_survey_points():
+        constants = get_constants_dict(db)
+        return jsonify(compute_survey_points(constants))
+
+    # -- Site Plan Generation API (SITE-1) --
+
+    @app.route("/api/generate-site-plan", methods=["POST"])
+    def api_generate_site_plan():
+        constants = get_constants_dict(db)
+        patch_constants(constants)
+        ok = generate_svg("site_plan", "site/gen_site_plan.py")
+        return jsonify({
+            "ok": ok,
+            "setback_216": get_config("setback_216", db),
+            "setback_275": get_config("setback_275", db),
+        })
 
     # -- 3D Generation API (SCAD-1, SCAD-3) --
 

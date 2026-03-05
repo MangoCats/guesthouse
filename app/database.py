@@ -303,6 +303,8 @@ def _seed_config(conn):
     """Seed default configuration values."""
     defaults = [
         ("roof_style", "flat"),
+        ("setback_216", "11.0"),
+        ("setback_275", "25.5"),
     ]
     for key, value in defaults:
         conn.execute(

@@ -268,7 +268,6 @@ function renderViewTabs() {
   // Remaining generated SVG view tabs
   for (const v of App.state.views) {
     if (v.name === "floorplan") continue; // already added above
-    if (v.svg_path.endsWith(".pdf")) continue; // skip PDFs for now
     const tab = document.createElement("button");
     tab.className = "view-tab";
     tab.textContent = v.label;
@@ -300,7 +299,12 @@ function switchView(viewName) {
     App.els["canvas"].style.display = "none";
     App.els["svg-view-container"].style.display = "block";
     App.els["viewport"].style.cursor = "grab";
-    loadSVGView(viewName);
+    const viewDef = App.state.views.find(v => v.name === viewName);
+    if (viewDef && viewDef.svg_path.endsWith(".pdf")) {
+      loadPDFView(viewName);
+    } else {
+      loadSVGView(viewName);
+    }
   }
 }
 
@@ -337,6 +341,19 @@ async function loadSVGView(viewName) {
     p.textContent = "Error loading SVG: " + e.message;
     container.innerHTML = "";
     container.appendChild(p);
+  }
+}
+
+function loadPDFView(viewName) {
+  const container = App.els["svg-view-container"];
+  container.innerHTML = "";
+  const embed = document.createElement("embed");
+  embed.src = `/api/svg/${viewName}/file`;
+  embed.type = "application/pdf";
+  embed.style.cssText = "width:100%;height:100%;border:none";
+  container.appendChild(embed);
+  if (viewName.startsWith("site_plan")) {
+    showSitePlanProperties();
   }
 }
 
@@ -469,6 +486,63 @@ async function showSpanRotationProperties() {
   addPropRow(tbody, "Max Span", fmtFtIn(data.max_span));
   addPropRow(tbody, "At Rotation", data.max_angle + "\u00B0");
   addPropRow(tbody, "Data Points", data.data.length + " angles");
+}
+
+/** Show site plan properties panel with setbacks and survey points. */
+async function showSitePlanProperties() {
+  const tbody = App.els["props-table"];
+  tbody.innerHTML = "";
+  App.els["props-title"].textContent = "Site Plan";
+  App.els["props-detail"].style.display = "block";
+  App.els["props-empty"].style.display = "none";
+
+  // Setback config values (SITE-1)
+  try {
+    const r216 = await fetch("/api/config/setback_216");
+    const d216 = await r216.json();
+    const r275 = await fetch("/api/config/setback_275");
+    const d275 = await r275.json();
+    addConfigRow(tbody, "Setback from 216.73\u2032", "setback_216", d216.value);
+    addConfigRow(tbody, "Setback from 275.08\u2032", "setback_275", d275.value);
+  } catch (_) {}
+
+  // Survey points (SITE-4)
+  try {
+    const resp = await fetch("/api/survey-points");
+    const data = await resp.json();
+    addPropRow(tbody, "\u2014", "Survey Points");
+    for (const name of ["POB", "P2", "P3", "P4", "P5"]) {
+      const pt = data.points[name];
+      if (pt) addPropRow(tbody, name, `E: ${fmtFtIn(pt[0])}, N: ${fmtFtIn(pt[1])}`);
+    }
+    addPropRow(tbody, "\u2014", "Traverse Distances");
+    for (const d of data.distances) {
+      addPropRow(tbody, `${d.from} \u2192 ${d.to}`, fmtFtIn(d.distance));
+    }
+  } catch (_) {}
+}
+
+/** Add an editable config row with save-on-change. */
+function addConfigRow(tbody, label, configKey, value) {
+  const tr = document.createElement("tr");
+  const tdLabel = document.createElement("td");
+  tdLabel.textContent = label;
+  tr.appendChild(tdLabel);
+  const tdVal = document.createElement("td");
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.value = value;
+  inp.addEventListener("change", async () => {
+    await apiFetch(`/api/config/${configKey}`, {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({value: inp.value}),
+    });
+    showToast(`${label} updated`, "success");
+  });
+  tdVal.appendChild(inp);
+  tr.appendChild(tdVal);
+  tbody.appendChild(tr);
 }
 
 
@@ -3442,6 +3516,55 @@ async function handleMenuAction(action) {
         if (data.ok) showToast("Views generated (3views.pdf)", "success");
         else showToast(`Generation failed: ${data.error || "unknown"}`, "error");
       } catch (e) { showToast(`Generation failed: ${e.message}`, "error"); }
+      break;
+    }
+    case "generate-site-plan": {
+      showToast("Generating site plan...");
+      try {
+        const resp = await apiFetch("/api/generate-site-plan", { method: "POST" });
+        const data = await resp.json();
+        if (data.ok) {
+          showToast("Site plan regenerated", "success");
+          if (App.state.activeView.startsWith("site_plan")) {
+            loadPDFView(App.state.activeView);
+          }
+        } else showToast(`Generation failed: ${data.error || "unknown"}`, "error");
+      } catch (e) { showToast(`Generation failed: ${e.message}`, "error"); }
+      break;
+    }
+    case "add-drainfield": {
+      try {
+        const resp = await apiFetch("/api/elements", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            type: "site_element",
+            name: `drainfield_${Date.now()}`,
+            properties: { subtype: "drainfield", width: 25.0, height: 10.0,
+                          label: "NEW DRAINFIELD", x: 0, y: 0, rotation: 0 },
+          }),
+        });
+        if (resp.ok) showToast("Drainfield added", "success");
+        else showToast("Failed to add drainfield", "error");
+      } catch (e) { showToast(`Failed: ${e.message}`, "error"); }
+      break;
+    }
+    case "add-site-note": {
+      const text = prompt("Annotation text:");
+      if (!text) break;
+      try {
+        const resp = await apiFetch("/api/elements", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            type: "site_annotation",
+            name: `note_${Date.now()}`,
+            properties: { text, style: "text", x: 0, y: 0, font_size: 8.0, rotation: 0 },
+          }),
+        });
+        if (resp.ok) showToast("Annotation added", "success");
+        else showToast("Failed to add annotation", "error");
+      } catch (e) { showToast(`Failed: ${e.message}`, "error"); }
       break;
     }
     case "export-all": {

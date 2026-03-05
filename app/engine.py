@@ -1092,6 +1092,40 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     return result
 
 
+def compute_survey_points(constants_dict: dict) -> dict:
+    """Return P-series survey points and inter-point distances."""
+    patch_constants(constants_dict)
+    from shared.survey import compute_traverse, compute_three_arc
+    pts = compute_traverse()
+    three_arc = compute_three_arc(pts)
+
+    traverse_order = ["POB", "P2", "P3", "P4", "P5"]
+    arc_point_names = ["T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
+
+    points = {}
+    for name in traverse_order + arc_point_names:
+        if name in pts:
+            points[name] = point_to_list(pts[name])
+
+    distances = []
+    for i in range(len(traverse_order)):
+        a = traverse_order[i]
+        b = traverse_order[(i + 1) % len(traverse_order)]
+        if a in pts and b in pts:
+            d = math.hypot(pts[b][0] - pts[a][0], pts[b][1] - pts[a][1])
+            distances.append({"from": a, "to": b, "distance": round(d, 4)})
+
+    return {
+        "points": points,
+        "distances": distances,
+        "arc_radii": {
+            "R1": three_arc["R1"],
+            "R2": three_arc["R2"],
+            "R3": three_arc["R3"],
+        },
+    }
+
+
 def generate_svg(view_name: str, script_path: str) -> bool:
     """Run a generator script and return True on success."""
     full_path = os.path.join(_PROJECT, script_path)

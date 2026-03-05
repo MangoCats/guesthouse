@@ -618,6 +618,13 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   padding: 0 4px;
 }
 
+/* ========== PDF EMBED ========== */
+#svg-view-container embed {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
 /* ========== MOVE TOOL GHOST ========== */
 .move-ghost {
   opacity: 0.4;
