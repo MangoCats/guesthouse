@@ -1427,6 +1427,27 @@ function renderPlumbingDrawPreview() {
   }
 }
 
+async function placeFixture(wx, wy) {
+  const elems = App.state.plumbingElements || [];
+  const n = elems.filter(e => e.type === "fixture_connection").length + 1;
+  const name = `Fixture ${n}`;
+  const pt = [Math.round(wx * 100) / 100, Math.round(wy * 100) / 100];
+  try {
+    await apiFetch("/api/plumbing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "fixture_connection", name,
+        path: [pt],
+        properties: { cold: true, hot: false, drain: false },
+      }),
+    });
+    showToast("Fixture placed", "success");
+  } catch (e) {
+    showToast(`Failed: ${e.message}`, "error");
+  }
+}
+
 async function placeFitting(wx, wy) {
   const name = `fitting_${Date.now()}`;
   try {
@@ -1816,6 +1837,120 @@ function showProperties(type, name, data) {
       addStyleControls(tbody, elemRec, props, "label");
       addViewOverrideControls(tbody, elemRec, props);
       addElementActions(tbody, elemRec);
+    }
+  } else if (type === "plumbing") {
+    const pe = data;  // full plumbing element object
+    if (!pe || !pe.id) return;
+    const p = pe.properties || {};
+
+    if (pe.type === "fixture_connection") {
+      // ── Fixture connection properties ──
+      title.textContent = pe.name;
+
+      // Editable name
+      const nameTr = document.createElement("tr");
+      const nameTd1 = document.createElement("td"); nameTd1.textContent = "Name";
+      nameTr.appendChild(nameTd1);
+      const nameTd2 = document.createElement("td");
+      const nameInp = document.createElement("input");
+      nameInp.type = "text"; nameInp.className = "prop-edit-input";
+      nameInp.value = pe.name;
+      nameInp.addEventListener("change", async () => {
+        const v = nameInp.value.trim();
+        if (!v) { showToast("Name cannot be empty", "error"); return; }
+        await apiFetch(`/api/plumbing/${pe.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: v }),
+        });
+        loadPlumbingElements();
+      });
+      nameTd2.appendChild(nameInp);
+      nameTr.appendChild(nameTd2);
+      tbody.appendChild(nameTr);
+
+      // Read-only position
+      if (pe.path && pe.path.length > 0) {
+        addPropRow(tbody, "E", fmtFtIn(pe.path[0][0]));
+        addPropRow(tbody, "N", fmtFtIn(pe.path[0][1]));
+      }
+
+      // Service flag checkboxes
+      for (const flag of ["cold", "hot", "drain"]) {
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"); td1.textContent = flag.charAt(0).toUpperCase() + flag.slice(1);
+        tr.appendChild(td1);
+        const td2 = document.createElement("td");
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.checked = !!p[flag];
+        cb.addEventListener("change", async () => {
+          const newProps = { ...p, [flag]: cb.checked };
+          await apiFetch(`/api/plumbing/${pe.id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ properties: newProps }),
+          });
+          loadPlumbingElements();
+        });
+        td2.appendChild(cb);
+        tr.appendChild(td2);
+        tbody.appendChild(tr);
+      }
+
+      // Delete button
+      const delTr = document.createElement("tr");
+      const delTd = document.createElement("td"); delTd.colSpan = 2;
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "Delete"; delBtn.className = "btn-danger";
+      delBtn.addEventListener("click", async () => {
+        await apiFetch(`/api/plumbing/${pe.id}`, { method: "DELETE" });
+        clearSelection();
+        loadPlumbingElements();
+      });
+      delTd.appendChild(delBtn);
+      delTr.appendChild(delTd);
+      tbody.appendChild(delTr);
+
+    } else {
+      // ── Pipe / fitting properties ──
+      title.textContent = pe.name;
+      addPropRow(tbody, "Type", pe.type);
+      if (pe.path) addPropRow(tbody, "Points", pe.path.length.toString());
+      for (const [k, v] of Object.entries(p)) {
+        if (k === "buried") {
+          const tr = document.createElement("tr");
+          const td1 = document.createElement("td"); td1.textContent = "Buried";
+          tr.appendChild(td1);
+          const td2 = document.createElement("td");
+          const cb = document.createElement("input");
+          cb.type = "checkbox"; cb.checked = !!v;
+          cb.addEventListener("change", async () => {
+            const newProps = { ...p, buried: cb.checked };
+            await apiFetch(`/api/plumbing/${pe.id}`, {
+              method: "PUT", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ properties: newProps }),
+            });
+            loadPlumbingElements();
+          });
+          td2.appendChild(cb);
+          tr.appendChild(td2);
+          tbody.appendChild(tr);
+        } else {
+          addPropRow(tbody, k, String(v));
+        }
+      }
+
+      // Delete button
+      const delTr = document.createElement("tr");
+      const delTd = document.createElement("td"); delTd.colSpan = 2;
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "Delete"; delBtn.className = "btn-danger";
+      delBtn.addEventListener("click", async () => {
+        await apiFetch(`/api/plumbing/${pe.id}`, { method: "DELETE" });
+        clearSelection();
+        loadPlumbingElements();
+      });
+      delTd.appendChild(delBtn);
+      delTr.appendChild(delTd);
+      tbody.appendChild(delTr);
     }
   }
 }
@@ -3151,6 +3286,10 @@ function onMouseDown(e) {
     const rect = App.els["viewport"].getBoundingClientRect();
     const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
     placeFitting(wx, wy);
+  } else if (e.button === 0 && App.state.activeTool === "place-fixture") {
+    const rect = App.els["viewport"].getBoundingClientRect();
+    const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    placeFixture(wx, wy);
   } else if (e.button === 0 && App.state.activeTool === "dimension") {
     dimToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "label") {
@@ -3743,7 +3882,7 @@ function setTool(tool) {
     select: "crosshair", pan: "grab", measure: "crosshair",
     move: "move", "draw-wall": "crosshair", dimension: "crosshair", label: "crosshair",
     "supply-cold": "crosshair", "supply-hot": "crosshair", drain: "crosshair",
-    "place-fitting": "crosshair",
+    "place-fitting": "crosshair", "place-fixture": "crosshair",
   };
   App.els["viewport"].style.cursor = cursors[tool] || "crosshair";
 
