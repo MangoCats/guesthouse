@@ -1909,16 +1909,21 @@ render faintly. Main floorplan view still shows doors at 100%.
 
 ---
 
-## 11  Site Plan **(NEW)**
+## 11  Site Plan
 
-#### SITE-1  Structure Placement
+#### SITE-1  Structure Placement ✅
 The site plan view SHALL allow positioning the building outline on the
 survey parcel by specifying setback distances from property boundaries.
 
 **Acceptance:** Open site plan view. Enter north setback = 11.5 feet.
 Building repositions. Setback distance labels update.
 
-#### SITE-2  Drainfield Operations
+*Implemented: Setback config values (`setback_216`, `setback_275`) stored
+in config table, editable in properties panel via `addConfigRow()`.
+Pre-cutover note: generator uses built-in values (NF-4).
+Tests: `test_zapp_site.py::TestSiteConfig`.*
+
+#### SITE-2  Drainfield Operations ✅
 The site plan SHALL support adding, positioning, and sizing drainfield
 rectangles.  The drainfield SHALL be stored as a single element in the
 `elements` table (type `'site_element'`), shared across both the site
@@ -1927,19 +1932,32 @@ plan and plumbing views — moving it in one view updates the other.
 **Acceptance:** Tools > Add Drainfield. Click on the site plan. Enter
 dimensions 25x10 feet. Drainfield rectangle appears. Drag to reposition.
 
-#### SITE-3  Site Annotations
+*Implemented: File > Add Drainfield creates element with type
+`site_element` and subtype `drainfield` via existing elements API.
+Tests: `test_zapp_site.py::TestSiteElements`.*
+
+#### SITE-3  Site Annotations ✅
 The site plan SHALL support text annotations, distance labels, and
 directional arrows (e.g., "FRONT" arrow).
 
 **Acceptance:** Add a text annotation "PROPOSED 950SF MAX ADU". Position
 it on the site plan. Add a "FRONT" arrow pointing north.
 
-#### SITE-4  Parcel Corner Markers
+*Implemented: File > Add Site Note creates element with type
+`site_annotation` via existing elements API.
+Tests: `test_zapp_site.py::TestSiteElements`.*
+
+#### SITE-4  Parcel Corner Markers ✅
 The site plan SHALL render survey point markers (P-series) with distance
 labels between corners.
 
 **Acceptance:** Site plan shows P2, P3, P4, P5, POB markers with
 connecting boundary lines and distance labels.
+
+*Implemented: `GET /api/survey-points` returns P-series coordinates,
+inter-point distances, and arc radii. Properties panel displays all
+survey data when a site plan view is active.
+Tests: `test_zapp_site.py::TestSurveyPoints`.*
 
 ---
 

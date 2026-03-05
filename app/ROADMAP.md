@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 10b SCAD — Complete, Phase 10c Site Plan next)
+## Current State (Phase 10c Site Plan — Complete, Phase 10d Plumbing next)
 
-**223 of 240 requirements implemented.**  567 app tests, 586 pre-existing tests
-(1153 total).  All implemented requirements have automated test coverage.
+**227 of 240 requirements implemented.**  597 app tests, 586 pre-existing tests
+(1183 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -22,11 +22,11 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Geometry engine: full recomputation | Done |
 | Interactive canvas: outline, walls, openings, furniture, points, dims | Done |
 | Five layout variants | Done |
-| 11 SVG view tabs with zoom/pan | Done |
+| 14 view tabs (SVG + PDF + PNG) with zoom/pan | Done |
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
-| REST API: 36 endpoints, SSE | Done |
+| REST API: 43 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
 | Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
@@ -94,10 +94,12 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Style module: defaults, validation, resolution (app/style.py) | Done |
 | Analysis: room areas toggle, span tooltip, rotation min/max | Done |
 | 3D/SCAD: config table, roof style, generate-3d/views endpoints | Done |
+| Site plan: PDF view tabs, setback config, survey points, elements | Done |
+| DB error handling: validation, reset, error banner UI | Done |
 
 **What's missing:** Endpoint drag handles (TL-17 partial), Add Opening tool (TL-21),
-site plan editing, plumbing layout (interactive
-canvas with DB-stored elements), electrical layout (aspirational),
+plumbing layout (interactive canvas with DB-stored elements),
+electrical layout (aspirational),
 parametric dependencies and cutover to fully database-driven design
 (Charter Principle 5).  The current implementation uses constants as
 the single editable root; the target architecture makes every element
@@ -564,11 +566,17 @@ generators via the regeneration API.
 
 **Work:**
 
-### Site Plan (SITE-1–4)
-- Setback distance inputs that map to site-plan constants (SITE-1)
-- Drainfield element tool — custom elements with type `'site_element'` (SITE-2)
-- Text annotation tool for site plan (SITE-3)
-- P-series markers with distance labels (SITE-4)
+### Site Plan (SITE-1–4) ✅ Phase 10c — Complete
+- Setback distance inputs stored in config table, editable in properties panel (SITE-1) ✅
+- Drainfield element tool — custom elements with type `'site_element'` via File menu (SITE-2) ✅
+- Text annotation tool — `'site_annotation'` elements via File menu (SITE-3) ✅
+- P-series survey points with distances in properties panel (SITE-4) ✅
+- PDF view tabs for site_plan_df, site_plan_fs, and 3views
+- PNG view tabs for 3D renders (flat roof, 2:12 roof)
+- `compute_survey_points()` in engine.py, `/api/survey-points` endpoint
+- `POST /api/generate-site-plan` endpoint with setback config response
+- DB error handling: validation, `/api/reset-database`, error banner UI
+- 30 new tests in `test_zapp_site.py` (18) and `test_zapp_scad.py` (+12)
 
 ### 3D / SCAD (SCAD-1–3) ✅ Phase 10b — Complete
 - `POST /api/generate-3d` endpoint wrapping SCAD generator (SCAD-1) ✅
@@ -895,8 +903,11 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 6 (done) | 28 | 927 |
 | 7 (done) | 27 | 954 |
 | 8 (done) | 90 | 1044 |
-| 9 | ~12 | 1056 |
-| 10 | ~20 | 1076 |
+| 9 (done) | 17 | 1061 |
+| 10a (done) | 14 | 1075 |
+| 10b (done) | 15 | 1090 |
+| 10c (done) | 30 | 1120 |
+| 10 (actual) | 63 (across 10a-c + DB error handling) | 1183 |
 | 11 | ~10 | 1086 |
 | 12 | ~20 | 1106 |
 | 13 | ~20 | 1126 |

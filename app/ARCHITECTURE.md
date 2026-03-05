@@ -324,7 +324,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (36 total):
+**API endpoints** (43 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -364,6 +364,15 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | POST | `/api/outline/validate` | Dry-run chain validation (API-17) |
 | POST | `/api/outline/add-point` | Insert F-point by splitting (API-18) |
 | DELETE | `/api/outline/<seq>` | Remove point from chain (API-19) |
+| GET | `/api/span-data` | Span analysis data (ANALYSIS-1) |
+| GET | `/api/span-rotation` | Span rotation min/max (ANALYSIS-2) |
+| GET | `/api/config/<key>` | Get config value (SCAD-2, SITE-1) |
+| PUT | `/api/config/<key>` | Set config value (SCAD-2, SITE-1) |
+| POST | `/api/reset-database` | Reset DB to defaults |
+| GET | `/api/survey-points` | P-series survey points (SITE-4) |
+| POST | `/api/generate-site-plan` | Regenerate site plan PDFs (SITE-1) |
+| POST | `/api/generate-3d` | Generate SCAD 3D model (SCAD-1) |
+| POST | `/api/generate-views` | Generate multi-view PDF (SCAD-3) |
 
 ### app/undo.py — Undo/Redo Manager
 
