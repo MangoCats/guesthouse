@@ -3704,6 +3704,7 @@ async function doUndo() {
     loadConstants();
     loadGeometry();
     loadElements();
+    loadPlumbingElements();
   } else {
     showToast(data.error || "Nothing to undo", "warning");
   }
@@ -3718,6 +3719,7 @@ async function doRedo() {
     loadConstants();
     loadGeometry();
     loadElements();
+    loadPlumbingElements();
   } else {
     showToast(data.error || "Nothing to redo", "warning");
   }
