@@ -934,6 +934,28 @@ def create_app(db_path=None):
         mime = "application/pdf" if full_path.endswith(".pdf") else "image/svg+xml"
         return send_file(full_path, mimetype=mime)
 
+    # -- Span Analysis API (ANALYSIS-1, ANALYSIS-2) --
+
+    @app.route("/api/span-data")
+    def api_span_data():
+        from app.engine import compute_span_data
+        constants = get_constants_dict(db)
+        data = compute_span_data(constants)
+        # Downsample to every 6th point (~2-inch resolution)
+        step = 6
+        return jsonify({
+            "eastings": data["eastings"][::step],
+            "spans": data["spans"][::step],
+            "south_spans": data["south_spans"][::step],
+            "north_spans": data["north_spans"][::step],
+        })
+
+    @app.route("/api/span-rotation")
+    def api_span_rotation():
+        from app.engine import compute_span_rotation
+        constants = get_constants_dict(db)
+        return jsonify(compute_span_rotation(constants))
+
     # -- Regeneration API --
 
     @app.route("/api/regenerate", methods=["POST"])

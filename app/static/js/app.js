@@ -22,6 +22,7 @@ const App = {
     showDoors: true,
     showClearance: false,
     openLinks: true,
+    showAreas: false,
     variant: "standard",
     measureStart: null,
     rubberBand: null,
@@ -71,7 +72,7 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
-    "show-doors", "show-clearance", "open-links",
+    "show-doors", "show-clearance", "open-links", "show-areas",
     "variant-select", "variant-selector",
   ];
   for (const id of ids) {
@@ -101,6 +102,8 @@ function connectSSE() {
   });
 
   App.sse.addEventListener("geometry_changed", () => {
+    _spanDataCache = null;
+    _spanRotationCache = null;
     loadGeometry();
   });
 
@@ -299,6 +302,14 @@ async function loadSVGView(viewName) {
       svgEl.style.transformOrigin = "0 0";
       svgViewFit();
     }
+    // Set up span hover tooltip for analysis views
+    if (["span", "span_min", "span_minmax"].includes(viewName)) {
+      setupSpanTooltip(viewName);
+    }
+    // Show span rotation properties for span_minmax view
+    if (viewName === "span_minmax") {
+      showSpanRotationProperties();
+    }
   } catch (e) {
     const p = document.createElement("p");
     p.style.cssText = "padding:20px;color:#f88";
@@ -339,6 +350,104 @@ function svgViewApplyTransform() {
   svgEl.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
   // Update zoom display
   App.els["zoom-level"].textContent = `${Math.round(zoom * 100)}%`;
+}
+
+
+/* ========== SVG VIEW TOOLTIP (ANALYSIS-1, ANALYSIS-2) ========== */
+
+/** Cached span data (fetched once per session, invalidated on geometry change). */
+let _spanDataCache = null;
+let _spanRotationCache = null;
+
+/** Ensure the tooltip div exists. */
+function getOrCreateSvgTooltip() {
+  let tip = document.getElementById("svg-tooltip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "svg-tooltip";
+    tip.className = "svg-tooltip";
+    document.getElementById("viewport-area").appendChild(tip);
+  }
+  return tip;
+}
+
+/** Show span hover tooltip for the span SVG view. */
+function setupSpanTooltip(viewName) {
+  const container = App.els["svg-view-container"];
+  const tip = getOrCreateSvgTooltip();
+
+  // Fetch span data if not cached
+  if (viewName === "span" && !_spanDataCache) {
+    fetch("/api/span-data").then(r => r.json()).then(d => { _spanDataCache = d; });
+  }
+
+  container.addEventListener("mousemove", function spanHover(e) {
+    if (App.state.activeView !== viewName) {
+      tip.style.display = "none";
+      container.removeEventListener("mousemove", spanHover);
+      return;
+    }
+    const svgEl = container.querySelector("svg");
+    if (!svgEl) return;
+    const vb = svgEl.viewBox.baseVal;
+    if (!vb || vb.width <= 0) return;
+
+    // Translate mouse to SVG viewBox coords
+    const { pan, zoom } = App.state.svgView;
+    const rect = container.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const svgX = (mx - pan.x) / zoom;
+    const svgY = (my - pan.y) / zoom;
+
+    // Position tooltip near cursor
+    tip.style.left = (mx + 12) + "px";
+    tip.style.top = (my - 8) + "px";
+
+    if (viewName === "span" && _spanDataCache) {
+      // Map svgX to easting (span graph has a left margin and x-scale)
+      // Approximate: find nearest easting by fraction of viewBox width
+      const data = _spanDataCache;
+      const frac = svgX / vb.width;
+      const idx = Math.round(frac * (data.eastings.length - 1));
+      if (idx >= 0 && idx < data.eastings.length) {
+        const east = data.eastings[idx];
+        const span = data.spans[idx];
+        tip.textContent = `E: ${fmtFtIn(east)} | Span: ${fmtFtIn(span)}`;
+        tip.style.display = "block";
+      } else {
+        tip.style.display = "none";
+      }
+    } else {
+      // Generic SVG coordinate readout for other span views
+      tip.textContent = `X: ${svgX.toFixed(0)} Y: ${svgY.toFixed(0)}`;
+      tip.style.display = "block";
+    }
+  });
+
+  container.addEventListener("mouseleave", () => {
+    tip.style.display = "none";
+  });
+}
+
+/** Show span rotation summary in properties panel. */
+async function showSpanRotationProperties() {
+  if (!_spanRotationCache) {
+    const resp = await fetch("/api/span-rotation");
+    _spanRotationCache = await resp.json();
+  }
+  const data = _spanRotationCache;
+  const tbody = App.els["props-table"];
+  tbody.innerHTML = "";
+  App.els["props-title"].textContent = "Span vs Rotation";
+  App.els["props-detail"].style.display = "block";
+  App.els["props-empty"].style.display = "none";
+
+  addPropRow(tbody, "Min Span", fmtFtIn(data.min_span));
+  addPropRow(tbody, "At Rotation", data.min_angle + "\u00B0");
+  addPropRow(tbody, "Max Span", fmtFtIn(data.max_span));
+  addPropRow(tbody, "At Rotation", data.max_angle + "\u00B0");
+  addPropRow(tbody, "Data Points", data.data.length + " angles");
 }
 
 
@@ -758,6 +867,7 @@ function renderRoomLabels(g) {
   for (const lbl of g.room_labels) {
     const [e, n] = lbl.pos;
     const hasArea = lbl.area !== undefined;
+    const showArea = hasArea && (App.state.variant === "sf" || App.state.showAreas);
 
     // Clickable highlight polygon (SF variant)
     if (lbl.poly) {
@@ -785,8 +895,8 @@ function renderRoomLabels(g) {
 
     // Group for name + area text (clickable when SF)
     const nameEl = svgEl("text", {
-      x: e, y: -n + (hasArea ? -0.15 : 0),
-      class: "room-label selectable" + (hasArea ? " room-label-sf" : ""),
+      x: e, y: -n + (showArea ? -0.15 : 0),
+      class: "room-label selectable" + (showArea ? " room-label-sf" : ""),
       "text-anchor": "middle",
       "dominant-baseline": "middle",
       "data-type": "label", "data-name": lbl.name,
@@ -802,7 +912,7 @@ function renderRoomLabels(g) {
     }
     layer.appendChild(nameEl);
 
-    if (hasArea) {
+    if (showArea) {
       const areaEl = svgEl("text", {
         x: e, y: -n + 0.15,
         class: "room-label room-area",
@@ -2435,6 +2545,10 @@ function setupEventListeners() {
   });
   App.els["open-links"].addEventListener("change", (e) => {
     App.state.openLinks = e.target.checked;
+    renderCanvas();
+  });
+  App.els["show-areas"].addEventListener("change", (e) => {
+    App.state.showAreas = e.target.checked;
     renderCanvas();
   });
 

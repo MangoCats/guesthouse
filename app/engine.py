@@ -792,8 +792,8 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path=None):
             "pos": point_to_list((cx + de, cy + dn)),
             "centroid": point_to_list((cx, cy)),
         }
+        lbl["area"] = round(areas[name], 1)
         if is_sf:
-            lbl["area"] = round(areas[name], 1)
             lbl["poly"] = [point_to_list(p) for p in poly]
         labels.append(lbl)
 
@@ -1130,3 +1130,65 @@ def get_svg_content(svg_path: str) -> str | None:
         return None
     with open(full_path, "r", encoding="utf-8") as f:
         return f.read()
+
+
+# ---------------------------------------------------------------------------
+# Span analysis (ANALYSIS-1, ANALYSIS-2)
+# ---------------------------------------------------------------------------
+
+def compute_span_data(constants):
+    """Return N-S span profile data for the current geometry.
+
+    Returns dict with eastings, spans, south_spans, north_spans arrays.
+    """
+    patch_constants(constants)
+    from span._common import build_geometry, extract_iw_centerlines
+    from span.gen_span import _compute_spans
+    _pts, _outline_segs, _outer_poly, inner_poly, layout, _roof_poly = build_geometry()
+    eastings, spans, south_spans, north_spans = _compute_spans(inner_poly, layout)
+    return {
+        "eastings": eastings,
+        "spans": spans,
+        "south_spans": south_spans,
+        "north_spans": north_spans,
+    }
+
+
+def compute_span_rotation(constants):
+    """Return span-vs-rotation analysis with min/max.
+
+    Returns dict with min_angle, min_span, max_angle, max_span, and
+    data array of [angle, max_span] pairs at 5-degree steps.
+    """
+    patch_constants(constants)
+    from span._common import (
+        build_geometry, extract_iw_centerlines,
+        max_span_at_angle, find_min_span_angle,
+    )
+    _pts, _outline_segs, outer_poly, inner_poly, layout, _roof_poly = build_geometry()
+    iw_cls = extract_iw_centerlines(layout)
+
+    # Centroid for rotation
+    cx = sum(p[0] for p in inner_poly) / len(inner_poly)
+    cy = sum(p[1] for p in inner_poly) / len(inner_poly)
+
+    # Sweep 5-175 degrees in 5-degree steps
+    data = []
+    for angle in range(5, 176, 5):
+        ms = max_span_at_angle(inner_poly, iw_cls, angle, cx, cy)
+        data.append([angle, round(ms, 4)])
+
+    # Find precise min
+    min_angle, min_span = find_min_span_angle(inner_poly, iw_cls, cx, cy,
+                                               normalize=False)
+
+    # Find max from sweep data
+    max_entry = max(data, key=lambda d: d[1])
+
+    return {
+        "min_angle": round(min_angle, 1),
+        "min_span": round(min_span, 4),
+        "max_angle": max_entry[0],
+        "max_span": max_entry[1],
+        "data": data,
+    }

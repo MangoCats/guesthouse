@@ -431,6 +431,15 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 }
 .link-icon:hover { opacity: 1; }
 
+/* SVG view hover tooltip (ANALYSIS-1) */
+.svg-tooltip {
+  display: none; position: absolute; z-index: 100;
+  background: var(--bg-elevated); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 3px 8px; font-size: 11px; font-family: monospace;
+  pointer-events: none; white-space: nowrap;
+}
+
 .prop-select {
   background: var(--surface0); color: var(--text); border: 1px solid var(--border);
   padding: 1px 4px; font-size: 12px; width: 100%;
