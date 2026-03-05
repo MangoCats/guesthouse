@@ -138,7 +138,7 @@ function applyMoveConstraints(dx, dy, shiftKey) {
 
 
 /** Element types that can be dragged with the move tool. */
-const MOVABLE_TYPES = new Set(["wall", "furniture", "appliance", "fixture", "dimension", "label"]);
+const MOVABLE_TYPES = new Set(["wall", "furniture", "appliance", "fixture", "dimension", "label", "plumbing"]);
 
 
 /**
@@ -162,7 +162,7 @@ function findMovableAtPoint(clientX, clientY) {
 
 function moveToolMouseDown(e) {
   if (e.button !== 0) return;
-  if (App.state.activeView !== "interactive") return;
+  if (!isCanvasView()) return;
 
   // Don't start a new drag while a previous move is being committed/reloaded
   if (MoveTool._committing) return;
@@ -231,18 +231,30 @@ function moveToolMouseMove(e) {
     for (const t of MoveTool.targets) {
       const ghost = createGhost(t.svgEl);
       if (ghost) {
-        if (ghost.tagName === "polygon") {
+        const tag = ghost.tagName;
+        if (tag === "polygon" || tag === "polyline") {
           MoveTool.origTransforms.push({
             ghost,
             origPoints: ghost.getAttribute("points"),
-            isCircle: false,
+            kind: "points",
           });
-        } else if (ghost.tagName === "circle") {
+        } else if (tag === "circle") {
           MoveTool.origTransforms.push({
             ghost,
             origCx: parseFloat(ghost.getAttribute("cx")),
             origCy: parseFloat(ghost.getAttribute("cy")),
-            isCircle: true,
+            kind: "circle",
+          });
+        } else if (tag === "g") {
+          // Groups (plumbing fixtures/fittings): extract translate
+          const tf = ghost.getAttribute("transform") || "";
+          const m = tf.match(/translate\(\s*([\d.e+-]+)\s*,\s*([\d.e+-]+)\s*\)/);
+          MoveTool.origTransforms.push({
+            ghost,
+            origTx: m ? parseFloat(m[1]) : 0,
+            origTy: m ? parseFloat(m[2]) : 0,
+            origTransform: tf,
+            kind: "group",
           });
         }
       }
@@ -266,9 +278,15 @@ function moveToolMouseMove(e) {
 
   // Update ghost positions
   for (const g of MoveTool.origTransforms) {
-    if (g.isCircle) {
+    if (g.kind === "circle") {
       g.ghost.setAttribute("cx", g.origCx + dxSvg);
       g.ghost.setAttribute("cy", g.origCy + dySvg);
+    } else if (g.kind === "group") {
+      const newTf = g.origTransform.replace(
+        /translate\([^)]*\)/,
+        `translate(${g.origTx + dxSvg},${g.origTy + dySvg})`
+      );
+      g.ghost.setAttribute("transform", newTf);
     } else {
       g.ghost.setAttribute("points", shiftPolygonPoints(g.origPoints, dxSvg, dySvg));
     }
@@ -375,6 +393,24 @@ async function commitMove(targets, dx, dy) {
         continue;
       }
 
+      // Plumbing element move: shift all path waypoints
+      if (t.type === "plumbing") {
+        const pe = (App.state.plumbingElements || []).find(e => e.name === t.name);
+        if (pe && pe.path) {
+          const newPath = pe.path.map(pt => [pt[0] + dx, pt[1] + dy]);
+          try {
+            await fetch(`/api/plumbing/${pe.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ path: newPath }),
+            });
+          } catch (err) {
+            showToast(`Plumbing move error: ${err.message}`, "error");
+          }
+        }
+        continue;
+      }
+
       if (!elementId && (t.type === "furniture" || t.type === "appliance" || t.type === "fixture")) {
         try {
           const resp = await fetch("/api/elements", {
@@ -424,9 +460,14 @@ async function commitMove(targets, dx, dy) {
 
     // Reload state: elements/constants FIRST (updates App.state data),
     // then geometry LAST (calls renderCanvas which reads that data).
-    await loadElements();
-    await loadConstants();
-    await loadGeometry();
+    if (targets.some(t => t.type === "plumbing")) {
+      await loadPlumbingElements();
+      renderPlumbingCanvas();
+    } else {
+      await loadElements();
+      await loadConstants();
+      await loadGeometry();
+    }
   } finally {
     MoveTool._committing = false;
   }
