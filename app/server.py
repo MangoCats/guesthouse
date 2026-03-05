@@ -35,6 +35,7 @@ from app.plumbing import (
     get_plumbing_elements, get_plumbing_element,
     create_plumbing_element, create_plumbing_raw,
     update_plumbing_element, delete_plumbing_element,
+    seed_reference_plumbing,
 )
 from app.undo import UndoManager
 
@@ -78,6 +79,21 @@ def create_app(db_path=None):
     _db_ok, _db_issues = validate_db(db)
     if not _db_ok:
         print(f"WARNING: Database issues detected: {_db_issues}")
+
+    # Seed reference plumbing pipes if none exist yet
+    _existing_plumb = get_plumbing_elements(db)
+    if not any(e["type"] in ("supply_pipe", "drain_pipe")
+               for e in _existing_plumb):
+        try:
+            _c = get_constants_dict(db)
+            _ch = get_outline_chain(db)
+            _dr = get_all_doors(db)
+            _geom = compute_geometry(_c, "standard", _ch, doors_data=_dr,
+                                     db_path=db)
+            seed_reference_plumbing(
+                _geom, _c.get("WALL_OUTER", 10.0 / 12.0), db)
+        except Exception:
+            pass  # skip if geometry computation fails (e.g. corrupt DB)
 
     app = Flask(
         __name__,

@@ -9,10 +9,13 @@ if _PROJECT not in sys.path:
 
 from tests.test_zapp_conftest import fresh_db, app_client
 from app.database import get_views
+from tests.test_zapp_conftest import geometry
+from app.database import get_constants_dict
 from app.plumbing import (
     get_plumbing_elements, get_plumbing_element,
     create_plumbing_element, update_plumbing_element,
     delete_plumbing_element, FIXTURE_DEFS, PLUMBING_TYPES,
+    compute_reference_plumbing, seed_reference_plumbing,
 )
 
 
@@ -154,7 +157,7 @@ class TestPlumbingAPI:
         resp = app_client.get("/api/plumbing")
         assert resp.status_code == 200
         data = resp.get_json()
-        assert len(data) == 10  # seeded fixtures
+        assert len(data) == 16  # 10 fixtures + 6 reference pipes
 
     def test_create(self, app_client):
         resp = app_client.post("/api/plumbing", json={
@@ -259,3 +262,69 @@ class TestPlumbingView:
         views = get_views(fresh_db)
         names = {v["name"] for v in views}
         assert "plumbing" in names
+
+
+# =========================================================================
+# TestPlumbingReferenceSeed
+# =========================================================================
+
+class TestPlumbingReferenceSeed:
+    """Reference plumbing configuration seeded into database."""
+
+    def test_seed_creates_pipes(self, fresh_db, geometry):
+        constants = get_constants_dict(fresh_db)
+        wall_t = constants.get("WALL_OUTER", 10.0 / 12.0)
+        seed_reference_plumbing(geometry, wall_t, fresh_db)
+        elems = get_plumbing_elements(fresh_db)
+        pipes = [e for e in elems if e["type"] in ("supply_pipe", "drain_pipe")]
+        assert len(pipes) == 6
+
+    def test_seed_pipe_types(self, fresh_db, geometry):
+        constants = get_constants_dict(fresh_db)
+        wall_t = constants.get("WALL_OUTER", 10.0 / 12.0)
+        seed_reference_plumbing(geometry, wall_t, fresh_db)
+        elems = get_plumbing_elements(fresh_db)
+        supply = [e for e in elems if e["type"] == "supply_pipe"]
+        drain = [e for e in elems if e["type"] == "drain_pipe"]
+        assert len(supply) == 5
+        assert len(drain) == 1
+
+    def test_seed_pipe_paths_nonempty(self, fresh_db, geometry):
+        constants = get_constants_dict(fresh_db)
+        wall_t = constants.get("WALL_OUTER", 10.0 / 12.0)
+        seed_reference_plumbing(geometry, wall_t, fresh_db)
+        elems = get_plumbing_elements(fresh_db)
+        pipes = [e for e in elems if e["type"] in ("supply_pipe", "drain_pipe")]
+        for p in pipes:
+            assert len(p["path"]) >= 2, f"{p['name']} has < 2 waypoints"
+
+    def test_seed_fixture_positions(self, fresh_db, geometry):
+        constants = get_constants_dict(fresh_db)
+        wall_t = constants.get("WALL_OUTER", 10.0 / 12.0)
+        seed_reference_plumbing(geometry, wall_t, fresh_db)
+        elems = get_plumbing_elements(fresh_db)
+        fixtures = [e for e in elems if e["type"] == "fixture_connection"]
+        assert len(fixtures) == 10
+        for f in fixtures:
+            assert len(f["path"]) == 1, f"{f['name']} has no position"
+            assert len(f["path"][0]) == 2, f"{f['name']} position not [E, N]"
+
+    def test_seed_idempotent(self, fresh_db, geometry):
+        constants = get_constants_dict(fresh_db)
+        wall_t = constants.get("WALL_OUTER", 10.0 / 12.0)
+        seed_reference_plumbing(geometry, wall_t, fresh_db)
+        seed_reference_plumbing(geometry, wall_t, fresh_db)  # 2nd call
+        elems = get_plumbing_elements(fresh_db)
+        pipes = [e for e in elems if e["type"] in ("supply_pipe", "drain_pipe")]
+        assert len(pipes) == 6  # no duplicates
+
+    def test_compute_reference_returns_valid(self, geometry, fresh_db):
+        constants = get_constants_dict(fresh_db)
+        wall_t = constants.get("WALL_OUTER", 10.0 / 12.0)
+        ref = compute_reference_plumbing(geometry, wall_t)
+        assert len(ref["pipes"]) == 6
+        assert len(ref["fixture_positions"]) == 10
+        for name in ("Washer", "Toilet1", "Toilet2", "Util Sink",
+                      "Bath Sink", "Fridge", "Shower", "Kitchen Sink",
+                      "Dishwasher", "Ice Maker"):
+            assert name in ref["fixture_positions"]
