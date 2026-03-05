@@ -25,6 +25,7 @@
           <button data-action="export-all">Export All Products</button>
           <hr>
           <button data-action="reset-constants">Reset to Defaults</button>
+          <button data-action="reset-database">Reset Database</button>
         </div>
       </div>
       <div class="menu-item" data-menu="edit">
@@ -62,6 +63,13 @@
       <span id="connection-status" class="disconnected">Disconnected</span>
     </div>
   </header>
+
+  <!-- Error banner for database/startup issues -->
+  <div id="error-banner" class="error-banner" style="display:none">
+    <span id="error-banner-text"></span>
+    <button id="error-banner-action">Reset Database</button>
+    <button id="error-banner-dismiss" title="Dismiss">&times;</button>
+  </div>
 
   <!-- ======== MAIN LAYOUT ======== -->
   <div id="app-layout">

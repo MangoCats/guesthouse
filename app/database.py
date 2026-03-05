@@ -851,6 +851,58 @@ def set_room_label_offset(room_name, offset_e, offset_n, db_path=None):
         )
 
 
+def validate_db(db_path=None):
+    """Check database health. Returns (ok, issues) tuple.
+
+    ok: True if DB is healthy
+    issues: list of strings describing problems found
+    """
+    db_path = db_path or DB_PATH
+    issues = []
+    if not os.path.exists(db_path):
+        return False, ["database file does not exist"]
+    try:
+        with get_db(db_path) as conn:
+            # Check required tables exist
+            rows = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+            existing = {r["name"] for r in rows}
+            required = {"constants", "outline_chain", "views", "elements",
+                        "doors", "config"}
+            for tbl in sorted(required - existing):
+                issues.append(f"{tbl} table missing")
+            if issues:
+                return False, issues
+            # Check critical tables have data
+            for tbl, label in [("constants", "constants"),
+                               ("outline_chain", "outline chain"),
+                               ("views", "views")]:
+                count = conn.execute(f"SELECT COUNT(*) AS n FROM {tbl}").fetchone()["n"]
+                if count == 0:
+                    issues.append(f"{label} table is empty")
+    except Exception as exc:
+        issues.append(f"database error: {exc}")
+    return (len(issues) == 0), issues
+
+
+def reset_db(db_path=None):
+    """Delete and recreate the database with fresh seed data.
+
+    Returns (ok, issues) from validate_db on the new database.
+    """
+    db_path = db_path or DB_PATH
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    # Also remove WAL/SHM files if present
+    for suffix in ("-wal", "-shm"):
+        wal = db_path + suffix
+        if os.path.exists(wal):
+            os.remove(wal)
+    init_db(db_path)
+    return validate_db(db_path)
+
+
 def reset_constants(db_path=None):
     """Reset all constants to their original values from source code."""
     db_path = db_path or DB_PATH

@@ -587,6 +587,37 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+/* ========== ERROR BANNER ========== */
+.error-banner {
+  background: var(--red);
+  color: #1e1e2e;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 999;
+}
+.error-banner button {
+  background: rgba(0,0,0,0.2);
+  color: #1e1e2e;
+  border: 1px solid rgba(0,0,0,0.3);
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.error-banner button:hover { background: rgba(0,0,0,0.3); }
+#error-banner-dismiss {
+  margin-left: auto;
+  border: none;
+  background: none;
+  font-size: 18px;
+  padding: 0 4px;
+}
+
 /* ========== MOVE TOOL GHOST ========== */
 .move-ghost {
   opacity: 0.4;

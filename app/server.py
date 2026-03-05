@@ -23,6 +23,7 @@ from app.database import (
     get_outline_chain_row, update_outline_segment, insert_outline_segment,
     delete_outline_segment, restore_outline_chain, reset_outline_chain,
     reset_elements, get_config, set_config,
+    validate_db, reset_db,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
@@ -64,6 +65,11 @@ def create_app(db_path=None):
     """Create and configure the Flask application."""
     db = db_path or DB_PATH
     init_db(db)
+
+    # Validate database health on startup
+    _db_ok, _db_issues = validate_db(db)
+    if not _db_ok:
+        print(f"WARNING: Database issues detected: {_db_issues}")
 
     app = Flask(
         __name__,
@@ -562,7 +568,18 @@ def create_app(db_path=None):
             geom = _get_geometry(variant)
             return jsonify(geom)
         except Exception as exc:
-            return jsonify({"error": str(exc)}), 500
+            import sqlite3
+            msg = str(exc)
+            is_db = (isinstance(exc, (sqlite3.OperationalError, IndexError))
+                     or "no such table" in msg)
+            resp = {"error": msg}
+            if is_db:
+                ok, issues = validate_db(db)
+                resp["db_issue"] = True
+                resp["db_issues"] = issues
+                resp["hint"] = ("Database may be corrupt or incomplete. "
+                                "Use File \u203a Reset Database to recreate it.")
+            return jsonify(resp), 500
 
     @app.route("/api/variants")
     def api_variants():
@@ -973,6 +990,17 @@ def create_app(db_path=None):
             return jsonify({"error": "value required"}), 400
         set_config(key, value, db)
         return jsonify({"ok": True, "key": key, "value": str(value)})
+
+    # -- Database Reset API --
+
+    @app.route("/api/reset-database", methods=["POST"])
+    def api_reset_database():
+        reset_db(db)
+        ok, issues = validate_db(db)
+        _invalidate()
+        _broadcast("element_changed")
+        _broadcast("outline_changed")
+        return jsonify({"ok": ok, "issues": issues})
 
     # -- 3D Generation API (SCAD-1, SCAD-3) --
 

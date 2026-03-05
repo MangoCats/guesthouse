@@ -75,6 +75,7 @@ function cacheElements() {
     "show-openings", "show-furniture", "show-rooms",
     "show-doors", "show-clearance", "open-links", "show-areas", "roof-style",
     "variant-select", "variant-selector",
+    "error-banner", "error-banner-text", "error-banner-action", "error-banner-dismiss",
   ];
   for (const id of ids) {
     App.els[id] = document.getElementById(id);
@@ -204,14 +205,25 @@ async function loadCategories() {
 async function loadGeometry() {
   try {
     const resp = await fetch(`/api/geometry?variant=${App.state.variant}`);
-    if (!resp.ok) throw new Error(await resp.text());
+    if (!resp.ok) {
+      let data;
+      try { data = await resp.json(); } catch (_) { data = {}; }
+      if (data.db_issue) {
+        showErrorBanner(
+          data.hint || "Database error — geometry computation failed.",
+          "Reset Database", resetDatabase
+        );
+      }
+      throw new Error(data.error || `HTTP ${resp.status}`);
+    }
     App.state.geometry = await resp.json();
+    hideErrorBanner();
     if (App.state.activeView === "interactive") renderCanvas();
     updateOpeningsTable();
     updateElementsTable();
   } catch (e) {
     console.error("Geometry load failed:", e);
-    showToast("Geometry computation error", "error");
+    showToast("Geometry computation error: " + e.message, "error");
   }
 }
 
@@ -3452,6 +3464,10 @@ async function handleMenuAction(action) {
       } catch (e) { showToast(`Reset failed: ${e.message}`, "error"); }
       break;
     }
+    case "reset-database": {
+      await resetDatabase();
+      break;
+    }
     case "zoom-fit": fitToWindow(); break;
     case "zoom-in": App.state.zoom *= 1.3; applyTransform(); break;
     case "zoom-out": App.state.zoom *= 0.7; applyTransform(); break;
@@ -3489,4 +3505,44 @@ function showToast(msg, type = "") {
   toast.textContent = msg;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
+}
+
+
+/* ========== ERROR BANNER ========== */
+
+function showErrorBanner(text, actionLabel, actionFn) {
+  const banner = App.els["error-banner"];
+  if (!banner) return;
+  App.els["error-banner-text"].textContent = text;
+  const btn = App.els["error-banner-action"];
+  btn.textContent = actionLabel || "Reset Database";
+  btn.onclick = actionFn || resetDatabase;
+  App.els["error-banner-dismiss"].onclick = () => { banner.style.display = "none"; };
+  banner.style.display = "flex";
+}
+
+function hideErrorBanner() {
+  const banner = App.els["error-banner"];
+  if (banner) banner.style.display = "none";
+}
+
+async function resetDatabase() {
+  if (!confirm("This will delete the current database and recreate it with default seed data. All changes will be lost.\n\nContinue?")) return;
+  showToast("Resetting database\u2026");
+  try {
+    const resp = await apiFetch("/api/reset-database", { method: "POST" });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast("Database reset \u2014 reloading", "success");
+      hideErrorBanner();
+      loadConstants();
+      await loadElements();
+      loadGeometry();
+      loadViews();
+    } else {
+      showToast("Reset failed: " + (data.issues || []).join(", "), "error");
+    }
+  } catch (e) {
+    showToast("Reset failed: " + e.message, "error");
+  }
 }
