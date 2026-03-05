@@ -45,6 +45,10 @@ const App = {
 
 document.addEventListener("DOMContentLoaded", async () => {
   cacheElements();
+  document.querySelectorAll(".plumb-swatch").forEach(el => {
+    const c = PLUMBING_COLORS[el.dataset.colorKey];
+    if (c) { el.setAttribute("stroke", c); el.setAttribute("fill", c); }
+  });
   setupEventListeners();
   setupOutlineToolbar();
   connectSSE();
