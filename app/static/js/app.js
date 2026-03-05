@@ -1191,7 +1191,7 @@ function renderPlumbingCanvas() {
 const PLUMBING_COLORS = {
   supply_cold: "#1E90FF",
   supply_hot: "#FF4444",
-  drain_pipe: "#228B22",
+  drain_pipe: "#C4956A",
 };
 
 function renderPlumbingPipes() {
