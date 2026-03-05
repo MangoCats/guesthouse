@@ -338,7 +338,7 @@ def compute_reference_plumbing(geom, wall_t):
     pipes = [
         {"name": "Utility Path", "type": "drain_pipe",
          "path": [wp1, wp2, wp3, wp4],
-         "properties": {"slope": "0.25 in/ft"}},
+         "properties": {"slope": "0.25 in/ft", "buried": True}},
         {"name": "Cold Supply Main", "type": "supply_pipe",
          "path": blue_path,
          "properties": {"hot_cold": "cold"}},

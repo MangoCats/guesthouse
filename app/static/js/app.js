@@ -1213,7 +1213,7 @@ function renderPlumbingPipes() {
       color = PLUMBING_COLORS.drain_pipe;
     }
     const pts = path.map(pt => `${pt[0]},${-pt[1]}`).join(" ");
-    const el = svgEl("polyline", {
+    const attrs = {
       points: pts,
       class: "plumbing-pipe selectable",
       "data-type": "plumbing",
@@ -1223,7 +1223,9 @@ function renderPlumbingPipes() {
       "stroke-width": "0.06",
       "stroke-linecap": "round",
       "stroke-linejoin": "round",
-    });
+    };
+    if (p.buried) attrs["stroke-dasharray"] = "0.15 0.08";
+    const el = svgEl("polyline", attrs);
     el.addEventListener("click", (ev) => selectElement("plumbing", e.name, e, ev));
     layer.appendChild(el);
 
