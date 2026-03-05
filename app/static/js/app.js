@@ -819,10 +819,13 @@ function renderDoors(g, overrides) {
   // Stacked appliance doors are rendered in renderFurniture() so they
   // appear above the counter they sit on (layer-furniture paints after
   // layer-doors in SVG paint order).
-  for (const ad of (g.appliance_doors || [])) {
-    if (ad.stacked) continue;
-    const [ox, oy] = itemOffset(overrides, ad.item_name);
-    renderApplDoor(layer, ad, ox, oy);
+  // Appliance doors only show when both Doors and Furniture toggles are on.
+  if (App.state.showFurniture) {
+    for (const ad of (g.appliance_doors || [])) {
+      if (ad.stacked) continue;
+      const [ox, oy] = itemOffset(overrides, ad.item_name);
+      renderApplDoor(layer, ad, ox, oy);
+    }
   }
 }
 
