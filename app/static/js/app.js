@@ -3118,17 +3118,21 @@ function setupEventListeners() {
   });
 
   // Display toggles
+  function rerender() {
+    if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+    else renderCanvas();
+  }
   App.els["show-points"].addEventListener("change", (e) => {
     App.state.showPoints = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   App.els["show-labels"].addEventListener("change", (e) => {
     App.state.showLabels = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   App.els["show-dims"].addEventListener("change", (e) => {
     App.state.showDims = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   // Note: showUserDims removed — "Dims" toggle now controls all dimensions
   App.els["show-grid"].addEventListener("change", (e) => {
@@ -3137,31 +3141,31 @@ function setupEventListeners() {
   });
   App.els["show-openings"].addEventListener("change", (e) => {
     App.state.showOpenings = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   App.els["show-furniture"].addEventListener("change", (e) => {
     App.state.showFurniture = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   App.els["show-rooms"].addEventListener("change", (e) => {
     App.state.showRooms = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   App.els["show-doors"].addEventListener("change", (e) => {
     App.state.showDoors = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   App.els["show-clearance"].addEventListener("change", (e) => {
     App.state.showClearance = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   App.els["open-links"].addEventListener("change", (e) => {
     App.state.openLinks = e.target.checked;
-    renderCanvas();
+    rerender();
   });
   App.els["show-areas"].addEventListener("change", (e) => {
     App.state.showAreas = e.target.checked;
-    renderCanvas();
+    rerender();
   });
 
   // Roof style selector (SCAD-2)
