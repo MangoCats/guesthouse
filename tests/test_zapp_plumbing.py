@@ -54,7 +54,7 @@ class TestPlumbingSeed:
 
     def test_seed_count(self, fresh_db):
         elems = get_plumbing_elements(fresh_db)
-        assert len(elems) == 10
+        assert len(elems) == 11
 
     def test_all_fixture_connections(self, fresh_db):
         elems = get_plumbing_elements(fresh_db)
@@ -157,7 +157,7 @@ class TestPlumbingAPI:
         resp = app_client.get("/api/plumbing")
         assert resp.status_code == 200
         data = resp.get_json()
-        assert len(data) == 16  # 10 fixtures + 6 reference pipes
+        assert len(data) == 17  # 11 fixtures + 6 reference pipes
 
     def test_create(self, app_client):
         resp = app_client.post("/api/plumbing", json={
@@ -304,7 +304,7 @@ class TestPlumbingReferenceSeed:
         seed_reference_plumbing(geometry, wall_t, fresh_db)
         elems = get_plumbing_elements(fresh_db)
         fixtures = [e for e in elems if e["type"] == "fixture_connection"]
-        assert len(fixtures) == 10
+        assert len(fixtures) == 11
         for f in fixtures:
             assert len(f["path"]) == 1, f"{f['name']} has no position"
             assert len(f["path"][0]) == 2, f"{f['name']} position not [E, N]"
@@ -323,8 +323,8 @@ class TestPlumbingReferenceSeed:
         wall_t = constants.get("WALL_OUTER", 10.0 / 12.0)
         ref = compute_reference_plumbing(geometry, wall_t)
         assert len(ref["pipes"]) == 6
-        assert len(ref["fixture_positions"]) == 10
+        assert len(ref["fixture_positions"]) == 11
         for name in ("Washer", "Toilet1", "Toilet2", "Util Sink",
                       "Bath Sink", "Fridge", "Shower", "Kitchen Sink",
-                      "Dishwasher", "Ice Maker"):
+                      "Dishwasher", "Ice Maker", "Water Heater"):
             assert name in ref["fixture_positions"]

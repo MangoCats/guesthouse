@@ -24,6 +24,7 @@ FIXTURE_DEFS = [
     ("Kitchen Sink", True, True, True),
     ("Dishwasher", False, True, True),
     ("Ice Maker", True, False, False),
+    ("Water Heater", True, True, False),
 ]
 
 
@@ -125,19 +126,22 @@ def delete_plumbing_element(element_id, db_path=None):
 
 
 def seed_plumbing(conn):
-    """Seed default fixture connection records."""
-    existing = conn.execute(
-        "SELECT COUNT(*) as cnt FROM plumbing_elements"
-    ).fetchone()["cnt"]
-    if existing > 0:
-        return
+    """Seed default fixture connection records (idempotent).
+
+    Adds any missing fixtures from FIXTURE_DEFS, so new fixtures added
+    to the list are automatically created in existing databases.
+    """
+    existing_names = {row["name"] for row in conn.execute(
+        "SELECT name FROM plumbing_elements WHERE type = 'fixture_connection'"
+    ).fetchall()}
     for name, cold, hot, drain in FIXTURE_DEFS:
-        props = json.dumps({"cold": cold, "hot": hot, "drain": drain})
-        conn.execute(
-            "INSERT INTO plumbing_elements (type, name, path, properties, fixture) "
-            "VALUES (?, ?, '[]', ?, ?)",
-            ("fixture_connection", name, props, name),
-        )
+        if name not in existing_names:
+            props = json.dumps({"cold": cold, "hot": hot, "drain": drain})
+            conn.execute(
+                "INSERT INTO plumbing_elements (type, name, path, properties, fixture) "
+                "VALUES (?, ?, '[]', ?, ?)",
+                ("fixture_connection", name, props, name),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +367,7 @@ def compute_reference_plumbing(geom, wall_t):
         "Kitchen Sink": "kitchen_sink",
         "Dishwasher": "dishwasher",
         "Ice Maker": "ice_maker",
+        "Water Heater": "water_heater",
     }
     fixture_positions = {}
     for fixture_name, item_key in fixture_map.items():
@@ -370,12 +375,15 @@ def compute_reference_plumbing(geom, wall_t):
         item = vi.get(item_key) or appl.get(item_key)
         if item and "poly" in item:
             fixture_positions[fixture_name] = _poly_centroid(item["poly"])
+        elif item and "center" in item:
+            fixture_positions[fixture_name] = list(item["center"])
 
-    # Shower: approximate center of shower room (IW2S east face midpoint)
-    iw2s_e_mid = [(iw2s[1][0] + iw2s[2][0]) / 2,
-                  (iw2s[1][1] + iw2s[2][1]) / 2]
-    # Offset east into the shower room by ~1.5 ft
-    fixture_positions["Shower"] = list(offset_pt(iw2s_e_mid, 1.5, iw2s_e_out))
+    # Shower: connection point on bathroom side of IW2S wall
+    # (~1.1 ft west of IW2S west face, into the bathroom)
+    iw2s_w_mid = [(iw2s[0][0] + iw2s[3][0]) / 2,
+                  (iw2s[0][1] + iw2s[3][1]) / 2]
+    iw2s_w_out = (-iw2s_w_in[0], -iw2s_w_in[1])
+    fixture_positions["Shower"] = list(offset_pt(iw2s_w_mid, 1.1, iw2s_w_out))
 
     return {"pipes": pipes, "fixture_positions": fixture_positions}
 
