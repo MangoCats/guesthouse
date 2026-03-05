@@ -34,6 +34,7 @@ const App = {
     svgView: { pan: { x: 0, y: 0 }, zoom: 1 },
     outlineChain: [],
     outlineSelectedSeq: null,
+    plumbingElements: [],
   },
   els: {},
   sse: null,
@@ -50,6 +51,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadViews();
   loadConstants();
   await loadElements();  // must complete before first render
+  loadPlumbingElements();
   loadGeometry();
   loadShapes();
   loadBuildLabel();
@@ -62,7 +64,9 @@ function cacheElements() {
     "layer-outline", "layer-inner", "layer-walls",
     "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
     "layer-rooms", "layer-points",
-    "layer-labels", "layer-dims", "layer-measure",
+    "layer-labels", "layer-dims",
+    "layer-plumbing-pipes", "layer-plumbing-fittings", "layer-plumbing-fixtures",
+    "layer-measure",
     "grid-rect", "svg-view-container",
     "coord-display", "connection-status", "zoom-level",
     "selection-info", "measure-info",
@@ -74,6 +78,7 @@ function cacheElements() {
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
     "show-doors", "show-clearance", "open-links", "show-areas", "roof-style",
+    "plumbing-tools", "plumbing-fixtures-table", "plumbing-pipes-table",
     "variant-select", "variant-selector",
     "error-banner", "error-banner-text", "error-banner-action", "error-banner-dismiss",
   ];
@@ -100,7 +105,14 @@ function connectSSE() {
 
   App.sse.addEventListener("element_changed", async () => {
     await loadElements();
-    if (App.state.activeView === "interactive" && App.state.geometry) renderCanvas();
+    if (App.state.geometry) {
+      if (App.state.activeView === "interactive") renderCanvas();
+      else if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+    }
+  });
+
+  App.sse.addEventListener("plumbing_changed", () => {
+    loadPlumbingElements();
   });
 
   App.sse.addEventListener("geometry_changed", () => {
@@ -219,6 +231,7 @@ async function loadGeometry() {
     App.state.geometry = await resp.json();
     hideErrorBanner();
     if (App.state.activeView === "interactive") renderCanvas();
+    else if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
     updateOpeningsTable();
     updateElementsTable();
   } catch (e) {
@@ -280,6 +293,11 @@ function renderViewTabs() {
   container.appendChild(vs);
 }
 
+function isCanvasView(name) {
+  const v = name || App.state.activeView;
+  return v === "interactive" || v === "plumbing_edit";
+}
+
 function switchView(viewName) {
   App.state.activeView = viewName;
   document.querySelectorAll(".view-tab").forEach(t => {
@@ -290,11 +308,17 @@ function switchView(viewName) {
   const showVariant = viewName === "interactive" || viewName === "floorplan";
   App.els["variant-selector"].style.display = showVariant ? "inline-block" : "none";
 
-  if (viewName === "interactive") {
+  // Show/hide plumbing tools
+  if (App.els["plumbing-tools"]) {
+    App.els["plumbing-tools"].style.display = viewName === "plumbing_edit" ? "" : "none";
+  }
+
+  if (isCanvasView(viewName)) {
     App.els["canvas"].style.display = "block";
     App.els["svg-view-container"].style.display = "none";
     App.els["viewport"].style.cursor = App.state.activeTool === "pan" ? "grab" : "crosshair";
-    renderCanvas();
+    if (viewName === "plumbing_edit") renderPlumbingCanvas();
+    else renderCanvas();
   } else {
     App.els["canvas"].style.display = "none";
     App.els["svg-view-container"].style.display = "block";
@@ -592,10 +616,16 @@ function clearLayers() {
   const layers = ["layer-outline", "layer-inner", "layer-walls",
     "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
     "layer-rooms", "layer-points",
-    "layer-labels", "layer-dims", "layer-measure"];
+    "layer-labels", "layer-dims",
+    "layer-plumbing-pipes", "layer-plumbing-fittings", "layer-plumbing-fixtures",
+    "layer-measure"];
   for (const id of layers) {
     App.els[id].innerHTML = "";
   }
+  // Reset ghost opacity
+  App.els["layer-outline"].style.opacity = "";
+  App.els["layer-inner"].style.opacity = "";
+  App.els["layer-walls"].style.opacity = "";
 }
 
 function polyToStr(poly) {
@@ -1080,6 +1110,337 @@ function renderPoints(g) {
 }
 
 
+/* ========== PLUMBING DATA ========== */
+
+async function loadPlumbingElements() {
+  try {
+    const resp = await apiFetch("/api/plumbing");
+    App.state.plumbingElements = await resp.json();
+    if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+    updatePlumbingTable();
+  } catch (e) {
+    console.error("Plumbing load failed:", e);
+  }
+}
+
+function updatePlumbingTable() {
+  const elems = App.state.plumbingElements || [];
+  // Fixtures table
+  const ftBody = App.els["plumbing-fixtures-table"]
+    ? App.els["plumbing-fixtures-table"].querySelector("tbody") : null;
+  if (ftBody) {
+    ftBody.innerHTML = "";
+    for (const e of elems.filter(x => x.type === "fixture_connection")) {
+      const p = e.properties || {};
+      const tr = document.createElement("tr");
+      tr.className = "selectable";
+      tr.innerHTML = `<td>${e.name}</td><td>${p.cold ? "\u2713" : ""}</td><td>${p.hot ? "\u2713" : ""}</td><td>${p.drain ? "\u2713" : ""}</td>`;
+      tr.addEventListener("click", () => selectElement("plumbing", e.name, e));
+      ftBody.appendChild(tr);
+    }
+  }
+  // Pipes & fittings table
+  const ptBody = App.els["plumbing-pipes-table"]
+    ? App.els["plumbing-pipes-table"].querySelector("tbody") : null;
+  if (ptBody) {
+    ptBody.innerHTML = "";
+    for (const e of elems.filter(x => x.type !== "fixture_connection")) {
+      const tr = document.createElement("tr");
+      tr.className = "selectable";
+      tr.innerHTML = `<td>${e.name}</td><td>${e.type}</td>`;
+      tr.addEventListener("click", () => selectElement("plumbing", e.name, e));
+      ptBody.appendChild(tr);
+    }
+  }
+}
+
+
+/* ========== PLUMBING CANVAS ========== */
+
+function renderPlumbingCanvas() {
+  const g = App.state.geometry;
+  if (!g) return;
+
+  clearLayers();
+
+  // Render building outline as ghost context (reduced opacity)
+  renderOutline(g);
+  renderInnerWalls(g);
+  renderInteriorWalls(g);
+  App.els["layer-outline"].style.opacity = "0.25";
+  App.els["layer-inner"].style.opacity = "0.25";
+  App.els["layer-walls"].style.opacity = "0.25";
+
+  // Render plumbing elements
+  renderPlumbingPipes();
+  renderPlumbingFittings();
+  renderPlumbingFixtures();
+
+  // Preserve plumbing draw preview if active
+  if (PlumbingDraw.points.length > 0) {
+    renderPlumbingDrawPreview();
+  }
+
+  if (App.state.zoom === 1 && App.state.pan.x === 0 && App.state.pan.y === 0) {
+    fitToWindow();
+  } else {
+    applyTransform();
+  }
+}
+
+const PLUMBING_COLORS = {
+  supply_cold: "#1E90FF",
+  supply_hot: "#FF4444",
+  drain_pipe: "#228B22",
+};
+
+function renderPlumbingPipes() {
+  const layer = App.els["layer-plumbing-pipes"];
+  const elems = App.state.plumbingElements || [];
+  for (const e of elems) {
+    if (e.type !== "supply_pipe" && e.type !== "drain_pipe") continue;
+    const path = e.path || [];
+    if (path.length < 2) continue;
+    const p = e.properties || {};
+    let color;
+    if (e.type === "supply_pipe") {
+      color = (p.hot_cold === "hot") ? PLUMBING_COLORS.supply_hot : PLUMBING_COLORS.supply_cold;
+    } else {
+      color = PLUMBING_COLORS.drain_pipe;
+    }
+    const pts = path.map(pt => `${pt[0]},${-pt[1]}`).join(" ");
+    const el = svgEl("polyline", {
+      points: pts,
+      class: "plumbing-pipe selectable",
+      "data-type": "plumbing",
+      "data-name": e.name,
+      fill: "none",
+      stroke: color,
+      "stroke-width": "0.06",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+    });
+    el.addEventListener("click", (ev) => selectElement("plumbing", e.name, e, ev));
+    layer.appendChild(el);
+
+    // Slope annotation for drain pipes
+    if (e.type === "drain_pipe" && p.slope && path.length >= 2) {
+      const mid = [
+        (path[0][0] + path[path.length - 1][0]) / 2,
+        (path[0][1] + path[path.length - 1][1]) / 2,
+      ];
+      const label = svgEl("text", {
+        x: mid[0], y: -mid[1] - 0.15,
+        class: "plumbing-slope-label",
+      });
+      label.textContent = p.slope;
+      layer.appendChild(label);
+    }
+  }
+}
+
+function renderPlumbingFittings() {
+  const layer = App.els["layer-plumbing-fittings"];
+  const elems = App.state.plumbingElements || [];
+  for (const e of elems) {
+    if (e.type !== "fitting") continue;
+    const path = e.path || [];
+    if (path.length < 1) continue;
+    const pt = path[0];
+    const p = e.properties || {};
+    const ft = p.fitting_type || "tee";
+    const rot = p.rotation || 0;
+    const g = svgEl("g", {
+      transform: `translate(${pt[0]},${-pt[1]}) rotate(${-rot})`,
+      class: "plumbing-fitting selectable",
+      "data-type": "plumbing",
+      "data-name": e.name,
+    });
+    // Draw fitting symbol
+    if (ft === "elbow90" || ft === "elbow45") {
+      g.appendChild(svgEl("path", {
+        d: ft === "elbow90"
+          ? "M -0.15,0 L 0,0 L 0,-0.15"
+          : "M -0.15,0 L 0,0 L -0.05,-0.14",
+        fill: "none", stroke: "#ccc", "stroke-width": "0.04",
+      }));
+    } else if (ft === "valve") {
+      g.appendChild(svgEl("path", {
+        d: "M -0.1,-0.08 L 0.1,0.08 M -0.1,0.08 L 0.1,-0.08",
+        fill: "none", stroke: "#f0c040", "stroke-width": "0.04",
+      }));
+    } else {
+      // Default: tee
+      g.appendChild(svgEl("line", {
+        x1: -0.15, y1: 0, x2: 0.15, y2: 0,
+        stroke: "#ccc", "stroke-width": "0.04",
+      }));
+      g.appendChild(svgEl("line", {
+        x1: 0, y1: 0, x2: 0, y2: -0.15,
+        stroke: "#ccc", "stroke-width": "0.04",
+      }));
+    }
+    g.appendChild(svgEl("circle", {
+      cx: 0, cy: 0, r: 0.06, fill: "#555", stroke: "#ccc", "stroke-width": "0.02",
+    }));
+    g.addEventListener("click", (ev) => selectElement("plumbing", e.name, e, ev));
+    layer.appendChild(g);
+  }
+}
+
+function renderPlumbingFixtures() {
+  const layer = App.els["layer-plumbing-fixtures"];
+  const elems = App.state.plumbingElements || [];
+  for (const e of elems) {
+    if (e.type !== "fixture_connection") continue;
+    const path = e.path || [];
+    if (path.length < 1) continue;
+    const pt = path[0];
+    const p = e.properties || {};
+    // Determine marker color based on connections
+    let color = "#888";
+    if (p.hot && p.cold) color = "#b060d0";
+    else if (p.hot) color = PLUMBING_COLORS.supply_hot;
+    else if (p.cold) color = PLUMBING_COLORS.supply_cold;
+    const g = svgEl("g", {
+      transform: `translate(${pt[0]},${-pt[1]})`,
+      class: "plumbing-fixture-marker selectable",
+      "data-type": "plumbing",
+      "data-name": e.name,
+    });
+    g.appendChild(svgEl("circle", {
+      cx: 0, cy: 0, r: 0.15, fill: "none", stroke: color, "stroke-width": "0.03",
+    }));
+    g.appendChild(svgEl("circle", {
+      cx: 0, cy: 0, r: 0.05, fill: color,
+    }));
+    // Label
+    const label = svgEl("text", {
+      x: 0.2, y: 0.05, class: "plumbing-fixture-label",
+    });
+    label.textContent = e.name;
+    g.appendChild(label);
+    g.addEventListener("click", (ev) => selectElement("plumbing", e.name, e, ev));
+    layer.appendChild(g);
+  }
+}
+
+
+/* ========== PLUMBING DRAWING TOOLS ========== */
+
+const PlumbingDraw = {
+  points: [],
+  type: null,       // "supply_pipe" or "drain_pipe"
+  hotCold: null,    // "cold" or "hot"
+};
+
+function isPlumbingDrawTool(tool) {
+  return tool === "supply-cold" || tool === "supply-hot" || tool === "drain";
+}
+
+function plumbingDrawClick(wx, wy) {
+  PlumbingDraw.points.push([Math.round(wx * 100) / 100, Math.round(wy * 100) / 100]);
+  renderPlumbingDrawPreview();
+}
+
+function plumbingDrawDblClick(wx, wy) {
+  // Double-click finishes path (the point was already added by click)
+  finishPlumbingDraw();
+}
+
+async function finishPlumbingDraw() {
+  if (PlumbingDraw.points.length < 2) {
+    cancelPlumbingDraw();
+    return;
+  }
+  const props = {};
+  if (PlumbingDraw.type === "supply_pipe") {
+    props.hot_cold = PlumbingDraw.hotCold;
+    props.pipe_size = "0.75";
+  } else {
+    props.slope = "0.25 in/ft";
+  }
+  const name = `${PlumbingDraw.type}_${Date.now()}`;
+  try {
+    await apiFetch("/api/plumbing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: PlumbingDraw.type,
+        name: name,
+        path: PlumbingDraw.points,
+        properties: props,
+      }),
+    });
+    showToast(`${PlumbingDraw.type} created`, "success");
+  } catch (e) {
+    showToast(`Failed: ${e.message}`, "error");
+  }
+  PlumbingDraw.points = [];
+  PlumbingDraw.type = null;
+  PlumbingDraw.hotCold = null;
+}
+
+function cancelPlumbingDraw() {
+  PlumbingDraw.points = [];
+  PlumbingDraw.type = null;
+  PlumbingDraw.hotCold = null;
+  if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+}
+
+function renderPlumbingDrawPreview() {
+  const layer = App.els["layer-plumbing-pipes"];
+  // Remove existing preview
+  const old = layer.querySelector(".plumbing-draw-preview");
+  if (old) old.remove();
+  if (PlumbingDraw.points.length < 1) return;
+  let color = PLUMBING_COLORS.drain_pipe;
+  if (PlumbingDraw.type === "supply_pipe") {
+    color = PlumbingDraw.hotCold === "hot" ? PLUMBING_COLORS.supply_hot : PLUMBING_COLORS.supply_cold;
+  }
+  const pts = PlumbingDraw.points.map(p => `${p[0]},${-p[1]}`).join(" ");
+  const el = svgEl("polyline", {
+    points: pts,
+    class: "plumbing-draw-preview",
+    fill: "none",
+    stroke: color,
+    "stroke-width": "0.06",
+    "stroke-dasharray": "0.15 0.08",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    opacity: "0.7",
+  });
+  layer.appendChild(el);
+  // Vertex markers
+  for (const p of PlumbingDraw.points) {
+    layer.appendChild(svgEl("circle", {
+      cx: p[0], cy: -p[1], r: 0.08,
+      fill: color, opacity: "0.5",
+      class: "plumbing-draw-preview",
+    }));
+  }
+}
+
+async function placeFitting(wx, wy) {
+  const name = `fitting_${Date.now()}`;
+  try {
+    await apiFetch("/api/plumbing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "fitting",
+        name: name,
+        path: [[Math.round(wx * 100) / 100, Math.round(wy * 100) / 100]],
+        properties: { fitting_type: "tee", rotation: 0, size: "0.75" },
+      }),
+    });
+    showToast("Fitting placed", "success");
+  } catch (e) {
+    showToast(`Failed: ${e.message}`, "error");
+  }
+}
+
+
 /* ========== SVG HELPERS ========== */
 
 function svgEl(tag, attrs) {
@@ -1106,7 +1467,7 @@ function applyTransform() {
 }
 
 function fitToWindow() {
-  if (App.state.activeView !== "interactive") {
+  if (!isCanvasView()) {
     svgViewFit();
     return;
   }
@@ -2709,6 +3070,7 @@ function setupEventListeners() {
       // Load data for panel if needed
       if (tab.dataset.panel === "outline") loadOutlineTable();
       if (tab.dataset.panel === "elements") updateElementsTable();
+      if (tab.dataset.panel === "plumbing") updatePlumbingTable();
     });
   });
 
@@ -2719,7 +3081,7 @@ function setupEventListeners() {
 
   // Window resize
   window.addEventListener("resize", () => {
-    if (App.state.activeView === "interactive" && App.state.geometry) {
+    if (isCanvasView() && App.state.geometry) {
       fitToWindow();
     }
   });
@@ -2730,7 +3092,7 @@ function setupEventListeners() {
 
 function onMouseDown(e) {
   // SVG view: any left-click starts pan drag
-  if (App.state.activeView !== "interactive") {
+  if (!isCanvasView()) {
     if (e.button === 0 || e.button === 1) {
       App.state.isDragging = true;
       App.state.dragStart = { x: e.clientX, y: e.clientY };
@@ -2765,6 +3127,24 @@ function onMouseDown(e) {
     moveToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "draw-wall") {
     drawWallMouseDown(e);
+  } else if (e.button === 0 && isPlumbingDrawTool(App.state.activeTool)) {
+    const rect = App.els["viewport"].getBoundingClientRect();
+    const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    // Initialise draw state if starting
+    if (PlumbingDraw.points.length === 0) {
+      if (App.state.activeTool === "supply-cold") {
+        PlumbingDraw.type = "supply_pipe"; PlumbingDraw.hotCold = "cold";
+      } else if (App.state.activeTool === "supply-hot") {
+        PlumbingDraw.type = "supply_pipe"; PlumbingDraw.hotCold = "hot";
+      } else {
+        PlumbingDraw.type = "drain_pipe"; PlumbingDraw.hotCold = null;
+      }
+    }
+    plumbingDrawClick(wx, wy);
+  } else if (e.button === 0 && App.state.activeTool === "place-fitting") {
+    const rect = App.els["viewport"].getBoundingClientRect();
+    const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    placeFitting(wx, wy);
   } else if (e.button === 0 && App.state.activeTool === "dimension") {
     dimToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "label") {
@@ -2778,7 +3158,7 @@ function onMouseDown(e) {
 
 function onMouseMove(e) {
   // SVG view pan drag
-  if (App.state.activeView !== "interactive") {
+  if (!isCanvasView()) {
     if (App.state.isDragging) {
       const dx = e.clientX - App.state.dragStart.x;
       const dy = e.clientY - App.state.dragStart.y;
@@ -2812,6 +3192,26 @@ function onMouseMove(e) {
   // Draw wall preview
   if (App.state.activeTool === "draw-wall" && DrawWallTool.start) {
     drawWallMouseMove(e);
+  }
+
+  // Plumbing draw rubber-band
+  if (isPlumbingDrawTool(App.state.activeTool) && PlumbingDraw.points.length > 0) {
+    const layer = App.els["layer-plumbing-pipes"];
+    const oldRB = layer.querySelector(".plumbing-rubber-band");
+    if (oldRB) oldRB.remove();
+    const last = PlumbingDraw.points[PlumbingDraw.points.length - 1];
+    let color = PLUMBING_COLORS.drain_pipe;
+    if (PlumbingDraw.type === "supply_pipe") {
+      color = PlumbingDraw.hotCold === "hot" ? PLUMBING_COLORS.supply_hot : PLUMBING_COLORS.supply_cold;
+    }
+    const rb = svgEl("line", {
+      x1: last[0], y1: -last[1], x2: wx, y2: -wy,
+      stroke: color, "stroke-width": "0.04",
+      "stroke-dasharray": "0.1 0.05",
+      opacity: "0.5",
+      class: "plumbing-rubber-band",
+    });
+    layer.appendChild(rb);
   }
 
   // Dimension tool preview + snap indicator
@@ -2919,14 +3319,14 @@ function onMouseUp(e) {
 
   if (App.state.isDragging) {
     App.state.isDragging = false;
-    if (App.state.activeView !== "interactive") {
+    if (!isCanvasView()) {
       App.els["viewport"].style.cursor = "grab";
     } else {
       App.els["viewport"].style.cursor = App.state.activeTool === "pan" ? "grab" : "crosshair";
     }
   }
 
-  if (App.state.activeView === "interactive" &&
+  if (isCanvasView() &&
       App.state.activeTool === "measure" && App.state.measureStart) {
     const rect = App.els["viewport"].getBoundingClientRect();
     const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
@@ -2946,7 +3346,7 @@ function onWheel(e) {
   const my = e.clientY - rect.top;
   const factor = e.deltaY > 0 ? 0.9 : 1.1;
 
-  if (App.state.activeView !== "interactive") {
+  if (!isCanvasView()) {
     // SVG view zoom toward cursor
     const sv = App.state.svgView;
     sv.pan.x = mx - (mx - sv.pan.x) * factor;
@@ -2978,6 +3378,11 @@ function onViewportClick(e) {
 }
 
 function onLabelDblClick(e) {
+  // Finish plumbing drawing on double-click
+  if (isPlumbingDrawTool(App.state.activeTool) && PlumbingDraw.points.length >= 2) {
+    finishPlumbingDraw();
+    return;
+  }
   const target = e.target.closest("[data-type='label']");
   if (!target) return;
   const name = target.getAttribute("data-name");
@@ -3112,11 +3517,19 @@ function onKeyDown(e) {
       deleteSelectedElements();
       break;
     case "Enter":
+      if (PlumbingDraw.points.length >= 2) {
+        finishPlumbingDraw();
+        break;
+      }
       if (App.state.activeTool === "move" && App.state.selection) {
         showOffsetDialog();
       }
       break;
     case "Escape":
+      if (PlumbingDraw.points.length > 0) {
+        cancelPlumbingDraw();
+        break;
+      }
       if (MoveTool.active) {
         // Cancel drag: remove ghosts, reset state
         for (const g of MoveTool.origTransforms) {
@@ -3318,12 +3731,18 @@ function setTool(tool) {
   document.querySelectorAll(".tool-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.tool === tool);
   });
-  const cursors = { select: "crosshair", pan: "grab", measure: "crosshair", move: "move", "draw-wall": "crosshair", dimension: "crosshair", label: "crosshair" };
+  const cursors = {
+    select: "crosshair", pan: "grab", measure: "crosshair",
+    move: "move", "draw-wall": "crosshair", dimension: "crosshair", label: "crosshair",
+    "supply-cold": "crosshair", "supply-hot": "crosshair", drain: "crosshair",
+    "place-fitting": "crosshair",
+  };
   App.els["viewport"].style.cursor = cursors[tool] || "crosshair";
 
   if (tool !== "measure") clearMeasure();
   if (tool !== "draw-wall") cancelDrawWall();
   if (tool !== "dimension" && typeof cancelDimTool === "function") cancelDimTool();
+  if (!isPlumbingDrawTool(tool)) cancelPlumbingDraw();
 }
 
 
@@ -3498,7 +3917,7 @@ async function handleMenuAction(action) {
       break;
     }
     case "regenerate-view": {
-      if (App.state.activeView === "interactive") {
+      if (isCanvasView()) {
         showToast("Cannot regenerate interactive view — edit constants instead");
         return;
       }

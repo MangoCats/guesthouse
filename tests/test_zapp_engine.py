@@ -123,14 +123,14 @@ class TestENG7ConstantPropagation:
     def test_bed_width_change_propagates(self, fresh_db):
         # Default geometry
         constants = get_constants_dict(fresh_db)
-        geom1 = compute_geometry(constants)
+        geom1 = compute_geometry(constants, db_path=fresh_db)
         bed1 = geom1["furniture"]["bed"]
         w1 = bed1["bbox"]["e"] - bed1["bbox"]["w"]
 
         # Change BED_WIDTH to 80/12 (80 inches)
         update_constant("BED_WIDTH", 80.0 / 12.0, fresh_db)
         constants2 = get_constants_dict(fresh_db)
-        geom2 = compute_geometry(constants2)
+        geom2 = compute_geometry(constants2, db_path=fresh_db)
         bed2 = geom2["furniture"]["bed"]
         w2 = bed2["bbox"]["e"] - bed2["bbox"]["w"]
 
@@ -196,20 +196,20 @@ class TestENG14VariantExclusions:
     def test_bare_excludes_iw6(self, fresh_db):
         """Bare variant omits IW6 from interior walls."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "bare")
+        geom = compute_geometry(constants, "bare", db_path=fresh_db)
         assert "IW6" not in geom["interior_walls"]
 
     def test_bare_excludes_ro5(self, fresh_db):
         """Bare variant omits RO5 from rough openings."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "bare")
+        geom = compute_geometry(constants, "bare", db_path=fresh_db)
         ro_names = {ro["name"] for ro in geom["rough_openings"]}
         assert "RO5" not in ro_names
 
     def test_standard_includes_both(self, fresh_db):
         """Standard variant includes IW6 and RO5."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
         assert "IW6" in geom["interior_walls"]
         ro_names = {ro["name"] for ro in geom["rough_openings"]}
         assert "RO5" in ro_names
@@ -226,20 +226,20 @@ class TestENG15RoomLabels:
     def test_standard_has_11_labels(self, fresh_db):
         """Standard variant produces 11 room labels."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
         assert len(geom["room_labels"]) == 11
 
     def test_all_rooms_named(self, fresh_db):
         """All 11 expected room names are present."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
         names = {lbl["name"] for lbl in geom["room_labels"]}
         assert names == self.EXPECTED_ROOMS
 
     def test_labels_have_required_keys(self, fresh_db):
         """Each label has name, pos, and centroid keys."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
         for lbl in geom["room_labels"]:
             assert "name" in lbl, f"label missing 'name'"
             assert "pos" in lbl, f"{lbl.get('name')} missing 'pos'"
@@ -250,7 +250,7 @@ class TestENG15RoomLabels:
     def test_label_positions_within_bbox(self, fresh_db):
         """All label positions fall within the building outline bbox."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
         ob = geom["bbox"]
         margin = 2.0
         for lbl in geom["room_labels"]:
@@ -263,7 +263,7 @@ class TestENG15RoomLabels:
     def test_sf_has_area_and_poly(self, fresh_db):
         """SF variant labels have area (positive number) and poly (list)."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "sf")
+        geom = compute_geometry(constants, "sf", db_path=fresh_db)
         for lbl in geom["room_labels"]:
             assert "area" in lbl, f"{lbl['name']} missing 'area'"
             assert lbl["area"] > 0, f"{lbl['name']} area not positive"
@@ -273,7 +273,7 @@ class TestENG15RoomLabels:
     def test_sf_has_sf_lines(self, fresh_db):
         """SF variant includes sf_lines with 3 partition lines."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "sf")
+        geom = compute_geometry(constants, "sf", db_path=fresh_db)
         assert "sf_lines" in geom
         assert len(geom["sf_lines"]) == 3
         for line in geom["sf_lines"]:

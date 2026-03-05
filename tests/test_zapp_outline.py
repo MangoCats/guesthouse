@@ -207,7 +207,7 @@ class TestEngineIntegration:
         from app.engine import compute_geometry
         constants = get_constants_dict(fresh_db)
         chain_rows = get_outline_chain(fresh_db)
-        geom = compute_geometry(constants, "standard", chain_rows)
+        geom = compute_geometry(constants, "standard", chain_rows, db_path=fresh_db)
 
         assert "points" in geom
         assert "outline_segments" in geom
@@ -221,10 +221,10 @@ class TestEngineIntegration:
         constants = get_constants_dict(fresh_db)
 
         # Without chain_rows (old path)
-        geom_old = compute_geometry(constants, "standard", None)
+        geom_old = compute_geometry(constants, "standard", None, db_path=fresh_db)
         # With chain_rows (new path)
         chain_rows = get_outline_chain(fresh_db)
-        geom_new = compute_geometry(constants, "standard", chain_rows)
+        geom_new = compute_geometry(constants, "standard", chain_rows, db_path=fresh_db)
 
         # Compare F-series points
         for name in ["F1", "F2", "F5", "F6", "F7", "F8", "F9", "F10",
@@ -243,7 +243,7 @@ class TestEngineIntegration:
         constants = get_constants_dict(fresh_db)
         chain_rows = get_outline_chain(fresh_db)
 
-        geom_default = compute_geometry(constants, "standard", chain_rows)
+        geom_default = compute_geometry(constants, "standard", chain_rows, db_path=fresh_db)
 
         # Modify F9->F10 distance (seq 5, a line — seq 4 is the F8->F9 arc)
         chain_rows_mod = get_outline_chain(fresh_db)
@@ -252,7 +252,7 @@ class TestEngineIntegration:
                 row["distance"] = (row["distance"] or 0) + 1.0  # add 1 foot
                 break
 
-        geom_modified = compute_geometry(constants, "standard", chain_rows_mod)
+        geom_modified = compute_geometry(constants, "standard", chain_rows_mod, db_path=fresh_db)
 
         # F10 should be at a different position
         f10_default = geom_default["points"]["F10"]

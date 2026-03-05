@@ -859,6 +859,32 @@ td.solved {
 }
 tr.outline-selected td { background: var(--selection); }
 
+/* ========== PLUMBING ========== */
+.plumbing-pipe { pointer-events: stroke; }
+.plumbing-pipe:hover { filter: brightness(1.5); }
+.plumbing-fitting { pointer-events: bounding-box; }
+.plumbing-fitting:hover { filter: brightness(1.5); }
+.plumbing-fixture-marker { pointer-events: bounding-box; }
+.plumbing-fixture-marker:hover { filter: brightness(1.5); }
+.plumbing-fixture-label {
+  font-family: sans-serif;
+  font-size: 0.22px;
+  fill: var(--text-dim);
+  dominant-baseline: middle;
+}
+.plumbing-slope-label {
+  font-family: sans-serif;
+  font-size: 0.2px;
+  fill: #228B22;
+  text-anchor: middle;
+  dominant-baseline: auto;
+}
+#plumbing-fixtures-table td:nth-child(n+2),
+#plumbing-fixtures-table th:nth-child(n+2) {
+  text-align: center;
+  width: 30px;
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1000px) {
   :root { --palette-w: 50px; --panel-w: 240px; }

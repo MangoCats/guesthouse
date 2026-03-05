@@ -116,6 +116,25 @@
         <button class="palette-btn" onclick="showCatalog('appliance')">Appliance</button>
         <button class="palette-btn" onclick="showCatalog('fixture')">Fixture</button>
       </div>
+      <div id="plumbing-tools" class="palette-section" style="display:none">
+        <h3>Plumbing</h3>
+        <button class="tool-btn" data-tool="supply-cold" title="Cold Supply Pipe">
+          <svg viewBox="0 0 24 24" width="20" height="20"><line x1="4" y1="12" x2="20" y2="12" stroke="#1E90FF" stroke-width="3"/><circle cx="20" cy="12" r="2" fill="#1E90FF"/></svg>
+          <span>Cold</span>
+        </button>
+        <button class="tool-btn" data-tool="supply-hot" title="Hot Supply Pipe">
+          <svg viewBox="0 0 24 24" width="20" height="20"><line x1="4" y1="12" x2="20" y2="12" stroke="#FF4444" stroke-width="3"/><circle cx="20" cy="12" r="2" fill="#FF4444"/></svg>
+          <span>Hot</span>
+        </button>
+        <button class="tool-btn" data-tool="drain" title="Drain Pipe">
+          <svg viewBox="0 0 24 24" width="20" height="20"><line x1="4" y1="12" x2="20" y2="12" stroke="#228B22" stroke-width="3"/><circle cx="20" cy="12" r="2" fill="#228B22"/></svg>
+          <span>Drain</span>
+        </button>
+        <button class="tool-btn" data-tool="place-fitting" title="Place Fitting">
+          <svg viewBox="0 0 24 24" width="20" height="20"><line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2"/><line x1="12" y1="4" x2="12" y2="12" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span>Fitting</span>
+        </button>
+      </div>
       <div class="palette-section">
         <h3>Display</h3>
         <label class="toggle"><input type="checkbox" id="show-points" checked><span>Points</span></label>
@@ -167,6 +186,9 @@
             <g id="layer-points"></g>
             <g id="layer-labels"></g>
             <g id="layer-dims"></g>
+            <g id="layer-plumbing-pipes"></g>
+            <g id="layer-plumbing-fittings"></g>
+            <g id="layer-plumbing-fixtures"></g>
             <g id="layer-measure"></g>
           </g>
         </svg>
@@ -189,6 +211,7 @@
         <button class="panel-tab" data-panel="elements">Elements</button>
         <button class="panel-tab" data-panel="outline">Outline</button>
         <button class="panel-tab" data-panel="openings">Openings</button>
+        <button class="panel-tab" data-panel="plumbing">Plumbing</button>
       </div>
 
       <!-- Properties panel -->
@@ -273,6 +296,24 @@
         <table id="rough-openings-table">
           <thead>
             <tr><th>Name</th><th>Wall</th><th>Width (in)</th><th>Orient</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Plumbing panel -->
+      <div id="panel-plumbing" class="panel-content">
+        <h3>Fixture Connections</h3>
+        <table id="plumbing-fixtures-table">
+          <thead>
+            <tr><th>Fixture</th><th>C</th><th>H</th><th>D</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <h3>Pipes &amp; Fittings</h3>
+        <table id="plumbing-pipes-table">
+          <thead>
+            <tr><th>Name</th><th>Type</th></tr>
           </thead>
           <tbody></tbody>
         </table>

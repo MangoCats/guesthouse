@@ -49,7 +49,7 @@ class TestModuleIsolation:
         db = str(tmp_path / "test.db")
         init_db(db)
         update_constant("BED_WIDTH", orig + 2.0, db)
-        compute_geometry(get_constants_dict(db))
+        compute_geometry(get_constants_dict(db), db_path=db)
 
         # layout now has the patched value
         assert abs(l.BED_WIDTH - (orig + 2.0)) < 1e-9
@@ -65,7 +65,7 @@ class TestModuleIsolation:
         db = str(tmp_path / "test.db")
         init_db(db)
         update_constant("BED_WIDTH", 5.0, db)
-        compute_geometry(get_constants_dict(db))
+        compute_geometry(get_constants_dict(db), db_path=db)
 
         _restore_modules(snap_before)
         snap_after = _snapshot_modules()
@@ -87,7 +87,7 @@ class TestModuleIsolation:
 
         db = str(tmp_path / "test.db")
         init_db(db)
-        compute_geometry(get_constants_dict(db))
+        compute_geometry(get_constants_dict(db), db_path=db)
         reloaded_class_id = id(l.InteriorLayout)
 
         _restore_modules(snap)

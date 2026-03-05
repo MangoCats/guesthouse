@@ -20,7 +20,8 @@ def _geom_with_doors(fresh_db):
     constants = get_constants_dict(fresh_db)
     chain_rows = get_outline_chain(fresh_db)
     doors = get_all_doors(fresh_db)
-    return compute_geometry(constants, "standard", chain_rows, doors_data=doors)
+    return compute_geometry(constants, "standard", chain_rows,
+                            doors_data=doors, db_path=fresh_db)
 
 
 class TestDoorArcs:
@@ -117,7 +118,8 @@ class TestClearanceZones:
         constants = get_constants_dict(fresh_db)
         chain_rows = get_outline_chain(fresh_db)
         doors = get_all_doors(fresh_db)
-        g = compute_geometry(constants, "bare", chain_rows, doors_data=doors)
+        g = compute_geometry(constants, "bare", chain_rows,
+                             doors_data=doors, db_path=fresh_db)
         assert g["clearance_zones"] == []
 
 
@@ -159,7 +161,8 @@ class TestApplianceClearanceZones:
         constants = get_constants_dict(fresh_db)
         chain_rows = get_outline_chain(fresh_db)
         doors = get_all_doors(fresh_db)
-        g = compute_geometry(constants, "minik", chain_rows, doors_data=doors)
+        g = compute_geometry(constants, "minik", chain_rows,
+                             doors_data=doors, db_path=fresh_db)
         names = {z["name"] for z in g["clearance_zones"]}
         assert "stove_clearance" not in names
         assert "dishwasher_clearance" not in names
@@ -247,7 +250,8 @@ class TestApplianceDoors:
         constants = get_constants_dict(fresh_db)
         chain_rows = get_outline_chain(fresh_db)
         doors = get_all_doors(fresh_db)
-        g = compute_geometry(constants, "minik", chain_rows, doors_data=doors)
+        g = compute_geometry(constants, "minik", chain_rows,
+                             doors_data=doors, db_path=fresh_db)
         fridge_doors = [d for d in g["appliance_doors"] if d["item_name"] == "fridge"]
         assert len(fridge_doors) == 1
         # Minik fridge hinge is at idx 1 (SE corner)

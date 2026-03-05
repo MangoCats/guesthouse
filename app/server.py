@@ -31,6 +31,11 @@ from app.engine import (
     compute_geometry, generate_svg, get_svg_content, patch_constants,
     compute_survey_points,
 )
+from app.plumbing import (
+    get_plumbing_elements, get_plumbing_element,
+    create_plumbing_element, create_plumbing_raw,
+    update_plumbing_element, delete_plumbing_element,
+)
 from app.undo import UndoManager
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1016,6 +1021,52 @@ def create_app(db_path=None):
     def api_survey_points():
         constants = get_constants_dict(db)
         return jsonify(compute_survey_points(constants))
+
+    # -- Plumbing Elements API (PLUMB-5) --
+
+    @app.route("/api/plumbing")
+    def api_plumbing():
+        return jsonify(get_plumbing_elements(db))
+
+    @app.route("/api/plumbing", methods=["POST"])
+    def api_create_plumbing():
+        data = request.get_json(force=True)
+        elem = create_plumbing_element(
+            data["type"], data["name"],
+            path=data.get("path"),
+            properties=data.get("properties"),
+            fixture=data.get("fixture"),
+            db_path=db,
+        )
+        undo_mgr.record("plumbing_create", {"id": elem["id"]}, elem,
+                        f"Create plumbing {elem['name']}")
+        _broadcast("plumbing_changed")
+        return jsonify(elem), 201
+
+    @app.route("/api/plumbing/<int:element_id>", methods=["PUT"])
+    def api_update_plumbing(element_id):
+        old = get_plumbing_element(element_id, db)
+        if not old:
+            return jsonify({"error": "not found"}), 404
+        data = request.get_json(force=True)
+        updated = update_plumbing_element(element_id, data, db)
+        undo_mgr.record("plumbing_update",
+                        {"id": element_id, **{k: old[k] for k in data if k in old}},
+                        {"id": element_id, **{k: updated[k] for k in data if k in updated}},
+                        f"Update plumbing {old['name']}")
+        _broadcast("plumbing_changed")
+        return jsonify(updated)
+
+    @app.route("/api/plumbing/<int:element_id>", methods=["DELETE"])
+    def api_delete_plumbing(element_id):
+        old = get_plumbing_element(element_id, db)
+        if not old:
+            return jsonify({"error": "not found"}), 404
+        delete_plumbing_element(element_id, db)
+        undo_mgr.record("plumbing_delete", old, {"id": element_id},
+                        f"Delete plumbing {old['name']}")
+        _broadcast("plumbing_changed")
+        return jsonify({"deleted": element_id})
 
     # -- Site Plan Generation API (SITE-1) --
 

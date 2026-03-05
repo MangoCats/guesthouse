@@ -24,7 +24,7 @@ from app.engine import compute_geometry
 def variant_items_standard(fresh_db):
     """Standard variant items from a fresh database."""
     constants = get_constants_dict(fresh_db)
-    geom = compute_geometry(constants, "standard")
+    geom = compute_geometry(constants, "standard", db_path=fresh_db)
     return geom["variant_items"]
 
 
@@ -34,7 +34,7 @@ def all_variant_items(fresh_db):
     constants = get_constants_dict(fresh_db)
     result = {}
     for v in VARIANTS:
-        geom = compute_geometry(constants, v)
+        geom = compute_geometry(constants, v, db_path=fresh_db)
         result[v] = geom["variant_items"]
     return result
 
@@ -140,7 +140,7 @@ class TestItemGeometry:
     def test_bed_position_matches_layout(self, fresh_db):
         """Bed poly from variant items should match layout.bed.poly."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
         vi_bed = geom["variant_items"]["bed"]
         layout_bed = geom["furniture"]["bed"]
         # Compare first point of each
@@ -171,7 +171,7 @@ class TestItemGeometry:
     def test_all_items_within_outline(self, fresh_db):
         """Every item bbox should be within outline bbox (with margin)."""
         constants = get_constants_dict(fresh_db)
-        geom = compute_geometry(constants, "standard")
+        geom = compute_geometry(constants, "standard", db_path=fresh_db)
         ob = geom["bbox"]
         margin = 2.0  # 2 ft margin for tolerance
         for name, item in geom["variant_items"].items():

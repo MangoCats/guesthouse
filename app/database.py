@@ -124,6 +124,15 @@ CREATE TABLE IF NOT EXISTS config (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS plumbing_elements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    type       TEXT NOT NULL,
+    name       TEXT NOT NULL UNIQUE,
+    path       TEXT DEFAULT '[]',
+    properties TEXT DEFAULT '{}',
+    fixture    TEXT
+);
 """
 
 
@@ -145,6 +154,8 @@ def init_db(db_path=None):
             from app.labels import seed_room_labels, seed_builtin_dimensions
             seed_room_labels(conn)
             seed_builtin_dimensions(conn)
+            from app.plumbing import seed_plumbing
+            seed_plumbing(conn)
         else:
             # Ensure all seed doors exist (handles additions like O3, O6)
             _seed_doors(conn)
@@ -157,6 +168,9 @@ def init_db(db_path=None):
             seed_room_labels(conn)
             # Ensure builtin dimension elements exist (unified dims upgrade)
             seed_builtin_dimensions(conn)
+            # Ensure plumbing fixture records exist (Phase 10d upgrade)
+            from app.plumbing import seed_plumbing
+            seed_plumbing(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +295,7 @@ def _seed_views(conn):
         ("path_area", "Survey Path", "survey/gen_path_svg.py", "survey/path_area.svg", "survey"),
         ("roof", "Roof", "roof/gen_roof.py", "roof/roof.svg", "design"),
         ("plumbing", "Plumbing", "plumbing/gen_plumbing.py", "plumbing/plumbing.svg", "design"),
+        ("plumbing_edit", "Plumbing Edit", "", "plumbing_edit", "design"),
         ("site_plan_df", "Site Plan (DF)", "site/gen_site_plan.py", "site/site_plan_df.pdf", "site"),
         ("site_plan_fs", "Site Plan (FS)", "site/gen_site_plan.py", "site/site_plan_fs.pdf", "site"),
         ("3d_flat", "3D Flat Roof", "scad/gen_flat_roof.py", "scad/flat_roof_patio.png", "3d"),
@@ -823,10 +838,13 @@ def get_variant_exclusions(variant, db_path=None):
     Returns dict like: {"wall": {"IW6"}, "rough_opening": {"RO5"}}
     """
     with get_db(db_path) as conn:
-        rows = conn.execute(
-            "SELECT element_type, element_name FROM variant_exclusions "
-            "WHERE variant = ?", (variant,)
-        ).fetchall()
+        try:
+            rows = conn.execute(
+                "SELECT element_type, element_name FROM variant_exclusions "
+                "WHERE variant = ?", (variant,)
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return {}
     result = {}
     for r in rows:
         result.setdefault(r["element_type"], set()).add(r["element_name"])
@@ -836,9 +854,12 @@ def get_variant_exclusions(variant, db_path=None):
 def get_room_label_offsets(db_path=None):
     """Return dict of room label offsets: {name: (offset_e, offset_n)}."""
     with get_db(db_path) as conn:
-        rows = conn.execute(
-            "SELECT room_name, offset_e, offset_n FROM room_label_offsets"
-        ).fetchall()
+        try:
+            rows = conn.execute(
+                "SELECT room_name, offset_e, offset_n FROM room_label_offsets"
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return {}
     return {r["room_name"]: (r["offset_e"], r["offset_n"]) for r in rows}
 
 

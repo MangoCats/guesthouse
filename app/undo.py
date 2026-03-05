@@ -131,6 +131,17 @@ class UndoManager:
             else:
                 update_element(state["id"],
                                {"properties": state["properties"]}, self._db_path)
+        elif action_type == "plumbing_create":
+            from app.plumbing import delete_plumbing_element
+            delete_plumbing_element(state["id"], self._db_path)
+        elif action_type == "plumbing_delete":
+            from app.plumbing import create_plumbing_raw
+            create_plumbing_raw(state, self._db_path)
+        elif action_type == "plumbing_update":
+            from app.plumbing import update_plumbing_element
+            eid = state["id"]
+            fields = {k: v for k, v in state.items() if k != "id"}
+            update_plumbing_element(eid, fields, self._db_path)
         elif action_type in ("outline_update", "outline_add_point",
                              "outline_remove_point"):
             # Outline undo/redo: state is full chain snapshot (list of dicts)
