@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 9 — Complete, Phase 10 next)
+## Current State (Phase 10a Analysis — Complete, Phase 10b SCAD next)
 
-**213 of 236 requirements implemented.**  527 app tests, 586 pre-existing tests
-(1113 total).  All implemented requirements have automated test coverage.
+**220 of 240 requirements implemented.**  552 app tests, 586 pre-existing tests
+(1138 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|

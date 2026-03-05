@@ -1067,6 +1067,17 @@ no new tab opens; link icon is not visible. Check "Open Links" — link
 icons reappear and clicking opens the URL.
 **Tested:** Client-side toggle (manual verification).
 
+#### DIS-12  Areas Toggle
+The "Areas" checkbox SHALL be unchecked by default. When checked, room
+area labels (in square feet) SHALL appear within each room boundary on
+the interactive canvas. On the SF variant, areas are always shown
+regardless of this toggle.
+
+**Acceptance:** Check "Areas" on Standard variant. Room areas appear.
+Uncheck — areas disappear. Switch to SF — areas always shown.
+**Tested:** `test_zapp_analysis.py::TestRoomAreas` (engine emits areas
+for all variants).
+
 ---
 
 ## 5  Selection & Properties
@@ -1957,7 +1968,7 @@ floor plan and elevation views.
 
 ---
 
-## 13  Analysis **(NEW)**
+## 13  Analysis
 
 #### ANALYSIS-1  Span Analysis View
 Tools > Span Analysis SHALL display the N-S interior span graph showing
@@ -1966,18 +1977,29 @@ span distance vs. position.
 **Acceptance:** Open Span Analysis. Graph shows span curve. Mouse hover
 displays span value at each position.
 
+**Tested:** `test_zapp_analysis.py::TestSpanData` (API returns valid
+arrays, monotonic eastings, positive spans).
+
 #### ANALYSIS-2  Span vs. Rotation
 Tools > Span vs. Rotation SHALL display span measurements across rotation
 angles (5-175 degrees).
 
 **Acceptance:** Graph shows span vs. rotation with min/max markers.
+Properties panel shows min/max span and rotation angles.
+
+**Tested:** `test_zapp_analysis.py::TestSpanRotation` (API returns
+min/max angles and spans, data array with 35 angle samples).
 
 #### ANALYSIS-3  Room Area Display
-View > Show Areas SHALL compute and display room areas in square feet for
-each enclosed region.
+The "Areas" display toggle (DIS-12) SHALL compute and display room areas
+in square feet for each enclosed region. On the SF variant, areas are
+always shown.
 
 **Acceptance:** Room areas appear within room boundaries. Total area sums
 correctly. Values update when walls are moved.
+
+**Tested:** `test_zapp_analysis.py::TestRoomAreas` (areas present for
+all variants, SF has polys, total area in range).
 
 ---
 
@@ -2250,7 +2272,7 @@ history) to the requirements that enable each operation through the GUI.
 | 3D/SCAD model | ~31 | SCAD-1..3 |
 | View variants | ~24 | UI-5, UI-6, UI-8, ENG-13, API-8, API-34, CV-4, VAR-1..3 |
 | Plumbing layout | ~22 | PLUMB-1..8 |
-| Span/area analysis | ~22 | ANALYSIS-1..3 |
+| Span/area analysis | ~22 | ANALYSIS-1..3, DIS-12 |
 | Resize elements | ~20 | SEL-10, DT-7, DT-10 |
 | Element styling (colour/opacity) | ~18 | STYLE-1..4 |
 | Product hyperlinks | ~14 | LINK-1, LINK-2, SEL-12, CV-12, DIS-11 |
