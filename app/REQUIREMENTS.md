@@ -1945,26 +1945,36 @@ connecting boundary lines and distance labels.
 
 ## 12  3D Model **(NEW)**
 
-#### SCAD-1  SCAD Generation
+#### SCAD-1  SCAD Generation ✅
 Tools > Generate 3D Model SHALL run the OpenSCAD generator and produce a
 3D model file.
 
 **Acceptance:** Click Generate 3D Model. SCAD file is generated. Success
 toast appears.
 
-#### SCAD-2  Roof Style Selection
+*Implemented: `POST /api/generate-3d` runs selected roof script via
+`generate_svg()`. Tests: `test_zapp_scad.py::TestGenerateScad`.*
+
+#### SCAD-2  Roof Style Selection ✅
 The 3D model settings SHALL allow selecting roof style (flat, 2:12 slope)
 and overhang distance.
 
 **Acceptance:** Select "2:12 slope" in 3D settings. Regenerate. SCAD file
 contains sloped roof geometry.
 
-#### SCAD-3  Multi-View Layout
+*Implemented: `config` table stores `roof_style`. File menu has roof style
+dropdown. Overhang editable via `ROOF_OVERHANG` constant.
+Tests: `test_zapp_scad.py::TestConfig`.*
+
+#### SCAD-3  Multi-View Layout ✅
 Tools > Generate Views SHALL produce a multi-view PDF (3views.pdf) with
 floor plan and elevation views.
 
 **Acceptance:** Click Generate Views. PDF is created with 4 panels
 (floorplan + 3 elevations).
+
+*Implemented: `POST /api/generate-views` runs SCAD generator, view renderer,
+line drawings, and 3views composer. Tests: `test_zapp_scad.py::TestGenerateViews`.*
 
 ---
 

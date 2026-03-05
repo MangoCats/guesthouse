@@ -119,6 +119,11 @@ CREATE TABLE IF NOT EXISTS doors (
     swing_direction TEXT NOT NULL,            -- 'east', 'west', 'north', 'south'
     door_type       TEXT NOT NULL DEFAULT 'single'  -- 'single' or 'double'
 );
+
+CREATE TABLE IF NOT EXISTS config (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -136,6 +141,7 @@ def init_db(db_path=None):
             _seed_variant_exclusions(conn)
             _seed_elements(conn)
             _seed_doors(conn)
+            _seed_config(conn)
             from app.labels import seed_room_labels, seed_builtin_dimensions
             seed_room_labels(conn)
             seed_builtin_dimensions(conn)
@@ -144,6 +150,8 @@ def init_db(db_path=None):
             _seed_doors(conn)
             # Ensure variant exclusions exist (Phase 7 upgrade)
             _seed_variant_exclusions(conn)
+            # Ensure config defaults exist (Phase 10b upgrade)
+            _seed_config(conn)
             # Ensure room label elements exist (Phase 8 upgrade)
             from app.labels import seed_room_labels, seed_builtin_dimensions
             seed_room_labels(conn)
@@ -275,12 +283,31 @@ def _seed_views(conn):
         ("plumbing", "Plumbing", "plumbing/gen_plumbing.py", "plumbing/plumbing.svg", "design"),
         ("site_plan_df", "Site Plan (DF)", "site/gen_site_plan.py", "site/site_plan_df.pdf", "site"),
         ("site_plan_fs", "Site Plan (FS)", "site/gen_site_plan.py", "site/site_plan_fs.pdf", "site"),
+        ("3d_flat", "3D Flat Roof", "scad/gen_flat_roof.py", "scad/flat_roof.scad", "3d"),
+        ("3d_2in12", "3D 2:12 Roof", "scad/gen_2in12.py", "scad/2in12.scad", "3d"),
+        ("3views", "3-View Layout", "gen_3views.py", "3views.pdf", "3d"),
     ]
     for name, label, script, svg_path, cat in views:
         conn.execute(
             "INSERT OR REPLACE INTO views (name, label, script, svg_path, category, enabled) "
             "VALUES (?, ?, ?, ?, ?, 1)",
             (name, label, script, svg_path, cat),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Seed: config
+# ---------------------------------------------------------------------------
+
+def _seed_config(conn):
+    """Seed default configuration values."""
+    defaults = [
+        ("roof_style", "flat"),
+    ]
+    for key, value in defaults:
+        conn.execute(
+            "INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)",
+            (key, value),
         )
 
 
@@ -702,6 +729,34 @@ def get_views(db_path=None):
     with get_db(db_path) as conn:
         rows = conn.execute("SELECT * FROM views WHERE enabled = 1 ORDER BY category, name").fetchall()
         return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# CRUD: config
+# ---------------------------------------------------------------------------
+
+def get_config(key, db_path=None):
+    """Return a config value by key, or None if not set."""
+    with get_db(db_path) as conn:
+        row = conn.execute("SELECT value FROM config WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else None
+
+
+def set_config(key, value, db_path=None):
+    """Set a config value (insert or update)."""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT INTO config (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = ?",
+            (key, str(value), str(value)),
+        )
+
+
+def get_all_config(db_path=None):
+    """Return all config as a dict."""
+    with get_db(db_path) as conn:
+        rows = conn.execute("SELECT key, value FROM config ORDER BY key").fetchall()
+        return {r["key"]: r["value"] for r in rows}
 
 
 def get_shapes(db_path=None):

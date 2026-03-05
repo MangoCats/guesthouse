@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 10a Analysis — Complete, Phase 10b SCAD next)
+## Current State (Phase 10b SCAD — Complete, Phase 10c Site Plan next)
 
-**220 of 240 requirements implemented.**  552 app tests, 586 pre-existing tests
-(1138 total).  All implemented requirements have automated test coverage.
+**223 of 240 requirements implemented.**  567 app tests, 586 pre-existing tests
+(1153 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -92,9 +92,11 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | SVG link wrapping for elements with URLs (LINK-2) | Done |
 | Canvas link icon overlay (CV-12) | Done |
 | Style module: defaults, validation, resolution (app/style.py) | Done |
+| Analysis: room areas toggle, span tooltip, rotation min/max | Done |
+| 3D/SCAD: config table, roof style, generate-3d/views endpoints | Done |
 
 **What's missing:** Endpoint drag handles (TL-17 partial), Add Opening tool (TL-21),
-site plan editing, 3D integration, plumbing layout (interactive
+site plan editing, plumbing layout (interactive
 canvas with DB-stored elements), electrical layout (aspirational),
 parametric dependencies and cutover to fully database-driven design
 (Charter Principle 5).  The current implementation uses constants as
@@ -568,15 +570,18 @@ generators via the regeneration API.
 - Text annotation tool for site plan (SITE-3)
 - P-series markers with distance labels (SITE-4)
 
-### 3D / SCAD (SCAD-1–3)
-- `POST /api/generate-3d` endpoint wrapping SCAD generator (SCAD-1)
-- Roof style selection stored as config (SCAD-2)
-- Multi-view PDF generation (SCAD-3)
+### 3D / SCAD (SCAD-1–3) ✅ Phase 10b — Complete
+- `POST /api/generate-3d` endpoint wrapping SCAD generator (SCAD-1) ✅
+- Roof style selection stored in `config` table (SCAD-2) ✅
+- Multi-view PDF generation via `POST /api/generate-views` (SCAD-3) ✅
+- Config table for app-level settings, File menu UI with dropdown
+- 15 new tests in `test_zapp_scad.py`
 
-### Analysis (ANALYSIS-1–3)
-- Existing SVG views for span analysis already load in tabs (ANALYSIS-1–2)
-- Room area display partially implemented in Phase 0 (ANALYSIS-3 — this
-  phase completes the general View > Show Areas action)
+### Analysis (ANALYSIS-1–3) ✅ Phase 10a — Complete
+- Span hover tooltip on SVG view (ANALYSIS-1) ✅
+- Span rotation min/max in properties panel (ANALYSIS-2) ✅
+- Room area display for all variants with toggle (ANALYSIS-3) ✅
+- 14 tests in `test_zapp_analysis.py`
 
 ### Plumbing Layout (PLUMB-1–8)
 The plumbing view becomes a full interactive layout — like the floorplan

@@ -94,6 +94,19 @@ body {
   border-top: 1px solid var(--border);
   margin: 4px 0;
 }
+.menu-setting {
+  padding: 4px 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+.menu-setting select {
+  background: var(--bg-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
 
 .status-right {
   display: flex;

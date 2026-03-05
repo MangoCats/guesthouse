@@ -22,7 +22,7 @@ from app.database import (
     get_all_doors, get_door, create_door, update_door, delete_door,
     get_outline_chain_row, update_outline_segment, insert_outline_segment,
     delete_outline_segment, restore_outline_chain, reset_outline_chain,
-    reset_elements,
+    reset_elements, get_config, set_config,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
@@ -955,6 +955,70 @@ def create_app(db_path=None):
         from app.engine import compute_span_rotation
         constants = get_constants_dict(db)
         return jsonify(compute_span_rotation(constants))
+
+    # -- Config API (SCAD-2) --
+
+    @app.route("/api/config/<key>")
+    def api_config_get(key):
+        value = get_config(key, db)
+        if value is None:
+            return jsonify({"error": "unknown config key"}), 404
+        return jsonify({"key": key, "value": value})
+
+    @app.route("/api/config/<key>", methods=["PUT"])
+    def api_config_set(key):
+        body = request.get_json(force=True)
+        value = body.get("value")
+        if value is None:
+            return jsonify({"error": "value required"}), 400
+        set_config(key, value, db)
+        return jsonify({"ok": True, "key": key, "value": str(value)})
+
+    # -- 3D Generation API (SCAD-1, SCAD-3) --
+
+    _ROOF_SCRIPTS = {
+        "flat": "scad/gen_flat_roof.py",
+        "2in12": "scad/gen_2in12.py",
+    }
+
+    @app.route("/api/generate-3d", methods=["POST"])
+    def api_generate_3d():
+        roof_style = get_config("roof_style", db) or "flat"
+        script = _ROOF_SCRIPTS.get(roof_style)
+        if not script:
+            return jsonify({"ok": False, "error": f"unknown roof style: {roof_style}"}), 400
+        constants = get_constants_dict(db)
+        patch_constants(constants)
+        ok = generate_svg("3d_" + roof_style, script)
+        return jsonify({
+            "ok": ok,
+            "roof_style": roof_style,
+            "output": f"scad/{'flat_roof' if roof_style == 'flat' else '2in12'}.scad",
+        })
+
+    @app.route("/api/generate-views", methods=["POST"])
+    def api_generate_views():
+        roof_style = get_config("roof_style", db) or "flat"
+        constants = get_constants_dict(db)
+        patch_constants(constants)
+        # 1. Generate SCAD file for selected roof style
+        scad_script = _ROOF_SCRIPTS.get(roof_style, "scad/gen_flat_roof.py")
+        ok = generate_svg("scad", scad_script)
+        if not ok:
+            return jsonify({"ok": False, "error": "SCAD generation failed"})
+        # 2. Render views (requires OpenSCAD CLI)
+        ok = generate_svg("views", "scad/gen_views.py")
+        if not ok:
+            return jsonify({"ok": False, "error": "View rendering failed (OpenSCAD required)"})
+        # 3. Generate line drawings
+        generate_svg("line_drawings", "scad/gen_line_drawings.py")
+        # 4. Compose 3-view PDF
+        ok = generate_svg("3views", "gen_3views.py")
+        return jsonify({
+            "ok": ok,
+            "roof_style": roof_style,
+            "output": "3views.pdf",
+        })
 
     # -- Regeneration API --
 

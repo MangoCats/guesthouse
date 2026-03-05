@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadGeometry();
   loadShapes();
   loadBuildLabel();
+  loadRoofStyle();
 });
 
 function cacheElements() {
@@ -72,7 +73,7 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
-    "show-doors", "show-clearance", "open-links", "show-areas",
+    "show-doors", "show-clearance", "open-links", "show-areas", "roof-style",
     "variant-select", "variant-selector",
   ];
   for (const id of ids) {
@@ -165,6 +166,14 @@ async function loadBuildLabel() {
         );
       });
     }
+  } catch (_) {}
+}
+
+async function loadRoofStyle() {
+  try {
+    const resp = await apiFetch("/api/config/roof_style");
+    const data = await resp.json();
+    if (App.els["roof-style"]) App.els["roof-style"].value = data.value;
   } catch (_) {}
 }
 
@@ -2552,6 +2561,17 @@ function setupEventListeners() {
     renderCanvas();
   });
 
+  // Roof style selector (SCAD-2)
+  App.els["roof-style"].addEventListener("change", async (e) => {
+    try {
+      await apiFetch("/api/config/roof_style", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: e.target.value }),
+      });
+    } catch (err) { console.error("Failed to save roof style:", err); }
+  });
+
   // Variant selector
   App.els["variant-select"].addEventListener("change", (e) => {
     App.state.variant = e.target.value;
@@ -3390,6 +3410,26 @@ async function handleMenuAction(action) {
         });
         showToast(`${App.state.activeView} regenerated`, "success");
       } catch (e) { showToast(`Regenerate failed: ${e.message}`, "error"); }
+      break;
+    }
+    case "generate-3d": {
+      showToast("Generating 3D model...");
+      try {
+        const resp = await apiFetch("/api/generate-3d", { method: "POST" });
+        const data = await resp.json();
+        if (data.ok) showToast(`3D model generated (${data.roof_style})`, "success");
+        else showToast(`Generation failed: ${data.error || "unknown"}`, "error");
+      } catch (e) { showToast(`Generation failed: ${e.message}`, "error"); }
+      break;
+    }
+    case "generate-views": {
+      showToast("Generating views (this may take a moment)...");
+      try {
+        const resp = await apiFetch("/api/generate-views", { method: "POST" });
+        const data = await resp.json();
+        if (data.ok) showToast("Views generated (3views.pdf)", "success");
+        else showToast(`Generation failed: ${data.error || "unknown"}`, "error");
+      } catch (e) { showToast(`Generation failed: ${e.message}`, "error"); }
       break;
     }
     case "export-all": {
