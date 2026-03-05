@@ -70,6 +70,21 @@ def _broadcast(event: str, data: dict | None = None):
         _sse_clients[:] = alive
 
 
+def _seed_reference_plumbing_if_needed(db):
+    """Seed reference plumbing pipes if none exist yet."""
+    existing = get_plumbing_elements(db)
+    if any(e["type"] in ("supply_pipe", "drain_pipe") for e in existing):
+        return
+    try:
+        c = get_constants_dict(db)
+        ch = get_outline_chain(db)
+        dr = get_all_doors(db)
+        geom = compute_geometry(c, "standard", ch, doors_data=dr, db_path=db)
+        seed_reference_plumbing(geom, c.get("WALL_OUTER", 10.0 / 12.0), db)
+    except Exception:
+        pass  # skip if geometry computation fails (e.g. corrupt DB)
+
+
 def create_app(db_path=None):
     """Create and configure the Flask application."""
     db = db_path or DB_PATH
@@ -80,20 +95,7 @@ def create_app(db_path=None):
     if not _db_ok:
         print(f"WARNING: Database issues detected: {_db_issues}")
 
-    # Seed reference plumbing pipes if none exist yet
-    _existing_plumb = get_plumbing_elements(db)
-    if not any(e["type"] in ("supply_pipe", "drain_pipe")
-               for e in _existing_plumb):
-        try:
-            _c = get_constants_dict(db)
-            _ch = get_outline_chain(db)
-            _dr = get_all_doors(db)
-            _geom = compute_geometry(_c, "standard", _ch, doors_data=_dr,
-                                     db_path=db)
-            seed_reference_plumbing(
-                _geom, _c.get("WALL_OUTER", 10.0 / 12.0), db)
-        except Exception:
-            pass  # skip if geometry computation fails (e.g. corrupt DB)
+    _seed_reference_plumbing_if_needed(db)
 
     app = Flask(
         __name__,
@@ -1025,10 +1027,12 @@ def create_app(db_path=None):
     @app.route("/api/reset-database", methods=["POST"])
     def api_reset_database():
         reset_db(db)
+        _seed_reference_plumbing_if_needed(db)
         ok, issues = validate_db(db)
         _invalidate()
         _broadcast("element_changed")
         _broadcast("outline_changed")
+        _broadcast("plumbing_changed")
         return jsonify({"ok": ok, "issues": issues})
 
     # -- Survey Points API (SITE-4) --
