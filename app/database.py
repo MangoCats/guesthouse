@@ -283,8 +283,8 @@ def _seed_views(conn):
         ("plumbing", "Plumbing", "plumbing/gen_plumbing.py", "plumbing/plumbing.svg", "design"),
         ("site_plan_df", "Site Plan (DF)", "site/gen_site_plan.py", "site/site_plan_df.pdf", "site"),
         ("site_plan_fs", "Site Plan (FS)", "site/gen_site_plan.py", "site/site_plan_fs.pdf", "site"),
-        ("3d_flat", "3D Flat Roof", "scad/gen_flat_roof.py", "scad/flat_roof.scad", "3d"),
-        ("3d_2in12", "3D 2:12 Roof", "scad/gen_2in12.py", "scad/2in12.scad", "3d"),
+        ("3d_flat", "3D Flat Roof", "scad/gen_flat_roof.py", "scad/flat_roof_corner.png", "3d"),
+        ("3d_2in12", "3D 2:12 Roof", "scad/gen_2in12.py", "scad/2in12_corner.png", "3d"),
         ("3views", "3-View Layout", "gen_3views.py", "3views.pdf", "3d"),
     ]
     for name, label, script, svg_path, cat in views:

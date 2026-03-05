@@ -951,7 +951,12 @@ def create_app(db_path=None):
         full_path = os.path.join(_PROJECT, view["svg_path"])
         if not os.path.exists(full_path):
             return jsonify({"error": "file not found"}), 404
-        mime = "application/pdf" if full_path.endswith(".pdf") else "image/svg+xml"
+        if full_path.endswith(".pdf"):
+            mime = "application/pdf"
+        elif full_path.endswith(".png"):
+            mime = "image/png"
+        else:
+            mime = "image/svg+xml"
         return send_file(full_path, mimetype=mime)
 
     # -- Span Analysis API (ANALYSIS-1, ANALYSIS-2) --

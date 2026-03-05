@@ -302,6 +302,8 @@ function switchView(viewName) {
     const viewDef = App.state.views.find(v => v.name === viewName);
     if (viewDef && viewDef.svg_path.endsWith(".pdf")) {
       loadPDFView(viewName);
+    } else if (viewDef && viewDef.svg_path.endsWith(".png")) {
+      loadImageView(viewName);
     } else {
       loadSVGView(viewName);
     }
@@ -355,6 +357,19 @@ function loadPDFView(viewName) {
   if (viewName.startsWith("site_plan")) {
     showSitePlanProperties();
   }
+}
+
+function loadImageView(viewName) {
+  const container = App.els["svg-view-container"];
+  container.innerHTML = "";
+  const img = document.createElement("img");
+  img.src = `/api/svg/${viewName}/file`;
+  img.alt = viewName;
+  img.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;display:block;margin:auto";
+  img.onerror = () => {
+    container.innerHTML = '<p style="padding:20px;color:#f88">Image not available. Click File &gt; Generate 3D Model to render it.</p>';
+  };
+  container.appendChild(img);
 }
 
 function svgViewFit() {
