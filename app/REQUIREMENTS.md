@@ -2145,6 +2145,38 @@ fitting type and size.  Changing fitting type re-renders.
 `fitting_type` (tee/elbow90/elbow45/valve), `rotation`, and `size` properties.
 Rendered as SVG symbols: T-junction, L-shape, X-shape (valve), with center dot.
 
+#### PLUMB-9  Fixture Connection Property Editing
+Selecting a fixture connection on the plumbing canvas SHALL display an
+editable properties panel showing cold/hot/drain service flags as checkboxes.
+Toggling a flag SHALL update the fixture via PUT `/api/plumbing/:id` and
+re-render the canvas.
+
+**Acceptance:** Click a fixture marker (e.g. "Washer") on the plumbing_edit
+canvas.  Properties panel shows name, position, and cold/hot/drain checkboxes.
+Toggle "hot" off, confirm the fixture updates and undo restores it.
+
+---
+
+#### PLUMB-10  Add/Remove Fixture Connections
+The plumbing editor SHALL support adding new fixture connections and deleting
+existing ones from the plumbing_edit view.
+
+**Acceptance:** Use an "Add Fixture" action to create a new fixture connection
+at a clicked position.  The new fixture appears on canvas with default flags.
+Select an existing fixture and delete it; confirm it is removed and undo
+restores it.
+
+---
+
+#### PLUMB-11  Fixture Properties Panel
+Selecting a fixture connection SHALL display a properties panel showing name
+(editable), service flags (cold/hot/drain checkboxes), and position
+coordinates (read-only).
+
+**Acceptance:** Select a fixture.  Properties panel shows all fields.  Edit
+the name, press Enter; confirm the name updates via API and persists on
+reload.
+
 ---
 
 ## 15  Undo/Redo

@@ -603,10 +603,20 @@ generators via the regeneration API.
 - CRUD API: GET/POST/PUT/DELETE `/api/plumbing`, SSE broadcast, undo/redo (PLUMB-5) ✅
 - Drain line drawing tool with green polylines and slope annotations (PLUMB-6) ✅
 - Fitting placement: tee, elbow, valve with rotation (PLUMB-7/8) ✅
-- 10 seeded fixture connections with cold/hot/drain flags
+- 11 seeded fixture connections with cold/hot/drain flags
 - Plumbing tool palette: Cold, Hot, Drain, Fitting (visible only in plumbing_edit view)
 - `isCanvasView()` helper replaces hardcoded `=== "interactive"` checks
-- 26 new tests in `test_zapp_plumbing.py`
+- Reference plumbing configuration seeded into database (6 pipes, 11 fixture positions)
+- Move tool works for plumbing elements in plumbing_edit view
+- Buried pipes rendered as dashed lines (`buried` property)
+- Plumbing undo/redo updates canvas display
+- Tool legend colors driven from single `PLUMBING_COLORS` constant
+- 32 tests in `test_zapp_plumbing.py`
+
+### Plumbing Fixture Editing (PLUMB-9–11) — Planned
+- Fixture connection property editing: select a fixture on canvas to edit cold/hot/drain flags (PLUMB-9)
+- Add/remove fixture connections from plumbing_edit view (PLUMB-10)
+- Fixture properties panel with name, service flags, position display (PLUMB-11)
 
 **Further development (beyond Phase 10):** The plumbing layout will expand to
 include service location indicators (hot, cold, and drain at each fixture),
