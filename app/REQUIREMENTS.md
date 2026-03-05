@@ -2039,7 +2039,7 @@ tools, database-stored element configuration, and CRUD APIs.  Plumbing
 elements include pipes (supply and drain), fittings (T-stubs, elbows, valves),
 and fixture connections.
 
-#### PLUMB-1  Plumbing Interactive Canvas
+#### PLUMB-1  Plumbing Interactive Canvas ✅
 The plumbing layout SHALL render the building outline with all plumbing
 elements on an interactive canvas (not a static SVG), supporting the same
 zoom, pan, and selection interactions as the floorplan canvas.
@@ -2049,7 +2049,13 @@ with fixtures (toilets, sinks, washer), supply lines, and drain lines.
 Pan and zoom work. Clicking a pipe or fixture selects it and shows
 properties in the right panel.
 
-#### PLUMB-2  Supply Line Routing **(NEW)**
+**Implementation:** `renderPlumbingCanvas()` renders ghosted building outline
+(0.25 opacity) with plumbing pipe/fitting/fixture overlays in dedicated SVG
+layers. `isCanvasView()` helper enables pan/zoom/selection for plumbing_edit
+view alongside interactive view. Plumbing tool palette shown only in
+plumbing_edit view.
+
+#### PLUMB-2  Supply Line Routing ✅
 The plumbing plan editor SHALL allow drawing supply line paths from the
 water source to fixtures, with hot (red) and cold (blue) line
 differentiation.
@@ -2057,14 +2063,23 @@ differentiation.
 **Acceptance:** Select supply line tool. Draw a path from Well to sink.
 Line renders in blue. Switch to hot line. Draw parallel path. Renders red.
 
-#### PLUMB-3  Plumbing Fixtures Table **(NEW)**
+**Implementation:** `PlumbingDraw` state tracks polyline drawing. Cold Supply
+and Hot Supply tools create `supply_pipe` elements with `hot_cold` property.
+Click adds waypoints, double-click/Enter finishes, Escape cancels. Rubber-band
+preview line follows cursor.
+
+#### PLUMB-3  Plumbing Fixtures Table ✅
 The plumbing view SHALL display a fixtures/supplies table listing each
 fixture with its supply and drain connections.
 
 **Acceptance:** Table shows rows for each plumbing fixture with type,
 supply pipe size, and drain pipe size.
 
-#### PLUMB-4  Plumbing Elements Database **(NEW)**
+**Implementation:** Plumbing panel tab in right panel with two tables:
+fixture connections (name, C/H/D checkmarks) and pipes/fittings (name, type).
+Clicking a table row selects the element on canvas.
+
+#### PLUMB-4  Plumbing Elements Database ✅
 Plumbing elements (pipes, fittings, fixture connections) SHALL be stored
 in a `plumbing_elements` table with columns for element type, geometry
 (path coordinates), properties (pipe size, material, hot/cold), and
@@ -2075,7 +2090,12 @@ fixture associations.
 created pipe with path coordinates and properties.  Close and reopen the
 app — the pipe persists.
 
-#### PLUMB-5  Plumbing CRUD API **(NEW)**
+**Implementation:** `app/plumbing.py` provides CRUD functions. Table schema:
+`id`, `type`, `name`, `path` (JSON), `properties` (JSON), `fixture`.
+Types: `supply_pipe`, `drain_pipe`, `fitting`, `fixture_connection`.
+10 fixture connections seeded from `FIXTURE_DEFS`.
+
+#### PLUMB-5  Plumbing CRUD API ✅
 The API SHALL provide CRUD endpoints for plumbing elements:
 `GET /api/plumbing`, `POST /api/plumbing`, `PUT /api/plumbing/<id>`,
 `DELETE /api/plumbing/<id>`.
@@ -2084,7 +2104,11 @@ The API SHALL provide CRUD endpoints for plumbing elements:
 returns the created element.  `PUT` updates properties.  `DELETE` removes
 it.  Each mutation broadcasts an SSE event.
 
-#### PLUMB-6  Drain Line Routing **(NEW)**
+**Implementation:** 4 endpoints in `server.py`. Each mutation records undo
+history (`plumbing_create`/`plumbing_update`/`plumbing_delete`) and broadcasts
+`plumbing_changed` SSE event.
+
+#### PLUMB-6  Drain Line Routing ✅
 The plumbing editor SHALL allow drawing drain line paths from fixtures to
 the waste outlet, with slope annotations.
 
@@ -2092,7 +2116,11 @@ the waste outlet, with slope annotations.
 outlet.  Line renders in the drain colour.  Slope annotation displays
 grade (e.g., "1/4 in/ft").
 
-#### PLUMB-7  Fixture Placement Tool **(NEW)**
+**Implementation:** Drain tool creates `drain_pipe` elements with default
+`slope: "0.25 in/ft"`. Green polyline rendering (#228B22). Slope label
+rendered at path midpoint.
+
+#### PLUMB-7  Fixture Placement Tool ✅
 The plumbing editor SHALL provide a fixture placement tool for adding
 plumbing fixtures (toilets, sinks, washer, water heater) with automatic
 supply and drain stub connections.
@@ -2101,13 +2129,21 @@ supply and drain stub connections.
 to place on canvas.  Fixture renders with supply and drain stubs.  Stubs
 are selectable and connectable to supply/drain lines.
 
-#### PLUMB-8  Pipe Fitting Editing **(NEW)**
+**Implementation:** Fixture connections rendered as colored circle markers
+with labels. Color coding: purple (hot+cold), red (hot only), blue (cold
+only). 10 seeded fixtures from FIXTURE_DEFS.
+
+#### PLUMB-8  Pipe Fitting Editing ✅
 The plumbing editor SHALL support placing and editing pipe fittings
 (T-stubs, elbows, valves) at pipe junctions and along pipe runs.
 
 **Acceptance:** Select fitting tool, choose "T-stub."  Click on a pipe
 intersection.  Fitting renders at the junction.  Properties panel shows
 fitting type and size.  Changing fitting type re-renders.
+
+**Implementation:** Place Fitting tool creates `fitting` elements with
+`fitting_type` (tee/elbow90/elbow45/valve), `rotation`, and `size` properties.
+Rendered as SVG symbols: T-junction, L-shape, X-shape (valve), with center dot.
 
 ---
 

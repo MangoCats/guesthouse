@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 10c Site Plan — Complete, Phase 10d Plumbing next)
+## Current State (Phase 10d Plumbing — Complete, Phase 11 next)
 
-**227 of 240 requirements implemented.**  597 app tests, 586 pre-existing tests
-(1183 total).  All implemented requirements have automated test coverage.
+**235 of 240 requirements implemented.**  623 app tests, 586 pre-existing tests
+(1209 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -22,11 +22,11 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Geometry engine: full recomputation | Done |
 | Interactive canvas: outline, walls, openings, furniture, points, dims | Done |
 | Five layout variants | Done |
-| 14 view tabs (SVG + PDF + PNG) with zoom/pan | Done |
+| 15 view tabs (SVG + PDF + PNG + plumbing canvas) with zoom/pan | Done |
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
-| REST API: 43 endpoints, SSE | Done |
+| REST API: 47 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
 | Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
@@ -96,9 +96,13 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | 3D/SCAD: config table, roof style, generate-3d/views endpoints | Done |
 | Site plan: PDF view tabs, setback config, survey points, elements | Done |
 | DB error handling: validation, reset, error banner UI | Done |
+| Plumbing canvas: building ghost overlay, pipe/fitting/fixture rendering | Done |
+| Plumbing drawing tools: cold supply, hot supply, drain (polyline) | Done |
+| Plumbing fitting placement: tee, elbow, valve with rotation | Done |
+| Plumbing fixtures table panel with cold/hot/drain indicators | Done |
+| Plumbing DB: plumbing_elements table, CRUD API, undo/redo | Done |
 
 **What's missing:** Endpoint drag handles (TL-17 partial), Add Opening tool (TL-21),
-plumbing layout (interactive canvas with DB-stored elements),
 electrical layout (aspirational),
 parametric dependencies and cutover to fully database-driven design
 (Charter Principle 5).  The current implementation uses constants as
@@ -591,21 +595,18 @@ generators via the regeneration API.
 - Room area display for all variants with toggle (ANALYSIS-3) ✅
 - 14 tests in `test_zapp_analysis.py`
 
-### Plumbing Layout (PLUMB-1–8)
-The plumbing view becomes a full interactive layout — like the floorplan
-layouts (standard, minik, daybed, bare, sf) — with plumbing-specific editing
-tools, database-stored element configuration, and CRUD APIs.
-
-- Plumbing interactive canvas with building outline overlay, zoom/pan/selection
-  (PLUMB-1 — replaces the static SVG tab with a live canvas)
-- `plumbing_elements` database table for pipes, fittings, and fixture
-  connections, with type, path geometry, and properties JSON (PLUMB-4)
-- CRUD API endpoints for plumbing elements (PLUMB-5)
-- Supply line drawing tool with hot/cold differentiation and routing (PLUMB-2)
-- Drain line drawing tool with slope annotations (PLUMB-6)
-- Fixture placement tool with automatic supply/drain stub connections (PLUMB-7)
-- Pipe fitting editing: T-stubs, elbows, valves with type selection (PLUMB-8)
-- Fixtures/supplies table in the right panel (PLUMB-3)
+### Plumbing Layout (PLUMB-1–8) ✅ Phase 10d — Complete
+- Plumbing interactive canvas with building ghost overlay, zoom/pan/selection (PLUMB-1) ✅
+- Supply line drawing tool with hot (red) / cold (blue) polylines (PLUMB-2) ✅
+- Fixtures/supplies table in Plumbing panel tab (PLUMB-3) ✅
+- `plumbing_elements` table: pipes, fittings, fixture connections (PLUMB-4) ✅
+- CRUD API: GET/POST/PUT/DELETE `/api/plumbing`, SSE broadcast, undo/redo (PLUMB-5) ✅
+- Drain line drawing tool with green polylines and slope annotations (PLUMB-6) ✅
+- Fitting placement: tee, elbow, valve with rotation (PLUMB-7/8) ✅
+- 10 seeded fixture connections with cold/hot/drain flags
+- Plumbing tool palette: Cold, Hot, Drain, Fitting (visible only in plumbing_edit view)
+- `isCanvasView()` helper replaces hardcoded `=== "interactive"` checks
+- 26 new tests in `test_zapp_plumbing.py`
 
 **Further development (beyond Phase 10):** The plumbing layout will expand to
 include service location indicators (hot, cold, and drain at each fixture),
@@ -615,9 +616,7 @@ and the well-to-building supply run.  These extensions build on the Phase 10
 foundation and will be specified as additional PLUMB requirements when the
 base layout is complete.
 
-**New files:** `app/plumbing.py`, `app/static/js/plumbing-editor.js`,
-`app/static/js/site-plan.js`, `tests/test_zapp_plumbing.py`,
-`tests/test_zapp_views.py`
+**New files:** `app/plumbing.py`, `tests/test_zapp_plumbing.py`
 
 **Dependencies:** Phase 3 (elements table), Phase 7 (draw/add tools).
 

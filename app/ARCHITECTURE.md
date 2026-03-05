@@ -324,7 +324,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (43 total):
+**API endpoints** (47 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -373,6 +373,23 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | POST | `/api/generate-site-plan` | Regenerate site plan PDFs (SITE-1) |
 | POST | `/api/generate-3d` | Generate SCAD 3D model (SCAD-1) |
 | POST | `/api/generate-views` | Generate multi-view PDF (SCAD-3) |
+| GET | `/api/plumbing` | List all plumbing elements (PLUMB-5) |
+| POST | `/api/plumbing` | Create plumbing element (PLUMB-5) |
+| PUT | `/api/plumbing/<id>` | Update plumbing element (PLUMB-5) |
+| DELETE | `/api/plumbing/<id>` | Delete plumbing element (PLUMB-5) |
+
+### app/plumbing.py — Plumbing CRUD Module
+
+Manages the `plumbing_elements` table: supply pipes, drain pipes, fittings,
+and fixture connections.
+
+- `PLUMBING_TYPES`: `supply_pipe`, `drain_pipe`, `fitting`, `fixture_connection`
+- `FIXTURE_DEFS`: 10 seeded fixture connections with cold/hot/drain flags
+- `get_plumbing_elements()`, `get_plumbing_element(id)` — read
+- `create_plumbing_element(type, name, path, properties, fixture)` — create
+- `update_plumbing_element(id, updates)`, `delete_plumbing_element(id)` — mutate
+- `create_plumbing_raw(record)` — raw re-insert for undo
+- `seed_plumbing(conn)` — seed 10 default fixture connections
 
 ### app/undo.py — Undo/Redo Manager
 
