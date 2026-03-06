@@ -2507,6 +2507,39 @@ procedural computation unchanged.
 **Acceptance:** Non-IW elements (furniture, openings) render
 identically with or without the formula override path.
 
+### 18.5  Lock/Unlock UI (Phase 12f)
+
+**FORM-20:** `GET /api/deps/graph` SHALL return the full formula
+dependency DAG as `{nodes, edges}` where each node has `name`,
+`locked`, `params` and each edge has `from` and `to`.
+
+**Acceptance:** Response contains nodes for all seeded formulas
+and edges for element-to-element dependencies.
+
+**FORM-21:** Lock/unlock SHALL record undo entries with action type
+`formula_lock`, enabling undo/redo of lock state changes.
+
+**Acceptance:** Lock a formula, undo → formula is unlocked; redo →
+formula is locked again.
+
+**FORM-22:** The geometry response SHALL include a `locked_elements`
+list of element names that have any locked formula.
+
+**Acceptance:** Lock IW1, GET /api/geometry → `locked_elements`
+contains `"IW1"`.
+
+**FORM-23:** The canvas SHALL display a padlock icon on elements
+that have locked formulas.
+
+**Acceptance:** Visual inspection: locked element shows lock emoji
+above its bbox center.
+
+**FORM-24:** Selecting an element on the canvas SHALL highlight
+its formula dependencies: upstream in blue, downstream in orange.
+
+**Acceptance:** Visual inspection: click IW2, upstream dependencies
+highlighted blue, downstream highlighted orange.
+
 ---
 
 ## Appendix A: Requirement Cross-Reference by User Operation

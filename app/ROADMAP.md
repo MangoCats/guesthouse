@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 12e complete — Phase 12f next)
+## Current State (Phase 12f complete — Phase 12g next)
 
-**248 of 248 requirements implemented.**  933 app tests, 586 pre-existing tests
-(1519 total).  All implemented requirements have automated test coverage.
+**253 of 253 requirements implemented.**  944 app tests, 586 pre-existing tests
+(1530 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -116,10 +116,13 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | IW wall formulas: 13 walls, verified to 1e-9 ft vs procedural | Done |
 | Layout + opening formulas: 37 formulas (5 layout, 12 outer, 7 rough openings) | Done |
 | Variant item formulas: ~50 formulas across 3 variants, 5 new formula types | Done |
+| Lock/unlock UI: padlock icon on canvas, lock button in properties panel | Done |
+| Formula dependency highlighting: blue upstream, orange downstream on select | Done |
+| Lock/unlock undo/redo and formula_locked SSE event | Done |
+| Dependency graph endpoint: GET /api/deps/graph (full DAG) | Done |
 
-**What's missing:** Electrical layout (aspirational),
-lock/unlock UI, dependency highlighting UI, and cutover to fully
-database-driven design (Charter Principle 5).  The current
+**What's missing:** Electrical layout (aspirational) and cutover to
+fully database-driven design (Charter Principle 5).  The current
 implementation runs both procedural and formula paths; cutover will
 remove the procedural fallbacks.
 
@@ -767,7 +770,7 @@ CRUD, canvas rendering, and property editing infrastructure).
 | **12c** | Complete | Evaluator extensions (`four_corner`, `proj`/`dist`/`neg`/`add`/`sub`/`mul` length specs, `neg`/`perp` dir specs), all 13 IW wall formulas written and verified to 1e-9 ft vs procedural, seeded into DB, hybrid engine active |
 | **12d** | Complete | `wall_opening` formula type (4 positioning modes, 4 poly_order options), 5 layout item formulas (DRYER, WASHER, COUNTER, DRESSER, SHELVES), 12 outer opening formulas (O1-O11, O8a), 7 rough opening formulas (RO1-RO7), all 37 formulas seeded in DB |
 | **12e** | Complete | 5 new formula types (`toilet_shape`, `bath_sink_shape`, `dining_triangle`, `dining_chair`, `ellipse_rect`), new specs (`element_centroid`, `ray_circle_isect`, `rotated`, `radius_key`), ~50 variant item formulas across 3 variants, hybrid engine overrides variant items preserving metadata |
-| **12f** | Planned | Lock/unlock UI, dependency highlighting UI |
+| **12f** | Complete | Lock/unlock UI (padlock icon on canvas, lock/unlock button in properties panel), formula dependency highlighting (blue upstream, orange downstream on element select), lock/unlock undo/redo, `formula_locked` SSE event, `GET /api/deps/graph` endpoint (full DAG with nodes and edges), `locked_elements` in geometry response |
 | **12g** | Planned | Cutover: remove procedural fallbacks, lift NF-4 |
 
 ---
