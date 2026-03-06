@@ -93,6 +93,13 @@ IW_HOSTED_OPENINGS = {
 }
 
 
+# Reverse of IW_CONSTANT_MAP: constant name → list of IW names
+CONSTANT_TO_IW = {}
+for _iw, _cname in IW_CONSTANT_MAP.items():
+    if _cname:
+        CONSTANT_TO_IW.setdefault(_cname, []).append(_iw)
+
+
 def get_elements_for_variant(variant=None, db_path=None):
     """Return elements visible to a variant (variant=NULL or matching)."""
     with get_db(db_path) as conn:

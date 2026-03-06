@@ -551,6 +551,10 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 .wall-handle { fill: var(--accent); stroke: var(--bg-secondary); stroke-width: 0.02; cursor: grab; }
 .wall-handle:hover { fill: var(--yellow); }
 
+/* SEL-15: Constant dependency highlighting */
+.const-dep-first { stroke: #ffffff !important; stroke-width: 0.06 !important; filter: drop-shadow(0 0 3px rgba(255,255,255,0.6)); }
+.const-dep-second { stroke: #f5c2e7 !important; stroke-width: 0.04 !important; filter: drop-shadow(0 0 2px rgba(245,194,231,0.5)); }
+
 .rubber-band {
   fill: rgba(137, 180, 250, 0.15);
   stroke: var(--accent);

@@ -792,3 +792,33 @@ class TestTL21AddOpening:
         # Opening should be gone too
         elems = app_client.get("/api/elements").get_json()
         assert not any(e["name"] == "UO3" for e in elems)
+
+
+# =========================================================================
+# SEL-15: Constant Dependency Highlighting
+# =========================================================================
+
+class TestSEL15ConstantDeps:
+    """SEL-15: Reverse constant → element dependency mapping."""
+
+    def test_reverse_iw_map_completeness(self):
+        """Every non-None IW_CONSTANT_MAP entry has a reverse mapping."""
+        from app.elements import IW_CONSTANT_MAP, CONSTANT_TO_IW
+        for iw, cname in IW_CONSTANT_MAP.items():
+            if cname is None:
+                continue
+            assert cname in CONSTANT_TO_IW, f"{cname} missing from CONSTANT_TO_IW"
+            assert iw in CONSTANT_TO_IW[cname], f"{iw} missing from CONSTANT_TO_IW[{cname}]"
+
+    def test_specific_constant_mapping(self):
+        """IW1_OFFSET_FROM_W9 maps back to IW1."""
+        from app.elements import CONSTANT_TO_IW
+        assert "IW1_OFFSET_FROM_W9" in CONSTANT_TO_IW
+        assert "IW1" in CONSTANT_TO_IW["IW1_OFFSET_FROM_W9"]
+
+    def test_hosted_openings_second_order(self):
+        """IW9 hosts RO3 and RO7 (second-order deps)."""
+        from app.elements import IW_HOSTED_OPENINGS
+        hosted = IW_HOSTED_OPENINGS.get("IW9", [])
+        assert "RO3" in hosted
+        assert "RO7" in hosted

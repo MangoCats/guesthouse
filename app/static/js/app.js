@@ -1748,6 +1748,7 @@ function clearSelection() {
     el.classList.remove("multi-selected");
   });
   clearWallHandles();
+  clearConstantHighlights();
   App.state.selection = null;
   App.state.selections = [];
   App.els["selection-info"].textContent = "No selection";
@@ -2523,6 +2524,9 @@ function addPropRow(tbody, label, value, editable = false, constName = null) {
     inp.value = value;
     inp.dataset.constName = constName;
     inp.addEventListener("change", () => handleConstantEdit(constName, inp.value));
+    // SEL-15: highlight dependent elements on focus
+    inp.addEventListener("focus", () => { inp.select(); highlightConstantDeps(constName); });
+    inp.addEventListener("blur", () => { setTimeout(clearConstantHighlights, 200); });
     tdVal.appendChild(inp);
   } else {
     tdVal.textContent = value;
@@ -2548,6 +2552,78 @@ function findWidthConstant(openingName) {
     if (App.state.constants.find(c => c.name === n + suffix)) return n + suffix;
   }
   return null;
+}
+
+/* ========== SEL-15: Constant Dependency Highlighting ========== */
+
+/** Reverse map: constant name → IW wall names that depend on it. */
+const CONSTANT_TO_IW = {};
+(function() {
+  const map = {
+    IW1: "IW1_OFFSET_FROM_W9", IW2: "IW2_DIST_W2W5",
+    IW2S: "IW2S_W2REF_OFFSET", IW3: "IW3_DIST_W2W5",
+    IW4: "IW4_GAP_IW11", IW5: "IW5_S_OFFSET_FROM_IW1",
+    IW6: "IW6_OFFSET_FROM_W6", IW7: "IW7_OFFSET_FROM_W18W1",
+    IW9: "IW3_OFFSET_IW9", IW11: "IW9_IW11_GAP",
+    IW12: "IW12_S_OFFSET_W18W1",
+  };
+  for (const [iw, cname] of Object.entries(map)) {
+    if (!CONSTANT_TO_IW[cname]) CONSTANT_TO_IW[cname] = [];
+    CONSTANT_TO_IW[cname].push(iw);
+  }
+})();
+
+/** Constant prefix → furniture/appliance item names. */
+const CONSTANT_PREFIX_TO_ITEMS = {
+  BED_: ["bed"], DRESSER_: ["dresser"], SHELVES_: ["shelves"],
+  LOVESEAT_: ["loveseat"], DESK_: ["desk"], CHAIR_: ["chair"],
+  SOFA_: ["sofa"], ROCKER_: ["rocker"],
+  APPLIANCE_: ["washer", "dryer"], COUNTER_: ["counter"],
+  STOVE_: ["stove"], FRIDGE_: ["fridge"], DW_: ["dishwasher"],
+  MINIK_: ["minik_counter"], ICE_: ["ice_maker"],
+  TOILET_: ["toilet"], SINK_: ["bath_sink"],
+  WH_: ["water_heater"],
+};
+
+function highlightConstantDeps(constName) {
+  clearConstantHighlights();
+  const firstOrder = new Set();
+  const secondOrder = new Set();
+  // 1. Reverse IW map
+  const iws = CONSTANT_TO_IW[constName] || [];
+  for (const iw of iws) {
+    firstOrder.add(iw);
+    // Hosted openings are second-order
+    if (typeof IW_HOSTED_OPENINGS !== "undefined") {
+      for (const ro of (IW_HOSTED_OPENINGS[iw] || [])) secondOrder.add(ro);
+    }
+  }
+  // 2. Prefix-based furniture/appliance mapping
+  for (const [prefix, items] of Object.entries(CONSTANT_PREFIX_TO_ITEMS)) {
+    if (constName.startsWith(prefix)) {
+      for (const item of items) firstOrder.add(item);
+    }
+  }
+  // 3. Opening width constants (O1_WIDTH → O1, RO3_WIDTH → RO3, etc.)
+  const m = constName.match(/^((?:RO?\d+|O\d+))_/i);
+  if (m) firstOrder.add(m[1].toUpperCase());
+  // 4. Apply CSS classes
+  document.querySelectorAll("[data-name]").forEach(el => {
+    const name = el.getAttribute("data-name");
+    if (!name) return;
+    const upper = name.toUpperCase();
+    if (firstOrder.has(name) || firstOrder.has(upper)) {
+      el.classList.add("const-dep-first");
+    } else if (secondOrder.has(name) || secondOrder.has(upper)) {
+      el.classList.add("const-dep-second");
+    }
+  });
+}
+
+function clearConstantHighlights() {
+  document.querySelectorAll(".const-dep-first, .const-dep-second").forEach(el => {
+    el.classList.remove("const-dep-first", "const-dep-second");
+  });
 }
 
 function findRelatedConstants(elementName) {
