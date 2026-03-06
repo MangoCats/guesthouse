@@ -2145,7 +2145,7 @@ fitting type and size.  Changing fitting type re-renders.
 `fitting_type` (tee/elbow90/elbow45/valve), `rotation`, and `size` properties.
 Rendered as SVG symbols: T-junction, L-shape, X-shape (valve), with center dot.
 
-#### PLUMB-9  Fixture Connection Property Editing
+#### PLUMB-9  Fixture Connection Property Editing ✅
 Selecting a fixture connection on the plumbing canvas SHALL display an
 editable properties panel showing cold/hot/drain service flags as checkboxes.
 Toggling a flag SHALL update the fixture via PUT `/api/plumbing/:id` and
@@ -2155,9 +2155,13 @@ re-render the canvas.
 canvas.  Properties panel shows name, position, and cold/hot/drain checkboxes.
 Toggle "hot" off, confirm the fixture updates and undo restores it.
 
+**Implementation:** `showProperties()` plumbing case renders checkboxes for
+each service flag.  On change, PUTs updated properties to `/api/plumbing/:id`,
+then calls `loadPlumbingElements()` to re-render marker colors.
+
 ---
 
-#### PLUMB-10  Add/Remove Fixture Connections
+#### PLUMB-10  Add/Remove Fixture Connections ✅
 The plumbing editor SHALL support adding new fixture connections and deleting
 existing ones from the plumbing_edit view.
 
@@ -2166,9 +2170,14 @@ at a clicked position.  The new fixture appears on canvas with default flags.
 Select an existing fixture and delete it; confirm it is removed and undo
 restores it.
 
+**Implementation:** Place Fixture tool (`place-fixture` in toolbar) creates
+`fixture_connection` elements via POST `/api/plumbing` on single click.
+Delete button in properties panel calls DELETE `/api/plumbing/:id`.  Both
+operations support undo/redo.
+
 ---
 
-#### PLUMB-11  Fixture Properties Panel
+#### PLUMB-11  Fixture Properties Panel ✅
 Selecting a fixture connection SHALL display a properties panel showing name
 (editable), service flags (cold/hot/drain checkboxes), and position
 coordinates (read-only).
@@ -2176,6 +2185,11 @@ coordinates (read-only).
 **Acceptance:** Select a fixture.  Properties panel shows all fields.  Edit
 the name, press Enter; confirm the name updates via API and persists on
 reload.
+
+**Implementation:** `showProperties()` plumbing case shows editable name input,
+read-only E/N from `path[0]`, service flag checkboxes, and delete button.
+Pipe/fitting sub-case shows type, point count, properties (with editable
+`buried` checkbox), and delete button.
 
 ---
 
@@ -2367,7 +2381,7 @@ history) to the requirements that enable each operation through the GUI.
 | Edit site plan | ~36 | SITE-1..4 |
 | 3D/SCAD model | ~31 | SCAD-1..3 |
 | View variants | ~24 | UI-5, UI-6, UI-8, ENG-13, API-8, API-34, CV-4, VAR-1..3 |
-| Plumbing layout | ~22 | PLUMB-1..8 |
+| Plumbing layout | ~25 | PLUMB-1..11 |
 | Span/area analysis | ~22 | ANALYSIS-1..3, DIS-12 |
 | Resize elements | ~20 | SEL-10, DT-7, DT-10 |
 | Element styling (colour/opacity) | ~18 | STYLE-1..4 |
@@ -2396,11 +2410,11 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 11 Site Plan | 0 | 4 | 4 |
 | 12 3D Model | 0 | 3 | 3 |
 | 13 Analysis | 0 | 3 | 3 |
-| 14 Plumbing | 0 | 8 | 8 |
+| 14 Plumbing | 3 | 8 | 11 |
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **213** | **23** | **236** |
+| **Total** | **216** | **23** | **239** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

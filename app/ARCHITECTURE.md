@@ -381,15 +381,19 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 ### app/plumbing.py — Plumbing CRUD Module
 
 Manages the `plumbing_elements` table: supply pipes, drain pipes, fittings,
-and fixture connections.
+and fixture connections.  Includes reference plumbing computation and seeding.
 
 - `PLUMBING_TYPES`: `supply_pipe`, `drain_pipe`, `fitting`, `fixture_connection`
-- `FIXTURE_DEFS`: 10 seeded fixture connections with cold/hot/drain flags
+- `FIXTURE_DEFS`: 11 seeded fixture connections with cold/hot/drain flags
 - `get_plumbing_elements()`, `get_plumbing_element(id)` — read
 - `create_plumbing_element(type, name, path, properties, fixture)` — create
 - `update_plumbing_element(id, updates)`, `delete_plumbing_element(id)` — mutate
 - `create_plumbing_raw(record)` — raw re-insert for undo
-- `seed_plumbing(conn)` — seed 10 default fixture connections
+- `seed_plumbing(conn)` — seed 11 default fixture connections (idempotent)
+- `compute_reference_plumbing(geom, wall_t)` — compute reference pipe paths
+  and fixture positions from geometry (replicates gen_floorplan.py routing)
+- `seed_reference_plumbing(geom, wall_t, db_path)` — seed reference pipes
+  into DB if none exist (called on startup and database reset)
 
 ### app/undo.py — Undo/Redo Manager
 
@@ -648,10 +652,11 @@ highlights and SF partition lines.  Responsive breakpoint at
 | Variant exclusions | `variant_exclusions` table (seeded with bare/sf rules) | Read-only |
 | Room label offsets | `room_label_offsets` table | Yes — move operation |
 | Item shapes | `shapes` table (seeded from hardcoded data) | Read-only |
+| Plumbing elements | `plumbing_elements` table (seeded with reference pipes/fixtures) | Yes — full CRUD via API |
 
-The constants table is the single editable root.  Every other geometric
-value is deterministically derived from it through the computation
-pipeline.
+The constants table is the single editable root for building geometry.
+Every other geometric value is deterministically derived from it through
+the computation pipeline.  Plumbing elements are independently editable.
 
 ### Evolution Through Phases
 
@@ -662,6 +667,7 @@ The sources of truth evolve as phases are completed:
 | 3 | `elements` and `doors` tables added.  Interior walls seeded as DB entities.  User-added custom elements stored with absolute positions.  Engine-computed items (furniture/appliances) overlaid with DB-stored custom items on the canvas. |
 | 5 | `outline_chain` becomes editable.  DB chain is authoritative — the engine uses DB-stored chain parameters, not `floorplan/geometry.py`'s hardcoded chain. |
 | 8 | Room labels stored as `elements` (type `'label'`).  `room_label_offsets` table subsumed — offsets and rotation stored per-element.  Auto-computed centroids remain the default position; DB stores offset + rotation from centroid. |
+| 10 | `plumbing_elements` table added.  Pipes, fittings, and fixture connections stored as DB entities with full CRUD API.  Reference plumbing (6 pipes, 11 fixture positions) seeded on startup from geometry computation.  Re-seeded on database reset. |
 | 12 | **Cutover.**  All positioning becomes formula-driven.  Constants become DB-stored values (no longer Python module attributes).  Element positions defined by parametric formulas referencing other elements and/or constants.  Existing scripts retained only as seed sources for "Reset to Defaults." |
 
 ### Target Architecture (Phase 12+)
@@ -798,7 +804,7 @@ implementation is a **parametric viewer with constant editing, undo,
 element/door CRUD, move tool, outline chain editing, enhanced canvas
 rendering, element creation/deletion/rotation tools, and label/dimension
 annotations** (Phases 0–8 complete) — 197 of 226 requirements are
-implemented across 395 app tests (982 total).  Phase 1 established
+implemented across 629 app tests (1215 total).  Phase 1 established
 automated test coverage for all implemented server-side requirements.
 Phase 2 added undo/redo infrastructure.  Phase 3 added elements and
 doors as first-class database objects with full CRUD APIs.  Phase 4
@@ -812,7 +818,12 @@ rotate, multi-select, opening width editing, and shape editor.
 Phase 8 added user dimension tool, label tool, room label migration
 to elements table, context menu for dimension rotation, inline label
 editing, and font size control.
-Next phase: Phase 9 (styling and product links).
+Phase 9 added per-element styling (fill/stroke/opacity), product URL
+links, and view override controls.
+Phase 10 added domain views: site plan (10a), 3D SCAD (10b), analysis
+(10c), and plumbing layout (10d) with interactive pipe/fixture editing,
+reference plumbing seeding, and full CRUD for plumbing elements.
+Next phase: Phase 11 (view variants and polish).
 
 The development arc follows three stages:
 

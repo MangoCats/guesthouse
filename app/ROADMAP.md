@@ -12,8 +12,8 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ## Current State (Phase 10d Plumbing — Complete, Phase 11 next)
 
-**235 of 240 requirements implemented.**  623 app tests, 586 pre-existing tests
-(1209 total).  All implemented requirements have automated test coverage.
+**238 of 243 requirements implemented.**  629 app tests, 586 pre-existing tests
+(1215 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -595,28 +595,29 @@ generators via the regeneration API.
 - Room area display for all variants with toggle (ANALYSIS-3) ✅
 - 14 tests in `test_zapp_analysis.py`
 
-### Plumbing Layout (PLUMB-1–8) ✅ Phase 10d — Complete
+### Plumbing Layout (PLUMB-1–11) ✅ Phase 10d — Complete
 - Plumbing interactive canvas with building ghost overlay, zoom/pan/selection (PLUMB-1) ✅
 - Supply line drawing tool with hot (red) / cold (blue) polylines (PLUMB-2) ✅
 - Fixtures/supplies table in Plumbing panel tab (PLUMB-3) ✅
 - `plumbing_elements` table: pipes, fittings, fixture connections (PLUMB-4) ✅
 - CRUD API: GET/POST/PUT/DELETE `/api/plumbing`, SSE broadcast, undo/redo (PLUMB-5) ✅
-- Drain line drawing tool with green polylines and slope annotations (PLUMB-6) ✅
+- Drain line drawing tool with brown polylines and slope annotations (PLUMB-6) ✅
 - Fitting placement: tee, elbow, valve with rotation (PLUMB-7/8) ✅
+- Fixture property editing: select fixture to edit cold/hot/drain flags (PLUMB-9) ✅
+- Add/remove fixture connections via Place Fixture tool (PLUMB-10) ✅
+- Fixture/pipe properties panel with name, flags, position, delete (PLUMB-11) ✅
 - 11 seeded fixture connections with cold/hot/drain flags
-- Plumbing tool palette: Cold, Hot, Drain, Fitting (visible only in plumbing_edit view)
+- Plumbing tool palette: Cold, Hot, Drain, Fitting, Fixture (visible only in plumbing_edit view)
 - `isCanvasView()` helper replaces hardcoded `=== "interactive"` checks
 - Reference plumbing configuration seeded into database (6 pipes, 11 fixture positions)
+- Database reset re-seeds reference plumbing automatically
 - Move tool works for plumbing elements in plumbing_edit view
 - Buried pipes rendered as dashed lines (`buried` property)
 - Plumbing undo/redo updates canvas display
 - Tool legend colors driven from single `PLUMBING_COLORS` constant
+- Display toggles work correctly in plumbing_edit view
+- Appliance door arcs respect Furniture toggle
 - 32 tests in `test_zapp_plumbing.py`
-
-### Plumbing Fixture Editing (PLUMB-9–11) — Planned
-- Fixture connection property editing: select a fixture on canvas to edit cold/hot/drain flags (PLUMB-9)
-- Add/remove fixture connections from plumbing_edit view (PLUMB-10)
-- Fixture properties panel with name, service flags, position display (PLUMB-11)
 
 **Further development (beyond Phase 10):** The plumbing layout will expand to
 include service location indicators (hot, cold, and drain at each fixture),
@@ -821,7 +822,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 1113+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 1215+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
@@ -868,11 +869,11 @@ persistent data worth preserving.
 | 7 | TL-15–27, SEL-4, SEL-10, DT-7 | 16 |
 | 8 (done) | TL-11–14, LABEL-1–4, DIS-7, DIM-1–5, VAR-1–3, SEL-13–14 | 19 |
 | 9 | STYLE-1–4, LINK-1–2, SEL-12, CV-12 | 8 |
-| 10 | SITE-1–4, SCAD-1–3, ANALYSIS-1–3, PLUMB-1–8 | 18 |
+| 10 | SITE-1–4, SCAD-1–3, ANALYSIS-1–3, PLUMB-1–11 | 21 |
 | 11 | UI-5–6 | 2 |
 | 12 | SEL-15, Charter Principle 5 | 1 + design spec |
 | 13 | (aspirational — to be specified) | TBD |
-| **Total** | | **236 + Phase 13 TBD** |
+| **Total** | | **239 + Phase 13 TBD** |
 
 ---
 
