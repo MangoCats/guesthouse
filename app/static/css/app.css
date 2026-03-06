@@ -17,6 +17,14 @@
   --border: #45475a;
   --border-light: #585880;
   --selection: rgba(137, 180, 250, 0.25);
+  /* Catppuccin-style aliases (map to project theme) */
+  --base: var(--bg);
+  --surface0: var(--bg-elevated);
+  --surface1: var(--bg-hover);
+  --surface2: #4a4a6c;
+  --overlay0: var(--border);
+  --bg-raised: var(--bg-elevated);
+  --bg-secondary: var(--bg-surface);
   --menubar-h: 32px;
   --palette-w: 140px;
   --panel-w: 320px;

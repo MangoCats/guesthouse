@@ -7,6 +7,7 @@ import datetime
 import json
 import os
 import queue
+import sqlite3
 import subprocess
 import threading
 import time
@@ -41,7 +42,9 @@ from app.plumbing import (
     update_plumbing_element, delete_plumbing_element,
     seed_reference_plumbing,
 )
+from app.outline_solver import db_rows_to_chain, solve_closure, validate_chain
 from app.undo import UndoManager
+import floorplan.constants as fc
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -144,6 +147,26 @@ def create_app(db_path=None):
             "can_undo": undo_mgr.can_undo,
             "can_redo": undo_mgr.can_redo,
         })
+
+    def _solve_and_update_closure():
+        """Re-solve closure and update solved values in DB.
+
+        Returns (solver, chain_rows) on success.
+        Returns (solver, None) if closure is invalid.
+        """
+        chain_rows = get_outline_chain(db)
+        chain = db_rows_to_chain(chain_rows)
+        patch_constants(get_constants_dict(db))
+        R_a1 = fc.CORNER_SW_R
+        solver = solve_closure(chain, R_a1)
+        if not solver.valid:
+            return solver, None
+        update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
+        f18_seq = len(chain_rows) - 2
+        update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
+        closure_seq = len(chain_rows) - 1
+        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
+        return solver, chain_rows
 
     # ------------------------------------------------------------------
     # Prevent browser caching of API JSON responses
@@ -484,8 +507,7 @@ def create_app(db_path=None):
             return jsonify({"error": "not found"}), 404
         body = request.get_json(force=True)
         # Merge updates into properties
-        import json as _json
-        props = _json.loads(old["properties"]) if isinstance(old["properties"], str) else old["properties"]
+        props = json.loads(old["properties"]) if isinstance(old["properties"], str) else old["properties"]
         for k in ("width", "offset", "segment", "host_wall"):
             if k in body:
                 props[k] = body[k]
@@ -599,7 +621,6 @@ def create_app(db_path=None):
             geom = _get_geometry(variant)
             return jsonify(geom)
         except Exception as exc:
-            import sqlite3
             msg = str(exc)
             is_db = (isinstance(exc, (sqlite3.OperationalError, IndexError))
                      or "no such table" in msg)
@@ -728,7 +749,7 @@ def create_app(db_path=None):
     @app.route("/api/outline/<int:seq>", methods=["PUT"])
     def api_update_outline(seq):
         """API-16: Update outline chain segment, re-solve closure."""
-        from app.outline_solver import db_rows_to_chain, solve_closure
+
 
         old_row = get_outline_chain_row(seq, db)
         if not old_row:
@@ -767,27 +788,13 @@ def create_app(db_path=None):
         update_outline_segment(seq, updates, db)
 
         # Re-solve closure
-        chain_rows = get_outline_chain(db)
-        chain = db_rows_to_chain(chain_rows)
-        import floorplan.constants as fc
-        patch_constants(get_constants_dict(db))
-        R_a1 = fc.CORNER_SW_R
-        solver = solve_closure(chain, R_a1)
-
+        solver, _ = _solve_and_update_closure()
         if not solver.valid:
-            # Rollback
             restore_outline_chain(before_chain, db)
             return jsonify({
                 "error": "Closure failed after edit",
                 "closure_error": solver.closure_error,
             }), 400
-
-        # Update solved values in DB (distances + closure arc sweep)
-        update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
-        f18_seq = len(chain_rows) - 2
-        update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
-        closure_seq = len(chain_rows) - 1
-        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
 
         # Record undo
         after_chain = get_outline_chain(db)
@@ -812,7 +819,7 @@ def create_app(db_path=None):
     @app.route("/api/outline/validate", methods=["POST"])
     def api_validate_outline():
         """API-17: Dry-run validation without committing."""
-        from app.outline_solver import db_rows_to_chain, validate_chain
+
 
         body = request.get_json(force=True)
         changes = body.get("changes", {})  # {seq_str: {field: value}}
@@ -833,7 +840,7 @@ def create_app(db_path=None):
                             row[k] = float(v)
 
         chain = db_rows_to_chain(chain_rows)
-        import floorplan.constants as fc
+
         patch_constants(get_constants_dict(db))
         R_a1 = fc.CORNER_SW_R
         result = validate_chain(chain, R_a1)
@@ -843,7 +850,7 @@ def create_app(db_path=None):
     @app.route("/api/outline/add-point", methods=["POST"])
     def api_add_outline_point():
         """API-18: Insert new F-point by splitting a segment."""
-        from app.outline_solver import db_rows_to_chain, solve_closure
+
 
         body = request.get_json(force=True)
         after_seq = body.get("after_seq")
@@ -895,26 +902,13 @@ def create_app(db_path=None):
             insert_outline_segment(after_seq + 1, new_row, db)
 
         # Re-solve closure
-        chain_rows = get_outline_chain(db)
-        chain = db_rows_to_chain(chain_rows)
-        import floorplan.constants as fc
-        patch_constants(get_constants_dict(db))
-        R_a1 = fc.CORNER_SW_R
-        solver = solve_closure(chain, R_a1)
-
+        solver, _ = _solve_and_update_closure()
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({
                 "error": "Closure failed after adding point",
                 "closure_error": solver.closure_error,
             }), 400
-
-        # Update solved values (distances + closure arc sweep)
-        update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
-        f18_seq = len(chain_rows) - 2
-        update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
-        closure_seq = len(chain_rows) - 1
-        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
 
         after_chain = get_outline_chain(db)
         undo_mgr.record(
@@ -934,7 +928,7 @@ def create_app(db_path=None):
     @app.route("/api/outline/<int:seq>", methods=["DELETE"])
     def api_delete_outline_point(seq):
         """API-19: Remove a point from the outline chain."""
-        from app.outline_solver import db_rows_to_chain, solve_closure
+
 
         chain_rows = get_outline_chain(db)
         n = len(chain_rows)
@@ -966,26 +960,13 @@ def create_app(db_path=None):
         delete_outline_segment(seq, db)
 
         # Re-solve closure
-        chain_rows = get_outline_chain(db)
-        chain = db_rows_to_chain(chain_rows)
-        import floorplan.constants as fc
-        patch_constants(get_constants_dict(db))
-        R_a1 = fc.CORNER_SW_R
-        solver = solve_closure(chain, R_a1)
-
+        solver, _ = _solve_and_update_closure()
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({
                 "error": "Closure failed after removing point",
                 "closure_error": solver.closure_error,
             }), 400
-
-        # Update solved values (distances + closure arc sweep)
-        update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
-        f18_seq = len(chain_rows) - 2
-        update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
-        closure_seq = len(chain_rows) - 1
-        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
 
         after_chain = get_outline_chain(db)
         undo_mgr.record(

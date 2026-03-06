@@ -161,6 +161,13 @@ function connectSSE() {
 
 /* ========== API HELPERS ========== */
 
+/** Parse element properties from string or object, always returns an object. */
+function parseProps(elemOrProps) {
+  if (!elemOrProps) return {};
+  const p = elemOrProps.properties !== undefined ? elemOrProps.properties : elemOrProps;
+  return typeof p === "string" ? JSON.parse(p) : (p || {});
+}
+
 async function apiFetch(url, opts) {
   const resp = await fetch(url, opts);
   if (!resp.ok) {
@@ -364,11 +371,6 @@ async function createNewVariant() {
         source_variant: App.state.variant,
       }),
     });
-    if (!resp.ok) {
-      const err = await resp.json();
-      showToast(err.error || "Failed to create variant", "error");
-      return;
-    }
     await loadVariants();
     App.state.variant = slug;
     populateVariantSelect();
@@ -386,12 +388,7 @@ async function deleteActiveVariant() {
   if (!v || v.is_builtin) return;
   if (!confirm(`Delete variant "${v.label}"?`)) return;
   try {
-    const resp = await apiFetch(`/api/variants/${v.id}`, { method: "DELETE" });
-    if (!resp.ok) {
-      const err = await resp.json();
-      showToast(err.error || "Failed to delete variant", "error");
-      return;
-    }
+    await apiFetch(`/api/variants/${v.id}`, { method: "DELETE" });
     await loadVariants();
     App.state.variant = "standard";
     populateVariantSelect();
@@ -1681,6 +1678,12 @@ function screenToWorld(sx, sy) {
   return [wx, wy];
 }
 
+/** Convert a mouse event to world coordinates. */
+function mouseToWorld(e) {
+  const rect = App.els["viewport"].getBoundingClientRect();
+  return screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+}
+
 
 /* ========== SELECTION ========== */
 
@@ -1770,8 +1773,7 @@ function showProperties(type, name, data) {
   } else if (type === "wall") {
     // Check if this is a drawn wall
     const elemRec = (App.state.elements || []).find(e => e.name === name);
-    const props = elemRec ? (typeof elemRec.properties === "string"
-      ? JSON.parse(elemRec.properties) : elemRec.properties) : null;
+    const props = elemRec ? parseProps(elemRec) : null;
     if (props && props.source === "drawn") {
       // TL-16: Drawn wall — show editable thickness
       addPropRow(tbody, "Source", "drawn");
@@ -1823,7 +1825,7 @@ function showProperties(type, name, data) {
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
       for (const c of related) {
-        addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
+        addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
   } else if (type === "opening" || type === "rough_opening") {
@@ -1854,7 +1856,7 @@ function showProperties(type, name, data) {
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
       for (const c of related) {
-        addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
+        addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
   } else if (type === "appliance" || type === "furniture" || type === "fixture") {
@@ -1865,7 +1867,7 @@ function showProperties(type, name, data) {
     addPropRow(tbody, "Type", type);
     // SEL-8a: check for DB record to make Width/Depth editable
     const elemRec = (App.state.elements || []).find(e => e.name === name);
-    const elemProps = elemRec ? (typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : (elemRec.properties || {})) : null;
+    const elemProps = elemRec ? parseProps(elemRec) : null;
     if (elemRec && elemProps && (elemProps.width !== undefined || elemProps.source === "placed")) {
       // Editable Width/Depth for placed items — use stored dimensions (not bbox)
       const dispW = elemProps.width !== undefined ? elemProps.width : w;
@@ -1901,13 +1903,13 @@ function showProperties(type, name, data) {
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
       for (const c of related) {
-        addPropRow(tbody, c.name, fmtConstProp(c), true, c.name);
+        addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
     // Style controls and product URL
     const _elemRec = elemRec || (App.state.elements || []).find(e => e.name === name);
     if (_elemRec) {
-      const _props = typeof _elemRec.properties === "string" ? JSON.parse(_elemRec.properties) : (_elemRec.properties || {});
+      const _props = parseProps(_elemRec);
       // Use variant item's product_url as fallback if not in DB props
       if (!_props.product_url && data && data.product_url) _props.product_url = data.product_url;
       addStyleControls(tbody, _elemRec, _props, type);
@@ -1921,7 +1923,7 @@ function showProperties(type, name, data) {
   } else if (type === "dimension") {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
     if (elemRec) {
-      const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+      const props = parseProps(elemRec);
       addPropRow(tbody, "Source", props.source || "user");
       if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
       if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
@@ -1946,9 +1948,7 @@ function showProperties(type, name, data) {
       }
       styleSel.addEventListener("change", async () => {
         const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
-        const curProps = cur
-          ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
-          : props;
+        const curProps = cur ? parseProps(cur) : props;
         const newProps = { ...curProps, dim_style: styleSel.value };
         await fetch(`/api/elements/${elemRec.id}`, {
           method: "PUT",
@@ -1980,7 +1980,7 @@ function showProperties(type, name, data) {
   } else if (type === "label") {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "label");
     if (elemRec) {
-      const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+      const props = parseProps(elemRec);
       addPropRow(tbody, "Source", props.source || "unknown");
       addPropRow(tbody, "Text", props.text || name);
       // Editable font size
@@ -2017,7 +2017,7 @@ function showProperties(type, name, data) {
 
     if (pe.type === "fixture_connection") {
       // ── Fixture connection properties ──
-      title.textContent = pe.name;
+      App.els["props-title"].textContent = pe.name;
 
       // Editable name
       const nameTr = document.createElement("tr");
@@ -2083,7 +2083,7 @@ function showProperties(type, name, data) {
 
     } else {
       // ── Pipe / fitting properties ──
-      title.textContent = pe.name;
+      App.els["props-title"].textContent = pe.name;
       addPropRow(tbody, "Type", pe.type);
       if (pe.path) addPropRow(tbody, "Points", pe.path.length.toString());
       for (const [k, v] of Object.entries(p)) {
@@ -2173,9 +2173,7 @@ function addStyleControls(tbody, elemRec, props, elementType) {
   // Helper to save a style property
   async function saveStyleProp(key, value) {
     const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
-    const curProps = cur
-      ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
-      : props;
+    const curProps = cur ? parseProps(cur) : props;
     const newProps = { ...curProps, [key]: value };
     await fetch(`/api/elements/${elemRec.id}`, {
       method: "PUT",
@@ -2300,9 +2298,7 @@ function addViewOverrideControls(tbody, elemRec, props) {
 
   async function saveViewOverride(key, value) {
     const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
-    const curProps = cur
-      ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
-      : props;
+    const curProps = cur ? parseProps(cur) : props;
     const allOverrides = { ...(curProps.view_overrides || {}) };
     const curView = { ...(allOverrides[variant] || {}) };
     if (value === null) {
@@ -2403,9 +2399,7 @@ function addProductUrlField(tbody, elemRec, props) {
   if (elemRec) {
     inp.addEventListener("change", async () => {
       const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
-      const curProps = cur
-        ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
-        : props;
+      const curProps = cur ? parseProps(cur) : props;
       const newProps = { ...curProps, product_url: inp.value || null };
       await fetch(`/api/elements/${elemRec.id}`, {
         method: "PUT",
@@ -2462,9 +2456,7 @@ function addElementActions(tbody, elemRec) {
       const selected = boxes.filter(b => b.checked).map(b => b.value);
       // Re-read current properties from App.state to avoid stale closure
       const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
-      const curProps = cur
-        ? (typeof cur.properties === "string" ? JSON.parse(cur.properties) : cur.properties)
-        : props;
+      const curProps = cur ? parseProps(cur) : props;
       const newProps = { ...curProps, variants: selected };
       await fetch(`/api/elements/${elemRec.id}`, {
         method: "PUT",
@@ -2505,10 +2497,6 @@ function addElementActions(tbody, elemRec) {
   dTd.appendChild(dBtn);
   dTr.appendChild(dTd);
   tbody.appendChild(dTr);
-}
-
-function fmtConstProp(c) {
-  return formatConstValue(c);
 }
 
 function addPropRow(tbody, label, value, editable = false, constName = null) {
@@ -2811,7 +2799,7 @@ async function handleElementPropEdit(elemId, propKey, rawValue) {
   try {
     const elem = (App.state.elements || []).find(e => e.id === elemId);
     if (!elem) throw new Error("element not found");
-    const props = typeof elem.properties === "string" ? JSON.parse(elem.properties) : (elem.properties || {});
+    const props = parseProps(elem);
     props[propKey] = value; // store in feet (same unit as catalog)
     // Recompute poly if placed element with center
     if (props.source === "placed" && props.center && props.width && props.depth) {
@@ -2993,7 +2981,6 @@ async function handleOutlineEdit(seq, field, rawValue) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const data = await resp.json();
     showToast(`Seg ${seq}: ${fmtFtIn(value)}`, "success");
     await loadOutlineTable();
   } catch (e) {
@@ -3017,7 +3004,6 @@ async function handleOutlineSweepEdit(seq, rawValue) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sweep: rad }),
     });
-    const data = await resp.json();
     showToast(`Seg ${seq}: ${fmtDeg(deg)}`, "success");
     await loadOutlineTable();
   } catch (e) {
@@ -3400,53 +3386,24 @@ function setupEventListeners() {
     if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
     else renderCanvas();
   }
-  App.els["show-points"].addEventListener("change", (e) => {
-    App.state.showPoints = e.target.checked;
-    rerender();
-  });
-  App.els["show-labels"].addEventListener("change", (e) => {
-    App.state.showLabels = e.target.checked;
-    rerender();
-  });
-  App.els["show-dims"].addEventListener("change", (e) => {
-    App.state.showDims = e.target.checked;
-    rerender();
-  });
-  App.els["show-user-dims"].addEventListener("change", (e) => {
-    App.state.showUserDims = e.target.checked;
-    rerender();
-  });
+  // Data-driven display toggle listeners
+  const toggleMap = [
+    ["show-points", "showPoints"], ["show-labels", "showLabels"],
+    ["show-dims", "showDims"], ["show-user-dims", "showUserDims"],
+    ["show-openings", "showOpenings"], ["show-furniture", "showFurniture"],
+    ["show-rooms", "showRooms"], ["show-doors", "showDoors"],
+    ["show-clearance", "showClearance"], ["open-links", "openLinks"],
+    ["show-areas", "showAreas"],
+  ];
+  for (const [elId, stateKey] of toggleMap) {
+    App.els[elId].addEventListener("change", (e) => {
+      App.state[stateKey] = e.target.checked;
+      rerender();
+    });
+  }
   App.els["show-grid"].addEventListener("change", (e) => {
     App.state.showGrid = e.target.checked;
     applyTransform();
-  });
-  App.els["show-openings"].addEventListener("change", (e) => {
-    App.state.showOpenings = e.target.checked;
-    rerender();
-  });
-  App.els["show-furniture"].addEventListener("change", (e) => {
-    App.state.showFurniture = e.target.checked;
-    rerender();
-  });
-  App.els["show-rooms"].addEventListener("change", (e) => {
-    App.state.showRooms = e.target.checked;
-    rerender();
-  });
-  App.els["show-doors"].addEventListener("change", (e) => {
-    App.state.showDoors = e.target.checked;
-    rerender();
-  });
-  App.els["show-clearance"].addEventListener("change", (e) => {
-    App.state.showClearance = e.target.checked;
-    rerender();
-  });
-  App.els["open-links"].addEventListener("change", (e) => {
-    App.state.openLinks = e.target.checked;
-    rerender();
-  });
-  App.els["show-areas"].addEventListener("change", (e) => {
-    App.state.showAreas = e.target.checked;
-    rerender();
   });
 
   // Roof style selector (SCAD-2)
@@ -3563,8 +3520,7 @@ function onMouseDown(e) {
   } else if (e.button === 0 && App.state.activeTool === "draw-wall") {
     drawWallMouseDown(e);
   } else if (e.button === 0 && isPlumbingDrawTool(App.state.activeTool)) {
-    const rect = App.els["viewport"].getBoundingClientRect();
-    const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const [wx, wy] = mouseToWorld(e);
     // Initialise draw state if starting
     if (PlumbingDraw.points.length === 0) {
       if (App.state.activeTool === "supply-cold") {
@@ -3577,20 +3533,17 @@ function onMouseDown(e) {
     }
     plumbingDrawClick(wx, wy);
   } else if (e.button === 0 && App.state.activeTool === "place-fitting") {
-    const rect = App.els["viewport"].getBoundingClientRect();
-    const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const [wx, wy] = mouseToWorld(e);
     placeFitting(wx, wy);
   } else if (e.button === 0 && App.state.activeTool === "place-fixture") {
-    const rect = App.els["viewport"].getBoundingClientRect();
-    const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const [wx, wy] = mouseToWorld(e);
     placeFixture(wx, wy);
   } else if (e.button === 0 && App.state.activeTool === "dimension") {
     dimToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "label") {
     labelToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "measure") {
-    const rect = App.els["viewport"].getBoundingClientRect();
-    const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const [wx, wy] = mouseToWorld(e);
     App.state.measureStart = [wx, wy];
   }
 }
@@ -3779,8 +3732,7 @@ function onMouseUp(e) {
 
   if (isCanvasView() &&
       App.state.activeTool === "measure" && App.state.measureStart) {
-    const rect = App.els["viewport"].getBoundingClientRect();
-    const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const [wx, wy] = mouseToWorld(e);
     const [sx, sy] = App.state.measureStart;
     const dx = wx - sx;
     const dy = wy - sy;
@@ -3839,7 +3791,7 @@ function onLabelDblClick(e) {
   const name = target.getAttribute("data-name");
   const elemRec = (App.state.elements || []).find(el => el.name === name && el.type === "label");
   if (!elemRec) return;
-  const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+  const props = parseProps(elemRec);
 
   Dialog.show({
     title: `Edit Label: ${name}`,
@@ -3872,7 +3824,7 @@ function onContextMenu(e) {
   // Add detach options if anchors are present
   const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
   if (elemRec) {
-    const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+    const props = parseProps(elemRec);
     const hasStart = !!props.start_anchor;
     const hasEnd = !!props.end_anchor;
     if (hasStart || hasEnd) {
@@ -3917,7 +3869,7 @@ function hideContextMenu() {
 async function setDimRotation(name, rotation) {
   const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
   if (!elemRec) return;
-  const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+  const props = parseProps(elemRec);
   props.label_rotation = rotation;
   await fetch(`/api/elements/${elemRec.id}`, {
     method: "PUT",
@@ -3931,7 +3883,7 @@ async function setDimRotation(name, rotation) {
 async function detachAnchor(name, which) {
   const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
   if (!elemRec) return;
-  const props = typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : elemRec.properties;
+  const props = parseProps(elemRec);
   if (which === "start" || which === "both") delete props.start_anchor;
   if (which === "end" || which === "both") delete props.end_anchor;
   await fetch(`/api/elements/${elemRec.id}`, {
@@ -4116,8 +4068,7 @@ function renderWallHandles(elemId, props) {
 }
 
 function endpointDragMouseMove(e) {
-  const rect = App.els["viewport"].getBoundingClientRect();
-  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  let [wx, wy] = mouseToWorld(e);
   // Shift-constrain to horizontal or vertical
   if (e.shiftKey && EndpointDragTool.origWorld) {
     const ox = EndpointDragTool.origWorld[0], oy = EndpointDragTool.origWorld[1];
@@ -4158,8 +4109,7 @@ async function endpointDragMouseUp(e) {
   const preview = document.querySelector(".wall-drag-preview");
   if (preview) preview.remove();
   // Compute final position
-  const rect = App.els["viewport"].getBoundingClientRect();
-  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  let [wx, wy] = mouseToWorld(e);
   if (e.shiftKey && EndpointDragTool.origWorld) {
     const ox = EndpointDragTool.origWorld[0], oy = EndpointDragTool.origWorld[1];
     if (Math.abs(wx - ox) > Math.abs(wy - oy)) wy = oy;
@@ -4230,7 +4180,7 @@ function findNearestWall(wx, wy) {
   }
   // Drawn walls from elements
   for (const elem of (App.state.elements || [])) {
-    const props = typeof elem.properties === "string" ? JSON.parse(elem.properties) : elem.properties;
+    const props = parseProps(elem);
     if (elem.type === "wall" && props?.source === "drawn" && props.poly) {
       for (let i = 0; i < props.poly.length; i++) {
         const j = (i + 1) % props.poly.length;
@@ -4255,8 +4205,7 @@ function nextOpeningName() {
 }
 
 function openingToolMouseDown(e) {
-  const rect = App.els["viewport"].getBoundingClientRect();
-  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const [wx, wy] = mouseToWorld(e);
   const wall = findNearestWall(wx, wy);
   if (!wall) {
     showToast("No wall found near click", "warning");
@@ -4371,11 +4320,11 @@ function updateUndoButtons(canUndo, canRedo) {
   if (redoBtn) redoBtn.disabled = !canRedo;
 }
 
-async function doUndo() {
-  const resp = await fetch("/api/undo", { method: "POST" });
+async function doUndoRedo(endpoint, label) {
+  const resp = await fetch(`/api/${endpoint}`, { method: "POST" });
   const data = await resp.json();
   if (resp.ok) {
-    showToast("Undo: " + (data.description || data.action), "success");
+    showToast(`${label}: ` + (data.description || data.action), "success");
     updateUndoButtons(data.can_undo, data.can_redo);
     loadConstants();
     loadGeometry();
@@ -4386,28 +4335,12 @@ async function doUndo() {
       ensureActiveVariantValid();
     }
   } else {
-    showToast(data.error || "Nothing to undo", "warning");
+    showToast(data.error || `Nothing to ${endpoint}`, "warning");
   }
 }
 
-async function doRedo() {
-  const resp = await fetch("/api/redo", { method: "POST" });
-  const data = await resp.json();
-  if (resp.ok) {
-    showToast("Redo: " + (data.description || data.action), "success");
-    updateUndoButtons(data.can_undo, data.can_redo);
-    loadConstants();
-    loadGeometry();
-    loadElements();
-    loadPlumbingElements();
-    if (["variant_update", "variant_create", "variant_delete"].includes(data.action)) {
-      await loadVariants();
-      ensureActiveVariantValid();
-    }
-  } else {
-    showToast(data.error || "Nothing to redo", "warning");
-  }
-}
+async function doUndo() { return doUndoRedo("undo", "Undo"); }
+async function doRedo() { return doUndoRedo("redo", "Redo"); }
 
 
 /* ========== TOOLS ========== */

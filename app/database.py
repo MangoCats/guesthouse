@@ -348,7 +348,7 @@ def _seed_config(conn):
 
 def _seed_shapes(conn):
     """Register built-in special item shapes."""
-    import json
+
     import math
 
     # Toilet plan-view polygon (from gen_floorplan.py _TOILET_SVG).
@@ -560,7 +560,7 @@ _IW_SEED = [
 
 def _seed_elements(conn):
     """Seed the elements table with the 13 interior walls."""
-    import json
+
     for name, thickness_const, orientation in _IW_SEED:
         props = json.dumps({
             "thickness_constant": thickness_const,
@@ -830,12 +830,12 @@ def get_shape(name, db_path=None):
 def create_shape(name, poly_json, scale=1.0, origin="center",
                  width_key=None, depth_key=None, description="", db_path=None):
     """Create a new shape. Returns the created record dict."""
-    import json as _json
+
     with get_db(db_path) as conn:
         conn.execute(
             "INSERT INTO shapes (name, poly_json, scale, origin, width_key, depth_key, description) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (name, _json.dumps(poly_json) if isinstance(poly_json, list) else poly_json,
+            (name, json.dumps(poly_json) if isinstance(poly_json, list) else poly_json,
              scale, origin, width_key, depth_key, description),
         )
     return get_shape(name, db_path)
@@ -844,14 +844,14 @@ def create_shape(name, poly_json, scale=1.0, origin="center",
 def update_shape(name, **kwargs):
     """Update a shape by name. Accepted kwargs: poly_json, scale, origin,
     width_key, depth_key, description. Returns True if updated."""
-    import json as _json
+
     db_path = kwargs.pop("db_path", None)
     sets, vals = [], []
     for key in ("poly_json", "scale", "origin", "width_key", "depth_key", "description"):
         if key in kwargs:
             v = kwargs[key]
             if key == "poly_json" and isinstance(v, list):
-                v = _json.dumps(v)
+                v = json.dumps(v)
             sets.append(f"{key} = ?")
             vals.append(v)
     if not sets:
@@ -1200,7 +1200,7 @@ def reset_elements(db_path=None):
 
 def restore_elements(elements, doors, db_path=None):
     """Restore elements and doors tables from a snapshot (for undo/redo)."""
-    import json
+
     db_path = db_path or DB_PATH
     with get_db(db_path) as conn:
         conn.execute("DELETE FROM elements")
@@ -1258,7 +1258,7 @@ def get_element_by_name(name, db_path=None):
 
 def create_element(type_, name, properties=None, variant=None, db_path=None):
     """Create a new element. Returns the created record dict with assigned id."""
-    import json
+
     props = json.dumps(properties or {})
     with get_db(db_path) as conn:
         cur = conn.execute(
@@ -1283,7 +1283,7 @@ def create_element_raw(record, db_path=None):
 
 def update_element(element_id, updates, db_path=None):
     """Update element fields.  Returns updated record or None if not found."""
-    import json
+
     allowed = {"type", "name", "properties", "variant"}
     sets = []
     vals = []

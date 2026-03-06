@@ -4,12 +4,7 @@ Provides higher-level operations on the elements table, including
 variant-aware queries, cascading deletes, and the IW→constant mapping
 that connects interior wall positions to their controlling constants.
 """
-import json
-
-from app.database import (
-    get_db, get_all_elements, get_element, get_element_by_name,
-    create_element, update_element, delete_element,
-)
+from app.database import get_db
 
 # ---------------------------------------------------------------------------
 # IW → controlling constant mapping (Phase 3–11 transitional)
@@ -98,6 +93,7 @@ CONSTANT_TO_IW = {}
 for _iw, _cname in IW_CONSTANT_MAP.items():
     if _cname:
         CONSTANT_TO_IW.setdefault(_cname, []).append(_iw)
+del _iw, _cname
 
 
 def get_elements_for_variant(variant=None, db_path=None):

@@ -4,6 +4,8 @@ Small helpers used by both engine.py and variants.py to avoid
 duplicating JSON serialisation logic within app/.
 """
 
+from shared.types import LineSeg
+
 # Arc discretisation constants — single source of truth for polygon
 # approximations of arcs/circles within the app layer.
 ARC_N_SEMICIRCLE = 32   # segments for semicircular arcs (bath sink bulge)
@@ -24,7 +26,6 @@ def bbox_from_poly(poly):
 
 def seg_to_dict(seg):
     """Convert LineSeg/ArcSeg to JSON-serialisable dict."""
-    from shared.types import LineSeg
     if isinstance(seg, LineSeg):
         return {"type": "line", "start": seg.start, "end": seg.end}
     return {

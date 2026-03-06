@@ -18,7 +18,8 @@ from app.database import (get_constants_dict, get_variants, get_variant,
                           create_variant, delete_variant, create_variant_raw,
                           clone_variant_exclusions, delete_variant_exclusions,
                           clone_variant_elements, unclone_variant_elements,
-                          get_variant_exclusions)
+                          get_variant_exclusions,
+                          create_element, get_element_by_name)
 from app.engine import compute_geometry
 
 
@@ -332,7 +333,7 @@ class TestDimensionData:
         """Each builtin dimension should have start, end endpoints."""
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, "standard", db_path=fresh_db)
-        import math
+
         for dim in geom["user_dimensions"]:
             p = dim["properties"]
             if p.get("source") != "builtin":
@@ -362,7 +363,7 @@ class TestDimensionData:
                    if d["properties"].get("source") == "builtin"]
         assert len(builtin) >= 18
         # Spot-check one dimension
-        import math
+
         dim01 = next((d for d in builtin if d["name"] == "dim01"), None)
         assert dim01 is not None
         p = dim01["properties"]
@@ -703,7 +704,7 @@ class TestVariantDelete:
 
     def test_delete_cleans_element_visibility(self, fresh_db):
         """unclone_variant_elements removes variant from properties.variants lists."""
-        from app.database import create_element, get_element_by_name
+
         # create_element expects a dict for properties (it does json.dumps internally)
         create_element("furniture", "test_vis",
                        {"variants": ["standard", "test_v"]}, None, fresh_db)
@@ -773,7 +774,7 @@ class TestVariantGeometry:
 
     def test_clone_variant_elements_properties(self, fresh_db):
         """clone_variant_elements adds target to properties.variants lists."""
-        from app.database import create_element, get_element_by_name
+
         create_element("furniture", "clone_test",
                        {"variants": ["standard"]}, None, fresh_db)
         clone_variant_elements("standard", "new_v", fresh_db)

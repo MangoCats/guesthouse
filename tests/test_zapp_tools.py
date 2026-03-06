@@ -6,10 +6,7 @@ import json
 
 import pytest
 
-from app.database import (
-    get_db, init_db, get_constant_value,
-    create_element, get_element_by_name, get_all_elements,
-)
+from app.database import get_db, init_db, get_constant_value
 from tests.test_zapp_conftest import fresh_db, app_client  # noqa: F401
 
 
