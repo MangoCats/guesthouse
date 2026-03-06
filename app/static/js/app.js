@@ -15,6 +15,7 @@ const App = {
     showPoints: true,
     showLabels: true,
     showDims: false,
+    showUserDims: true,
     showGrid: false,
     showOpenings: true,
     showFurniture: true,
@@ -82,7 +83,7 @@ function cacheElements() {
     "outline-add-btn", "outline-remove-btn", "openings-table",
     "rough-openings-table", "interior-walls-table", "furniture-table",
     "props-empty", "props-detail", "props-title", "props-table",
-    "show-points", "show-labels", "show-dims", "show-grid",
+    "show-points", "show-labels", "show-dims", "show-user-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
     "show-doors", "show-clearance", "open-links", "show-areas", "roof-style",
     "plumbing-tools", "plumbing-fixtures-table", "plumbing-pipes-table",
@@ -295,7 +296,8 @@ async function saveCurrentLayerConfig() {
   if (!v) return;
   const cfg = {
     points: App.state.showPoints, labels: App.state.showLabels,
-    dims: App.state.showDims, grid: App.state.showGrid,
+    dims: App.state.showDims, userDims: App.state.showUserDims,
+    grid: App.state.showGrid,
     openings: App.state.showOpenings, furniture: App.state.showFurniture,
     rooms: App.state.showRooms, doors: App.state.showDoors,
     clearance: App.state.showClearance, areas: App.state.showAreas,
@@ -315,14 +317,16 @@ function restoreLayerConfig() {
   const cfg = v?.layer_config || {};
   const map = {
     points: "showPoints", labels: "showLabels", dims: "showDims",
-    grid: "showGrid", openings: "showOpenings", furniture: "showFurniture",
+    userDims: "showUserDims", grid: "showGrid",
+    openings: "showOpenings", furniture: "showFurniture",
     rooms: "showRooms", doors: "showDoors",
     clearance: "showClearance", areas: "showAreas",
   };
   for (const [cfgKey, stateKey] of Object.entries(map)) {
     const val = cfg[cfgKey] !== undefined ? cfg[cfgKey] : App.state[stateKey];
     App.state[stateKey] = val;
-    const elKey = cfgKey === "points" ? "show-points" : `show-${cfgKey}`;
+    const elKeyMap = { userDims: "show-user-dims" };
+    const elKey = elKeyMap[cfgKey] || (cfgKey === "points" ? "show-points" : `show-${cfgKey}`);
     const el = App.els[elKey];
     if (el) el.checked = val;
   }
@@ -3329,7 +3333,10 @@ function setupEventListeners() {
     App.state.showDims = e.target.checked;
     rerender();
   });
-  // Note: showUserDims removed — "Dims" toggle now controls all dimensions
+  App.els["show-user-dims"].addEventListener("change", (e) => {
+    App.state.showUserDims = e.target.checked;
+    rerender();
+  });
   App.els["show-grid"].addEventListener("change", (e) => {
     App.state.showGrid = e.target.checked;
     applyTransform();
@@ -4110,16 +4117,20 @@ function setTool(tool) {
 /* ========== DIMENSION LINES ========== */
 
 function renderUserDimensions(g) {
-  if (!App.state.showDims || !g.user_dimensions) return;
+  if (!g.user_dimensions) return;
+  if (!App.state.showDims && !App.state.showUserDims) return;
   const layer = App.els["layer-labels"];
 
   for (const ud of g.user_dimensions) {
     const p = ud.properties;
     if (!p.start || !p.end) continue;
+    const isBuiltin = p.source === "builtin";
+    // DIS-7: gate on appropriate toggle
+    if (isBuiltin && !App.state.showDims) continue;
+    if (!isBuiltin && !App.state.showUserDims) continue;
     const offset = p.offset || 0;
     const ax = p.start[0], ay = p.start[1];
     const bx = p.end[0], by = p.end[1];
-    const isBuiltin = p.source === "builtin";
     const dimStyle = p.dim_style || (isBuiltin ? "solid" : "dashed");
     const lineCls = dimStyle === "solid" ? "dim-line" : "user-dim-line";
     const labelCls = dimStyle === "solid" ? "dim-label" : "user-dim-label";

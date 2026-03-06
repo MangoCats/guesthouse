@@ -603,3 +603,42 @@ class TestTL25ShapeEditor:
         if isinstance(props, str):
             props = json.loads(props)
         assert props["shape"] == "diamond"
+
+
+# =========================================================================
+# DIS-7: User Dimensions Toggle
+# =========================================================================
+
+class TestDIS7UserDimsToggle:
+    """DIS-7: Separate User Dims toggle."""
+
+    def test_user_dims_checkbox_in_template(self, app_client):
+        """index.html contains the show-user-dims checkbox."""
+        resp = app_client.get("/")
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert 'id="show-user-dims"' in html
+
+    def test_geometry_has_builtin_and_user_dims(self, app_client):
+        """Geometry response contains both builtin and user-created dims."""
+        # Create a user dimension
+        app_client.post("/api/elements", json={
+            "type": "dimension",
+            "name": "test_dim1",
+            "properties": {
+                "start": [-10, -5], "end": [-5, -5], "offset": 0,
+                "start_anchor": None, "end_anchor": None,
+            },
+        })
+        resp = app_client.get("/api/geometry")
+        data = resp.get_json()
+        dims = data.get("user_dimensions", [])
+        sources = set()
+        for d in dims:
+            p = d.get("properties", {})
+            if isinstance(p, str):
+                p = json.loads(p)
+            sources.add(p.get("source", "user"))
+        # Should have both builtin (seeded) and user-created
+        assert "builtin" in sources
+        assert "user" in sources or None in sources
