@@ -25,6 +25,9 @@ from app.database import (
     reset_elements, get_config, set_config,
     validate_db, reset_db,
     get_variants, get_variant, get_variant_by_id, update_variant,
+    create_variant, delete_variant, create_variant_raw,
+    clone_variant_exclusions, delete_variant_exclusions,
+    clone_variant_elements, unclone_variant_elements,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
@@ -633,6 +636,47 @@ def create_app(db_path=None):
         _broadcast("variant_changed")
         return jsonify(updated)
 
+    @app.route("/api/variants", methods=["POST"])
+    def api_create_variant():
+        body = request.get_json(force=True)
+        name = body.get("name")
+        if not name:
+            return jsonify({"error": "name is required"}), 400
+        label = body.get("label", name)
+        source = body.get("source_variant", "standard")
+        # Validate source exists
+        source_v = get_variant(source, db)
+        if not source_v:
+            return jsonify({"error": f"source variant '{source}' not found"}), 400
+        # Check for duplicate name
+        if get_variant(name, db):
+            return jsonify({"error": f"variant '{name}' already exists"}), 400
+        flags = source_v["flags"]
+        record = create_variant(name, label, source, flags, db)
+        clone_variant_exclusions(source, name, db)
+        clone_variant_elements(source, name, db)
+        undo_mgr.record("variant_create", record, record,
+                        f"Create variant {name}")
+        _invalidate()
+        _broadcast("variant_changed")
+        return jsonify(record), 201
+
+    @app.route("/api/variants/<int:variant_id>", methods=["DELETE"])
+    def api_delete_variant(variant_id):
+        v = get_variant_by_id(variant_id, db)
+        if not v:
+            return jsonify({"error": "not found"}), 404
+        if v["is_builtin"]:
+            return jsonify({"error": "cannot delete built-in variant"}), 400
+        unclone_variant_elements(v["name"], db)
+        delete_variant_exclusions(v["name"], db)
+        delete_variant(variant_id, db)
+        undo_mgr.record("variant_delete", v, v,
+                        f"Delete variant {v['name']}")
+        _invalidate()
+        _broadcast("variant_changed")
+        return jsonify({"deleted": variant_id})
+
     # -- Shapes API --
 
     @app.route("/api/shapes")
@@ -978,8 +1022,13 @@ def create_app(db_path=None):
         svg_path = view["svg_path"]
         # Support variant-specific floorplan SVGs
         variant = request.args.get("variant", "standard")
-        if view_name == "floorplan" and variant in _FLOORPLAN_VARIANT_SUFFIX:
-            suffix = _FLOORPLAN_VARIANT_SUFFIX[variant]
+        if view_name == "floorplan":
+            suffix = _FLOORPLAN_VARIANT_SUFFIX.get(variant)
+            if suffix is None:
+                # User-defined variant: fall back to source variant's suffix
+                v = get_variant(variant, db)
+                source = v["source_variant"] if v else "standard"
+                suffix = _FLOORPLAN_VARIANT_SUFFIX.get(source, "")
             svg_path = svg_path.replace(".svg", f"{suffix}.svg")
         content = get_svg_content(svg_path)
         if content is None:

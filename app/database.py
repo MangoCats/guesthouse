@@ -966,6 +966,138 @@ def update_variant(variant_id, updates, db_path=None):
     return _variant_row_to_dict(row) if row else None
 
 
+def create_variant(name, label, source_variant, flags, db_path=None):
+    """Create a new user-defined variant. Returns the created variant dict."""
+    if isinstance(flags, dict):
+        flags = json.dumps(flags)
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT INTO variants (name, label, source_variant, flags, is_builtin) "
+            "VALUES (?, ?, ?, ?, 0)",
+            (name, label, source_variant, flags),
+        )
+        row = conn.execute(
+            "SELECT id, name, label, source_variant, flags, layer_config, is_builtin "
+            "FROM variants WHERE name = ?", (name,)
+        ).fetchone()
+    return _variant_row_to_dict(row) if row else None
+
+
+def create_variant_raw(record, db_path=None):
+    """Re-insert a variant record (for undo). Restores id if possible."""
+    flags = record.get("flags", {})
+    if isinstance(flags, dict):
+        flags = json.dumps(flags)
+    layer_config = record.get("layer_config", {})
+    if isinstance(layer_config, dict):
+        layer_config = json.dumps(layer_config)
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT INTO variants (id, name, label, source_variant, flags, layer_config, is_builtin) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (record["id"], record["name"], record["label"],
+             record.get("source_variant"), flags, layer_config,
+             1 if record.get("is_builtin") else 0),
+        )
+
+
+def delete_variant(variant_id, db_path=None):
+    """Delete a variant by id. Returns deleted id or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT id FROM variants WHERE id = ?", (variant_id,)
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute("DELETE FROM variants WHERE id = ?", (variant_id,))
+    return variant_id
+
+
+def clone_variant_exclusions(source, target, db_path=None):
+    """Copy variant_exclusions from source variant to target variant."""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT element_type, element_name FROM variant_exclusions "
+            "WHERE variant = ?", (source,)
+        ).fetchall()
+        for r in rows:
+            conn.execute(
+                "INSERT OR IGNORE INTO variant_exclusions "
+                "(variant, element_type, element_name) VALUES (?, ?, ?)",
+                (target, r["element_type"], r["element_name"]),
+            )
+
+
+def delete_variant_exclusions(variant, db_path=None):
+    """Remove all variant_exclusions for a variant."""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "DELETE FROM variant_exclusions WHERE variant = ?", (variant,)
+        )
+
+
+def _parse_props(raw):
+    """Parse properties JSON, handling double-encoding."""
+    if not raw:
+        return {}
+    parsed = json.loads(raw)
+    if isinstance(parsed, str):
+        parsed = json.loads(parsed)
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def clone_variant_elements(source, target, db_path=None):
+    """Add target variant to properties.variants lists for elements visible in source.
+
+    For elements with properties.variants containing source, add target.
+    For elements with variant column == source, convert to properties.variants list.
+    For elements with variant IS NULL and no properties.variants, they're already
+    visible in all variants — no change needed.
+    """
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, properties, variant FROM elements"
+        ).fetchall()
+        for r in rows:
+            props = _parse_props(r["properties"])
+            variants_list = props.get("variants")
+            if variants_list is not None:
+                # Explicit list: add target if source is in the list
+                if source in variants_list and target not in variants_list:
+                    variants_list.append(target)
+                    props["variants"] = variants_list
+                    conn.execute(
+                        "UPDATE elements SET properties = ? WHERE id = ?",
+                        (json.dumps(props), r["id"]),
+                    )
+            elif r["variant"] == source:
+                # Single variant column: convert to properties.variants list
+                props["variants"] = [source, target]
+                conn.execute(
+                    "UPDATE elements SET properties = ?, variant = NULL WHERE id = ?",
+                    (json.dumps(props), r["id"]),
+                )
+            # variant IS NULL and no properties.variants → visible everywhere, no change
+
+
+def unclone_variant_elements(target, db_path=None):
+    """Remove target variant from properties.variants lists on all elements."""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, properties FROM elements"
+        ).fetchall()
+        for r in rows:
+            props = _parse_props(r["properties"])
+            variants_list = props.get("variants")
+            if variants_list is not None and target in variants_list:
+                variants_list.remove(target)
+                props["variants"] = variants_list if variants_list else None
+                conn.execute(
+                    "UPDATE elements SET properties = ? WHERE id = ?",
+                    (json.dumps(props), r["id"]),
+                )
+
+
 def get_room_label_offsets(db_path=None):
     """Return dict of room label offsets: {name: (offset_e, offset_n)}."""
     with get_db(db_path) as conn:

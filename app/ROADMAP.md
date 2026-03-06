@@ -12,7 +12,7 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ## Current State (Phase 10d Plumbing — Complete, Phase 11 next)
 
-**238 of 243 requirements implemented.**  629 app tests, 586 pre-existing tests
+**238 of 244 requirements implemented.**  629 app tests, 586 pre-existing tests
 (1215 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
@@ -637,7 +637,7 @@ base layout is complete.
 
 **Goal:** User-defined layout variants with per-view layer configuration.
 
-**Requirements:** UI-5–6 (2 reqs)
+**Requirements:** UI-5–6, SEL-8a (3 reqs)
 
 **Work:**
 - Add `variants` table to database (name, label, source_variant,
@@ -655,6 +655,10 @@ base layout is complete.
   - Toggling a layer in one variant does not affect other variants
 - User-defined variants can add/remove element overrides (e.g., hide a
   wall, add custom furniture) without affecting other variants
+- Furniture/appliance property editing (SEL-8a): Width and Depth fields
+  in the Properties panel become editable for items with database records.
+  Changing a value updates `properties.width`/`properties.depth` via the
+  existing element PUT endpoint and triggers geometry recomputation.
 - Final polish: cross-check all 236 requirements, keyboard shortcut audit
   (NF-5), responsive layout verification (NF-2), NF-3 (586 existing tests
   pass), NF-4 (no files modified outside `app/` and `tests/`)
@@ -870,10 +874,10 @@ persistent data worth preserving.
 | 8 (done) | TL-11–14, LABEL-1–4, DIS-7, DIM-1–5, VAR-1–3, SEL-13–14 | 19 |
 | 9 | STYLE-1–4, LINK-1–2, SEL-12, CV-12 | 8 |
 | 10 | SITE-1–4, SCAD-1–3, ANALYSIS-1–3, PLUMB-1–11 | 21 |
-| 11 | UI-5–6 | 2 |
+| 11 | UI-5–6, SEL-8a | 3 |
 | 12 | SEL-15, Charter Principle 5 | 1 + design spec |
 | 13 | (aspirational — to be specified) | TBD |
-| **Total** | | **239 + Phase 13 TBD** |
+| **Total** | | **240 + Phase 13 TBD** |
 
 ---
 

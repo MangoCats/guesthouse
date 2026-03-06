@@ -1179,6 +1179,18 @@ panel SHALL update the door configuration and re-render the door arc.
 dropdown. Door arc flips to the opposite side.
 **Tested:** `test_zapp_canvas.py::TestDoorArcAPI::test_door_invalidation_via_api`.
 
+#### SEL-8a  Furniture Property Editing
+When a furniture, appliance, or fixture item is selected, the Width and
+Depth fields in the Properties panel SHALL be editable.  Changing a value
+and pressing Enter SHALL update the element's `properties.width` /
+`properties.depth` in the database via `PUT /api/elements/<id>` and
+trigger geometry recomputation so the item re-renders at its new size.
+
+**Acceptance:** Select CUSTOM_SHELVES.  Edit Width from 36 to 30.  Press
+Enter.  The element re-renders narrower.  Edit Depth from 14 to 18.
+Press Enter.  The element re-renders deeper.  Undo restores the original
+dimensions.
+
 #### SEL-12  Product URL Field
 When a furniture, appliance, or fixture item is selected, the Properties
 panel SHALL display a "Link" text field. The field SHALL show the URL

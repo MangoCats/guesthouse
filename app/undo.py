@@ -152,6 +152,44 @@ class UndoManager:
             vid = state["id"]
             fields = {k: v for k, v in state.items() if k != "id"}
             update_variant(vid, fields, self._db_path)
+        elif action_type == "variant_create":
+            from app.database import (get_variant_by_id, create_variant_raw,
+                                      clone_variant_exclusions,
+                                      clone_variant_elements,
+                                      unclone_variant_elements,
+                                      delete_variant_exclusions,
+                                      delete_variant)
+            existing = get_variant_by_id(state["id"], self._db_path)
+            if existing:
+                # Undo: remove the variant and its cloned elements/exclusions
+                unclone_variant_elements(state["name"], self._db_path)
+                delete_variant_exclusions(state["name"], self._db_path)
+                delete_variant(state["id"], self._db_path)
+            else:
+                # Redo: re-create the variant
+                create_variant_raw(state, self._db_path)
+                source = state.get("source_variant", "standard")
+                clone_variant_exclusions(source, state["name"], self._db_path)
+                clone_variant_elements(source, state["name"], self._db_path)
+        elif action_type == "variant_delete":
+            from app.database import (get_variant_by_id, create_variant_raw,
+                                      clone_variant_exclusions,
+                                      clone_variant_elements,
+                                      unclone_variant_elements,
+                                      delete_variant_exclusions,
+                                      delete_variant)
+            existing = get_variant_by_id(state["id"], self._db_path)
+            if existing:
+                # Redo: re-delete the variant
+                unclone_variant_elements(state["name"], self._db_path)
+                delete_variant_exclusions(state["name"], self._db_path)
+                delete_variant(state["id"], self._db_path)
+            else:
+                # Undo: re-create the variant and restore cloned data
+                create_variant_raw(state, self._db_path)
+                source = state.get("source_variant", "standard")
+                clone_variant_exclusions(source, state["name"], self._db_path)
+                clone_variant_elements(source, state["name"], self._db_path)
         elif action_type == "full_reset":
             # Combined constants + outline + elements + doors reset
             from app.database import restore_outline_chain, restore_elements

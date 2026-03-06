@@ -238,6 +238,20 @@ body {
   outline: none;
 }
 #variant-selector select:focus { border-color: var(--accent-dim); }
+#new-variant-btn, #delete-variant-btn {
+  padding: 1px 6px;
+  margin-left: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+#new-variant-btn:hover { border-color: var(--accent-dim); }
+#delete-variant-btn { color: var(--red); }
+#delete-variant-btn:hover { border-color: var(--red); }
 
 #viewport {
   flex: 1;

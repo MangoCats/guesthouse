@@ -14,7 +14,11 @@ from app.variants import (compute_variant_items, VARIANTS,
                           _resolve_product_url, _PRODUCT_URLS_BASE,
                           _PRODUCT_URLS_VARIANT, get_variant_flags)
 from app.database import (get_constants_dict, get_variants, get_variant,
-                          get_variant_by_id, update_variant)
+                          get_variant_by_id, update_variant,
+                          create_variant, delete_variant, create_variant_raw,
+                          clone_variant_exclusions, delete_variant_exclusions,
+                          clone_variant_elements, unclone_variant_elements,
+                          get_variant_exclusions)
 from app.engine import compute_geometry
 
 
@@ -572,3 +576,208 @@ class TestVariantFlagsLookup:
         geom = compute_geometry(constants, "minik", db_path=fresh_db)
         assert "sofa" in geom["variant_items"]
         assert "loveseat" not in geom["variant_items"]
+
+
+# =========================================================================
+# Phase 11b: TestVariantCreate
+# =========================================================================
+
+class TestVariantCreate:
+    def test_create_variant_db(self, fresh_db):
+        """create_variant inserts a new user variant."""
+        v = create_variant("test", "Test Layout", "standard", {}, fresh_db)
+        assert v["name"] == "test"
+        assert v["label"] == "Test Layout"
+        assert v["source_variant"] == "standard"
+        assert v["is_builtin"] is False
+
+    def test_create_variant_api(self, app_client):
+        """POST /api/variants creates a variant."""
+        resp = app_client.post("/api/variants",
+            data=json.dumps({"name": "custom", "label": "Custom",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["name"] == "custom"
+        assert data["is_builtin"] is False
+
+    def test_create_variant_in_list(self, app_client):
+        """Created variant appears in GET /api/variants."""
+        app_client.post("/api/variants",
+            data=json.dumps({"name": "v2", "label": "V2",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        resp = app_client.get("/api/variants")
+        names = [v["name"] for v in resp.get_json()]
+        assert "v2" in names
+
+    def test_create_clones_exclusions(self, fresh_db):
+        """Cloning from 'bare' copies its exclusions."""
+        create_variant("test_bare", "Test Bare", "bare", {"bare": True}, fresh_db)
+        clone_variant_exclusions("bare", "test_bare", fresh_db)
+        excl = get_variant_exclusions("test_bare", fresh_db)
+        bare_excl = get_variant_exclusions("bare", fresh_db)
+        assert excl == bare_excl
+
+    def test_create_variant_flags_from_source(self, app_client):
+        """Created variant inherits source variant's flags."""
+        resp = app_client.post("/api/variants",
+            data=json.dumps({"name": "mk2", "label": "MK2",
+                             "source_variant": "minik"}),
+            content_type="application/json")
+        data = resp.get_json()
+        assert data["flags"] == {"minik": True}
+
+    def test_create_duplicate_name_fails(self, app_client):
+        """Duplicate variant name returns 400."""
+        app_client.post("/api/variants",
+            data=json.dumps({"name": "dup", "label": "Dup",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        resp = app_client.post("/api/variants",
+            data=json.dumps({"name": "dup", "label": "Dup 2",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        assert resp.status_code == 400
+
+    def test_create_variant_undo(self, app_client):
+        """Undo after create removes the variant."""
+        app_client.post("/api/variants",
+            data=json.dumps({"name": "undome", "label": "Undo Me",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        # Verify it exists
+        resp = app_client.get("/api/variants")
+        names = [v["name"] for v in resp.get_json()]
+        assert "undome" in names
+        # Undo
+        app_client.post("/api/undo")
+        resp = app_client.get("/api/variants")
+        names = [v["name"] for v in resp.get_json()]
+        assert "undome" not in names
+
+    def test_create_variant_redo(self, app_client):
+        """Redo after undo re-creates the variant."""
+        app_client.post("/api/variants",
+            data=json.dumps({"name": "redome", "label": "Redo Me",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        app_client.post("/api/undo")
+        app_client.post("/api/redo")
+        resp = app_client.get("/api/variants")
+        names = [v["name"] for v in resp.get_json()]
+        assert "redome" in names
+
+
+# =========================================================================
+# Phase 11b: TestVariantDelete
+# =========================================================================
+
+class TestVariantDelete:
+    def test_delete_user_variant(self, app_client):
+        """DELETE removes a user-defined variant."""
+        resp = app_client.post("/api/variants",
+            data=json.dumps({"name": "del_me", "label": "Delete Me",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        vid = resp.get_json()["id"]
+        resp = app_client.delete(f"/api/variants/{vid}")
+        assert resp.status_code == 200
+        assert resp.get_json()["deleted"] == vid
+
+    def test_delete_builtin_fails(self, app_client):
+        """Cannot delete built-in variants."""
+        resp = app_client.get("/api/variants")
+        std = [v for v in resp.get_json() if v["name"] == "standard"][0]
+        resp = app_client.delete(f"/api/variants/{std['id']}")
+        assert resp.status_code == 400
+
+    def test_delete_removes_exclusions(self, fresh_db):
+        """Deleting a variant removes its exclusions."""
+        v = create_variant("del_excl", "Del Excl", "bare", {}, fresh_db)
+        clone_variant_exclusions("bare", "del_excl", fresh_db)
+        assert get_variant_exclusions("del_excl", fresh_db)  # has exclusions
+        delete_variant_exclusions("del_excl", fresh_db)
+        assert not get_variant_exclusions("del_excl", fresh_db)
+
+    def test_delete_cleans_element_visibility(self, fresh_db):
+        """unclone_variant_elements removes variant from properties.variants lists."""
+        from app.database import create_element, get_element_by_name
+        # create_element expects a dict for properties (it does json.dumps internally)
+        create_element("furniture", "test_vis",
+                       {"variants": ["standard", "test_v"]}, None, fresh_db)
+        unclone_variant_elements("test_v", fresh_db)
+        e = get_element_by_name("test_vis", fresh_db)
+        props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
+        assert "test_v" not in props.get("variants", [])
+
+    def test_delete_undo_restores(self, app_client):
+        """Undo after delete brings the variant back."""
+        resp = app_client.post("/api/variants",
+            data=json.dumps({"name": "del_undo", "label": "Del Undo",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        vid = resp.get_json()["id"]
+        app_client.delete(f"/api/variants/{vid}")
+        # Verify it's gone
+        resp = app_client.get("/api/variants")
+        names = [v["name"] for v in resp.get_json()]
+        assert "del_undo" not in names
+        # Undo
+        app_client.post("/api/undo")
+        resp = app_client.get("/api/variants")
+        names = [v["name"] for v in resp.get_json()]
+        assert "del_undo" in names
+
+    def test_delete_nonexistent_404(self, app_client):
+        """DELETE for nonexistent variant returns 404."""
+        resp = app_client.delete("/api/variants/9999")
+        assert resp.status_code == 404
+
+
+# =========================================================================
+# Phase 11b: TestVariantGeometry
+# =========================================================================
+
+class TestVariantGeometry:
+    def test_geometry_user_variant(self, app_client):
+        """Geometry endpoint accepts user-defined variants."""
+        app_client.post("/api/variants",
+            data=json.dumps({"name": "geo_test", "label": "Geo Test",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        resp = app_client.get("/api/geometry?variant=geo_test")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "variant_items" in data
+
+    def test_user_variant_items_match_source(self, app_client):
+        """User variant items match source variant items."""
+        app_client.post("/api/variants",
+            data=json.dumps({"name": "src_test", "label": "Src Test",
+                             "source_variant": "standard"}),
+            content_type="application/json")
+        std = app_client.get("/api/geometry?variant=standard").get_json()
+        custom = app_client.get("/api/geometry?variant=src_test").get_json()
+        assert set(std["variant_items"].keys()) == set(custom["variant_items"].keys())
+
+    def test_user_variant_exclusions_applied(self, fresh_db):
+        """Exclusions cloned from source are applied to user variant."""
+        create_variant("bare_clone", "Bare Clone", "bare",
+                       {"bare": True}, fresh_db)
+        clone_variant_exclusions("bare", "bare_clone", fresh_db)
+        excl = get_variant_exclusions("bare_clone", fresh_db)
+        assert "wall" in excl
+        assert "IW6" in excl["wall"]
+
+    def test_clone_variant_elements_properties(self, fresh_db):
+        """clone_variant_elements adds target to properties.variants lists."""
+        from app.database import create_element, get_element_by_name
+        create_element("furniture", "clone_test",
+                       {"variants": ["standard"]}, None, fresh_db)
+        clone_variant_elements("standard", "new_v", fresh_db)
+        e = get_element_by_name("clone_test", fresh_db)
+        props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
+        assert "new_v" in props["variants"]
+        assert "standard" in props["variants"]

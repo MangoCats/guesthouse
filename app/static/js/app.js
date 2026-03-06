@@ -58,6 +58,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadElements();  // must complete before first render
   loadPlumbingElements();
   await loadVariants();  // populate variant dropdown before geometry
+  updateDeleteVariantBtn();
   loadGeometry();
   loadShapes();
   loadBuildLabel();
@@ -136,8 +137,9 @@ function connectSSE() {
     loadOutlineTable();
   });
 
-  App.sse.addEventListener("variant_changed", () => {
-    loadVariants();
+  App.sse.addEventListener("variant_changed", async () => {
+    await loadVariants();
+    ensureActiveVariantValid();
   });
 
   App.sse.addEventListener("svg_updated", (e) => {
@@ -323,6 +325,78 @@ function restoreLayerConfig() {
     const elKey = cfgKey === "points" ? "show-points" : `show-${cfgKey}`;
     const el = App.els[elKey];
     if (el) el.checked = val;
+  }
+}
+
+function ensureActiveVariantValid() {
+  const names = (App.state.variants || []).map(v => v.name);
+  if (!names.includes(App.state.variant)) {
+    App.state.variant = "standard";
+    populateVariantSelect();
+    restoreLayerConfig();
+    loadGeometry();
+  }
+  updateDeleteVariantBtn();
+}
+
+function updateDeleteVariantBtn() {
+  const btn = document.getElementById("delete-variant-btn");
+  if (!btn) return;
+  const v = (App.state.variants || []).find(v => v.name === App.state.variant);
+  btn.style.display = (v && !v.is_builtin) ? "inline-block" : "none";
+}
+
+async function createNewVariant() {
+  const name = prompt("New variant name:");
+  if (!name || !name.trim()) return;
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  try {
+    const resp = await apiFetch("/api/variants", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        name: slug,
+        label: name.trim(),
+        source_variant: App.state.variant,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      showToast(err.error || "Failed to create variant", "error");
+      return;
+    }
+    await loadVariants();
+    App.state.variant = slug;
+    populateVariantSelect();
+    restoreLayerConfig();
+    loadGeometry();
+    updateDeleteVariantBtn();
+    showToast(`Created variant "${name.trim()}"`, "success");
+  } catch (e) {
+    showToast("Failed to create variant", "error");
+  }
+}
+
+async function deleteActiveVariant() {
+  const v = (App.state.variants || []).find(v => v.name === App.state.variant);
+  if (!v || v.is_builtin) return;
+  if (!confirm(`Delete variant "${v.label}"?`)) return;
+  try {
+    const resp = await apiFetch(`/api/variants/${v.id}`, { method: "DELETE" });
+    if (!resp.ok) {
+      const err = await resp.json();
+      showToast(err.error || "Failed to delete variant", "error");
+      return;
+    }
+    await loadVariants();
+    App.state.variant = "standard";
+    populateVariantSelect();
+    restoreLayerConfig();
+    loadGeometry();
+    updateDeleteVariantBtn();
+    showToast(`Deleted variant "${v.label}"`, "success");
+  } catch (e) {
+    showToast("Failed to delete variant", "error");
   }
 }
 
@@ -3258,8 +3332,13 @@ function setupEventListeners() {
     App.state.variant = e.target.value;
     restoreLayerConfig();
     loadGeometry();
+    updateDeleteVariantBtn();
     if (App.state.activeView === "floorplan") loadSVGView("floorplan");
   });
+
+  // New/Delete variant buttons
+  document.getElementById("new-variant-btn").addEventListener("click", createNewVariant);
+  document.getElementById("delete-variant-btn").addEventListener("click", deleteActiveVariant);
 
   // Constants filters
   App.els["const-category-filter"].addEventListener("change", renderConstantsTable);
@@ -3929,7 +4008,10 @@ async function doUndo() {
     loadGeometry();
     loadElements();
     loadPlumbingElements();
-    if (data.action === "variant_update") loadVariants();
+    if (["variant_update", "variant_create", "variant_delete"].includes(data.action)) {
+      await loadVariants();
+      ensureActiveVariantValid();
+    }
   } else {
     showToast(data.error || "Nothing to undo", "warning");
   }
@@ -3945,7 +4027,10 @@ async function doRedo() {
     loadGeometry();
     loadElements();
     loadPlumbingElements();
-    if (data.action === "variant_update") loadVariants();
+    if (["variant_update", "variant_create", "variant_delete"].includes(data.action)) {
+      await loadVariants();
+      ensureActiveVariantValid();
+    }
   } else {
     showToast(data.error || "Nothing to redo", "warning");
   }
