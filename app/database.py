@@ -1661,18 +1661,20 @@ def rebuild_formula_deps(element_name, param_name, deps, db_path=None):
 
 
 def seed_iw_formulas(conn):
-    """Seed interior wall + layout item formulas into element_formulas + formula_deps.
+    """Seed interior wall + layout item + variant item formulas into element_formulas + formula_deps.
 
-    Idempotent: skips elements that already have a position formula.
+    Idempotent: skips elements that already have a position formula for the
+    given variant.
     """
     from app.evaluator import (get_iw_formulas, get_layout_item_formulas,
                                get_outer_opening_formulas,
-                               get_rough_opening_formulas, extract_deps)
+                               get_rough_opening_formulas,
+                               get_variant_item_formulas, extract_deps)
 
+    # Non-variant formulas (variant=NULL): IW walls, layout items, openings
     formulas = {**get_iw_formulas(), **get_layout_item_formulas(),
                 **get_outer_opening_formulas(), **get_rough_opening_formulas()}
     for wall_name, formula in formulas.items():
-        # Skip if formula already exists
         existing = conn.execute(
             "SELECT id FROM element_formulas "
             "WHERE element_name = ? AND param_name = 'position' AND variant IS NULL",
@@ -1687,7 +1689,6 @@ def seed_iw_formulas(conn):
             "VALUES (?, 'position', ?, NULL)",
             (wall_name, fj),
         )
-        # Build deps
         deps = extract_deps(formula)
         for dep_type, dep_name in deps:
             conn.execute(
@@ -1695,4 +1696,36 @@ def seed_iw_formulas(conn):
                 "(element_name, param_name, dep_type, dep_name) "
                 "VALUES (?, 'position', ?, ?)",
                 (wall_name, dep_type, dep_name),
+            )
+
+    # Variant item formulas (Phase 12e)
+    for elem_name, variant, formula in get_variant_item_formulas():
+        if variant is None:
+            existing = conn.execute(
+                "SELECT id FROM element_formulas "
+                "WHERE element_name = ? AND param_name = 'position' AND variant IS NULL",
+                (elem_name,),
+            ).fetchone()
+        else:
+            existing = conn.execute(
+                "SELECT id FROM element_formulas "
+                "WHERE element_name = ? AND param_name = 'position' AND variant = ?",
+                (elem_name, variant),
+            ).fetchone()
+        if existing:
+            continue
+        fj = json.dumps(formula)
+        conn.execute(
+            "INSERT INTO element_formulas "
+            "(element_name, param_name, formula_json, variant) "
+            "VALUES (?, 'position', ?, ?)",
+            (elem_name, fj, variant),
+        )
+        deps = extract_deps(formula)
+        for dep_type, dep_name in deps:
+            conn.execute(
+                "INSERT OR IGNORE INTO formula_deps "
+                "(element_name, param_name, dep_type, dep_name) "
+                "VALUES (?, 'position', ?, ?)",
+                (elem_name, dep_type, dep_name),
             )

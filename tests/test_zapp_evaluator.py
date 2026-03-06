@@ -1296,3 +1296,379 @@ class TestSeededIWFormulas:
             seed_iw_formulas(conn)
         after = len(get_all_formulas(db_path=fresh_db))
         assert before == after
+
+
+# ---------------------------------------------------------------------------
+# Variant item formula tests (Phase 12e)
+# ---------------------------------------------------------------------------
+
+class TestVariantItemFormulas:
+    """Verify formula-computed variant items match procedural output."""
+
+    TOLERANCE = 0.02  # 0.02 ft = 0.24" — slightly looser for complex items
+
+    @pytest.fixture(params=["standard", "minik", "daybed"])
+    def variant_geom(self, request, fresh_db):
+        """Compute procedural geometry and build evaluator for each variant."""
+        variant = request.param
+        from app.database import get_constants_dict
+        from app.engine import compute_geometry
+        from app.evaluator import (
+            FormulaEvaluator, get_iw_formulas, get_layout_item_formulas,
+            get_variant_item_formulas,
+        )
+
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, variant=variant, db_path=fresh_db)
+
+        base_points = geom.get("points", {})
+        inner = [(p[0], p[1]) for p in (geom.get("inner_poly") or [])]
+        radii = geom.get("radii", {})
+
+        ev = FormulaEvaluator(constants, base_points, inner, radii)
+        # Add IW + layout formulas (variant items depend on them)
+        for name, formula in get_iw_formulas().items():
+            ev.add_formula(name, "position", formula)
+        for name, formula in get_layout_item_formulas().items():
+            ev.add_formula(name, "position", formula)
+        # Add variant item formulas matching this variant
+        for name, var, formula in get_variant_item_formulas():
+            if var is None or var == variant:
+                ev.add_formula(name, "position", formula)
+        ev.topo_sort()
+        ev.evaluate_all()
+
+        return variant, geom, ev
+
+    def _assert_poly_match(self, proc_poly, form_poly, name, atol=None):
+        if atol is None:
+            atol = self.TOLERANCE
+        assert len(form_poly) == len(proc_poly), \
+            f"{name}: poly length mismatch {len(form_poly)} vs {len(proc_poly)}"
+        for i, (fp, pp) in enumerate(zip(form_poly, proc_poly)):
+            fp_e = fp[0] if isinstance(fp, (list, tuple)) else fp
+            fp_n = fp[1] if isinstance(fp, (list, tuple)) else fp
+            pp_e = pp[0] if isinstance(pp, (list, tuple)) else pp
+            pp_n = pp[1] if isinstance(pp, (list, tuple)) else pp
+            assert fp_e == pytest.approx(pp_e, abs=atol), \
+                f"{name} vertex {i} E: formula={fp_e:.6f} proc={pp_e:.6f}"
+            assert fp_n == pytest.approx(pp_n, abs=atol), \
+                f"{name} vertex {i} N: formula={fp_n:.6f} proc={pp_n:.6f}"
+
+    def _check_item(self, variant_geom, item_name):
+        variant, geom, ev = variant_geom
+        vi = geom.get("variant_items", {})
+        if item_name not in vi:
+            pytest.skip(f"{item_name} not in {variant} variant")
+        proc_poly = vi[item_name]["poly"]
+        form = ev.elements.get(item_name)
+        assert form is not None, \
+            f"Formula did not produce result for {item_name} ({variant})"
+        self._assert_poly_match(proc_poly, form["poly"],
+                                f"{item_name}({variant})")
+
+    # All-variant items
+    def test_hamper(self, variant_geom):
+        self._check_item(variant_geom, "hamper")
+
+    def test_water_heater(self, variant_geom):
+        variant, geom, ev = variant_geom
+        vi = geom.get("variant_items", {})
+        if "water_heater" not in vi:
+            pytest.skip("no water_heater")
+        proc = vi["water_heater"]
+        form = ev.elements.get("water_heater")
+        assert form is not None
+        # Check center and radius match
+        assert form["center"][0] == pytest.approx(proc["center"][0], abs=0.01)
+        assert form["center"][1] == pytest.approx(proc["center"][1], abs=0.01)
+        assert form["radius"] == pytest.approx(proc["radius"], abs=1e-6)
+
+    def test_toilet_s(self, variant_geom):
+        self._check_item(variant_geom, "toilet_s")
+
+    def test_toilet_n(self, variant_geom):
+        self._check_item(variant_geom, "toilet_n")
+
+    def test_util_sink(self, variant_geom):
+        self._check_item(variant_geom, "util_sink")
+
+    def test_bath_sink(self, variant_geom):
+        self._check_item(variant_geom, "bath_sink")
+
+    def test_kitchen_sink(self, variant_geom):
+        self._check_item(variant_geom, "kitchen_sink")
+
+    def test_ice_maker(self, variant_geom):
+        self._check_item(variant_geom, "ice_maker")
+
+    def test_coffee_maker(self, variant_geom):
+        self._check_item(variant_geom, "coffee_maker")
+
+    def test_dining_table(self, variant_geom):
+        self._check_item(variant_geom, "dining_table")
+
+    def test_dining_chair_1(self, variant_geom):
+        self._check_item(variant_geom, "dining_chair_1")
+
+    def test_dining_chair_2(self, variant_geom):
+        self._check_item(variant_geom, "dining_chair_2")
+
+    def test_chair(self, variant_geom):
+        self._check_item(variant_geom, "chair")
+
+    def test_ottoman(self, variant_geom):
+        self._check_item(variant_geom, "ottoman")
+
+    def test_desk(self, variant_geom):
+        self._check_item(variant_geom, "desk")
+
+    def test_desk_chair(self, variant_geom):
+        self._check_item(variant_geom, "desk_chair")
+
+    # Standard/daybed-only items
+    def test_stove(self, variant_geom):
+        self._check_item(variant_geom, "stove")
+
+    def test_dishwasher(self, variant_geom):
+        self._check_item(variant_geom, "dishwasher")
+
+    def test_fridge(self, variant_geom):
+        self._check_item(variant_geom, "fridge")
+
+    def test_work_counter(self, variant_geom):
+        self._check_item(variant_geom, "work_counter")
+
+    def test_microwave(self, variant_geom):
+        self._check_item(variant_geom, "microwave")
+
+    def test_north_counter(self, variant_geom):
+        self._check_item(variant_geom, "north_counter")
+
+    # Minik-only items
+    def test_kitchen_counter(self, variant_geom):
+        self._check_item(variant_geom, "kitchen_counter")
+
+    def test_cooktop(self, variant_geom):
+        self._check_item(variant_geom, "cooktop")
+
+    def test_toaster(self, variant_geom):
+        self._check_item(variant_geom, "toaster")
+
+    def test_sofa(self, variant_geom):
+        self._check_item(variant_geom, "sofa")
+
+    # Standard-only items
+    def test_loveseat(self, variant_geom):
+        self._check_item(variant_geom, "loveseat")
+
+    def test_et(self, variant_geom):
+        self._check_item(variant_geom, "et")
+
+    def test_loveseat2(self, variant_geom):
+        self._check_item(variant_geom, "loveseat2")
+
+    # Daybed-only items
+    def test_shelves2(self, variant_geom):
+        self._check_item(variant_geom, "shelves2")
+
+    def test_et_east(self, variant_geom):
+        self._check_item(variant_geom, "et_east")
+
+    def test_daybed(self, variant_geom):
+        self._check_item(variant_geom, "daybed")
+
+    def test_et_west(self, variant_geom):
+        self._check_item(variant_geom, "et_west")
+
+    # Rocker (minik and daybed variants)
+    def test_rocker(self, variant_geom):
+        self._check_item(variant_geom, "rocker")
+
+
+class TestVariantItemFormulaCounts:
+    """Verify expected formula counts."""
+
+    def test_formula_definitions_count(self):
+        from app.evaluator import get_variant_item_formulas
+        formulas = get_variant_item_formulas()
+        # Should have formulas for ~30+ items (some with variant-specific records)
+        assert len(formulas) >= 40
+
+    def test_formula_definitions_structure(self):
+        from app.evaluator import get_variant_item_formulas
+        for name, variant, formula in get_variant_item_formulas():
+            assert isinstance(name, str) and len(name) > 0
+            assert variant is None or isinstance(variant, str)
+            assert isinstance(formula, dict)
+            assert "type" in formula
+
+    def test_seeded_formulas_include_variant_items(self, fresh_db):
+        from app.database import get_all_formulas
+        formulas = get_all_formulas(variant="standard", db_path=fresh_db)
+        names = {f["element_name"] for f in formulas}
+        # Check a few expected variant items are seeded
+        assert "hamper" in names
+        assert "kitchen_sink" in names
+        assert "stove" in names
+        assert "fridge" in names
+
+    def test_minik_formulas_loaded(self, fresh_db):
+        from app.database import get_all_formulas
+        formulas = get_all_formulas(variant="minik", db_path=fresh_db)
+        names = {f["element_name"] for f in formulas}
+        assert "kitchen_counter" in names
+        assert "hamper" in names
+        # stove should NOT be in minik
+        has_stove = any(f["element_name"] == "stove" and f["variant"] == "minik"
+                        for f in formulas)
+        assert not has_stove
+
+    def test_daybed_formulas_loaded(self, fresh_db):
+        from app.database import get_all_formulas
+        formulas = get_all_formulas(variant="daybed", db_path=fresh_db)
+        names = {f["element_name"] for f in formulas}
+        assert "shelves2" in names
+        assert "daybed" in names
+        assert "et_east" in names
+
+
+class TestNewFormulaTypes:
+    """Test new formula type evaluators (Phase 12e)."""
+
+    def test_toilet_shape_basic(self):
+        ev = _make_evaluator()
+        formula = {
+            "type": "toilet_shape",
+            "center": [5, 5],
+            "facing_dir": "north",
+            "width_dir": "east",
+        }
+        result = ev._eval_toilet_shape(formula)
+        assert result is not None
+        assert "poly" in result
+        assert len(result["poly"]) == len([p for p in result["poly"]])
+        assert len(result["poly"]) == 34
+
+    def test_bath_sink_shape_basic(self):
+        ev = _make_evaluator()
+        formula = {
+            "type": "bath_sink_shape",
+            "anchor": [5, 5],
+            "along": "east",
+            "outward": "north",
+            "length": 2.0,
+            "depth": 1.5,
+        }
+        result = ev._eval_bath_sink_shape(formula)
+        assert result is not None
+        assert "poly" in result
+        # Should have rect corners + semicircular arc points
+        assert len(result["poly"]) > 4
+
+    def test_dining_triangle_basic(self):
+        ev = _make_evaluator()
+        formula = {
+            "type": "dining_triangle",
+            "base_center": [5, 2],
+            "toward_apex": "south",
+            "along_base": "east",
+            "base_width": 2.5,
+            "height": 3.0,
+            "apex_radius": 1.0,
+            "fillet_radius": 0.5,
+        }
+        result = ev._eval_dining_triangle("test_table", formula)
+        assert result is not None
+        assert "poly" in result
+        assert len(result["poly"]) > 4  # Triangle with arcs has many points
+        assert "ne_side" in result
+        assert "nw_side" in result
+        assert "base_center" in result
+
+    def test_dining_chair_basic(self):
+        ev = _make_evaluator()
+        # First create a dining table
+        table_formula = {
+            "type": "dining_triangle",
+            "base_center": [5, 2],
+            "toward_apex": "south",
+            "along_base": "east",
+            "base_width": 2.5,
+            "height": 3.0,
+            "apex_radius": 1.0,
+            "fillet_radius": 0.5,
+        }
+        ev.elements["dining_table"] = ev._eval_dining_triangle("dining_table",
+                                                                 table_formula)
+        chair_formula = {
+            "type": "dining_chair",
+            "table": "dining_table",
+            "side": "ne_side",
+            "chair_width": 1.5,
+            "chair_depth": 1.75,
+            "gap": 2.0 / 12.0,
+        }
+        result = ev._eval_dining_chair(chair_formula)
+        assert result is not None
+        assert len(result["poly"]) == 4
+
+    def test_ellipse_rect(self):
+        ev = _make_evaluator()
+        formula = {
+            "type": "ellipse_rect",
+            "anchor": [5, 5],
+            "along": "east",
+            "outward": "north",
+            "rx": 1.0,
+            "ry": 0.75,
+        }
+        result = ev._eval_ellipse_rect(formula)
+        assert result is not None
+        assert len(result["poly"]) == 4
+        # Check bbox dimensions
+        assert result["bbox"]["e"] - result["bbox"]["w"] == pytest.approx(2.0)
+        assert result["bbox"]["n"] - result["bbox"]["s"] == pytest.approx(1.5)
+
+    def test_rotated_dir(self):
+        ev = _make_evaluator()
+        # Rotate east (1,0) by -45° should give (cos(-45), sin(-45)) ≈ (0.707, -0.707)
+        d = ev.resolve_dir({"rotated": "east", "angle": -math.pi / 4})
+        assert d[0] == pytest.approx(math.sqrt(2) / 2, abs=1e-10)
+        assert d[1] == pytest.approx(-math.sqrt(2) / 2, abs=1e-10)
+
+    def test_element_centroid(self):
+        ev = _make_evaluator()
+        ev.elements["test_elem"] = {"poly": [[0, 0], [2, 0], [2, 2], [0, 2]]}
+        result = ev.resolve_point({"element_centroid": "test_elem"})
+        assert result == pytest.approx([1, 1])
+
+    def test_ray_circle_isect(self):
+        ev = _make_evaluator()
+        # Ray from (0,0) going east, target at (5,3), distance = 5
+        # |t*(1,0) - (5,3)|² = 25
+        # (t-5)² + 9 = 25 → (t-5)² = 16 → t = 5±4
+        # farthest: t=9, nearest: t=1
+        result = ev.resolve_point({"ray_circle_isect": {
+            "origin": [0, 0],
+            "dir": "east",
+            "target": [5, 3],
+            "distance": 5.0,
+            "select": "farthest",
+        }})
+        assert result[0] == pytest.approx(9.0, abs=1e-10)
+        assert result[1] == pytest.approx(0.0, abs=1e-10)
+
+        result2 = ev.resolve_point({"ray_circle_isect": {
+            "origin": [0, 0],
+            "dir": "east",
+            "target": [5, 3],
+            "distance": 5.0,
+            "select": "nearest",
+        }})
+        assert result2[0] == pytest.approx(1.0, abs=1e-10)
+
+    def test_radius_key_length(self):
+        ev = _make_evaluator(radii={"R_a7": 15.5})
+        val = ev.resolve_length({"radius_key": "R_a7"})
+        assert val == pytest.approx(15.5)

@@ -91,6 +91,26 @@ def _line_poly_intersections(origin, direction, poly):
 
 
 # ---------------------------------------------------------------------------
+# Toilet plan-view polygon (SVG coordinates, from gen_floorplan.py)
+# ---------------------------------------------------------------------------
+_TOILET_SVG = [
+    (-1.905, 0), (-1.905, 2.032), (-0.841, 2.032),
+    (-1.078, 2.224), (-1.267, 2.455), (-1.408, 2.719),
+    (-1.495, 3.005), (-1.524, 3.302),
+    (-1.732, 5.461), (-1.699, 5.799), (-1.600, 6.124),
+    (-1.440, 6.423), (-1.225, 6.686), (-0.962, 6.901),
+    (-0.663, 7.061), (-0.338, 7.160), (0, 7.193),
+    (0.338, 7.160), (0.663, 7.061), (0.962, 6.901),
+    (1.225, 6.686), (1.440, 6.423), (1.600, 6.124),
+    (1.699, 5.799), (1.732, 5.461),
+    (1.524, 3.302), (1.495, 3.005), (1.408, 2.719),
+    (1.267, 2.455), (1.078, 2.224), (0.847, 2.035),
+    (0.841, 2.032), (1.905, 2.032), (1.905, 0),
+]
+_SVG_TO_FT = 10.0 / 30.48
+
+
+# ---------------------------------------------------------------------------
 # FormulaEvaluator
 # ---------------------------------------------------------------------------
 
@@ -233,6 +253,16 @@ class FormulaEvaluator:
             return self._eval_wall_opening(formula)
         if ftype == "four_corner":
             return self._eval_four_corner(formula)
+        if ftype == "toilet_shape":
+            return self._eval_toilet_shape(formula)
+        if ftype == "bath_sink_shape":
+            return self._eval_bath_sink_shape(formula)
+        if ftype == "dining_triangle":
+            return self._eval_dining_triangle(elem_name, formula)
+        if ftype == "dining_chair":
+            return self._eval_dining_chair(formula)
+        if ftype == "ellipse_rect":
+            return self._eval_ellipse_rect(formula)
         return None
 
     # -------------------------------------------------------------------
@@ -477,6 +507,232 @@ class FormulaEvaluator:
             poly = [outer_start, outer_end, inner_end, inner_start]
         return {"poly": poly, "bbox": _bbox_from_poly(poly)}
 
+    def _eval_toilet_shape(self, formula):
+        """Evaluate a toilet_shape formula → {"poly": [...], "bbox": {...}}.
+
+        Transforms the fixed toilet SVG polygon to building coordinates.
+        """
+        center = self.resolve_point(formula.get("center"))
+        facing = self.resolve_dir(formula.get("facing_dir"))
+        width_dir = self.resolve_dir(formula.get("width_dir"))
+        if any(v is None for v in (center, facing, width_dir)):
+            return None
+        poly = [(center[0] + dx * _SVG_TO_FT * width_dir[0]
+                            + dy * _SVG_TO_FT * facing[0],
+                 center[1] + dx * _SVG_TO_FT * width_dir[1]
+                            + dy * _SVG_TO_FT * facing[1])
+                for dx, dy in _TOILET_SVG]
+        poly = [[p[0], p[1]] for p in poly]
+        return {"poly": poly, "bbox": _bbox_from_poly(poly)}
+
+    def _eval_bath_sink_shape(self, formula):
+        """Evaluate a bath_sink_shape formula → {"poly": [...], "bbox": {...}}.
+
+        Semicircular bulge polygon: rectangular base with arc on outward face.
+        """
+        anchor = self.resolve_point(formula.get("anchor"))
+        al = self.resolve_dir(formula.get("along"))
+        out = self.resolve_dir(formula.get("outward"))
+        length = self.resolve_length(formula.get("length"))
+        depth = self.resolve_length(formula.get("depth"))
+        if any(v is None for v in (anchor, al, out, length, depth)):
+            return None
+
+        half_len = length / 2
+        quarter_len = length / 4
+        rect_depth = depth - quarter_len
+        n_arc = formula.get("n_arc", 32)
+
+        def _pt(along, outward):
+            return [anchor[0] + along * al[0] + outward * out[0],
+                    anchor[1] + along * al[1] + outward * out[1]]
+
+        pts = []
+        pts.append(_pt(half_len, 0))
+        pts.append(_pt(-half_len, 0))
+        pts.append(_pt(-half_len, rect_depth))
+        for i in range(n_arc + 1):
+            t = math.pi - math.pi * i / n_arc
+            pts.append(_pt(math.cos(t) * quarter_len,
+                           rect_depth + math.sin(t) * quarter_len))
+        pts.append(_pt(half_len, rect_depth))
+        return {"poly": pts, "bbox": _bbox_from_poly(pts)}
+
+    def _eval_dining_triangle(self, elem_name, formula):
+        """Evaluate a dining_triangle formula → {"poly": [...], "bbox": {...}}.
+
+        Triangle table with apex arc and fillet corners.  Stores side endpoint
+        data for dining chair positioning.
+        """
+        bc = self.resolve_point(formula.get("base_center"))
+        to_apex = self.resolve_dir(formula.get("toward_apex"))
+        along = self.resolve_dir(formula.get("along_base"))
+        base_w = self.resolve_length(formula.get("base_width"))
+        height = self.resolve_length(formula.get("height"))
+        apex_r = self.resolve_length(formula.get("apex_radius"))
+        fillet_r = self.resolve_length(formula.get("fillet_radius"))
+        if any(v is None for v in (bc, to_apex, along, base_w, height,
+                                    apex_r, fillet_r)):
+            return None
+
+        to_base = [-to_apex[0], -to_apex[1]]
+        ne = [bc[0] + base_w / 2 * along[0], bc[1] + base_w / 2 * along[1]]
+        nw = [bc[0] - base_w / 2 * along[0], bc[1] - base_w / 2 * along[1]]
+        apex_tip = [bc[0] + height * to_apex[0], bc[1] + height * to_apex[1]]
+        arc_c = [apex_tip[0] + apex_r * to_base[0],
+                 apex_tip[1] + apex_r * to_base[1]]
+
+        def _sym(p):
+            vx, vy = p[0] - bc[0], p[1] - bc[1]
+            v_dot = vx * to_apex[0] + vy * to_apex[1]
+            return [bc[0] + 2 * v_dot * to_apex[0] - vx,
+                    bc[1] + 2 * v_dot * to_apex[1] - vy]
+
+        d_base_ne = [-along[0], -along[1]]
+        dx_r = ne[0] - arc_c[0]
+        dn_r = ne[1] - arc_c[1]
+        dist_r = math.sqrt(dx_r**2 + dn_r**2)
+        angle_cp = math.atan2(dn_r, dx_r)
+        delta = math.acos(max(-1, min(1, apex_r / dist_r)))
+        alpha_r = angle_cp - delta
+        t_right = [arc_c[0] + apex_r * math.cos(alpha_r),
+                    arc_c[1] + apex_r * math.sin(alpha_r)]
+        t_left = _sym(t_right)
+
+        dtr = [t_right[0] - ne[0], t_right[1] - ne[1]]
+        dtr_len = math.sqrt(dtr[0]**2 + dtr[1]**2)
+        d_tang_ne = [dtr[0] / dtr_len, dtr[1] / dtr_len]
+        cos_th = d_base_ne[0] * d_tang_ne[0] + d_base_ne[1] * d_tang_ne[1]
+        half_angle = math.acos(max(-1, min(1, cos_th))) / 2
+        fillet_dist = fillet_r / math.sin(half_angle)
+        bis_ne = [d_base_ne[0] + d_tang_ne[0], d_base_ne[1] + d_tang_ne[1]]
+        bis_ne_len = math.sqrt(bis_ne[0]**2 + bis_ne[1]**2)
+        bis_ne = [bis_ne[0] / bis_ne_len, bis_ne[1] / bis_ne_len]
+        fc_ne = [ne[0] + fillet_dist * bis_ne[0],
+                 ne[1] + fillet_dist * bis_ne[1]]
+        v_ne = [fc_ne[0] - ne[0], fc_ne[1] - ne[1]]
+        t_proj = v_ne[0] * d_tang_ne[0] + v_ne[1] * d_tang_ne[1]
+        f_ne_tang = [ne[0] + t_proj * d_tang_ne[0],
+                     ne[1] + t_proj * d_tang_ne[1]]
+        f_nw_tang = _sym(f_ne_tang)
+
+        fc_ne_d = ((fc_ne[0] - bc[0]) * along[0] +
+                    (fc_ne[1] - bc[1]) * along[1])
+        f_ne_base = [bc[0] + fc_ne_d * along[0], bc[1] + fc_ne_d * along[1]]
+        f_nw_base = _sym(f_ne_base)
+        fc_nw = _sym(fc_ne)
+
+        ne_fil_a0 = math.atan2(f_ne_base[1] - fc_ne[1],
+                                f_ne_base[0] - fc_ne[0])
+        ne_fil_a1 = math.atan2(f_ne_tang[1] - fc_ne[1],
+                                f_ne_tang[0] - fc_ne[0])
+        apex_a0 = math.atan2(t_right[1] - arc_c[1], t_right[0] - arc_c[0])
+        apex_a1 = math.atan2(t_left[1] - arc_c[1], t_left[0] - arc_c[0])
+        nw_fil_a0 = math.atan2(f_nw_tang[1] - fc_nw[1],
+                                f_nw_tang[0] - fc_nw[0])
+        nw_fil_a1 = math.atan2(f_nw_base[1] - fc_nw[1],
+                                f_nw_base[0] - fc_nw[0])
+
+        def _norm_sweep(a0, a1):
+            d = (a1 - a0) % (2 * math.pi)
+            if d > math.pi:
+                d -= 2 * math.pi
+            return d
+
+        def _arc_pts(center, radius, a0, sweep, n=8):
+            pts = []
+            for i in range(1, n):
+                t = a0 + sweep * i / n
+                pts.append([center[0] + radius * math.cos(t),
+                            center[1] + radius * math.sin(t)])
+            return pts
+
+        poly = [f_nw_base, f_ne_base]
+        sweep = _norm_sweep(ne_fil_a0, ne_fil_a1)
+        poly += _arc_pts(fc_ne, fillet_r, ne_fil_a0, sweep, 8)
+        poly.append(f_ne_tang)
+        poly.append(t_right)
+        sweep = _norm_sweep(apex_a0, apex_a1)
+        poly += _arc_pts(arc_c, apex_r, apex_a0, sweep, 16)
+        poly.append(t_left)
+        poly.append(f_nw_tang)
+        sweep = _norm_sweep(nw_fil_a0, nw_fil_a1)
+        poly += _arc_pts(fc_nw, fillet_r, nw_fil_a0, sweep, 8)
+
+        result = {"poly": poly, "bbox": _bbox_from_poly(poly)}
+        # Store side endpoints for dining chair positioning
+        result["ne_side"] = [f_ne_tang, t_right]
+        result["nw_side"] = [t_left, f_nw_tang]
+        result["base_center"] = bc
+        return result
+
+    def _eval_dining_chair(self, formula):
+        """Evaluate a dining_chair formula → {"poly": [...], "bbox": {...}}.
+
+        Positioned at midpoint of a dining table side, facing outward.
+        """
+        table_name = formula.get("table")
+        side_key = formula.get("side")  # "ne_side" or "nw_side"
+        ch_short = self.resolve_length(formula.get("chair_width"))
+        ch_long = self.resolve_length(formula.get("chair_depth"))
+        gap = self.resolve_length(formula.get("gap", 2.0 / 12.0))
+        if table_name is None or side_key is None or ch_short is None or ch_long is None:
+            return None
+        table = self.elements.get(table_name)
+        if not table or side_key not in table:
+            return None
+
+        side_start, side_end = table[side_key]
+        bc = table.get("base_center")
+        if bc is None:
+            return None
+
+        mid_e = (side_start[0] + side_end[0]) / 2
+        mid_n = (side_start[1] + side_end[1]) / 2
+        se_d = (side_end[0] - side_start[0], side_end[1] - side_start[1])
+        sl = math.sqrt(se_d[0]**2 + se_d[1]**2)
+        su = (se_d[0] / sl, se_d[1] / sl)
+        sn = (-su[1], su[0])
+        to_ctr = (bc[0] - mid_e, bc[1] - mid_n)
+        if sn[0] * to_ctr[0] + sn[1] * to_ctr[1] > 0:
+            sn = (-sn[0], -sn[1])
+        cc_e = mid_e + sn[0] * (ch_long / 2 + gap)
+        cc_n = mid_n + sn[1] * (ch_long / 2 + gap)
+        corners = []
+        for ds, dn in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:
+            ce = cc_e + su[0] * ds * ch_short / 2 + sn[0] * dn * ch_long / 2
+            cn = cc_n + su[1] * ds * ch_short / 2 + sn[1] * dn * ch_long / 2
+            corners.append([ce, cn])
+        return {"poly": corners, "bbox": _bbox_from_poly(corners)}
+
+    def _eval_ellipse_rect(self, formula):
+        """Evaluate an ellipse_rect formula → bounding rect of an ellipse.
+
+        anchor: center on wall face
+        along: direction along wall
+        outward: direction away from wall
+        rx: half-width along wall
+        ry: half-depth away from wall
+        """
+        anchor = self.resolve_point(formula.get("anchor"))
+        al = self.resolve_dir(formula.get("along"))
+        out = self.resolve_dir(formula.get("outward"))
+        rx = self.resolve_length(formula.get("rx"))
+        ry = self.resolve_length(formula.get("ry"))
+        if any(v is None for v in (anchor, al, out, rx, ry)):
+            return None
+
+        sw = [anchor[0] - rx * al[0] - ry * out[0],
+              anchor[1] - rx * al[1] - ry * out[1]]
+        se = [anchor[0] + rx * al[0] - ry * out[0],
+              anchor[1] + rx * al[1] - ry * out[1]]
+        ne = [anchor[0] + rx * al[0] + ry * out[0],
+              anchor[1] + rx * al[1] + ry * out[1]]
+        nw = [anchor[0] - rx * al[0] + ry * out[0],
+              anchor[1] - rx * al[1] + ry * out[1]]
+        poly = [sw, se, ne, nw]
+        return {"poly": poly, "bbox": _bbox_from_poly(poly)}
+
     # -------------------------------------------------------------------
     # Resolution functions
     # -------------------------------------------------------------------
@@ -524,6 +780,20 @@ class FormulaEvaluator:
                 if idx is not None and idx < len(poly):
                     return list(poly[idx])
                 return None
+            return None
+
+        # Element centroid
+        if "element_centroid" in spec:
+            name = spec["element_centroid"]
+            elem = self.elements.get(name)
+            if elem and "poly" in elem:
+                poly = elem["poly"]
+                n = len(poly)
+                if n == 0:
+                    return None
+                cx = sum(p[0] for p in poly) / n
+                cy = sum(p[1] for p in poly) / n
+                return [cx, cy]
             return None
 
         # Face midpoint of an element
@@ -601,6 +871,32 @@ class FormulaEvaluator:
                 if side == "west":
                     de = -de
                 return [center[0] + de, center[1] + dn]
+            return None
+
+        # Ray-circle intersection: find point on ray at given distance from target
+        # {"ray_circle_isect": {"origin": pt, "dir": dir, "target": pt, "distance": len}}
+        if "ray_circle_isect" in spec:
+            rci = spec["ray_circle_isect"]
+            origin = self.resolve_point(rci.get("origin"))
+            direction = self.resolve_dir(rci.get("dir"))
+            target = self.resolve_point(rci.get("target"))
+            distance = self.resolve_length(rci.get("distance"))
+            if origin and direction and target and distance is not None:
+                # Solve |origin + t*dir - target|² = distance²
+                dx = origin[0] - target[0]
+                dy = origin[1] - target[1]
+                d_al = dx * direction[0] + dy * direction[1]
+                d2 = dx**2 + dy**2
+                disc = distance**2 - d2 + d_al**2
+                if disc < 0:
+                    return None
+                select = rci.get("select", "farthest")
+                if select == "nearest":
+                    t = -d_al - math.sqrt(disc)
+                else:
+                    t = -d_al + math.sqrt(disc)
+                return [origin[0] + t * direction[0],
+                        origin[1] + t * direction[1]]
             return None
 
         return None
@@ -694,6 +990,17 @@ class FormulaEvaluator:
                 return [-d[0], -d[1]]
             return None
 
+        # Rotate direction by angle (radians)
+        if "rotated" in spec:
+            d = self.resolve_dir(spec["rotated"])
+            angle = spec.get("angle", 0)
+            if d and isinstance(angle, (int, float)):
+                cos_a = math.cos(angle)
+                sin_a = math.sin(angle)
+                return [d[0] * cos_a - d[1] * sin_a,
+                        d[0] * sin_a + d[1] * cos_a]
+            return None
+
         # Perpendicular of direction (rotate 90° CW: [dy, -dx])
         if "perp" in spec:
             d = self.resolve_dir(spec["perp"])
@@ -722,6 +1029,9 @@ class FormulaEvaluator:
         if isinstance(spec, dict):
             if "const" in spec:
                 val = self.constants.get(spec["const"])
+                return float(val) if val is not None else None
+            if "radius_key" in spec:
+                val = self.radii.get(spec["radius_key"])
                 return float(val) if val is not None else None
             if "neg" in spec:
                 val = self.resolve_length(spec["neg"])
@@ -856,6 +1166,14 @@ def _extract_deps_recursive(spec, deps):
     if "element" in spec:
         deps.add(("element", spec["element"]))
 
+    # Element centroid
+    if "element_centroid" in spec:
+        deps.add(("element", spec["element_centroid"]))
+
+    # Dining chair table reference
+    if "table" in spec:
+        deps.add(("element", spec["table"]))
+
     # Face midpoint of element
     if "face_mid" in spec:
         deps.add(("element", spec["face_mid"]))
@@ -874,10 +1192,14 @@ def _extract_deps_recursive(spec, deps):
     for key in ("anchor", "along", "across", "thickness_dir", "dir", "dist",
                 "offset", "center", "reference", "line1_point", "line1_dir",
                 "line2_point", "line2_dir", "thickness", "length", "width",
-                "depth", "radius", "origin", "neg", "perp",
+                "depth", "radius", "origin", "neg", "perp", "rotated",
                 "sw", "se", "ne", "nw",
                 "outer_start", "outer_end", "inner_start", "inner_end",
-                "gap", "ref_point", "ref_offset"):
+                "gap", "ref_point", "ref_offset",
+                "facing_dir", "width_dir", "outward", "rx", "ry",
+                "base_center", "toward_apex", "along_base", "base_width",
+                "height", "apex_radius", "fillet_radius",
+                "chair_width", "chair_depth", "distance", "target"):
         if key in spec:
             _extract_deps_recursive(spec[key], deps)
 
@@ -911,6 +1233,10 @@ def _extract_deps_recursive(spec, deps):
     # Line-polygon intersection
     if "line_poly_isect" in spec:
         _extract_deps_recursive(spec["line_poly_isect"], deps)
+
+    # Ray-circle intersection
+    if "ray_circle_isect" in spec:
+        _extract_deps_recursive(spec["ray_circle_isect"], deps)
 
     # Center refs (pair of point specs)
     if "center_refs" in spec:
@@ -2005,3 +2331,942 @@ def get_rough_opening_formulas():
             "poly_order": "face_pair",
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Variant item formula definitions (Phase 12e)
+# ---------------------------------------------------------------------------
+# Direction shorthands for variant item formulas
+_W11W12_AL = {"segment": ["W11", "W12"]}
+_W11W12_IN = {"segment_perp": ["W11", "W12"]}
+_W12W13_AL = {"segment": ["W12", "W13"]}
+_W16W17_AL = {"segment": ["W16", "W17"]}
+_W16W17_IN = {"segment_perp": ["W16", "W17"]}
+
+# IW8 face directions
+_IW8_AL = {"face_along": "IW8", "face": "south"}
+_IW8_IN = {"segment_perp": [{"element": "IW8", "corner": "SW"},
+                              {"element": "IW8", "corner": "SE"}]}
+_IW8_OUT = {"neg": _IW8_IN}
+_IW8_N_AL = {"face_along": "IW8", "face": "north"}
+
+# IW2s east face directions
+_IW2S_E_AL = {"segment": [{"element": "IW2S", "corner": "SE"},
+                            {"element": "IW2S", "corner": "NE"}]}
+_IW2S_E_OUT = {"segment_perp": [{"element": "IW2S", "corner": "SE"},
+                                  {"element": "IW2S", "corner": "NE"}]}
+
+# IW1 north face directions
+_IW1_N_AL = {"segment": [{"element": "IW1", "corner": "NW"},
+                           {"element": "IW1", "corner": "NE"}]}
+_IW1_N_CW = {"segment_perp": [{"element": "IW1", "corner": "NW"},
+                                {"element": "IW1", "corner": "NE"}]}
+_IW1_N_OUT = {"neg": _IW1_N_CW}
+_IW1_W = {"neg": _IW1_N_AL}
+
+# IW12 corner: intersection of IW2 east face extended with IW1 north face
+_IW12_CORNER = _li(
+    {"element": "IW2", "corner": "SE"},
+    {"segment": [{"element": "IW2", "corner": "SE"},
+                  {"element": "IW2", "corner": "NE"}]},
+    {"element": "IW1", "corner": "NW"},
+    _IW1_N_AL,
+)
+
+# IW4/IW1 corner: intersection of IW4 west face extended with IW1 north face
+_IW41_CORNER = _li(
+    {"element": "IW4", "corner": "NW"},
+    {"segment": [{"element": "IW4", "corner": "NW"},
+                  {"element": "IW4", "corner": "SW"}]},
+    {"element": "IW1", "corner": "NW"},
+    _IW1_N_AL,
+)
+
+# IW2s NE corner distance along north wall from W9
+_IW2S_NE_D = {"proj": {"target": {"element": "IW2S", "corner": "NE"},
+                         "anchor": "W9",
+                         "dir": _W9W10_AL}}
+
+
+def _nwp(d_along, d_inward=0):
+    """North wall point spec: W9 + d_along * w9w10_al + d_inward * w9w10_in."""
+    base = _off("W9", d_along, _W9W10_AL)
+    if isinstance(d_inward, (int, float)) and d_inward == 0:
+        return base
+    return _off(base, d_inward, _W9W10_IN)
+
+
+def _iwp(d_e, d_n=0):
+    """IW12 corner + d_e * iw1_n_al + d_n * iw1_n_out."""
+    base = _off(_IW12_CORNER, d_e, _IW1_N_AL)
+    if isinstance(d_n, (int, float)) and d_n == 0:
+        return base
+    return _off(base, d_n, _IW1_N_OUT)
+
+
+def _lwp(d_w=0, d_n=0):
+    """IW41 corner + d_w * (-iw1_n_al) + d_n * iw1_n_out."""
+    base = _off(_IW41_CORNER, d_w, _IW1_W) if not (isinstance(d_w, (int, float)) and d_w == 0) else _IW41_CORNER
+    if isinstance(d_n, (int, float)) and d_n == 0:
+        return base
+    return _off(base, d_n, _IW1_N_OUT)
+
+
+def _c(name):
+    """Shorthand for constant reference."""
+    return {"const": name}
+
+
+def _in(val):
+    """Convert inches to feet (literal)."""
+    return val / 12.0
+
+
+def get_variant_item_formulas():
+    """Return list of (element_name, variant, formula_json) for variant items.
+
+    variant is None for items common to all non-bare/sf variants,
+    or a specific variant name for variant-specific items.
+    """
+    formulas = []
+
+    def _f(name, formula, variant=None):
+        formulas.append((name, variant, formula))
+
+    # IW2s NE distance along north wall (used by many kitchen items)
+    _iw2_d = _IW2S_NE_D
+
+    # Kitchen chain distances along north wall
+    # _st_d = _iw2_d + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+    _st_d = {"add": [_iw2_d, _c("NORTH_CTR_LENGTH"), _c("KITCHEN_APPL_GAP")]}
+    # _ks_d = _st_d + STOVE_WIDTH + KITCHEN_APPL_GAP + 2/12
+    _ks_d = {"add": [_st_d, _c("STOVE_WIDTH"), _c("KITCHEN_APPL_GAP"), _in(2)]}
+    # _dw_d = _ks_d + KITCHEN_SINK_WIDTH + KITCHEN_APPL_GAP
+    _dw_d = {"add": [_ks_d, _c("KITCHEN_SINK_WIDTH"), _c("KITCHEN_APPL_GAP")]}
+
+    # ===================================================================
+    # HAMPER — all variants, positioned relative to washer NW
+    # ===================================================================
+    # hamper sw = offset(offset(W2, _washer_nw_d + 2/12, w2w5_al), 2/12, w2w5_in)
+    # _washer_nw_d = proj(WASHER.NW, W2, w2w5_al)
+    _washer_nw_d = {"proj": {"target": {"element": "WASHER", "corner": "NW"},
+                              "anchor": "W2", "dir": _W2W5_AL}}
+    _hm_sw = _off(
+        _off("W2", {"add": [_washer_nw_d, _in(2)]}, _W2W5_AL),
+        _in(2), _W2W5_IN,
+    )
+    _f("hamper", {
+        "type": "item_rect",
+        "anchor": _hm_sw,
+        "along": _W2W5_IN,
+        "across": _W2W5_AL,
+        "width": _c("HAMPER_W"),
+        "depth": _c("HAMPER_D"),
+        "anchor_corner": "sw",
+    })
+
+    # ===================================================================
+    # WATER HEATER — all variants, circle tangent to arc at C7
+    # ===================================================================
+    # _wh_ref = offset(IW2S.NE, WH_RADIUS, _iw2_e_out)
+    _wh_ref = _off({"element": "IW2S", "corner": "NE"}, _c("WH_RADIUS"), _IW2S_E_OUT)
+    # wh_tangent_r = R_a7 - WALL_OUTER - WH_RADIUS
+    _wh_tangent_r = {"sub": [{"sub": [{"radius_key": "R_a7"}, _c("WALL_OUTER")]},
+                              _c("WH_RADIUS")]}
+    _f("water_heater", {
+        "type": "item_circle",
+        "center": {"ray_circle_isect": {
+            "origin": _wh_ref,
+            "dir": _IW2S_E_AL,
+            "target": "C7",
+            "distance": _wh_tangent_r,
+            "select": "farthest",
+        }},
+        "radius": _c("WH_RADIUS"),
+    })
+
+    # ===================================================================
+    # TOILETS — all variants
+    # ===================================================================
+    # South toilet: center on IW8 south face, aligned with dryer centroid
+    # _d_dryer_al = proj(DRYER_centroid, IW8.SW, iw8_al)
+    _dryer_cx = {"element_centroid": "DRYER"}
+    _d_dryer_al = {"proj": {"target": _dryer_cx,
+                             "anchor": {"element": "IW8", "corner": "SW"},
+                             "dir": _IW8_AL}}
+    _toilet_s_center = _off({"element": "IW8", "corner": "SW"},
+                             {"sub": [_d_dryer_al, _in(4)]}, _IW8_AL)
+    _f("toilet_s", {
+        "type": "toilet_shape",
+        "center": _toilet_s_center,
+        "facing_dir": _IW8_IN,
+        "width_dir": _IW8_AL,
+    })
+
+    # North toilet: center on IW8 north face
+    _d_dryer_al_n = {"proj": {"target": _dryer_cx,
+                               "anchor": {"element": "IW8", "corner": "NW"},
+                               "dir": _IW8_AL}}
+    _toilet_n_center = _off({"element": "IW8", "corner": "NW"},
+                             {"sub": [_d_dryer_al_n, _in(4)]}, _IW8_AL)
+    _f("toilet_n", {
+        "type": "toilet_shape",
+        "center": _toilet_n_center,
+        "facing_dir": _IW8_OUT,
+        "width_dir": _IW8_AL,
+    })
+
+    # ===================================================================
+    # UTIL SINK — all variants, on IW8 south face
+    # ===================================================================
+    # _sink_mid = midpoint(dryer_centroid, counter_centroid)
+    # _d_sink_al = proj(_sink_mid, IW8.SW, iw8_al)
+    _ctr_cx = {"element_centroid": "COUNTER"}
+    _sink_mid = {"midpoint": [_dryer_cx, _ctr_cx]}
+    _d_sink_al = {"proj": {"target": _sink_mid,
+                            "anchor": {"element": "IW8", "corner": "SW"},
+                            "dir": _IW8_AL}}
+    _sink_s_pt = _off({"element": "IW8", "corner": "SW"}, _d_sink_al, _IW8_AL)
+    # ellipse center = offset(_sink_s_pt, SINK_RY, iw8_in)
+    _sink_center = _off(_sink_s_pt, _c("SINK_RY"), _IW8_IN)
+    _f("util_sink", {
+        "type": "ellipse_rect",
+        "anchor": _sink_center,
+        "along": _IW8_AL,
+        "outward": _IW8_IN,
+        "rx": _c("SINK_RX"),
+        "ry": _c("SINK_RY"),
+    })
+
+    # ===================================================================
+    # BATH SINK — all variants, on IW8 north face
+    # ===================================================================
+    # _d_iw2_al = proj(IW2.SW, IW8.NW, iw8_al)
+    # _bath_sink_east_d = _d_iw2_al - 9/12
+    # _bath_sink_ctr_d = _bath_sink_east_d - BATH_SINK_LENGTH/2
+    _d_iw2_al = {"proj": {"target": {"element": "IW2", "corner": "SW"},
+                            "anchor": {"element": "IW8", "corner": "NW"},
+                            "dir": _IW8_AL}}
+    _bs_ctr_d = {"sub": [{"sub": [_d_iw2_al, _in(9)]},
+                          {"mul": [0.5, _c("BATH_SINK_LENGTH")]}]}
+    _bs_anchor = _off({"element": "IW8", "corner": "NW"}, _bs_ctr_d, _IW8_AL)
+    _f("bath_sink", {
+        "type": "bath_sink_shape",
+        "anchor": _bs_anchor,
+        "along": _IW8_AL,
+        "outward": _IW8_OUT,
+        "length": _c("BATH_SINK_LENGTH"),
+        "depth": _c("BATH_SINK_DEPTH"),
+    })
+
+    # ===================================================================
+    # KITCHEN SINK — all variants
+    # ===================================================================
+    _f("kitchen_sink", {
+        "type": "item_rect",
+        "anchor": _nwp(_ks_d, _c("KITCHEN_SINK_DEPTH")),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("KITCHEN_SINK_WIDTH"),
+        "depth": _c("KITCHEN_SINK_DEPTH"),
+        "anchor_corner": "sw",
+    })
+
+    # ===================================================================
+    # STOVE — standard + daybed only
+    # ===================================================================
+    _stove_formula = {
+        "type": "item_rect",
+        "anchor": _nwp(_st_d, {"add": [_c("KITCHEN_APPL_GAP"), _c("STOVE_DEPTH")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("STOVE_WIDTH"),
+        "depth": _c("STOVE_DEPTH"),
+        "anchor_corner": "sw",
+    }
+    _f("stove", _stove_formula, "standard")
+    _f("stove", _stove_formula, "daybed")
+
+    # ===================================================================
+    # DISHWASHER — standard + daybed only
+    # ===================================================================
+    _dw_formula = {
+        "type": "item_rect",
+        "anchor": _nwp(_dw_d, _c("DW_DEPTH")),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("DW_WIDTH"),
+        "depth": _c("DW_DEPTH"),
+        "anchor_corner": "sw",
+    }
+    _f("dishwasher", _dw_formula, "standard")
+    _f("dishwasher", _dw_formula, "daybed")
+
+    # ===================================================================
+    # FRIDGE — different positioning per variant
+    # ===================================================================
+    # Standard fridge: near IW12 corner
+    _std_fridge = {
+        "type": "four_corner",
+        "sw": _iwp(_c("KITCHEN_APPL_GAP"), _c("KITCHEN_APPL_GAP")),
+        "se": _iwp({"add": [_c("KITCHEN_APPL_GAP"), _c("STD_FRIDGE_W")]},
+                    _c("KITCHEN_APPL_GAP")),
+        "ne": _iwp({"add": [_c("KITCHEN_APPL_GAP"), _c("STD_FRIDGE_W")]},
+                    {"add": [_c("KITCHEN_APPL_GAP"), _c("STD_FRIDGE_D")]}),
+        "nw": _iwp(_c("KITCHEN_APPL_GAP"),
+                    {"add": [_c("KITCHEN_APPL_GAP"), _c("STD_FRIDGE_D")]}),
+    }
+    _f("fridge", _std_fridge, "standard")
+    _f("fridge", _std_fridge, "daybed")
+
+    # Minik fridge: on north wall
+    _fr_mk_d = {"add": [_ks_d, _c("KITCHEN_SINK_WIDTH"), _in(3)]}
+    _fr_mk_i = _in(3)
+    _f("fridge", {
+        "type": "item_rect",
+        "anchor": _nwp(_fr_mk_d, {"add": [_fr_mk_i, _c("MINIK_FRIDGE_D")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("MINIK_FRIDGE_W"),
+        "depth": _c("MINIK_FRIDGE_D"),
+        "anchor_corner": "sw",
+    }, "minik")
+
+    # ===================================================================
+    # ICE MAKER — all variants, different positions
+    # ===================================================================
+    # Standard: _dw_d + DW_WIDTH + 6/12, gap = KITCHEN_APPL_GAP
+    _ice_d_std = {"add": [_dw_d, _c("DW_WIDTH"), _in(6)]}
+    _ice_i_std = _c("KITCHEN_APPL_GAP")
+    _f("ice_maker", {
+        "type": "item_rect",
+        "anchor": _nwp(_ice_d_std, {"add": [_ice_i_std, _c("ICE_DEPTH")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("ICE_WIDTH"),
+        "depth": _c("ICE_DEPTH"),
+        "anchor_corner": "sw",
+    }, "standard")
+
+    # Daybed: _dw_d + DW_WIDTH + 2/12, gap = KITCHEN_APPL_GAP
+    _ice_d_db = {"add": [_dw_d, _c("DW_WIDTH"), _in(2)]}
+    _f("ice_maker", {
+        "type": "item_rect",
+        "anchor": _nwp(_ice_d_db, {"add": [_ice_i_std, _c("ICE_DEPTH")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("ICE_WIDTH"),
+        "depth": _c("ICE_DEPTH"),
+        "anchor_corner": "sw",
+    }, "daybed")
+
+    # Minik: after fridge
+    _ice_d_mk = {"add": [_fr_mk_d, _c("MINIK_FRIDGE_W"), _in(3)]}
+    _ice_i_mk = _in(3)
+    _f("ice_maker", {
+        "type": "item_rect",
+        "anchor": _nwp(_ice_d_mk, {"add": [_ice_i_mk, _c("ICE_DEPTH")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("ICE_WIDTH"),
+        "depth": _c("ICE_DEPTH"),
+        "anchor_corner": "sw",
+    }, "minik")
+
+    # ===================================================================
+    # WORK COUNTER — standard + daybed only
+    # ===================================================================
+    _wc_d2 = {"add": [_c("KITCHEN_APPL_GAP"), _c("STD_FRIDGE_W"),
+                       _c("KITCHEN_APPL_GAP")]}
+    _wc_formula = {
+        "type": "four_corner",
+        "sw": _iwp(_wc_d2, 0),
+        "se": _iwp({"add": [_wc_d2, _c("WORK_CTR_W")]}, 0),
+        "ne": _iwp({"add": [_wc_d2, _c("WORK_CTR_W")]}, _c("WORK_CTR_D")),
+        "nw": _iwp(_wc_d2, _c("WORK_CTR_D")),
+    }
+    _f("work_counter", _wc_formula, "standard")
+    _f("work_counter", _wc_formula, "daybed")
+
+    # ===================================================================
+    # MICROWAVE — different per variant
+    # ===================================================================
+    # Standard: on work counter
+    _mw_d2_std = {"add": [_c("KITCHEN_APPL_GAP"), _c("STD_FRIDGE_W"),
+                           _c("KITCHEN_APPL_GAP"), _in(2)]}
+    _mw_d1_std = _in(2)
+    _mw_std = {
+        "type": "four_corner",
+        "sw": _iwp(_mw_d2_std, _mw_d1_std),
+        "se": _iwp({"add": [_mw_d2_std, _c("MICROWAVE_W")]}, _mw_d1_std),
+        "ne": _iwp({"add": [_mw_d2_std, _c("MICROWAVE_W")]},
+                    {"add": [_mw_d1_std, _c("MICROWAVE_D")]}),
+        "nw": _iwp(_mw_d2_std, {"add": [_mw_d1_std, _c("MICROWAVE_D")]}),
+    }
+    _f("microwave", _mw_std, "standard")
+    _f("microwave", _mw_std, "daybed")
+
+    # Minik: on north wall
+    _mw_mk_d = {"add": [_iw2_d, _in(2)]}
+    _mw_mk_i = _in(3)
+    _f("microwave", {
+        "type": "item_rect",
+        "anchor": _nwp(_mw_mk_d, {"add": [_mw_mk_i, _c("MICROWAVE_D")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("MICROWAVE_W"),
+        "depth": _c("MICROWAVE_D"),
+        "anchor_corner": "sw",
+    }, "minik")
+
+    # ===================================================================
+    # KITCHEN COUNTER (minik) / NORTH COUNTER (standard/daybed)
+    # ===================================================================
+    _f("kitchen_counter", {
+        "type": "item_rect",
+        "anchor": _nwp(_iw2_d, _c("KITCHEN_CTR_DEPTH")),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("KITCHEN_CTR_LENGTH"),
+        "depth": _c("KITCHEN_CTR_DEPTH"),
+        "anchor_corner": "sw",
+    }, "minik")
+
+    _nc_formula = {
+        "type": "item_rect",
+        "anchor": _nwp(_iw2_d, _c("NORTH_CTR_DEPTH")),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("NORTH_CTR_LENGTH"),
+        "depth": _c("NORTH_CTR_DEPTH"),
+        "anchor_corner": "sw",
+    }
+    _f("north_counter", _nc_formula, "standard")
+    _f("north_counter", _nc_formula, "daybed")
+
+    # ===================================================================
+    # COFFEE MAKER — all variants, different positions
+    # ===================================================================
+    # Standard: on north counter near east end
+    _cm_d_std = {"sub": [{"add": [_iw2_d, _c("NORTH_CTR_LENGTH")]},
+                          {"add": [_in(2), _c("COFFEE_W")]}]}
+    _cm_i_std = _in(2)
+    _cm_std = {
+        "type": "item_rect",
+        "anchor": _nwp(_cm_d_std, {"add": [_cm_i_std, _c("COFFEE_D")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("COFFEE_W"),
+        "depth": _c("COFFEE_D"),
+        "anchor_corner": "sw",
+    }
+    _f("coffee_maker", _cm_std, "standard")
+    _f("coffee_maker", _cm_std, "daybed")
+
+    # Minik: after microwave
+    _cm_d_mk = {"add": [_iw2_d, _in(2), _c("MICROWAVE_W"), _in(3)]}
+    _cm_i_mk = _in(3)
+    _f("coffee_maker", {
+        "type": "item_rect",
+        "anchor": _nwp(_cm_d_mk, {"add": [_cm_i_mk, _c("COFFEE_D")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("COFFEE_W"),
+        "depth": _c("COFFEE_D"),
+        "anchor_corner": "sw",
+    }, "minik")
+
+    # ===================================================================
+    # COOKTOP — minik only
+    # ===================================================================
+    _cp_d = {"add": [_iw2_d, _in(2), _c("MICROWAVE_W"), _in(3),
+                      _c("COFFEE_W"), _in(3)]}
+    _cp_i_far = {"sub": [_c("KITCHEN_CTR_DEPTH"), _in(2)]}
+    _f("cooktop", {
+        "type": "item_rect",
+        "anchor": _nwp(_cp_d, _cp_i_far),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("COOKTOP_W"),
+        "depth": _c("COOKTOP_D"),
+        "anchor_corner": "sw",
+    }, "minik")
+
+    # ===================================================================
+    # TOASTER — minik only
+    # ===================================================================
+    _ts_d = {"add": [_cp_d, _c("COOKTOP_W"), _in(3)]}
+    _ts_i = _in(3)
+    _f("toaster", {
+        "type": "item_rect",
+        "anchor": _nwp(_ts_d, {"add": [_ts_i, _c("TOASTER_D")]}),
+        "along": _W9W10_AL,
+        "across": {"neg": _W9W10_IN},
+        "width": _c("TOASTER_W"),
+        "depth": _c("TOASTER_D"),
+        "anchor_corner": "sw",
+    }, "minik")
+
+    # ===================================================================
+    # DINING TABLE — all variants
+    # ===================================================================
+    # Table base center computed from kitchen reference point and IW12 corner
+    # _space_n_ref for minik = _nwp(0, KITCHEN_CTR_DEPTH), else _nwp(0, 0) = W9
+    # _tbl_ref for minik = _nwp(_st_d + STOVE_WIDTH + KITCHEN_APPL_GAP)
+    # _tbl_ref for standard/db = _nwp(_ks_d + KITCHEN_SINK_WIDTH/2)
+    # _tbl_d_al = proj(_tbl_ref, _iw12_corner, iw1_n_al)
+    # _space_n_d_out = proj(_space_n_ref, _iw12_corner, iw1_n_out)
+    # _tbl_n_offset = 30/12 + (28/12 if not minik else 0)
+    # _tbl_n_d_out = _space_n_d_out - _tbl_n_offset
+    # tbl_bc = _iw12_corner + _tbl_d_al * iw1_n_al + _tbl_n_d_out * iw1_n_out
+    # toward_apex = -iw1_n_out (southward)
+    # along_base = iw1_n_al (eastward)
+
+    # Standard/daybed table
+    _tbl_ref_std = _nwp({"add": [_ks_d, {"mul": [0.5, _c("KITCHEN_SINK_WIDTH")]}]})
+    _tbl_d_al_std = {"proj": {"target": _tbl_ref_std,
+                               "anchor": _IW12_CORNER, "dir": _IW1_N_AL}}
+    _space_n_ref_std = "W9"
+    _space_n_d_out_std = {"proj": {"target": _space_n_ref_std,
+                                    "anchor": _IW12_CORNER, "dir": _IW1_N_OUT}}
+    _tbl_n_d_out_std = {"sub": [_space_n_d_out_std, {"add": [_in(30), _in(28)]}]}
+    _tbl_bc_std = _off(_off(_IW12_CORNER, _tbl_d_al_std, _IW1_N_AL),
+                        _tbl_n_d_out_std, _IW1_N_OUT)
+    _tbl_std = {
+        "type": "dining_triangle",
+        "base_center": _tbl_bc_std,
+        "toward_apex": {"neg": _IW1_N_OUT},
+        "along_base": _IW1_N_AL,
+        "base_width": _c("DINING_TBL_BASE"),
+        "height": _c("DINING_TBL_H"),
+        "apex_radius": _in(12),
+        "fillet_radius": _in(6),
+    }
+    _f("dining_table", _tbl_std, "standard")
+    _f("dining_table", _tbl_std, "daybed")
+
+    # Minik table
+    _tbl_ref_mk = _nwp({"add": [_st_d, _c("STOVE_WIDTH"), _c("KITCHEN_APPL_GAP")]})
+    _tbl_d_al_mk = {"proj": {"target": _tbl_ref_mk,
+                               "anchor": _IW12_CORNER, "dir": _IW1_N_AL}}
+    _space_n_ref_mk = _nwp(0, _c("KITCHEN_CTR_DEPTH"))
+    _space_n_d_out_mk = {"proj": {"target": _space_n_ref_mk,
+                                    "anchor": _IW12_CORNER, "dir": _IW1_N_OUT}}
+    _tbl_n_d_out_mk = {"sub": [_space_n_d_out_mk, _in(30)]}
+    _tbl_bc_mk = _off(_off(_IW12_CORNER, _tbl_d_al_mk, _IW1_N_AL),
+                        _tbl_n_d_out_mk, _IW1_N_OUT)
+    _f("dining_table", {
+        "type": "dining_triangle",
+        "base_center": _tbl_bc_mk,
+        "toward_apex": {"neg": _IW1_N_OUT},
+        "along_base": _IW1_N_AL,
+        "base_width": _c("DINING_TBL_BASE"),
+        "height": _c("DINING_TBL_H"),
+        "apex_radius": _in(12),
+        "fillet_radius": _in(6),
+    }, "minik")
+
+    # ===================================================================
+    # DINING CHAIRS — all variants
+    # ===================================================================
+    _dc_common = {
+        "type": "dining_chair",
+        "table": "dining_table",
+        "chair_width": _c("DINING_CHAIR_W"),
+        "chair_depth": _c("DINING_CHAIR_D"),
+        "gap": _in(2),
+    }
+    _dc1 = dict(_dc_common, side="ne_side")
+    _dc2 = dict(_dc_common, side="nw_side")
+    _f("dining_chair_1", _dc1)
+    _f("dining_chair_2", _dc2)
+
+    # ===================================================================
+    # CHAIR + OTTOMAN — all variants
+    # ===================================================================
+    # chair orientation: W12-W13 direction rotated -45°
+    # _ch_theta = atan2(w12w13_al[1], w12w13_al[0]) - pi/4
+    # For the formula, we compute the direction from the segment and rotate
+    # _ch_mid = midpoint(W11, W12)
+    # _ch_base = offset(offset(_ch_mid, -1/12, w11w12_al), 8/12, w11w12_in)
+    # ch_center = offset(_ch_base, 4/12, _ch_along)
+    #
+    # We use item_rect with computed along/across directions.
+    # The along direction is W12→W13 rotated -45° around origin.
+    # In formula spec: we need a "rotate" direction spec.
+    # Instead, we'll compute the rotated directions directly.
+    # _ch_along = (cos(theta), sin(theta)) where theta = angle(W12→W13) - pi/4
+    # = cos(-pi/4) * w12w13_al - sin(-pi/4) * w12w13_perp
+    # = (al + perp) / sqrt(2)   where perp = (-al[1], al[0])
+    # = (al + left_perp) / sqrt(2)
+    # segment_perp gives RIGHT perp (dy, -dx), left perp is (-dy, dx) = neg(segment_perp)
+    # Actually: _ch_along = cos(-pi/4)*al + sin(-pi/4)*perp_right
+    # = al/sqrt(2) - perp_right/sqrt(2)
+    # where perp_right = segment_perp(W12, W13)
+    # Hmm, this is complex. Let me use a different approach: store the
+    # rotated direction as a point-based computation.
+    #
+    # Actually, item_rect with along/across works for any orientation.
+    # The challenge is computing the center point and the direction vectors.
+    # For the chair, the center is:
+    #   _ch_mid = midpoint(W11, W12)
+    #   _ch_base = offset(offset(_ch_mid, -1/12, w11w12_al), 8/12, w11w12_in)
+    #   ch_center = offset(_ch_base, 4/12, _ch_along)
+    # The along direction is rotated, which we can't easily express.
+    #
+    # Let's use four_corner with explicit corner computation.
+    # ch_center = known, _ch_along and _ch_cross are known directions
+    # corners at center ± half_w * cross ± half_d * along
+    #
+    # For the direction: _ch_theta = atan2(w12w13_al[1], w12w13_al[0]) - pi/4
+    # This is the angle of W12→W13 minus 45°.
+    # The unit vector is: (cos(theta), sin(theta))
+    # = cos(angle(w12w13) - pi/4), sin(angle(w12w13) - pi/4)
+    # = cos(a)*cos(pi/4) + sin(a)*sin(pi/4), sin(a)*cos(pi/4) - cos(a)*sin(pi/4)
+    # = (al[0] + al[1])/sqrt(2), (al[1] - al[0])/sqrt(2)
+    # where al = w12w13_al = (cos(a), sin(a))
+    #
+    # Actually w12w13_al = (cos(a), sin(a)), so:
+    # cos(a - pi/4) = cos(a)*cos(pi/4) + sin(a)*sin(pi/4)
+    #               = (cos(a) + sin(a)) / sqrt(2)
+    #               = (al[0] + al[1]) / sqrt(2)
+    # sin(a - pi/4) = sin(a)*cos(pi/4) - cos(a)*sin(pi/4)
+    #               = (sin(a) - cos(a)) / sqrt(2)
+    #               = (al[1] - al[0]) / sqrt(2)
+    #
+    # In formula spec, I can express this as:
+    # _ch_along = normalize((al[0]+al[1], al[1]-al[0]))
+    # Since al is already a unit vector, this vector has length 1.
+    #
+    # But there's no "normalize" or "add vectors" in the formula spec.
+    # Let me add an "add_dirs" operation... or use a different approach.
+    #
+    # Simplest: compute the four corners explicitly using four_corner formula.
+    # Each corner = center + ds * half_short * cross + dn * half_depth * along
+    # We need to express this in terms of W12→W13 direction.
+    #
+    # Let me precompute the chair center and use literal offsets.
+    # Actually, let me add a "rotate_dir" spec to the direction resolver.
+
+    # For now, I'll use a simpler approach: compute the four corners
+    # using the known relationship between W12-W13 direction and the
+    # 45° rotation.
+
+    _ch_mid = {"midpoint": ["W11", "W12"]}
+    _ch_base = _off(_off(_ch_mid, _in(-1), _W11W12_AL), _in(8), _W11W12_IN)
+
+    # The rotated direction can be expressed as a normalized sum of
+    # w12w13_al and neg(w12w13_perp_right)
+    # ch_along ≈ (al + left_perp) / sqrt(2)
+    # where left_perp = neg(segment_perp)
+    # In formula spec, I need a "rotate" or I can use four_corner
+    # with explicit corner points computed from the base geometry.
+    #
+    # Let me add a "rotated" direction spec: rotate a direction by angle
+    _f("chair", {
+        "type": "four_corner",
+        "sw": _off(_off(
+            _off(_ch_base, _in(4),
+                 {"rotated": _W12W13_AL, "angle": -0.7853981633974483}),
+            {"neg": {"mul": [0.5, _c("CHAIR_WIDTH")]}},
+            {"perp": {"rotated": _W12W13_AL, "angle": -0.7853981633974483}}),
+            {"neg": {"mul": [0.5, _c("CHAIR_DEPTH")]}},
+            {"rotated": _W12W13_AL, "angle": -0.7853981633974483}),
+        "se": _off(_off(
+            _off(_ch_base, _in(4),
+                 {"rotated": _W12W13_AL, "angle": -0.7853981633974483}),
+            {"mul": [0.5, _c("CHAIR_WIDTH")]},
+            {"perp": {"rotated": _W12W13_AL, "angle": -0.7853981633974483}}),
+            {"neg": {"mul": [0.5, _c("CHAIR_DEPTH")]}},
+            {"rotated": _W12W13_AL, "angle": -0.7853981633974483}),
+        "ne": _off(_off(
+            _off(_ch_base, _in(4),
+                 {"rotated": _W12W13_AL, "angle": -0.7853981633974483}),
+            {"mul": [0.5, _c("CHAIR_WIDTH")]},
+            {"perp": {"rotated": _W12W13_AL, "angle": -0.7853981633974483}}),
+            {"mul": [0.5, _c("CHAIR_DEPTH")]},
+            {"rotated": _W12W13_AL, "angle": -0.7853981633974483}),
+        "nw": _off(_off(
+            _off(_ch_base, _in(4),
+                 {"rotated": _W12W13_AL, "angle": -0.7853981633974483}),
+            {"neg": {"mul": [0.5, _c("CHAIR_WIDTH")]}},
+            {"perp": {"rotated": _W12W13_AL, "angle": -0.7853981633974483}}),
+            {"mul": [0.5, _c("CHAIR_DEPTH")]},
+            {"rotated": _W12W13_AL, "angle": -0.7853981633974483}),
+    })
+
+    # ===================================================================
+    # OTTOMAN — all variants
+    # ===================================================================
+    _ot_dist = _in(39)
+    _ch_along_spec = {"rotated": _W12W13_AL, "angle": -0.7853981633974483}
+    _ch_cross_spec = {"perp": _ch_along_spec}
+    _ch_center = _off(_ch_base, _in(4), _ch_along_spec)
+    _ot_center = _off(_ch_center, _ot_dist, _ch_along_spec)
+    _f("ottoman", {
+        "type": "four_corner",
+        "sw": _off(_off(_ot_center,
+                         {"neg": {"mul": [0.5, _c("OTTOMAN_SIZE")]}}, _ch_cross_spec),
+                    {"neg": {"mul": [0.5, _c("OTTOMAN_SIZE")]}}, _ch_along_spec),
+        "se": _off(_off(_ot_center,
+                         {"mul": [0.5, _c("OTTOMAN_SIZE")]}, _ch_cross_spec),
+                    {"neg": {"mul": [0.5, _c("OTTOMAN_SIZE")]}}, _ch_along_spec),
+        "ne": _off(_off(_ot_center,
+                         {"mul": [0.5, _c("OTTOMAN_SIZE")]}, _ch_cross_spec),
+                    {"mul": [0.5, _c("OTTOMAN_SIZE")]}, _ch_along_spec),
+        "nw": _off(_off(_ot_center,
+                         {"neg": {"mul": [0.5, _c("OTTOMAN_SIZE")]}}, _ch_cross_spec),
+                    {"mul": [0.5, _c("OTTOMAN_SIZE")]}, _ch_along_spec),
+    })
+
+    # ===================================================================
+    # DESK + DESK CHAIR — all variants
+    # ===================================================================
+    _neg_w16w17_al = {"neg": _W16W17_AL}
+    _f("desk", {
+        "type": "item_rect",
+        "anchor": "W17",
+        "along": _neg_w16w17_al,
+        "across": _W16W17_IN,
+        "width": _c("DESK_WIDTH"),
+        "depth": _c("DESK_DEPTH"),
+        "anchor_corner": "sw",
+    })
+
+    _dc_sw = _off(
+        _off("W17",
+             {"sub": [{"mul": [0.5, _c("DESK_WIDTH")]},
+                       {"mul": [0.5, _c("DESK_CHAIR_WIDTH")]}]},
+             _neg_w16w17_al),
+        {"add": [_c("DESK_DEPTH"), _c("DESK_CHAIR_GAP")]},
+        _W16W17_IN,
+    )
+    _f("desk_chair", {
+        "type": "item_rect",
+        "anchor": _dc_sw,
+        "along": _neg_w16w17_al,
+        "across": _W16W17_IN,
+        "width": _c("DESK_CHAIR_WIDTH"),
+        "depth": _c("DESK_CHAIR_DEPTH"),
+        "anchor_corner": "sw",
+    })
+
+    # ===================================================================
+    # VARIANT-SPECIFIC SEATING
+    # ===================================================================
+
+    # --- Standard: loveseat, ET, loveseat2 ---
+    _lv_perp = {"perp": _W12W13_AL}  # right perp = (-w12w13[1], w12w13[0])
+    # But the procedural code uses (-w12w13_al[1], w12w13_al[0]) which is
+    # the LEFT perpendicular. In evaluator, "perp" gives RIGHT perp (dy, -dx).
+    # LEFT perp = neg(perp) = {"neg": {"perp": ...}}
+    # Actually: for w12w13_al = (dx/L, dy/L):
+    #   right perp (segment_perp) = (dy/L, -dx/L)
+    #   left perp = (-dy/L, dx/L)
+    # Procedural uses _lv_perp = (-w12w13_al[1], w12w13_al[0]) = (-dy/L, dx/L) = left perp
+    # So _lv_perp = {"neg": {"segment_perp": ["W12", "W13"]}}
+    _lv_perp_spec = {"neg": {"segment_perp": ["W12", "W13"]}}
+
+    _lv_nw = _lwp(_c("LOVESEAT_OFFSET_IW4"), _c("LOVESEAT_OFFSET_IW1"))
+    _lv_formula = {
+        "type": "four_corner",
+        "nw": _lv_nw,
+        "sw": _off(_lv_nw, _c("LOVESEAT_LENGTH"), _W12W13_AL),
+        "ne": _off(_lv_nw, _c("LOVESEAT_WIDTH"), _lv_perp_spec),
+        "se": _off(_off(_lv_nw, _c("LOVESEAT_LENGTH"), _W12W13_AL),
+                    _c("LOVESEAT_WIDTH"), _lv_perp_spec),
+    }
+    _f("loveseat", _lv_formula, "standard")
+
+    # ET (standard): circle tangent to loveseat SE, on IW1 N face offset line
+    _et_r_ft = {"mul": [{"mul": [_c("ET_RADIUS_CM"), 1.0 / 2.54]}, 1.0 / 12.0]}
+    _et_from_iw1 = _off({"element": "IW1", "corner": "NW"},
+                         {"add": [_c("STD_GAP"), _et_r_ft]}, _IW1_N_OUT)
+    # Need quadratic solve for tangency to loveseat SE corner.
+    # et_gap = et_r + STD_GAP
+    # Solve: |_et_from_iw1 + t * iw1_n_al - loveseat.SE|² = et_gap²
+    _lv_se_spec = _off(_off(_lv_nw, _c("LOVESEAT_LENGTH"), _W12W13_AL),
+                        _c("LOVESEAT_WIDTH"), _lv_perp_spec)
+    _et_gap = {"add": [_et_r_ft, _c("STD_GAP")]}
+    _f("et", {
+        "type": "item_circle",
+        "center": {"ray_circle_isect": {
+            "origin": _et_from_iw1,
+            "dir": _IW1_N_AL,
+            "target": _lv_se_spec,
+            "distance": _et_gap,
+            "select": "farthest",
+        }},
+        "radius": _et_r_ft,
+    }, "standard")
+
+    # LOVESEAT2 (standard): east of ET
+    # _lv2_sw = offset(offset(et_center, et_r + STD_GAP, iw1_n_al), -et_r, iw1_n_out)
+    _et_center = {"ray_circle_isect": {
+        "origin": _et_from_iw1,
+        "dir": _IW1_N_AL,
+        "target": _lv_se_spec,
+        "distance": _et_gap,
+        "select": "farthest",
+    }}
+    _lv2_sw = _off(
+        _off(_et_center, {"add": [_et_r_ft, _c("STD_GAP")]}, _IW1_N_AL),
+        {"neg": _et_r_ft}, _IW1_N_OUT,
+    )
+    _f("loveseat2", {
+        "type": "four_corner",
+        "sw": _lv2_sw,
+        "nw": _off(_lv2_sw, _c("LOVESEAT_WIDTH"), _IW1_N_OUT),
+        "se": _off(_lv2_sw, _c("LOVESEAT_LENGTH"), _IW1_N_AL),
+        "ne": _off(_off(_lv2_sw, _c("LOVESEAT_WIDTH"), _IW1_N_OUT),
+                    _c("LOVESEAT_LENGTH"), _IW1_N_AL),
+    }, "standard")
+
+    # --- Minik: sofa, rocker ---
+    # SOFA: near IW4/IW1 corner
+    # _cx_d = -(6/12 + (SOFA_WIDTH - 24/12) / 2)
+    _cx_d = {"neg": {"add": [_in(6), {"mul": [0.5, {"sub": [_c("SOFA_WIDTH"),
+                                                              _in(24)]}]}]}}
+    _sofa_sw = _lwp({"add": [_cx_d, {"mul": [0.5, _c("SOFA_FULL_W")]}]}, _in(2))
+    _sofa_se = _lwp({"sub": [_cx_d, {"mul": [0.5, _c("SOFA_FULL_W")]}]}, _in(2))
+    _f("sofa", {
+        "type": "four_corner",
+        "sw": _sofa_sw,
+        "se": _sofa_se,
+        "ne": _off(_sofa_se, _c("SOFA_FULL_D"), _IW1_N_OUT),
+        "nw": _off(_sofa_sw, _c("SOFA_FULL_D"), _IW1_N_OUT),
+    }, "minik")
+
+    # ROCKER (minik): midpoint between ICE SE and SOFA NW, offset inward
+    # _ice_se (minik) = _nwp(_ice_d_mk + ICE_WIDTH, 3/12 + ICE_DEPTH)
+    _ice_se_mk = _nwp({"add": [_ice_d_mk, _c("ICE_WIDTH")]},
+                       {"add": [_in(3), _c("ICE_DEPTH")]})
+    _sofa_nw_mk = _off(_sofa_sw, _c("SOFA_FULL_D"), _IW1_N_OUT)
+    _rk_mid = {"midpoint": [_ice_se_mk, _sofa_nw_mk]}
+    _rk_center_mk = _off(_rk_mid, _in(18), _W9W10_IN)
+    # Rocker oriented along W12-W13 direction
+    _rk_cr = _lv_perp_spec  # left perp of W12→W13
+    _rk_hw = {"mul": [0.5, _c("ROCKER_DEPTH")]}
+    _rk_hh = {"mul": [0.5, _c("ROCKER_WIDTH")]}
+    _f("rocker", {
+        "type": "four_corner",
+        "sw": _off(_off(_rk_center_mk, {"neg": _rk_hh}, _W12W13_AL),
+                    {"neg": _rk_hw}, _rk_cr),
+        "se": _off(_off(_rk_center_mk, {"neg": _rk_hh}, _W12W13_AL),
+                    _rk_hw, _rk_cr),
+        "ne": _off(_off(_rk_center_mk, _rk_hh, _W12W13_AL),
+                    _rk_hw, _rk_cr),
+        "nw": _off(_off(_rk_center_mk, _rk_hh, _W12W13_AL),
+                    {"neg": _rk_hw}, _rk_cr),
+    }, "minik")
+
+    # --- Daybed variant: shelves2, et_east, daybed, et_west, rocker ---
+
+    # SHELVES2 (daybed): KALLAX east of IW9
+    _iw9_e_al = {"segment": [{"element": "IW9", "corner": "SE"},
+                               {"element": "IW9", "corner": "NE"}]}
+    _iw9_e_cw = {"segment_perp": [{"element": "IW9", "corner": "SE"},
+                                    {"element": "IW9", "corner": "NE"}]}
+    _sh2_nw = _li(
+        _off(_off({"element": "IW1", "corner": "SW"}, _c("SHELVES_GAP_IW1"),
+                   _W9W10_IN), 0, _W9W10_AL),
+        _W9W10_AL,
+        _off({"element": "IW9", "corner": "NE"}, _c("SHELVES_GAP_IW9"), _iw9_e_cw),
+        _iw9_e_al,
+    )
+    _f("shelves2", {
+        "type": "four_corner",
+        "nw": _sh2_nw,
+        "ne": _off(_sh2_nw, _c("SHELVES_LENGTH"), _iw9_e_cw),
+        "sw": _off(_sh2_nw, _c("SHELVES_DEPTH"), _W9W10_IN),
+        "se": _off(_off(_sh2_nw, _c("SHELVES_LENGTH"), _iw9_e_cw),
+                    _c("SHELVES_DEPTH"), _W9W10_IN),
+    }, "daybed")
+
+    # ET_EAST (daybed): circle on IW1 N face offset, near east inner wall
+    _et_from_iw1_db = _off({"element": "IW1", "corner": "NW"},
+                            {"add": [_c("STD_GAP"), _et_r_ft]}, _IW1_N_OUT)
+    # Find farthest intersection of the IW1-parallel line with inner_poly
+    _f("et_east", {
+        "type": "item_circle",
+        "center": {"ray_circle_isect": {
+            "origin": _et_from_iw1_db,
+            "dir": _IW1_N_AL,
+            "target": {"line_poly_isect": {
+                "origin": _et_from_iw1_db,
+                "dir": _IW1_N_AL,
+                "poly": "inner_poly",
+                "select": "farthest",
+            }},
+            "distance": {"add": [_c("STD_GAP"), _et_r_ft]},
+            "select": "nearest",
+        }},
+        "radius": _et_r_ft,
+    }, "daybed")
+
+    # DAYBED (daybed): positioned relative to et_east
+    # db_se = offset(et_east_center, et_r + 3/12, -iw1_n_al)
+    # then project to IW1 N face offset line
+    # db_sw = offset(db_se, -DAYBED_W, iw1_n_al)
+    _neg_al = {"neg": _IW1_N_AL}
+    _db_se_raw = _off({"element_centroid": "et_east"},
+                       {"add": [_et_r_ft, _in(3)]}, _neg_al)
+    # Project db_se onto the IW1 N face offset line (at STD_GAP from IW1.NW)
+    _db_s_ref = _off({"element": "IW1", "corner": "NW"}, _c("STD_GAP"), _IW1_N_OUT)
+    # _db_se_proj_out = proj(db_se_raw, _db_s_ref, iw1_n_out)
+    _db_se_proj_out = {"proj": {"target": _db_se_raw, "anchor": _db_s_ref,
+                                 "dir": _IW1_N_OUT}}
+    _db_se = _off(_db_se_raw, {"neg": _db_se_proj_out}, _IW1_N_OUT)
+    _db_sw = _off(_db_se, {"neg": _c("DAYBED_W")}, _IW1_N_AL)
+    _f("daybed", {
+        "type": "four_corner",
+        "sw": _db_sw,
+        "se": _db_se,
+        "ne": _off(_db_se, _c("DAYBED_D"), _IW1_N_OUT),
+        "nw": _off(_db_sw, _c("DAYBED_D"), _IW1_N_OUT),
+    }, "daybed")
+
+    # ET_WEST (daybed): circle west of daybed NW
+    _neg_out = {"neg": _IW1_N_OUT}
+    _et2_center = _off(
+        _off({"element": "daybed", "corner": "NW"},
+             {"neg": {"add": [_in(6), _et_r_ft]}}, _IW1_N_AL),
+        _et_r_ft, _neg_out,
+    )
+    _f("et_west", {
+        "type": "item_circle",
+        "center": _et2_center,
+        "radius": _et_r_ft,
+    }, "daybed")
+
+    # ROCKER (daybed): between daybed SW and RO1 east point
+    _ro1_e_pt = _nwp({"add": [_iw2_d, _c("RO1_OFFSET_FROM_IW2"),
+                                _c("IW1_RO_WIDTH")]}, 0)
+    _ref_iw1 = {"element": "IW1", "corner": "NW"}
+    _db_sw_d_al = {"proj": {"target": {"element": "daybed", "corner": "SW"},
+                             "anchor": _ref_iw1, "dir": _IW1_N_AL}}
+    _ro1_d_al = {"proj": {"target": _ro1_e_pt,
+                            "anchor": _ref_iw1, "dir": _IW1_N_AL}}
+    _rk_d_al_db = {"sub": [{"mul": [0.5, {"add": [_db_sw_d_al, _ro1_d_al]}]},
+                            _in(8)]}
+    # Rocker N offset: based on fridge south face projected
+    _fr_s_pt = _nwp(0, {"add": [_in(3), _c("STD_FRIDGE_D")]})
+    _fr_door_s_pt = _off(_fr_s_pt, _c("STD_FRIDGE_W"), _W9W10_IN)
+    _fr_d_out = {"proj": {"target": _fr_door_s_pt,
+                            "anchor": _ref_iw1, "dir": _IW1_N_OUT}}
+    _rk_d_out_db = {"add": [{"mul": [0.5, _fr_d_out]}, _in(26)]}
+    _rk_center_db = _off(_off(_ref_iw1, _rk_d_al_db, _IW1_N_AL),
+                          _rk_d_out_db, _IW1_N_OUT)
+    _f("rocker", {
+        "type": "four_corner",
+        "sw": _off(_off(_rk_center_db, {"neg": _rk_hh}, _W12W13_AL),
+                    {"neg": _rk_hw}, _rk_cr),
+        "se": _off(_off(_rk_center_db, {"neg": _rk_hh}, _W12W13_AL),
+                    _rk_hw, _rk_cr),
+        "ne": _off(_off(_rk_center_db, _rk_hh, _W12W13_AL),
+                    _rk_hw, _rk_cr),
+        "nw": _off(_off(_rk_center_db, _rk_hh, _W12W13_AL),
+                    {"neg": _rk_hw}, _rk_cr),
+    }, "daybed")
+
+    return formulas

@@ -861,31 +861,43 @@ def _apply_formula_overrides(result, constants_dict, inner_poly, radii,
         return result
 
     # Override procedural results with formula-computed elements
+    variant_items = result.get("variant_items", {})
     for elem_name, computed in ev.elements.items():
-        if "poly" in computed:
-            poly = computed["poly"]
-            bbox = computed.get("bbox", {})
-            # Check if it's an interior wall
-            if elem_name.upper() in result.get("interior_walls", {}):
-                result["interior_walls"][elem_name.upper()] = {
-                    "poly": poly,
-                    "bbox": bbox,
-                }
-            # Check if it's furniture
-            elif elem_name.lower() in result.get("furniture", {}):
-                result["furniture"][elem_name.lower()] = {
-                    "poly": poly,
-                    "bbox": bbox,
-                }
-            # Check if it's an appliance
-            elif elem_name.lower() in result.get("appliances", {}):
-                old = result["appliances"][elem_name.lower()]
-                new_entry = {"poly": poly, "bbox": bbox}
-                # Preserve extra fields (e.g. counter clip) from procedural
-                for k, v in old.items():
-                    if k not in new_entry:
-                        new_entry[k] = v
-                result["appliances"][elem_name.lower()] = new_entry
+        if "poly" not in computed:
+            continue
+        poly = computed["poly"]
+        bbox = computed.get("bbox", {})
+        # Check if it's an interior wall
+        if elem_name.upper() in result.get("interior_walls", {}):
+            result["interior_walls"][elem_name.upper()] = {
+                "poly": poly,
+                "bbox": bbox,
+            }
+        # Check if it's furniture
+        elif elem_name.lower() in result.get("furniture", {}):
+            result["furniture"][elem_name.lower()] = {
+                "poly": poly,
+                "bbox": bbox,
+            }
+        # Check if it's an appliance
+        elif elem_name.lower() in result.get("appliances", {}):
+            old = result["appliances"][elem_name.lower()]
+            new_entry = {"poly": poly, "bbox": bbox}
+            # Preserve extra fields (e.g. counter clip) from procedural
+            for k, v in old.items():
+                if k not in new_entry:
+                    new_entry[k] = v
+            result["appliances"][elem_name.lower()] = new_entry
+        # Check if it's a variant item (Phase 12e)
+        elif elem_name in variant_items:
+            old = variant_items[elem_name]
+            poly_list = [[p[0], p[1]] for p in poly]
+            new_entry = {"poly": poly_list, "bbox": bbox}
+            # Preserve metadata (name, type, label, shape, door, clearance, etc.)
+            for k, v in old.items():
+                if k not in new_entry:
+                    new_entry[k] = v
+            variant_items[elem_name] = new_entry
 
     return result
 
