@@ -2382,6 +2382,91 @@ display with degree symbol and trailing zeroes removed (e.g.,
 
 ---
 
+## 18  Parametric Formulas (Phase 12)
+
+### 18.1  Formula Storage
+
+**FORM-1:** The database SHALL have an `element_formulas` table storing
+JSON formula specs per element/param/variant.
+
+**Acceptance:** `SELECT count(*) FROM element_formulas` returns >= 13
+(IW wall formulas seeded on init).
+
+**FORM-2:** The database SHALL have a `formula_deps` table storing
+dependency edges derived from formula JSON analysis.
+
+**Acceptance:** `SELECT count(*) FROM formula_deps WHERE element_name = 'IW4'`
+returns >= 2 (depends on IW11, IW12).
+
+### 18.2  Evaluator
+
+**FORM-3:** `FormulaEvaluator` SHALL evaluate formulas in topological
+(dependency) order, resolving point/dir/length specs.
+
+**Acceptance:** All 13 IW wall formulas produce polygons matching
+procedural output to 1e-9 ft precision.
+
+**FORM-4:** `FormulaEvaluator.topo_sort()` SHALL detect circular
+dependencies and raise `CycleError`.
+
+**Acceptance:** A formula referencing itself or creating a cycle
+raises `CycleError`.
+
+**FORM-5:** The evaluator SHALL support formula types: `wall_rect`,
+`item_rect`, `item_circle`, `four_corner`.
+
+**Acceptance:** Each type produces correct polygon/circle output
+from its spec.
+
+### 18.3  Formula API
+
+**FORM-6:** `GET /api/formulas` SHALL return all formulas.
+
+**Acceptance:** Response is a JSON array of formula records.
+
+**FORM-7:** `PUT /api/formulas/<element>/<param>` SHALL create or
+update a formula and rebuild its dependency edges.
+
+**Acceptance:** PUT returns 200 with the formula record; deps
+are stored in `formula_deps`.
+
+**FORM-8:** `DELETE /api/formulas/<element>/<param>` SHALL remove
+a formula.
+
+**Acceptance:** DELETE returns 200; formula no longer in DB.
+
+**FORM-9:** `POST /api/formulas/<element>/<param>/lock` SHALL
+lock/unlock a formula at its current computed value.
+
+**Acceptance:** After lock, `locked = 1` in DB; after unlock,
+`locked = 0`.
+
+**FORM-10:** `GET /api/formulas/<element>/deps` SHALL return
+dependency edges for that element's formulas.
+
+**Acceptance:** Response includes dep_type and dep_name entries.
+
+**FORM-11:** `GET /api/formulas/<element>/dependents` SHALL return
+elements that depend on the given element.
+
+**Acceptance:** Response includes downstream element names.
+
+### 18.4  Hybrid Engine
+
+**FORM-12:** `compute_geometry()` SHALL evaluate DB-stored formulas
+and override procedural results for elements that have formulas.
+
+**Acceptance:** With IW formulas seeded, interior wall positions
+match procedural output; d² regression tests pass.
+
+**FORM-13:** Elements without formulas SHALL fall through to
+procedural computation unchanged.
+
+**Acceptance:** Non-IW elements (furniture, openings) render
+identically with or without the formula override path.
+
+---
+
 ## Appendix A: Requirement Cross-Reference by User Operation
 
 This table maps common user operations (identified from the full commit
@@ -2409,7 +2494,7 @@ history) to the requirements that enable each operation through the GUI.
 
 ## Appendix B: Requirements Summary
 
-"Implemented" = working with test coverage (Phases 0–9).
+"Implemented" = working with test coverage (Phases 0–12c).
 "Planned" = future phases, marked **(NEW)** on the requirement
 line or inherited from a **(NEW)** section/subsection heading.
 
@@ -2432,7 +2517,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **239** | **0** | **239** |
+| 18 Formulas | 13 | 0 | 13 |
+| **Total** | **252** | **0** | **252** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

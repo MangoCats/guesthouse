@@ -687,7 +687,10 @@ The sources of truth evolve as phases are completed:
 | 5 | `outline_chain` becomes editable.  DB chain is authoritative — the engine uses DB-stored chain parameters, not `floorplan/geometry.py`'s hardcoded chain. |
 | 8 | Room labels stored as `elements` (type `'label'`).  `room_label_offsets` table subsumed — offsets and rotation stored per-element.  Auto-computed centroids remain the default position; DB stores offset + rotation from centroid. |
 | 10 | `plumbing_elements` table added.  Pipes, fittings, and fixture connections stored as DB entities with full CRUD API.  Reference plumbing (6 pipes, 11 fixture positions) seeded on startup from geometry computation.  Re-seeded on database reset. |
-| 12 | **Cutover.**  All positioning becomes formula-driven.  Constants become DB-stored values (no longer Python module attributes).  Element positions defined by parametric formulas referencing other elements and/or constants.  Existing scripts retained only as seed sources for "Reset to Defaults." |
+| 12a | `element_formulas` and `formula_deps` tables added.  `FormulaEvaluator` class with topo sort, cycle detection, `wall_rect`/`item_rect`/`item_circle` evaluators.  24 variant item constants seeded into `constants` table. |
+| 12b | 7 formula REST API endpoints.  Properties panel formula section (type, deps, lock/unlock). |
+| 12c | Evaluator extensions: `four_corner` type, `proj`/`dist`/`neg`/`add`/`sub`/`mul` length specs, `neg`/`perp` dir specs.  All 13 IW wall formulas written, verified to 1e-9 ft vs procedural, seeded into DB.  Hybrid engine active (formula results override procedural). |
+| 12d+ | **Cutover (planned).**  All positioning becomes formula-driven.  Constants become DB-stored values (no longer Python module attributes).  Element positions defined by parametric formulas referencing other elements and/or constants.  Existing scripts retained only as seed sources for "Reset to Defaults." |
 
 ### Target Architecture (Phase 12+)
 
