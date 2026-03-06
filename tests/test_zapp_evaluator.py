@@ -185,6 +185,24 @@ class TestResolveDir:
         ev = _make_evaluator()
         assert ev.resolve_dir([0.707, 0.707]) == pytest.approx([0.707, 0.707])
 
+    def test_neg_dir(self):
+        ev = _make_evaluator()
+        assert ev.resolve_dir({"neg": "east"}) == [-1.0, 0.0]
+        assert ev.resolve_dir({"neg": "north"}) == [0.0, -1.0]
+
+    def test_perp_dir(self):
+        ev = _make_evaluator()
+        # perp of east [1,0] → [0, -1] (CW rotation)
+        assert ev.resolve_dir({"perp": "east"}) == pytest.approx([0, -1])
+        # perp of north [0,1] → [1, 0]
+        assert ev.resolve_dir({"perp": "north"}) == pytest.approx([1, 0])
+
+    def test_neg_segment(self):
+        ev = _make_evaluator()
+        # neg of W1→W2 (east) = west
+        result = ev.resolve_dir({"neg": {"segment": ["W1", "W2"]}})
+        assert result == pytest.approx([-1, 0])
+
 
 # ---------------------------------------------------------------------------
 # Length resolution tests
@@ -209,6 +227,37 @@ class TestResolveLength:
     def test_none(self):
         ev = _make_evaluator()
         assert ev.resolve_length(None) is None
+
+    def test_neg(self):
+        ev = _make_evaluator()
+        assert ev.resolve_length({"neg": 3.0}) == -3.0
+        assert ev.resolve_length({"neg": {"const": "WALL_6IN"}}) == -0.5
+
+    def test_add(self):
+        ev = _make_evaluator()
+        assert ev.resolve_length({"add": [1.0, 2.0, 3.0]}) == 6.0
+        assert ev.resolve_length({"add": [{"const": "WALL_6IN"}, 1.0]}) == 1.5
+
+    def test_sub(self):
+        ev = _make_evaluator()
+        assert ev.resolve_length({"sub": [5.0, 2.0]}) == 3.0
+        assert ev.resolve_length({"sub": [{"const": "WALL_6IN"}, 0.25]}) == 0.25
+
+    def test_mul(self):
+        ev = _make_evaluator()
+        assert ev.resolve_length({"mul": [3.0, 4.0]}) == 12.0
+        assert ev.resolve_length({"mul": [{"const": "WALL_6IN"}, 2.0]}) == 1.0
+
+    def test_dist(self):
+        ev = _make_evaluator()
+        assert ev.resolve_length({"dist": ["W1", "W2"]}) == pytest.approx(10.0)
+        assert ev.resolve_length({"dist": [[0, 0], [3, 4]]}) == pytest.approx(5.0)
+
+    def test_nested_arithmetic(self):
+        ev = _make_evaluator()
+        # IW7_OFFSET + WALL_4IN pattern
+        result = ev.resolve_length({"add": [6.0, {"const": "WALL_4IN"}]})
+        assert result == pytest.approx(6.0 + 1/3)
 
 
 # ---------------------------------------------------------------------------
@@ -808,6 +857,111 @@ class TestEvaluatorDB:
 # Variant item constants in DB tests
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# IW formula verification tests (Phase 12c)
+# ---------------------------------------------------------------------------
+
+class TestIWFormulas:
+    """Verify formula-computed IW walls match procedural layout output."""
+
+    @pytest.fixture
+    def geom_and_evaluator(self, fresh_db):
+        """Compute procedural geometry and build a formula evaluator."""
+        from app.database import get_constants_dict
+        from app.engine import compute_geometry
+        from app.evaluator import FormulaEvaluator, get_iw_formulas
+
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, db_path=fresh_db)
+
+        base_points = geom.get("points", {})
+        inner = [(p[0], p[1]) for p in (geom.get("inner_poly") or [])]
+        radii = geom.get("radii", {})
+
+        ev = FormulaEvaluator(constants, base_points, inner, radii)
+        formulas = get_iw_formulas()
+        # Add formulas respecting dependency order
+        for name, formula in formulas.items():
+            ev.add_formula(name, "position", formula)
+        ev.topo_sort()
+        ev.evaluate_all()
+
+        return geom, ev
+
+    def _assert_poly_match(self, geom, ev, iw_name, atol=0.01):
+        """Assert formula polygon matches procedural polygon within tolerance."""
+        proc = geom["interior_walls"][iw_name]
+        proc_poly = proc["poly"]
+        form = ev.elements.get(iw_name)
+        assert form is not None, f"Formula did not produce result for {iw_name}"
+        form_poly = form["poly"]
+        assert len(form_poly) == len(proc_poly), \
+            f"{iw_name}: poly length mismatch {len(form_poly)} vs {len(proc_poly)}"
+        for i, (fp, pp) in enumerate(zip(form_poly, proc_poly)):
+            assert fp[0] == pytest.approx(pp[0], abs=atol), \
+                f"{iw_name} corner {i} E: formula={fp[0]:.4f} proc={pp[0]:.4f}"
+            assert fp[1] == pytest.approx(pp[1], abs=atol), \
+                f"{iw_name} corner {i} N: formula={fp[1]:.4f} proc={pp[1]:.4f}"
+
+    def test_iw1(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW1")
+
+    def test_iw2(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW2")
+
+    def test_iw2o(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW2O")
+
+    def test_iw2s(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW2S")
+
+    def test_iw3(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW3")
+
+    def test_iw4(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW4")
+
+    def test_iw5(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW5")
+
+    def test_iw6(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW6")
+
+    def test_iw7(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW7")
+
+    def test_iw8(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW8")
+
+    def test_iw9(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW9")
+
+    def test_iw11(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW11")
+
+    def test_iw12(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_poly_match(geom, ev, "IW12")
+
+    def test_all_13_walls_evaluated(self, geom_and_evaluator):
+        _, ev = geom_and_evaluator
+        expected = {"IW1", "IW2", "IW2O", "IW2S", "IW3", "IW4",
+                    "IW5", "IW6", "IW7", "IW8", "IW9", "IW11", "IW12"}
+        assert expected <= set(ev.elements.keys())
+
+
 class TestVariantItemConstants:
     """Test that the 24 variant item constants are seeded in the DB."""
 
@@ -870,3 +1024,50 @@ class TestVariantItemConstants:
         assert by_name["MICROWAVE_W"]["category"] == "appliance"
         assert by_name["STD_FRIDGE_W"]["category"] == "appliance"
         assert by_name["SOFA_FULL_W"]["category"] == "furniture"
+
+
+# ---------------------------------------------------------------------------
+# DB-seeded IW formula tests
+# ---------------------------------------------------------------------------
+
+class TestSeededIWFormulas:
+    """Verify IW formulas are seeded into element_formulas + formula_deps."""
+
+    def test_all_13_iw_formulas_seeded(self, fresh_db):
+        from app.database import get_all_formulas
+        formulas = get_all_formulas(db_path=fresh_db)
+        iw_names = {f["element_name"] for f in formulas}
+        expected = {"IW1", "IW2", "IW2S", "IW2O", "IW3", "IW4", "IW5",
+                    "IW6", "IW7", "IW8", "IW9", "IW11", "IW12"}
+        assert expected.issubset(iw_names)
+
+    def test_iw1_has_deps(self, fresh_db):
+        from app.database import get_formula_deps
+        deps = get_formula_deps("IW1", "position", db_path=fresh_db)
+        dep_set = {(d["dep_type"], d["dep_name"]) for d in deps}
+        # IW1 depends on W-series points and WALL_6IN constant
+        assert ("constant", "WALL_6IN") in dep_set
+        assert ("point", "W9") in dep_set or ("point", "W10") in dep_set
+
+    def test_iw4_depends_on_iw11_and_iw12(self, fresh_db):
+        from app.database import get_formula_deps
+        deps = get_formula_deps("IW4", "position", db_path=fresh_db)
+        dep_set = {(d["dep_type"], d["dep_name"]) for d in deps}
+        assert ("element", "IW11") in dep_set
+        assert ("element", "IW12") in dep_set
+
+    def test_iw12_depends_on_iw11_not_iw4(self, fresh_db):
+        from app.database import get_formula_deps
+        deps = get_formula_deps("IW12", "position", db_path=fresh_db)
+        dep_set = {(d["dep_type"], d["dep_name"]) for d in deps}
+        assert ("element", "IW11") in dep_set
+        # IW12 inlines IW4.SW computation, so no direct dep on IW4
+        assert ("element", "IW4") not in dep_set
+
+    def test_seeding_is_idempotent(self, fresh_db):
+        from app.database import get_all_formulas, get_db, seed_iw_formulas
+        before = len(get_all_formulas(db_path=fresh_db))
+        with get_db(fresh_db) as conn:
+            seed_iw_formulas(conn)
+        after = len(get_all_formulas(db_path=fresh_db))
+        assert before == after

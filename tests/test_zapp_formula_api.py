@@ -45,10 +45,14 @@ def _put_formula(client, elem_name, param_name="position", formula=None):
 # ---------------------------------------------------------------------------
 
 class TestGetAllFormulas:
-    def test_empty_initially(self, app_client):
+    def test_has_seeded_iw_formulas(self, app_client):
         resp = app_client.get("/api/formulas")
         assert resp.status_code == 200
-        assert resp.get_json() == []
+        data = resp.get_json()
+        # 13 IW wall formulas seeded by init_db
+        iw_names = {f["element_name"] for f in data}
+        assert "IW1" in iw_names
+        assert len(iw_names) >= 13
 
     def test_returns_formulas_after_upsert(self, app_client):
         _create_wall(app_client, "FW1")

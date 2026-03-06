@@ -188,6 +188,7 @@ def init_db(db_path=None):
             seed_builtin_dimensions(conn)
             from app.plumbing import seed_plumbing
             seed_plumbing(conn)
+            seed_iw_formulas(conn)
         else:
             # Ensure variant item constants exist (Phase 12a upgrade)
             _seed_variant_item_constants(conn)
@@ -207,6 +208,8 @@ def init_db(db_path=None):
             # Ensure plumbing fixture records exist (Phase 10d upgrade)
             from app.plumbing import seed_plumbing
             seed_plumbing(conn)
+            # Ensure IW wall formulas exist (Phase 12c upgrade)
+            seed_iw_formulas(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -1654,4 +1657,39 @@ def rebuild_formula_deps(element_name, param_name, deps, db_path=None):
                 "(element_name, param_name, dep_type, dep_name) "
                 "VALUES (?, ?, ?, ?)",
                 (element_name, param_name, dep_type, dep_name),
+            )
+
+
+def seed_iw_formulas(conn):
+    """Seed interior wall formulas into element_formulas + formula_deps.
+
+    Idempotent: skips walls that already have a position formula.
+    """
+    from app.evaluator import get_iw_formulas, extract_deps
+
+    formulas = get_iw_formulas()
+    for wall_name, formula in formulas.items():
+        # Skip if formula already exists
+        existing = conn.execute(
+            "SELECT id FROM element_formulas "
+            "WHERE element_name = ? AND param_name = 'position' AND variant IS NULL",
+            (wall_name,),
+        ).fetchone()
+        if existing:
+            continue
+        fj = json.dumps(formula)
+        conn.execute(
+            "INSERT INTO element_formulas "
+            "(element_name, param_name, formula_json, variant) "
+            "VALUES (?, 'position', ?, NULL)",
+            (wall_name, fj),
+        )
+        # Build deps
+        deps = extract_deps(formula)
+        for dep_type, dep_name in deps:
+            conn.execute(
+                "INSERT OR IGNORE INTO formula_deps "
+                "(element_name, param_name, dep_type, dep_name) "
+                "VALUES (?, 'position', ?, ?)",
+                (wall_name, dep_type, dep_name),
             )

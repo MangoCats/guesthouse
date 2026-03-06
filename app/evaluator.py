@@ -229,6 +229,8 @@ class FormulaEvaluator:
             return self._eval_item_rect(formula)
         if ftype == "item_circle":
             return self._eval_item_circle(formula)
+        if ftype == "four_corner":
+            return self._eval_four_corner(formula)
         return None
 
     # -------------------------------------------------------------------
@@ -346,6 +348,21 @@ class FormulaEvaluator:
             "poly": poly,
             "bbox": _bbox_from_poly(poly),
         }
+
+    def _eval_four_corner(self, formula):
+        """Evaluate a four_corner formula → {"poly": [...], "bbox": {...}}.
+
+        Each corner is an independent point spec:
+          {"type": "four_corner", "sw": spec, "se": spec, "ne": spec, "nw": spec}
+        """
+        sw = self.resolve_point(formula.get("sw"))
+        se = self.resolve_point(formula.get("se"))
+        ne = self.resolve_point(formula.get("ne"))
+        nw = self.resolve_point(formula.get("nw"))
+        if any(v is None for v in (sw, se, ne, nw)):
+            return None
+        poly = [sw, se, ne, nw]
+        return {"poly": poly, "bbox": _bbox_from_poly(poly)}
 
     # -------------------------------------------------------------------
     # Resolution functions
@@ -557,14 +574,33 @@ class FormulaEvaluator:
                 return [dy / length, -dx / length]
             return None
 
+        # Negate direction
+        if "neg" in spec:
+            d = self.resolve_dir(spec["neg"])
+            if d:
+                return [-d[0], -d[1]]
+            return None
+
+        # Perpendicular of direction (rotate 90° CW: [dy, -dx])
+        if "perp" in spec:
+            d = self.resolve_dir(spec["perp"])
+            if d:
+                return [d[1], -d[0]]
+            return None
+
         return None
 
     def resolve_length(self, spec):
         """Resolve a length expression to a float value.
 
         Length specs:
-          float/int          → literal value
-          {"const": name}    → constant lookup
+          float/int             → literal value
+          {"const": name}       → constant lookup
+          {"neg": spec}         → negation
+          {"add": [a, b, ...]}  → sum
+          {"sub": [a, b]}       → a - b
+          {"mul": [a, b]}       → product
+          {"dist": [pt1, pt2]}  → distance between two points
         """
         if spec is None:
             return None
@@ -574,6 +610,51 @@ class FormulaEvaluator:
             if "const" in spec:
                 val = self.constants.get(spec["const"])
                 return float(val) if val is not None else None
+            if "neg" in spec:
+                val = self.resolve_length(spec["neg"])
+                return -val if val is not None else None
+            if "add" in spec:
+                vals = [self.resolve_length(s) for s in spec["add"]]
+                if any(v is None for v in vals):
+                    return None
+                return sum(vals)
+            if "sub" in spec:
+                pair = spec["sub"]
+                if len(pair) != 2:
+                    return None
+                a = self.resolve_length(pair[0])
+                b = self.resolve_length(pair[1])
+                if a is None or b is None:
+                    return None
+                return a - b
+            if "mul" in spec:
+                vals = [self.resolve_length(s) for s in spec["mul"]]
+                if any(v is None for v in vals):
+                    return None
+                result = 1.0
+                for v in vals:
+                    result *= v
+                return result
+            if "proj" in spec:
+                # Signed projection of (target - anchor) onto direction
+                proj = spec["proj"]
+                target = self.resolve_point(proj.get("target"))
+                anchor = self.resolve_point(proj.get("anchor"))
+                direction = self.resolve_dir(proj.get("dir"))
+                if target and anchor and direction:
+                    dx = target[0] - anchor[0]
+                    dy = target[1] - anchor[1]
+                    return dx * direction[0] + dy * direction[1]
+                return None
+            if "dist" in spec:
+                pair = spec["dist"]
+                if len(pair) != 2:
+                    return None
+                a = self.resolve_point(pair[0])
+                b = self.resolve_point(pair[1])
+                if a is None or b is None:
+                    return None
+                return math.sqrt((b[0] - a[0])**2 + (b[1] - a[1])**2)
         return None
 
     # -------------------------------------------------------------------
@@ -680,9 +761,23 @@ def _extract_deps_recursive(spec, deps):
     for key in ("anchor", "along", "across", "thickness_dir", "dir", "dist",
                 "offset", "center", "reference", "line1_point", "line1_dir",
                 "line2_point", "line2_dir", "thickness", "length", "width",
-                "depth", "radius", "origin"):
+                "depth", "radius", "origin", "neg", "perp",
+                "sw", "se", "ne", "nw"):
         if key in spec:
             _extract_deps_recursive(spec[key], deps)
+
+    # Length arithmetic
+    for key in ("add", "sub", "mul"):
+        if key in spec:
+            _extract_deps_recursive(spec[key], deps)
+
+    # Projection
+    if "proj" in spec:
+        _extract_deps_recursive(spec["proj"], deps)
+
+    # Distance between points
+    if "dist" in spec and isinstance(spec["dist"], (list, tuple)):
+        _extract_deps_recursive(spec["dist"], deps)
 
     # Midpoint pair
     if "midpoint" in spec:
@@ -701,3 +796,594 @@ def _extract_deps_recursive(spec, deps):
     # Line-polygon intersection
     if "line_poly_isect" in spec:
         _extract_deps_recursive(spec["line_poly_isect"], deps)
+
+
+# ---------------------------------------------------------------------------
+# IW formula definitions (Phase 12c)
+# ---------------------------------------------------------------------------
+# Direction shorthands for formula specs
+_W18W1_AL = {"segment": ["W18", "W1"]}      # along W18→W1 (≈ west)
+_W18W1_IN = {"segment_perp": ["W18", "W1"]} # inward (≈ north)
+_W2W5_AL = {"segment": ["W2", "W5"]}        # along W2→W5 (≈ north)
+_W2W5_IN = {"segment_perp": ["W2", "W5"]}   # inward (≈ east)
+_W9W10_AL = {"segment": ["W9", "W10"]}      # along W9→W10 (≈ east)
+_W9W10_IN = {"segment_perp": ["W9", "W10"]} # inward (≈ south)
+_W6W7_AL = {"segment": ["W6", "W7"]}        # along W6→W7 (≈ east)
+_W6W7_IN = {"segment_perp": ["W6", "W7"]}   # inward (≈ south)
+
+# Helper: line intersection point spec
+def _li(p1, d1, p2, d2):
+    return {"type": "line_intersection",
+            "line1_point": p1, "line1_dir": d1,
+            "line2_point": p2, "line2_dir": d2}
+
+# Helper: offset point spec
+def _off(base, dist, direction):
+    return {"offset": base, "dist": dist, "dir": direction}
+
+# Helper: line-polygon intersection
+def _lpi(origin, direction, select="farthest"):
+    return {"line_poly_isect": {"origin": origin, "dir": direction,
+                                "poly": "inner_poly", "select": select}}
+
+# _w2w5_ref = line_isect(W2, w2w5_al, W1, w18w1_al)
+_W2W5_REF = _li("W2", _W2W5_AL, "W1", _W18W1_AL)
+
+# _iw2_w_anchor = offset(W2, IW2_DIST_W2W5, w2w5_in)
+_IW2_W_ANCHOR = _off("W2", {"const": "IW2_DIST_W2W5"}, _W2W5_IN)
+
+# Virtual W2 ref: offset(W7, IW_W2_REF_DIST, -w6w7_al)
+_IW_W2_REF = _off("W7", {"const": "IW_W2_REF_DIST"}, {"neg": _W6W7_AL})
+
+# _iw_al = perp(w6w7_al) rotated: (-w6w7_al[1], w6w7_al[0])
+# seg_vecs gives along=(dx/L, dy/L), inward=(dy/L, -dx/L)
+# _iw_al = (-inward[1], inward[0]) = (-(-dx/L), dy/L) = (dx/L, dy/L)??
+# Actually: _iw_al = (-_w6w7_al[1], _w6w7_al[0]) = left perp of w6w7_al
+# That's the same as neg(w6w7_in) since w6w7_in = (dy/L, -dx/L)
+# _iw_al = (-dy/L, dx/L) = neg of inward? No...
+# w6w7_al = (dx/L, dy/L), so (-al[1], al[0]) = (-dy/L, dx/L)
+# w6w7_in = (dy/L, -dx/L)
+# So _iw_al = (-dy/L, dx/L) which is neg(w6w7_in).
+# Actually neg(w6w7_in) = (-dy/L, dx/L). Yes!
+_IW_AL = {"neg": _W6W7_IN}   # ≈ north (left perp of W6→W7)
+
+# _iw_in = w6w7_al
+_IW_IN = _W6W7_AL  # ≈ east
+
+# _iw2s_w_anchor = offset(_iw_w2_ref, IW2S_W2REF_OFFSET, _iw_in)
+_IW2S_W_ANCHOR = _off(_IW_W2_REF, {"const": "IW2S_W2REF_OFFSET"}, _IW_IN)
+
+
+def get_iw_formulas():
+    """Return dict of {element_name: formula_json} for all 13 IW walls."""
+    return {
+        # --- IW1: west end at IW2 west face, extends east to inner poly ---
+        # NW = line_isect(offset(W9, IW1_OFFSET, w9w10_in), w9w10_al,
+        #                 offset(W2, IW2_DIST, w2w5_in), w2w5_al)
+        # SW = offset(NW, WALL_6IN, w9w10_in)
+        # NE = line_poly_isect from NW along w9w10_al, farthest
+        # SE = line_poly_isect from SW along w9w10_al, farthest
+        "IW1": {
+            "type": "four_corner",
+            "nw": _li(
+                _off("W9", {"const": "IW1_OFFSET_FROM_W9"}, _W9W10_IN),
+                _W9W10_AL,
+                _IW2_W_ANCHOR,
+                _W2W5_AL,
+            ),
+            "sw": _off(
+                _li(
+                    _off("W9", {"const": "IW1_OFFSET_FROM_W9"}, _W9W10_IN),
+                    _W9W10_AL,
+                    _IW2_W_ANCHOR,
+                    _W2W5_AL,
+                ),
+                {"const": "WALL_6IN"},
+                _W9W10_IN,
+            ),
+            "ne": _lpi(
+                _li(
+                    _off("W9", {"const": "IW1_OFFSET_FROM_W9"}, _W9W10_IN),
+                    _W9W10_AL,
+                    _IW2_W_ANCHOR,
+                    _W2W5_AL,
+                ),
+                _W9W10_AL,
+            ),
+            "se": _lpi(
+                _off(
+                    _li(
+                        _off("W9", {"const": "IW1_OFFSET_FROM_W9"}, _W9W10_IN),
+                        _W9W10_AL,
+                        _IW2_W_ANCHOR,
+                        _W2W5_AL,
+                    ),
+                    {"const": "WALL_6IN"},
+                    _W9W10_IN,
+                ),
+                _W9W10_AL,
+            ),
+        },
+
+        # --- IW3: fixed-height wall near south wall ---
+        # SW = offset(_w2w5_ref, -IW3_DIST_W2W5, w18w1_al)
+        # SE = offset(SW, -WALL_4IN, w18w1_al)
+        # height = IW7_OFFSET_FROM_W18W1 + WALL_4IN
+        # NE = offset(SE, height, w18w1_in)
+        # NW = offset(SW, height, w18w1_in)
+        "IW3": {
+            "type": "four_corner",
+            "sw": _off(_W2W5_REF, {"neg": {"const": "IW3_DIST_W2W5"}}, _W18W1_AL),
+            "se": _off(
+                _off(_W2W5_REF, {"neg": {"const": "IW3_DIST_W2W5"}}, _W18W1_AL),
+                {"neg": {"const": "WALL_4IN"}},
+                _W18W1_AL,
+            ),
+            "ne": _off(
+                _off(
+                    _off(_W2W5_REF, {"neg": {"const": "IW3_DIST_W2W5"}}, _W18W1_AL),
+                    {"neg": {"const": "WALL_4IN"}},
+                    _W18W1_AL,
+                ),
+                {"add": [{"const": "IW7_OFFSET_FROM_W18W1"}, {"const": "WALL_4IN"}]},
+                _W18W1_IN,
+            ),
+            "nw": _off(
+                _off(_W2W5_REF, {"neg": {"const": "IW3_DIST_W2W5"}}, _W18W1_AL),
+                {"add": [{"const": "IW7_OFFSET_FROM_W18W1"}, {"const": "WALL_4IN"}]},
+                _W18W1_IN,
+            ),
+        },
+
+        # --- IW9: from IW3 east face, extends to IW1 south face ---
+        # SW = offset(IW3.SE, -IW3_OFFSET_IW9, w18w1_al)
+        # SE = offset(SW, -WALL_4IN, w18w1_al)
+        # NE = line_isect(SE, w18w1_in, IW1.SW, IW1_south_dir)
+        # NW = line_isect(SW, w18w1_in, IW1.SW, IW1_south_dir)
+        "IW9": {
+            "type": "four_corner",
+            "sw": _off(
+                {"element": "IW3", "corner": "SE"},
+                {"neg": {"const": "IW3_OFFSET_IW9"}},
+                _W18W1_AL,
+            ),
+            "se": _off(
+                _off(
+                    {"element": "IW3", "corner": "SE"},
+                    {"neg": {"const": "IW3_OFFSET_IW9"}},
+                    _W18W1_AL,
+                ),
+                {"neg": {"const": "WALL_4IN"}},
+                _W18W1_AL,
+            ),
+            "ne": _li(
+                _off(
+                    _off(
+                        {"element": "IW3", "corner": "SE"},
+                        {"neg": {"const": "IW3_OFFSET_IW9"}},
+                        _W18W1_AL,
+                    ),
+                    {"neg": {"const": "WALL_4IN"}},
+                    _W18W1_AL,
+                ),
+                _W18W1_IN,
+                {"element": "IW1", "corner": "SW"},
+                {"face_along": "IW1", "face": "south"},
+            ),
+            "nw": _li(
+                _off(
+                    {"element": "IW3", "corner": "SE"},
+                    {"neg": {"const": "IW3_OFFSET_IW9"}},
+                    _W18W1_AL,
+                ),
+                _W18W1_IN,
+                {"element": "IW1", "corner": "SW"},
+                {"face_along": "IW1", "face": "south"},
+            ),
+        },
+
+        # --- IW7: spans IW3.SE → IW9.SW, 6' north of W18-W1 ---
+        # SW = offset(IW3.SE, IW7_OFFSET, w18w1_in)
+        # SE = offset(IW9.SW, IW7_OFFSET, w18w1_in)
+        # NW = offset(SW, WALL_4IN, w18w1_in)
+        # NE = offset(SE, WALL_4IN, w18w1_in)
+        "IW7": {
+            "type": "four_corner",
+            "sw": _off({"element": "IW3", "corner": "SE"},
+                       {"const": "IW7_OFFSET_FROM_W18W1"}, _W18W1_IN),
+            "se": _off({"element": "IW9", "corner": "SW"},
+                       {"const": "IW7_OFFSET_FROM_W18W1"}, _W18W1_IN),
+            "ne": _off(
+                _off({"element": "IW9", "corner": "SW"},
+                     {"const": "IW7_OFFSET_FROM_W18W1"}, _W18W1_IN),
+                {"const": "WALL_4IN"}, _W18W1_IN,
+            ),
+            "nw": _off(
+                _off({"element": "IW3", "corner": "SE"},
+                     {"const": "IW7_OFFSET_FROM_W18W1"}, _W18W1_IN),
+                {"const": "WALL_4IN"}, _W18W1_IN,
+            ),
+        },
+
+        # --- IW11: positioned by IW9-IW11 gap ---
+        # _w2w5_ref_s = line_isect(W2, w2w5_al, W1, w18w1_al)  (same as _W2W5_REF)
+        # _iw9_se_pos = offset(_w2w5_ref_s,
+        #     -(IW3_DIST_W2W5 + 2*WALL_4IN + IW3_OFFSET_IW9), w18w1_al)
+        # iw11_sw = offset(_iw9_se_pos, -IW9_IW11_GAP, w18w1_al)
+        # iw11_se = offset(iw11_sw, -WALL_4IN, w18w1_al)
+        # iw11_ne = line_isect(iw11_se, w18w1_in, iw1_sw, w9w10_al)
+        # iw11_nw = line_isect(iw11_sw, w18w1_in, iw1_sw, w9w10_al)
+        "IW11": {
+            "type": "four_corner",
+            "sw": _off(
+                _off(_W2W5_REF,
+                     {"neg": {"add": [{"const": "IW3_DIST_W2W5"},
+                                      {"mul": [2, {"const": "WALL_4IN"}]},
+                                      {"const": "IW3_OFFSET_IW9"}]}},
+                     _W18W1_AL),
+                {"neg": {"const": "IW9_IW11_GAP"}},
+                _W18W1_AL,
+            ),
+            "se": _off(
+                _off(
+                    _off(_W2W5_REF,
+                         {"neg": {"add": [{"const": "IW3_DIST_W2W5"},
+                                          {"mul": [2, {"const": "WALL_4IN"}]},
+                                          {"const": "IW3_OFFSET_IW9"}]}},
+                         _W18W1_AL),
+                    {"neg": {"const": "IW9_IW11_GAP"}},
+                    _W18W1_AL,
+                ),
+                {"neg": {"const": "WALL_4IN"}},
+                _W18W1_AL,
+            ),
+            "ne": _li(
+                _off(
+                    _off(
+                        _off(_W2W5_REF,
+                             {"neg": {"add": [{"const": "IW3_DIST_W2W5"},
+                                              {"mul": [2, {"const": "WALL_4IN"}]},
+                                              {"const": "IW3_OFFSET_IW9"}]}},
+                             _W18W1_AL),
+                        {"neg": {"const": "IW9_IW11_GAP"}},
+                        _W18W1_AL,
+                    ),
+                    {"neg": {"const": "WALL_4IN"}},
+                    _W18W1_AL,
+                ),
+                _W18W1_IN,
+                {"element": "IW1", "corner": "SW"},
+                _W9W10_AL,
+            ),
+            "nw": _li(
+                _off(
+                    _off(_W2W5_REF,
+                         {"neg": {"add": [{"const": "IW3_DIST_W2W5"},
+                                          {"mul": [2, {"const": "WALL_4IN"}]},
+                                          {"const": "IW3_OFFSET_IW9"}]}},
+                         _W18W1_AL),
+                    {"neg": {"const": "IW9_IW11_GAP"}},
+                    _W18W1_AL,
+                ),
+                _W18W1_IN,
+                {"element": "IW1", "corner": "SW"},
+                _W9W10_AL,
+            ),
+        },
+
+        # --- IW4: parallel to IW11, west face IW4_GAP_IW11 east of IW11.SE ---
+        # iw4_sw = offset(IW11.SE, -IW4_GAP_IW11, w18w1_al)
+        # iw4_se = offset(iw4_sw, -WALL_4IN, w18w1_al)
+        # iw4_nw = line_isect(iw4_sw, w18w1_in, IW12.NW, IW12_n_dir)
+        # iw4_ne = line_isect(iw4_se, w18w1_in, IW12.NW, IW12_n_dir)
+        "IW4": {
+            "type": "four_corner",
+            "sw": _off({"element": "IW11", "corner": "SE"},
+                       {"neg": {"const": "IW4_GAP_IW11"}}, _W18W1_AL),
+            "se": _off(
+                _off({"element": "IW11", "corner": "SE"},
+                     {"neg": {"const": "IW4_GAP_IW11"}}, _W18W1_AL),
+                {"neg": {"const": "WALL_4IN"}}, _W18W1_AL,
+            ),
+            "ne": _li(
+                _off(
+                    _off({"element": "IW11", "corner": "SE"},
+                         {"neg": {"const": "IW4_GAP_IW11"}}, _W18W1_AL),
+                    {"neg": {"const": "WALL_4IN"}}, _W18W1_AL,
+                ),
+                _W18W1_IN,
+                {"element": "IW12", "corner": "NW"},
+                {"face_along": "IW12", "face": "north"},
+            ),
+            "nw": _li(
+                _off({"element": "IW11", "corner": "SE"},
+                     {"neg": {"const": "IW4_GAP_IW11"}}, _W18W1_AL),
+                _W18W1_IN,
+                {"element": "IW12", "corner": "NW"},
+                {"face_along": "IW12", "face": "north"},
+            ),
+        },
+
+        # --- IW12: S face IW12_S_OFFSET north of W18-W1 ---
+        # spans IW11.SE → IW4.SW (IW4.SW inlined to break cycle)
+        # IW4.SW = offset(IW11.SE, -IW4_GAP_IW11, w18w1_al)
+        "IW12": {
+            "type": "four_corner",
+            "sw": _li(
+                _off("W18", {"const": "IW12_S_OFFSET_W18W1"}, _W18W1_IN),
+                {"neg": _W18W1_AL},
+                {"element": "IW11", "corner": "SE"},
+                _W18W1_IN,
+            ),
+            "se": _li(
+                _off("W18", {"const": "IW12_S_OFFSET_W18W1"}, _W18W1_IN),
+                {"neg": _W18W1_AL},
+                _off({"element": "IW11", "corner": "SE"},
+                     {"neg": {"const": "IW4_GAP_IW11"}}, _W18W1_AL),
+                _W18W1_IN,
+            ),
+            "ne": _li(
+                _off(
+                    _off("W18", {"const": "IW12_S_OFFSET_W18W1"}, _W18W1_IN),
+                    {"const": "WALL_4IN"}, _W18W1_IN,
+                ),
+                {"neg": _W18W1_AL},
+                _off({"element": "IW11", "corner": "SE"},
+                     {"neg": {"const": "IW4_GAP_IW11"}}, _W18W1_AL),
+                _W18W1_IN,
+            ),
+            "nw": _li(
+                _off(
+                    _off("W18", {"const": "IW12_S_OFFSET_W18W1"}, _W18W1_IN),
+                    {"const": "WALL_4IN"}, _W18W1_IN,
+                ),
+                {"neg": _W18W1_AL},
+                {"element": "IW11", "corner": "SE"},
+                _W18W1_IN,
+            ),
+        },
+
+        # --- IW2: lower section, 6'6" from W2-W5 ---
+        # _iw2_e_anchor = offset(_iw2_w_anchor, WALL_6IN, w2w5_in)
+        # iw2_sw = line_isect(_iw2_w_anchor, w2w5_al, IW1.NW, w9w10_al)
+        # iw2_se = line_isect(_iw2_e_anchor, w2w5_al, IW1.NW, w9w10_al)
+        # iw2_nw = offset(iw2_sw, IW2_LENGTH, w2w5_al)
+        # iw2_ne = offset(iw2_se, IW2_LENGTH, w2w5_al)
+        "IW2": {
+            "type": "four_corner",
+            "sw": _li(_IW2_W_ANCHOR, _W2W5_AL,
+                      {"element": "IW1", "corner": "NW"}, _W9W10_AL),
+            "se": _li(
+                _off("W2", {"add": [{"const": "IW2_DIST_W2W5"}, {"const": "WALL_6IN"}]},
+                     _W2W5_IN),
+                _W2W5_AL,
+                {"element": "IW1", "corner": "NW"}, _W9W10_AL,
+            ),
+            "ne": _off(
+                _li(
+                    _off("W2", {"add": [{"const": "IW2_DIST_W2W5"}, {"const": "WALL_6IN"}]},
+                         _W2W5_IN),
+                    _W2W5_AL,
+                    {"element": "IW1", "corner": "NW"}, _W9W10_AL,
+                ),
+                {"const": "IW2_LENGTH"}, _W2W5_AL,
+            ),
+            "nw": _off(
+                _li(_IW2_W_ANCHOR, _W2W5_AL,
+                    {"element": "IW1", "corner": "NW"}, _W9W10_AL),
+                {"const": "IW2_LENGTH"}, _W2W5_AL,
+            ),
+        },
+
+        # --- IW2S: upper/shower section ---
+        # iw2s_nw = line_isect(_iw2s_w_anchor, _iw_al, W6, w6w7_al)
+        # iw2s_ne = line_isect(_iw2s_e_anchor, _iw_al, W6, w6w7_al)
+        # iw2s_sw = offset(iw2s_nw, -IW2S_LENGTH, _iw_al)
+        # iw2s_se = offset(iw2s_ne, -IW2S_LENGTH, _iw_al)
+        "IW2S": {
+            "type": "four_corner",
+            "nw": _li(_IW2S_W_ANCHOR, _IW_AL, "W6", _W6W7_AL),
+            "ne": _li(
+                _off(_IW_W2_REF,
+                     {"add": [{"const": "IW2S_W2REF_OFFSET"}, {"const": "WALL_6IN"}]},
+                     _IW_IN),
+                _IW_AL, "W6", _W6W7_AL,
+            ),
+            "sw": _off(
+                _li(_IW2S_W_ANCHOR, _IW_AL, "W6", _W6W7_AL),
+                {"neg": {"const": "IW2S_LENGTH"}}, _IW_AL,
+            ),
+            "se": _off(
+                _li(
+                    _off(_IW_W2_REF,
+                         {"add": [{"const": "IW2S_W2REF_OFFSET"}, {"const": "WALL_6IN"}]},
+                         _IW_IN),
+                    _IW_AL, "W6", _W6W7_AL,
+                ),
+                {"neg": {"const": "IW2S_LENGTH"}}, _IW_AL,
+            ),
+        },
+
+        # --- IW2O: oblique connector from IW2 north to IW2S south ---
+        # Midpoints of IW2 north face and IW2S south face
+        # _iw2_n_mid = midpoint(IW2.NW, IW2.NE)
+        # _iw2s_s_mid = midpoint(IW2S.SW, IW2S.SE)
+        # Direction: _iw2s_s_mid - _iw2_n_mid, normalized
+        # Perpendicular: left perp of that direction
+        # half_thickness = IW2O_THICKNESS / 2
+        # SW = mid_start - half_t * perp
+        # SE = mid_start + half_t * perp
+        # NW = mid_end - half_t * perp
+        # NE = mid_end + half_t * perp
+        # perp gives right perp [dy,-dx]; layout uses left perp [-dy,dx]
+        # So: layout's -half_t*left_perp = +half_t*right_perp (SW)
+        #     layout's +half_t*left_perp = -half_t*right_perp (SE)
+        "IW2O": {
+            "type": "four_corner",
+            "sw": _off(
+                {"midpoint": [{"element": "IW2", "corner": "NW"},
+                              {"element": "IW2", "corner": "NE"}]},
+                {"mul": [0.5, {"const": "IW2O_THICKNESS"}]},
+                {"perp": {"segment": [
+                    {"midpoint": [{"element": "IW2", "corner": "NW"},
+                                  {"element": "IW2", "corner": "NE"}]},
+                    {"midpoint": [{"element": "IW2S", "corner": "SW"},
+                                  {"element": "IW2S", "corner": "SE"}]},
+                ]}},
+            ),
+            "se": _off(
+                {"midpoint": [{"element": "IW2", "corner": "NW"},
+                              {"element": "IW2", "corner": "NE"}]},
+                {"neg": {"mul": [0.5, {"const": "IW2O_THICKNESS"}]}},
+                {"perp": {"segment": [
+                    {"midpoint": [{"element": "IW2", "corner": "NW"},
+                                  {"element": "IW2", "corner": "NE"}]},
+                    {"midpoint": [{"element": "IW2S", "corner": "SW"},
+                                  {"element": "IW2S", "corner": "SE"}]},
+                ]}},
+            ),
+            "nw": _off(
+                {"midpoint": [{"element": "IW2S", "corner": "SW"},
+                              {"element": "IW2S", "corner": "SE"}]},
+                {"mul": [0.5, {"const": "IW2O_THICKNESS"}]},
+                {"perp": {"segment": [
+                    {"midpoint": [{"element": "IW2", "corner": "NW"},
+                                  {"element": "IW2", "corner": "NE"}]},
+                    {"midpoint": [{"element": "IW2S", "corner": "SW"},
+                                  {"element": "IW2S", "corner": "SE"}]},
+                ]}},
+            ),
+            "ne": _off(
+                {"midpoint": [{"element": "IW2S", "corner": "SW"},
+                              {"element": "IW2S", "corner": "SE"}]},
+                {"neg": {"mul": [0.5, {"const": "IW2O_THICKNESS"}]}},
+                {"perp": {"segment": [
+                    {"midpoint": [{"element": "IW2", "corner": "NW"},
+                                  {"element": "IW2", "corner": "NE"}]},
+                    {"midpoint": [{"element": "IW2S", "corner": "SW"},
+                                  {"element": "IW2S", "corner": "SE"}]},
+                ]}},
+            ),
+        },
+
+        # --- IW8: perpendicular to W2-W5, centered between W18-W1 and W6-W7 ---
+        # _d = proj(W6, W1, w18w1_in)  → distance W1 to W6 along w18w1_in
+        # _mid = d / 2
+        # _iw8_s_anchor = offset(W18, _mid - WALL_6IN/2, w18w1_in)
+        # _iw8_n_anchor = offset(_iw8_s_anchor, WALL_6IN, w2w5_al)
+        # iw8_sw = line_isect(_s_anchor, w2w5_in, W2, w2w5_al)
+        # iw8_nw = line_isect(_n_anchor, w2w5_in, W2, w2w5_al)
+        # iw8_se = line_isect(_s_anchor, w2w5_in, _iw2_w_anchor, w2w5_al)
+        # iw8_ne = line_isect(_n_anchor, w2w5_in, _iw2_w_anchor, w2w5_al)
+        "IW8": {
+            "type": "four_corner",
+            "sw": _li(
+                _off("W18",
+                     {"sub": [{"mul": [0.5, {"proj": {"target": "W6", "anchor": "W1", "dir": _W18W1_IN}}]},
+                              {"mul": [0.5, {"const": "WALL_6IN"}]}]},
+                     _W18W1_IN),
+                _W2W5_IN, "W2", _W2W5_AL,
+            ),
+            "nw": _li(
+                _off("W18",
+                     {"add": [{"sub": [{"mul": [0.5, {"proj": {"target": "W6", "anchor": "W1", "dir": _W18W1_IN}}]},
+                                       {"mul": [0.5, {"const": "WALL_6IN"}]}]},
+                              {"const": "WALL_6IN"}]},
+                     _W18W1_IN),
+                _W2W5_IN, "W2", _W2W5_AL,
+            ),
+            "se": _li(
+                _off("W18",
+                     {"sub": [{"mul": [0.5, {"proj": {"target": "W6", "anchor": "W1", "dir": _W18W1_IN}}]},
+                              {"mul": [0.5, {"const": "WALL_6IN"}]}]},
+                     _W18W1_IN),
+                _W2W5_IN, _IW2_W_ANCHOR, _W2W5_AL,
+            ),
+            "ne": _li(
+                _off("W18",
+                     {"add": [{"sub": [{"mul": [0.5, {"proj": {"target": "W6", "anchor": "W1", "dir": _W18W1_IN}}]},
+                                       {"mul": [0.5, {"const": "WALL_6IN"}]}]},
+                              {"const": "WALL_6IN"}]},
+                     _W18W1_IN),
+                _W2W5_IN, _IW2_W_ANCHOR, _W2W5_AL,
+            ),
+        },
+
+        # --- IW5: S face 30" south of IW1 S face ---
+        # _iw5_s_anchor = offset(IW1.SW, IW5_S_OFFSET, w9w10_in)
+        # _iw5_n_anchor = offset(_s_anchor, -WALL_3IN, w9w10_in)
+        # iw5_ne = offset(_n_anchor, proj(W15, _n_anchor, w9w10_al), w9w10_al)
+        # iw5_se = offset(_s_anchor, proj(W15, _s_anchor, w9w10_al), w9w10_al)
+        # iw5_nw = line_isect(_n_anchor, w9w10_al, IW11.SE, w18w1_in)
+        # iw5_sw = line_isect(_s_anchor, w9w10_al, IW11.SE, w18w1_in)
+        "IW5": {
+            "type": "four_corner",
+            "sw": _li(
+                _off({"element": "IW1", "corner": "SW"},
+                     {"const": "IW5_S_OFFSET_FROM_IW1"}, _W9W10_IN),
+                _W9W10_AL,
+                {"element": "IW11", "corner": "SE"},
+                _W18W1_IN,
+            ),
+            "se": _lpi(
+                _off({"element": "IW1", "corner": "SW"},
+                     {"const": "IW5_S_OFFSET_FROM_IW1"}, _W9W10_IN),
+                _W9W10_AL,
+            ),
+            "ne": _lpi(
+                _off(
+                    _off({"element": "IW1", "corner": "SW"},
+                         {"const": "IW5_S_OFFSET_FROM_IW1"}, _W9W10_IN),
+                    {"neg": {"const": "WALL_3IN"}}, _W9W10_IN,
+                ),
+                _W9W10_AL,
+            ),
+            "nw": _li(
+                _off(
+                    _off({"element": "IW1", "corner": "SW"},
+                         {"const": "IW5_S_OFFSET_FROM_IW1"}, _W9W10_IN),
+                    {"neg": {"const": "WALL_3IN"}}, _W9W10_IN,
+                ),
+                _W9W10_AL,
+                {"element": "IW11", "corner": "SE"},
+                _W18W1_IN,
+            ),
+        },
+
+        # --- IW6: 1" partition, 5'6" from W6 ---
+        # _iw6_n_anchor = offset(W6, IW6_OFFSET, w6w7_in)
+        # _iw6_s_anchor = offset(_n_anchor, IW6_THICKNESS, w6w7_in)
+        # iw6_ne = line_isect(_n_anchor, w6w7_al, _iw2s_w_anchor, _iw_al)
+        # iw6_se = line_isect(_s_anchor, w6w7_al, _iw2s_w_anchor, _iw_al)
+        # iw6_nw = line_poly_isect(_n_anchor, -w6w7_al, inner_poly)
+        # iw6_sw = line_poly_isect(_s_anchor, -w6w7_al, inner_poly)
+        "IW6": {
+            "type": "four_corner",
+            "ne": _li(
+                _off("W6", {"const": "IW6_OFFSET_FROM_W6"}, _W6W7_IN),
+                _W6W7_AL,
+                _IW2S_W_ANCHOR,
+                _IW_AL,
+            ),
+            "se": _li(
+                _off(
+                    _off("W6", {"const": "IW6_OFFSET_FROM_W6"}, _W6W7_IN),
+                    {"const": "IW6_THICKNESS"}, _W6W7_IN,
+                ),
+                _W6W7_AL,
+                _IW2S_W_ANCHOR,
+                _IW_AL,
+            ),
+            "nw": _lpi(
+                _off("W6", {"const": "IW6_OFFSET_FROM_W6"}, _W6W7_IN),
+                {"neg": _W6W7_AL},
+            ),
+            "sw": _lpi(
+                _off(
+                    _off("W6", {"const": "IW6_OFFSET_FROM_W6"}, _W6W7_IN),
+                    {"const": "IW6_THICKNESS"}, _W6W7_IN,
+                ),
+                {"neg": _W6W7_AL},
+            ),
+        },
+    }
