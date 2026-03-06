@@ -2413,10 +2413,25 @@ dependencies and raise `CycleError`.
 raises `CycleError`.
 
 **FORM-5:** The evaluator SHALL support formula types: `wall_rect`,
-`item_rect`, `item_circle`, `four_corner`.
+`item_rect`, `item_circle`, `four_corner`, `wall_opening`.
 
 **Acceptance:** Each type produces correct polygon/circle output
 from its spec.
+
+**FORM-14:** The `wall_opening` formula type SHALL support 4 positioning
+modes (`gap`, `ref_point`, `centered`, `center_refs`) and 4 polygon
+vertex orderings (`outer_first`, `inner_first`, `outer_reversed`,
+`face_pair`).
+
+**Acceptance:** Each opening formula produces polygon matching
+procedural output to 1e-9 ft.
+
+**FORM-15:** The database SHALL seed 37 element formulas: 13 IW walls,
+5 layout items (DRYER, WASHER, COUNTER, DRESSER, SHELVES), 12 outer
+openings (O1-O11, O8a), and 7 rough openings (RO1-RO7).
+
+**Acceptance:** `GET /api/formulas` returns at least 37 formulas
+with correct element names.
 
 ### 18.3  Formula API
 
@@ -2494,7 +2509,7 @@ history) to the requirements that enable each operation through the GUI.
 
 ## Appendix B: Requirements Summary
 
-"Implemented" = working with test coverage (Phases 0–12c).
+"Implemented" = working with test coverage (Phases 0–12d).
 "Planned" = future phases, marked **(NEW)** on the requirement
 line or inherited from a **(NEW)** section/subsection heading.
 
@@ -2517,8 +2532,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| 18 Formulas | 13 | 0 | 13 |
-| **Total** | **252** | **0** | **252** |
+| 18 Formulas | 15 | 0 | 15 |
+| **Total** | **254** | **0** | **254** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

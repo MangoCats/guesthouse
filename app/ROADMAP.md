@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 12c complete — Phase 12d next)
+## Current State (Phase 12d complete — Phase 12e next)
 
-**244 of 244 requirements implemented.**  793 app tests, 586 pre-existing tests
-(1379 total).  All implemented requirements have automated test coverage.
+**244 of 244 requirements implemented.**  817 app tests, 586 pre-existing tests
+(1403 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -760,7 +760,7 @@ CRUD, canvas rendering, and property editing infrastructure).
 | **12a** | Complete | FormulaEvaluator, schema (`element_formulas`, `formula_deps`), 24 variant constants in DB, topo sort, cycle detection, dependency extraction, wall_rect/item_rect/item_circle evaluators |
 | **12b** | Complete | 7 formula REST API endpoints (GET/PUT/DELETE formulas, lock/unlock, deps, dependents), properties panel formula section |
 | **12c** | Complete | Evaluator extensions (`four_corner`, `proj`/`dist`/`neg`/`add`/`sub`/`mul` length specs, `neg`/`perp` dir specs), all 13 IW wall formulas written and verified to 1e-9 ft vs procedural, seeded into DB, hybrid engine active |
-| **12d** | Planned | Openings + layout items migration to formulas |
+| **12d** | Complete | `wall_opening` formula type (4 positioning modes, 4 poly_order options), 5 layout item formulas (DRYER, WASHER, COUNTER, DRESSER, SHELVES), 12 outer opening formulas (O1-O11, O8a), 7 rough opening formulas (RO1-RO7), all 37 formulas seeded in DB |
 | **12e** | Planned | Variant items migration (~30 items) |
 | **12f** | Planned | Lock/unlock UI, dependency highlighting UI |
 | **12g** | Planned | Cutover: remove procedural fallbacks, lift NF-4 |
