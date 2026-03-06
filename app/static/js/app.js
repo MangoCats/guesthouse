@@ -2075,7 +2075,7 @@ function showProperties(type, name, data) {
       const delTr = document.createElement("tr");
       const delTd = document.createElement("td"); delTd.colSpan = 2;
       const delBtn = document.createElement("button");
-      delBtn.textContent = "Delete"; delBtn.className = "btn-danger";
+      delBtn.textContent = "Delete"; delBtn.className = "prop-delete-btn";
       delBtn.addEventListener("click", async () => {
         await apiFetch(`/api/plumbing/${pe.id}`, { method: "DELETE" });
         clearSelection();
@@ -2119,7 +2119,7 @@ function showProperties(type, name, data) {
       const delTr = document.createElement("tr");
       const delTd = document.createElement("td"); delTd.colSpan = 2;
       const delBtn = document.createElement("button");
-      delBtn.textContent = "Delete"; delBtn.className = "btn-danger";
+      delBtn.textContent = "Delete"; delBtn.className = "prop-delete-btn";
       delBtn.addEventListener("click", async () => {
         await apiFetch(`/api/plumbing/${pe.id}`, { method: "DELETE" });
         clearSelection();
