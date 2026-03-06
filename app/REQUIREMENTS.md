@@ -2413,7 +2413,9 @@ dependencies and raise `CycleError`.
 raises `CycleError`.
 
 **FORM-5:** The evaluator SHALL support formula types: `wall_rect`,
-`item_rect`, `item_circle`, `four_corner`, `wall_opening`.
+`item_rect`, `item_circle`, `four_corner`, `wall_opening`,
+`toilet_shape`, `bath_sink_shape`, `dining_triangle`, `dining_chair`,
+`ellipse_rect`.
 
 **Acceptance:** Each type produces correct polygon/circle output
 from its spec.
@@ -2432,6 +2434,31 @@ openings (O1-O11, O8a), and 7 rough openings (RO1-RO7).
 
 **Acceptance:** `GET /api/formulas` returns at least 37 formulas
 with correct element names.
+
+**FORM-16:** The evaluator SHALL support `element_centroid` and
+`ray_circle_isect` point specs, `rotated` direction spec, and
+`radius_key` length spec.
+
+**Acceptance:** Each spec resolves correctly in unit tests.
+
+**FORM-17:** The database SHALL seed ~50 variant item formulas
+covering ~30 items across standard, minik, and daybed variants.
+
+**Acceptance:** Variant item formula count >= 50.  Each formula
+evaluates to a polygon matching procedural output within 0.02 ft.
+
+**FORM-18:** The hybrid engine SHALL override variant item positions
+with formula-evaluated polygons while preserving metadata (door,
+clearance, product_url, label, shape).
+
+**Acceptance:** Variant items rendered from formulas are visually
+identical to procedural output; metadata fields retained.
+
+**FORM-19:** Variant-specific formulas SHALL use the `variant`
+column to restrict evaluation to matching variants only.
+
+**Acceptance:** Formulas with `variant='standard'` evaluate only
+for the standard variant; items absent from a variant are skipped.
 
 ### 18.3  Formula API
 

@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 12d complete — Phase 12e next)
+## Current State (Phase 12e complete — Phase 12f next)
 
-**244 of 244 requirements implemented.**  817 app tests, 586 pre-existing tests
-(1403 total).  All implemented requirements have automated test coverage.
+**248 of 248 requirements implemented.**  933 app tests, 586 pre-existing tests
+(1519 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -111,12 +111,17 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Wall endpoint drag handles for drawn walls (TL-17) | Done |
 | Add Opening placement tool for walls (TL-21) | Done |
 | Constant dependency highlighting: white first-order, pink second-order (SEL-15) | Done |
+| Formula evaluator: topo sort, cycle detection, wall_rect/item_rect/item_circle | Done |
+| Formula API: 7 REST endpoints, properties panel formula section | Done |
+| IW wall formulas: 13 walls, verified to 1e-9 ft vs procedural | Done |
+| Layout + opening formulas: 37 formulas (5 layout, 12 outer, 7 rough openings) | Done |
+| Variant item formulas: ~50 formulas across 3 variants, 5 new formula types | Done |
 
 **What's missing:** Electrical layout (aspirational),
-parametric dependencies and cutover to fully database-driven design
-(Charter Principle 5).  The current implementation uses constants as
-the single editable root; the target architecture makes every element
-a database entity with parametric position formulas.
+lock/unlock UI, dependency highlighting UI, and cutover to fully
+database-driven design (Charter Principle 5).  The current
+implementation runs both procedural and formula paths; cutover will
+remove the procedural fallbacks.
 
 ---
 
@@ -761,7 +766,7 @@ CRUD, canvas rendering, and property editing infrastructure).
 | **12b** | Complete | 7 formula REST API endpoints (GET/PUT/DELETE formulas, lock/unlock, deps, dependents), properties panel formula section |
 | **12c** | Complete | Evaluator extensions (`four_corner`, `proj`/`dist`/`neg`/`add`/`sub`/`mul` length specs, `neg`/`perp` dir specs), all 13 IW wall formulas written and verified to 1e-9 ft vs procedural, seeded into DB, hybrid engine active |
 | **12d** | Complete | `wall_opening` formula type (4 positioning modes, 4 poly_order options), 5 layout item formulas (DRYER, WASHER, COUNTER, DRESSER, SHELVES), 12 outer opening formulas (O1-O11, O8a), 7 rough opening formulas (RO1-RO7), all 37 formulas seeded in DB |
-| **12e** | Planned | Variant items migration (~30 items) |
+| **12e** | Complete | 5 new formula types (`toilet_shape`, `bath_sink_shape`, `dining_triangle`, `dining_chair`, `ellipse_rect`), new specs (`element_centroid`, `ray_circle_isect`, `rotated`, `radius_key`), ~50 variant item formulas across 3 variants, hybrid engine overrides variant items preserving metadata |
 | **12f** | Planned | Lock/unlock UI, dependency highlighting UI |
 | **12g** | Planned | Cutover: remove procedural fallbacks, lift NF-4 |
 

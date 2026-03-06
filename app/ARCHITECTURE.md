@@ -691,7 +691,8 @@ The sources of truth evolve as phases are completed:
 | 12b | 7 formula REST API endpoints.  Properties panel formula section (type, deps, lock/unlock). |
 | 12c | Evaluator extensions: `four_corner` type, `proj`/`dist`/`neg`/`add`/`sub`/`mul` length specs, `neg`/`perp` dir specs.  All 13 IW wall formulas written, verified to 1e-9 ft vs procedural, seeded into DB.  Hybrid engine active (formula results override procedural). |
 | 12d | `wall_opening` formula type (4 positioning modes: gap/ref_point/centered/center_refs; 4 poly_order options).  5 layout item formulas, 12 outer opening formulas, 7 rough opening formulas — total 37 formulas seeded.  Formula overrides preserve extra fields (counter clip). |
-| 12e+ | **Cutover (planned).**  All positioning becomes formula-driven.  Constants become DB-stored values (no longer Python module attributes).  Element positions defined by parametric formulas referencing other elements and/or constants.  Existing scripts retained only as seed sources for "Reset to Defaults." |
+| 12e | 5 new formula types (`toilet_shape`, `bath_sink_shape`, `dining_triangle`, `dining_chair`, `ellipse_rect`).  New specs: `element_centroid`, `ray_circle_isect` point specs; `rotated` dir spec; `radius_key` length spec.  ~50 variant item formulas across 3 variants (standard, minik, daybed).  Hybrid engine overrides variant items preserving metadata (door, clearance, product_url). |
+| 12f+ | **Cutover (planned).**  Lock/unlock UI, dependency highlighting UI.  All positioning becomes formula-driven.  Constants become DB-stored values (no longer Python module attributes).  Element positions defined by parametric formulas referencing other elements and/or constants.  Existing scripts retained only as seed sources for "Reset to Defaults." |
 
 ### Target Architecture (Phase 12+)
 
