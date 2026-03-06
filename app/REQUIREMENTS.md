@@ -770,7 +770,7 @@ and displays the corresponding SVG file.
 hidden. Click "Floorplan" -- canvas is hidden, SVG container shows
 floorplan SVG or a "not generated" message.
 
-#### UI-5  Create View Variant **(NEW)**
+#### UI-5  Create View Variant
 View > New Variant SHALL create a named copy of the current floorplan
 layout as a separate variant (e.g., "daybed", "minik").
 
@@ -778,7 +778,7 @@ layout as a separate variant (e.g., "daybed", "minik").
 variant initially matches the source layout. Edits to the variant do not
 affect the original.
 
-#### UI-6  Per-View Layer Configuration **(NEW)**
+#### UI-6  Per-View Layer Configuration
 Each view variant SHALL have independently configurable layer visibility
 (walls, openings, furniture, labels, dimensions).
 
@@ -2411,7 +2411,7 @@ line or inherited from a **(NEW)** section/subsection heading.
 |---------|-------------|---------|-------|
 | 1 Data Layer | 40 | 0 | 40 |
 | 2 REST API | 34 | 0 | 34 |
-| 3 UI Layout | 6 | 2 | 8 |
+| 3 UI Layout | 8 | 0 | 8 |
 | 4 Canvas | 26 | 1 | 27 |
 | 5 Selection | 14 | 1 | 15 |
 | 6 Tools | 27 | 0 | 27 |
@@ -2426,7 +2426,7 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **216** | **23** | **239** |
+| **Total** | **218** | **21** | **239** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

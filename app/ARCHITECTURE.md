@@ -50,7 +50,7 @@ and `shared/` never import from `app/`.
 
 ### app/database.py — Persistence
 
-Nine SQLite tables:
+Ten SQLite tables:
 
 | Table | Rows | Purpose |
 |-------|------|---------|
@@ -58,6 +58,7 @@ Nine SQLite tables:
 | `outline_chain` | 18 | Closed outline segments (line/arc definitions) |
 | `views` | 11 | Registered SVG generators and output paths |
 | `shapes` | ~15 | Complex item shapes (polygon coordinate lists) |
+| `variants` | 5+ | Variant definitions (name, label, flags, layer_config, is_builtin) |
 | `variant_exclusions` | 4 | Per-variant element hiding (wall/opening exclusions) |
 | `room_label_offsets` | 0 | User-adjusted room label positions (offset from centroid) |
 | `undo_history` | 0–50 | Serialised undo/redo entries (action type, before/after state) |
@@ -118,6 +119,17 @@ tables from source:
 | `create_door_raw(record)` | Insert door from full dict (undo re-insert) |
 | `update_door(opening_name, fields)` | Update door fields |
 | `delete_door(opening_name)` | Delete door by opening name |
+| `get_variants()` | All variant rows (5 built-in + user-created) |
+| `get_variant(name)` | Single variant by name |
+| `get_variant_by_id(id)` | Single variant by ID |
+| `update_variant(id, updates)` | Update variant fields (layer_config, label) |
+| `create_variant(name, label, source, flags)` | Create user variant, return row |
+| `create_variant_raw(record)` | Insert variant from full dict (undo re-insert) |
+| `delete_variant(id)` | Delete variant by ID |
+| `clone_variant_exclusions(source, target)` | Copy exclusion rows for new variant |
+| `delete_variant_exclusions(variant)` | Remove all exclusion rows for a variant |
+| `clone_variant_elements(source, target)` | Add target to element visibility lists |
+| `unclone_variant_elements(target)` | Remove target from element visibility lists |
 
 Connection management uses a context manager with WAL journaling and
 foreign keys enabled.
@@ -287,15 +299,19 @@ Replicates positioning math from `gen_floorplan.py`'s `_render_appliances()`,
 `seg_vecs()` / `offset_pt()` / `line_isect()` utilities from
 `shared/geometry.py`.
 
-**Variant registry** — five variants with boolean flags:
+**Variant registry** — five built-in variants stored in the `variants` DB
+table (Phase 11).  User-created variants clone from a source variant and
+inherit its flags, exclusions, and element visibility.  `get_variant_flags()`
+reads flags from the DB, falling back to the hardcoded `VARIANTS` dict.
 
-| Variant | Label | Items |
-|---------|-------|-------|
-| standard | Standard | ~31 (full set) |
-| minik | Small Kitchen | ~22 (cooktop, toaster, sofa, no stove/dishwasher) |
-| daybed | Daybed | ~24 (daybed, shelves2, no loveseat/sofa) |
-| bare | Room Dimensions | 0 (walls only, IW6/RO5 excluded) |
-| sf | Square Footage | 0 (walls only, IW6/RO5 excluded; adds SF labels + highlight polygons) |
+| Variant | Label | Items | Built-in |
+|---------|-------|-------|----------|
+| standard | Standard | ~31 (full set) | Yes |
+| minik | Small Kitchen | ~22 (cooktop, toaster, sofa, no stove/dishwasher) | Yes |
+| daybed | Daybed | ~24 (daybed, shelves2, no loveseat/sofa) | Yes |
+| bare | Room Dimensions | 0 (walls only, IW6/RO5 excluded) | Yes |
+| sf | Square Footage | 0 (walls only, IW6/RO5 excluded; adds SF labels + highlight polygons) | Yes |
+| (user) | (custom) | Matches source variant | No |
 
 Each item is a dict with `type` (appliance/furniture/fixture), `poly`
 (coordinate list), `bbox`, `label`, `shape` (rect/circle), and for
@@ -324,7 +340,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (47 total):
+**API endpoints** (50 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -337,7 +353,10 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | POST | `/api/undo` | Undo last mutation |
 | POST | `/api/redo` | Redo last undone mutation |
 | GET | `/api/geometry` | Computed geometry (`?variant=`) |
-| GET | `/api/variants` | Variant names and labels |
+| GET | `/api/variants` | Variant list from DB (name, label, flags, layer_config) |
+| PUT | `/api/variants/<id>` | Update variant (layer_config, label) |
+| POST | `/api/variants` | Create user variant (clone from source) |
+| DELETE | `/api/variants/<id>` | Delete user variant (built-in protected) |
 | GET | `/api/shapes` | List all shapes |
 | POST | `/api/shapes` | Create shape |
 | PUT | `/api/shapes/<name>` | Update shape |

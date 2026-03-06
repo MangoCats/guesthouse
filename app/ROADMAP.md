@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 10d Plumbing — Complete, Phase 11 next)
+## Current State (Phase 11 View Variants — Complete, Phase 12 next)
 
-**238 of 244 requirements implemented.**  629 app tests, 586 pre-existing tests
-(1215 total).  All implemented requirements have automated test coverage.
+**241 of 244 requirements implemented.**  673 app tests, 586 pre-existing tests
+(1259 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -26,7 +26,7 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
-| REST API: 47 endpoints, SSE | Done |
+| REST API: 50 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
 | Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
@@ -101,6 +101,12 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Plumbing fitting placement: tee, elbow, valve with rotation | Done |
 | Plumbing fixtures table panel with cold/hot/drain indicators | Done |
 | Plumbing DB: plumbing_elements table, CRUD API, undo/redo | Done |
+| DB-driven variants: `variants` table, 5 built-in seeds, CRUD API | Done |
+| Per-variant layer config: toggle persistence per variant | Done |
+| User-defined variants: create (clone from source), delete, undo/redo | Done |
+| Variant element/exclusion cloning on create, cleanup on delete | Done |
+| Dynamic variant dropdown (populated from DB, + / × buttons) | Done |
+| Furniture property editing: editable Width/Depth for placed items | Done |
 
 **What's missing:** Endpoint drag handles (TL-17 partial), Add Opening tool (TL-21),
 electrical layout (aspirational),
@@ -633,42 +639,41 @@ base layout is complete.
 
 ---
 
-## Phase 11 — View Variants and Polish
+## Phase 11 — View Variants and Polish ✅ Complete
 
 **Goal:** User-defined layout variants with per-view layer configuration.
 
-**Requirements:** UI-5–6, SEL-8a (3 reqs)
+**Requirements:** UI-5–6, SEL-8a (3 reqs — all implemented)
 
-**Work:**
-- Add `variants` table to database (name, label, source_variant,
-  layer_config JSON, element_overrides JSON)
-- View > New Variant creates a named clone of the current layout (UI-5):
-  - Clones the source variant's element set (custom elements are
-    duplicated with variant membership set to the new variant name)
-  - Clones the source variant's exclusion rules
-  - Does NOT clone constants (constants are shared across all variants)
-  - The new variant appears in the Layout dropdown and can have its own
-    SVG generated via the regeneration API
-- Per-variant layer visibility toggles (UI-6):
-  - Each variant stores a `layer_config` JSON specifying which layers
-    (walls, openings, furniture, labels, dimensions) are visible
-  - Toggling a layer in one variant does not affect other variants
-- User-defined variants can add/remove element overrides (e.g., hide a
-  wall, add custom furniture) without affecting other variants
-- Furniture/appliance property editing (SEL-8a): Width and Depth fields
-  in the Properties panel become editable for items with database records.
-  Changing a value updates `properties.width`/`properties.depth` via the
-  existing element PUT endpoint and triggers geometry recomputation.
-- Final polish: cross-check all 236 requirements, keyboard shortcut audit
-  (NF-5), responsive layout verification (NF-2), NF-3 (586 existing tests
-  pass), NF-4 (no files modified outside `app/` and `tests/`)
+**Implemented:**
+- `variants` table in database (id, name, label, source_variant, flags,
+  layer_config JSON, is_builtin flag).  5 built-in variants seeded.
+- Phase 11a — Database-driven variants + per-variant layer config:
+  - Variant definitions moved from hardcoded `VARIANTS` dict to DB
+  - GET/PUT /api/variants endpoints for reading and updating layer_config
+  - Dynamic variant dropdown (populated from DB, replaces hardcoded HTML)
+  - Layer toggle state persisted per variant (saveCurrentLayerConfig /
+    restoreLayerConfig cycle on variant switch)
+  - `get_variant_flags()` reads from DB with dict fallback
+  - `variant_update` undo action type
+- Phase 11b — User-defined variant creation/deletion:
+  - POST /api/variants creates named variant cloned from source
+  - DELETE /api/variants/<id> removes user variant (built-in protected)
+  - `clone_variant_exclusions()` / `clone_variant_elements()` copy source
+    data to new variant on creation
+  - `unclone_variant_elements()` / `delete_variant_exclusions()` clean up
+    on deletion
+  - "+" / "×" buttons in variant selector UI
+  - `variant_create` / `variant_delete` undo action types (bidirectional)
+  - SVG suffix fallback: user variants use source variant's floorplan SVG
+- SEL-8a — Furniture property editing:
+  - Width/Depth editable for placed elements in Properties panel
+  - `handleElementPropEdit()` updates properties via PUT API with poly
+    recomputation
+  - Display uses stored dimensions (not bbox) for correct rotated values
 
-**Interaction with fixed variants:** The 5 built-in variants (standard,
-minik, daybed, bare, sf) remain as seed data.  User-defined variants are
-additional entries in the `variants` table.  They can be renamed, deleted,
-or cloned further.  Built-in variants cannot be deleted but can be modified.
-
-**Dependencies:** Most prior phases complete.
+**Tests:** 44 new variant tests (79 total in test_zapp_variants.py).
+1259 tests pass.
 
 ---
 
@@ -826,7 +831,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 1215+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 1259+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
