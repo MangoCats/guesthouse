@@ -29,6 +29,9 @@ from app.database import (
     create_variant, delete_variant, create_variant_raw,
     clone_variant_exclusions, delete_variant_exclusions,
     clone_variant_elements, unclone_variant_elements,
+    get_element_formulas, get_all_formulas, upsert_formula,
+    delete_formula, set_formula_lock, get_formula_deps,
+    get_dependents as db_get_dependents, rebuild_formula_deps,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
@@ -1229,6 +1232,79 @@ def create_app(db_path=None):
                 else:
                     results[v["name"]] = True
             return jsonify({"ok": True, "results": results})
+
+    # -- Formula endpoints (Phase 12b) --
+
+    @app.route("/api/formulas")
+    def api_formulas():
+        variant = request.args.get("variant")
+        rows = get_all_formulas(variant=variant, db_path=db)
+        return jsonify([dict(r) for r in rows])
+
+    @app.route("/api/formulas/<element_name>")
+    def api_element_formulas(element_name):
+        variant = request.args.get("variant")
+        rows = get_element_formulas(element_name, variant=variant, db_path=db)
+        return jsonify([dict(r) for r in rows])
+
+    @app.route("/api/formulas/<element_name>/<param_name>", methods=["PUT"])
+    def api_upsert_formula(element_name, param_name):
+        body = request.get_json(force=True)
+        formula_json = body.get("formula")
+        if not formula_json:
+            return jsonify({"error": "missing formula"}), 400
+        variant = body.get("variant")
+        try:
+            result = upsert_formula(element_name, param_name, formula_json,
+                                    variant=variant, db_path=db)
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+        # Rebuild dependency cache
+        from app.evaluator import extract_deps
+        deps = extract_deps(formula_json)
+        rebuild_formula_deps(element_name, param_name, deps, db_path=db)
+        _broadcast("element_changed")
+        _invalidate()
+        return jsonify(result)
+
+    @app.route("/api/formulas/<element_name>/<param_name>", methods=["DELETE"])
+    def api_delete_formula(element_name, param_name):
+        variant = request.args.get("variant")
+        ok = delete_formula(element_name, param_name, variant=variant,
+                            db_path=db)
+        if not ok:
+            return jsonify({"error": "not found"}), 404
+        # Clear dependency cache
+        rebuild_formula_deps(element_name, param_name, [], db_path=db)
+        _broadcast("element_changed")
+        _invalidate()
+        return jsonify({"ok": True})
+
+    @app.route("/api/formulas/<element_name>/<param_name>/lock", methods=["POST"])
+    def api_lock_formula(element_name, param_name):
+        body = request.get_json(force=True)
+        locked = body.get("locked", True)
+        locked_value = body.get("locked_value")
+        ok = set_formula_lock(element_name, param_name, locked,
+                              locked_value=locked_value, db_path=db)
+        if not ok:
+            return jsonify({"error": "formula not found"}), 404
+        _broadcast("element_changed")
+        _invalidate()
+        return jsonify({"ok": True})
+
+    @app.route("/api/formulas/<element_name>/deps")
+    def api_formula_deps(element_name):
+        param_name = request.args.get("param")
+        rows = get_formula_deps(element_name, param_name=param_name,
+                                db_path=db)
+        return jsonify([dict(r) for r in rows])
+
+    @app.route("/api/formulas/<element_name>/dependents")
+    def api_formula_dependents(element_name):
+        dep_type = request.args.get("type", "element")
+        rows = db_get_dependents(element_name, dep_type=dep_type, db_path=db)
+        return jsonify([dict(r) for r in rows])
 
     # -- SSE endpoint --
 

@@ -1828,6 +1828,8 @@ function showProperties(type, name, data) {
         addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
+    // Phase 12b: formula section
+    addFormulaSection(tbody, name);
   } else if (type === "opening" || type === "rough_opening") {
     addPropRow(tbody, "Name", data.name);
     if (data.seg_start) addPropRow(tbody, "Segment", `${data.seg_start}–${data.seg_end}`);
@@ -1906,6 +1908,8 @@ function showProperties(type, name, data) {
         addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
+    // Phase 12b: formula section
+    addFormulaSection(tbody, name);
     // Style controls and product URL
     const _elemRec = elemRec || (App.state.elements || []).find(e => e.name === name);
     if (_elemRec) {
@@ -2497,6 +2501,67 @@ function addElementActions(tbody, elemRec) {
   dTd.appendChild(dBtn);
   dTr.appendChild(dTd);
   tbody.appendChild(dTr);
+}
+
+/** Phase 12b: Show formula section in properties panel for elements with formulas. */
+async function addFormulaSection(tbody, elemName) {
+  try {
+    const resp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}`);
+    if (!resp.ok) return;
+    const formulas = await resp.json();
+    if (!formulas || formulas.length === 0) return;
+
+    addPropRow(tbody, "\u2014", "Formula");
+
+    for (const f of formulas) {
+      const fj = typeof f.formula_json === "string" ? JSON.parse(f.formula_json) : f.formula_json;
+      addPropRow(tbody, "Type", fj.type || "unknown");
+      addPropRow(tbody, "Param", f.param_name);
+
+      // Lock toggle
+      const lockTr = document.createElement("tr");
+      const lockTd1 = document.createElement("td");
+      lockTd1.textContent = "Locked";
+      lockTr.appendChild(lockTd1);
+      const lockTd2 = document.createElement("td");
+      const lockCb = document.createElement("input");
+      lockCb.type = "checkbox";
+      lockCb.checked = !!f.locked;
+      lockCb.addEventListener("change", async () => {
+        await fetch(`/api/formulas/${encodeURIComponent(elemName)}/${f.param_name}/lock`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ locked: lockCb.checked, locked_value: null }),
+        });
+        await loadGeometry();
+      });
+      lockTd2.appendChild(lockCb);
+      lockTr.appendChild(lockTd2);
+      tbody.appendChild(lockTr);
+    }
+
+    // Dependencies
+    const depsResp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}/deps`);
+    if (depsResp.ok) {
+      const deps = await depsResp.json();
+      if (deps.length > 0) {
+        const depNames = deps.map(d => `${d.dep_name} (${d.dep_type})`).join(", ");
+        addPropRow(tbody, "Depends on", depNames);
+      }
+    }
+
+    // Dependents
+    const deptsResp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}/dependents`);
+    if (deptsResp.ok) {
+      const depts = await deptsResp.json();
+      if (depts.length > 0) {
+        const deptNames = [...new Set(depts.map(d => d.element_name))].join(", ");
+        addPropRow(tbody, "Used by", deptNames);
+      }
+    }
+  } catch (e) {
+    // Formula fetch failed — not critical, skip silently
+  }
 }
 
 function addPropRow(tbody, label, value, editable = false, constName = null) {
