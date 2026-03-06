@@ -1979,7 +1979,7 @@ Tests: `test_zapp_site.py::TestSurveyPoints`.*
 
 ---
 
-## 12  3D Model **(NEW)**
+## 12  3D Model
 
 #### SCAD-1  SCAD Generation ✅
 Tools > Generate 3D Model SHALL run the OpenSCAD generator and produce a
@@ -2049,7 +2049,7 @@ all variants, SF has polys, total area in range).
 
 ---
 
-## 14  Plumbing Layout **(NEW)**
+## 14  Plumbing Layout
 
 The plumbing view SHALL be a full interactive layout — like the floorplan
 layouts (standard, minik, daybed, bare, sf) — with plumbing-specific editing
@@ -2425,14 +2425,14 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 8 Data Tables | 11 | 0 | 11 |
 | 9 Element Ops | 13 | 0 | 13 |
 | 10 Styling | 4 | 0 | 4 |
-| 11 Site Plan | 0 | 4 | 4 |
-| 12 3D Model | 0 | 3 | 3 |
-| 13 Analysis | 0 | 3 | 3 |
-| 14 Plumbing | 3 | 8 | 11 |
+| 11 Site Plan | 4 | 0 | 4 |
+| 12 3D Model | 3 | 0 | 3 |
+| 13 Analysis | 3 | 0 | 3 |
+| 14 Plumbing | 11 | 0 | 11 |
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **221** | **18** | **239** |
+| **Total** | **239** | **0** | **239** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

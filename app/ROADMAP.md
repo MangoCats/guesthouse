@@ -694,12 +694,12 @@ standalone specification before implementation begins.  Given its scope, it
 will likely be implemented as multiple sub-phases (12a, 12b, 12c...) once
 the design spec is finalised.
 
-**Requirements:** SEL-15 (1 req) + design specification for Charter Principle 5
+**Requirements:** Design specification for Charter Principle 5
 
-SEL-15 (Constant Dependency Highlighting) is the first concrete requirement
-for this phase: when a constant is focused in the Properties panel, all
-geometry elements whose position depends on that constant are highlighted
-on the canvas (first-order in white, downstream in pink).
+SEL-15 (Constant Dependency Highlighting) was the first concrete requirement
+for this phase and is now implemented: when a constant is focused in the
+Properties panel, all geometry elements whose position depends on that constant
+are highlighted on the canvas (first-order in white, downstream in pink).
 
 **Architectural requirements:**
 
