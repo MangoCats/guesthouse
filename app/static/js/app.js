@@ -2091,27 +2091,28 @@ function showProperties(type, name, data) {
       addPropRow(tbody, "Type", pe.type);
       if (pe.path) addPropRow(tbody, "Points", pe.path.length.toString());
       for (const [k, v] of Object.entries(p)) {
-        if (k === "buried") {
-          const tr = document.createElement("tr");
-          const td1 = document.createElement("td"); td1.textContent = "Buried";
-          tr.appendChild(td1);
-          const td2 = document.createElement("td");
-          const cb = document.createElement("input");
-          cb.type = "checkbox"; cb.checked = !!v;
-          cb.addEventListener("change", async () => {
-            const newProps = { ...p, buried: cb.checked };
-            await apiFetch(`/api/plumbing/${pe.id}`, {
-              method: "PUT", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ properties: newProps }),
-            });
-            loadPlumbingElements();
+        if (k === "buried") continue;  // handled below
+        addPropRow(tbody, k, String(v));
+      }
+      // Always show buried checkbox for pipes
+      if (pe.type && pe.type.includes("pipe")) {
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"); td1.textContent = "Buried";
+        tr.appendChild(td1);
+        const td2 = document.createElement("td");
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.checked = !!p.buried;
+        cb.addEventListener("change", async () => {
+          const newProps = { ...p, buried: cb.checked };
+          await apiFetch(`/api/plumbing/${pe.id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ properties: newProps }),
           });
-          td2.appendChild(cb);
-          tr.appendChild(td2);
-          tbody.appendChild(tr);
-        } else {
-          addPropRow(tbody, k, String(v));
-        }
+          loadPlumbingElements();
+        });
+        td2.appendChild(cb);
+        tr.appendChild(td2);
+        tbody.appendChild(tr);
       }
 
       // Delete button
