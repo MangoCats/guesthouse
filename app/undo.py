@@ -147,6 +147,11 @@ class UndoManager:
             # Outline undo/redo: state is full chain snapshot (list of dicts)
             from app.database import restore_outline_chain
             restore_outline_chain(state, self._db_path)
+        elif action_type == "variant_update":
+            from app.database import update_variant
+            vid = state["id"]
+            fields = {k: v for k, v in state.items() if k != "id"}
+            update_variant(vid, fields, self._db_path)
         elif action_type == "full_reset":
             # Combined constants + outline + elements + doors reset
             from app.database import restore_outline_chain, restore_elements

@@ -20,6 +20,20 @@ VARIANTS = {
     "sf":       {"label": "Square Footage", "flags": {"sf": True}},
 }
 
+
+def get_variant_flags(variant, db_path=None):
+    """Return flags dict for a variant, from DB with fallback to VARIANTS dict."""
+    try:
+        from app.database import get_variant
+        v = get_variant(variant, db_path)
+        if v and v.get("flags"):
+            return v["flags"]
+    except Exception:
+        pass
+    info = VARIANTS.get(variant, VARIANTS["standard"])
+    return info["flags"]
+
+
 # ---------------------------------------------------------------------------
 # Item dimensions hardcoded in gen_floorplan.py (not in floorplan/constants.py)
 # ---------------------------------------------------------------------------
@@ -247,13 +261,13 @@ def _circle_item(name, item_type, center, radius, label=None):
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def compute_variant_items(pts, inner_poly, layout, radii, variant="standard"):
+def compute_variant_items(pts, inner_poly, layout, radii, variant="standard",
+                          db_path=None):
     """Compute all furniture/appliance items for a variant.
 
     Returns dict of items keyed by name.
     """
-    info = VARIANTS.get(variant, VARIANTS["standard"])
-    flags = info["flags"]
+    flags = get_variant_flags(variant, db_path)
     minik = flags.get("minik", False)
     db = flags.get("db", False)
     bare = flags.get("bare", False)

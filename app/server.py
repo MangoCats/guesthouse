@@ -24,6 +24,7 @@ from app.database import (
     delete_outline_segment, restore_outline_chain, reset_outline_chain,
     reset_elements, get_config, set_config,
     validate_db, reset_db,
+    get_variants, get_variant, get_variant_by_id, update_variant,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
@@ -587,9 +588,10 @@ def create_app(db_path=None):
     @app.route("/api/geometry")
     def api_geometry():
         try:
-            from app.variants import VARIANTS
+            variants = get_variants(db)
+            valid_names = {v["name"] for v in variants}
             variant = request.args.get("variant", "standard")
-            if variant not in VARIANTS:
+            if variant not in valid_names:
                 variant = "standard"
             geom = _get_geometry(variant)
             return jsonify(geom)
@@ -609,8 +611,27 @@ def create_app(db_path=None):
 
     @app.route("/api/variants")
     def api_variants():
-        from app.variants import VARIANTS
-        return jsonify([{"name": k, "label": v["label"]} for k, v in VARIANTS.items()])
+        return jsonify(get_variants(db))
+
+    @app.route("/api/variants/<int:variant_id>", methods=["PUT"])
+    def api_update_variant(variant_id):
+        data = request.get_json(force=True)
+        old = get_variant_by_id(variant_id, db)
+        if not old:
+            return jsonify({"error": "variant not found"}), 404
+        updated = update_variant(variant_id, data, db)
+        # Record undo with only changed fields
+        before = {"id": variant_id}
+        after = {"id": variant_id}
+        for k in data:
+            if k in old:
+                before[k] = old[k]
+            if k in updated:
+                after[k] = updated[k]
+        undo_mgr.record("variant_update", before, after,
+                        f"Update variant {old['name']}")
+        _broadcast("variant_changed")
+        return jsonify(updated)
 
     # -- Shapes API --
 

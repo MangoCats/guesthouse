@@ -1021,11 +1021,17 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     result["radii"] = {k: v for k, v in radii.items()}
 
     # Variant items
-    from app.variants import compute_variant_items, VARIANTS
-    variant_items = compute_variant_items(pts, inner_poly, layout, radii, variant)
+    from app.variants import compute_variant_items
+    from app.database import get_variants as _get_db_variants
+    variant_items = compute_variant_items(pts, inner_poly, layout, radii, variant,
+                                          db_path=db_path)
     result["variant_items"] = variant_items
     result["variant"] = variant
-    result["available_variants"] = list(VARIANTS.keys())
+    try:
+        result["available_variants"] = [v["name"] for v in _get_db_variants(db_path)]
+    except Exception:
+        from app.variants import VARIANTS
+        result["available_variants"] = list(VARIANTS.keys())
 
     # Room labels and SF extras
     room_data = _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path)

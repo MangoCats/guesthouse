@@ -1,4 +1,5 @@
 """Tests for variant furniture/appliance computation and API."""
+import json
 import math
 import os
 import sys
@@ -11,8 +12,9 @@ if _PROJECT not in sys.path:
 from tests.test_zapp_conftest import fresh_db, app_client, geometry
 from app.variants import (compute_variant_items, VARIANTS,
                           _resolve_product_url, _PRODUCT_URLS_BASE,
-                          _PRODUCT_URLS_VARIANT)
-from app.database import get_constants_dict
+                          _PRODUCT_URLS_VARIANT, get_variant_flags)
+from app.database import (get_constants_dict, get_variants, get_variant,
+                          get_variant_by_id, update_variant)
 from app.engine import compute_geometry
 
 
@@ -363,3 +365,210 @@ class TestDimensionData:
         dist = math.sqrt((p["end"][0] - p["start"][0])**2 +
                          (p["end"][1] - p["start"][1])**2)
         assert dist > 0
+
+
+# =========================================================================
+# TestVariantsTable — Phase 11a: database-driven variant registry
+# =========================================================================
+
+class TestVariantsTable:
+    def test_variants_table_exists(self, fresh_db):
+        """Schema should include variants table."""
+        import sqlite3
+        conn = sqlite3.connect(fresh_db)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='variants'"
+        ).fetchall()
+        conn.close()
+        assert len(rows) == 1
+
+    def test_builtin_variants_seeded(self, fresh_db):
+        """5 built-in variants should be seeded."""
+        variants = get_variants(fresh_db)
+        assert len(variants) == 5
+        names = {v["name"] for v in variants}
+        assert names == {"standard", "minik", "daybed", "bare", "sf"}
+
+    def test_builtin_labels(self, fresh_db):
+        """Built-in variants have correct labels."""
+        variants = get_variants(fresh_db)
+        label_map = {v["name"]: v["label"] for v in variants}
+        assert label_map["standard"] == "Standard"
+        assert label_map["minik"] == "Small Kitchen"
+        assert label_map["daybed"] == "Daybed"
+        assert label_map["bare"] == "Room Dimensions"
+        assert label_map["sf"] == "Square Footage"
+
+    def test_builtin_flags(self, fresh_db):
+        """Built-in variants have correct flags."""
+        v = get_variant("minik", fresh_db)
+        assert v["flags"] == {"minik": True}
+        v = get_variant("daybed", fresh_db)
+        assert v["flags"] == {"db": True}
+        v = get_variant("bare", fresh_db)
+        assert v["flags"] == {"bare": True}
+        v = get_variant("standard", fresh_db)
+        assert v["flags"] == {}
+
+    def test_builtin_flag_set(self, fresh_db):
+        """All built-ins have is_builtin=True."""
+        for v in get_variants(fresh_db):
+            assert v["is_builtin"] is True, f"{v['name']} not builtin"
+
+    def test_get_variant_by_name(self, fresh_db):
+        """get_variant returns correct record."""
+        v = get_variant("sf", fresh_db)
+        assert v is not None
+        assert v["name"] == "sf"
+        assert v["label"] == "Square Footage"
+        assert v["flags"] == {"sf": True}
+
+    def test_get_variant_by_id(self, fresh_db):
+        """get_variant_by_id returns correct record."""
+        v = get_variant("standard", fresh_db)
+        v2 = get_variant_by_id(v["id"], fresh_db)
+        assert v2["name"] == "standard"
+
+    def test_get_variant_unknown_returns_none(self, fresh_db):
+        """get_variant for unknown name returns None."""
+        assert get_variant("nonexistent", fresh_db) is None
+
+    def test_update_layer_config(self, fresh_db):
+        """update_variant updates layer_config JSON."""
+        v = get_variant("standard", fresh_db)
+        cfg = {"points": False, "labels": True, "dims": True}
+        updated = update_variant(v["id"], {"layer_config": cfg}, fresh_db)
+        assert updated["layer_config"] == cfg
+        # Re-read to confirm persistence
+        v2 = get_variant("standard", fresh_db)
+        assert v2["layer_config"] == cfg
+
+    def test_update_preserves_other_fields(self, fresh_db):
+        """Partial update doesn't clobber name, flags, etc."""
+        v = get_variant("minik", fresh_db)
+        update_variant(v["id"], {"layer_config": {"grid": True}}, fresh_db)
+        v2 = get_variant("minik", fresh_db)
+        assert v2["name"] == "minik"
+        assert v2["label"] == "Small Kitchen"
+        assert v2["flags"] == {"minik": True}
+        assert v2["layer_config"] == {"grid": True}
+
+    def test_default_layer_config_empty(self, fresh_db):
+        """New DB has empty layer_config for all variants."""
+        for v in get_variants(fresh_db):
+            assert v["layer_config"] == {}, f"{v['name']} has non-empty layer_config"
+
+
+# =========================================================================
+# TestVariantsAPI_DB — Phase 11a: API tests for DB-driven variants
+# =========================================================================
+
+class TestVariantsAPI_DB:
+    def test_get_variants_from_db(self, app_client):
+        """GET /api/variants returns 5 variants with all fields."""
+        resp = app_client.get("/api/variants")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data) == 5
+        names = {v["name"] for v in data}
+        assert names == {"standard", "minik", "daybed", "bare", "sf"}
+        # Each variant should have DB fields
+        for v in data:
+            assert "id" in v
+            assert "label" in v
+            assert "flags" in v
+            assert "layer_config" in v
+            assert "is_builtin" in v
+
+    def test_put_layer_config(self, app_client):
+        """PUT /api/variants/<id> updates layer_config."""
+        # Get standard variant id
+        resp = app_client.get("/api/variants")
+        variants = resp.get_json()
+        std = next(v for v in variants if v["name"] == "standard")
+        # Update layer config
+        cfg = {"points": False, "furniture": True, "grid": True}
+        resp = app_client.put(f"/api/variants/{std['id']}",
+                              data=json.dumps({"layer_config": cfg}),
+                              content_type="application/json")
+        assert resp.status_code == 200
+        updated = resp.get_json()
+        assert updated["layer_config"] == cfg
+
+    def test_put_layer_config_undo(self, app_client):
+        """Undo restores previous layer_config."""
+        resp = app_client.get("/api/variants")
+        std = next(v for v in resp.get_json() if v["name"] == "standard")
+        # Set initial config
+        cfg1 = {"dims": True}
+        app_client.put(f"/api/variants/{std['id']}",
+                       data=json.dumps({"layer_config": cfg1}),
+                       content_type="application/json")
+        # Set new config
+        cfg2 = {"dims": False, "grid": True}
+        app_client.put(f"/api/variants/{std['id']}",
+                       data=json.dumps({"layer_config": cfg2}),
+                       content_type="application/json")
+        # Verify cfg2 is current
+        resp = app_client.get("/api/variants")
+        std2 = next(v for v in resp.get_json() if v["name"] == "standard")
+        assert std2["layer_config"] == cfg2
+        # Undo
+        resp = app_client.post("/api/undo")
+        assert resp.status_code == 200
+        # Verify cfg1 is restored
+        resp = app_client.get("/api/variants")
+        std3 = next(v for v in resp.get_json() if v["name"] == "standard")
+        assert std3["layer_config"] == cfg1
+
+    def test_put_nonexistent_variant_404(self, app_client):
+        """PUT with bad id returns 404."""
+        resp = app_client.put("/api/variants/9999",
+                              data=json.dumps({"layer_config": {}}),
+                              content_type="application/json")
+        assert resp.status_code == 404
+
+    def test_geometry_accepts_db_variants(self, app_client):
+        """Geometry endpoint validates variant via DB."""
+        resp = app_client.get("/api/geometry?variant=minik")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["variant"] == "minik"
+
+    def test_geometry_unknown_variant_fallback(self, app_client):
+        """Unknown variant falls back to standard via DB lookup."""
+        resp = app_client.get("/api/geometry?variant=nonexistent")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["variant"] == "standard"
+
+
+# =========================================================================
+# TestVariantFlagsLookup — Phase 11a: get_variant_flags
+# =========================================================================
+
+class TestVariantFlagsLookup:
+    def test_get_variant_flags_builtin(self, fresh_db):
+        """get_variant_flags returns correct flags from DB."""
+        flags = get_variant_flags("minik", fresh_db)
+        assert flags == {"minik": True}
+        flags = get_variant_flags("daybed", fresh_db)
+        assert flags == {"db": True}
+
+    def test_get_variant_flags_standard_empty(self, fresh_db):
+        """Standard variant has empty flags."""
+        flags = get_variant_flags("standard", fresh_db)
+        assert flags == {}
+
+    def test_get_variant_flags_unknown_fallback(self, fresh_db):
+        """Unknown variant name falls back to standard flags."""
+        flags = get_variant_flags("nonexistent", fresh_db)
+        assert flags == {}
+
+    def test_compute_variant_items_uses_db_flags(self, fresh_db):
+        """compute_variant_items works with DB-driven flags."""
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, "minik", db_path=fresh_db)
+        assert "sofa" in geom["variant_items"]
+        assert "loveseat" not in geom["variant_items"]

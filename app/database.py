@@ -4,6 +4,7 @@ Stores all building constants, outline chain definitions, and entity metadata
 so the building can be edited interactively and regenerated from the database.
 """
 import ast
+import json
 import os
 import re
 import sqlite3
@@ -133,6 +134,16 @@ CREATE TABLE IF NOT EXISTS plumbing_elements (
     properties TEXT DEFAULT '{}',
     fixture    TEXT
 );
+
+CREATE TABLE IF NOT EXISTS variants (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT NOT NULL UNIQUE,
+    label           TEXT NOT NULL,
+    source_variant  TEXT,
+    flags           TEXT DEFAULT '{}',
+    layer_config    TEXT DEFAULT '{}',
+    is_builtin      INTEGER DEFAULT 0
+);
 """
 
 
@@ -148,6 +159,7 @@ def init_db(db_path=None):
             _seed_views(conn)
             _seed_shapes(conn)
             _seed_variant_exclusions(conn)
+            _seed_variants(conn)
             _seed_elements(conn)
             _seed_doors(conn)
             _seed_config(conn)
@@ -161,6 +173,8 @@ def init_db(db_path=None):
             _seed_doors(conn)
             # Ensure variant exclusions exist (Phase 7 upgrade)
             _seed_variant_exclusions(conn)
+            # Ensure variant definitions exist (Phase 11a upgrade)
+            _seed_variants(conn)
             # Ensure config defaults exist (Phase 10b upgrade)
             _seed_config(conn)
             # Ensure room label elements exist (Phase 8 upgrade)
@@ -496,6 +510,29 @@ def _seed_variant_exclusions(conn):
             "INSERT OR REPLACE INTO variant_exclusions "
             "(variant, element_type, element_name) VALUES (?, ?, ?)",
             (variant, etype, ename),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Seed: variants
+# ---------------------------------------------------------------------------
+
+_VARIANT_SEEDS = [
+    ("standard", "Standard",       "{}",                 1),
+    ("minik",    "Small Kitchen",   '{"minik": true}',   1),
+    ("daybed",   "Daybed",          '{"db": true}',      1),
+    ("bare",     "Room Dimensions", '{"bare": true}',    1),
+    ("sf",       "Square Footage",  '{"sf": true}',      1),
+]
+
+
+def _seed_variants(conn):
+    """Seed built-in variant definitions."""
+    for name, label, flags, is_builtin in _VARIANT_SEEDS:
+        conn.execute(
+            "INSERT OR IGNORE INTO variants (name, label, flags, is_builtin) "
+            "VALUES (?, ?, ?, ?)",
+            (name, label, flags, is_builtin),
         )
 
 
@@ -851,6 +888,84 @@ def get_variant_exclusions(variant, db_path=None):
     return result
 
 
+# ---------------------------------------------------------------------------
+# Variants CRUD
+# ---------------------------------------------------------------------------
+
+def _variant_row_to_dict(row):
+    """Convert a variant DB row to a dict with parsed JSON fields."""
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "label": row["label"],
+        "source_variant": row["source_variant"],
+        "flags": json.loads(row["flags"]) if row["flags"] else {},
+        "layer_config": json.loads(row["layer_config"]) if row["layer_config"] else {},
+        "is_builtin": bool(row["is_builtin"]),
+    }
+
+
+def get_variants(db_path=None):
+    """Return list of all variant dicts."""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, name, label, source_variant, flags, layer_config, is_builtin "
+            "FROM variants ORDER BY id"
+        ).fetchall()
+    return [_variant_row_to_dict(r) for r in rows]
+
+
+def get_variant(name, db_path=None):
+    """Return a single variant dict by name, or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT id, name, label, source_variant, flags, layer_config, is_builtin "
+            "FROM variants WHERE name = ?", (name,)
+        ).fetchone()
+    return _variant_row_to_dict(row) if row else None
+
+
+def get_variant_by_id(variant_id, db_path=None):
+    """Return a single variant dict by id, or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT id, name, label, source_variant, flags, layer_config, is_builtin "
+            "FROM variants WHERE id = ?", (variant_id,)
+        ).fetchone()
+    return _variant_row_to_dict(row) if row else None
+
+
+def update_variant(variant_id, updates, db_path=None):
+    """Update a variant record. Returns updated dict or None."""
+    allowed = {"label", "flags", "layer_config"}
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT id FROM variants WHERE id = ?", (variant_id,)
+        ).fetchone()
+        if not row:
+            return None
+        sets = []
+        vals = []
+        for k, v in updates.items():
+            if k not in allowed:
+                continue
+            if k in ("flags", "layer_config") and not isinstance(v, str):
+                v = json.dumps(v)
+            sets.append(f"{k} = ?")
+            vals.append(v)
+        if sets:
+            vals.append(variant_id)
+            conn.execute(
+                f"UPDATE variants SET {', '.join(sets)} WHERE id = ?",
+                vals,
+            )
+        row = conn.execute(
+            "SELECT id, name, label, source_variant, flags, layer_config, is_builtin "
+            "FROM variants WHERE id = ?", (variant_id,)
+        ).fetchone()
+    return _variant_row_to_dict(row) if row else None
+
+
 def get_room_label_offsets(db_path=None):
     """Return dict of room label offsets: {name: (offset_e, offset_n)}."""
     with get_db(db_path) as conn:
@@ -892,7 +1007,7 @@ def validate_db(db_path=None):
             ).fetchall()
             existing = {r["name"] for r in rows}
             required = {"constants", "outline_chain", "views", "elements",
-                        "doors", "config"}
+                        "doors", "config", "variants"}
             for tbl in sorted(required - existing):
                 issues.append(f"{tbl} table missing")
             if issues:

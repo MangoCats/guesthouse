@@ -35,6 +35,7 @@ const App = {
     outlineChain: [],
     outlineSelectedSeq: null,
     plumbingElements: [],
+    variants: [],
   },
   els: {},
   sse: null,
@@ -56,6 +57,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadConstants();
   await loadElements();  // must complete before first render
   loadPlumbingElements();
+  await loadVariants();  // populate variant dropdown before geometry
   loadGeometry();
   loadShapes();
   loadBuildLabel();
@@ -132,6 +134,10 @@ function connectSSE() {
 
   App.sse.addEventListener("outline_changed", () => {
     loadOutlineTable();
+  });
+
+  App.sse.addEventListener("variant_changed", () => {
+    loadVariants();
   });
 
   App.sse.addEventListener("svg_updated", (e) => {
@@ -251,6 +257,72 @@ async function loadViews() {
     renderViewTabs();
   } catch (e) {
     console.error("Views load failed:", e);
+  }
+}
+
+async function loadVariants() {
+  try {
+    const resp = await fetch("/api/variants");
+    App.state.variants = await resp.json();
+    populateVariantSelect();
+  } catch (e) {
+    console.error("Variants load failed:", e);
+  }
+}
+
+function populateVariantSelect() {
+  const sel = App.els["variant-select"];
+  if (!sel) return;
+  sel.innerHTML = "";
+  for (const v of App.state.variants) {
+    const opt = document.createElement("option");
+    opt.value = v.name;
+    opt.textContent = v.label;
+    sel.appendChild(opt);
+  }
+  sel.value = App.state.variant;
+}
+
+function variantLabel(name) {
+  const v = (App.state.variants || []).find(v => v.name === name);
+  return v ? v.label : name;
+}
+
+async function saveCurrentLayerConfig() {
+  const v = (App.state.variants || []).find(v => v.name === App.state.variant);
+  if (!v) return;
+  const cfg = {
+    points: App.state.showPoints, labels: App.state.showLabels,
+    dims: App.state.showDims, grid: App.state.showGrid,
+    openings: App.state.showOpenings, furniture: App.state.showFurniture,
+    rooms: App.state.showRooms, doors: App.state.showDoors,
+    clearance: App.state.showClearance, areas: App.state.showAreas,
+  };
+  try {
+    await apiFetch(`/api/variants/${v.id}`, {
+      method: "PUT", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({layer_config: cfg}),
+    });
+  } catch (e) {
+    console.error("Failed to save layer config:", e);
+  }
+}
+
+function restoreLayerConfig() {
+  const v = (App.state.variants || []).find(v => v.name === App.state.variant);
+  const cfg = v?.layer_config || {};
+  const map = {
+    points: "showPoints", labels: "showLabels", dims: "showDims",
+    grid: "showGrid", openings: "showOpenings", furniture: "showFurniture",
+    rooms: "showRooms", doors: "showDoors",
+    clearance: "showClearance", areas: "showAreas",
+  };
+  for (const [cfgKey, stateKey] of Object.entries(map)) {
+    const val = cfg[cfgKey] !== undefined ? cfg[cfgKey] : App.state[stateKey];
+    App.state[stateKey] = val;
+    const elKey = cfgKey === "points" ? "show-points" : `show-${cfgKey}`;
+    const el = App.els[elKey];
+    if (el) el.checked = val;
   }
 }
 
@@ -1958,10 +2030,7 @@ function showProperties(type, name, data) {
   }
 }
 
-const VARIANT_LABELS = {
-  standard: "Standard", minik: "Small Kitchen", daybed: "Daybed",
-  bare: "Room Dimensions", sf: "Square Footage",
-};
+// VARIANT_LABELS removed — use variantLabel(name) for dynamic lookup
 
 // ── Style defaults matching CSS classes ─────────────────────────
 const STYLE_DEFAULTS = {
@@ -2118,7 +2187,7 @@ function addStyleControls(tbody, elemRec, props, elementType) {
 function addViewOverrideControls(tbody, elemRec, props) {
   if (!elemRec) return;
   const variant = App.state.variant;
-  const variantLabel = VARIANT_LABELS[variant] || variant;
+  const vLabel = variantLabel(variant);
   const viewOv = (props.view_overrides || {})[variant] || {};
 
   // Header
@@ -2128,7 +2197,7 @@ function addViewOverrideControls(tbody, elemRec, props) {
   hTd.style.paddingTop = "8px";
   hTd.style.fontStyle = "italic";
   hTd.style.fontSize = "11px";
-  hTd.textContent = `Override for ${variantLabel}`;
+  hTd.textContent = `Override for ${vLabel}`;
   hdr.appendChild(hTd);
   tbody.appendChild(hdr);
 
@@ -2267,7 +2336,7 @@ function addElementActions(tbody, elemRec) {
   const props = typeof elemRec.properties === "string"
     ? JSON.parse(elemRec.properties) : (elemRec.properties || {});
   // Determine which layouts are currently checked
-  const allVariants = Object.keys(VARIANT_LABELS);
+  const allVariants = (App.state.variants || []).map(v => v.name);
   let checked;
   if (Array.isArray(props.variants)) {
     checked = new Set(props.variants);
@@ -2284,7 +2353,8 @@ function addElementActions(tbody, elemRec) {
   vTr.appendChild(vTd1);
   const vTd2 = document.createElement("td");
   const boxes = [];
-  for (const [val, lbl] of Object.entries(VARIANT_LABELS)) {
+  for (const v of (App.state.variants || [])) {
+    const val = v.name, lbl = v.label;
     const label = document.createElement("label");
     label.className = "prop-checkbox-label";
     const cb = document.createElement("input");
@@ -3183,8 +3253,10 @@ function setupEventListeners() {
   });
 
   // Variant selector
-  App.els["variant-select"].addEventListener("change", (e) => {
+  App.els["variant-select"].addEventListener("change", async (e) => {
+    await saveCurrentLayerConfig();
     App.state.variant = e.target.value;
+    restoreLayerConfig();
     loadGeometry();
     if (App.state.activeView === "floorplan") loadSVGView("floorplan");
   });
@@ -3857,6 +3929,7 @@ async function doUndo() {
     loadGeometry();
     loadElements();
     loadPlumbingElements();
+    if (data.action === "variant_update") loadVariants();
   } else {
     showToast(data.error || "Nothing to undo", "warning");
   }
@@ -3872,6 +3945,7 @@ async function doRedo() {
     loadGeometry();
     loadElements();
     loadPlumbingElements();
+    if (data.action === "variant_update") loadVariants();
   } else {
     showToast(data.error || "Nothing to redo", "warning");
   }
