@@ -962,6 +962,222 @@ class TestIWFormulas:
         assert expected <= set(ev.elements.keys())
 
 
+class TestLayoutItemFormulas:
+    """Verify formula-computed layout items match procedural output."""
+
+    @pytest.fixture
+    def geom_and_evaluator(self, fresh_db):
+        """Compute procedural geometry and build evaluator with IW + layout formulas."""
+        from app.database import get_constants_dict
+        from app.engine import compute_geometry
+        from app.evaluator import FormulaEvaluator, get_iw_formulas, get_layout_item_formulas
+
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, db_path=fresh_db)
+
+        base_points = geom.get("points", {})
+        inner = [(p[0], p[1]) for p in (geom.get("inner_poly") or [])]
+        radii = geom.get("radii", {})
+
+        ev = FormulaEvaluator(constants, base_points, inner, radii)
+        # Add IW formulas (layout items depend on IW walls)
+        for name, formula in get_iw_formulas().items():
+            ev.add_formula(name, "position", formula)
+        # Add layout item formulas
+        for name, formula in get_layout_item_formulas().items():
+            ev.add_formula(name, "position", formula)
+        ev.topo_sort()
+        ev.evaluate_all()
+
+        return geom, ev
+
+    def _assert_item_match(self, geom, ev, item_name, section, atol=0.01):
+        """Assert formula polygon matches procedural polygon."""
+        proc = geom[section][item_name.lower()]
+        proc_poly = proc["poly"]
+        form = ev.elements.get(item_name)
+        assert form is not None, f"Formula did not produce result for {item_name}"
+        form_poly = form["poly"]
+        assert len(form_poly) == len(proc_poly), \
+            f"{item_name}: poly length mismatch {len(form_poly)} vs {len(proc_poly)}"
+        for i, (fp, pp) in enumerate(zip(form_poly, proc_poly)):
+            assert fp[0] == pytest.approx(pp[0], abs=atol), \
+                f"{item_name} corner {i} E: formula={fp[0]:.4f} proc={pp[0]:.4f}"
+            assert fp[1] == pytest.approx(pp[1], abs=atol), \
+                f"{item_name} corner {i} N: formula={fp[1]:.4f} proc={pp[1]:.4f}"
+
+    def test_dryer(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_item_match(geom, ev, "DRYER", "appliances")
+
+    def test_washer(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_item_match(geom, ev, "WASHER", "appliances")
+
+    def test_counter(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_item_match(geom, ev, "COUNTER", "appliances")
+
+    def test_dresser(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_item_match(geom, ev, "DRESSER", "furniture")
+
+    def test_shelves(self, geom_and_evaluator):
+        geom, ev = geom_and_evaluator
+        self._assert_item_match(geom, ev, "SHELVES", "furniture")
+
+
+class TestOuterOpeningFormulas:
+    """Verify formula-computed outer openings match procedural output."""
+
+    @pytest.fixture
+    def geom_and_evaluator(self, fresh_db):
+        from app.database import get_constants_dict
+        from app.engine import compute_geometry
+        from app.evaluator import (FormulaEvaluator, get_iw_formulas,
+                                   get_layout_item_formulas,
+                                   get_outer_opening_formulas)
+
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, db_path=fresh_db)
+
+        base_points = geom.get("points", {})
+        inner = [(p[0], p[1]) for p in (geom.get("inner_poly") or [])]
+        radii = geom.get("radii", {})
+
+        ev = FormulaEvaluator(constants, base_points, inner, radii)
+        for name, formula in get_iw_formulas().items():
+            ev.add_formula(name, "position", formula)
+        for name, formula in get_layout_item_formulas().items():
+            ev.add_formula(name, "position", formula)
+        for name, formula in get_outer_opening_formulas().items():
+            ev.add_formula(name, "position", formula)
+        ev.topo_sort()
+        ev.evaluate_all()
+
+        return geom, ev
+
+    def _assert_opening_match(self, geom, ev, name, atol=0.01):
+        proc_list = geom.get("outer_openings", [])
+        proc = next((o for o in proc_list if o["name"] == name), None)
+        assert proc is not None, f"No procedural opening {name}"
+        form = ev.elements.get(name)
+        assert form is not None, f"Formula did not produce result for {name}"
+        proc_poly = proc["poly"]
+        form_poly = form["poly"]
+        assert len(form_poly) == len(proc_poly), \
+            f"{name}: poly length mismatch"
+        for i, (fp, pp) in enumerate(zip(form_poly, proc_poly)):
+            assert fp[0] == pytest.approx(pp[0], abs=atol), \
+                f"{name} corner {i} E: formula={fp[0]:.4f} proc={pp[0]:.4f}"
+            assert fp[1] == pytest.approx(pp[1], abs=atol), \
+                f"{name} corner {i} N: formula={fp[1]:.4f} proc={pp[1]:.4f}"
+
+    def test_o1(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O1")
+
+    def test_o2(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O2")
+
+    def test_o3(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O3")
+
+    def test_o4(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O4")
+
+    def test_o5(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O5")
+
+    def test_o6(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O6")
+
+    def test_o7(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O7")
+
+    def test_o8(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O8")
+
+    def test_o8a(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O8a")
+
+    def test_o9(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O9")
+
+    def test_o10(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O10")
+
+    def test_o11(self, geom_and_evaluator):
+        self._assert_opening_match(*geom_and_evaluator, "O11")
+
+
+class TestRoughOpeningFormulas:
+    """Verify formula-computed rough openings match procedural output."""
+
+    @pytest.fixture
+    def geom_and_evaluator(self, fresh_db):
+        from app.database import get_constants_dict
+        from app.engine import compute_geometry
+        from app.evaluator import (FormulaEvaluator, get_iw_formulas,
+                                   get_layout_item_formulas,
+                                   get_rough_opening_formulas)
+
+        constants = get_constants_dict(fresh_db)
+        geom = compute_geometry(constants, db_path=fresh_db)
+
+        base_points = geom.get("points", {})
+        inner = [(p[0], p[1]) for p in (geom.get("inner_poly") or [])]
+        radii = geom.get("radii", {})
+
+        ev = FormulaEvaluator(constants, base_points, inner, radii)
+        for name, formula in get_iw_formulas().items():
+            ev.add_formula(name, "position", formula)
+        for name, formula in get_layout_item_formulas().items():
+            ev.add_formula(name, "position", formula)
+        for name, formula in get_rough_opening_formulas().items():
+            ev.add_formula(name, "position", formula)
+        ev.topo_sort()
+        ev.evaluate_all()
+
+        return geom, ev
+
+    def _assert_ro_match(self, geom, ev, name, atol=0.01):
+        proc_list = geom.get("rough_openings", [])
+        proc = next((o for o in proc_list if o["name"] == name), None)
+        assert proc is not None, f"No procedural rough opening {name}"
+        form = ev.elements.get(name)
+        assert form is not None, f"Formula did not produce result for {name}"
+        proc_poly = proc["poly"]
+        form_poly = form["poly"]
+        assert len(form_poly) == len(proc_poly), \
+            f"{name}: poly length mismatch"
+        for i, (fp, pp) in enumerate(zip(form_poly, proc_poly)):
+            assert fp[0] == pytest.approx(pp[0], abs=atol), \
+                f"{name} corner {i} E: formula={fp[0]:.4f} proc={pp[0]:.4f}"
+            assert fp[1] == pytest.approx(pp[1], abs=atol), \
+                f"{name} corner {i} N: formula={fp[1]:.4f} proc={pp[1]:.4f}"
+
+    def test_ro1(self, geom_and_evaluator):
+        self._assert_ro_match(*geom_and_evaluator, "RO1")
+
+    def test_ro2(self, geom_and_evaluator):
+        self._assert_ro_match(*geom_and_evaluator, "RO2")
+
+    def test_ro3(self, geom_and_evaluator):
+        self._assert_ro_match(*geom_and_evaluator, "RO3")
+
+    def test_ro4(self, geom_and_evaluator):
+        self._assert_ro_match(*geom_and_evaluator, "RO4")
+
+    def test_ro5(self, geom_and_evaluator):
+        self._assert_ro_match(*geom_and_evaluator, "RO5")
+
+    def test_ro6(self, geom_and_evaluator):
+        self._assert_ro_match(*geom_and_evaluator, "RO6")
+
+    def test_ro7(self, geom_and_evaluator):
+        self._assert_ro_match(*geom_and_evaluator, "RO7")
+
+
 class TestVariantItemConstants:
     """Test that the 24 variant item constants are seeded in the DB."""
 
@@ -1033,13 +1249,22 @@ class TestVariantItemConstants:
 class TestSeededIWFormulas:
     """Verify IW formulas are seeded into element_formulas + formula_deps."""
 
-    def test_all_13_iw_formulas_seeded(self, fresh_db):
+    def test_all_formulas_seeded(self, fresh_db):
         from app.database import get_all_formulas
         formulas = get_all_formulas(db_path=fresh_db)
-        iw_names = {f["element_name"] for f in formulas}
-        expected = {"IW1", "IW2", "IW2S", "IW2O", "IW3", "IW4", "IW5",
-                    "IW6", "IW7", "IW8", "IW9", "IW11", "IW12"}
-        assert expected.issubset(iw_names)
+        names = {f["element_name"] for f in formulas}
+        # 13 IW walls + 5 layout items + 12 outer openings + 7 rough openings = 37
+        expected_iw = {"IW1", "IW2", "IW2S", "IW2O", "IW3", "IW4", "IW5",
+                       "IW6", "IW7", "IW8", "IW9", "IW11", "IW12"}
+        expected_items = {"DRYER", "WASHER", "COUNTER", "DRESSER", "SHELVES"}
+        expected_openings = {"O1", "O2", "O3", "O4", "O5", "O6", "O7",
+                             "O8", "O8a", "O9", "O10", "O11"}
+        expected_ro = {"RO1", "RO2", "RO3", "RO4", "RO5", "RO6", "RO7"}
+        assert expected_iw.issubset(names)
+        assert expected_items.issubset(names)
+        assert expected_openings.issubset(names)
+        assert expected_ro.issubset(names)
+        assert len(names) >= 37
 
     def test_iw1_has_deps(self, fresh_db):
         from app.database import get_formula_deps

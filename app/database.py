@@ -1661,13 +1661,16 @@ def rebuild_formula_deps(element_name, param_name, deps, db_path=None):
 
 
 def seed_iw_formulas(conn):
-    """Seed interior wall formulas into element_formulas + formula_deps.
+    """Seed interior wall + layout item formulas into element_formulas + formula_deps.
 
-    Idempotent: skips walls that already have a position formula.
+    Idempotent: skips elements that already have a position formula.
     """
-    from app.evaluator import get_iw_formulas, extract_deps
+    from app.evaluator import (get_iw_formulas, get_layout_item_formulas,
+                               get_outer_opening_formulas,
+                               get_rough_opening_formulas, extract_deps)
 
-    formulas = get_iw_formulas()
+    formulas = {**get_iw_formulas(), **get_layout_item_formulas(),
+                **get_outer_opening_formulas(), **get_rough_opening_formulas()}
     for wall_name, formula in formulas.items():
         # Skip if formula already exists
         existing = conn.execute(

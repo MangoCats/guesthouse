@@ -879,10 +879,13 @@ def _apply_formula_overrides(result, constants_dict, inner_poly, radii,
                 }
             # Check if it's an appliance
             elif elem_name.lower() in result.get("appliances", {}):
-                result["appliances"][elem_name.lower()] = {
-                    "poly": poly,
-                    "bbox": bbox,
-                }
+                old = result["appliances"][elem_name.lower()]
+                new_entry = {"poly": poly, "bbox": bbox}
+                # Preserve extra fields (e.g. counter clip) from procedural
+                for k, v in old.items():
+                    if k not in new_entry:
+                        new_entry[k] = v
+                result["appliances"][elem_name.lower()] = new_entry
 
     return result
 

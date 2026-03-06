@@ -229,6 +229,8 @@ class FormulaEvaluator:
             return self._eval_item_rect(formula)
         if ftype == "item_circle":
             return self._eval_item_circle(formula)
+        if ftype == "wall_opening":
+            return self._eval_wall_opening(formula)
         if ftype == "four_corner":
             return self._eval_four_corner(formula)
         return None
@@ -362,6 +364,117 @@ class FormulaEvaluator:
         if any(v is None for v in (sw, se, ne, nw)):
             return None
         poly = [sw, se, ne, nw]
+        return {"poly": poly, "bbox": _bbox_from_poly(poly)}
+
+    def _eval_wall_opening(self, formula):
+        """Evaluate a wall_opening formula → {"poly": [...], "bbox": {...}}.
+
+        Computes a 4-point polygon spanning from outer to inner wall face.
+        Parametric t-values are computed on the outer segment and applied to
+        both outer and inner segments.
+
+        Positioning modes:
+
+        1. Gap from endpoint (default):
+           "from_end": true, "gap": dist_from_end, "width": opening_width
+           "from_end": false, "gap": dist_from_start, "width": opening_width
+
+        2. Reference point projection:
+           "ref_point": point_spec, "ref_offset": length_spec, "width": w
+           Projects ref_point onto outer segment, offsets by ref_offset,
+           then places opening of given width starting from that position.
+
+        3. Centered:
+           "centered": true, "center_t": float (0-1), "width": w
+           Centers opening at the given parametric position (0.5 = midpoint).
+
+        4. Centered between two projections:
+           "center_refs": [point_spec, point_spec], "width": w
+           Projects both points onto the segment, centers opening between them.
+
+        Result poly = [outer_start, outer_end, inner_end, inner_start].
+        """
+        os = self.resolve_point(formula.get("outer_start"))
+        oe = self.resolve_point(formula.get("outer_end"))
+        ins = self.resolve_point(formula.get("inner_start"))
+        ine = self.resolve_point(formula.get("inner_end"))
+        width = self.resolve_length(formula.get("width"))
+        if any(v is None for v in (os, oe, ins, ine, width)):
+            return None
+
+        # Outer segment vector
+        dx, dy = oe[0] - os[0], oe[1] - os[1]
+        seg_len = math.sqrt(dx * dx + dy * dy)
+        if seg_len < 1e-12:
+            return None
+
+        # Determine t_start and t_end (parametric on outer segment)
+        if "ref_point" in formula:
+            # Mode 2: reference point projection + offset
+            ref_pt = self.resolve_point(formula["ref_point"])
+            ref_offset = self.resolve_length(formula.get("ref_offset", 0))
+            if ref_pt is None or ref_offset is None:
+                return None
+            # Project ref_point onto outer segment
+            rx, ry = ref_pt[0] - os[0], ref_pt[1] - os[1]
+            t_ref = (rx * dx + ry * dy) / (dx * dx + dy * dy)
+            t_start = t_ref + ref_offset / seg_len
+            t_end = t_start + width / seg_len
+        elif "center_refs" in formula:
+            # Mode 4: centered between two projected points
+            refs = formula["center_refs"]
+            p1 = self.resolve_point(refs[0])
+            p2 = self.resolve_point(refs[1])
+            if p1 is None or p2 is None:
+                return None
+            t1 = ((p1[0] - os[0]) * dx + (p1[1] - os[1]) * dy) / (dx * dx + dy * dy)
+            t2 = ((p2[0] - os[0]) * dx + (p2[1] - os[1]) * dy) / (dx * dx + dy * dy)
+            t_center = (t1 + t2) / 2
+            half_w = width / (2 * seg_len)
+            t_start = t_center - half_w
+            t_end = t_center + half_w
+        elif formula.get("centered"):
+            # Mode 3: centered at fixed t
+            t_center = formula.get("center_t", 0.5)
+            half_w = width / (2 * seg_len)
+            t_start = t_center - half_w
+            t_end = t_center + half_w
+        else:
+            # Mode 1: gap from endpoint
+            gap = self.resolve_length(formula.get("gap", 0))
+            if gap is None:
+                return None
+            from_end = formula.get("from_end", True)
+            if from_end:
+                t_end = 1.0 - gap / seg_len
+                t_start = t_end - width / seg_len
+            else:
+                t_start = gap / seg_len
+                t_end = t_start + width / seg_len
+
+        # Interpolate on outer segment
+        outer_start = [os[0] + t_start * dx, os[1] + t_start * dy]
+        outer_end = [os[0] + t_end * dx, os[1] + t_end * dy]
+
+        # Interpolate on inner segment (same t values)
+        idx, idy = ine[0] - ins[0], ine[1] - ins[1]
+        inner_end = [ins[0] + t_end * idx, ins[1] + t_end * idy]
+        inner_start = [ins[0] + t_start * idx, ins[1] + t_start * idy]
+
+        # Default poly order: [outer_start, outer_end, inner_end, inner_start]
+        # Other orderings supported via "poly_order" field:
+        #   "inner_first": [inner_start, inner_end, outer_end, outer_start]
+        #   "outer_reversed": [outer_end, outer_start, inner_start, inner_end]
+        #   "face_pair": [outer_start, inner_start, inner_end, outer_end]
+        order = formula.get("poly_order", "outer_first")
+        if order == "inner_first":
+            poly = [inner_start, inner_end, outer_end, outer_start]
+        elif order == "outer_reversed":
+            poly = [outer_end, outer_start, inner_start, inner_end]
+        elif order == "face_pair":
+            poly = [outer_start, inner_start, inner_end, outer_end]
+        else:
+            poly = [outer_start, outer_end, inner_end, inner_start]
         return {"poly": poly, "bbox": _bbox_from_poly(poly)}
 
     # -------------------------------------------------------------------
@@ -762,7 +875,9 @@ def _extract_deps_recursive(spec, deps):
                 "offset", "center", "reference", "line1_point", "line1_dir",
                 "line2_point", "line2_dir", "thickness", "length", "width",
                 "depth", "radius", "origin", "neg", "perp",
-                "sw", "se", "ne", "nw"):
+                "sw", "se", "ne", "nw",
+                "outer_start", "outer_end", "inner_start", "inner_end",
+                "gap", "ref_point", "ref_offset"):
         if key in spec:
             _extract_deps_recursive(spec[key], deps)
 
@@ -796,6 +911,10 @@ def _extract_deps_recursive(spec, deps):
     # Line-polygon intersection
     if "line_poly_isect" in spec:
         _extract_deps_recursive(spec["line_poly_isect"], deps)
+
+    # Center refs (pair of point specs)
+    if "center_refs" in spec:
+        _extract_deps_recursive(spec["center_refs"], deps)
 
 
 # ---------------------------------------------------------------------------
@@ -1385,5 +1504,504 @@ def get_iw_formulas():
                 ),
                 {"neg": _W6W7_AL},
             ),
+        },
+    }
+
+
+def get_layout_item_formulas():
+    """Return dict of {element_name: formula_json} for core layout items.
+
+    These are the 5 items computed by floorplan/layout.py: dryer, washer,
+    counter, dresser, shelves.  The bed is also here but depends on O9
+    opening parametrics (IW11-anchored).
+    """
+    # --- Dryer ---
+    # SW = line_isect(offset(W2, APPLIANCE_OFFSET_FROM_W2, w2w5_in), w2w5_al,
+    #                 offset(W1, APPLIANCE_OFFSET_FROM_W1, w2w5_al), w9w10_al)
+    # SE = offset(SW, APPLIANCE_WIDTH, w2w5_in)
+    # NW = offset(SW, APPLIANCE_DEPTH, w2w5_al)
+    _dryer_sw = _li(
+        _off("W2", {"const": "APPLIANCE_OFFSET_FROM_W2"}, _W2W5_IN),
+        _W2W5_AL,
+        _off("W1", {"const": "APPLIANCE_OFFSET_FROM_W1"}, _W2W5_AL),
+        _W9W10_AL,
+    )
+
+    # --- Washer ---
+    # SW = offset(dryer.NW, APPLIANCE_GAP, w2w5_al)
+    _washer_sw = _off(
+        {"element": "DRYER", "corner": "NW"},
+        {"const": "APPLIANCE_GAP"},
+        _W2W5_AL,
+    )
+
+    # --- Counter ---
+    # SW anchor = offset(dryer.SE, COUNTER_GAP, w2w5_in)
+    # counter has 4 corners, each a line intersection
+    # ctr_sw = line_isect(ctr_sw_anchor, w2w5_al, W1, w9w10_al)
+    # ctr_se = line_isect(ctr_se_anchor, w2w5_al, W1, w9w10_al)
+    # ctr_nw = offset(ctr_sw, COUNTER_LENGTH, w2w5_al)
+    # ctr_ne = offset(ctr_se, COUNTER_LENGTH, w2w5_al)
+    # where ctr_se_anchor = offset(ctr_sw_anchor, COUNTER_DEPTH, w2w5_in)
+    _ctr_sw_anchor = _off(
+        {"element": "DRYER", "corner": "SE"},
+        {"const": "COUNTER_GAP"},
+        _W2W5_IN,
+    )
+    _ctr_se_anchor = _off(
+        _ctr_sw_anchor,
+        {"const": "COUNTER_DEPTH"},
+        _W2W5_IN,
+    )
+
+    # --- Dresser ---
+    # NE = line_isect(offset(IW11.NW, DRESSER_GAP_IW15, w18w1_al), w18w1_in,
+    #                 offset(IW1.SW, DRESSER_GAP_IW1, w9w10_in), w9w10_al)
+    # along = w9w10_al (east), across = w9w10_in (south)
+    # width goes westward from NE: NW = offset(NE, -DRESSER_WIDTH, w9w10_al)
+    # depth goes southward from NE: SE = offset(NE, DRESSER_DEPTH, w9w10_in)
+    _dresser_ne = _li(
+        _off({"element": "IW11", "corner": "NW"}, {"const": "DRESSER_GAP_IW15"},
+             _W18W1_AL),
+        _W18W1_IN,
+        _off({"element": "IW1", "corner": "SW"}, {"const": "DRESSER_GAP_IW1"},
+             _W9W10_IN),
+        _W9W10_AL,
+    )
+
+    # --- Shelves ---
+    # NE = line_isect(offset(IW1.SW, SHELVES_GAP_IW1, w9w10_in), w9w10_al,
+    #                 offset(IW9.NW, SHELVES_GAP_IW9, w18w1_al), w18w1_in)
+    # NW = offset(NE, SHELVES_LENGTH, w18w1_al)  [westward]
+    # SE = offset(NE, SHELVES_DEPTH, w9w10_in)   [southward]
+    _shelves_ne = _li(
+        _off({"element": "IW1", "corner": "SW"}, {"const": "SHELVES_GAP_IW1"},
+             _W9W10_IN),
+        _W9W10_AL,
+        _off({"element": "IW9", "corner": "NW"}, {"const": "SHELVES_GAP_IW9"},
+             _W18W1_AL),
+        _W18W1_IN,
+    )
+
+    # --- Bed ---
+    # The bed is anchored relative to opening O9, which is anchored to IW11.
+    # O9 east end on F18-F1: te9 = t_iw11_sw + O9_OFFSET/seg_len + O9_WIDTH/seg_len
+    # Bed SE on wall = offset(W18, bed_t, (dE, dN)) where bed_t = te9 + BED_GAP_O9/seg_len
+    # But the formula system works with W-series points (inner wall face), while
+    # O9 uses F-series (outer face).  The bed SE is:
+    #   bed_se_wall = W18 + (te9 + BED_GAP_O9/seg_len) * (W1 - W18)
+    #   bed_se = offset(bed_se_wall, BED_WALL_GAP, w18w1_in)
+    # te9 is computed from IW11.SW projected onto F18-F1.  Rather than replicate
+    # this parametric chain, we use a four_corner formula with proj-based offsets
+    # from IW11.SW along the south wall.
+    #
+    # Procedural code computes:
+    #   _t_sw9 = proj(IW11.SW, F18, seg_F18_F1_unit)
+    #   _ts9 = _t_sw9 + O9_OFFSET_IW11 / seg9_len
+    #   _te9 = _ts9 + 2 * O9_HALF_WIDTH / seg9_len
+    #   _bed_t = _te9 + BED_GAP_O9 / _seg_len   (on W18-W1, not F18-F1!)
+    #   _bed_se_wall = W18 + _bed_t * (W1 - W18)  [along W18-W1 direction]
+    #
+    # The key subtlety: _bed_t uses _te9 (F18-F1 parametric) applied to
+    # W18-W1 segment length.  Since F18-F1 and W18-W1 are parallel,
+    # _te9 = dist_along / F18F1_len, and _bed_t = _te9 + BED_GAP_O9/W18W1_len.
+    # These have different denominators (F vs W segment lengths), which is
+    # a quirk of the procedural code.
+    #
+    # For formula equivalence, we compute the bed anchor directly:
+    #   bed_along_dist = proj(IW11.SW, W18, w18w1_neg_al) + O9_OFFSET_IW11
+    #                    + 2*O9_HALF_WIDTH + BED_GAP_O9
+    # where all distances use W18-W1 direction but proj uses F18-F1 for IW11.
+    # This won't be bit-identical because F18≠W18 offset matters.
+    #
+    # Instead, replicate the exact procedural formula using a four_corner type
+    # with explicit offset computations matching the F18-F1 parametric approach.
+    # We'll compute the bed position as:
+    #   bed_se_wall = offset(W18, total_dist_along_w18w1, neg(w18w1_al))
+    #   where total_dist_along_w18w1 = proj(IW11.SW, F18, F18F1_dir)/F18F1_len * W18W1_len
+    #                                 + O9_OFFSET_IW11/F18F1_len * W18W1_len
+    #                                 + 2*O9_HALF_WIDTH/F18F1_len * W18W1_len
+    #                                 + BED_GAP_O9
+    # This is getting complex. Let's use four_corner and match exactly.
+    #
+    # Actually: the procedural code uses seg_vec(F18, F1) for the parametric
+    # but seg_vec(W18, W1) for _bed_t denominator on the GAP term. So:
+    #   _bed_se_wall = W18 + (_te9 + BED_GAP_O9/_seg_w18w1_len) * seg_w18w1_vec
+    # where _te9 = (proj_iw11_sw_on_f18f1 + O9_OFFSET_IW11 + O9_WIDTH) / seg_f18f1_len
+    #
+    # For bit-identical results, we need the exact same computation.
+    # The simplest approach: compute bed_se_wall as
+    #   W18 + proj(IW11.SW, F18, f18f1_dir) * w18w1_unit
+    #        + (O9_OFFSET_IW11 + 2*O9_HALF_WIDTH) / f18f1_len * w18w1_vec
+    #        + BED_GAP_O9 * w18w1_unit
+    # But we don't have f18f1_len in the formula system (F-series points aren't
+    # in the evaluator context).
+    #
+    # For now, skip the bed — it requires F-series points which the evaluator
+    # doesn't have access to yet.  The bed will be migrated when F-series
+    # support is added.
+
+    return {
+        "DRYER": {
+            "type": "item_rect",
+            "anchor": _dryer_sw,
+            "along": _W2W5_IN,
+            "across": _W2W5_AL,
+            "width": {"const": "APPLIANCE_WIDTH"},
+            "depth": {"const": "APPLIANCE_DEPTH"},
+            "anchor_corner": "sw",
+        },
+        "WASHER": {
+            "type": "item_rect",
+            "anchor": _washer_sw,
+            "along": _W2W5_IN,
+            "across": _W2W5_AL,
+            "width": {"const": "APPLIANCE_WIDTH"},
+            "depth": {"const": "APPLIANCE_DEPTH"},
+            "anchor_corner": "sw",
+        },
+        "COUNTER": {
+            "type": "four_corner",
+            "sw": _li(_ctr_sw_anchor, _W2W5_AL, "W1", _W9W10_AL),
+            "se": _li(_ctr_se_anchor, _W2W5_AL, "W1", _W9W10_AL),
+            "ne": _off(
+                _li(_ctr_se_anchor, _W2W5_AL, "W1", _W9W10_AL),
+                {"const": "COUNTER_LENGTH"},
+                _W2W5_AL,
+            ),
+            "nw": _off(
+                _li(_ctr_sw_anchor, _W2W5_AL, "W1", _W9W10_AL),
+                {"const": "COUNTER_LENGTH"},
+                _W2W5_AL,
+            ),
+        },
+        "DRESSER": {
+            "type": "item_rect",
+            "anchor": _dresser_ne,
+            "along": _W9W10_AL,
+            "across": {"neg": _W9W10_IN},
+            "width": {"const": "DRESSER_WIDTH"},
+            "depth": {"const": "DRESSER_DEPTH"},
+            "anchor_corner": "ne",
+        },
+        "SHELVES": {
+            "type": "item_rect",
+            "anchor": _shelves_ne,
+            "along": {"neg": _W18W1_AL},
+            "across": {"neg": _W9W10_IN},
+            "width": {"const": "SHELVES_LENGTH"},
+            "depth": {"const": "SHELVES_DEPTH"},
+            "anchor_corner": "ne",
+        },
+    }
+
+
+def _add(a, b):
+    """Helper: length addition spec."""
+    return {"add": [a, b]}
+
+
+def get_outer_opening_formulas():
+    """Return dict of {name: formula_json} for outer openings O1-O11, O8a.
+
+    Each formula is a wall_opening type with parametric positioning on
+    paired outer/inner wall segments.
+    """
+    # Cumulative gap from F5 for F2-F5 openings:
+    # O3: gap = O3_GAP_F5
+    # O2: gap = O3_GAP_F5 + O3_WIDTH + O2_GAP_O3
+    # O1: gap = O3_GAP_F5 + O3_WIDTH + O2_GAP_O3 + O2_WIDTH + O1_GAP_O2
+    _o3_gap = {"const": "O3_GAP_F5"}
+    _o2_gap = _add(_add(_o3_gap, {"const": "O3_WIDTH"}), {"const": "O2_GAP_O3"})
+    _o1_gap = _add(_add(_o2_gap, {"const": "O2_WIDTH"}), {"const": "O1_GAP_O2"})
+
+    # F18-F1 south wall openings (O9 anchored to IW11.SW projection):
+    # O9: ref_point = IW11.SW on F18-F1, ref_offset = O9_OFFSET_IW11
+    # O8a: positioned relative to O9 start
+    #   O9_start_t = t_ref + O9_OFFSET_IW11/seg_len
+    #   O8a_end_t = O9_start_t - O8A_GAP_O9/seg_len
+    #   O8a_start_t = O8a_end_t - 2*O8A_HALF_WIDTH/seg_len
+    # O10: O9_end_t + O9_O10_WALL/seg_len
+    # O11: O10_end_t + O10_O11_WALL/seg_len
+    # For O8a/O10/O11, express as ref_point + cumulative ref_offset.
+    _o9_start_offset = {"const": "O9_OFFSET_IW11"}
+    _o9_width = {"mul": [2, {"const": "O9_HALF_WIDTH"}]}
+    _o10_start_offset = _add(_add(_o9_start_offset, _o9_width),
+                             {"const": "O9_O10_WALL"})
+    _o10_width = {"mul": [2, {"const": "O10_HALF_WIDTH"}]}
+    _o11_start_offset = _add(_add(_o10_start_offset, _o10_width),
+                             {"const": "O10_O11_WALL"})
+    # O8a is before O9: end_offset = O9_OFFSET_IW11 - O8A_GAP_O9
+    # start_offset = end_offset - 2*O8A_HALF_WIDTH
+    _o8a_start_offset = {"sub": [_o9_start_offset,
+                                 _add({"const": "O8A_GAP_O9"},
+                                      {"mul": [2, {"const": "O8A_HALF_WIDTH"}]})]}
+
+    return {
+        # --- F2-F5 segment (south-east wall) ---
+        "O3": {
+            "type": "wall_opening",
+            "outer_start": "F2", "outer_end": "F5",
+            "inner_start": "W2", "inner_end": "W5",
+            "from_end": True,
+            "gap": {"const": "O3_GAP_F5"},
+            "width": {"const": "O3_WIDTH"},
+        },
+        "O2": {
+            "type": "wall_opening",
+            "outer_start": "F2", "outer_end": "F5",
+            "inner_start": "W2", "inner_end": "W5",
+            "from_end": True,
+            "gap": _o2_gap,
+            "width": {"const": "O2_WIDTH"},
+        },
+        "O1": {
+            "type": "wall_opening",
+            "outer_start": "F2", "outer_end": "F5",
+            "inner_start": "W2", "inner_end": "W5",
+            "from_end": True,
+            "gap": _o1_gap,
+            "width": {"const": "O1_WIDTH"},
+        },
+
+        # --- F6-F7 segment (east wall) ---
+        "O4": {
+            "type": "wall_opening",
+            "outer_start": "F6", "outer_end": "F7",
+            "inner_start": "W6", "inner_end": "W7",
+            "centered": True,
+            "center_t": 0.5,
+            "width": {"mul": [2, {"const": "O4_HALF_WIDTH"}]},
+            "poly_order": "inner_first",
+        },
+
+        # --- F9-F10 segment (north-east wall) ---
+        "O5": {
+            "type": "wall_opening",
+            "outer_start": "F9", "outer_end": "F10",
+            "inner_start": "W9", "inner_end": "W10",
+            "ref_point": {"face_mid": "IW2S", "face": "east"},
+            "ref_offset": {"sub": [{"const": "O5_OFFSET_FROM_IW2"},
+                                   {"const": "O5_WIDTH"}]},
+            "width": {"const": "O5_WIDTH"},
+            "poly_order": "inner_first",
+        },
+        "O6": {
+            "type": "wall_opening",
+            "outer_start": "F9", "outer_end": "F10",
+            "inner_start": "W9", "inner_end": "W10",
+            "from_end": True,
+            "gap": {"const": "O6_GAP_F10"},
+            "width": {"const": "O6_WIDTH"},
+            "poly_order": "inner_first",
+        },
+
+        # --- F12-F13 segment (north-west wall, diagonal) ---
+        "O7": {
+            "type": "wall_opening",
+            "outer_start": "F12", "outer_end": "F13",
+            "inner_start": "W12", "inner_end": "W13",
+            "from_end": False,
+            "gap": {"const": "O7_NW_GAP"},
+            "width": {"mul": [2, {"const": "O7_HALF_WIDTH"}]},
+        },
+
+        # --- F14-F15 segment (south-west wall) ---
+        "O8": {
+            "type": "wall_opening",
+            "outer_start": "F14", "outer_end": "F15",
+            "inner_start": "W14", "inner_end": "W15",
+            "center_refs": [
+                {"face_mid": "IW5", "face": "south"},
+                "F15",
+            ],
+            "width": {"mul": [2, {"const": "O8_HALF_WIDTH"}]},
+            "poly_order": "outer_reversed",
+        },
+
+        # --- F18-F1 segment (south wall) ---
+        "O9": {
+            "type": "wall_opening",
+            "outer_start": "F18", "outer_end": "F1",
+            "inner_start": "W18", "inner_end": "W1",
+            "ref_point": {"element": "IW11", "corner": "SW"},
+            "ref_offset": _o9_start_offset,
+            "width": _o9_width,
+        },
+        "O8a": {
+            "type": "wall_opening",
+            "outer_start": "F18", "outer_end": "F1",
+            "inner_start": "W18", "inner_end": "W1",
+            "ref_point": {"element": "IW11", "corner": "SW"},
+            "ref_offset": _o8a_start_offset,
+            "width": {"mul": [2, {"const": "O8A_HALF_WIDTH"}]},
+        },
+        "O10": {
+            "type": "wall_opening",
+            "outer_start": "F18", "outer_end": "F1",
+            "inner_start": "W18", "inner_end": "W1",
+            "ref_point": {"element": "IW11", "corner": "SW"},
+            "ref_offset": _o10_start_offset,
+            "width": _o10_width,
+        },
+        "O11": {
+            "type": "wall_opening",
+            "outer_start": "F18", "outer_end": "F1",
+            "inner_start": "W18", "inner_end": "W1",
+            "ref_point": {"element": "IW11", "corner": "SW"},
+            "ref_offset": _o11_start_offset,
+            "width": {"mul": [2, {"const": "O11_HALF_WIDTH"}]},
+        },
+    }
+
+
+def get_rough_opening_formulas():
+    """Return dict of {name: formula_json} for rough openings RO1-RO7.
+
+    RO1-RO4, RO6-RO7 use wall_opening on rectangular IW wall faces.
+    RO5 uses four_corner (IW6 is trapezoidal).
+    """
+    return {
+        # RO1: in IW1, ref = IW2 east face midpoint
+        # poly = [SW+start*unit, SW+end*unit, NW+end*unit, NW+start*unit]
+        # = outer_first (south face outer, north face inner)
+        "RO1": {
+            "type": "wall_opening",
+            "outer_start": {"element": "IW1", "corner": "SW"},
+            "outer_end": {"element": "IW1", "corner": "SE"},
+            "inner_start": {"element": "IW1", "corner": "NW"},
+            "inner_end": {"element": "IW1", "corner": "NE"},
+            "ref_point": {"face_mid": "IW2", "face": "east"},
+            "ref_offset": {"const": "RO1_OFFSET_FROM_IW2"},
+            "width": {"const": "IW1_RO_WIDTH"},
+        },
+
+        # RO2: in IW11, centered between IW12.NW and IW5.SW projections
+        # _ro_poly_bbox(SE, SW, unit(SE→NE), ...) → face_pair order
+        "RO2": {
+            "type": "wall_opening",
+            "outer_start": {"element": "IW11", "corner": "SE"},
+            "outer_end": {"element": "IW11", "corner": "NE"},
+            "inner_start": {"element": "IW11", "corner": "SW"},
+            "inner_end": {"element": "IW11", "corner": "NW"},
+            "center_refs": [
+                {"element": "IW12", "corner": "NW"},
+                {"element": "IW5", "corner": "SW"},
+            ],
+            "width": {"const": "IW4_RO_WIDTH"},
+            "poly_order": "face_pair",
+        },
+
+        # RO3: in IW9, south edge = IW7.NE projection + RO3_IW7_GAP
+        # _ro_poly_bbox(IW9.SE, IW9.SW, unit(SE→NE), start, start+width)
+        "RO3": {
+            "type": "wall_opening",
+            "outer_start": {"element": "IW9", "corner": "SE"},
+            "outer_end": {"element": "IW9", "corner": "NE"},
+            "inner_start": {"element": "IW9", "corner": "SW"},
+            "inner_end": {"element": "IW9", "corner": "NW"},
+            "ref_point": {"element": "IW7", "corner": "NE"},
+            "ref_offset": {"const": "RO3_IW7_GAP"},
+            "width": {"const": "RO3_WIDTH"},
+            "poly_order": "face_pair",
+        },
+
+        # RO4: in IW2O, centered along length
+        # _ro_poly_bbox(IW2O.SW, IW2O.SE, unit(SW→NW), ...)
+        "RO4": {
+            "type": "wall_opening",
+            "outer_start": {"element": "IW2O", "corner": "SW"},
+            "outer_end": {"element": "IW2O", "corner": "NW"},
+            "inner_start": {"element": "IW2O", "corner": "SE"},
+            "inner_end": {"element": "IW2O", "corner": "NE"},
+            "centered": True,
+            "center_t": 0.5,
+            "width": {"const": "IW2_RO_WIDTH"},
+            "poly_order": "face_pair",
+        },
+
+        # RO5: in IW6 (trapezoidal), four_corner needed
+        # Each face independently projects IW2S west face midpoint,
+        # then offsets by -IW6_RO_OFFSET_W to get end, -width to get start
+        # South face: IW6.SW → IW6.SE, ref = IW2S west mid
+        # North face: IW6.NW → IW6.NE, ref = IW2S west mid
+        "RO5": {
+            "type": "four_corner",
+            "sw": {
+                "offset": {"element": "IW6", "corner": "SW"},
+                "dir": {"face_along": "IW6", "face": "south"},
+                "dist": {"sub": [
+                    {"sub": [
+                        {"proj": {"target": {"face_mid": "IW2S", "face": "west"},
+                                  "anchor": {"element": "IW6", "corner": "SW"},
+                                  "dir": {"face_along": "IW6", "face": "south"}}},
+                        {"const": "IW6_RO_OFFSET_W"},
+                    ]},
+                    {"const": "IW6_RO_WIDTH"},
+                ]},
+            },
+            "se": {
+                "offset": {"element": "IW6", "corner": "SW"},
+                "dir": {"face_along": "IW6", "face": "south"},
+                "dist": {"sub": [
+                    {"proj": {"target": {"face_mid": "IW2S", "face": "west"},
+                              "anchor": {"element": "IW6", "corner": "SW"},
+                              "dir": {"face_along": "IW6", "face": "south"}}},
+                    {"const": "IW6_RO_OFFSET_W"},
+                ]},
+            },
+            "ne": {
+                "offset": {"element": "IW6", "corner": "NW"},
+                "dir": {"neg": {"face_along": "IW6", "face": "north"}},
+                "dist": {"sub": [
+                    {"proj": {"target": {"face_mid": "IW2S", "face": "west"},
+                              "anchor": {"element": "IW6", "corner": "NW"},
+                              "dir": {"neg": {"face_along": "IW6", "face": "north"}}}},
+                    {"const": "IW6_RO_OFFSET_W"},
+                ]},
+            },
+            "nw": {
+                "offset": {"element": "IW6", "corner": "NW"},
+                "dir": {"neg": {"face_along": "IW6", "face": "north"}},
+                "dist": {"sub": [
+                    {"sub": [
+                        {"proj": {"target": {"face_mid": "IW2S", "face": "west"},
+                                  "anchor": {"element": "IW6", "corner": "NW"},
+                                  "dir": {"neg": {"face_along": "IW6", "face": "north"}}}},
+                        {"const": "IW6_RO_OFFSET_W"},
+                    ]},
+                    {"const": "IW6_RO_WIDTH"},
+                ]},
+            },
+        },
+
+        # RO6: in IW11, centered between IW12.SW and W18 projections
+        "RO6": {
+            "type": "wall_opening",
+            "outer_start": {"element": "IW11", "corner": "SE"},
+            "outer_end": {"element": "IW11", "corner": "NE"},
+            "inner_start": {"element": "IW11", "corner": "SW"},
+            "inner_end": {"element": "IW11", "corner": "NW"},
+            "center_refs": [
+                {"element": "IW12", "corner": "SW"},
+                "W18",
+            ],
+            "width": {"const": "IW11_RO_WIDTH"},
+            "poly_order": "face_pair",
+        },
+
+        # RO7: in IW9, centered between IW9.SE (origin) and IW7.SW
+        "RO7": {
+            "type": "wall_opening",
+            "outer_start": {"element": "IW9", "corner": "SE"},
+            "outer_end": {"element": "IW9", "corner": "NE"},
+            "inner_start": {"element": "IW9", "corner": "SW"},
+            "inner_end": {"element": "IW9", "corner": "NW"},
+            "center_refs": [
+                {"element": "IW9", "corner": "SE"},
+                {"element": "IW7", "corner": "SW"},
+            ],
+            "width": {"const": "IW9_RO_WIDTH"},
+            "poly_order": "face_pair",
         },
     }
