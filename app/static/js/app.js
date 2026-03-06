@@ -119,6 +119,10 @@ function connectSSE() {
     }
   });
 
+  App.sse.addEventListener("formula_locked", () => {
+    loadGeometry();
+  });
+
   App.sse.addEventListener("plumbing_changed", () => {
     loadPlumbingElements();
   });
@@ -755,6 +759,7 @@ function renderCanvas() {
   renderPoints(g);
   renderUserDimensions(g);
   renderUserLabels(g);
+  renderLockIcons(g);
 
   if (App.state.zoom === 1 && App.state.pan.x === 0 && App.state.pan.y === 0) {
     fitToWindow();
@@ -1264,6 +1269,80 @@ function renderPoints(g) {
 }
 
 
+/* ========== Phase 12f: Lock Icons & Formula Dependency Highlighting ========== */
+
+function renderLockIcons(g) {
+  const locked = g.locked_elements || [];
+  if (locked.length === 0) return;
+  const layer = App.els["layer-labels"];
+  const lockedSet = new Set(locked.map(n => n.toLowerCase()));
+  // Place lock icon at bbox center of locked elements
+  const sources = [
+    [g.interior_walls, true],
+    [g.variant_items, false],
+    [g.furniture, false],
+    [g.appliances, false],
+  ];
+  for (const [dict, upperKey] of sources) {
+    if (!dict) continue;
+    for (const [name, item] of Object.entries(dict)) {
+      const key = upperKey ? name.toUpperCase() : name.toLowerCase();
+      if (!lockedSet.has(key.toLowerCase())) continue;
+      const b = item.bbox;
+      if (!b) continue;
+      const cx = (b.w + b.e) / 2;
+      const cy = -((b.s + b.n) / 2);
+      const icon = svgEl("text", {
+        x: cx, y: cy - 0.4,
+        class: "lock-icon",
+      });
+      icon.textContent = "\u{1F512}";
+      layer.appendChild(icon);
+    }
+  }
+}
+
+async function highlightFormulaDeps(elemName) {
+  clearFormulaDeps();
+  try {
+    const [depsResp, deptsResp] = await Promise.all([
+      fetch(`/api/formulas/${encodeURIComponent(elemName)}/deps`),
+      fetch(`/api/formulas/${encodeURIComponent(elemName)}/dependents`),
+    ]);
+    const upstream = new Set();
+    const downstream = new Set();
+    if (depsResp.ok) {
+      const deps = await depsResp.json();
+      for (const d of deps) {
+        if (d.dep_type === "element") upstream.add(d.dep_name);
+      }
+    }
+    if (deptsResp.ok) {
+      const depts = await deptsResp.json();
+      for (const d of depts) downstream.add(d.element_name);
+    }
+    if (upstream.size === 0 && downstream.size === 0) return;
+    document.querySelectorAll("[data-name]").forEach(el => {
+      const name = el.getAttribute("data-name");
+      if (!name) return;
+      if (upstream.has(name) || upstream.has(name.toUpperCase()) || upstream.has(name.toLowerCase())) {
+        el.classList.add("formula-dep-upstream");
+      } else if (downstream.has(name) || downstream.has(name.toUpperCase()) || downstream.has(name.toLowerCase())) {
+        el.classList.add("formula-dep-downstream");
+      }
+    });
+  } catch (e) {
+    // Non-critical — skip silently
+  }
+}
+
+function clearFormulaDeps() {
+  document.querySelectorAll(".formula-dep-upstream, .formula-dep-downstream").forEach(el => {
+    el.classList.remove("formula-dep-upstream", "formula-dep-downstream");
+  });
+}
+
+
 /* ========== PLUMBING DATA ========== */
 
 async function loadPlumbingElements() {
@@ -1741,6 +1820,9 @@ function selectElement(type, name, data, event) {
 
   App.els["selection-info"].textContent = `${type}: ${name}`;
   showProperties(type, name, data);
+
+  // Phase 12f: highlight formula dependencies
+  highlightFormulaDeps(name);
 }
 
 function clearSelection() {
@@ -1752,6 +1834,7 @@ function clearSelection() {
   });
   clearWallHandles();
   clearConstantHighlights();
+  clearFormulaDeps();
   App.state.selection = null;
   App.state.selections = [];
   App.els["selection-info"].textContent = "No selection";
@@ -2522,21 +2605,29 @@ async function addFormulaSection(tbody, elemName) {
       // Lock toggle
       const lockTr = document.createElement("tr");
       const lockTd1 = document.createElement("td");
-      lockTd1.textContent = "Locked";
+      lockTd1.textContent = f.locked ? "\u{1F512} Locked" : "\u{1F513} Unlocked";
       lockTr.appendChild(lockTd1);
       const lockTd2 = document.createElement("td");
-      const lockCb = document.createElement("input");
-      lockCb.type = "checkbox";
-      lockCb.checked = !!f.locked;
-      lockCb.addEventListener("change", async () => {
+      const lockBtn = document.createElement("button");
+      lockBtn.className = "prop-btn";
+      lockBtn.textContent = f.locked ? "Unlock" : "Lock";
+      lockBtn.title = f.locked
+        ? "Unlock: allow upstream changes to propagate"
+        : "Lock: freeze at current computed value";
+      lockBtn.addEventListener("click", async () => {
+        const newLocked = !f.locked;
         await fetch(`/api/formulas/${encodeURIComponent(elemName)}/${f.param_name}/lock`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ locked: lockCb.checked, locked_value: null }),
+          body: JSON.stringify({ locked: newLocked, locked_value: null }),
         });
         await loadGeometry();
+        // Re-show properties to refresh lock state
+        if (App.state.selection && App.state.selection.name === elemName) {
+          showProperties(App.state.selection.type, elemName, App.state.selection.data);
+        }
       });
-      lockTd2.appendChild(lockCb);
+      lockTd2.appendChild(lockBtn);
       lockTr.appendChild(lockTd2);
       tbody.appendChild(lockTr);
     }

@@ -1641,6 +1641,16 @@ def get_dependents(dep_name, dep_type=None, db_path=None):
         return [dict(r) for r in rows]
 
 
+def get_all_formula_deps(db_path=None):
+    """Return all formula dependency edges."""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT element_name, param_name, dep_type, dep_name "
+            "FROM formula_deps ORDER BY element_name, param_name"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def rebuild_formula_deps(element_name, param_name, deps, db_path=None):
     """Replace all deps for a formula with a new set.
 

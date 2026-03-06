@@ -1,6 +1,7 @@
-"""Tests for formula REST API endpoints (Phase 12b).
+"""Tests for formula REST API endpoints (Phase 12b, 12f).
 
-Covers: GET/PUT/DELETE /api/formulas, lock/unlock, deps, dependents.
+Covers: GET/PUT/DELETE /api/formulas, lock/unlock, deps, dependents,
+        deps/graph, lock undo/redo, locked_elements in geometry.
 """
 import json
 import pytest
@@ -246,3 +247,170 @@ class TestFormulaDependents:
         assert resp.status_code == 200
         names = {d["element_name"] for d in resp.get_json()}
         assert "DEP_W" in names
+
+
+# ---------------------------------------------------------------------------
+# Phase 12f: GET /api/deps/graph
+# ---------------------------------------------------------------------------
+
+class TestDepsGraph:
+    def test_returns_nodes_and_edges(self, app_client):
+        resp = app_client.get("/api/deps/graph")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "nodes" in data
+        assert "edges" in data
+        # Should have seeded formula nodes (IW walls at minimum)
+        names = {n["name"] for n in data["nodes"]}
+        assert "IW1" in names
+
+    def test_nodes_have_locked_flag(self, app_client):
+        resp = app_client.get("/api/deps/graph")
+        data = resp.get_json()
+        for node in data["nodes"]:
+            assert "locked" in node
+            assert "params" in node
+            assert isinstance(node["params"], list)
+
+    def test_edges_have_from_to(self, app_client):
+        resp = app_client.get("/api/deps/graph")
+        data = resp.get_json()
+        # There should be edges (IW walls depend on each other)
+        if data["edges"]:
+            edge = data["edges"][0]
+            assert "from" in edge
+            assert "to" in edge
+
+    def test_locked_node_in_graph(self, app_client):
+        # Lock IW1 and verify graph reflects it
+        app_client.post(
+            "/api/formulas/IW1/position/lock",
+            data=json.dumps({"locked": True}),
+            content_type="application/json",
+        )
+        resp = app_client.get("/api/deps/graph")
+        data = resp.get_json()
+        iw1_node = next(n for n in data["nodes"] if n["name"] == "IW1")
+        assert iw1_node["locked"] is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 12f: Lock/unlock undo/redo
+# ---------------------------------------------------------------------------
+
+class TestLockUndo:
+    def test_lock_creates_undo_entry(self, app_client):
+        _create_wall(app_client, "UW1")
+        _put_formula(app_client, "UW1")
+        # Lock the formula
+        app_client.post(
+            "/api/formulas/UW1/position/lock",
+            data=json.dumps({"locked": True}),
+            content_type="application/json",
+        )
+        # Verify locked
+        data = app_client.get("/api/formulas/UW1").get_json()
+        assert data[0]["locked"] == 1
+        # Undo
+        resp = app_client.post("/api/undo")
+        assert resp.status_code == 200
+        # Verify unlocked after undo
+        data = app_client.get("/api/formulas/UW1").get_json()
+        assert data[0]["locked"] == 0
+
+    def test_lock_redo(self, app_client):
+        _create_wall(app_client, "UW2")
+        _put_formula(app_client, "UW2")
+        # Lock then undo then redo
+        app_client.post(
+            "/api/formulas/UW2/position/lock",
+            data=json.dumps({"locked": True}),
+            content_type="application/json",
+        )
+        app_client.post("/api/undo")
+        resp = app_client.post("/api/redo")
+        assert resp.status_code == 200
+        data = app_client.get("/api/formulas/UW2").get_json()
+        assert data[0]["locked"] == 1
+
+    def test_unlock_undo(self, app_client):
+        _create_wall(app_client, "UW3")
+        _put_formula(app_client, "UW3")
+        # Lock first
+        app_client.post(
+            "/api/formulas/UW3/position/lock",
+            data=json.dumps({"locked": True}),
+            content_type="application/json",
+        )
+        # Now unlock
+        app_client.post(
+            "/api/formulas/UW3/position/lock",
+            data=json.dumps({"locked": False}),
+            content_type="application/json",
+        )
+        data = app_client.get("/api/formulas/UW3").get_json()
+        assert data[0]["locked"] == 0
+        # Undo the unlock → should be locked again
+        app_client.post("/api/undo")
+        data = app_client.get("/api/formulas/UW3").get_json()
+        assert data[0]["locked"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 12f: locked_elements in geometry response
+# ---------------------------------------------------------------------------
+
+class TestLockedElementsInGeometry:
+    def test_no_locked_by_default(self, app_client):
+        resp = app_client.get("/api/geometry")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        locked = data.get("locked_elements", [])
+        assert locked == []
+
+    def test_locked_element_appears(self, app_client):
+        # Lock IW1's formula
+        app_client.post(
+            "/api/formulas/IW1/position/lock",
+            data=json.dumps({"locked": True}),
+            content_type="application/json",
+        )
+        resp = app_client.get("/api/geometry")
+        data = resp.get_json()
+        locked = data.get("locked_elements", [])
+        assert "IW1" in locked
+
+    def test_unlocked_element_removed(self, app_client):
+        # Lock then unlock IW2
+        app_client.post(
+            "/api/formulas/IW2/position/lock",
+            data=json.dumps({"locked": True}),
+            content_type="application/json",
+        )
+        app_client.post(
+            "/api/formulas/IW2/position/lock",
+            data=json.dumps({"locked": False}),
+            content_type="application/json",
+        )
+        resp = app_client.get("/api/geometry")
+        data = resp.get_json()
+        locked = data.get("locked_elements", [])
+        assert "IW2" not in locked
+
+
+# ---------------------------------------------------------------------------
+# Phase 12f: get_all_formula_deps database function
+# ---------------------------------------------------------------------------
+
+class TestGetAllFormulaDeps:
+    def test_returns_all_deps(self, fresh_db):
+        from app.database import get_all_formula_deps
+        deps = get_all_formula_deps(db_path=fresh_db)
+        assert isinstance(deps, list)
+        assert len(deps) > 0
+        # Each dep has required fields
+        d = deps[0]
+        assert "element_name" in d
+        assert "param_name" in d
+        assert "dep_type" in d
+        assert "dep_name" in d

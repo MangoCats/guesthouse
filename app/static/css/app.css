@@ -563,6 +563,13 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 .const-dep-first { stroke: #ffffff !important; stroke-width: 0.06 !important; filter: drop-shadow(0 0 3px rgba(255,255,255,0.6)); }
 .const-dep-second { stroke: #f5c2e7 !important; stroke-width: 0.04 !important; filter: drop-shadow(0 0 2px rgba(245,194,231,0.5)); }
 
+/* Phase 12f: Formula dependency highlighting (upstream/downstream) */
+.formula-dep-upstream { stroke: #89b4fa !important; stroke-width: 0.06 !important; filter: drop-shadow(0 0 3px rgba(137,180,250,0.6)); }
+.formula-dep-downstream { stroke: #fab387 !important; stroke-width: 0.05 !important; filter: drop-shadow(0 0 3px rgba(250,179,135,0.6)); }
+
+/* Phase 12f: Lock icon on canvas */
+.lock-icon { fill: #f9e2af; font-size: 0.35px; pointer-events: none; dominant-baseline: central; text-anchor: middle; }
+
 .rubber-band {
   fill: rgba(137, 180, 250, 0.15);
   stroke: var(--accent);

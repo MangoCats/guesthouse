@@ -32,6 +32,7 @@ from app.database import (
     get_element_formulas, get_all_formulas, upsert_formula,
     delete_formula, set_formula_lock, get_formula_deps,
     get_dependents as db_get_dependents, rebuild_formula_deps,
+    get_all_formula_deps,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP
@@ -1285,10 +1286,39 @@ def create_app(db_path=None):
         body = request.get_json(force=True)
         locked = body.get("locked", True)
         locked_value = body.get("locked_value")
+        variant = body.get("variant")
+        # Capture before state for undo
+        formulas = get_element_formulas(element_name, db_path=db)
+        old_formula = None
+        for f in formulas:
+            if f["param_name"] == param_name:
+                if variant is None and f.get("variant") is None:
+                    old_formula = f
+                    break
+                elif variant is not None and f.get("variant") == variant:
+                    old_formula = f
+                    break
         ok = set_formula_lock(element_name, param_name, locked,
-                              locked_value=locked_value, db_path=db)
+                              locked_value=locked_value, variant=variant,
+                              db_path=db)
         if not ok:
             return jsonify({"error": "formula not found"}), 404
+        # Record undo
+        old_lv = None
+        if old_formula and old_formula.get("locked_value"):
+            try:
+                old_lv = json.loads(old_formula["locked_value"])
+            except (TypeError, ValueError):
+                old_lv = old_formula["locked_value"]
+        before = {"element_name": element_name, "param_name": param_name,
+                  "locked": bool(old_formula["locked"]) if old_formula else False,
+                  "locked_value": old_lv, "variant": variant}
+        after = {"element_name": element_name, "param_name": param_name,
+                 "locked": locked, "locked_value": locked_value,
+                 "variant": variant}
+        desc = f"{'Lock' if locked else 'Unlock'} {element_name}.{param_name}"
+        undo_mgr.record("formula_lock", before, after, desc)
+        _broadcast("formula_locked")
         _broadcast("element_changed")
         _invalidate()
         return jsonify({"ok": True})
@@ -1305,6 +1335,30 @@ def create_app(db_path=None):
         dep_type = request.args.get("type", "element")
         rows = db_get_dependents(element_name, dep_type=dep_type, db_path=db)
         return jsonify([dict(r) for r in rows])
+
+    @app.route("/api/deps/graph")
+    def api_deps_graph():
+        """Return the full formula dependency DAG as nodes and edges."""
+        all_formulas = get_all_formulas(db_path=db)
+        all_deps = get_all_formula_deps(db_path=db)
+        nodes = {}
+        for f in all_formulas:
+            name = f["element_name"]
+            if name not in nodes:
+                nodes[name] = {"name": name, "locked": False, "params": []}
+            nodes[name]["params"].append(f["param_name"])
+            if f.get("locked"):
+                nodes[name]["locked"] = True
+        edges = []
+        seen = set()
+        for d in all_deps:
+            if d["dep_type"] == "element":
+                edge = (d["dep_name"], d["element_name"])
+                if edge not in seen:
+                    edges.append({"from": d["dep_name"],
+                                  "to": d["element_name"]})
+                    seen.add(edge)
+        return jsonify({"nodes": list(nodes.values()), "edges": edges})
 
     # -- SSE endpoint --
 

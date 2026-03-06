@@ -10,6 +10,7 @@ from app.database import (
     get_db, update_constant, update_constants_batch,
     create_element_raw, update_element, delete_element,
     create_door_raw, update_door, delete_door,
+    set_formula_lock,
 )
 
 
@@ -190,6 +191,12 @@ class UndoManager:
                 source = state.get("source_variant", "standard")
                 clone_variant_exclusions(source, state["name"], self._db_path)
                 clone_variant_elements(source, state["name"], self._db_path)
+        elif action_type == "formula_lock":
+            set_formula_lock(
+                state["element_name"], state["param_name"],
+                state["locked"], locked_value=state.get("locked_value"),
+                variant=state.get("variant"), db_path=self._db_path,
+            )
         elif action_type == "full_reset":
             # Combined constants + outline + elements + doors reset
             from app.database import restore_outline_chain, restore_elements

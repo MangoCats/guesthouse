@@ -860,6 +860,13 @@ def _apply_formula_overrides(result, constants_dict, inner_poly, radii,
     except Exception:
         return result
 
+    # Expose locked element names for canvas rendering
+    locked = set()
+    for row in formulas:
+        if row.get("locked"):
+            locked.add(row["element_name"])
+    result["locked_elements"] = sorted(locked)
+
     # Override procedural results with formula-computed elements
     variant_items = result.get("variant_items", {})
     for elem_name, computed in ev.elements.items():
