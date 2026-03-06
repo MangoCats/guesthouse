@@ -781,3 +781,109 @@ class TestVariantGeometry:
         props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
         assert "new_v" in props["variants"]
         assert "standard" in props["variants"]
+
+
+# =========================================================================
+# TestFurniturePropertyEdit (SEL-8a)
+# =========================================================================
+
+class TestFurniturePropertyEdit:
+    """SEL-8a: Editing Width/Depth of placed furniture items."""
+
+    def _create_placed(self, client, name="test_bed", width=76.0/12, depth=80.0/12):
+        """Helper: create a placed furniture element and return its record."""
+        poly = [
+            [-width/2, depth/2], [width/2, depth/2],
+            [width/2, -depth/2], [-width/2, -depth/2],
+        ]
+        resp = client.post("/api/elements", json={
+            "type": "furniture",
+            "name": name,
+            "variant": "standard",
+            "properties": {
+                "source": "placed",
+                "center": [0, 0],
+                "width": width,
+                "depth": depth,
+                "rotation": 0,
+                "poly": poly,
+                "shape": "rect",
+                "catalog_key": "bed",
+            },
+        })
+        assert resp.status_code in (200, 201)
+        data = resp.get_json()
+        return data
+
+    def test_update_width(self, app_client):
+        """PUT width updates properties.width on placed element."""
+        elem = self._create_placed(app_client)
+        new_width = 60.0 / 12  # 5 ft
+        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
+        props["width"] = new_width
+        resp = app_client.put(f"/api/elements/{elem['id']}", json={
+            "properties": props,
+        })
+        assert resp.status_code == 200
+        updated = resp.get_json()
+        up = json.loads(updated["properties"]) if isinstance(updated["properties"], str) else updated["properties"]
+        assert abs(up["width"] - new_width) < 1e-9
+
+    def test_update_depth(self, app_client):
+        """PUT depth updates properties.depth on placed element."""
+        elem = self._create_placed(app_client, name="test_dresser",
+                                    width=34.0/12, depth=18.0/12)
+        new_depth = 24.0 / 12  # 2 ft
+        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
+        props["depth"] = new_depth
+        resp = app_client.put(f"/api/elements/{elem['id']}", json={
+            "properties": props,
+        })
+        assert resp.status_code == 200
+        updated = resp.get_json()
+        up = json.loads(updated["properties"]) if isinstance(updated["properties"], str) else updated["properties"]
+        assert abs(up["depth"] - new_depth) < 1e-9
+
+    def test_update_preserves_other_props(self, app_client):
+        """Updating width preserves source, center, rotation, etc."""
+        elem = self._create_placed(app_client, name="test_shelves",
+                                    width=16.0/12, depth=16.0/12)
+        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
+        props["width"] = 20.0 / 12
+        resp = app_client.put(f"/api/elements/{elem['id']}", json={
+            "properties": props,
+        })
+        updated = resp.get_json()
+        up = json.loads(updated["properties"]) if isinstance(updated["properties"], str) else updated["properties"]
+        assert up["source"] == "placed"
+        assert up["center"] == [0, 0]
+        assert up["rotation"] == 0
+        assert up["catalog_key"] == "bed"  # original catalog_key preserved
+
+    def test_update_width_undo(self, app_client):
+        """Undo after width update restores previous width."""
+        elem = self._create_placed(app_client, name="undo_bed")
+        orig_props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
+        orig_width = orig_props["width"]
+        # Update width
+        new_props = dict(orig_props)
+        new_props["width"] = 48.0 / 12
+        app_client.put(f"/api/elements/{elem['id']}", json={
+            "properties": new_props,
+        })
+        # Undo
+        resp = app_client.post("/api/undo")
+        assert resp.status_code == 200
+        # Verify restored
+        resp = app_client.get("/api/elements")
+        elems = resp.get_json()
+        restored = next(e for e in elems if e["name"] == "undo_bed")
+        rp = json.loads(restored["properties"]) if isinstance(restored["properties"], str) else restored["properties"]
+        assert abs(rp["width"] - orig_width) < 1e-9
+
+    def test_nonexistent_element(self, app_client):
+        """PUT to nonexistent element returns 404."""
+        resp = app_client.put("/api/elements/99999", json={
+            "properties": {"width": 5.0},
+        })
+        assert resp.status_code == 404

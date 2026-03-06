@@ -1855,8 +1855,25 @@ function showProperties(type, name, data) {
     const w = b.e - b.w;
     const d = b.n - b.s;
     addPropRow(tbody, "Type", type);
-    addPropRow(tbody, "Width", fmtFtIn(w));
-    addPropRow(tbody, "Depth", fmtFtIn(d));
+    // SEL-8a: check for DB record to make Width/Depth editable
+    const elemRec = (App.state.elements || []).find(e => e.name === name);
+    const elemProps = elemRec ? (typeof elemRec.properties === "string" ? JSON.parse(elemRec.properties) : (elemRec.properties || {})) : null;
+    if (elemRec && elemProps && (elemProps.width !== undefined || elemProps.source === "placed")) {
+      // Editable Width/Depth for placed items — use stored dimensions (not bbox)
+      const dispW = elemProps.width !== undefined ? elemProps.width : w;
+      const dispD = elemProps.depth !== undefined ? elemProps.depth : d;
+      const tr1 = document.createElement("tr");
+      tr1.innerHTML = `<td>Width</td><td><input type="text" value="${fmtFtIn(dispW)}" /></td>`;
+      tr1.querySelector("input").addEventListener("change", (e) => handleElementPropEdit(elemRec.id, "width", e.target.value));
+      tbody.appendChild(tr1);
+      const tr2 = document.createElement("tr");
+      tr2.innerHTML = `<td>Depth</td><td><input type="text" value="${fmtFtIn(dispD)}" /></td>`;
+      tr2.querySelector("input").addEventListener("change", (e) => handleElementPropEdit(elemRec.id, "depth", e.target.value));
+      tbody.appendChild(tr2);
+    } else {
+      addPropRow(tbody, "Width", fmtFtIn(w));
+      addPropRow(tbody, "Depth", fmtFtIn(d));
+    }
     if (data.center) {
       addPropRow(tbody, "Center E", fmtFtIn(data.center[0]));
       addPropRow(tbody, "Center N", fmtFtIn(data.center[1]));
@@ -1865,8 +1882,6 @@ function showProperties(type, name, data) {
       addPropRow(tbody, "Center N", fmtFtIn((b.s + b.n) / 2));
     }
     if (data.rotation !== undefined) addPropRow(tbody, "Rotation", data.rotation.toFixed(1) + "°");
-    // TL-26: Shape assignment for placed elements
-    const elemRec = (App.state.elements || []).find(e => e.name === name);
     if (elemRec) {
       const props = typeof elemRec.properties === "string"
         ? JSON.parse(elemRec.properties) : elemRec.properties;
@@ -2702,6 +2717,39 @@ function parseDimension(text) {
     }
   }
   return result;
+}
+
+async function handleElementPropEdit(elemId, propKey, rawValue) {
+  const value = parseDimension(rawValue);
+  if (isNaN(value)) {
+    showToast(`Invalid value: ${rawValue}`, "error");
+    return;
+  }
+  try {
+    const elem = (App.state.elements || []).find(e => e.id === elemId);
+    if (!elem) throw new Error("element not found");
+    const props = typeof elem.properties === "string" ? JSON.parse(elem.properties) : (elem.properties || {});
+    props[propKey] = value; // store in feet (same unit as catalog)
+    // Recompute poly if placed element with center
+    if (props.source === "placed" && props.center && props.width && props.depth) {
+      const angle = props.rotation || 0;
+      props.poly = rotatedRectPoly(
+        props.center[0], props.center[1],
+        props.width, props.depth, angle
+      );
+    }
+    const resp = await apiFetch(`/api/elements/${elemId}`, {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({properties: props}),
+    });
+    if (!resp.ok) throw new Error((await resp.json()).error);
+    showToast(`${propKey} = ${fmtFtIn(value)}`, "success");
+    loadElements();
+    loadGeometry();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  }
 }
 
 async function handleConstantEdit(name, rawValue) {
