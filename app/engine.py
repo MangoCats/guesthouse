@@ -832,6 +832,61 @@ def _build_outline_segs_from_chain(chain):
     return segs[-1:] + segs[:-1]
 
 
+def _apply_formula_overrides(result, constants_dict, inner_poly, radii,
+                             variant, db_path):
+    """Apply formula-evaluated elements over procedural results (Phase 12 hybrid).
+
+    Loads formulas from the database, evaluates them in topological order,
+    and overrides the corresponding entries in result.  Elements without
+    formulas keep their procedural values.
+    """
+    try:
+        from app.evaluator import FormulaEvaluator
+        from app.database import get_all_formulas
+        formulas = get_all_formulas(variant=variant, db_path=db_path)
+    except Exception:
+        return result
+    if not formulas:
+        return result
+
+    # Build base_points from result["points"]
+    base_points = result.get("points", {})
+    inner = [(p[0], p[1]) for p in (result.get("inner_poly") or [])]
+
+    ev = FormulaEvaluator(constants_dict, base_points, inner, radii)
+    ev.load_formulas_from_db(db_path=db_path, variant=variant)
+    try:
+        ev.evaluate_all()
+    except Exception:
+        return result
+
+    # Override procedural results with formula-computed elements
+    for elem_name, computed in ev.elements.items():
+        if "poly" in computed:
+            poly = computed["poly"]
+            bbox = computed.get("bbox", {})
+            # Check if it's an interior wall
+            if elem_name.upper() in result.get("interior_walls", {}):
+                result["interior_walls"][elem_name.upper()] = {
+                    "poly": poly,
+                    "bbox": bbox,
+                }
+            # Check if it's furniture
+            elif elem_name.lower() in result.get("furniture", {}):
+                result["furniture"][elem_name.lower()] = {
+                    "poly": poly,
+                    "bbox": bbox,
+                }
+            # Check if it's an appliance
+            elif elem_name.lower() in result.get("appliances", {}):
+                result["appliances"][elem_name.lower()] = {
+                    "poly": poly,
+                    "bbox": bbox,
+                }
+
+    return result
+
+
 def compute_geometry(constants_dict: dict, variant: str = "standard",
                      chain_rows: list[dict] | None = None,
                      doors_data: list[dict] | None = None,
@@ -1048,6 +1103,11 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
 
     # Appliance door arcs (Phase 6)
     result["appliance_doors"] = _compute_appliance_doors(variant_items)
+
+    # Formula evaluation (Phase 12 hybrid mode): if element_formulas exist
+    # in the DB, evaluate them and override procedural results.
+    result = _apply_formula_overrides(result, constants_dict, inner_poly,
+                                      radii, variant, db_path)
 
     # Dimension and label elements (unified — both builtin and user-created).
     # Variant filtering: if properties["variants"] is a list, element appears

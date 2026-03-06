@@ -144,6 +144,25 @@ CREATE TABLE IF NOT EXISTS variants (
     layer_config    TEXT DEFAULT '{}',
     is_builtin      INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS element_formulas (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    element_name TEXT NOT NULL,          -- FK to elements.name
+    param_name   TEXT NOT NULL,          -- 'position', 'poly', 'center', etc.
+    formula_json TEXT NOT NULL,          -- JSON formula spec
+    locked       INTEGER DEFAULT 0,     -- 1 = frozen at locked_value
+    locked_value TEXT,                   -- JSON: frozen computed result
+    variant      TEXT,                   -- NULL = all variants
+    UNIQUE(element_name, param_name, variant)
+);
+
+CREATE TABLE IF NOT EXISTS formula_deps (
+    element_name TEXT NOT NULL,          -- element with the formula
+    param_name   TEXT NOT NULL,          -- which parameter formula
+    dep_type     TEXT NOT NULL,          -- 'element', 'point', 'constant'
+    dep_name     TEXT NOT NULL,          -- name of dependency target
+    UNIQUE(element_name, param_name, dep_type, dep_name)
+);
 """
 
 
@@ -155,6 +174,7 @@ def init_db(db_path=None):
         conn.executescript(_SCHEMA)
         if fresh:
             _seed_constants(conn)
+            _seed_variant_item_constants(conn)
             _seed_outline_chain(conn)
             _seed_views(conn)
             _seed_shapes(conn)
@@ -169,6 +189,8 @@ def init_db(db_path=None):
             from app.plumbing import seed_plumbing
             seed_plumbing(conn)
         else:
+            # Ensure variant item constants exist (Phase 12a upgrade)
+            _seed_variant_item_constants(conn)
             # Ensure all seed doors exist (handles additions like O3, O6)
             _seed_doors(conn)
             # Ensure variant exclusions exist (Phase 7 upgrade)
@@ -256,6 +278,55 @@ def _seed_constants(conn):
             "INSERT OR REPLACE INTO constants (name, value, expr, unit, category, description) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (attr, float(val), expr, unit, cat, desc),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Seed: variant item dimension constants (from app/variants.py)
+# ---------------------------------------------------------------------------
+
+# These 24 constants are hardcoded in gen_floorplan.py and replicated in
+# app/variants.py but not defined in floorplan/constants.py.  Phase 12a
+# moves them into the database as first-class constants.
+_VARIANT_ITEM_CONSTANTS = [
+    # (name, value_inches, category, description)
+    ("HAMPER_W",         31.5,   "furniture",  "Hamper width"),
+    ("HAMPER_D",         19.0,   "furniture",  "Hamper depth"),
+    ("MINIK_APPL_W",     32.0,   "appliance",  "Small kitchen appliance width"),
+    ("MINIK_APPL_D",     27.0,   "appliance",  "Small kitchen appliance depth"),
+    ("MICROWAVE_W",      19.5,   "appliance",  "Microwave width"),
+    ("MICROWAVE_D",      16.625, "appliance",  "Microwave depth"),
+    ("COFFEE_W",          7.2,   "appliance",  "Coffee maker width"),
+    ("COFFEE_D",          9.2,   "appliance",  "Coffee maker depth"),
+    ("COOKTOP_W",        13.4,   "appliance",  "Cooktop width"),
+    ("COOKTOP_D",        20.5,   "appliance",  "Cooktop depth"),
+    ("TOASTER_W",        13.7,   "appliance",  "Toaster width"),
+    ("TOASTER_D",        12.5,   "appliance",  "Toaster depth"),
+    ("DINING_CHAIR_W",   18.0,   "furniture",  "Dining chair width"),
+    ("DINING_CHAIR_D",   21.0,   "furniture",  "Dining chair depth"),
+    ("DINING_TBL_BASE",  31.5,   "furniture",  "Dining table base width"),
+    ("DINING_TBL_H",     35.25,  "furniture",  "Dining table height (plan depth)"),
+    ("DAYBED_W",         86.0,   "furniture",  "Daybed width"),
+    ("DAYBED_D",         43.0,   "furniture",  "Daybed depth"),
+    ("WORK_CTR_W",       60.0,   "furniture",  "Work counter width"),
+    ("WORK_CTR_D",       18.0,   "furniture",  "Work counter depth"),
+    ("STD_FRIDGE_W",     32.75,  "appliance",  "Standard fridge width"),
+    ("STD_FRIDGE_D",     35.0,   "appliance",  "Standard fridge depth"),
+    ("SOFA_FULL_W",      80.75,  "furniture",  "Full sofa width"),
+    ("SOFA_FULL_D",      34.625, "furniture",  "Full sofa depth"),
+]
+
+
+def _seed_variant_item_constants(conn):
+    """Seed dimension constants for variant items (Phase 12a)."""
+    for name, value_in, category, description in _VARIANT_ITEM_CONSTANTS:
+        value_ft = value_in / 12.0
+        expr = f"{value_in} / 12.0"
+        conn.execute(
+            "INSERT OR IGNORE INTO constants "
+            "(name, value, expr, unit, category, description) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (name, value_ft, expr, "ft", category, description),
         )
 
 
@@ -1179,6 +1250,7 @@ def reset_constants(db_path=None):
     with get_db(db_path) as conn:
         conn.execute("DELETE FROM constants")
         _seed_constants(conn)
+        _seed_variant_item_constants(conn)
 
 
 def reset_elements(db_path=None):
@@ -1414,3 +1486,172 @@ def delete_door(opening_name, db_path=None):
             "DELETE FROM doors WHERE opening_name = ?", (opening_name,)
         )
         return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# CRUD: element_formulas
+# ---------------------------------------------------------------------------
+
+def get_element_formulas(element_name, variant=None, db_path=None):
+    """Return all formulas for an element as list of dicts."""
+    with get_db(db_path) as conn:
+        if variant is None:
+            rows = conn.execute(
+                "SELECT * FROM element_formulas WHERE element_name = ? "
+                "AND variant IS NULL ORDER BY param_name",
+                (element_name,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM element_formulas WHERE element_name = ? "
+                "AND (variant IS NULL OR variant = ?) ORDER BY param_name",
+                (element_name, variant),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_all_formulas(variant=None, db_path=None):
+    """Return all formulas, optionally filtered by variant."""
+    with get_db(db_path) as conn:
+        if variant is None:
+            rows = conn.execute(
+                "SELECT * FROM element_formulas ORDER BY element_name, param_name"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM element_formulas "
+                "WHERE variant IS NULL OR variant = ? "
+                "ORDER BY element_name, param_name",
+                (variant,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_formula(element_name, param_name, formula_json, variant=None,
+                   db_path=None):
+    """Insert or update a formula.  Returns the formula row dict."""
+    fj = json.dumps(formula_json) if not isinstance(formula_json, str) else formula_json
+    with get_db(db_path) as conn:
+        # SQLite treats NULLs as distinct in UNIQUE, so handle manually
+        if variant is None:
+            existing = conn.execute(
+                "SELECT id FROM element_formulas "
+                "WHERE element_name = ? AND param_name = ? AND variant IS NULL",
+                (element_name, param_name),
+            ).fetchone()
+        else:
+            existing = conn.execute(
+                "SELECT id FROM element_formulas "
+                "WHERE element_name = ? AND param_name = ? AND variant = ?",
+                (element_name, param_name, variant),
+            ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE element_formulas SET formula_json = ? WHERE id = ?",
+                (fj, existing["id"]),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO element_formulas "
+                "(element_name, param_name, formula_json, variant) "
+                "VALUES (?, ?, ?, ?)",
+                (element_name, param_name, fj, variant),
+            )
+    formulas = get_element_formulas(element_name, variant, db_path)
+    return next((f for f in formulas if f["param_name"] == param_name), None)
+
+
+def delete_formula(element_name, param_name, variant=None, db_path=None):
+    """Delete a formula.  Returns True if deleted."""
+    with get_db(db_path) as conn:
+        if variant is None:
+            cur = conn.execute(
+                "DELETE FROM element_formulas "
+                "WHERE element_name = ? AND param_name = ? AND variant IS NULL",
+                (element_name, param_name),
+            )
+        else:
+            cur = conn.execute(
+                "DELETE FROM element_formulas "
+                "WHERE element_name = ? AND param_name = ? AND variant = ?",
+                (element_name, param_name, variant),
+            )
+        return cur.rowcount > 0
+
+
+def set_formula_lock(element_name, param_name, locked, locked_value=None,
+                     variant=None, db_path=None):
+    """Set lock state on a formula.  Returns True if updated."""
+    lv = json.dumps(locked_value) if locked_value is not None else None
+    with get_db(db_path) as conn:
+        if variant is None:
+            cur = conn.execute(
+                "UPDATE element_formulas SET locked = ?, locked_value = ? "
+                "WHERE element_name = ? AND param_name = ? AND variant IS NULL",
+                (1 if locked else 0, lv, element_name, param_name),
+            )
+        else:
+            cur = conn.execute(
+                "UPDATE element_formulas SET locked = ?, locked_value = ? "
+                "WHERE element_name = ? AND param_name = ? AND variant = ?",
+                (1 if locked else 0, lv, element_name, param_name, variant),
+            )
+        return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# CRUD: formula_deps
+# ---------------------------------------------------------------------------
+
+def get_formula_deps(element_name, param_name=None, db_path=None):
+    """Return dependencies for an element (optionally specific param)."""
+    with get_db(db_path) as conn:
+        if param_name:
+            rows = conn.execute(
+                "SELECT * FROM formula_deps "
+                "WHERE element_name = ? AND param_name = ?",
+                (element_name, param_name),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM formula_deps WHERE element_name = ?",
+                (element_name,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_dependents(dep_name, dep_type=None, db_path=None):
+    """Return elements that depend on dep_name."""
+    with get_db(db_path) as conn:
+        if dep_type:
+            rows = conn.execute(
+                "SELECT DISTINCT element_name, param_name FROM formula_deps "
+                "WHERE dep_name = ? AND dep_type = ?",
+                (dep_name, dep_type),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT DISTINCT element_name, param_name FROM formula_deps "
+                "WHERE dep_name = ?",
+                (dep_name,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def rebuild_formula_deps(element_name, param_name, deps, db_path=None):
+    """Replace all deps for a formula with a new set.
+
+    deps: list of (dep_type, dep_name) tuples.
+    """
+    with get_db(db_path) as conn:
+        conn.execute(
+            "DELETE FROM formula_deps WHERE element_name = ? AND param_name = ?",
+            (element_name, param_name),
+        )
+        for dep_type, dep_name in deps:
+            conn.execute(
+                "INSERT OR IGNORE INTO formula_deps "
+                "(element_name, param_name, dep_type, dep_name) "
+                "VALUES (?, ?, ?, ?)",
+                (element_name, param_name, dep_type, dep_name),
+            )
