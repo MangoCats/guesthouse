@@ -3466,6 +3466,8 @@ function onMouseDown(e) {
     App.state.lastPan = { ...App.state.pan };
     App.els["viewport"].style.cursor = "grabbing";
     e.preventDefault();
+  } else if (e.button === 0 && OpeningTool.active) {
+    openingToolMouseDown(e);
   } else if (e.button === 0 && PlaceTool.active) {
     placeToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "select") {
@@ -4110,6 +4112,118 @@ async function endpointDragMouseUp(e) {
   }
 }
 
+/* ========== TL-21: Add Opening Tool ========== */
+
+const OpeningTool = { active: false, defaultWidth: 32.0 / 12 };
+
+function startOpeningPlacement() {
+  OpeningTool.active = true;
+  App.els["viewport"].style.cursor = "crosshair";
+  showToast("Click on a wall to place an opening", "info");
+}
+
+function cancelOpeningPlacement() {
+  OpeningTool.active = false;
+}
+
+/** Distance from point (px, py) to line segment (x1,y1)-(x2,y2). */
+function distToSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-12) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = x1 + t * dx, cy = y1 + t * dy;
+  return Math.sqrt((px - cx) ** 2 + (py - cy) ** 2);
+}
+
+/** Find nearest wall polygon edge to (wx, wy). Returns { name, type } or null. */
+function findNearestWall(wx, wy) {
+  let bestDist = Infinity, bestWall = null;
+  const g = App.state.geometry;
+  if (!g) return null;
+  // Interior walls
+  for (const [name, wall] of Object.entries(g.interior_walls || {})) {
+    const poly = wall.poly;
+    if (!poly || poly.length < 2) continue;
+    for (let i = 0; i < poly.length; i++) {
+      const j = (i + 1) % poly.length;
+      const d = distToSeg(wx, wy, poly[i][0], poly[i][1], poly[j][0], poly[j][1]);
+      if (d < bestDist) { bestDist = d; bestWall = { name, type: "iw" }; }
+    }
+  }
+  // Drawn walls from elements
+  for (const elem of (App.state.elements || [])) {
+    const props = typeof elem.properties === "string" ? JSON.parse(elem.properties) : elem.properties;
+    if (elem.type === "wall" && props?.source === "drawn" && props.poly) {
+      for (let i = 0; i < props.poly.length; i++) {
+        const j = (i + 1) % props.poly.length;
+        const d = distToSeg(wx, wy, props.poly[i][0], props.poly[i][1], props.poly[j][0], props.poly[j][1]);
+        if (d < bestDist) { bestDist = d; bestWall = { name: elem.name, type: "drawn" }; }
+      }
+    }
+  }
+  return bestDist < 0.5 ? bestWall : null;
+}
+
+function nextOpeningName() {
+  const elements = App.state.elements || [];
+  let max = 0;
+  for (const e of elements) {
+    if (e.type === "opening" && e.name && e.name.startsWith("UO")) {
+      const n = parseInt(e.name.slice(2), 10);
+      if (n > max) max = n;
+    }
+  }
+  return `UO${max + 1}`;
+}
+
+function openingToolMouseDown(e) {
+  const rect = App.els["viewport"].getBoundingClientRect();
+  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const wall = findNearestWall(wx, wy);
+  if (!wall) {
+    showToast("No wall found near click", "warning");
+    return;
+  }
+  const defName = nextOpeningName();
+  const defWidth = fmtFtIn(OpeningTool.defaultWidth);
+  Dialog.show({
+    title: "Add Opening",
+    fields: [
+      { label: "Name", name: "name", value: defName },
+      { label: "Width", name: "width", value: defWidth },
+    ],
+    async onSubmit(values) {
+      const width = parseDimension(values.width);
+      if (!width || width <= 0) { showToast("Invalid width", "error"); return; }
+      const name = values.name.trim() || defName;
+      try {
+        const resp = await apiFetch("/api/openings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            segment: wall.name,
+            width,
+            offset: 0,
+            host_wall: wall.name,
+            variant: App.state.variant,
+          }),
+        });
+        if (!resp.ok) throw new Error((await resp.json()).error);
+        showToast(`Created opening ${name} on ${wall.name}`, "success");
+        OpeningTool.active = false;
+        App.els["viewport"].style.cursor = "crosshair";
+        await loadElements();
+        await loadGeometry();
+      } catch (err) {
+        showToast(`Error: ${err.message}`, "error");
+      }
+    },
+  });
+}
+
 /** Show rotation dialog for selected placed/drawn element (TL-24). */
 function showRotationDialog() {
   const sel = App.state.selection;
@@ -4239,6 +4353,7 @@ function setTool(tool) {
   if (tool !== "draw-wall") cancelDrawWall();
   if (tool !== "dimension" && typeof cancelDimTool === "function") cancelDimTool();
   if (!isPlumbingDrawTool(tool)) cancelPlumbingDraw();
+  cancelOpeningPlacement();
 }
 
 

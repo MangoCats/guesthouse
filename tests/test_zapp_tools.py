@@ -723,3 +723,72 @@ class TestTL17EndpointDrag:
         rp = json.loads(restored["properties"]) if isinstance(restored["properties"], str) else restored["properties"]
         assert abs(rp["end"][0] - orig_end[0]) < 1e-9
         assert abs(rp["end"][1] - orig_end[1]) < 1e-9
+
+
+# =========================================================================
+# TL-21: Add Opening Tool
+# =========================================================================
+
+class TestTL21AddOpening:
+    """TL-21: Creating openings on walls via API."""
+
+    def _create_drawn_wall(self, client, name="CW_host"):
+        """Create a drawn wall to host openings."""
+        resp = client.post("/api/elements", json={
+            "type": "wall", "name": name,
+            "properties": {
+                "source": "drawn",
+                "start": [-10, 0], "end": [-5, 0],
+                "thickness": 4.0 / 12,
+                "poly": [[-10, 1/6], [-5, 1/6], [-5, -1/6], [-10, -1/6]],
+            },
+        })
+        assert resp.status_code in (200, 201)
+        return resp.get_json()
+
+    def test_create_opening_on_wall(self, app_client):
+        """POST opening with host_wall creates opening element."""
+        self._create_drawn_wall(app_client)
+        resp = app_client.post("/api/openings", json={
+            "name": "UO1",
+            "segment": "CW_host",
+            "width": 32.0 / 12,
+            "offset": 0,
+            "host_wall": "CW_host",
+        })
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["type"] == "opening"
+        assert data["name"] == "UO1"
+
+    def test_opening_host_wall_reference(self, app_client):
+        """Created opening has correct host_wall in properties."""
+        self._create_drawn_wall(app_client)
+        resp = app_client.post("/api/openings", json={
+            "name": "UO2",
+            "segment": "CW_host",
+            "width": 24.0 / 12,
+            "host_wall": "CW_host",
+        })
+        data = resp.get_json()
+        props = json.loads(data["properties"]) if isinstance(data["properties"], str) else data["properties"]
+        assert props["host_wall"] == "CW_host"
+
+    def test_delete_host_wall_cascades_opening(self, app_client):
+        """Deleting wall cascades to hosted openings."""
+        wall = self._create_drawn_wall(app_client)
+        app_client.post("/api/openings", json={
+            "name": "UO3",
+            "segment": "CW_host",
+            "width": 24.0 / 12,
+            "host_wall": "CW_host",
+        })
+        # Verify opening exists
+        elems = app_client.get("/api/elements").get_json()
+        assert any(e["name"] == "UO3" for e in elems)
+        # Delete the wall
+        resp = app_client.delete(f"/api/elements/{wall['id']}")
+        assert resp.status_code == 200
+        # Opening should be gone too
+        elems = app_client.get("/api/elements").get_json()
+        assert not any(e["name"] == "UO3" for e in elems)
