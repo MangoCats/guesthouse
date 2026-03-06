@@ -10,10 +10,10 @@ until cutover (see ARCHITECTURE.md § NF-4).
 
 ---
 
-## Current State (Phase 11 View Variants — Complete, Phase 12 next)
+## Current State (Pre-Phase 12 polish — Complete, Phase 12 next)
 
-**241 of 244 requirements implemented.**  673 app tests, 586 pre-existing tests
-(1259 total).  All implemented requirements have automated test coverage.
+**244 of 244 requirements implemented.**  684 app tests, 586 pre-existing tests
+(1270 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -107,9 +107,12 @@ until cutover (see ARCHITECTURE.md § NF-4).
 | Variant element/exclusion cloning on create, cleanup on delete | Done |
 | Dynamic variant dropdown (populated from DB, + / × buttons) | Done |
 | Furniture property editing: editable Width/Depth for placed items | Done |
+| Separate User Dims toggle (DIS-7) | Done |
+| Wall endpoint drag handles for drawn walls (TL-17) | Done |
+| Add Opening placement tool for walls (TL-21) | Done |
+| Constant dependency highlighting: white first-order, pink second-order (SEL-15) | Done |
 
-**What's missing:** Endpoint drag handles (TL-17 partial), Add Opening tool (TL-21),
-electrical layout (aspirational),
+**What's missing:** Electrical layout (aspirational),
 parametric dependencies and cutover to fully database-driven design
 (Charter Principle 5).  The current implementation uses constants as
 the single editable root; the target architecture makes every element

@@ -1033,7 +1033,7 @@ checked by default.
 populated when checked, empty when unchecked. On the SF variant, area
 labels and dashed partition lines also appear/disappear with this toggle.
 
-#### DIS-7  User Dimensions Toggle **(NEW)**
+#### DIS-7  User Dimensions Toggle
 Checking the "User Dims" checkbox SHALL show/hide user-created persistent
 dimension annotations (placed via TL-11).  This is distinct from the
 existing "Dims" toggle (CV-9), which controls engine-computed dimension
@@ -1043,6 +1043,7 @@ lines.  Both toggles operate independently.
 off — user-created dimension disappears; engine-computed dimensions
 (controlled by CV-9 toggle) remain visible.  Toggle "User Dims" on —
 user dimension reappears.
+**Tested:** test_zapp_tools.py::TestDIS7UserDimsToggle (2 tests).
 
 #### DIS-9  Clearance Toggle
 Checking the "Clearance" checkbox SHALL show/hide clearance zones.
@@ -1235,7 +1236,7 @@ start/end anchors, distance, and dim_style. Click on a room label in
 panel shows label name, text, position offset, rotation, and font size.
 **Tested:** Implemented in `app.js` click handler and properties panel.
 
-#### SEL-15  Constant Dependency Highlighting **(NEW)**
+#### SEL-15  Constant Dependency Highlighting
 When a constant is focused in the Properties panel constant list (e.g.,
 selecting `COUNTER_GAP` while viewing the counter appliance properties),
 all geometry elements whose position or size depends on that constant
@@ -1251,6 +1252,7 @@ white on the canvas. Adjacent elements whose positions shift when
 `COUNTER_GAP` changes (e.g., the work counter, microwave) highlight
 pink. Clicking away or selecting a different constant clears the
 highlights.
+**Tested:** test_zapp_tools.py::TestSEL15ConstantDeps (3 tests).
 
 ---
 
@@ -1406,8 +1408,10 @@ properties to API.
 Selecting an existing wall with the Select tool and dragging an endpoint
 handle SHALL extend or shorten the wall.
 
-**Acceptance:** Infrastructure exists (start/end stored in properties).
-Interactive drag handles deferred to future phase.
+**Acceptance:** Selecting a drawn wall shows square drag handles at start/end.
+Dragging updates the endpoint, recomputes poly via `wallPoly()`, and saves
+via PUT API. Shift-constrains to horizontal/vertical.
+**Tested:** test_zapp_tools.py::TestTL17EndpointDrag (3 tests).
 
 ### 6.8  Add Element Tools
 
@@ -1437,8 +1441,10 @@ Add > Fixture SHALL list fixtures (toilet, bathtub, vanity).
 #### TL-21  Add Opening
 Add Opening SHALL enter opening placement mode on a wall segment.
 
-**Acceptance:** Deferred to future phase. Opening creation via API already
-works (Phase 3 element CRUD); wall-click placement needs segment detection.
+**Acceptance:** "Opening" button in Add palette enters placement mode. Click
+near a wall to create an opening on it. Dialog prompts for name and width.
+Supports interior walls and drawn walls.
+**Tested:** test_zapp_tools.py::TestTL21AddOpening (3 tests).
 
 ### 6.9  Delete Tool
 
@@ -2412,12 +2418,12 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 1 Data Layer | 40 | 0 | 40 |
 | 2 REST API | 34 | 0 | 34 |
 | 3 UI Layout | 8 | 0 | 8 |
-| 4 Canvas | 26 | 1 | 27 |
-| 5 Selection | 14 | 1 | 15 |
+| 4 Canvas | 27 | 0 | 27 |
+| 5 Selection | 15 | 0 | 15 |
 | 6 Tools | 27 | 0 | 27 |
 | 7 Constants | 20 | 0 | 20 |
 | 8 Data Tables | 11 | 0 | 11 |
-| 9 Element Ops | 12 | 1 | 13 |
+| 9 Element Ops | 13 | 0 | 13 |
 | 10 Styling | 4 | 0 | 4 |
 | 11 Site Plan | 0 | 4 | 4 |
 | 12 3D Model | 0 | 3 | 3 |
@@ -2426,7 +2432,7 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| **Total** | **218** | **21** | **239** |
+| **Total** | **221** | **18** | **239** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted
