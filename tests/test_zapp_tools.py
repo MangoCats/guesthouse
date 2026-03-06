@@ -642,3 +642,84 @@ class TestDIS7UserDimsToggle:
         # Should have both builtin (seeded) and user-created
         assert "builtin" in sources
         assert "user" in sources or None in sources
+
+
+# =========================================================================
+# TL-17: Wall Endpoint Drag Handles
+# =========================================================================
+
+class TestTL17EndpointDrag:
+    """TL-17: Updating drawn wall endpoints via API."""
+
+    def _create_drawn_wall(self, client):
+        """Helper: create a drawn wall and return its record."""
+        start = [-10, -5]
+        end = [-5, -5]
+        thickness = 4.0 / 12
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        length = (dx**2 + dy**2) ** 0.5
+        px = -dy / length * (thickness / 2)
+        py = dx / length * (thickness / 2)
+        poly = [
+            [start[0] + px, start[1] + py],
+            [end[0] + px, end[1] + py],
+            [end[0] - px, end[1] - py],
+            [start[0] - px, start[1] - py],
+        ]
+        resp = client.post("/api/elements", json={
+            "type": "wall", "name": "CW_test",
+            "properties": {
+                "source": "drawn", "start": start, "end": end,
+                "thickness": thickness, "poly": poly,
+            },
+        })
+        assert resp.status_code in (200, 201)
+        return resp.get_json()
+
+    def test_update_drawn_wall_endpoint(self, app_client):
+        """PUT new start/end updates coordinates."""
+        elem = self._create_drawn_wall(app_client)
+        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
+        props["end"] = [-3, -5]  # extend the wall
+        resp = app_client.put(f"/api/elements/{elem['id']}", json={
+            "properties": props,
+        })
+        assert resp.status_code == 200
+        up = resp.get_json()
+        up_props = json.loads(up["properties"]) if isinstance(up["properties"], str) else up["properties"]
+        assert abs(up_props["end"][0] - (-3)) < 1e-9
+        assert abs(up_props["end"][1] - (-5)) < 1e-9
+
+    def test_endpoint_update_preserves_thickness(self, app_client):
+        """Updating endpoint does not change thickness."""
+        elem = self._create_drawn_wall(app_client)
+        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
+        orig_thickness = props["thickness"]
+        props["start"] = [-12, -5]
+        resp = app_client.put(f"/api/elements/{elem['id']}", json={
+            "properties": props,
+        })
+        up = resp.get_json()
+        up_props = json.loads(up["properties"]) if isinstance(up["properties"], str) else up["properties"]
+        assert abs(up_props["thickness"] - orig_thickness) < 1e-9
+
+    def test_endpoint_update_undo(self, app_client):
+        """Undo after endpoint update restores original coordinates."""
+        elem = self._create_drawn_wall(app_client)
+        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
+        orig_end = props["end"][:]
+        props["end"] = [-2, -3]
+        app_client.put(f"/api/elements/{elem['id']}", json={
+            "properties": props,
+        })
+        # Undo
+        resp = app_client.post("/api/undo")
+        assert resp.status_code == 200
+        # Verify restored
+        resp = app_client.get("/api/elements")
+        elems = resp.get_json()
+        restored = next(e for e in elems if e["name"] == "CW_test")
+        rp = json.loads(restored["properties"]) if isinstance(restored["properties"], str) else restored["properties"]
+        assert abs(rp["end"][0] - orig_end[0]) < 1e-9
+        assert abs(rp["end"][1] - orig_end[1]) < 1e-9

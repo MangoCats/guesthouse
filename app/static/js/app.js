@@ -1747,6 +1747,7 @@ function clearSelection() {
   document.querySelectorAll(".multi-selected").forEach(el => {
     el.classList.remove("multi-selected");
   });
+  clearWallHandles();
   App.state.selection = null;
   App.state.selections = [];
   App.els["selection-info"].textContent = "No selection";
@@ -1805,6 +1806,8 @@ function showProperties(type, name, data) {
       thickTd2.appendChild(thickInp);
       thickTr.appendChild(thickTd2);
       tbody.appendChild(thickTr);
+      // TL-17: render endpoint drag handles
+      renderWallHandles(elemRec.id, props);
     } else {
       const b = data.bbox;
       addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
@@ -3535,6 +3538,12 @@ function onMouseMove(e) {
   App.els["coord-display"].textContent =
     `E: ${fmtFtIn(wx)}  N: ${fmtFtIn(wy)}`;
 
+  // TL-17: Endpoint drag
+  if (EndpointDragTool.active) {
+    endpointDragMouseMove(e);
+    return;
+  }
+
   // Outline editor drag
   if (typeof OutlineEditor !== "undefined" && (OutlineEditor.active || OutlineEditor.pending)) {
     outlineEditorMouseMove(e);
@@ -3619,6 +3628,12 @@ function onMouseMove(e) {
 }
 
 function onMouseUp(e) {
+  // TL-17: Endpoint drag end
+  if (EndpointDragTool.active) {
+    endpointDragMouseUp(e);
+    return;
+  }
+
   // Outline editor drag end
   if (typeof OutlineEditor !== "undefined" && (OutlineEditor.active || OutlineEditor.pending)) {
     outlineEditorMouseUp(e);
@@ -3980,6 +3995,119 @@ function rotatedRectPoly(cx, cy, w, d, angleDeg) {
     cx + lx * cos - ly * sin,
     cy + lx * sin + ly * cos,
   ]);
+}
+
+/* ========== TL-17: Endpoint Drag Handles ========== */
+
+const EndpointDragTool = {
+  active: false,
+  elementId: null,
+  props: null,
+  handle: null,  // "start" or "end"
+  origWorld: null,
+};
+
+function clearWallHandles() {
+  document.querySelectorAll(".wall-handle").forEach(el => el.remove());
+}
+
+function renderWallHandles(elemId, props) {
+  clearWallHandles();
+  if (!props.start || !props.end) return;
+  const layer = App.els["layer-measure"];
+  const hs = 0.15; // handle size in world units
+  for (const which of ["start", "end"]) {
+    const pt = props[which];
+    const rect = svgEl("rect", {
+      x: pt[0] - hs / 2, y: -pt[1] - hs / 2,
+      width: hs, height: hs,
+      class: "wall-handle",
+      "data-handle": which,
+    });
+    rect.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      EndpointDragTool.active = true;
+      EndpointDragTool.elementId = elemId;
+      EndpointDragTool.props = { ...props };
+      EndpointDragTool.handle = which;
+      EndpointDragTool.origWorld = [...pt];
+    });
+    layer.appendChild(rect);
+  }
+}
+
+function endpointDragMouseMove(e) {
+  const rect = App.els["viewport"].getBoundingClientRect();
+  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  // Shift-constrain to horizontal or vertical
+  if (e.shiftKey && EndpointDragTool.origWorld) {
+    const ox = EndpointDragTool.origWorld[0], oy = EndpointDragTool.origWorld[1];
+    if (Math.abs(wx - ox) > Math.abs(wy - oy)) wy = oy;
+    else wx = ox;
+  }
+  // Grid snap
+  if (App.state.showGrid) {
+    const gs = 1.0 / 12;
+    wx = Math.round(wx / gs) * gs;
+    wy = Math.round(wy / gs) * gs;
+  }
+  // Move the handle visually
+  const hs = 0.15;
+  const handleEl = document.querySelector(`.wall-handle[data-handle="${EndpointDragTool.handle}"]`);
+  if (handleEl) {
+    handleEl.setAttribute("x", wx - hs / 2);
+    handleEl.setAttribute("y", -wy - hs / 2);
+  }
+  // Preview the wall outline
+  const p = { ...EndpointDragTool.props };
+  p[EndpointDragTool.handle] = [wx, wy];
+  const poly = wallPoly(p.start, p.end, p.thickness || 4.0 / 12);
+  if (poly) {
+    let preview = document.querySelector(".wall-drag-preview");
+    if (!preview) {
+      preview = svgEl("polygon", { class: "wall-drag-preview", style: "fill:none;stroke:var(--accent);stroke-width:0.02;stroke-dasharray:0.06 0.03;opacity:0.6" });
+      App.els["layer-measure"].appendChild(preview);
+    }
+    preview.setAttribute("points", poly.map(([x, y]) => `${x},${-y}`).join(" "));
+  }
+}
+
+async function endpointDragMouseUp(e) {
+  if (!EndpointDragTool.active) return;
+  EndpointDragTool.active = false;
+  // Remove preview
+  const preview = document.querySelector(".wall-drag-preview");
+  if (preview) preview.remove();
+  // Compute final position
+  const rect = App.els["viewport"].getBoundingClientRect();
+  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  if (e.shiftKey && EndpointDragTool.origWorld) {
+    const ox = EndpointDragTool.origWorld[0], oy = EndpointDragTool.origWorld[1];
+    if (Math.abs(wx - ox) > Math.abs(wy - oy)) wy = oy;
+    else wx = ox;
+  }
+  if (App.state.showGrid) {
+    const gs = 1.0 / 12;
+    wx = Math.round(wx / gs) * gs;
+    wy = Math.round(wy / gs) * gs;
+  }
+  const p = { ...EndpointDragTool.props };
+  p[EndpointDragTool.handle] = [wx, wy];
+  p.poly = wallPoly(p.start, p.end, p.thickness || 4.0 / 12);
+  if (!p.poly) return;
+  try {
+    const resp = await apiFetch(`/api/elements/${EndpointDragTool.elementId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ properties: p }),
+    });
+    if (!resp.ok) throw new Error((await resp.json()).error);
+    await loadElements();
+    await loadGeometry();
+  } catch (err) {
+    showToast(`Error: ${err.message}`, "error");
+  }
 }
 
 /** Show rotation dialog for selected placed/drawn element (TL-24). */
