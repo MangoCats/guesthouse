@@ -698,12 +698,12 @@ def _seed_elements(conn):
         # --- Utility / laundry ---
         ("dryer", "appliance", {
             "label": "DRYER", "item_type": "appliance", "shape": "rect",
-            "door": {"hinge_idx": 1, "swing_face": [0, 1]},
+            "door": {"hinge_idx": 1, "target_idx": 2},
             "variants": _ALL,
         }, None),
         ("washer", "appliance", {
             "label": "WASHER", "item_type": "appliance", "shape": "rect",
-            "door": {"hinge_idx": 2, "swing_face": [2, 1]},
+            "door": {"hinge_idx": 2, "target_idx": 3},
             "variants": _ALL,
         }, None),
         ("hamper", "appliance", {
@@ -782,7 +782,11 @@ def _seed_elements(conn):
         # --- Kitchen: all variants ---
         ("fridge", "appliance", {
             "label": "FRIDGE", "item_type": "appliance", "shape": "rect",
-            "door": {"hinge_idx": 1, "swing_face": [1, 2]},
+            "door": {
+                "standard": {"hinge_idx": 3, "target_idx": 2},
+                "minik": {"hinge_idx": 1, "target_idx": 0},
+                "daybed": {"hinge_idx": 3, "target_idx": 2},
+            },
             "variants": _ALL,
         }, None),
         ("ice_maker", "appliance", {
@@ -792,7 +796,11 @@ def _seed_elements(conn):
         ("microwave", "appliance", {
             "label": "MICRO", "item_type": "appliance", "shape": "rect",
             "stacked": True,
-            "door": {"hinge_idx": 2, "swing_face": [2, 3]},
+            "door": {
+                "standard": {"hinge_idx": 2, "target_idx": 3},
+                "minik": {"hinge_idx": 0, "target_idx": 1},
+                "daybed": {"hinge_idx": 2, "target_idx": 3},
+            },
             "variants": _ALL,
         }, None),
         ("coffee_maker", "appliance", {
@@ -822,6 +830,7 @@ def _seed_elements(conn):
         }, None),
         ("dresser", "furniture", {
             "label": "DRESSER", "item_type": "furniture", "shape": "rect",
+            "clearance": {"face": [0, 1], "distance": 15.0 / 12.0},
             "variants": _ALL,
         }, None),
         ("shelves", "furniture", {
@@ -1424,6 +1433,29 @@ def clone_variant_elements(source, target, db_path=None):
                     (json.dumps(props), r["id"]),
                 )
             # variant IS NULL and no properties.variants → visible everywhere, no change
+
+        # Clone variant-specific formulas: copy formulas with variant=source
+        # as variant=target so the cloned variant has the same element geometry.
+        source_formulas = conn.execute(
+            "SELECT element_name, param_name, formula_json, locked, locked_value "
+            "FROM element_formulas WHERE variant = ?",
+            (source,),
+        ).fetchall()
+        for f in source_formulas:
+            # Check if target already has this formula
+            existing = conn.execute(
+                "SELECT id FROM element_formulas "
+                "WHERE element_name = ? AND param_name = ? AND variant = ?",
+                (f["element_name"], f["param_name"], target),
+            ).fetchone()
+            if not existing:
+                conn.execute(
+                    "INSERT INTO element_formulas "
+                    "(element_name, param_name, formula_json, variant, locked, locked_value) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (f["element_name"], f["param_name"], f["formula_json"],
+                     target, f["locked"], f["locked_value"]),
+                )
 
 
 def unclone_variant_elements(target, db_path=None):

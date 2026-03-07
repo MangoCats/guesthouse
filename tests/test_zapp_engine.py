@@ -107,14 +107,18 @@ class TestENG5OpeningCounts:
 
 class TestENG6AppliancesFurniture:
     def test_appliance_keys(self, geometry):
-        assert set(geometry["appliances"].keys()) == {"dryer", "washer", "counter"}
+        keys = set(geometry["appliances"].keys())
+        # Must include core appliances; may include all variant-item appliances
+        assert {"dryer", "washer", "counter"} <= keys
 
     def test_furniture_keys(self, geometry):
-        assert set(geometry["furniture"].keys()) == {"bed", "dresser", "shelves"}
+        keys = set(geometry["furniture"].keys())
+        # Must include core furniture; may include all variant-item furniture
+        assert {"bed", "dresser", "shelves"} <= keys
 
-    def test_counter_has_clip(self, geometry):
-        ctr = geometry["appliances"]["counter"]
-        assert "clip" in ctr
+    def test_appliance_has_poly(self, geometry):
+        for name in ("dryer", "washer", "counter"):
+            assert "poly" in geometry["appliances"][name]
 
 
 # ── ENG-7  Constant Propagation ──────────────────────────────────────

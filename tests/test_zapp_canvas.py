@@ -213,15 +213,19 @@ class TestApplianceDoors:
             assert len(ad["arc_pts"]) == 21, f"{ad['item_name']} has {len(ad['arc_pts'])} points"
 
     def test_appliance_door_radius(self, fresh_db):
-        """Arc radius should match door width (distance from hinge to arc[0])."""
+        """Arc radius should match door edge length (hinge to target vertex)."""
         g = _geom_with_doors(fresh_db)
         for ad in g["appliance_doors"]:
             hx, hy = ad["hinge"]
             p0 = ad["arc_pts"][0]
             dist = math.sqrt((p0[0] - hx)**2 + (p0[1] - hy)**2)
-            # Width stored in variant_items door metadata
+            # Width derived from polygon: hinge_idx to target_idx edge
             item = g["variant_items"][ad["item_name"]]
-            expected_w = item["door"]["width"]
+            hi = item["door"]["hinge_idx"]
+            ti = item["door"]["target_idx"]
+            hp = item["poly"][hi]
+            tp = item["poly"][ti]
+            expected_w = math.sqrt((tp[0] - hp[0])**2 + (tp[1] - hp[1])**2)
             assert abs(dist - expected_w) < 0.01, (
                 f"{ad['item_name']}: arc radius {dist:.4f} != width {expected_w:.4f}")
 

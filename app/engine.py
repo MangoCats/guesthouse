@@ -72,20 +72,31 @@ def _compute_door_arcs(outer_openings, rough_openings, doors_data, exclusions):
     # Build lookup: opening_name → door config dict
     door_lookup = {d["opening_name"]: d for d in doors_data}
 
-    # Gather all openings with their polys
+    # Gather all openings with their polys (dict-based: {"name", "poly", ...})
     all_ops = []
     for op in outer_openings:
-        all_ops.append({"name": op.name, "poly": op.poly})
+        name = op["name"] if isinstance(op, dict) else op.name
+        poly = op.get("poly") if isinstance(op, dict) else op.poly
+        if poly:
+            all_ops.append({"name": name, "poly": poly})
     excluded_openings = exclusions.get("rough_opening", set())
     for ro in rough_openings:
-        if ro.name in excluded_openings:
+        name = ro["name"] if isinstance(ro, dict) else ro.name
+        if name in excluded_openings:
             continue
-        if ro.poly:
-            all_ops.append({"name": ro.name, "poly": ro.poly})
-        elif ro.bbox:
-            b = ro.bbox
-            all_ops.append({"name": ro.name, "poly": [
-                (b.w, b.s), (b.e, b.s), (b.e, b.n), (b.w, b.n)]})
+        poly = ro.get("poly") if isinstance(ro, dict) else ro.poly
+        bbox = ro.get("bbox") if isinstance(ro, dict) else getattr(ro, "bbox", None)
+        if poly:
+            all_ops.append({"name": name, "poly": poly})
+        elif bbox:
+            if isinstance(bbox, dict):
+                all_ops.append({"name": name, "poly": [
+                    (bbox["w"], bbox["s"]), (bbox["e"], bbox["s"]),
+                    (bbox["e"], bbox["n"]), (bbox["w"], bbox["n"])]})
+            else:
+                all_ops.append({"name": name, "poly": [
+                    (bbox.w, bbox.s), (bbox.e, bbox.s),
+                    (bbox.e, bbox.n), (bbox.w, bbox.n)]})
 
     result = []
     for op in all_ops:
@@ -255,35 +266,13 @@ def _compute_clearance_zones(variant, variant_items=None, furniture=None):
     """Compute clearance zone polygons for fixture/furniture items.
 
     Returns list of clearance zone dicts with name, poly, style.
-    Reads 'clearance' metadata from variant_items and also includes the
-    dresser's hardcoded 15" clearance (matching gen_floorplan.py).
-
-    Uses formula-evaluated furniture positions from the result dict.
+    All clearance zones are driven by 'clearance' metadata in variant_items
+    (face indices + distance), including dresser clearance.
     """
-    from shared.geometry import seg_vecs, offset_pt
-
     zones = []
     # Bare and SF variants have no furniture
     if variant in ("bare", "sf"):
         return zones
-
-    dresser_data = (furniture or {}).get("dresser")
-    if dresser_data and "poly" in dresser_data:
-        dpoly = dresser_data["poly"]
-        p0 = tuple(dpoly[0])
-        p1 = tuple(dpoly[1])
-        # Dresser clearance: 15" south from south face (poly[0]→poly[1] = SW→SE)
-        al, outward = seg_vecs(p0, p1)
-        cl_sw = offset_pt(p0, 15.0 / 12.0, outward)
-        cl_se = offset_pt(p1, 15.0 / 12.0, outward)
-        zones.append({
-            "name": "dresser_clearance",
-            "poly": [point_to_list(p0),
-                     point_to_list(p1),
-                     point_to_list(cl_se),
-                     point_to_list(cl_sw)],
-            "style": "dashed",
-        })
 
     # Clearance zones from variant_items metadata
     if variant_items:
@@ -323,27 +312,59 @@ def _compute_clearance_zones(variant, variant_items=None, furniture=None):
     return zones
 
 
-def _compute_appliance_doors(variant_items):
+def _compute_appliance_doors(variant_items, variant="standard"):
     """Compute door swing arcs for appliances with 'door' metadata.
 
-    Reads door metadata from variant_items (set in variants.py) and computes
-    arc geometry using _swing_arc.  Returns list of appliance_door dicts.
+    Door config uses intrinsic polygon indices:
+      hinge_idx: polygon vertex index of the hinge point
+      target_idx: polygon vertex index defining the closed-door direction
+    open_dir, closed_dir, and width are computed from the polygon geometry.
+
+    For variant-keyed door configs (fridge, microwave), the config for the
+    current variant is selected.  Returns list of appliance_door dicts.
     """
     if not variant_items:
         return []
 
     result = []
     for item_name, item in variant_items.items():
-        door = item.get("door")
-        if not door:
+        door_meta = item.get("door")
+        if not door_meta:
             continue
+
+        # Handle variant-keyed door configs: {"standard": {...}, "minik": {...}}
+        first_val = next(iter(door_meta.values()), None)
+        if isinstance(first_val, dict):
+            door = door_meta.get(variant)
+            if not door:
+                continue
+        else:
+            door = door_meta
+
         poly = item["poly"]  # [[e,n], ...]
         hinge_idx = door["hinge_idx"]
-        width = door["width"]
-        open_dir = tuple(door["open_dir"])
-        closed_dir = tuple(door["closed_dir"])
+        target_idx = door["target_idx"]
 
         hinge_pt = (poly[hinge_idx][0], poly[hinge_idx][1])
+        target_pt = (poly[target_idx][0], poly[target_idx][1])
+
+        # closed_dir: unit vector from hinge to target
+        dx = target_pt[0] - hinge_pt[0]
+        dy = target_pt[1] - hinge_pt[1]
+        width = math.sqrt(dx * dx + dy * dy)
+        if width < 1e-12:
+            continue
+        closed_dir = (dx / width, dy / width)
+
+        # open_dir: perpendicular to closed_dir, pointing away from polygon
+        perp = (-closed_dir[1], closed_dir[0])
+        cx = sum(p[0] for p in poly) / len(poly)
+        cy = sum(p[1] for p in poly) / len(poly)
+        to_center = (cx - hinge_pt[0], cy - hinge_pt[1])
+        if perp[0] * to_center[0] + perp[1] * to_center[1] > 0:
+            perp = (-perp[0], -perp[1])
+        open_dir = perp
+
         tip = (hinge_pt[0] + width * open_dir[0],
                hinge_pt[1] + width * open_dir[1])
         arc_pts = _swing_arc(hinge_pt, width, open_dir, closed_dir)
@@ -885,95 +906,6 @@ def _build_outline_segs_from_chain(chain):
     return segs[-1:] + segs[:-1]
 
 
-def _apply_formula_overrides(result, constants_dict, inner_poly, radii,
-                             variant, db_path):
-    """Apply formula-evaluated elements over procedural results (Phase 12 hybrid).
-
-    Loads formulas from the database, evaluates them in topological order,
-    and overrides the corresponding entries in result.  Elements without
-    formulas keep their procedural values.
-    """
-    try:
-        from app.evaluator import FormulaEvaluator
-        from app.database import get_all_formulas
-        formulas = get_all_formulas(variant=variant, db_path=db_path)
-    except Exception:
-        return result
-    if not formulas:
-        return result
-
-    # Build base_points from result["points"]
-    base_points = result.get("points", {})
-    inner = [(p[0], p[1]) for p in (result.get("inner_poly") or [])]
-
-    ev = FormulaEvaluator(constants_dict, base_points, inner, radii)
-    ev.load_formulas_from_db(db_path=db_path, variant=variant)
-    try:
-        ev.evaluate_all()
-    except Exception:
-        return result
-
-    # Expose locked element names for canvas rendering
-    locked = set()
-    for row in formulas:
-        if row.get("locked"):
-            locked.add(row["element_name"])
-    result["locked_elements"] = sorted(locked)
-
-    # Override procedural results with formula-computed elements
-    variant_items = result.get("variant_items", {})
-    # Build lookup for opening list indices
-    oo_by_name = {o["name"]: i for i, o in enumerate(result.get("outer_openings", []))}
-    ro_by_name = {o["name"]: i for i, o in enumerate(result.get("rough_openings", []))}
-
-    for elem_name, computed in ev.elements.items():
-        if "poly" not in computed:
-            continue
-        poly = computed["poly"]
-        bbox = computed.get("bbox", {})
-        # Check if it's an interior wall
-        if elem_name.upper() in result.get("interior_walls", {}):
-            result["interior_walls"][elem_name.upper()] = {
-                "poly": poly,
-                "bbox": bbox,
-            }
-        # Check if it's an outer opening (O1-O11, O8a)
-        elif elem_name in oo_by_name:
-            idx = oo_by_name[elem_name]
-            result["outer_openings"][idx]["poly"] = poly
-        # Check if it's a rough opening (RO1-RO7)
-        elif elem_name in ro_by_name:
-            idx = ro_by_name[elem_name]
-            result["rough_openings"][idx]["poly"] = poly
-            result["rough_openings"][idx]["bbox"] = bbox
-        # Check if it's furniture
-        elif elem_name.lower() in result.get("furniture", {}):
-            result["furniture"][elem_name.lower()] = {
-                "poly": poly,
-                "bbox": bbox,
-            }
-        # Check if it's an appliance
-        elif elem_name.lower() in result.get("appliances", {}):
-            old = result["appliances"][elem_name.lower()]
-            new_entry = {"poly": poly, "bbox": bbox}
-            # Preserve extra fields (e.g. counter clip) from procedural
-            for k, v in old.items():
-                if k not in new_entry:
-                    new_entry[k] = v
-            result["appliances"][elem_name.lower()] = new_entry
-        # Check if it's a variant item (Phase 12e)
-        elif elem_name in variant_items:
-            old = variant_items[elem_name]
-            poly_list = [[p[0], p[1]] for p in poly]
-            new_entry = {"poly": poly_list, "bbox": bbox}
-            # Preserve metadata (name, type, label, shape, door, clearance, etc.)
-            for k, v in old.items():
-                if k not in new_entry:
-                    new_entry[k] = v
-            variant_items[elem_name] = new_entry
-
-    return result
-
 
 def _derive_constant(constants_dict, name):
     """Compute a derived constant from the constants dict.
@@ -991,16 +923,153 @@ def _derive_constant(constants_dict, name):
     return constants_dict.get(name)
 
 
+def _build_elements_from_formulas(ev, variant, exclusions, db_path):
+    """Build result dicts from FormulaEvaluator output + DB element metadata.
+
+    Queries the elements table for metadata (label, type, shape, door,
+    clearance, etc.) and combines with computed geometry from ev.elements.
+
+    Returns (interior_walls, outer_openings, rough_openings, variant_items,
+             furniture, appliances) tuple.
+    """
+    from app.variants import _resolve_product_url, get_variant_flags
+
+    flags = get_variant_flags(variant, db_path)
+    minik = flags.get("minik", False)
+    db_flag = flags.get("db", False)
+
+    # Load element metadata from DB
+    all_elems = get_all_elements(db_path)
+    meta_by_name = {}
+    for e in all_elems:
+        props = json.loads(e["properties"]) if isinstance(e["properties"], str) else (e["properties"] or {})
+        meta_by_name[e["name"]] = {
+            "type": e["type"],
+            "variant": e.get("variant"),
+            "props": props,
+        }
+
+    excluded_walls = exclusions.get("wall", set())
+    excluded_openings = exclusions.get("rough_opening", set())
+
+    interior_walls = {}
+    outer_openings = []
+    rough_openings = []
+    variant_items = {}
+    furniture = {}
+    appliances = {}
+
+    for elem_name, computed in ev.elements.items():
+        if "poly" not in computed:
+            continue
+
+        poly = computed["poly"]
+        bbox = computed.get("bbox", {})
+
+        # Look up metadata: try exact name, then lowercase (handles BED→bed)
+        meta = meta_by_name.get(elem_name, {})
+        props = meta.get("props", {})
+        # If the exact match is a layout_item placeholder, use lowercase
+        # variant-item metadata instead (BED→bed, DRYER→dryer, etc.)
+        item_name = elem_name
+        if props.get("layout_item") and elem_name.lower() in meta_by_name:
+            meta = meta_by_name[elem_name.lower()]
+            props = meta.get("props", {})
+            item_name = elem_name.lower()
+        elem_type = meta.get("type", "")
+
+        # Interior walls (IW* uppercase names)
+        if elem_type == "wall":
+            if elem_name in excluded_walls:
+                continue
+            interior_walls[elem_name] = {"poly": poly, "bbox": bbox}
+
+        # Outer openings (O1-O11, O8a)
+        elif elem_type == "opening" and elem_name.startswith("O") and not elem_name.startswith("O_"):
+            outer_openings.append({
+                "name": elem_name,
+                "seg_start": props.get("seg_start", ""),
+                "seg_end": props.get("seg_end", ""),
+                "poly": poly,
+            })
+
+        # Rough openings (RO1-RO7)
+        elif elem_type == "opening" and elem_name.startswith("RO"):
+            if elem_name in excluded_openings:
+                continue
+            rough_openings.append({
+                "name": elem_name,
+                "bbox": bbox,
+                "wall_name": props.get("wall_name", ""),
+                "orientation": props.get("orientation", ""),
+                "width": bbox.get("e", 0) - bbox.get("w", 0)
+                         if props.get("orientation") == "H"
+                         else bbox.get("n", 0) - bbox.get("s", 0),
+                "poly": poly,
+            })
+
+        # Variant items (furniture, appliances, fixtures)
+        elif elem_type in ("appliance", "fixture", "furniture"):
+            # Variant filtering: check if item belongs to current variant
+            variants_list = props.get("variants")
+            if variants_list and variant not in variants_list:
+                continue
+
+            entry = {
+                "name": item_name,
+                "type": elem_type,
+                "poly": [[p[0], p[1]] for p in poly] if poly else [],
+                "bbox": bbox,
+                "label": props.get("label", item_name.upper()),
+                "shape": props.get("shape", "rect"),
+            }
+            if computed.get("center"):
+                entry["center"] = computed["center"]
+            if computed.get("radius"):
+                entry["radius"] = computed["radius"]
+            if props.get("stacked"):
+                entry["stacked"] = True
+            if props.get("door"):
+                door_cfg = props["door"]
+                # Resolve variant-keyed door configs: {"standard": {...}, ...}
+                first_val = next(iter(door_cfg.values()), None)
+                if isinstance(first_val, dict):
+                    door_cfg = door_cfg.get(variant, {})
+                if door_cfg:
+                    entry["door"] = door_cfg
+            if props.get("clearance"):
+                entry["clearance"] = props["clearance"]
+            if props.get("clip_to_inner"):
+                entry["clip_to_inner"] = True
+
+            # Product URL
+            url = _resolve_product_url(item_name, minik, db_flag)
+            if url:
+                entry["product_url"] = url
+
+            variant_items[item_name] = entry
+
+            # Backward-compatible furniture/appliances dicts
+            compat_entry = {"poly": poly, "bbox": bbox}
+            if elem_type == "furniture":
+                furniture[item_name] = compat_entry
+            elif elem_type == "appliance":
+                appliances[item_name] = compat_entry
+
+    return (interior_walls, outer_openings, rough_openings,
+            variant_items, furniture, appliances)
+
+
 def compute_geometry(constants_dict: dict, variant: str = "standard",
                      chain_rows: list[dict] | None = None,
                      doors_data: list[dict] | None = None,
                      db_path: str | None = None) -> dict:
     """Compute all building geometry from constants and return JSON-serialisable dict.
 
-    Phase 12g: formula-driven architecture.  The formula evaluator is the
-    primary source for all element geometry (interior walls, openings,
-    furniture, appliances, variant items).  The procedural floorplan modules
-    provide baseline data for metadata and fallback.
+    Phase 12h: fully formula-driven architecture.  The FormulaEvaluator is
+    the sole source for all element geometry (interior walls, openings,
+    furniture, appliances).  Element metadata (labels, door configs,
+    clearance, URLs) comes from the elements table in the database.
 
     If chain_rows is provided, the app solver computes the outline from
     DB chain data (the normal path).
@@ -1010,9 +1079,9 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     """
     from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
     from shared.geometry import compute_inner_walls, path_polygon
-    from floorplan.layout import compute_interior_layout
-    from floorplan.openings import compute_outer_openings, compute_rough_openings
     from shared.survey import compute_traverse, compute_three_arc, compute_inset
+    from app.evaluator import FormulaEvaluator
+    from app.database import get_all_formulas, get_variants as _get_db_variants
 
     # 1. Survey traverse
     trav_pts = compute_traverse()
@@ -1026,7 +1095,6 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
 
     # 2. F-series outline
     if chain_rows is not None:
-        # App solver with DB chain — no dependency on floorplan.geometry reload
         from app.outline_solver import db_rows_to_chain, solve_closure, walk_chain
         chain = db_rows_to_chain(chain_rows)
         R_a1 = _derive_constant(constants_dict, "CORNER_SW_R")
@@ -1036,7 +1104,6 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
             raise ValueError(
                 f"Outline chain does not close: error={solver_result.closure_error:.6f}")
 
-        # Inject solved values (distances + closure arc sweep)
         chain = list(chain)
         chain[0] = chain[0]._replace(distance=solver_result.d_F2_F5)
         chain[-2] = chain[-2]._replace(distance=solver_result.d_F18_F1)
@@ -1063,157 +1130,74 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     inner_segs = compute_inner_walls(outline_segs, pts, constants_dict.get("WALL_OUTER", 8.0/12.0), radii)
     inner_poly = path_polygon(inner_segs, pts)
 
-    # 4. Interior layout (procedural baseline — positions used only as
-    #    metadata source; formulas override all element geometry)
-    layout = compute_interior_layout(pts, inner_poly)
-
-    # 5. Outer openings (procedural baseline — formulas override geometry)
-    outer_openings = compute_outer_openings(pts, layout)
-
-    # 6. Rough openings (procedural baseline — formulas override geometry)
-    rough_openings = compute_rough_openings(pts, layout)
-
-    # Load variant exclusions from database
+    # 4. Load variant exclusions
     exclusions = get_variant_exclusions(variant, db_path)
 
-    # Build result
+    # 5. FormulaEvaluator — sole source for all element geometry
+    base_points = {k: point_to_list(v) for k, v in pts.items()}
+    inner = [(p[0], p[1]) for p in inner_poly]
+    ev = FormulaEvaluator(constants_dict, base_points, inner, radii)
+    ev.load_formulas_from_db(db_path=db_path, variant=variant)
+    ev.evaluate_all()
+
+    # Locked element names for canvas rendering
+    formulas = get_all_formulas(variant=variant, db_path=db_path)
+    locked = sorted({row["element_name"] for row in formulas if row.get("locked")})
+
+    # 6. Build element result dicts from formula output + DB metadata
+    (iw, oo, ro, vi, furn, appl) = _build_elements_from_formulas(
+        ev, variant, exclusions, db_path)
+
+    # 7. Build result
+    outline_poly_pts = path_polygon(outline_segs, pts)
     result = {
-        "points": {},
-        "outline_segments": [],
-        "inner_segments": [],
-        "outline_poly": [],
+        "points": {name: point_to_list(pt) for name, pt in sorted(pts.items())},
+        "outline_segments": [seg_to_dict(s) for s in outline_segs],
+        "inner_segments": [seg_to_dict(s) for s in inner_segs],
+        "outline_poly": [point_to_list(p) for p in outline_poly_pts],
         "inner_poly": [point_to_list(p) for p in inner_poly],
-        "interior_walls": {},
-        "outer_openings": [],
-        "rough_openings": [],
-        "appliances": {},
-        "furniture": {},
+        "interior_walls": iw,
+        "outer_openings": oo,
+        "rough_openings": ro,
+        "appliances": appl,
+        "furniture": furn,
+        "variant_items": vi,
+        "variant": variant,
+        "locked_elements": locked,
+        "radii": dict(radii),
     }
 
-    # Points
-    for name, pt in sorted(pts.items()):
-        result["points"][name] = point_to_list(pt)
-
-    # Outline segments
-    result["outline_segments"] = [seg_to_dict(s) for s in outline_segs]
-
-    # Inner segments
-    result["inner_segments"] = [seg_to_dict(s) for s in inner_segs]
-
-    # Outline polygon
-    outline_poly = path_polygon(outline_segs, pts)
-    result["outline_poly"] = [point_to_list(p) for p in outline_poly]
-
-    # Interior walls
-    excluded_walls = exclusions.get("wall", set())
-    iw_names = ["iw1", "iw2", "iw2o", "iw2s", "iw3", "iw4", "iw5", "iw6",
-                "iw7", "iw8", "iw9", "iw11", "iw12"]
-    for name in iw_names:
-        if name.upper() in excluded_walls:
-            continue
-        wall = getattr(layout, name, None)
-        if wall:
-            result["interior_walls"][name.upper()] = _wall_to_dict(wall)
-
-    # Outer openings
-    for op in outer_openings:
-        result["outer_openings"].append({
-            "name": op.name,
-            "seg_start": op.seg_start,
-            "seg_end": op.seg_end,
-            "poly": [point_to_list(p) for p in op.poly],
-        })
-
-    # Rough openings
-    excluded_openings = exclusions.get("rough_opening", set())
-    for ro in rough_openings:
-        if ro.name in excluded_openings:
-            continue
-        d = {
-            "name": ro.name,
-            "bbox": {"w": ro.bbox.w, "s": ro.bbox.s, "e": ro.bbox.e, "n": ro.bbox.n},
-            "wall_name": ro.wall_name,
-            "orientation": ro.orientation,
-            "width": ro.width,
-        }
-        if ro.poly:
-            d["poly"] = [point_to_list(p) for p in ro.poly]
-        result["rough_openings"].append(d)
-
-    # Appliances (procedural baseline — formulas override below)
-    for name in ("dryer", "washer"):
-        appl = getattr(layout, name, None)
-        if appl:
-            result["appliances"][name] = _wall_to_dict(appl)
-
-    # Counter
-    ctr = getattr(layout, "ctr", None)
-    if ctr:
-        result["appliances"]["counter"] = _wall_to_dict(ctr)
-        clip = getattr(layout, "ctr_clip", None)
-        if clip:
-            result["appliances"]["counter"]["clip"] = [point_to_list(p) for p in clip]
-
-    # Furniture (procedural baseline — formulas override below)
-    for name in ("bed", "dresser", "shelves"):
-        item = getattr(layout, name, None)
-        if item:
-            result["furniture"][name] = _wall_to_dict(item)
-
     # Bounding box
-    all_pts = result["outline_poly"]
-    if all_pts:
-        result["bbox"] = bbox_from_poly(all_pts)
+    if result["outline_poly"]:
+        result["bbox"] = bbox_from_poly(result["outline_poly"])
 
-    # Radii (needed for arc_point anchor resolution)
-    result["radii"] = {k: v for k, v in radii.items()}
-
-    # Variant items (procedural baseline for metadata: labels, door configs,
-    # clearance configs, URLs, shapes — formulas override all positions)
-    from app.variants import compute_variant_items
-    from app.database import get_variants as _get_db_variants
-    variant_items = compute_variant_items(pts, inner_poly, layout, radii, variant,
-                                          db_path=db_path)
-    result["variant_items"] = variant_items
-    result["variant"] = variant
+    # Available variants
     try:
         result["available_variants"] = [v["name"] for v in _get_db_variants(db_path)]
     except Exception:
         from app.variants import VARIANTS
         result["available_variants"] = list(VARIANTS.keys())
 
-    # ===================================================================
-    # Formula evaluation (Phase 12g): formulas are the PRIMARY source for
-    # all element geometry.  The procedural results above serve only as
-    # metadata baselines (door configs, clearance configs, URLs, labels).
-    # Formula-evaluated geometry overrides procedural geometry.
-    # ===================================================================
-    result = _apply_formula_overrides(result, constants_dict, inner_poly,
-                                      radii, variant, db_path)
-
-    # Room labels and SF extras (uses formula-evaluated wall/opening positions)
+    # Room labels and SF extras
     room_data = _compute_room_labels(pts, result["interior_walls"],
                                       result, inner_segs, variant, db_path)
     result["room_labels"] = room_data["room_labels"]
     if "sf_lines" in room_data:
         result["sf_lines"] = room_data["sf_lines"]
 
-    # Door arcs (Phase 6) — uses formula-evaluated opening polygons
+    # Door arcs — uses formula-evaluated opening polygons (now dict-based)
     result["door_arcs"] = _compute_door_arcs(
-        outer_openings, rough_openings, doors_data or [], exclusions)
+        oo, ro, doors_data or [], exclusions)
 
-    # Clearance zones — uses formula-evaluated furniture/variant items
+    # Clearance zones — all from variant_items metadata
     result["clearance_zones"] = _compute_clearance_zones(
-        variant, result.get("variant_items"), result.get("furniture"))
+        variant, result.get("variant_items"))
 
-    # Appliance door arcs — uses formula-evaluated variant items
+    # Appliance door arcs — intrinsic door configs from DB metadata
     result["appliance_doors"] = _compute_appliance_doors(
-        result.get("variant_items"))
+        result.get("variant_items"), variant)
 
-    # Dimension and label elements (unified — both builtin and user-created).
-    # Variant filtering: if properties["variants"] is a list, element appears
-    # only in those variants.  Otherwise falls back to the DB variant column
-    # (NULL = all variants, specific value = that variant only).
+    # Dimension and label elements
     all_elements = get_all_elements(db_path)
     excluded_dims = exclusions.get("dimension", set())
     user_dims = []
@@ -1222,19 +1206,15 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
         variants_list = props.get("variants")
         if variants_list is not None:
-            # Explicit layout list in properties takes precedence
             if variant not in variants_list:
                 continue
         else:
-            # Fall back to variant column (NULL = all, value = that one only)
             elem_variant = e.get("variant")
             if elem_variant is not None and elem_variant != variant:
                 continue
         if e["type"] == "dimension":
-            # Exclusion filtering (e.g. dim12a/dim12b excluded in bare)
             if e["name"] in excluded_dims:
                 continue
-            # Resolve anchors to absolute coordinates
             for anchor_key, coord_key in [("start_anchor", "start"), ("end_anchor", "end")]:
                 anchor = props.get(anchor_key)
                 if anchor:
@@ -1247,7 +1227,6 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         elif e["type"] == "label":
             entry = {"id": e["id"], "name": e["name"], "properties": props}
             if props.get("source") == "room":
-                # Merge centroid position from room_labels
                 rl = next((r for r in result["room_labels"] if r["name"] == e["name"]), None)
                 if rl:
                     entry["centroid"] = rl["centroid"]
