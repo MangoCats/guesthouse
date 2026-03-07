@@ -633,8 +633,9 @@ _IW_SEED = [
 
 
 def _seed_elements(conn):
-    """Seed the elements table with the 13 interior walls."""
+    """Seed the elements table with interior walls, openings, and variant items."""
 
+    # --- Interior walls (13) ---
     for name, thickness_const, orientation in _IW_SEED:
         props = json.dumps({
             "thickness_constant": thickness_const,
@@ -644,6 +645,276 @@ def _seed_elements(conn):
             "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
             "VALUES (?, ?, ?, ?)",
             ("wall", name, props, None),
+        )
+
+    # --- Outer openings (O1-O11, O8a) ---
+    _OUTER_OPENINGS = [
+        ("O1",  {"seg_start": "F2",  "seg_end": "F5"}),
+        ("O2",  {"seg_start": "F2",  "seg_end": "F5"}),
+        ("O3",  {"seg_start": "F2",  "seg_end": "F5"}),
+        ("O4",  {"seg_start": "F6",  "seg_end": "F7"}),
+        ("O5",  {"seg_start": "F9",  "seg_end": "F10"}),
+        ("O6",  {"seg_start": "F9",  "seg_end": "F10"}),
+        ("O7",  {"seg_start": "F12", "seg_end": "F13"}),
+        ("O8",  {"seg_start": "F14", "seg_end": "F15"}),
+        ("O8a", {"seg_start": "F18", "seg_end": "F1"}),
+        ("O9",  {"seg_start": "F18", "seg_end": "F1"}),
+        ("O10", {"seg_start": "F18", "seg_end": "F1"}),
+        ("O11", {"seg_start": "F18", "seg_end": "F1"}),
+    ]
+    for name, props in _OUTER_OPENINGS:
+        conn.execute(
+            "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
+            "VALUES (?, ?, ?, ?)",
+            ("opening", name, json.dumps(props), None),
+        )
+
+    # --- Rough openings (RO1-RO7) ---
+    _ROUGH_OPENINGS = [
+        ("RO1", {"wall_name": "IW1",  "orientation": "H"}),
+        ("RO2", {"wall_name": "IW11", "orientation": "V"}),
+        ("RO3", {"wall_name": "IW9",  "orientation": "V"}),
+        ("RO4", {"wall_name": "IW2O", "orientation": "V"}),
+        ("RO5", {"wall_name": "IW6",  "orientation": "H"}),
+        ("RO6", {"wall_name": "IW11", "orientation": "V"}),
+        ("RO7", {"wall_name": "IW9",  "orientation": "V"}),
+    ]
+    for name, props in _ROUGH_OPENINGS:
+        conn.execute(
+            "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
+            "VALUES (?, ?, ?, ?)",
+            ("opening", name, json.dumps(props), None),
+        )
+
+    # --- Variant items (furniture, appliances, fixtures) ---
+    # Each entry: (name, elem_type, properties_dict, variant)
+    # variant=None means present in all non-bare/sf variants;
+    # Properties include: label, item_type, shape, stacked, door, clearance,
+    # product_url, variants (list of variant names where item appears)
+    _ALL = ["standard", "minik", "daybed"]
+    _STD_DB = ["standard", "daybed"]
+
+    _VARIANT_ITEMS = [
+        # --- Utility / laundry ---
+        ("dryer", "appliance", {
+            "label": "DRYER", "item_type": "appliance", "shape": "rect",
+            "door": {"hinge_idx": 1, "swing_face": [0, 1]},
+            "variants": _ALL,
+        }, None),
+        ("washer", "appliance", {
+            "label": "WASHER", "item_type": "appliance", "shape": "rect",
+            "door": {"hinge_idx": 2, "swing_face": [2, 1]},
+            "variants": _ALL,
+        }, None),
+        ("hamper", "appliance", {
+            "label": "HAMPER", "item_type": "appliance", "shape": "rect",
+            "clearance": {"face": [3, 2], "distance": 19.0 / 12.0},
+            "variants": _ALL,
+        }, None),
+        ("water_heater", "appliance", {
+            "label": "WH", "item_type": "appliance", "shape": "circle",
+            "variants": _ALL,
+        }, None),
+        ("counter", "appliance", {
+            "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+            "clip_to_inner": True,
+            "variants": _STD_DB,
+        }, None),
+
+        # --- Toilets & sinks ---
+        ("toilet_s", "fixture", {
+            "label": "TOILET", "item_type": "fixture", "shape": "toilet",
+            "variants": _ALL,
+        }, None),
+        ("toilet_n", "fixture", {
+            "label": "TOILET", "item_type": "fixture", "shape": "toilet",
+            "variants": _ALL,
+        }, None),
+        ("util_sink", "fixture", {
+            "label": "SINK", "item_type": "fixture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+        ("bath_sink", "fixture", {
+            "label": "BATH SINK", "item_type": "fixture", "shape": "bath_sink",
+            "variants": _ALL,
+        }, None),
+        ("kitchen_sink", "fixture", {
+            "label": "SINK", "item_type": "fixture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+
+        # --- Kitchen: standard/daybed ---
+        ("stove", "appliance", {
+            "label": "STOVE", "item_type": "appliance", "shape": "rect",
+            "clearance": {"face": [0, 1], "distance": 24.0 / 12.0},
+            "variants": _STD_DB,
+        }, None),
+        ("dishwasher", "appliance", {
+            "label": "D/W", "item_type": "appliance", "shape": "rect",
+            "clearance": {"face": [0, 1], "distance": 31.0 / 12.0},
+            "variants": _STD_DB,
+        }, None),
+        ("north_counter", "appliance", {
+            "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+            "variants": _STD_DB,
+        }, None),
+        ("work_counter", "appliance", {
+            "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+            "variants": _STD_DB,
+        }, None),
+
+        # --- Kitchen: minik ---
+        ("kitchen_counter", "appliance", {
+            "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+            "variants": ["minik"],
+        }, None),
+        ("cooktop", "appliance", {
+            "label": "COOKTOP", "item_type": "appliance", "shape": "rect",
+            "stacked": True,
+            "variants": ["minik"],
+        }, None),
+        ("toaster", "appliance", {
+            "label": "TOASTER", "item_type": "appliance", "shape": "rect",
+            "stacked": True,
+            "variants": ["minik"],
+        }, None),
+
+        # --- Kitchen: all variants ---
+        ("fridge", "appliance", {
+            "label": "FRIDGE", "item_type": "appliance", "shape": "rect",
+            "door": {"hinge_idx": 1, "swing_face": [1, 2]},
+            "variants": _ALL,
+        }, None),
+        ("ice_maker", "appliance", {
+            "label": "ICE", "item_type": "appliance", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+        ("microwave", "appliance", {
+            "label": "MICRO", "item_type": "appliance", "shape": "rect",
+            "stacked": True,
+            "door": {"hinge_idx": 2, "swing_face": [2, 3]},
+            "variants": _ALL,
+        }, None),
+        ("coffee_maker", "appliance", {
+            "label": "C", "item_type": "appliance", "shape": "rect",
+            "stacked": True,
+            "variants": _ALL,
+        }, None),
+
+        # --- Dining ---
+        ("dining_table", "furniture", {
+            "label": "TABLE", "item_type": "furniture", "shape": "triangle",
+            "variants": _ALL,
+        }, None),
+        ("dining_chair_1", "furniture", {
+            "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+        ("dining_chair_2", "furniture", {
+            "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+
+        # --- Bedroom ---
+        ("bed", "furniture", {
+            "label": "KING BED", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+        ("dresser", "furniture", {
+            "label": "DRESSER", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+        ("shelves", "furniture", {
+            "label": "SHELVES", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+
+        # --- Living: chair + ottoman (all) ---
+        ("chair", "furniture", {
+            "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+        ("ottoman", "furniture", {
+            "label": "OTTO", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+
+        # --- Living: standard seating ---
+        ("loveseat", "furniture", {
+            "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
+            "variants": ["standard"],
+        }, "standard"),
+        ("et", "furniture", {
+            "label": "ET", "item_type": "furniture", "shape": "circle",
+            "variants": ["standard"],
+        }, "standard"),
+        ("loveseat2", "furniture", {
+            "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
+            "variants": ["standard"],
+        }, "standard"),
+
+        # --- Living: minik seating ---
+        ("sofa", "furniture", {
+            "label": "SOFA", "item_type": "furniture", "shape": "rect",
+            "variants": ["minik"],
+        }, "minik"),
+        ("rocker", "furniture", {
+            "label": "ROCKER", "item_type": "furniture", "shape": "rect",
+            "variants": ["minik", "daybed"],
+        }, None),
+
+        # --- Living: daybed seating ---
+        ("shelves2", "furniture", {
+            "label": "SHELVES", "item_type": "furniture", "shape": "rect",
+            "variants": ["daybed"],
+        }, "daybed"),
+        ("et_east", "furniture", {
+            "label": "ET", "item_type": "furniture", "shape": "circle",
+            "variants": ["daybed"],
+        }, "daybed"),
+        ("daybed", "furniture", {
+            "label": "DAYBED", "item_type": "furniture", "shape": "rect",
+            "variants": ["daybed"],
+        }, "daybed"),
+        ("et_west", "furniture", {
+            "label": "ET", "item_type": "furniture", "shape": "circle",
+            "variants": ["daybed"],
+        }, "daybed"),
+
+        # --- Office ---
+        ("desk", "furniture", {
+            "label": "DESK", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+        ("desk_chair", "furniture", {
+            "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+            "variants": _ALL,
+        }, None),
+    ]
+
+    for name, elem_type, props, variant in _VARIANT_ITEMS:
+        conn.execute(
+            "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
+            "VALUES (?, ?, ?, ?)",
+            (elem_type, name, json.dumps(props), variant),
+        )
+
+    # --- Layout items (uppercase names from layout.py formulas) ---
+    # These are the same physical elements as some variant items above but
+    # referenced by uppercase names in get_layout_item_formulas().
+    _LAYOUT_ITEMS = [
+        ("BED",     "furniture", {"label": "KING BED", "layout_item": True}),
+        ("COUNTER", "appliance", {"label": "COUNTER", "layout_item": True, "clip_to_inner": True}),
+        ("DRESSER", "furniture", {"label": "DRESSER", "layout_item": True}),
+        ("DRYER",   "appliance", {"label": "DRYER", "layout_item": True}),
+        ("SHELVES", "furniture", {"label": "SHELVES", "layout_item": True}),
+        ("WASHER",  "appliance", {"label": "WASHER", "layout_item": True}),
+    ]
+    for name, elem_type, props in _LAYOUT_ITEMS:
+        conn.execute(
+            "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
+            "VALUES (?, ?, ?, ?)",
+            (elem_type, name, json.dumps(props), None),
         )
 
 

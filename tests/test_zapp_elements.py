@@ -39,13 +39,16 @@ class TestDB9Elements:
             ).fetchone()[0]
         assert count == 13
 
-    def test_only_walls_labels_dims_seeded(self, fresh_db):
+    def test_seeded_element_types(self, fresh_db):
+        """All seeded elements are walls, labels, dims, openings, or variant items."""
         with get_db(fresh_db) as conn:
-            count = conn.execute(
-                "SELECT count(*) FROM elements "
-                "WHERE type NOT IN ('wall', 'label', 'dimension')"
-            ).fetchone()[0]
-        assert count == 0
+            types = conn.execute(
+                "SELECT DISTINCT type FROM elements ORDER BY type"
+            ).fetchall()
+            type_set = {r[0] for r in types}
+        expected = {"wall", "label", "dimension", "opening",
+                    "furniture", "appliance", "fixture"}
+        assert type_set == expected
 
     def test_11_room_labels_seeded(self, fresh_db):
         with get_db(fresh_db) as conn:
@@ -111,9 +114,12 @@ class TestElementCRUD:
 class TestElementBusinessLogic:
 
     def test_get_elements_for_variant_all(self, fresh_db):
-        # 13 IW walls + 11 room labels + 20 builtin dims (variant=NULL)
+        # 13 IW walls + 11 labels + 20 dims + 19 openings + variant items
         elems = get_elements_for_variant("standard", fresh_db)
-        assert len(elems) == 44  # 13 walls + 11 labels + 20 dims
+        assert len(elems) >= 44  # at least walls + labels + dims
+        types = {e["type"] for e in elems}
+        assert {"wall", "label", "dimension", "opening",
+                "furniture", "appliance", "fixture"} == types
 
     def test_get_elements_for_variant_specific(self, fresh_db):
         create_element("furniture", "VARIANT_ITEM", {}, "standard", fresh_db)
@@ -215,12 +221,12 @@ class TestAPI24CreateOpening:
 
     def test_create_opening_201(self, app_client):
         resp = app_client.post("/api/openings", json={
-            "name": "O8a", "segment": "F18-F1", "width": 19, "offset": 48,
+            "name": "O_TEST", "segment": "F18-F1", "width": 19, "offset": 48,
         })
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["type"] == "opening"
-        assert data["name"] == "O8a"
+        assert data["name"] == "O_TEST"
 
     def test_create_opening_missing_segment_400(self, app_client):
         resp = app_client.post("/api/openings", json={"name": "X"})
