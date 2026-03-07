@@ -10,9 +10,9 @@ if _PROJECT not in sys.path:
     sys.path.insert(0, _PROJECT)
 
 from tests.test_zapp_conftest import fresh_db, app_client, geometry
-from app.variants import (compute_variant_items, VARIANTS,
-                          _resolve_product_url, _PRODUCT_URLS_BASE,
-                          _PRODUCT_URLS_VARIANT, get_variant_flags)
+from app.variants import (VARIANTS, _resolve_product_url,
+                          _PRODUCT_URLS_BASE, _PRODUCT_URLS_VARIANT,
+                          get_variant_flags)
 from app.database import (get_constants_dict, get_variants, get_variant,
                           get_variant_by_id, update_variant,
                           create_variant, delete_variant, create_variant_raw,
