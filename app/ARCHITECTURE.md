@@ -6,7 +6,7 @@ The ADU Editor is a single-page Flask application backed by SQLite.  It
 provides an interactive canvas and data tables for viewing and editing
 the parametric building design.  All element geometry (walls, openings,
 furniture, appliances) is computed by the FormulaEvaluator from
-database-stored JSON formulas (Phase 12g cutover complete).
+database-stored JSON formulas (Phase 12h: procedural baselines eliminated).
 
 ```
 Browser (HTML/CSS/JS)
@@ -30,13 +30,10 @@ app/server.py          Flask routes, SSE broadcast, geometry cache
     │
     ├─ app/engine.py       Geometry computation orchestrator
     │      ├─ floorplan/geometry.py     (outline, F-series)
-    │      ├─ floorplan/layout.py       (interior walls, rooms)
-    │      ├─ floorplan/openings.py     (O1–O11, RO1–RO7)
     │      ├─ floorplan/gen_floorplan.py (dimension endpoints)
     │      ├─ shared/geometry.py        (inner walls, polygons)
     │      ├─ shared/survey.py          (traverse, inset)
-    │      └─ app/variants.py           (variant furniture)
-    │             └─ shared/geometry.py  (seg_vecs, offset_pt, line_isect)
+    │      └─ app/database.py           (element metadata, formulas)
     │
     └─ app/static/          HTML template, JS, CSS (no build step)
 ```
@@ -62,7 +59,7 @@ Ten SQLite tables:
 | `variant_exclusions` | 4 | Per-variant element hiding (wall/opening exclusions) |
 | `room_label_offsets` | 0 | User-adjusted room label positions (offset from centroid) |
 | `undo_history` | 0–50 | Serialised undo/redo entries (action type, before/after state) |
-| `elements` | 13+ | Interior walls (seeded) + user-added elements (type, name, properties JSON, variant) |
+| `elements` | ~59+ | All design elements seeded (walls, openings, variant items) + user-added elements (type, name, properties JSON, variant) |
 | `doors` | 9+ | Door configurations per opening (width, hinge side, swing direction, type) |
 
 **Seeding** — On first run, `init_db()` creates the schema and populates
@@ -163,26 +160,26 @@ Validates door parameters against allowed values.
 **`compute_geometry(constants_dict, variant="standard", chain_rows=None, doors_data=None)`**
 orchestrates the full pipeline:
 
-1. **Patch** `floorplan.constants` with database values, then reload
-   `floorplan.geometry`, `.layout`, `.openings` so module-scope code
-   re-executes with patched values
-2. **Survey traverse** → F-series alignment
-3. **Outline geometry** → 20 F-series points, 18 segments, arc radii
-4. **Inner walls** → 18 W-series inset segments, closed polygon
-5. **Interior layout** → 13 interior walls (IW1–IW9, IW11–IW12, IW2O, IW2S; no IW10),
-   rooms, appliance/furniture placements
+1. **Survey traverse** → F-series alignment
+2. **Outline geometry** → 20 F-series points, 18 segments, arc radii
+3. **Inner walls** → 18 W-series inset segments, closed polygon
+4. **Formula evaluation** → `FormulaEvaluator` evaluates all DB-stored
+   formulas in topological order, producing element polygons
+5. **Build elements from formulas** → `_build_elements_from_formulas()`
+   queries DB element metadata (label, type, shape, door config,
+   clearance config, product URLs, variant lists) and combines with
+   FormulaEvaluator output to build interior walls, openings, and
+   variant items dicts
 6. **Variant exclusions** → filter interior walls and rough openings
    per variant (e.g., bare/sf exclude IW6 and RO5)
-7. **Openings** → 12 outer (O1–O11, O8A), 7 rough (RO1–RO7)
-8. **Variant items** → 20–31 furniture/appliance items per variant
-9. **Door arcs** → structural door arcs (from `doors_data`), appliance
-   door arcs (from variant item metadata), clearance zones (from variant
-   item metadata)
-10. **Room labels** → area-weighted centroids for 11 rooms (BEDROOM,
+7. **Door arcs** → structural door arcs (from `doors_data`), appliance
+   door arcs (from DB element door configs), clearance zones (from DB
+   element clearance configs)
+8. **Room labels** → area-weighted centroids for 11 rooms (BEDROOM,
    UTIL_N, UTIL_S, KITCHEN, LIVING, BATH, OFFICE, E CLOSET,
    W CLOSET, STORAGE, WH), with DB-stored offsets applied; for SF
    variant, includes area values and highlight polygons
-11. **Dimensions** → all dimension elements (builtin + user) from the
+9. **Dimensions** → all dimension elements (builtin + user) from the
    `elements` table are resolved via `_resolve_anchor()` to produce
    18–22 dimension line endpoint pairs with distances
 
@@ -196,20 +193,24 @@ concrete positions by projecting onto opening polygon geometry.  For each
 door, computes hinge position, open-tip position, and a 21-point 90° arc
 polyline.  Double doors produce two leaves hinged at opposite ends.
 
-**Clearance zone computation** — `_compute_clearance_zones(layout, variant, variant_items)`
-reads clearance metadata from variant items (face vertex indices + distance).
-Computes outward-extending rectangles using centroid-based direction check.
+**Clearance zone computation** — `_compute_clearance_zones(variant_items)`
+reads clearance metadata from DB element properties (face vertex indices +
+distance).  Computes outward-extending rectangles using centroid-based
+direction check.  No hardcoded clearance data remains in code.
 
 **Appliance door computation** — `_compute_appliance_doors(variant_items)`
-reads door metadata (hinge vertex index, width, open/closed direction
-vectors) and computes arcs via `_swing_arc()`.  Propagates `stacked` flag
-for SVG paint-order correctness.
+reads intrinsic door configs from DB element properties (hinge_idx +
+target_idx) and computes arcs via `_swing_arc()`.  Propagates `stacked`
+flag for SVG paint-order correctness.
 
-**Formula-driven geometry (Phase 12g)** — All element geometry is computed
+**Formula-only geometry (Phase 12h)** — All element geometry is computed
 by `FormulaEvaluator` from database-stored JSON formulas.  The engine no
-longer patches `floorplan.constants` or reloads modules for element
-geometry.  The procedural `floorplan/` modules provide outline geometry
-and variant item metadata only.  `patch_constants()` remains for the
+longer calls `compute_interior_layout()`, `compute_outer_openings()`,
+`compute_rough_openings()`, or `compute_variant_items()`.  Element
+metadata (label, type, shape, door/clearance configs, product URLs,
+variant lists) is stored in the `elements` table and queried by
+`_build_elements_from_formulas()`.  The procedural `floorplan/` modules
+provide outline geometry only.  `patch_constants()` remains for the
 span analysis functions (`compute_span_data`, `compute_span_rotation`).
 
 **Derived constants** — `_derive_constant()` computes `WALL_EXTRA`,
@@ -292,17 +293,17 @@ Pure-math reimplementation of the outline closure solver from
 Cross-validation tests verify bit-identical results with `floorplan/geometry.py`
 for default chain parameters.
 
-### app/variants.py — Variant Furniture
+### app/variants.py — Variant Registry (149 lines)
 
-Replicates positioning math from `gen_floorplan.py`'s `_render_appliances()`,
-`_render_kitchen()`, and `_render_furniture()` functions.  Uses the same
-`seg_vecs()` / `offset_pt()` / `line_isect()` utilities from
-`shared/geometry.py`.
+Contains the `VARIANTS` dict (legacy reference for variant flags),
+`get_variant_flags()` (reads from DB with dict fallback), dimension
+constants used by formula evaluation, and product URL lookup (legacy
+reference).  All procedural positioning math was removed in Phase 12h
+(835 lines deleted).
 
 **Variant registry** — five built-in variants stored in the `variants` DB
 table (Phase 11).  User-created variants clone from a source variant and
-inherit its flags, exclusions, and element visibility.  `get_variant_flags()`
-reads flags from the DB, falling back to the hardcoded `VARIANTS` dict.
+inherit its flags, exclusions, element visibility, and formulas.
 
 | Variant | Label | Items | Built-in |
 |---------|-------|-------|----------|
@@ -316,9 +317,12 @@ reads flags from the DB, falling back to the hardcoded `VARIANTS` dict.
 Each item is a dict with `type` (appliance/furniture/fixture), `poly`
 (coordinate list), `bbox`, `label`, `shape` (rect/circle), and for
 circles: `center` and `radius`.  Items may also carry optional metadata:
-`door` (hinge_idx, width, open_dir, closed_dir) for appliance door arcs,
+`door` (hinge_idx, target_idx) for appliance door arcs,
 `clearance` (face vertex indices, distance) for clearance zones, and
 `stacked` (boolean) for items rendered above their parent counter.
+All metadata is stored in the `elements` table properties JSON and
+queried by `_build_elements_from_formulas()` — no metadata remains
+hardcoded in `variants.py`.
 
 ### app/server.py — HTTP & SSE
 
@@ -694,47 +698,47 @@ The sources of truth evolve as phases are completed:
 | 12d | `wall_opening` formula type (4 positioning modes: gap/ref_point/centered/center_refs; 4 poly_order options).  5 layout item formulas, 12 outer opening formulas, 7 rough opening formulas — total 37 formulas seeded.  Formula overrides preserve extra fields (counter clip). |
 | 12e | 5 new formula types (`toilet_shape`, `bath_sink_shape`, `dining_triangle`, `dining_chair`, `ellipse_rect`).  New specs: `element_centroid`, `ray_circle_isect` point specs; `rotated` dir spec; `radius_key` length spec.  ~50 variant item formulas across 3 variants (standard, minik, daybed).  Hybrid engine overrides variant items preserving metadata (door, clearance, product_url). |
 | 12f | Lock/unlock UI: padlock icon on locked canvas elements, lock/unlock button in properties panel with emoji indicators.  Formula dependency highlighting: blue (upstream) and orange (downstream) on element select.  Lock/unlock undo/redo (`formula_lock` action type).  `formula_locked` SSE event.  `GET /api/deps/graph` endpoint (full DAG as nodes + edges).  `locked_elements` list in geometry response.  `get_all_formula_deps()` database function. |
-| 12g+ | **Cutover (planned).**  All positioning becomes formula-driven.  Constants become DB-stored values (no longer Python module attributes).  Element positions defined by parametric formulas referencing other elements and/or constants.  Existing scripts retained only as seed sources for "Reset to Defaults." |
+| 12g | Cutover: removed `patch_constants()`/`importlib.reload()` from `compute_geometry()`, added outer/rough opening formula overrides, BED formula (`div` length spec), lifted NF-4. |
+| 12h | Eliminated procedural baselines: seeded ~59 element metadata rows (label, type, shape, door/clearance configs, product URLs, variant lists) into `elements` table.  Rewrote `compute_geometry()` as formula-only — removed all procedural calls.  Removed 835 lines of dead code from `variants.py` (984→149 lines).  Product URLs moved to DB.  Variant formula cloning on custom variant creation. |
 
-### Target Architecture (Phase 12+)
+### Current Architecture (Phase 12h Complete)
 
-After cutover, the database is the **sole** authoritative source for all
-design data.  Every element — exterior walls, interior walls, openings,
-furniture, appliances, fixtures, labels, dimensions — is a database
-entity with parametric position formulas.  "Reset to Defaults" regenerates
-the entire database from the existing generator scripts' output,
-reproducing the reference design.  See CHARTER.md § Design Principles
-for the full parametric dependency model.
+The database is the **sole** authoritative source for all design data.
+Every element — interior walls, openings, furniture, appliances,
+fixtures, labels, dimensions — is a database entity with parametric
+position formulas and metadata.  `compute_geometry()` no longer imports
+from `floorplan/layout.py` or `floorplan/openings.py`.  "Reset to
+Defaults" regenerates the entire database from seed sources.  See
+CHARTER.md § Design Principles for the full parametric dependency model.
 
 ---
 
 ## Computation Flow
 
 ```
-constants table
+constants table + element_formulas table + elements table
     │
     ▼
-patch_constants()          Monkey-patch floorplan.constants module
+compute_outline_geometry()     → F-series points, segments, radii
     │
     ▼
-importlib.reload()         Reload geometry, layout, openings modules
+compute_inner_walls()          → W-series inset path
     │
-    ├──► compute_outline_geometry()     → F-series points, segments, radii
-    │
-    ├──► compute_inner_walls()          → W-series inset path
-    │
-    ├──► compute_interior_layout()      → 13 interior walls, rooms
-    │
-    ├──► get_variant_exclusions()       → filter IW/RO per variant
-    │
-    ├──► compute_outer_openings()       → 12 outer openings
-    │    compute_rough_openings()       → 7 rough openings
-    │
-    ├──► compute_variant_items()        → 20–31 furniture/appliance items
+    ▼
+FormulaEvaluator               → evaluate all formulas in topo order
+    │                             (walls, openings, variant items)
+    ▼
+_build_elements_from_formulas()  → query DB element metadata (label,
+    │                               type, shape, door/clearance configs,
+    │                               product URLs, variant lists) and
+    │                               build interior_walls, openings,
+    │                               variant_items dicts
+    ▼
+get_variant_exclusions()       → filter IW/RO per variant
     │
     ├──► _compute_door_arcs()           → structural door arcs (9 openings)
-    │    _compute_appliance_doors()     → appliance door arcs (4 items)
-    │    _compute_clearance_zones()     → clearance zone polygons (4 zones)
+    │    _compute_appliance_doors()     → appliance door arcs (from DB configs)
+    │    _compute_clearance_zones()     → clearance zone polygons (from DB configs)
     │
     ├──► _compute_room_labels()         → 11 room centroids + areas
     │
@@ -786,9 +790,11 @@ provide:
 - **`app_client`** — Flask test client backed by the fresh database
 - **`geometry`** — pre-computed geometry fixture
 
-The snapshot/restore mechanism is necessary because `compute_geometry()`
-mutates module-level state via `patch_constants()` + `importlib.reload()`.
-Without it, one test's constant changes would leak into subsequent tests.
+The snapshot/restore mechanism was originally necessary because
+`compute_geometry()` mutated module-level state via `patch_constants()`
++ `importlib.reload()`.  Since Phase 12h, the main engine no longer does
+this, but the span analysis functions still use `patch_constants()`, so
+the mechanism is retained for test isolation.
 
 ---
 
@@ -796,15 +802,15 @@ Without it, one test's constant changes would leak into subsequent tests.
 
 NF-4 has been lifted.  The FormulaEvaluator is the sole source of element
 geometry — `compute_geometry()` no longer patches `floorplan.constants` or
-reloads modules.  The database is the authoritative source for constants
-and element formulas.
+reloads modules.  The database is the authoritative source for constants,
+element formulas, and element metadata.
 
-**Remaining duplication.**  `app/variants.py` still contains ~700 lines of
-procedural positioning math that produces metadata (labels, door configs,
-clearance configs, product URLs, shapes) for variant items.  The positions
-computed by this code are overridden by formula-evaluated geometry.  A
-future cleanup can extract the metadata into the database, eliminating
-the procedural positioning entirely.
+**No remaining duplication (Phase 12h).**  `app/variants.py` has been
+reduced from 984 to 149 lines.  All procedural positioning math has been
+removed.  Element metadata (labels, door configs, clearance configs,
+product URLs, shapes) is stored in the `elements` table and queried by
+`_build_elements_from_formulas()`.  `compute_geometry()` no longer imports
+from `floorplan/layout.py` or `floorplan/openings.py`.
 
 **Remaining module patching.**  `patch_constants()` is still used by the
 span analysis functions (`compute_span_data`, `compute_span_rotation`)
@@ -839,12 +845,14 @@ Phase 10 added domain views: site plan (10a), 3D SCAD (10b), analysis
 (10c), and plumbing layout (10d) with interactive pipe/fixture editing,
 reference plumbing seeding, and full CRUD for plumbing elements.
 Phase 11 added variant selection UI and polish.
-Phase 12 (a–g) implemented the formula-driven architecture: evaluator,
+Phase 12 (a–h) implemented the formula-driven architecture: evaluator,
 schema, constant consolidation (12a), formula REST API (12b), IW wall
 formulas (12c), layout item formulas (12d), opening formulas (12e),
-variant item formulas (12f), and cutover (12g) — removing
+variant item formulas (12f), cutover (12g) — removing
 `patch_constants`/`importlib.reload` from `compute_geometry()` and
-lifting NF-4.
+lifting NF-4, and procedural baseline elimination (12h) — seeding all
+element metadata into DB, removing all procedural calls from the engine,
+and reducing `variants.py` from 984 to 149 lines.
 
 The development arc followed three stages:
 
@@ -855,7 +863,8 @@ The development arc followed three stages:
    in Phase 5, element storage in Phase 3, room labels in Phase 8).
 3. **Phase 12 (complete):** Parametric dependency system replaced
    procedural computation.  All element geometry is computed by the
-   FormulaEvaluator from database-stored JSON formulas.  NF-4 lifted.
+   FormulaEvaluator from database-stored JSON formulas.  All element
+   metadata stored in DB.  NF-4 lifted.  No procedural baselines remain.
 
 See `app/ROADMAP.md` for the complete 13-phase development plan
 covering all remaining requirements, phase dependencies, new file

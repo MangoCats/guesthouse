@@ -6,13 +6,14 @@ element can be created, moved, edited, deleted, and persisted from the browser
 — all without AI assistance.
 
 NF-4 has been lifted (Phase 12g cutover complete).  The FormulaEvaluator
-is the sole source of element geometry.
+is the sole source of element geometry.  Phase 12h eliminated all procedural
+element baselines — `compute_geometry()` is now formula-only.
 
 ---
 
-## Current State (Phase 12g complete)
+## Current State (Phase 12h complete)
 
-**253 of 253 requirements implemented.**  ~950 app tests, ~550 pre-existing
+**258 of 258 requirements implemented.**  ~950 app tests, ~550 pre-existing
 tests (~1500 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
@@ -120,11 +121,14 @@ tests (~1500 total).  All implemented requirements have automated test coverage.
 | Formula dependency highlighting: blue upstream, orange downstream on select | Done |
 | Lock/unlock undo/redo and formula_locked SSE event | Done |
 | Dependency graph endpoint: GET /api/deps/graph (full DAG) | Done |
+| DB-seeded element metadata: label, type, shape, door/clearance configs | Done |
+| Formula-only engine: no procedural calls, all elements from formulas + DB | Done |
+| Product URLs in DB element properties (editable via API) | Done |
+| Variant formula cloning on custom variant creation | Done |
 
-**What's missing:** Electrical layout (aspirational) and cutover to
-fully database-driven design (Charter Principle 5).  The current
-implementation runs both procedural and formula paths; cutover will
-remove the procedural fallbacks.
+**What's missing:** Electrical layout (aspirational).  The database is
+the sole authoritative source for all design data.  No procedural
+element baselines remain in `compute_geometry()`.
 
 ---
 
@@ -772,6 +776,7 @@ CRUD, canvas rendering, and property editing infrastructure).
 | **12e** | Complete | 5 new formula types (`toilet_shape`, `bath_sink_shape`, `dining_triangle`, `dining_chair`, `ellipse_rect`), new specs (`element_centroid`, `ray_circle_isect`, `rotated`, `radius_key`), ~50 variant item formulas across 3 variants, hybrid engine overrides variant items preserving metadata |
 | **12f** | Complete | Lock/unlock UI (padlock icon on canvas, lock/unlock button in properties panel), formula dependency highlighting (blue upstream, orange downstream on element select), lock/unlock undo/redo, `formula_locked` SSE event, `GET /api/deps/graph` endpoint (full DAG with nodes and edges), `locked_elements` in geometry response |
 | **12g** | Complete | Cutover: removed `patch_constants()`/`importlib.reload()` from `compute_geometry()`, added outer/rough opening formula overrides, BED formula (with `div` length spec), lifted NF-4, updated isolation tests |
+| **12h** | Complete | Eliminated procedural element baselines: seeded element metadata into DB (~59 elements), rewrote `compute_geometry()` as formula-only (removed `compute_interior_layout`/`compute_outer_openings`/`compute_rough_openings`/`compute_variant_items` calls), moved product URLs to DB element properties, removed 835 lines of dead code from `variants.py` (984→149 lines), clone variant formulas on custom variant creation |
 
 ---
 
@@ -1002,18 +1007,23 @@ Files already created during Phase 0 work: `app/apputil.py`,
 
 ---
 
-## Cutover Status (Phase 12g Complete)
+## Cutover Status (Phase 12h Complete)
 
-The cutover criteria have been met:
+The cutover criteria have been fully met:
 
-1. ✅ All 253 requirements pass automated tests (~1500 tests total)
+1. ✅ All 258 requirements pass automated tests (~1500 tests total)
 2. ✅ All element positions are database-stored JSON formulas evaluated
    by the FormulaEvaluator in topological dependency order
 3. ✅ All 24 dimension constants consolidated in the database; derived
    constants (`WALL_EXTRA`, `CORNER_SW_R`) computed from dict values
-4. ✅ `app/variants.py` positioning math retained as metadata source;
-   all positions overridden by formula-evaluated geometry
+4. ✅ `app/variants.py` reduced to 149 lines (registry + flags only);
+   all procedural positioning math removed (835 lines deleted)
 5. ✅ d² regression tests (281 golden-gate checks) pass unchanged
 6. ✅ All five layout variants render from formula-driven geometry
 7. ✅ NF-4 lifted; `compute_geometry()` no longer patches modules
-8. Ongoing: user acceptance testing
+8. ✅ All element metadata (labels, types, shapes, door/clearance configs,
+   product URLs, variant lists) stored in `elements` table — no
+   hardcoded metadata remains in code
+9. ✅ `compute_geometry()` no longer imports from `floorplan/layout.py`
+   or `floorplan/openings.py` — formula-only engine
+10. ✅ Variant formula cloning on custom variant creation

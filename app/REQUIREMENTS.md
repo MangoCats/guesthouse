@@ -87,24 +87,20 @@ clearance / label / dimension), `name`, `properties` (JSON), `variant`
 variants.  A non-null value (e.g., `"standard"`) restricts the element to
 that variant only.
 
-Seeding populates rows for the 13 interior walls only (IW1–IW9, IW11–IW12,
-IW2O, IW2S; no IW10).  Furniture, appliances, and fixtures are **not**
-seeded — they are computed by the engine per-variant from constants and
-layout logic (see ENG-13).  User-created elements (custom furniture,
-additional walls, etc.) are stored here with absolute positions in
-`properties` JSON.
-
-**Dual-source model (transitional, Phases 3–11):** The canvas merges
-engine-computed items (from constants/layout logic) with DB-stored custom
-elements.  If a custom element shares a name with an engine-computed item,
-the custom element takes precedence and the engine-computed item is hidden
-for that variant.  This dual-source model is eliminated at Phase 12
-cutover, when all items become database-stored elements with parametric
-formulas.
+Seeding populates rows for all ~59 design elements: 13 interior walls
+(IW1–IW9, IW11–IW12, IW2O, IW2S; no IW10), 12 outer openings (O1–O11,
+O8a), 7 rough openings (RO1–RO7), and ~27 variant items (furniture,
+appliances, fixtures across standard, minik, and daybed variants).
+Each seeded element stores metadata in `properties` JSON: `label`,
+`element_type` (appliance/furniture/fixture), `shape` (rect/circle),
+and optionally `door_config` (hinge_idx, target_idx), `clearance_config`
+(face indices, distance), `product_url`, and `variants` (visibility
+list).  User-created elements (custom furniture, additional walls, etc.)
+are also stored here.
 
 **Acceptance:** Table exists with the specified columns. After seeding,
 `SELECT count(*) FROM elements WHERE type = 'wall'` returns 13.
-`SELECT count(*) FROM elements WHERE type != 'wall'` returns 0.
+`SELECT count(*) FROM elements` returns >= 59.
 
 #### DB-10  Doors Table
 The `doors` table SHALL store door configurations with columns: `id`,
@@ -263,7 +259,11 @@ Each item SHALL have keys: `type` (one of `appliance`, `furniture`,
 `fixture`), `poly` (list of [E,N] coordinate pairs with >= 3 points),
 `bbox` ({`w`, `s`, `e`, `n`}), `label` (display name), `shape` (`rect`
 or `circle`). Circle items SHALL additionally have `center` ([E,N]) and
-`radius` (positive float).
+`radius` (positive float).  Items with door configs SHALL have a `door`
+dict; items with clearance configs SHALL have a `clearance` dict.
+Items with product URLs SHALL have a `product_url` string.  All
+metadata is sourced from the `elements` table properties JSON (see
+DB-9).
 
 The response SHALL also include `variant` (the active variant name) and
 `available_variants` (list of all variant names).
@@ -2453,12 +2453,12 @@ covering ~30 items across standard, minik, and daybed variants.
 **Acceptance:** Variant item formula count >= 50.  Each formula
 evaluates to a polygon matching procedural output within 0.02 ft.
 
-**FORM-18:** The hybrid engine SHALL override variant item positions
-with formula-evaluated polygons while preserving metadata (door,
-clearance, product_url, label, shape).
+**FORM-18:** The formula-only engine SHALL build variant items
+entirely from formula-evaluated polygons and DB-stored metadata
+(door config, clearance config, product_url, label, shape).
 
-**Acceptance:** Variant items rendered from formulas are visually
-identical to procedural output; metadata fields retained.
+**Acceptance:** Variant items rendered from formulas match reference
+output; all metadata fields present and correct.
 
 **FORM-19:** Variant-specific formulas SHALL use the `variant`
 column to restrict evaluation to matching variants only.
@@ -2499,19 +2499,23 @@ elements that depend on the given element.
 
 **Acceptance:** Response includes downstream element names.
 
-### 18.4  Hybrid Engine
+### 18.4  Formula-Only Engine
 
-**FORM-12:** `compute_geometry()` SHALL evaluate DB-stored formulas
-and override procedural results for elements that have formulas.
+**FORM-12:** `compute_geometry()` SHALL build all element geometry
+exclusively from FormulaEvaluator output and DB element metadata.
+No procedural calls to `compute_interior_layout()`,
+`compute_outer_openings()`, `compute_rough_openings()`, or
+`compute_variant_items()` SHALL remain.
 
-**Acceptance:** With IW formulas seeded, interior wall positions
-match procedural output; d² regression tests pass.
+**Acceptance:** Interior wall, opening, and variant item positions
+match reference output; d² regression tests pass.
 
-**FORM-13:** Elements without formulas SHALL fall through to
-procedural computation unchanged.
+**FORM-13:** Element metadata (label, type, shape, door config,
+clearance config, product URLs, variant lists) SHALL be sourced
+from the `elements` table properties JSON, not hardcoded in code.
 
-**Acceptance:** Non-IW elements (furniture, openings) render
-identically with or without the formula override path.
+**Acceptance:** All variant items have correct labels, shapes,
+door arcs, clearance zones, and product URLs sourced from DB.
 
 ### 18.5  Lock/Unlock UI (Phase 12f)
 
@@ -2546,6 +2550,41 @@ its formula dependencies: upstream in blue, downstream in orange.
 **Acceptance:** Visual inspection: click IW2, upstream dependencies
 highlighted blue, downstream highlighted orange.
 
+### 18.6  DB-Driven Element Metadata (Phase 12h)
+
+**FORM-25:** The `elements` table SHALL store metadata for all ~59
+design elements (walls, openings, variant items) including `label`,
+`element_type`, `shape`, `door_config`, `clearance_config`,
+`product_url`, and `variants` list in the `properties` JSON column.
+
+**Acceptance:** After seeding, `SELECT count(*) FROM elements` returns
+>= 59.  Each variant item element has `label` and `element_type` in
+its properties JSON.
+
+**FORM-26:** Product URLs SHALL be stored in the `elements` table
+`properties.product_url` field, making them editable via the element
+API (`PUT /api/elements/<id>`).
+
+**Acceptance:** Update a variant item's `product_url` via PUT.  GET
+`/api/geometry` returns the item with the updated URL.  No product
+URLs remain hardcoded in `variants.py`.
+
+**FORM-27:** Creating a custom variant SHALL clone all formulas from
+the source variant to the new variant, so variant items render
+correctly in the cloned variant.
+
+**Acceptance:** Create a custom variant from `standard`.  The new
+variant's formula count matches the source.  Variant items render
+identically to the source variant.
+
+**FORM-28:** `compute_geometry()` SHALL NOT import from
+`floorplan/layout.py` or `floorplan/openings.py`.  All element
+geometry and metadata SHALL be sourced from the FormulaEvaluator
+and the `elements` table.
+
+**Acceptance:** `grep -r "layout\|openings" app/engine.py` does not
+match any import of `floorplan.layout` or `floorplan.openings`.
+
 ---
 
 ## Appendix A: Requirement Cross-Reference by User Operation
@@ -2575,7 +2614,7 @@ history) to the requirements that enable each operation through the GUI.
 
 ## Appendix B: Requirements Summary
 
-"Implemented" = working with test coverage (Phases 0–12d).
+"Implemented" = working with test coverage (Phases 0–12h).
 "Planned" = future phases, marked **(NEW)** on the requirement
 line or inherited from a **(NEW)** section/subsection heading.
 
@@ -2598,8 +2637,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
-| 18 Formulas | 15 | 0 | 15 |
-| **Total** | **254** | **0** | **254** |
+| 18 Formulas | 19 | 0 | 19 |
+| **Total** | **258** | **0** | **258** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted
