@@ -729,10 +729,17 @@ def create_app(db_path=None):
 
     @app.route("/api/exclusions")
     def api_get_exclusions():
-        variant = request.args.get("variant", "standard")
-        excl = get_variant_exclusions(variant, db)
-        # Convert sets to lists for JSON
-        return jsonify({k: sorted(v) for k, v in excl.items()})
+        variant = request.args.get("variant")
+        if variant:
+            excl = get_variant_exclusions(variant, db)
+            return jsonify({k: sorted(v) for k, v in excl.items()})
+        # No variant param → return all variants' exclusions
+        all_excl = {}
+        for v in get_variants(db):
+            excl = get_variant_exclusions(v["name"], db)
+            if excl:
+                all_excl[v["name"]] = {k: sorted(vs) for k, vs in excl.items()}
+        return jsonify(all_excl)
 
     @app.route("/api/exclusions", methods=["PUT"])
     def api_set_exclusion():

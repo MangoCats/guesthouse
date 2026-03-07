@@ -2572,11 +2572,10 @@ function addElementActions(tbody, elemRec) {
 
 /** Add layout checkboxes + delete for IW walls using variant_exclusions. */
 function addWallActions(tbody, wallName, elemRec) {
-  const exclusions = App.state.exclusions || {};
-  const excludedWalls = new Set(exclusions.wall || []);
+  const allExclusions = App.state.exclusions || {};
   const allVariants = App.state.variants || [];
 
-  // Layout checkboxes
+  // Layout checkboxes — one per variant, all interactive
   const vTr = document.createElement("tr");
   const vTd1 = document.createElement("td");
   vTd1.textContent = "Layouts";
@@ -2584,30 +2583,20 @@ function addWallActions(tbody, wallName, elemRec) {
   vTr.appendChild(vTd1);
   const vTd2 = document.createElement("td");
   for (const v of allVariants) {
+    const varExcl = allExclusions[v.name] || {};
+    const excludedWalls = new Set(varExcl.wall || []);
     const label = document.createElement("label");
     label.className = "prop-checkbox-label";
     const cb = document.createElement("input");
     cb.type = "checkbox";
-    cb.checked = !excludedWalls.has(wallName) ||
-      !(App.state.variant === v.name && excludedWalls.has(wallName));
-    // Check per-variant exclusion: need to fetch or infer
-    // We only have exclusions for the current variant, so show
-    // checked = visible in current layout, unchecked = excluded
-    if (v.name === App.state.variant) {
-      cb.checked = !excludedWalls.has(wallName);
-    } else {
-      // We don't have other variants' exclusions loaded; show as checked (default)
-      cb.checked = true;
-      cb.disabled = true;
-      cb.title = "Switch to this layout to edit";
-    }
+    cb.checked = !excludedWalls.has(wallName);
     cb.addEventListener("change", async () => {
       try {
         const resp = await fetch("/api/exclusions", {
           method: "PUT",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
-            variant: App.state.variant,
+            variant: v.name,
             element_type: "wall",
             element_name: wallName,
             excluded: !cb.checked,
@@ -2616,7 +2605,7 @@ function addWallActions(tbody, wallName, elemRec) {
         if (!resp.ok) {
           const data = await resp.json();
           showToast(data.error || "Failed to update", "error");
-          cb.checked = !cb.checked; // revert
+          cb.checked = !cb.checked;
           return;
         }
         await loadElements();
@@ -3417,7 +3406,7 @@ async function loadElements() {
     const [elemResp, doorResp, exclResp] = await Promise.all([
       fetch("/api/elements"),
       fetch("/api/doors"),
-      fetch(`/api/exclusions?variant=${App.state.variant}`),
+      fetch("/api/exclusions"),
     ]);
     App.state.elements = await elemResp.json();
     App.state.doors = await doorResp.json();
@@ -3471,7 +3460,10 @@ function updateElementsTable() {
       `;
       tr.classList.add("selectable");
       tr.addEventListener("click", (e) => {
-        if (iwData) selectElement("wall", wall.name, iwData, e);
+        // Use geometry data if available, otherwise a minimal stub so
+        // excluded walls can still be selected to access properties/delete
+        const data = iwData || {bbox: {w: 0, e: 0, s: 0, n: 0}};
+        selectElement("wall", wall.name, data, e);
       });
       tbody1.appendChild(tr);
     }
