@@ -256,19 +256,15 @@ replicates existing script logic and must produce bit-identical results
 for default values.  Principle 5 describes the target architecture that
 replaces Principle 4 at cutover.
 
-The transition happens in two stages:
+The transition happened in two stages:
 
-1. **Phases 0–11 (NF-4 in effect):** the database stores constants and
-   element overrides; the computation pipeline patches existing modules
-   and reloads them.  Existing scripts are the reference implementation.
-   d² regression tests enforce bit-identical output for default values.
+1. **Phases 0–11 (NF-4 in effect):** the database stored constants and
+   element overrides; the computation pipeline patched existing modules
+   and reloaded them.  Existing scripts were the reference implementation.
+   d² regression tests enforced bit-identical output for default values.
 
-2. **Phase 12+ (cutover):** the parametric dependency system replaces
-   procedural computation.  Constants become database-stored values
-   (not Python module attributes).  Element positions, dimensions,
-   product URLs, style defaults, door/clearance metadata, and variant
-   configurations are all defined by database records — no content
-   remains hardcoded.  The existing scripts are retained only as seed
-   sources for "Reset to Defaults" (which repopulates the entire
-   database to reproduce the reference design).  NF-4 is lifted.
-   Code duplication is consolidated.
+2. **Phase 12 (cutover — complete):** the parametric dependency system
+   replaced procedural computation.  Constants are database-stored values
+   (not Python module attributes).  The FormulaEvaluator computes all
+   element geometry from database-stored JSON formulas.  NF-4 is lifted.
+   The existing scripts are retained as seed sources and for SVG output.

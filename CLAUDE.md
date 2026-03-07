@@ -133,20 +133,13 @@ app/                 — Flask web editor: interactive canvas + constants editin
   CHARTER.md         — Purpose, history, design principles
 ```
 
-### NF-4: No Modification of Existing Packages
-The app SHALL NOT modify files in `shared/`, `floorplan/`, `walls/`, `span/`,
-`survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`.  This constraint holds
-until the editor achieves 100% functional completeness and is approved for
-cutover.  Until then the existing generator scripts are the reference
-implementations — the app must reproduce their output from database-driven
-constants without changing them.
-
-**Duplication between `app/` and existing packages is intentional.**
-`app/variants.py` replicates positioning math from `floorplan/gen_floorplan.py`
-and carries 24 hardcoded item-dimension constants that duplicate values in the
-generator.  Do not "fix" this by modifying files outside `app/` — it will be
-consolidated at cutover.  See `app/ARCHITECTURE.md` § NF-4 and `app/ROADMAP.md`
-for the 12-phase development plan.
+### NF-4: Lifted (Phase 12g Cutover Complete)
+NF-4 has been lifted.  The app's FormulaEvaluator is the sole source of element
+geometry — `compute_geometry()` no longer patches `floorplan.constants` or
+reloads modules.  The procedural `floorplan/` modules are read-only data sources
+for outline geometry and variant item metadata (labels, URLs, door/clearance
+configs).  Modifications to `shared/` and `floorplan/` are now permitted when
+needed, though the generator scripts remain the reference for SVG output.
 
 ### Phase Completion Protocol
 After each roadmap phase is complete (user acknowledges all goals met, no

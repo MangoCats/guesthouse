@@ -1,7 +1,10 @@
-"""Geometry computation engine that reads from the database.
+"""Geometry computation engine — formula-driven architecture (Phase 12g).
 
-Patches floorplan.constants with DB values, runs existing computation
-pipeline, and returns JSON-serialisable results.
+All element geometry (walls, openings, furniture, appliances) is computed by
+the FormulaEvaluator from database-stored JSON formulas.  The procedural
+floorplan modules are used only for outline geometry and as a metadata source
+for variant items (labels, door configs, clearance configs, product URLs).
+Module-level constants are never patched or reloaded.
 """
 import json
 import math
@@ -248,12 +251,14 @@ def _swing_arc(hinge, radius, dir_from, dir_to, n_pts=20):
     return pts
 
 
-def _compute_clearance_zones(layout, variant, variant_items=None):
+def _compute_clearance_zones(variant, variant_items=None, furniture=None):
     """Compute clearance zone polygons for fixture/furniture items.
 
     Returns list of clearance zone dicts with name, poly, style.
     Reads 'clearance' metadata from variant_items and also includes the
     dresser's hardcoded 15" clearance (matching gen_floorplan.py).
+
+    Uses formula-evaluated furniture positions from the result dict.
     """
     from shared.geometry import seg_vecs, offset_pt
 
@@ -262,16 +267,19 @@ def _compute_clearance_zones(layout, variant, variant_items=None):
     if variant in ("bare", "sf"):
         return zones
 
-    dresser = getattr(layout, "dresser", None)
-    if dresser:
+    dresser_data = (furniture or {}).get("dresser")
+    if dresser_data and "poly" in dresser_data:
+        dpoly = dresser_data["poly"]
+        p0 = tuple(dpoly[0])
+        p1 = tuple(dpoly[1])
         # Dresser clearance: 15" south from south face (poly[0]→poly[1] = SW→SE)
-        al, outward = seg_vecs(dresser.poly[0], dresser.poly[1])
-        cl_sw = offset_pt(dresser.poly[0], 15.0 / 12.0, outward)
-        cl_se = offset_pt(dresser.poly[1], 15.0 / 12.0, outward)
+        al, outward = seg_vecs(p0, p1)
+        cl_sw = offset_pt(p0, 15.0 / 12.0, outward)
+        cl_se = offset_pt(p1, 15.0 / 12.0, outward)
         zones.append({
             "name": "dresser_clearance",
-            "poly": [point_to_list(dresser.poly[0]),
-                     point_to_list(dresser.poly[1]),
+            "poly": [point_to_list(p0),
+                     point_to_list(p1),
                      point_to_list(cl_se),
                      point_to_list(cl_sw)],
             "style": "dashed",
@@ -623,62 +631,106 @@ def _resolve_anchor(anchor, geometry_result):
     return None
 
 
-def _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path=None):
+def _polygon_area(poly):
+    """Signed area of a simple polygon via the shoelace formula."""
+    n = len(poly)
+    if n < 3:
+        return 0.0
+    area = 0.0
+    for i in range(n):
+        x0 = poly[i][0] if isinstance(poly[i], (list, tuple)) else poly[i][0]
+        y0 = poly[i][1] if isinstance(poly[i], (list, tuple)) else poly[i][1]
+        j = (i + 1) % n
+        x1 = poly[j][0] if isinstance(poly[j], (list, tuple)) else poly[j][0]
+        y1 = poly[j][1] if isinstance(poly[j], (list, tuple)) else poly[j][1]
+        area += x0 * y1 - x1 * y0
+    return abs(area) / 2.0
+
+
+def _iwp(walls, name, idx):
+    """Get interior wall poly vertex: walls["IW1"]["poly"][0] → (E, N) tuple."""
+    w = walls.get(name)
+    if not w:
+        return (0.0, 0.0)
+    p = w["poly"][idx]
+    return (p[0], p[1]) if isinstance(p, (list, tuple)) else p
+
+
+def _compute_room_labels(pts, walls, openings_result, inner_segs, variant,
+                         db_path=None):
     """Compute room label positions, areas, and SF partition lines.
 
-    Builds the actual room-area polygons (matching compute_room_areas) so
-    labels sit at the true centroid and SF variant can highlight on click.
+    Uses formula-evaluated wall positions (walls dict from
+    result["interior_walls"]) and opening positions from the result dict,
+    eliminating the dependency on the procedural layout object.
+
+    Args:
+        pts: dict of named points (W-series, F-series, etc.)
+        walls: dict of wall name → {"poly": [...], "bbox": {...}}
+        openings_result: dict with "outer_openings" and "rough_openings" lists
+        inner_segs: list of inner wall segments
+        variant: variant name
+        db_path: database path
 
     Returns dict with:
       room_labels: [{name, pos, area?, poly?}]
       sf_lines: [{start, end}]  (sf variant only)
     """
     from shared.geometry import seg_vecs, line_isect, segment_polyline
-    from floorplan.openings import compute_outer_openings, compute_rough_openings
 
-    ro_list = compute_rough_openings(pts, layout)
-    outer_openings = compute_outer_openings(pts, layout)
-    o6 = next((o for o in outer_openings if o.name == "O6"), None)
-    if o6 is None:
-        return []
-    o6_w = o6.poly[0]
-    ro1 = next((r for r in ro_list if r.name == "RO1"), None)
-    if ro1 is None:
-        return []
-    ro1_bd = ro1.poly
-    ro1_w_nf = ro1_bd[3]
+    # Look up O6 and RO1 from the result openings
+    o6_poly = None
+    for op in openings_result.get("outer_openings", []):
+        if op["name"] == "O6" and "poly" in op:
+            o6_poly = op["poly"]
+            break
+    if o6_poly is None:
+        return {"room_labels": []}
+    o6_w = (o6_poly[0][0], o6_poly[0][1])
+
+    ro1_poly = None
+    for ro in openings_result.get("rough_openings", []):
+        if ro["name"] == "RO1" and "poly" in ro:
+            ro1_poly = ro["poly"]
+            break
+    if ro1_poly is None:
+        return {"room_labels": []}
+    ro1_w_nf = (ro1_poly[3][0], ro1_poly[3][1])
+
     w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
     w2w5_al, _ = seg_vecs(pts["W2"], pts["W5"])
     w18w1_al, _ = seg_vecs(pts["W18"], pts["W1"])
-    iw3_nw = layout.iw3.poly[3]
+    iw3_nw = _iwp(walls, "IW3", 3)
     iw3_w2w5 = line_isect(iw3_nw, w18w1_al, pts["W2"], w2w5_al)
-    iw2s_e_al, _ = seg_vecs(layout.iw2s.poly[1], layout.iw2s.poly[2])
-    iw2s_at_w9 = line_isect(layout.iw2s.poly[1], iw2s_e_al, pts["W9"], w9w10_al)
+    iw2s_1 = _iwp(walls, "IW2S", 1)
+    iw2s_2 = _iwp(walls, "IW2S", 2)
+    iw2s_e_al, _ = seg_vecs(iw2s_1, iw2s_2)
+    iw2s_at_w9 = line_isect(iw2s_1, iw2s_e_al, pts["W9"], w9w10_al)
 
     is_sf = (variant == "sf")
 
-    # --- Build room polygons (matching compute_room_areas) ---
+    # --- Build room polygons from formula-evaluated wall positions ---
     rooms = {}
 
     # BEDROOM
     rooms["BEDROOM"] = [
-        (layout.iw9.poly[2][0], layout.iw1.poly[0][1]),
-        (layout.iw11.poly[3][0], layout.iw1.poly[0][1]),
-        (layout.iw11.poly[3][0], pts["W1"][1]),
-        (layout.iw9.poly[2][0], pts["W1"][1]),
+        (_iwp(walls, "IW9", 2)[0], _iwp(walls, "IW1", 0)[1]),
+        (_iwp(walls, "IW11", 3)[0], _iwp(walls, "IW1", 0)[1]),
+        (_iwp(walls, "IW11", 3)[0], pts["W1"][1]),
+        (_iwp(walls, "IW9", 2)[0], pts["W1"][1]),
     ]
 
     # UTIL_N
     rooms["UTIL_N"] = [
         iw3_w2w5,
-        layout.iw8.poly[0], layout.iw8.poly[1],
-        layout.iw1.poly[0], layout.iw9.poly[3],
-        (layout.iw9.poly[0][0], layout.iw7.poly[2][1]),
-        layout.iw7.poly[3], iw3_nw,
+        _iwp(walls, "IW8", 0), _iwp(walls, "IW8", 1),
+        _iwp(walls, "IW1", 0), _iwp(walls, "IW9", 3),
+        (_iwp(walls, "IW9", 0)[0], _iwp(walls, "IW7", 2)[1]),
+        _iwp(walls, "IW7", 3), iw3_nw,
     ]
 
     # UTIL_S
-    _util_s = [iw3_nw, (layout.iw3.poly[0][0], pts["W1"][1]), pts["W1"]]
+    _util_s = [iw3_nw, (_iwp(walls, "IW3", 0)[0], pts["W1"][1]), pts["W1"]]
     _util_s.extend(segment_polyline(inner_segs[0], pts)[1:])
     _util_s.append(iw3_w2w5)
     rooms["UTIL_S"] = _util_s
@@ -686,9 +738,9 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path=None):
     # KITCHEN
     rooms["KITCHEN"] = [
         o6_w, iw2s_at_w9,
-        layout.iw2s.poly[1], layout.iw2o.poly[3],
-        layout.iw2o.poly[0], layout.iw2.poly[2],
-        layout.iw2.poly[1], ro1_w_nf,
+        iw2s_1, _iwp(walls, "IW2O", 3),
+        _iwp(walls, "IW2O", 0), _iwp(walls, "IW2", 2),
+        _iwp(walls, "IW2", 1), ro1_w_nf,
     ]
 
     # LIVING
@@ -696,7 +748,7 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path=None):
     _living.append(segment_polyline(inner_segs[6], pts)[-1])
     for si in range(7, 13):
         _living.extend(segment_polyline(inner_segs[si], pts)[1:])
-    _living.append(layout.iw1.poly[2])
+    _living.append(_iwp(walls, "IW1", 2))
     _living.append(ro1_w_nf)
     rooms["LIVING"] = _living
 
@@ -704,69 +756,70 @@ def _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path=None):
     _seg2 = segment_polyline(inner_segs[2], pts)
     _seg3 = segment_polyline(inner_segs[3], pts)
     _bath = [
-        layout.iw8.poly[3], layout.iw8.poly[2],
-        layout.iw2.poly[3], layout.iw2o.poly[1],
-        layout.iw2o.poly[2], layout.iw2s.poly[0],
-        layout.iw2s.poly[3], _seg3[0],
+        _iwp(walls, "IW8", 3), _iwp(walls, "IW8", 2),
+        _iwp(walls, "IW2", 3), _iwp(walls, "IW2O", 1),
+        _iwp(walls, "IW2O", 2), _iwp(walls, "IW2S", 0),
+        _iwp(walls, "IW2S", 3), _seg3[0],
     ]
     _bath.extend(reversed(_seg2[:-1]))
     rooms["BATH"] = _bath
 
     # OFFICE
-    _office = [layout.iw5.poly[0]]
-    _office.append((pts["W15"][0], layout.iw5.poly[0][1]))
+    _office = [_iwp(walls, "IW5", 0)]
+    _office.append((pts["W15"][0], _iwp(walls, "IW5", 0)[1]))
     _office.append(pts["W15"])
     for si in [14, 15, 16]:
         _office.extend(segment_polyline(inner_segs[si], pts)[1:])
-    _office.append(layout.iw4.poly[1])
-    _office.append(layout.iw4.poly[2])
-    _office.append(layout.iw12.poly[2])
-    _office.append(layout.iw12.poly[3])
+    _office.append(_iwp(walls, "IW4", 1))
+    _office.append(_iwp(walls, "IW4", 2))
+    _office.append(_iwp(walls, "IW12", 2))
+    _office.append(_iwp(walls, "IW12", 3))
     rooms["OFFICE"] = _office
 
     # E CLOSET
     rooms["E CLOSET"] = [
-        (layout.iw11.poly[1][0], layout.iw12.poly[0][1]),
-        (layout.iw4.poly[0][0], layout.iw12.poly[0][1]),
-        layout.iw4.poly[0],
-        (layout.iw11.poly[1][0], pts["W1"][1]),
+        (_iwp(walls, "IW11", 1)[0], _iwp(walls, "IW12", 0)[1]),
+        (_iwp(walls, "IW4", 0)[0], _iwp(walls, "IW12", 0)[1]),
+        _iwp(walls, "IW4", 0),
+        (_iwp(walls, "IW11", 1)[0], pts["W1"][1]),
     ]
 
     # W CLOSET
     rooms["W CLOSET"] = [
-        (layout.iw3.poly[1][0], layout.iw7.poly[0][1]),
-        (layout.iw9.poly[0][0], layout.iw7.poly[0][1]),
-        (layout.iw9.poly[0][0], pts["W1"][1]),
-        (layout.iw3.poly[1][0], pts["W1"][1]),
+        (_iwp(walls, "IW3", 1)[0], _iwp(walls, "IW7", 0)[1]),
+        (_iwp(walls, "IW9", 0)[0], _iwp(walls, "IW7", 0)[1]),
+        (_iwp(walls, "IW9", 0)[0], pts["W1"][1]),
+        (_iwp(walls, "IW3", 1)[0], pts["W1"][1]),
     ]
 
     # STORAGE
     rooms["STORAGE"] = [
-        (layout.iw11.poly[1][0], layout.iw5.poly[3][1]),
-        (pts["W14"][0], layout.iw5.poly[3][1]),
-        (pts["W14"][0], layout.iw1.poly[0][1]),
-        (layout.iw11.poly[1][0], layout.iw1.poly[0][1]),
+        (_iwp(walls, "IW11", 1)[0], _iwp(walls, "IW5", 3)[1]),
+        (pts["W14"][0], _iwp(walls, "IW5", 3)[1]),
+        (pts["W14"][0], _iwp(walls, "IW1", 0)[1]),
+        (_iwp(walls, "IW11", 1)[0], _iwp(walls, "IW1", 0)[1]),
     ]
 
     # WH
     _seg3b = segment_polyline(inner_segs[3], pts)
     _seg4 = segment_polyline(inner_segs[4], pts)
     _seg5 = segment_polyline(inner_segs[5], pts)
-    _wh = [layout.iw2s.poly[2], _seg3b[-1]]
+    _wh = [iw2s_2, _seg3b[-1]]
     _wh.extend(_seg4[1:])
     _wh.extend(_seg5[1:])
-    _wh.append((layout.iw2s.poly[2][0], pts["W9"][1]))
+    _wh.append((iw2s_2[0], pts["W9"][1]))
     rooms["WH"] = _wh
 
-    # --- Get authoritative area values ---
-    from floorplan.gen_floorplan import compute_room_areas
-    from collections import namedtuple
-    Data = namedtuple("Data", ["pts", "inner_segs", "radii"])
-    data = Data(pts=pts, inner_segs=inner_segs, radii=radii)
-    areas = compute_room_areas(data, layout)
+    # --- Compute areas directly via shoelace (replaces compute_room_areas) ---
+    areas = {}
+    for name, poly in rooms.items():
+        areas[name] = _polygon_area(poly)
+    # BATH: subtract IW6 area (IW6 sits entirely inside the bath room)
+    iw6 = walls.get("IW6")
+    if iw6 and "BATH" in areas:
+        areas["BATH"] -= _polygon_area(iw6["poly"])
 
     # --- Build label list from polygon centroids + element offsets ---
-    # Try label elements first (Phase 8), fall back to room_label_offsets
     label_offsets = {}
     try:
         all_elems = get_all_elements(db_path)
@@ -869,6 +922,10 @@ def _apply_formula_overrides(result, constants_dict, inner_poly, radii,
 
     # Override procedural results with formula-computed elements
     variant_items = result.get("variant_items", {})
+    # Build lookup for opening list indices
+    oo_by_name = {o["name"]: i for i, o in enumerate(result.get("outer_openings", []))}
+    ro_by_name = {o["name"]: i for i, o in enumerate(result.get("rough_openings", []))}
+
     for elem_name, computed in ev.elements.items():
         if "poly" not in computed:
             continue
@@ -880,6 +937,15 @@ def _apply_formula_overrides(result, constants_dict, inner_poly, radii,
                 "poly": poly,
                 "bbox": bbox,
             }
+        # Check if it's an outer opening (O1-O11, O8a)
+        elif elem_name in oo_by_name:
+            idx = oo_by_name[elem_name]
+            result["outer_openings"][idx]["poly"] = poly
+        # Check if it's a rough opening (RO1-RO7)
+        elif elem_name in ro_by_name:
+            idx = ro_by_name[elem_name]
+            result["rough_openings"][idx]["poly"] = poly
+            result["rough_openings"][idx]["bbox"] = bbox
         # Check if it's furniture
         elif elem_name.lower() in result.get("furniture", {}):
             result["furniture"][elem_name.lower()] = {
@@ -909,34 +975,39 @@ def _apply_formula_overrides(result, constants_dict, inner_poly, radii,
     return result
 
 
+def _derive_constant(constants_dict, name):
+    """Compute a derived constant from the constants dict.
+
+    Handles derived constants that depend on other constant values:
+      WALL_EXTRA = WALL_OUTER - 8/12
+      AIR_GAP = WALL_OUTER - 2*SHELL_THICKNESS
+      CORNER_SW_R = 10/12 + WALL_EXTRA
+    """
+    wall_outer = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
+    if name == "WALL_EXTRA":
+        return wall_outer - 8.0 / 12.0
+    if name == "CORNER_SW_R":
+        return 10.0 / 12.0 + (wall_outer - 8.0 / 12.0)
+    return constants_dict.get(name)
+
+
 def compute_geometry(constants_dict: dict, variant: str = "standard",
                      chain_rows: list[dict] | None = None,
                      doors_data: list[dict] | None = None,
                      db_path: str | None = None) -> dict:
     """Compute all building geometry from constants and return JSON-serialisable dict.
 
-    If chain_rows is provided (Phase 5+), the app solver computes the
-    outline from DB chain data, bypassing the module-scope solver in
-    floorplan/geometry.py.
+    Phase 12g: formula-driven architecture.  The formula evaluator is the
+    primary source for all element geometry (interior walls, openings,
+    furniture, appliances, variant items).  The procedural floorplan modules
+    provide baseline data for metadata and fallback.
 
-    If doors_data is provided (Phase 6+), door swing arcs are computed
-    from opening polygons and door configurations.
+    If chain_rows is provided, the app solver computes the outline from
+    DB chain data (the normal path).
+
+    If doors_data is provided, door swing arcs are computed from opening
+    polygons and door configurations.
     """
-    patch_constants(constants_dict)
-
-    # Reload all floorplan modules so module-scope code re-executes with
-    # the patched constant values (e.g. OUTLINE_CHAIN closure solver).
-    import importlib
-    import floorplan.constants
-    import floorplan.geometry
-    import floorplan.layout
-    import floorplan.openings
-    importlib.reload(floorplan.constants)
-    patch_constants(constants_dict)  # re-patch after reload
-    importlib.reload(floorplan.geometry)
-    importlib.reload(floorplan.layout)
-    importlib.reload(floorplan.openings)
-
     from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
     from shared.geometry import compute_inner_walls, path_polygon
     from floorplan.layout import compute_interior_layout
@@ -955,11 +1026,10 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
 
     # 2. F-series outline
     if chain_rows is not None:
-        # Phase 5+: use app solver with DB chain
+        # App solver with DB chain — no dependency on floorplan.geometry reload
         from app.outline_solver import db_rows_to_chain, solve_closure, walk_chain
         chain = db_rows_to_chain(chain_rows)
-        import floorplan.constants as fc
-        R_a1 = fc.CORNER_SW_R
+        R_a1 = _derive_constant(constants_dict, "CORNER_SW_R")
 
         solver_result = solve_closure(chain, R_a1)
         if not solver_result.valid:
@@ -993,13 +1063,14 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     inner_segs = compute_inner_walls(outline_segs, pts, constants_dict.get("WALL_OUTER", 8.0/12.0), radii)
     inner_poly = path_polygon(inner_segs, pts)
 
-    # 4. Interior layout
+    # 4. Interior layout (procedural baseline — positions used only as
+    #    metadata source; formulas override all element geometry)
     layout = compute_interior_layout(pts, inner_poly)
 
-    # 5. Outer openings
+    # 5. Outer openings (procedural baseline — formulas override geometry)
     outer_openings = compute_outer_openings(pts, layout)
 
-    # 6. Rough openings
+    # 6. Rough openings (procedural baseline — formulas override geometry)
     rough_openings = compute_rough_openings(pts, layout)
 
     # Load variant exclusions from database
@@ -1069,7 +1140,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
             d["poly"] = [point_to_list(p) for p in ro.poly]
         result["rough_openings"].append(d)
 
-    # Appliances
+    # Appliances (procedural baseline — formulas override below)
     for name in ("dryer", "washer"):
         appl = getattr(layout, name, None)
         if appl:
@@ -1083,7 +1154,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         if clip:
             result["appliances"]["counter"]["clip"] = [point_to_list(p) for p in clip]
 
-    # Furniture
+    # Furniture (procedural baseline — formulas override below)
     for name in ("bed", "dresser", "shelves"):
         item = getattr(layout, name, None)
         if item:
@@ -1097,7 +1168,8 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     # Radii (needed for arc_point anchor resolution)
     result["radii"] = {k: v for k, v in radii.items()}
 
-    # Variant items
+    # Variant items (procedural baseline for metadata: labels, door configs,
+    # clearance configs, URLs, shapes — formulas override all positions)
     from app.variants import compute_variant_items
     from app.database import get_variants as _get_db_variants
     variant_items = compute_variant_items(pts, inner_poly, layout, radii, variant,
@@ -1110,26 +1182,33 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         from app.variants import VARIANTS
         result["available_variants"] = list(VARIANTS.keys())
 
-    # Room labels and SF extras
-    room_data = _compute_room_labels(pts, layout, inner_segs, radii, variant, db_path)
+    # ===================================================================
+    # Formula evaluation (Phase 12g): formulas are the PRIMARY source for
+    # all element geometry.  The procedural results above serve only as
+    # metadata baselines (door configs, clearance configs, URLs, labels).
+    # Formula-evaluated geometry overrides procedural geometry.
+    # ===================================================================
+    result = _apply_formula_overrides(result, constants_dict, inner_poly,
+                                      radii, variant, db_path)
+
+    # Room labels and SF extras (uses formula-evaluated wall/opening positions)
+    room_data = _compute_room_labels(pts, result["interior_walls"],
+                                      result, inner_segs, variant, db_path)
     result["room_labels"] = room_data["room_labels"]
     if "sf_lines" in room_data:
         result["sf_lines"] = room_data["sf_lines"]
 
-    # Door arcs (Phase 6)
+    # Door arcs (Phase 6) — uses formula-evaluated opening polygons
     result["door_arcs"] = _compute_door_arcs(
         outer_openings, rough_openings, doors_data or [], exclusions)
 
-    # Clearance zones (Phase 6)
-    result["clearance_zones"] = _compute_clearance_zones(layout, variant, variant_items)
+    # Clearance zones — uses formula-evaluated furniture/variant items
+    result["clearance_zones"] = _compute_clearance_zones(
+        variant, result.get("variant_items"), result.get("furniture"))
 
-    # Appliance door arcs (Phase 6)
-    result["appliance_doors"] = _compute_appliance_doors(variant_items)
-
-    # Formula evaluation (Phase 12 hybrid mode): if element_formulas exist
-    # in the DB, evaluate them and override procedural results.
-    result = _apply_formula_overrides(result, constants_dict, inner_poly,
-                                      radii, variant, db_path)
+    # Appliance door arcs — uses formula-evaluated variant items
+    result["appliance_doors"] = _compute_appliance_doors(
+        result.get("variant_items"))
 
     # Dimension and label elements (unified — both builtin and user-created).
     # Variant filtering: if properties["variants"] is a list, element appears
@@ -1182,7 +1261,6 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
 
 def compute_survey_points(constants_dict: dict) -> dict:
     """Return P-series survey points and inter-point distances."""
-    patch_constants(constants_dict)
     from shared.survey import compute_traverse, compute_three_arc
     pts = compute_traverse()
     three_arc = compute_three_arc(pts)

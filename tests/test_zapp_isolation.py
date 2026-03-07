@@ -1,8 +1,7 @@
-"""Tests for module-state save/restore used by app test fixtures.
+"""Tests for module-state isolation: compute_geometry does NOT mutate floorplan modules.
 
-Verifies that after compute_geometry patches module-level constants,
-the save/restore mechanism fully restores the state of all four
-floorplan modules so other tests are unaffected.
+Phase 12g removed patch_constants + importlib.reload from compute_geometry.
+These tests verify that floorplan module state is never modified by the app.
 """
 import pytest
 from app.database import init_db, get_constants_dict, update_constant
@@ -13,7 +12,7 @@ from tests.test_zapp_conftest import (
 
 
 class TestModuleIsolation:
-    """Verify that save/restore round-trips perfectly."""
+    """Verify that compute_geometry does not mutate floorplan modules."""
 
     def test_snapshot_captures_bed_width_in_constants(self):
         import floorplan.constants as c
@@ -40,10 +39,9 @@ class TestModuleIsolation:
         import floorplan.layout as l
         assert c.BED_WIDTH == l.BED_WIDTH
 
-    def test_compute_geometry_patches_layout(self, tmp_path):
-        """compute_geometry reloads layout, changing its BED_WIDTH."""
+    def test_compute_geometry_does_not_patch_layout(self, tmp_path):
+        """compute_geometry must NOT modify floorplan.layout module attrs."""
         import floorplan.layout as l
-        snap = _snapshot_modules()
         orig = l.BED_WIDTH
 
         db = str(tmp_path / "test.db")
@@ -51,15 +49,11 @@ class TestModuleIsolation:
         update_constant("BED_WIDTH", orig + 2.0, db)
         compute_geometry(get_constants_dict(db), db_path=db)
 
-        # layout now has the patched value
-        assert abs(l.BED_WIDTH - (orig + 2.0)) < 1e-9
-
-        # Restore ALL modules
-        _restore_modules(snap)
+        # layout must be unchanged — formulas handle constant propagation
         assert abs(l.BED_WIDTH - orig) < 1e-9
 
-    def test_full_round_trip(self, tmp_path):
-        """Every numeric attr in every module restored after compute_geometry."""
+    def test_modules_unchanged_after_compute(self, tmp_path):
+        """Every numeric attr in every module unchanged after compute_geometry."""
         snap_before = _snapshot_modules()
 
         db = str(tmp_path / "test.db")
@@ -67,28 +61,14 @@ class TestModuleIsolation:
         update_constant("BED_WIDTH", 5.0, db)
         compute_geometry(get_constants_dict(db), db_path=db)
 
-        _restore_modules(snap_before)
         snap_after = _snapshot_modules()
 
         for mod_name in _FLOORPLAN_MODULES:
             for attr, orig_val in snap_before[mod_name].items():
-                restored_val = snap_after[mod_name].get(attr)
-                assert restored_val is not None, (
-                    f"{mod_name}.{attr} missing after restore"
+                current_val = snap_after[mod_name].get(attr)
+                assert current_val is not None, (
+                    f"{mod_name}.{attr} missing after compute_geometry"
                 )
-                assert abs(restored_val - orig_val) < 1e-12, (
-                    f"{mod_name}.{attr}: orig={orig_val}, restored={restored_val}"
+                assert abs(current_val - orig_val) < 1e-12, (
+                    f"{mod_name}.{attr}: expected={orig_val}, got={current_val}"
                 )
-
-    def test_class_identity_stable_after_restore(self, tmp_path):
-        """Restore does not reload modules — class objects stay the same."""
-        import floorplan.layout as l
-        snap = _snapshot_modules()
-
-        db = str(tmp_path / "test.db")
-        init_db(db)
-        compute_geometry(get_constants_dict(db), db_path=db)
-        reloaded_class_id = id(l.InteriorLayout)
-
-        _restore_modules(snap)
-        assert id(l.InteriorLayout) == reloaded_class_id

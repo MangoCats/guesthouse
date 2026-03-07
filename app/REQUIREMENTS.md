@@ -1938,7 +1938,7 @@ Building repositions. Setback distance labels update.
 
 *Implemented: Setback config values (`setback_216`, `setback_275`) stored
 in config table, editable in properties panel via `addConfigRow()`.
-Pre-cutover note: generator uses built-in values (NF-4).
+Note: generator uses built-in values (NF-4 lifted but generator not yet updated).
 Tests: `test_zapp_site.py::TestSiteConfig`.*
 
 #### SITE-2  Drainfield Operations ✅
@@ -2342,21 +2342,14 @@ is added.
 **Acceptance:** `python -m pytest tests/ -x -q` reports all pre-existing
 tests (i.e. non-`test_zapp_*` tests) passed, 0 failed.
 
-#### NF-4  No Modification of Existing Code
-The app SHALL not modify any files in `shared/`, `floorplan/`, `walls/`,
-`span/`, `survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`.
+#### NF-4  No Modification of Existing Code — LIFTED (Phase 12g)
+~~The app SHALL not modify any files in `shared/`, `floorplan/`, `walls/`,
+`span/`, `survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`.~~
 
-This constraint applies until the editor has achieved 100% functional
-completeness and has been approved for cutover to database-only data
-sources.  Until then, the existing generator scripts serve as reference
-implementations to verify the app produces identical output.  Code
-duplication between `app/` and the existing packages (e.g.,
-`app/variants.py` replicating positioning math from
-`floorplan/gen_floorplan.py`) is intentional during this period and will
-be consolidated at cutover.
-
-**Acceptance:** `git diff --name-only` shows changes only in `app/`,
-`tests/`, `run_app.py`, `pyproject.toml`, and `.gitignore`.
+This constraint was lifted at Phase 12g cutover.  The FormulaEvaluator is
+the sole source of element geometry; `compute_geometry()` no longer patches
+`floorplan.constants` or reloads modules.  Modifications to existing
+packages are now permitted when needed.
 
 #### NF-5  Keyboard Shortcut Safety
 Keyboard shortcuts SHALL NOT fire when the user is typing in an `<input>`

@@ -1,8 +1,9 @@
-"""Compute furniture/appliance items for each floorplan variant.
+"""Variant item metadata and positioning for each floorplan variant.
 
-Replicates positioning math from floorplan/gen_floorplan.py for the
-interactive canvas, producing JSON-serialisable item dicts instead of SVG.
-This duplication is intentional per NF-4 (see ARCHITECTURE.md § NF-4).
+Positioning math produces procedural baselines that serve as metadata sources
+(labels, door configs, clearance configs, product URLs, shapes).  All element
+geometry is overridden by the FormulaEvaluator; the procedural positions here
+are not used for rendering.
 """
 import math
 

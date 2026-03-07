@@ -1020,6 +1020,7 @@ class FormulaEvaluator:
           {"add": [a, b, ...]}  → sum
           {"sub": [a, b]}       → a - b
           {"mul": [a, b]}       → product
+          {"div": [a, b]}       → a / b
           {"dist": [pt1, pt2]}  → distance between two points
         """
         if spec is None:
@@ -1058,6 +1059,15 @@ class FormulaEvaluator:
                 for v in vals:
                     result *= v
                 return result
+            if "div" in spec:
+                pair = spec["div"]
+                if len(pair) != 2:
+                    return None
+                a = self.resolve_length(pair[0])
+                b = self.resolve_length(pair[1])
+                if a is None or b is None or abs(b) < 1e-15:
+                    return None
+                return a / b
             if "proj" in spec:
                 # Signed projection of (target - anchor) onto direction
                 proj = spec["proj"]
@@ -1204,7 +1214,7 @@ def _extract_deps_recursive(spec, deps):
             _extract_deps_recursive(spec[key], deps)
 
     # Length arithmetic
-    for key in ("add", "sub", "mul"):
+    for key in ("add", "sub", "mul", "div"):
         if key in spec:
             _extract_deps_recursive(spec[key], deps)
 
@@ -1910,64 +1920,47 @@ def get_layout_item_formulas():
     )
 
     # --- Bed ---
-    # The bed is anchored relative to opening O9, which is anchored to IW11.
-    # O9 east end on F18-F1: te9 = t_iw11_sw + O9_OFFSET/seg_len + O9_WIDTH/seg_len
-    # Bed SE on wall = offset(W18, bed_t, (dE, dN)) where bed_t = te9 + BED_GAP_O9/seg_len
-    # But the formula system works with W-series points (inner wall face), while
-    # O9 uses F-series (outer face).  The bed SE is:
-    #   bed_se_wall = W18 + (te9 + BED_GAP_O9/seg_len) * (W1 - W18)
-    #   bed_se = offset(bed_se_wall, BED_WALL_GAP, w18w1_in)
-    # te9 is computed from IW11.SW projected onto F18-F1.  Rather than replicate
-    # this parametric chain, we use a four_corner formula with proj-based offsets
-    # from IW11.SW along the south wall.
+    # Replicates the procedural bed computation from layout.py exactly.
+    # The bed SE wall point is at parametric distance _bed_t along W18-W1:
+    #   _bed_t = _te9 + BED_GAP_O9 / W18W1_len
+    # where _te9 = (proj(IW11.SW-F18, F18F1_dir) + O9_OFFSET_IW11 + 2*O9_HALF_WIDTH) / F18F1_len
     #
-    # Procedural code computes:
-    #   _t_sw9 = proj(IW11.SW, F18, seg_F18_F1_unit)
-    #   _ts9 = _t_sw9 + O9_OFFSET_IW11 / seg9_len
-    #   _te9 = _ts9 + 2 * O9_HALF_WIDTH / seg9_len
-    #   _bed_t = _te9 + BED_GAP_O9 / _seg_len   (on W18-W1, not F18-F1!)
-    #   _bed_se_wall = W18 + _bed_t * (W1 - W18)  [along W18-W1 direction]
-    #
-    # The key subtlety: _bed_t uses _te9 (F18-F1 parametric) applied to
-    # W18-W1 segment length.  Since F18-F1 and W18-W1 are parallel,
-    # _te9 = dist_along / F18F1_len, and _bed_t = _te9 + BED_GAP_O9/W18W1_len.
-    # These have different denominators (F vs W segment lengths), which is
-    # a quirk of the procedural code.
-    #
-    # For formula equivalence, we compute the bed anchor directly:
-    #   bed_along_dist = proj(IW11.SW, W18, w18w1_neg_al) + O9_OFFSET_IW11
-    #                    + 2*O9_HALF_WIDTH + BED_GAP_O9
-    # where all distances use W18-W1 direction but proj uses F18-F1 for IW11.
-    # This won't be bit-identical because F18≠W18 offset matters.
-    #
-    # Instead, replicate the exact procedural formula using a four_corner type
-    # with explicit offset computations matching the F18-F1 parametric approach.
-    # We'll compute the bed position as:
-    #   bed_se_wall = offset(W18, total_dist_along_w18w1, neg(w18w1_al))
-    #   where total_dist_along_w18w1 = proj(IW11.SW, F18, F18F1_dir)/F18F1_len * W18W1_len
-    #                                 + O9_OFFSET_IW11/F18F1_len * W18W1_len
-    #                                 + 2*O9_HALF_WIDTH/F18F1_len * W18W1_len
-    #                                 + BED_GAP_O9
-    # This is getting complex. Let's use four_corner and match exactly.
-    #
-    # Actually: the procedural code uses seg_vec(F18, F1) for the parametric
-    # but seg_vec(W18, W1) for _bed_t denominator on the GAP term. So:
-    #   _bed_se_wall = W18 + (_te9 + BED_GAP_O9/_seg_w18w1_len) * seg_w18w1_vec
-    # where _te9 = (proj_iw11_sw_on_f18f1 + O9_OFFSET_IW11 + O9_WIDTH) / seg_f18f1_len
-    #
-    # For bit-identical results, we need the exact same computation.
-    # The simplest approach: compute bed_se_wall as
-    #   W18 + proj(IW11.SW, F18, f18f1_dir) * w18w1_unit
-    #        + (O9_OFFSET_IW11 + 2*O9_HALF_WIDTH) / f18f1_len * w18w1_vec
-    #        + BED_GAP_O9 * w18w1_unit
-    # But we don't have f18f1_len in the formula system (F-series points aren't
-    # in the evaluator context).
-    #
-    # For now, skip the bed — it requires F-series points which the evaluator
-    # doesn't have access to yet.  The bed will be migrated when F-series
-    # support is added.
+    # Total along distance D = _bed_t * W18W1_len:
+    #   D = (proj_iw11 + O9_OFFSET + O9_WIDTH) * (W18W1_len / F18F1_len) + BED_GAP_O9
+    _F18F1_DIR = {"segment": ["F18", "F1"]}
+    _F18F1_LEN = {"dist": ["F18", "F1"]}
+    _W18W1_LEN = {"dist": ["W18", "W1"]}
+    _fw_ratio = {"div": [_W18W1_LEN, _F18F1_LEN]}
+
+    _proj_iw11 = {"proj": {
+        "target": {"element": "IW11", "corner": "SW"},
+        "anchor": "F18",
+        "dir": _F18F1_DIR,
+    }}
+    _o9_east_along = {"add": [
+        _proj_iw11,
+        {"const": "O9_OFFSET_IW11"},
+        {"mul": [2, {"const": "O9_HALF_WIDTH"}]},
+    ]}
+    _bed_along_dist = {"add": [
+        {"mul": [_o9_east_along, _fw_ratio]},
+        {"const": "BED_GAP_O9"},
+    ]}
+    # bed_se_wall = offset(W18, D, w18w1_unit)
+    _bed_se_wall = _off("W18", _bed_along_dist, _W18W1_AL)
+    # bed_se = offset(bed_se_wall, BED_WALL_GAP, w18w1_in)
+    _bed_se = _off(_bed_se_wall, {"const": "BED_WALL_GAP"}, _W18W1_IN)
 
     return {
+        "BED": {
+            "type": "item_rect",
+            "anchor": _bed_se,
+            "along": {"neg": _W18W1_AL},
+            "across": _W18W1_IN,
+            "width": {"const": "BED_WIDTH"},
+            "depth": {"const": "BED_LENGTH"},
+            "anchor_corner": "se",
+        },
         "DRYER": {
             "type": "item_rect",
             "anchor": _dryer_sw,

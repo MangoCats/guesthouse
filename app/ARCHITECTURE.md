@@ -4,9 +4,9 @@
 
 The ADU Editor is a single-page Flask application backed by SQLite.  It
 provides an interactive canvas and data tables for viewing and editing
-the parametric building design defined in the project's `floorplan/`,
-`shared/`, and related packages.  The app imports from but never modifies
-those packages (NF-4 constraint).
+the parametric building design.  All element geometry (walls, openings,
+furniture, appliances) is computed by the FormulaEvaluator from
+database-stored JSON formulas (Phase 12g cutover complete).
 
 ```
 Browser (HTML/CSS/JS)
@@ -205,16 +205,16 @@ reads door metadata (hinge vertex index, width, open/closed direction
 vectors) and computes arcs via `_swing_arc()`.  Propagates `stacked` flag
 for SVG paint-order correctness.
 
-**Module reloading** — The engine uses `importlib.reload()` on four
-floorplan modules after patching constants.  This is necessary because
-those modules use `from floorplan.constants import ...` at module scope;
-a simple `setattr` on the constants module would leave the other modules
-with stale values.  The reload sequence is ordered to respect import
-dependencies: constants → geometry → layout → openings.
+**Formula-driven geometry (Phase 12g)** — All element geometry is computed
+by `FormulaEvaluator` from database-stored JSON formulas.  The engine no
+longer patches `floorplan.constants` or reloads modules for element
+geometry.  The procedural `floorplan/` modules provide outline geometry
+and variant item metadata only.  `patch_constants()` remains for the
+span analysis functions (`compute_span_data`, `compute_span_rotation`).
 
-**Derived constants** — Five constants are recomputed from others after
-patching: `WALL_EXTRA`, `AIR_GAP`, `DOOR_FLAT_FACE`,
-`F8F9_INNER_TURN_R`, `CORNER_SW_R`.
+**Derived constants** — `_derive_constant()` computes `WALL_EXTRA`,
+`CORNER_SW_R`, and other derived values from the constants dict without
+modifying any module state.
 
 **Radii exposure** — `result["radii"]` is included in the geometry
 response, exposing all arc radii (R_a1, R_a5, ..., R_a19).  This is
@@ -792,34 +792,23 @@ Without it, one test's constant changes would leak into subsequent tests.
 
 ---
 
-## NF-4 Constraint: No Modification of Existing Packages
+## NF-4 Constraint: Lifted (Phase 12g)
 
-The app imports from but never modifies `shared/`, `floorplan/`, `walls/`,
-`span/`, `survey/`, `roof/`, `site/`, `scad/`, or `plumbing/`.  This
-constraint applies during Phases 0–12.  It is lifted at cutover, when
-the database becomes the sole authoritative source and code duplication
-is consolidated (see CHARTER.md § Transition from Principles 4 → 5).
+NF-4 has been lifted.  The FormulaEvaluator is the sole source of element
+geometry — `compute_geometry()` no longer patches `floorplan.constants` or
+reloads modules.  The database is the authoritative source for constants
+and element formulas.
 
-**Consequence: intentional duplication.**  `app/variants.py` replicates
-~700 lines of positioning math from `floorplan/gen_floorplan.py`'s
-`_render_appliances()`, `_render_kitchen()`, and `_render_furniture()`
-functions.  It also carries 24 hardcoded item-dimension constants
-(hamper, microwave, dining table, etc.) that duplicate values scattered
-through the generator.  This duplication is deliberate: the existing
-scripts are the reference implementation, and the app must reproduce
-their output without modifying them.  At cutover, these constants move
-into the database as the single source, and the shared positioning math
-is extracted into functions callable by both the SVG renderer and the
-app engine.
+**Remaining duplication.**  `app/variants.py` still contains ~700 lines of
+procedural positioning math that produces metadata (labels, door configs,
+clearance configs, product URLs, shapes) for variant items.  The positions
+computed by this code are overridden by formula-evaluated geometry.  A
+future cleanup can extract the metadata into the database, eliminating
+the procedural positioning entirely.
 
-**Consequence: module reloading.**  The engine uses
-`importlib.reload()` and `patch_constants()` to inject database values
-into the floorplan modules at runtime (see Computation Flow above).
-Five derived constants (`WALL_EXTRA`, `AIR_GAP`, `DOOR_FLAT_FACE`,
-`F8F9_INNER_TURN_R`, `CORNER_SW_R`) are recomputed in `engine.py`
-after patching because they depend on other constants and their
-derivation formulas cannot be imported without modifying source.  This
-will be unnecessary once the app owns the constants directly (Phase 12).
+**Remaining module patching.**  `patch_constants()` is still used by the
+span analysis functions (`compute_span_data`, `compute_span_rotation`)
+which call into `span/` modules that read from `floorplan.constants`.
 
 ---
 
@@ -849,20 +838,24 @@ links, and view override controls.
 Phase 10 added domain views: site plan (10a), 3D SCAD (10b), analysis
 (10c), and plumbing layout (10d) with interactive pipe/fixture editing,
 reference plumbing seeding, and full CRUD for plumbing elements.
-Next phase: Phase 11 (view variants and polish).
+Phase 11 added variant selection UI and polish.
+Phase 12 (a–g) implemented the formula-driven architecture: evaluator,
+schema, constant consolidation (12a), formula REST API (12b), IW wall
+formulas (12c), layout item formulas (12d), opening formulas (12e),
+variant item formulas (12f), and cutover (12g) — removing
+`patch_constants`/`importlib.reload` from `compute_geometry()` and
+lifting NF-4.
 
-The development arc follows three stages:
+The development arc followed three stages:
 
-1. **Phases 0–1 (complete):** Parametric viewer.  Constants-only
-   editing, read-only chain, engine-computed geometry.
+1. **Phases 0–1:** Parametric viewer.  Constants-only editing,
+   read-only chain, engine-computed geometry.
 2. **Phases 2–11:** Progressive element CRUD, canvas tools, and domain
-   views.  The database gradually becomes authoritative (chain editing
+   views.  The database gradually became authoritative (chain editing
    in Phase 5, element storage in Phase 3, room labels in Phase 8).
-   Existing scripts remain the reference for default-value output.
-3. **Phase 12 (cutover):** Parametric dependency system replaces
-   procedural computation.  All constants and positions become
-   database-driven formulas.  NF-4 is lifted.  Code duplication
-   consolidated.
+3. **Phase 12 (complete):** Parametric dependency system replaced
+   procedural computation.  All element geometry is computed by the
+   FormulaEvaluator from database-stored JSON formulas.  NF-4 lifted.
 
 See `app/ROADMAP.md` for the complete 13-phase development plan
 covering all remaining requirements, phase dependencies, new file
