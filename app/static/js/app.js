@@ -2622,47 +2622,40 @@ function addWallActions(tbody, wallName, elemRec) {
   vTr.appendChild(vTd2);
   tbody.appendChild(vTr);
 
-  // Delete button
+  // Delete button (uses shared helper with dependents check)
   if (elemRec) {
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 2;
-    const btn = document.createElement("button");
-    btn.textContent = "Delete";
-    btn.className = "prop-delete-btn";
-    btn.addEventListener("click", async () => {
-      const hosted = IW_HOSTED_OPENINGS[wallName] || [];
-      let msg = `Delete ${wallName}?`;
-      if (hosted.length > 0) {
-        msg = `Delete ${wallName} (will also delete ${hosted.join(", ")})?`;
-      }
-      if (!confirm(msg)) return;
-      const resp = await fetch(`/api/elements/${elemRec.id}`, {method: "DELETE"});
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        showToast(data.error || "Delete failed", "error");
-        return;
-      }
-      clearSelection();
-      await loadElements();
-      await loadGeometry();
-      showToast(`Deleted ${wallName}`, "success");
-    });
-    td.appendChild(btn);
-    tr.appendChild(td);
-    tbody.appendChild(tr);
+    addFormulaDeleteButton(tbody, wallName);
   }
 }
 
-/** Add delete button for formula-only items (no DB elements record). */
-function addFormulaDeleteButton(tbody, elemName) {
+/** Add delete button for formula-driven elements.  Disabled when other
+ *  elements depend on this one (dependents check via API). */
+async function addFormulaDeleteButton(tbody, elemName) {
   const tr = document.createElement("tr");
   const td = document.createElement("td");
   td.colSpan = 2;
   const btn = document.createElement("button");
   btn.textContent = "Delete";
   btn.className = "prop-delete-btn";
+
+  // Check for dependents — disable delete if other elements reference this one
+  try {
+    const depResp = await fetch(
+      `/api/formulas/${encodeURIComponent(elemName)}/dependents?type=element`);
+    if (depResp.ok) {
+      const deps = await depResp.json();
+      if (deps.length > 0) {
+        const names = [...new Set(deps.map(d => d.element_name))];
+        btn.disabled = true;
+        btn.title = `Cannot delete: referenced by ${names.join(", ")}`;
+        btn.style.opacity = "0.4";
+        btn.style.cursor = "not-allowed";
+      }
+    }
+  } catch (_) { /* allow delete if check fails */ }
+
   btn.addEventListener("click", async () => {
+    if (btn.disabled) return;
     if (!confirm(`Delete ${elemName}?`)) return;
     const v = App.state.variant || "standard";
     const resp = await fetch(
