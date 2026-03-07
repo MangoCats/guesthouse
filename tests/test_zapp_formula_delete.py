@@ -58,7 +58,7 @@ class TestFormulaDelete:
         assert resp.status_code == 404
 
     def test_delete_rebases_dependents(self, app_client):
-        """Deleting an element inlines its position in dependent formulas."""
+        """Deleting an element structurally rebases dependent formulas."""
         _create_wall(app_client, "BASE")
         _create_wall(app_client, "DEP")
 
@@ -90,14 +90,15 @@ class TestFormulaDelete:
         result = resp.get_json()
         assert "DEP" in result["rebased"]
 
-        # DEP's formula should no longer reference BASE
+        # DEP's formula should no longer reference BASE — anchor is now a
+        # structural expression (offset spec), not a literal point
         dep_formulas = app_client.get("/api/formulas/DEP").get_json()
         assert len(dep_formulas) == 1
         updated = json.loads(dep_formulas[0]["formula_json"])
-        # The anchor should now be a literal [E, N] instead of {"element": "BASE", ...}
         anchor = updated["anchor"]
-        assert isinstance(anchor, list), f"Expected literal point, got {anchor}"
-        assert len(anchor) == 2
+        # wall_rect NE = offset(offset(anchor, length, along), thickness, thick_dir)
+        assert isinstance(anchor, dict), f"Expected rebased spec, got {anchor}"
+        assert "offset" in anchor
 
         # DEP should no longer depend on BASE
         deps_after = app_client.get("/api/formulas/DEP/deps").get_json()
@@ -151,12 +152,12 @@ class TestFormulaDelete:
         }
         _put_formula(app_client, "UD", dep_formula)
 
-        # Delete UB (inlines into UD)
+        # Delete UB (rebases UD)
         app_client.delete("/api/formulas/UB/element")
         dep_after = json.loads(
             app_client.get("/api/formulas/UD").get_json()[0]["formula_json"]
         )
-        assert isinstance(dep_after["anchor"], list)  # inlined
+        assert dep_after["anchor"] != {"element": "UB", "corner": "SE"}  # rebased
 
         # Undo
         app_client.post("/api/undo")
@@ -207,12 +208,12 @@ class TestFormulaDelete:
         # RB formula should be gone again
         assert len(app_client.get("/api/formulas/RB").get_json()) == 0
 
-        # RD's formula should be inlined again (literal point, not reference)
+        # RD's formula should be rebased again (not referencing RB)
         dep_redone = json.loads(
             app_client.get("/api/formulas/RD").get_json()[0]["formula_json"]
         )
-        assert isinstance(dep_redone["anchor"], list), \
-            f"Expected inlined point after redo, got {dep_redone['anchor']}"
+        assert dep_redone["anchor"] != {"element": "RB", "corner": "SE"}, \
+            f"Expected rebased formula after redo, got {dep_redone['anchor']}"
 
     def test_seeded_element_delete(self, app_client):
         """Deleting a seeded element like IW1 works and returns rebased list."""
@@ -293,3 +294,203 @@ class TestInlineElementRefs:
         }
         result = inline_element_refs(formula, "X", elem_data)
         assert result["anchor"]["offset"] == [4, 2]
+
+
+# ---------------------------------------------------------------------------
+# Evaluator: rebase_element_refs unit tests
+# ---------------------------------------------------------------------------
+
+class TestRebaseElementRefs:
+    """Structural rebasing replaces element references with the deleted
+    element's own formula sub-expressions instead of literal coordinates."""
+
+    def test_rebase_four_corner_element_corner(self):
+        """Corner ref → deleted element's corner sub-expression."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "four_corner",
+            "sw": {"offset": "W2", "dist": 3.0, "dir": "east"},
+            "se": {"offset": "W2", "dist": 5.0, "dir": "east"},
+            "ne": [10, 10],
+            "nw": [0, 10],
+        }
+        dep_formula = {"anchor": {"element": "X", "corner": "SW"}}
+        result = rebase_element_refs(dep_formula, "X", elem_formula)
+        # Should get the sw spec, not a literal coordinate
+        assert result["anchor"] == {"offset": "W2", "dist": 3.0, "dir": "east"}
+
+    def test_rebase_four_corner_named_corner(self):
+        """Corner string names (SW/SE/NE/NW) all resolve correctly."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "four_corner",
+            "sw": [0, 0], "se": [4, 0], "ne": [4, 2], "nw": [0, 2],
+        }
+        for corner_name, expected in [("SW", [0, 0]), ("SE", [4, 0]),
+                                       ("NE", [4, 2]), ("NW", [0, 2])]:
+            dep = {"pt": {"element": "X", "corner": corner_name}}
+            result = rebase_element_refs(dep, "X", elem_formula)
+            assert result["pt"] == expected
+
+    def test_rebase_four_corner_integer_corner(self):
+        """Corner integer indices (0-3) resolve correctly."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "four_corner",
+            "sw": "A", "se": "B", "ne": "C", "nw": "D",
+        }
+        dep = {"pt": {"element": "X", "corner": 2}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        assert result["pt"] == "C"  # corner 2 = NE
+
+    def test_rebase_face_mid(self):
+        """face_mid → midpoint of two corner specs."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "four_corner",
+            "sw": "P1", "se": "P2", "ne": "P3", "nw": "P4",
+        }
+        dep = {"ref": {"face_mid": "X", "face": "south"}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        assert result["ref"] == {"midpoint": ["P1", "P2"]}
+
+    def test_rebase_face_along(self):
+        """face_along → segment direction from corner specs."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "four_corner",
+            "sw": "P1", "se": "P2", "ne": "P3", "nw": "P4",
+        }
+        dep = {"dir": {"face_along": "X", "face": "east"}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        assert result["dir"] == {"segment": ["P2", "P3"]}
+
+    def test_rebase_face_perp(self):
+        """face_perp → segment_perp from corner specs."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "four_corner",
+            "sw": "P1", "se": "P2", "ne": "P3", "nw": "P4",
+        }
+        dep = {"dir": {"face_perp": "X", "face": "north"}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        assert result["dir"] == {"segment_perp": ["P3", "P4"]}
+
+    def test_rebase_element_centroid(self):
+        """element_centroid → nested midpoints of all 4 corners."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "four_corner",
+            "sw": "A", "se": "B", "ne": "C", "nw": "D",
+        }
+        dep = {"center": {"element_centroid": "X"}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        assert result["center"] == {
+            "midpoint": [{"midpoint": ["A", "B"]}, {"midpoint": ["C", "D"]}]
+        }
+
+    def test_rebase_wall_rect_corners(self):
+        """wall_rect formula derives structural corner specs."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "wall_rect",
+            "anchor": [1, 2], "along": "east",
+            "thickness_dir": "north", "thickness": 0.5,
+            "end_mode": "fixed", "length": 5.0,
+        }
+        # NE = offset(offset(anchor, length, along), thickness, thick_dir)
+        dep = {"pt": {"element": "X", "corner": "NE"}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        ne = result["pt"]
+        assert isinstance(ne, dict) and "offset" in ne
+
+    def test_rebase_item_rect_corners(self):
+        """item_rect formula derives structural corner specs."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "item_rect",
+            "anchor": {"element": "PARENT", "corner": "SW"},
+            "along": "east", "across": "north",
+            "width": 2.0, "depth": 1.0,
+            "anchor_corner": "sw",
+        }
+        # SW = anchor (since anchor_corner is "sw")
+        dep = {"pt": {"element": "X", "corner": "SW"}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        # Should be the anchor spec from elem_formula, referencing PARENT
+        assert result["pt"] == {"element": "PARENT", "corner": "SW"}
+
+    def test_rebase_no_match_unchanged(self):
+        """References to other elements are left unchanged."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {
+            "type": "four_corner",
+            "sw": "A", "se": "B", "ne": "C", "nw": "D",
+        }
+        dep = {"pt": {"element": "OTHER", "corner": "SW"}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        assert result["pt"] == {"element": "OTHER", "corner": "SW"}
+
+    def test_rebase_deep_copy(self):
+        """Rebased specs are deep copies — no shared mutation."""
+        from app.evaluator import rebase_element_refs
+        sw_spec = {"offset": "W2", "dist": 3.0, "dir": "east"}
+        elem_formula = {
+            "type": "four_corner",
+            "sw": sw_spec, "se": "B", "ne": "C", "nw": "D",
+        }
+        dep = {"a": {"element": "X", "corner": "SW"},
+               "b": {"element": "X", "corner": "SW"}}
+        result = rebase_element_refs(dep, "X", elem_formula)
+        # Modify one — the other must not change
+        result["a"]["dist"] = 999
+        assert result["b"]["dist"] == 3.0
+
+    def test_rebase_falls_back_to_literal_for_unsupported_type(self):
+        """Unsupported formula types fall back to literal inlining."""
+        from app.evaluator import rebase_element_refs
+        elem_formula = {"type": "item_circle", "center": [5, 5], "radius": 1.0}
+        elem_data = {"poly": [[4, 5], [5, 4], [6, 5], [5, 6]]}  # 4 approx pts
+        dep = {"pt": {"element": "X", "corner": "SW"}}
+        result = rebase_element_refs(dep, "X", elem_formula, elem_data)
+        # Should fall back to literal inlining from elem_data
+        assert result["pt"] == [4, 5]
+
+    def test_rebase_preserves_geometry(self):
+        """Rebasing produces identical geometry to the original."""
+        from app.evaluator import FormulaEvaluator, rebase_element_refs
+        import json
+
+        base_formula = {
+            "type": "four_corner",
+            "sw": [1, 2], "se": [5, 2], "ne": [5, 4], "nw": [1, 4],
+        }
+        dep_formula = {
+            "type": "item_rect",
+            "anchor": {"element": "BASE", "corner": "NE"},
+            "along": "east", "across": "north",
+            "width": 2.0, "depth": 1.0,
+            "anchor_corner": "sw",
+        }
+
+        # Evaluate with both elements present
+        ev1 = FormulaEvaluator({}, {}, [], {})
+        ev1.add_formula("BASE", "position", base_formula)
+        ev1.add_formula("DEP", "position", dep_formula)
+        ev1.topo_sort()
+        ev1.evaluate_all()
+        poly_before = ev1.elements["DEP"]["poly"]
+
+        # Rebase DEP and evaluate without BASE
+        rebased = rebase_element_refs(dep_formula, "BASE", base_formula)
+        ev2 = FormulaEvaluator({}, {}, [], {})
+        ev2.add_formula("DEP", "position", rebased)
+        ev2.topo_sort()
+        ev2.evaluate_all()
+        poly_after = ev2.elements["DEP"]["poly"]
+
+        for i, (pb, pa) in enumerate(zip(poly_before, poly_after)):
+            assert abs(pb[0] - pa[0]) < 1e-9, \
+                f"Corner {i} E mismatch: {pb[0]} vs {pa[0]}"
+            assert abs(pb[1] - pa[1]) < 1e-9, \
+                f"Corner {i} N mismatch: {pb[1]} vs {pa[1]}"

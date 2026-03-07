@@ -1334,34 +1334,37 @@ def create_app(db_path=None):
     def api_delete_formula_element(element_name):
         """Delete an element by removing its formula and re-basing dependents.
 
-        Dependents' formulas are updated to replace references to the deleted
-        element with literal coordinate values (inlining).  Supports undo.
+        Dependents' formulas are structurally rebased: references to the
+        deleted element are replaced with the element's own formula
+        sub-expressions (so dependents reference the same parent elements).
+        Falls back to literal coordinate inlining when structural rebasing
+        is not possible.  Supports undo.
         """
-        from app.evaluator import inline_element_refs, extract_deps
+        from app.evaluator import rebase_element_refs, extract_deps
         variant = request.args.get("variant", "standard")
 
-        # 1. Get the element's current computed geometry for inlining
-        elem_data = _evaluate_element(element_name, variant)
-
-        # 2. Find dependent formulas
-        dependents = db_get_dependents(element_name, db_path=db)
-        dep_names = {d["element_name"] for d in dependents}
-
-        # 3. Capture before state for undo
-        before_formulas = {}
-        for dep_name in dep_names:
-            dep_formulas = get_element_formulas(dep_name, variant=variant,
-                                                db_path=db)
-            for f in dep_formulas:
-                key = (f["element_name"], f["param_name"])
-                before_formulas[key] = f["formula_json"]
-
-        # Also capture the deleted element's own formula
+        # 1. Get the element's own formula (for structural rebasing)
         own_formulas = get_element_formulas(element_name, variant=variant,
                                             db_path=db)
         if not own_formulas:
             return jsonify({"error": "no formula found"}), 404
 
+        # Parse the element's position formula for corner extraction
+        elem_formula = None
+        for f in own_formulas:
+            if f["param_name"] == "position":
+                fj = f["formula_json"]
+                elem_formula = json.loads(fj) if isinstance(fj, str) else fj
+                break
+
+        # 2. Get evaluated geometry as fallback for literal inlining
+        elem_data = _evaluate_element(element_name, variant)
+
+        # 3. Find dependent formulas
+        dependents = db_get_dependents(element_name, db_path=db)
+        dep_names = {d["element_name"] for d in dependents}
+
+        # 4. Capture before state for undo
         before_state = {
             "element_name": element_name,
             "own_formulas": [
@@ -1376,20 +1379,21 @@ def create_app(db_path=None):
             "updated_deps": {},
         }
 
-        # 4. Inline element references in dependent formulas
-        inlined_deps = {}  # key → new_json (for redo)
+        # 5. Rebase element references in dependent formulas
+        rebased_deps = {}  # key → new_json (for redo)
         for dep_name in dep_names:
             dep_formulas = get_element_formulas(dep_name, variant=variant,
                                                 db_path=db)
             for f in dep_formulas:
                 old_json = f["formula_json"]
                 formula = json.loads(old_json) if isinstance(old_json, str) else old_json
-                new_formula = inline_element_refs(formula, element_name, elem_data)
+                new_formula = rebase_element_refs(
+                    formula, element_name, elem_formula, elem_data)
                 new_json = json.dumps(new_formula)
                 if new_json != old_json:
                     key = f"{f['element_name']}/{f['param_name']}"
                     before_state["updated_deps"][key] = old_json
-                    inlined_deps[key] = new_json
+                    rebased_deps[key] = new_json
                     upsert_formula(f["element_name"], f["param_name"],
                                    new_formula, variant=f.get("variant"),
                                    db_path=db)
@@ -1398,14 +1402,14 @@ def create_app(db_path=None):
                     rebuild_formula_deps(f["element_name"], f["param_name"],
                                          list(new_deps), db_path=db)
 
-        # 5. Delete the element's own formula(s)
+        # 6. Delete the element's own formula(s)
         for f in own_formulas:
             delete_formula(f["element_name"], f["param_name"],
                            variant=f.get("variant"), db_path=db)
             rebuild_formula_deps(f["element_name"], f["param_name"],
                                   [], db_path=db)
 
-        # 6. Also delete the elements DB record if one exists
+        # 7. Also delete the elements DB record if one exists
         deleted_element = None
         elem_rec = get_element_by_name(element_name, db)
         if elem_rec:
@@ -1413,9 +1417,9 @@ def create_app(db_path=None):
             delete_element(elem_rec["id"], db)
             before_state["deleted_element"] = deleted_element
 
-        # 7. Record undo
+        # 8. Record undo
         after_state = {"element_name": element_name,
-                       "inlined_deps": inlined_deps}
+                       "rebased_deps": rebased_deps}
         undo_mgr.record("formula_delete_element", before_state,
                          after_state, f"Delete {element_name}")
 

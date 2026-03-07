@@ -249,8 +249,9 @@ class UndoManager:
         else:
             # Redo: re-inline dependents then re-delete
             elem_name = state["element_name"]
-            # Re-apply inlined formulas to dependents
-            for key, new_json in state.get("inlined_deps", {}).items():
+            # Re-apply rebased formulas to dependents
+            for key, new_json in state.get("rebased_deps",
+                                           state.get("inlined_deps", {})).items():
                 parts = key.split("/", 1)
                 if len(parts) == 2:
                     formula = json.loads(new_json) if isinstance(

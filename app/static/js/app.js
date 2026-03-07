@@ -2638,25 +2638,23 @@ async function addFormulaDeleteButton(tbody, elemName) {
   btn.textContent = "Delete";
   btn.className = "prop-delete-btn";
 
-  // Check for dependents — disable delete if other elements reference this one
+  // Check for dependents — include in confirmation message
+  let depNames = [];
   try {
     const depResp = await fetch(
       `/api/formulas/${encodeURIComponent(elemName)}/dependents?type=element`);
     if (depResp.ok) {
       const deps = await depResp.json();
-      if (deps.length > 0) {
-        const names = [...new Set(deps.map(d => d.element_name))];
-        btn.disabled = true;
-        btn.title = `Cannot delete: referenced by ${names.join(", ")}`;
-        btn.style.opacity = "0.4";
-        btn.style.cursor = "not-allowed";
-      }
+      depNames = [...new Set(deps.map(d => d.element_name))];
     }
-  } catch (_) { /* allow delete if check fails */ }
+  } catch (_) { /* proceed without dep info */ }
 
   btn.addEventListener("click", async () => {
-    if (btn.disabled) return;
-    if (!confirm(`Delete ${elemName}?`)) return;
+    let msg = `Delete ${elemName}?`;
+    if (depNames.length > 0) {
+      msg += `\n\n${depNames.join(", ")} will be rebased to ${elemName}'s parent references.`;
+    }
+    if (!confirm(msg)) return;
     const v = App.state.variant || "standard";
     const resp = await fetch(
       `/api/formulas/${encodeURIComponent(elemName)}/element?variant=${encodeURIComponent(v)}`,

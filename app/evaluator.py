@@ -8,6 +8,7 @@ polygon construction.
 
 Phase 12a: core evaluator, topological sort, dependency extraction.
 """
+import copy
 import json
 import math
 from collections import defaultdict, deque
@@ -1339,6 +1340,188 @@ def _inline_recursive(spec, elem_name, elem_data):
     result = {}
     for key, val in spec.items():
         result[key] = _inline_recursive(val, elem_name, elem_data)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Structural rebasing: replace element references with parent formulas
+# ---------------------------------------------------------------------------
+
+_CORNER_NAMES = ["sw", "se", "ne", "nw"]
+_CORNER_INDEX = {"SW": 0, "SE": 1, "NE": 2, "NW": 3,
+                 "sw": 0, "se": 1, "ne": 2, "nw": 3,
+                 0: 0, 1: 1, 2: 2, 3: 3}
+_FACE_CORNERS = {"south": ("sw", "se"), "east": ("se", "ne"),
+                 "north": ("ne", "nw"), "west": ("nw", "sw")}
+
+
+def _corner_specs_from_formula(formula):
+    """Extract symbolic corner specs {sw, se, ne, nw} from a formula.
+
+    Returns a dict mapping corner name → formula sub-expression that computes
+    that corner, or None if the formula type is not supported.
+    """
+    ftype = formula.get("type")
+
+    if ftype == "four_corner":
+        return {c: formula[c] for c in _CORNER_NAMES if c in formula}
+
+    if ftype == "item_rect":
+        anchor = formula.get("anchor")
+        along = formula.get("along")
+        across = formula.get("across")
+        width = formula.get("width")
+        depth = formula.get("depth")
+        anchor_corner = formula.get("anchor_corner", "sw")
+
+        # Derive SW from anchor + anchor_corner
+        if anchor_corner == "sw":
+            sw = anchor
+        elif anchor_corner == "se":
+            sw = _off(anchor, {"neg": width}, along)
+        elif anchor_corner == "nw":
+            sw = _off(anchor, {"neg": depth}, across)
+        elif anchor_corner == "ne":
+            sw = {"offset": {"offset": anchor, "dist": {"neg": width},
+                             "dir": along},
+                  "dist": {"neg": depth}, "dir": across}
+        else:
+            sw = anchor
+
+        se = _off(sw, width, along)
+        ne = _off(se, depth, across)
+        nw = _off(sw, depth, across)
+        return {"sw": sw, "se": se, "ne": ne, "nw": nw}
+
+    if ftype == "wall_rect":
+        end_mode = formula.get("end_mode", "fixed")
+        if end_mode != "fixed":
+            return None  # intersect mode can't be structurally rebased
+        anchor = formula.get("anchor")
+        along = formula.get("along")
+        thick_dir = formula.get("thickness_dir")
+        thickness = formula.get("thickness")
+        length = formula.get("length")
+
+        sw = anchor
+        se = _off(anchor, length, along)
+        ne = _off(se, thickness, thick_dir)
+        nw = _off(anchor, thickness, thick_dir)
+        return {"sw": sw, "se": se, "ne": ne, "nw": nw}
+
+    return None
+
+
+def rebase_element_refs(formula, elem_name, elem_formula, elem_data=None):
+    """Replace references to elem_name using its formula's own expressions.
+
+    Instead of inlining literal coordinate values (which fixes geometry to
+    the current state), this substitutes the deleted element's formula
+    sub-expressions so dependents reference the same parent elements.
+
+    For example, if IW2S's SW corner is defined as
+        offset(line_intersection(anchor, dir, W6, w6w7_al), -length, dir)
+    then a dependent's {"element": "IW2S", "corner": "SW"} becomes that
+    same offset/line_intersection expression.
+
+    Falls back to literal inlining (via inline_element_refs) if the formula
+    type doesn't support structural corner extraction.
+
+    Args:
+        formula: The dependent's formula to transform.
+        elem_name: Name of the element being deleted.
+        elem_formula: The deleted element's own formula JSON (dict).
+        elem_data: Evaluated geometry (for literal fallback). May be None.
+    """
+    corner_specs = _corner_specs_from_formula(elem_formula) if elem_formula else None
+    if not corner_specs:
+        # Fall back to literal inlining
+        if elem_data:
+            return inline_element_refs(formula, elem_name, elem_data)
+        return formula
+    return _rebase_recursive(formula, elem_name, corner_specs, elem_data)
+
+
+def _rebase_recursive(spec, elem_name, corner_specs, elem_data):
+    """Recursively walk spec, replacing element references with formula exprs."""
+    if spec is None or isinstance(spec, (int, float, bool, str)):
+        return spec
+    if isinstance(spec, (list, tuple)):
+        return [_rebase_recursive(item, elem_name, corner_specs, elem_data)
+                for item in spec]
+    if not isinstance(spec, dict):
+        return spec
+
+    # {"element": elem_name, "corner": ...} → corner sub-expression
+    if spec.get("element") == elem_name and "corner" in spec:
+        idx = _CORNER_INDEX.get(spec["corner"])
+        if idx is not None:
+            corner_name = _CORNER_NAMES[idx]
+            if corner_name in corner_specs:
+                return copy.deepcopy(corner_specs[corner_name])
+        # Can't resolve corner — fall back to literal if available
+        if elem_data:
+            return _inline_recursive(spec, elem_name, elem_data)
+        return spec
+
+    # {"element_centroid": elem_name} or {"table": elem_name}
+    # → midpoint of midpoints: midpoint(midpoint(sw,se), midpoint(ne,nw))
+    if (spec.get("element_centroid") == elem_name
+            or spec.get("table") == elem_name):
+        if all(c in corner_specs for c in _CORNER_NAMES):
+            sw = copy.deepcopy(corner_specs["sw"])
+            se = copy.deepcopy(corner_specs["se"])
+            ne = copy.deepcopy(corner_specs["ne"])
+            nw = copy.deepcopy(corner_specs["nw"])
+            return {"midpoint": [{"midpoint": [sw, se]},
+                                 {"midpoint": [ne, nw]}]}
+        if elem_data:
+            return _inline_recursive(spec, elem_name, elem_data)
+        return spec
+
+    # {"face_mid": elem_name, "face": ...}
+    # → midpoint of the two face corner specs
+    if spec.get("face_mid") == elem_name:
+        face = spec.get("face")
+        corners = _FACE_CORNERS.get(face)
+        if corners and all(c in corner_specs for c in corners):
+            a = copy.deepcopy(corner_specs[corners[0]])
+            b = copy.deepcopy(corner_specs[corners[1]])
+            return {"midpoint": [a, b]}
+        if elem_data:
+            return _inline_recursive(spec, elem_name, elem_data)
+        return spec
+
+    # {"face_along": elem_name, "face": ...}
+    # → {"segment": [corner_a, corner_b]} (normalized by evaluator)
+    if spec.get("face_along") == elem_name:
+        face = spec.get("face")
+        corners = _FACE_CORNERS.get(face)
+        if corners and all(c in corner_specs for c in corners):
+            a = copy.deepcopy(corner_specs[corners[0]])
+            b = copy.deepcopy(corner_specs[corners[1]])
+            return {"segment": [a, b]}
+        if elem_data:
+            return _inline_recursive(spec, elem_name, elem_data)
+        return spec
+
+    # {"face_perp": elem_name, "face": ...}
+    # → {"segment_perp": [corner_a, corner_b]}
+    if spec.get("face_perp") == elem_name:
+        face = spec.get("face")
+        corners = _FACE_CORNERS.get(face)
+        if corners and all(c in corner_specs for c in corners):
+            a = copy.deepcopy(corner_specs[corners[0]])
+            b = copy.deepcopy(corner_specs[corners[1]])
+            return {"segment_perp": [a, b]}
+        if elem_data:
+            return _inline_recursive(spec, elem_name, elem_data)
+        return spec
+
+    # Recurse into all dict values
+    result = {}
+    for key, val in spec.items():
+        result[key] = _rebase_recursive(val, elem_name, corner_specs, elem_data)
     return result
 
 
