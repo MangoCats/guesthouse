@@ -699,16 +699,19 @@ def _seed_elements(conn):
         ("dryer", "appliance", {
             "label": "DRYER", "item_type": "appliance", "shape": "rect",
             "door": {"hinge_idx": 1, "target_idx": 2},
+            "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377"},
             "variants": _ALL,
         }, None),
         ("washer", "appliance", {
             "label": "WASHER", "item_type": "appliance", "shape": "rect",
             "door": {"hinge_idx": 2, "target_idx": 3},
+            "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375"},
             "variants": _ALL,
         }, None),
         ("hamper", "appliance", {
             "label": "HAMPER", "item_type": "appliance", "shape": "rect",
             "clearance": {"face": [3, 2], "distance": 19.0 / 12.0},
+            "product_url": "https://www.homedepot.com/p/Casual-Home-Eco-Home-Laundry-Prep-Hamper-761-30/307595219",
             "variants": _ALL,
         }, None),
         ("water_heater", "appliance", {
@@ -732,14 +735,17 @@ def _seed_elements(conn):
         }, None),
         ("util_sink", "fixture", {
             "label": "SINK", "item_type": "fixture", "shape": "rect",
+            "product_url": "https://www.magnushomeproducts.com/products/24-petten-matte-gray-vitreous-china-console-sink-with-black-powdercoat-steel-stand-and-shelves",
             "variants": _ALL,
         }, None),
         ("bath_sink", "fixture", {
             "label": "BATH SINK", "item_type": "fixture", "shape": "bath_sink",
+            "product_url": "https://www.magnushomeproducts.com/products/tripoli-vitreous-china-wall-mount-bathroom-sink",
             "variants": _ALL,
         }, None),
         ("kitchen_sink", "fixture", {
             "label": "SINK", "item_type": "fixture", "shape": "rect",
+            "product_url": "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html",
             "variants": _ALL,
         }, None),
 
@@ -756,26 +762,31 @@ def _seed_elements(conn):
         }, None),
         ("north_counter", "appliance", {
             "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+            "product_url": "https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html",
             "variants": _STD_DB,
         }, None),
         ("work_counter", "appliance", {
             "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+            "product_url": "https://www.webstaurantstore.com/table-s-s-18x60-s-s-under/600TS1860S.html",
             "variants": _STD_DB,
         }, None),
 
         # --- Kitchen: minik ---
         ("kitchen_counter", "appliance", {
             "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+            "product_url": "https://www.webstaurantstore.com/regency-spec-line-30-x-72-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3072S.html",
             "variants": ["minik"],
         }, None),
         ("cooktop", "appliance", {
             "label": "COOKTOP", "item_type": "appliance", "shape": "rect",
             "stacked": True,
+            "product_url": "https://www.homedepot.com/p/Empava-Portable-13-4-in-Induction-Electric-Cooktop-in-Black-with-2-Elements-EMPV-ID12/313815692",
             "variants": ["minik"],
         }, None),
         ("toaster", "appliance", {
             "label": "TOASTER", "item_type": "appliance", "shape": "rect",
             "stacked": True,
+            "product_url": "https://www.amazon.com/Roter-Mond-Stainless-Independent-Removable/dp/B0CGTQZTDZ?th=1",
             "variants": ["minik"],
         }, None),
 
@@ -787,10 +798,12 @@ def _seed_elements(conn):
                 "minik": {"hinge_idx": 1, "target_idx": 0},
                 "daybed": {"hinge_idx": 3, "target_idx": 2},
             },
+            "product_url": {"minik": "https://www.ikea.com/us/en/p/bergsnaes-bottom-freezer-refrigerator-stainless-steel-color-60607883/", "default": "https://www.lowes.com/pd/LG-25-5-cu-ft-Bottom-Freezer-Refrigerator-with-Ice-Maker-Fingerprint-Resistant-Printproof-Stainless-Steel-ENERGY-STAR/1002543648"},
             "variants": _ALL,
         }, None),
         ("ice_maker", "appliance", {
             "label": "ICE", "item_type": "appliance", "shape": "rect",
+            "product_url": "https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876",
             "variants": _ALL,
         }, None),
         ("microwave", "appliance", {
@@ -801,17 +814,20 @@ def _seed_elements(conn):
                 "minik": {"hinge_idx": 0, "target_idx": 1},
                 "daybed": {"hinge_idx": 2, "target_idx": 3},
             },
+            "product_url": "https://www.ikea.com/us/en/p/gatebo-microwave-oven-with-air-fryer-function-ikea-500-black-70603506/",
             "variants": _ALL,
         }, None),
         ("coffee_maker", "appliance", {
             "label": "C", "item_type": "appliance", "shape": "rect",
             "stacked": True,
+            "product_url": "https://www.amazon.com/Holstein-Housewares-HH-0914701E-5-Cup-Coffee/dp/B08HSRCC4T/?th=1",
             "variants": _ALL,
         }, None),
 
         # --- Dining ---
         ("dining_table", "furniture", {
             "label": "TABLE", "item_type": "furniture", "shape": "triangle",
+            "product_url": "https://www.homedepot.com/pep/NEW-CLASSIC-HOME-FURNISHINGS-New-Classic-Furniture-Oscar-3-Piece-Wood-Top-Triangle-Dining-Set-Walnut-40-1651-D2C/327836175",
             "variants": _ALL,
         }, None),
         ("dining_chair_1", "furniture", {
@@ -835,50 +851,60 @@ def _seed_elements(conn):
         }, None),
         ("shelves", "furniture", {
             "label": "SHELVES", "item_type": "furniture", "shape": "rect",
+            "product_url": "https://www.ikea.com/us/en/p/kallax-shelving-unit-with-underframe-white-stained-oak-effect-black-s49442718/",
             "variants": _ALL,
         }, None),
 
         # --- Living: chair + ottoman (all) ---
         ("chair", "furniture", {
             "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+            "product_url": "https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/",
             "variants": _ALL,
         }, None),
         ("ottoman", "furniture", {
             "label": "OTTO", "item_type": "furniture", "shape": "rect",
+            "product_url": "https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/",
             "variants": _ALL,
         }, None),
 
         # --- Living: standard seating ---
         ("loveseat", "furniture", {
             "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
+            "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/",
             "variants": ["standard"],
         }, "standard"),
         ("et", "furniture", {
             "label": "ET", "item_type": "furniture", "shape": "circle",
+            "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
             "variants": ["standard"],
         }, "standard"),
         ("loveseat2", "furniture", {
             "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
+            "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/",
             "variants": ["standard"],
         }, "standard"),
 
         # --- Living: minik seating ---
         ("sofa", "furniture", {
             "label": "SOFA", "item_type": "furniture", "shape": "rect",
+            "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-3-seat-sofa-gunnared-light-green-s89599953/",
             "variants": ["minik"],
         }, "minik"),
         ("rocker", "furniture", {
             "label": "ROCKER", "item_type": "furniture", "shape": "rect",
+            "product_url": {"minik": "https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/", "db": "https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/"},
             "variants": ["minik", "daybed"],
         }, None),
 
         # --- Living: daybed seating ---
         ("shelves2", "furniture", {
             "label": "SHELVES", "item_type": "furniture", "shape": "rect",
+            "product_url": "https://www.ikea.com/us/en/p/kallax-shelving-unit-with-underframe-white-stained-oak-effect-black-s49442718/",
             "variants": ["daybed"],
         }, "daybed"),
         ("et_east", "furniture", {
             "label": "ET", "item_type": "furniture", "shape": "circle",
+            "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
             "variants": ["daybed"],
         }, "daybed"),
         ("daybed", "furniture", {
@@ -887,6 +913,7 @@ def _seed_elements(conn):
         }, "daybed"),
         ("et_west", "furniture", {
             "label": "ET", "item_type": "furniture", "shape": "circle",
+            "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
             "variants": ["daybed"],
         }, "daybed"),
 
@@ -897,6 +924,7 @@ def _seed_elements(conn):
         }, None),
         ("desk_chair", "furniture", {
             "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+            "product_url": "https://www.amazon.com/BESTFAIR-Ergonomic-Office-Chair-Adjustable/dp/B0FDQDMP2D?th=1",
             "variants": _ALL,
         }, None),
     ]

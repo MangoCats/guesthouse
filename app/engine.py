@@ -932,7 +932,7 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
     Returns (interior_walls, outer_openings, rough_openings, variant_items,
              furniture, appliances) tuple.
     """
-    from app.variants import _resolve_product_url, get_variant_flags
+    from app.variants import get_variant_flags
 
     flags = get_variant_flags(variant, db_path)
     minik = flags.get("minik", False)
@@ -1042,10 +1042,19 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
             if props.get("clip_to_inner"):
                 entry["clip_to_inner"] = True
 
-            # Product URL
-            url = _resolve_product_url(item_name, minik, db_flag)
-            if url:
-                entry["product_url"] = url
+            # Product URL from DB properties
+            raw_url = props.get("product_url")
+            if raw_url:
+                if isinstance(raw_url, dict):
+                    # Variant-keyed: {"minik": "...", "default": "..."}
+                    if minik and "minik" in raw_url:
+                        entry["product_url"] = raw_url["minik"]
+                    elif db_flag and "db" in raw_url:
+                        entry["product_url"] = raw_url["db"]
+                    elif "default" in raw_url:
+                        entry["product_url"] = raw_url["default"]
+                else:
+                    entry["product_url"] = raw_url
 
             variant_items[item_name] = entry
 
