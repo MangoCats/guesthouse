@@ -493,10 +493,10 @@ class TestTL24Rotate:
         assert props["rotation"] == 0
 
 
-# ── TL-25–27: Shape editor ───────────────────────────────────────────
+# ── TL-26–28: Shape editor ───────────────────────────────────────────
 
-class TestTL25ShapeEditor:
-    """TL-25: Shape editor CRUD via API."""
+class TestTL26ShapeEditor:
+    """TL-26: Shape editor CRUD via API."""
 
     def test_get_shapes_returns_seeded(self, app_client):
         """GET /api/shapes returns seeded shapes."""

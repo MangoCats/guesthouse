@@ -1335,17 +1335,18 @@ def create_app(db_path=None):
         }
 
         # 4. Inline element references in dependent formulas
-        import json as _json
+        inlined_deps = {}  # key → new_json (for redo)
         for dep_name in dep_names:
             dep_formulas = get_element_formulas(dep_name, db_path=db)
             for f in dep_formulas:
                 old_json = f["formula_json"]
-                formula = _json.loads(old_json) if isinstance(old_json, str) else old_json
+                formula = json.loads(old_json) if isinstance(old_json, str) else old_json
                 new_formula = inline_element_refs(formula, element_name, elem_data)
-                new_json = _json.dumps(new_formula)
+                new_json = json.dumps(new_formula)
                 if new_json != old_json:
                     key = f"{f['element_name']}/{f['param_name']}"
                     before_state["updated_deps"][key] = old_json
+                    inlined_deps[key] = new_json
                     upsert_formula(f["element_name"], f["param_name"],
                                    new_formula, variant=f.get("variant"),
                                    db_path=db)
@@ -1370,9 +1371,10 @@ def create_app(db_path=None):
             before_state["deleted_element"] = deleted_element
 
         # 7. Record undo
+        after_state = {"element_name": element_name,
+                       "inlined_deps": inlined_deps}
         undo_mgr.record("formula_delete_element", before_state,
-                         {"element_name": element_name},
-                         f"Delete {element_name}")
+                         after_state, f"Delete {element_name}")
 
         _broadcast("element_changed")
         _invalidate()

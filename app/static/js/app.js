@@ -2564,40 +2564,8 @@ function addElementActions(tbody, elemRec) {
   }
   vTr.appendChild(vTd2);
   tbody.appendChild(vTr);
-  // Delete button
-  const dTr = document.createElement("tr");
-  const dTd = document.createElement("td");
-  dTd.colSpan = 2;
-  dTd.style.textAlign = "center";
-  const dBtn = document.createElement("button");
-  dBtn.textContent = "Delete";
-  dBtn.className = "prop-delete-btn";
-  dBtn.addEventListener("click", async () => {
-    if (!confirm(`Delete ${elemRec.name}?`)) return;
-    // Use formula-aware delete endpoint (handles dependency re-basing)
-    const v = App.state.variant || "standard";
-    const resp = await fetch(
-      `/api/formulas/${encodeURIComponent(elemRec.name)}/element?variant=${encodeURIComponent(v)}`,
-      { method: "DELETE" }
-    );
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      showToast(data.error || "Delete failed", "error");
-      return;
-    }
-    const result = await resp.json();
-    clearSelection();
-    await loadElements();
-    await loadGeometry();
-    const rebased = result.rebased || [];
-    const msg = rebased.length > 0
-      ? `Deleted ${elemRec.name} (re-based ${rebased.join(", ")})`
-      : `Deleted ${elemRec.name}`;
-    showToast(msg, "success");
-  });
-  dTd.appendChild(dBtn);
-  dTr.appendChild(dTd);
-  tbody.appendChild(dTr);
+  // Delete button (uses shared helper)
+  addFormulaDeleteButton(tbody, elemRec.name);
 }
 
 /** Add delete button for formula-only items (no DB elements record). */

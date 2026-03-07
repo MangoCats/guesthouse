@@ -1110,25 +1110,6 @@ def delete_variant_exclusions(variant, db_path=None):
         )
 
 
-def add_variant_exclusion(variant, element_type, element_name, db_path=None):
-    """Add a single variant exclusion."""
-    with get_db(db_path) as conn:
-        conn.execute(
-            "INSERT OR IGNORE INTO variant_exclusions "
-            "(variant, element_type, element_name) VALUES (?, ?, ?)",
-            (variant, element_type, element_name),
-        )
-
-
-def remove_variant_exclusion(variant, element_type, element_name, db_path=None):
-    """Remove a single variant exclusion."""
-    with get_db(db_path) as conn:
-        conn.execute(
-            "DELETE FROM variant_exclusions "
-            "WHERE variant = ? AND element_type = ? AND element_name = ?",
-            (variant, element_type, element_name),
-        )
-
 
 def _parse_props(raw):
     """Parse properties JSON, handling double-encoding."""

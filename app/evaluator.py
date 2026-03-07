@@ -1300,15 +1300,9 @@ def _inline_recursive(spec, elem_name, elem_data):
                 return [round(p[0], 12), round(p[1], 12)]
         return spec  # can't resolve — leave unchanged
 
-    # {"element_centroid": elem_name} → [E, N]
-    if spec.get("element_centroid") == elem_name and poly:
-        n = len(poly)
-        cx = sum(p[0] for p in poly) / n
-        cy = sum(p[1] for p in poly) / n
-        return [round(cx, 12), round(cy, 12)]
-
-    # {"table": elem_name} → [E, N] centroid
-    if spec.get("table") == elem_name and poly:
+    # {"element_centroid": elem_name} or {"table": elem_name} → [E, N] centroid
+    if poly and (spec.get("element_centroid") == elem_name
+                 or spec.get("table") == elem_name):
         n = len(poly)
         cx = sum(p[0] for p in poly) / n
         cy = sum(p[1] for p in poly) / n

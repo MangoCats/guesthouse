@@ -1477,7 +1477,7 @@ for all formula-driven items.
 `DELETE /api/formulas/<name>/element`.  Dependent formulas are updated to
 inline the deleted element's current position.  Undo restores the original
 formulas.  Items without a DB `elements` record also show the delete button.
-**Tested:** test_zapp_formula_delete.py (6 tests).
+**Tested:** test_zapp_formula_delete.py (13 tests).
 
 ### 6.10  Rotate Tool
 
@@ -1492,7 +1492,7 @@ new rotation and recomputed polygon via `rotatedRectPoly()`.
 
 ### 6.11  Shape Editor
 
-#### TL-25  Shape Editor Dialog
+#### TL-26  Shape Editor Dialog
 The application SHALL provide a shape editor dialog for creating and
 modifying item shapes stored in the `shapes` database table.
 The editor SHALL support adding/moving polygon vertices and previewing
@@ -1502,18 +1502,18 @@ the resulting shape in real time.
 showing polygon with draggable vertex handles. Vertex coordinate list
 updates in real time. Add/remove vertex buttons. Shape saved via
 `POST/PUT /api/shapes`.
-**Tested:** test_zapp_tools.py::TestTL25ShapeEditor (5 tests).
+**Tested:** test_zapp_tools.py::TestTL26ShapeEditor (5 tests).
 
-#### TL-26  Shape Assignment
+#### TL-27  Shape Assignment
 The Properties panel for placed elements SHALL include a Shape dropdown
 listing all shapes from the database. Selecting a shape transforms its
 polygon to the element's position/rotation.
 
 **Acceptance:** `addShapePicker()` renders `<select>` with rect + DB shapes.
 Change triggers PUT with transformed polygon.
-**Tested:** test_zapp_tools.py::TestTL25ShapeEditor::test_shape_assignment_via_element.
+**Tested:** test_zapp_tools.py::TestTL26ShapeEditor::test_shape_assignment_via_element.
 
-#### TL-27  Shape Import from SVG
+#### TL-28  Shape Import from SVG
 The shape editor SHALL support importing a polygon outline from an SVG
 `<polygon>` or `<path>` element via paste.
 

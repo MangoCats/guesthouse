@@ -167,6 +167,53 @@ class TestFormulaDelete:
         )
         assert dep_restored["anchor"] == {"element": "UB", "corner": "SE"}
 
+    def test_delete_redo_re_inlines_dependents(self, app_client):
+        """Redo after undo re-inlines dependent formulas and re-deletes."""
+        _create_wall(app_client, "RB")
+        _create_wall(app_client, "RD")
+
+        base_formula = {
+            "type": "wall_rect",
+            "anchor": [0, 0], "along": "east",
+            "thickness_dir": "north", "thickness": 0.5,
+            "end_mode": "fixed", "length": 5.0,
+        }
+        _put_formula(app_client, "RB", base_formula)
+
+        dep_formula = {
+            "type": "item_rect",
+            "anchor": {"element": "RB", "corner": "SE"},
+            "along": "east", "across": "north",
+            "width": 2.0, "depth": 1.0,
+            "anchor_corner": "sw",
+        }
+        _put_formula(app_client, "RD", dep_formula)
+
+        # Delete RB (inlines into RD)
+        app_client.delete("/api/formulas/RB/element")
+
+        # Undo
+        app_client.post("/api/undo")
+        # RD should reference RB again
+        dep_restored = json.loads(
+            app_client.get("/api/formulas/RD").get_json()[0]["formula_json"]
+        )
+        assert dep_restored["anchor"] == {"element": "RB", "corner": "SE"}
+
+        # Redo
+        resp = app_client.post("/api/redo")
+        assert resp.status_code == 200
+
+        # RB formula should be gone again
+        assert len(app_client.get("/api/formulas/RB").get_json()) == 0
+
+        # RD's formula should be inlined again (literal point, not reference)
+        dep_redone = json.loads(
+            app_client.get("/api/formulas/RD").get_json()[0]["formula_json"]
+        )
+        assert isinstance(dep_redone["anchor"], list), \
+            f"Expected inlined point after redo, got {dep_redone['anchor']}"
+
     def test_seeded_element_delete(self, app_client):
         """Deleting a seeded element like IW1 works and returns rebased list."""
         # IW1 should have dependents
