@@ -1477,7 +1477,7 @@ for all formula-driven items.
 `DELETE /api/formulas/<name>/element`.  Dependent formulas are updated to
 inline the deleted element's current position.  Undo restores the original
 formulas.  Items without a DB `elements` record also show the delete button.
-**Tested:** test_zapp_formula_delete.py (13 tests).
+**Tested:** test_zapp_formula_delete.py (14 tests).
 
 ### 6.10  Rotate Tool
 

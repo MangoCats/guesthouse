@@ -1310,13 +1310,15 @@ def create_app(db_path=None):
         # 3. Capture before state for undo
         before_formulas = {}
         for dep_name in dep_names:
-            dep_formulas = get_element_formulas(dep_name, db_path=db)
+            dep_formulas = get_element_formulas(dep_name, variant=variant,
+                                                db_path=db)
             for f in dep_formulas:
                 key = (f["element_name"], f["param_name"])
                 before_formulas[key] = f["formula_json"]
 
         # Also capture the deleted element's own formula
-        own_formulas = get_element_formulas(element_name, db_path=db)
+        own_formulas = get_element_formulas(element_name, variant=variant,
+                                            db_path=db)
         if not own_formulas:
             return jsonify({"error": "no formula found"}), 404
 
@@ -1337,7 +1339,8 @@ def create_app(db_path=None):
         # 4. Inline element references in dependent formulas
         inlined_deps = {}  # key → new_json (for redo)
         for dep_name in dep_names:
-            dep_formulas = get_element_formulas(dep_name, db_path=db)
+            dep_formulas = get_element_formulas(dep_name, variant=variant,
+                                                db_path=db)
             for f in dep_formulas:
                 old_json = f["formula_json"]
                 formula = json.loads(old_json) if isinstance(old_json, str) else old_json

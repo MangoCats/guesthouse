@@ -224,6 +224,21 @@ class TestFormulaDelete:
         # IW1 formula should be gone
         assert len(app_client.get("/api/formulas/IW1").get_json()) == 0
 
+    def test_delete_variant_specific_element(self, app_client):
+        """Deleting a variant-specific element (e.g. loveseat) works."""
+        # loveseat is seeded with variant="standard"
+        resp = app_client.delete(
+            "/api/formulas/loveseat/element?variant=standard"
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        # Formula should be gone
+        formulas = app_client.get(
+            "/api/formulas/loveseat?variant=standard"
+        ).get_json()
+        assert len(formulas) == 0
+
 
 # ---------------------------------------------------------------------------
 # Evaluator: inline_element_refs unit tests
