@@ -2670,10 +2670,10 @@ async function addFormulaDeleteButton(tbody, elemName) {
     await loadElements();
     await loadGeometry();
     const rebased = result.rebased || [];
-    const msg = rebased.length > 0
+    const toast = rebased.length > 0
       ? `Deleted ${elemName} (re-based ${rebased.join(", ")})`
       : `Deleted ${elemName}`;
-    showToast(msg, "success");
+    showToast(toast, "success");
   });
   td.appendChild(btn);
   tr.appendChild(td);
