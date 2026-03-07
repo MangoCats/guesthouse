@@ -3508,10 +3508,10 @@ function showDoorProperties(tbody, roName) {
   }
   addPropRow(tbody, "—", "Door");
   addPropRow(tbody, "Width", door.width + '"');
-  addDoorDropdownRow(tbody, "Hinge", door.hinge_side, roName, "hinge_side");
-  addDoorDropdownRow(tbody, "Swing", door.swing_direction, roName, "swing_direction");
+  addDoorDropdownRow(tbody, "Hinge", door.hinge_side, roName, "hinge_side", null, door);
+  addDoorDropdownRow(tbody, "Swing", door.swing_direction, roName, "swing_direction", null, door);
   addDoorDropdownRow(tbody, "Type", door.door_type, roName, "door_type",
-    ["single", "double"]);
+    ["single", "double"], door);
 
   // Flip buttons
   const tr = document.createElement("tr");
@@ -3530,7 +3530,7 @@ function showDoorProperties(tbody, roName) {
   tbody.appendChild(tr);
 }
 
-function addDoorDropdownRow(tbody, label, value, openingName, field, options) {
+function addDoorDropdownRow(tbody, label, value, openingName, field, options, door) {
   const dirs = options || ["east", "west", "north", "south"];
   const tr = document.createElement("tr");
   const tdLabel = document.createElement("td");
@@ -3553,6 +3553,7 @@ function addDoorDropdownRow(tbody, label, value, openingName, field, options) {
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({[field]: sel.value}),
       });
+      if (door) door[field] = sel.value;
     } catch (e) {
       showToast("Door update failed: " + e.message, "error");
     }
@@ -3575,6 +3576,7 @@ async function flipDoorProperty(openingName, field, door) {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({[field]: flipped}),
     });
+    door[field] = flipped;
   } catch (e) {
     showToast("Flip failed: " + e.message, "error");
   }
