@@ -1913,6 +1913,8 @@ function showProperties(type, name, data) {
     }
     // Phase 12b: formula section
     addFormulaSection(tbody, name);
+    // Layout checkboxes + delete (like furniture addElementActions)
+    addWallActions(tbody, name, elemRec);
   } else if (type === "opening" || type === "rough_opening") {
     addPropRow(tbody, "Name", data.name);
     if (data.seg_start) addPropRow(tbody, "Segment", `${data.seg_start}–${data.seg_end}`);
@@ -2566,6 +2568,102 @@ function addElementActions(tbody, elemRec) {
   tbody.appendChild(vTr);
   // Delete button (uses shared helper)
   addFormulaDeleteButton(tbody, elemRec.name);
+}
+
+/** Add layout checkboxes + delete for IW walls using variant_exclusions. */
+function addWallActions(tbody, wallName, elemRec) {
+  const exclusions = App.state.exclusions || {};
+  const excludedWalls = new Set(exclusions.wall || []);
+  const allVariants = App.state.variants || [];
+
+  // Layout checkboxes
+  const vTr = document.createElement("tr");
+  const vTd1 = document.createElement("td");
+  vTd1.textContent = "Layouts";
+  vTd1.style.verticalAlign = "top";
+  vTr.appendChild(vTd1);
+  const vTd2 = document.createElement("td");
+  for (const v of allVariants) {
+    const label = document.createElement("label");
+    label.className = "prop-checkbox-label";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !excludedWalls.has(wallName) ||
+      !(App.state.variant === v.name && excludedWalls.has(wallName));
+    // Check per-variant exclusion: need to fetch or infer
+    // We only have exclusions for the current variant, so show
+    // checked = visible in current layout, unchecked = excluded
+    if (v.name === App.state.variant) {
+      cb.checked = !excludedWalls.has(wallName);
+    } else {
+      // We don't have other variants' exclusions loaded; show as checked (default)
+      cb.checked = true;
+      cb.disabled = true;
+      cb.title = "Switch to this layout to edit";
+    }
+    cb.addEventListener("change", async () => {
+      try {
+        const resp = await fetch("/api/exclusions", {
+          method: "PUT",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            variant: App.state.variant,
+            element_type: "wall",
+            element_name: wallName,
+            excluded: !cb.checked,
+          }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json();
+          showToast(data.error || "Failed to update", "error");
+          cb.checked = !cb.checked; // revert
+          return;
+        }
+        await loadElements();
+        await loadGeometry();
+      } catch (e) {
+        showToast("Failed to toggle wall: " + e.message, "error");
+        cb.checked = !cb.checked;
+      }
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + v.label));
+    vTd2.appendChild(label);
+  }
+  vTr.appendChild(vTd2);
+  tbody.appendChild(vTr);
+
+  // Delete button
+  if (elemRec) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 2;
+    td.style.textAlign = "center";
+    const btn = document.createElement("button");
+    btn.textContent = "Delete";
+    btn.className = "prop-delete-btn";
+    btn.addEventListener("click", async () => {
+      const hosted = IW_HOSTED_OPENINGS[wallName] || [];
+      let msg = `Delete ${wallName}?`;
+      if (hosted.length > 0) {
+        msg = `Delete ${wallName} (will also delete ${hosted.join(", ")})?`;
+      }
+      if (!confirm(msg)) return;
+      const resp = await fetch(`/api/elements/${elemRec.id}`, {method: "DELETE"});
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        showToast(data.error || "Delete failed", "error");
+        return;
+      }
+      clearSelection();
+      await loadElements();
+      await loadGeometry();
+      showToast(`Deleted ${wallName}`, "success");
+    });
+    td.appendChild(btn);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
 }
 
 /** Add delete button for formula-only items (no DB elements record). */
@@ -3334,8 +3432,6 @@ function updateElementsTable() {
   const g = App.state.geometry;
   const elements = App.state.elements || [];
   const doors = App.state.doors || [];
-  const exclusions = App.state.exclusions || {};
-  const excludedWalls = new Set(exclusions.wall || []);
 
   // Interior walls table
   const tbody1 = App.els["interior-walls-table"]
@@ -3345,7 +3441,6 @@ function updateElementsTable() {
     const walls = elements.filter(e => e.type === "wall");
     for (const wall of walls) {
       const tr = document.createElement("tr");
-      const isExcluded = excludedWalls.has(wall.name);
       const iwData = g ? g.interior_walls[wall.name] : null;
       let thickness = "—";
       let length = "—";
@@ -3361,55 +3456,21 @@ function updateElementsTable() {
         length = fmtFtIn(len);
         orientation = ew > ns ? "H" : "V";
       }
+      // Find hosted openings from rough_openings data
       const hosted = g ? (g.rough_openings || [])
         .filter(ro => ro.wall_name === wall.name)
         .map(ro => ro.name) : [];
       openings = hosted.length > 0 ? hosted.join(", ") : "—";
 
-      if (isExcluded) tr.classList.add("excluded");
-
-      // Checkbox cell
-      const tdCheck = document.createElement("td");
-      tdCheck.className = "iw-check-cell";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !isExcluded;
-      cb.title = isExcluded ? `Show ${wall.name} in this layout` : `Hide ${wall.name} in this layout`;
-      cb.addEventListener("change", async (e) => {
-        e.stopPropagation();
-        await toggleWallExclusion(wall.name, !cb.checked);
-      });
-      tdCheck.appendChild(cb);
-
-      // Data cells
-      const tdName = document.createElement("td");
-      tdName.textContent = wall.name;
-      const tdThick = document.createElement("td");
-      tdThick.textContent = thickness;
-      const tdLen = document.createElement("td");
-      tdLen.textContent = length;
-      const tdOrient = document.createElement("td");
-      tdOrient.textContent = orientation;
-      const tdOpen = document.createElement("td");
-      tdOpen.textContent = openings;
-
-      // Delete button cell
-      const tdDel = document.createElement("td");
-      tdDel.className = "iw-del-cell";
-      const delBtn = document.createElement("button");
-      delBtn.className = "iw-del-btn";
-      delBtn.textContent = "\u00d7";
-      delBtn.title = `Delete ${wall.name}`;
-      delBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        await deleteWallFromTable(wall);
-      });
-      tdDel.appendChild(delBtn);
-
-      tr.append(tdCheck, tdName, tdThick, tdLen, tdOrient, tdOpen, tdDel);
+      tr.innerHTML = `
+        <td>${wall.name}</td>
+        <td>${thickness}</td>
+        <td>${length}</td>
+        <td>${orientation}</td>
+        <td>${openings}</td>
+      `;
       tr.classList.add("selectable");
       tr.addEventListener("click", (e) => {
-        if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
         if (iwData) selectElement("wall", wall.name, iwData, e);
       });
       tbody1.appendChild(tr);
@@ -3439,53 +3500,6 @@ function updateElementsTable() {
       });
       tbody2.appendChild(tr);
     }
-  }
-}
-
-async function toggleWallExclusion(wallName, excluded) {
-  try {
-    const resp = await fetch("/api/exclusions", {
-      method: "PUT",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        variant: App.state.variant,
-        element_type: "wall",
-        element_name: wallName,
-        excluded,
-      }),
-    });
-    if (!resp.ok) {
-      const data = await resp.json();
-      showToast(data.error || "Failed to update", "error");
-      return;
-    }
-    await loadElements();
-    await loadGeometry();
-  } catch (e) {
-    showToast("Failed to toggle wall: " + e.message, "error");
-  }
-}
-
-async function deleteWallFromTable(wall) {
-  const hosted = IW_HOSTED_OPENINGS[wall.name] || [];
-  let msg = `Delete ${wall.name}?`;
-  if (hosted.length > 0) {
-    msg = `Delete ${wall.name} (will also delete ${hosted.join(", ")})?`;
-  }
-  if (!confirm(msg)) return;
-  try {
-    const resp = await fetch(`/api/elements/${wall.id}`, {method: "DELETE"});
-    if (!resp.ok) {
-      const data = await resp.json();
-      showToast(data.error || "Delete failed", "error");
-      return;
-    }
-    clearSelection();
-    await loadElements();
-    await loadGeometry();
-    showToast(`Deleted ${wall.name}`, "success");
-  } catch (e) {
-    showToast("Delete failed: " + e.message, "error");
   }
 }
 

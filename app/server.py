@@ -36,7 +36,7 @@ from app.database import (
     get_all_formula_deps,
 )
 from app.doors import validate_door
-from app.elements import compute_constant_delta, IW_CONSTANT_MAP
+from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
 from app.engine import (
     compute_geometry, generate_svg, get_svg_content, patch_constants,
     compute_survey_points,
@@ -745,6 +745,13 @@ def create_app(db_path=None):
             return jsonify({"error": "variant, element_type, element_name required"}), 400
         changed = set_variant_exclusion(
             variant, element_type, element_name, excluded, db)
+        # Cascade: when a wall is excluded/included, also exclude/include
+        # its hosted rough openings so they stay in sync.
+        if element_type == "wall":
+            for ro_name in IW_HOSTED_OPENINGS.get(element_name, []):
+                if set_variant_exclusion(
+                        variant, "rough_opening", ro_name, excluded, db):
+                    changed = True
         if changed:
             _invalidate()
             _broadcast("element_changed")
