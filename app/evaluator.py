@@ -1254,6 +1254,101 @@ def _extract_deps_recursive(spec, deps):
 
 
 # ---------------------------------------------------------------------------
+# Formula inlining: replace element references with literal values
+# ---------------------------------------------------------------------------
+
+def inline_element_refs(formula, elem_name, elem_data):
+    """Replace all references to elem_name in formula with literal values.
+
+    Uses elem_data (from evaluator.elements[elem_name]) to resolve:
+      - {"element": elem_name, "corner": ...} → [E, N] literal
+      - {"element_centroid": elem_name} → [E, N] literal
+      - {"face_mid": elem_name, "face": ...} → [E, N] literal
+      - {"face_along": elem_name, "face": ...} → [dx, dy] literal
+      - {"face_perp": elem_name, "face": ...} → [dx, dy] literal
+      - {"table": elem_name} → [E, N] centroid literal
+
+    Returns a new formula dict/list with references inlined, or the
+    original value unchanged if no references match.
+    """
+    return _inline_recursive(formula, elem_name, elem_data)
+
+
+def _inline_recursive(spec, elem_name, elem_data):
+    """Recursively walk spec, replacing element references with literals."""
+    if spec is None or isinstance(spec, (int, float, bool, str)):
+        return spec
+    if isinstance(spec, (list, tuple)):
+        return [_inline_recursive(item, elem_name, elem_data) for item in spec]
+    if not isinstance(spec, dict):
+        return spec
+
+    poly = elem_data.get("poly", []) if elem_data else []
+
+    # {"element": elem_name, "corner": ...} → [E, N]
+    if spec.get("element") == elem_name and "corner" in spec:
+        corner = spec["corner"]
+        if isinstance(corner, int) and 0 <= corner < len(poly):
+            p = poly[corner]
+            return [round(p[0], 12), round(p[1], 12)]
+        if isinstance(corner, str):
+            corner_map = {"SW": 0, "SE": 1, "NE": 2, "NW": 3,
+                          "sw": 0, "se": 1, "ne": 2, "nw": 3}
+            idx = corner_map.get(corner)
+            if idx is not None and idx < len(poly):
+                p = poly[idx]
+                return [round(p[0], 12), round(p[1], 12)]
+        return spec  # can't resolve — leave unchanged
+
+    # {"element_centroid": elem_name} → [E, N]
+    if spec.get("element_centroid") == elem_name and poly:
+        n = len(poly)
+        cx = sum(p[0] for p in poly) / n
+        cy = sum(p[1] for p in poly) / n
+        return [round(cx, 12), round(cy, 12)]
+
+    # {"table": elem_name} → [E, N] centroid
+    if spec.get("table") == elem_name and poly:
+        n = len(poly)
+        cx = sum(p[0] for p in poly) / n
+        cy = sum(p[1] for p in poly) / n
+        return [round(cx, 12), round(cy, 12)]
+
+    # {"face_mid": elem_name, "face": ...} → [E, N]
+    if spec.get("face_mid") == elem_name:
+        mid = _face_midpoint(poly, spec.get("face"))
+        if mid:
+            return [round(mid[0], 12), round(mid[1], 12)]
+        return spec
+
+    # {"face_along": elem_name, "face": ...} → [dx, dy]
+    if spec.get("face_along") == elem_name:
+        a, b = _face_vertices(poly, spec.get("face"))
+        if a is not None:
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            length = math.sqrt(dx * dx + dy * dy)
+            if length > 1e-12:
+                return [round(dx / length, 12), round(dy / length, 12)]
+        return spec
+
+    # {"face_perp": elem_name, "face": ...} → [dx, dy]
+    if spec.get("face_perp") == elem_name:
+        a, b = _face_vertices(poly, spec.get("face"))
+        if a is not None:
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            length = math.sqrt(dx * dx + dy * dy)
+            if length > 1e-12:
+                return [round(dy / length, 12), round(-dx / length, 12)]
+        return spec
+
+    # Recurse into all dict values
+    result = {}
+    for key, val in spec.items():
+        result[key] = _inline_recursive(val, elem_name, elem_data)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # IW formula definitions (Phase 12c)
 # ---------------------------------------------------------------------------
 # Direction shorthands for formula specs

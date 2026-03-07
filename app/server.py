@@ -152,6 +152,28 @@ def create_app(db_path=None):
             "can_redo": undo_mgr.can_redo,
         })
 
+    def _evaluate_element(elem_name, variant="standard"):
+        """Run the formula evaluator and return computed data for elem_name.
+
+        Returns dict with 'poly' key, or None if the element has no formula
+        or evaluation fails.
+        """
+        from app.evaluator import FormulaEvaluator
+        constants = get_constants_dict(db)
+        # Build a minimal geometry context for the evaluator
+        geom = _get_geometry(variant)
+        base_points = geom.get("points", {})
+        inner = [(p[0], p[1]) for p in (geom.get("inner_poly") or [])]
+        radii = geom.get("radii", {})
+
+        ev = FormulaEvaluator(constants, base_points, inner, radii)
+        ev.load_formulas_from_db(db_path=db, variant=variant)
+        try:
+            ev.evaluate_all()
+        except Exception:
+            return None
+        return ev.elements.get(elem_name)
+
     def _solve_and_update_closure():
         """Re-solve closure and update solved values in DB.
 
@@ -1267,6 +1289,94 @@ def create_app(db_path=None):
         _broadcast("element_changed")
         _invalidate()
         return jsonify(result)
+
+    @app.route("/api/formulas/<element_name>/element", methods=["DELETE"])
+    def api_delete_formula_element(element_name):
+        """Delete an element by removing its formula and re-basing dependents.
+
+        Dependents' formulas are updated to replace references to the deleted
+        element with literal coordinate values (inlining).  Supports undo.
+        """
+        from app.evaluator import inline_element_refs, extract_deps
+        variant = request.args.get("variant", "standard")
+
+        # 1. Get the element's current computed geometry for inlining
+        elem_data = _evaluate_element(element_name, variant)
+
+        # 2. Find dependent formulas
+        dependents = db_get_dependents(element_name, db_path=db)
+        dep_names = {d["element_name"] for d in dependents}
+
+        # 3. Capture before state for undo
+        before_formulas = {}
+        for dep_name in dep_names:
+            dep_formulas = get_element_formulas(dep_name, db_path=db)
+            for f in dep_formulas:
+                key = (f["element_name"], f["param_name"])
+                before_formulas[key] = f["formula_json"]
+
+        # Also capture the deleted element's own formula
+        own_formulas = get_element_formulas(element_name, db_path=db)
+        if not own_formulas:
+            return jsonify({"error": "no formula found"}), 404
+
+        before_state = {
+            "element_name": element_name,
+            "own_formulas": [
+                {"element_name": f["element_name"],
+                 "param_name": f["param_name"],
+                 "formula_json": f["formula_json"],
+                 "locked": f.get("locked", 0),
+                 "locked_value": f.get("locked_value"),
+                 "variant": f.get("variant")}
+                for f in own_formulas
+            ],
+            "updated_deps": {},
+        }
+
+        # 4. Inline element references in dependent formulas
+        import json as _json
+        for dep_name in dep_names:
+            dep_formulas = get_element_formulas(dep_name, db_path=db)
+            for f in dep_formulas:
+                old_json = f["formula_json"]
+                formula = _json.loads(old_json) if isinstance(old_json, str) else old_json
+                new_formula = inline_element_refs(formula, element_name, elem_data)
+                new_json = _json.dumps(new_formula)
+                if new_json != old_json:
+                    key = f"{f['element_name']}/{f['param_name']}"
+                    before_state["updated_deps"][key] = old_json
+                    upsert_formula(f["element_name"], f["param_name"],
+                                   new_formula, variant=f.get("variant"),
+                                   db_path=db)
+                    # Rebuild deps for updated formula
+                    new_deps = extract_deps(new_formula)
+                    rebuild_formula_deps(f["element_name"], f["param_name"],
+                                         list(new_deps), db_path=db)
+
+        # 5. Delete the element's own formula(s)
+        for f in own_formulas:
+            delete_formula(f["element_name"], f["param_name"],
+                           variant=f.get("variant"), db_path=db)
+            rebuild_formula_deps(f["element_name"], f["param_name"],
+                                  [], db_path=db)
+
+        # 6. Also delete the elements DB record if one exists
+        deleted_element = None
+        elem_rec = get_element_by_name(element_name, db)
+        if elem_rec:
+            deleted_element = dict(elem_rec)
+            delete_element(elem_rec["id"], db)
+            before_state["deleted_element"] = deleted_element
+
+        # 7. Record undo
+        undo_mgr.record("formula_delete_element", before_state,
+                         {"element_name": element_name},
+                         f"Delete {element_name}")
+
+        _broadcast("element_changed")
+        _invalidate()
+        return jsonify({"ok": True, "rebased": list(dep_names)})
 
     @app.route("/api/formulas/<element_name>/<param_name>", methods=["DELETE"])
     def api_delete_formula(element_name, param_name):

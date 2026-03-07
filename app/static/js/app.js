@@ -2003,9 +2003,12 @@ function showProperties(type, name, data) {
       addViewOverrideControls(tbody, _elemRec, _props);
       addProductUrlField(tbody, _elemRec, _props);
       addElementActions(tbody, _elemRec);
-    } else if (data && data.product_url) {
-      // No DB record but variant item has a product URL — show read-only
-      addProductUrlField(tbody, null, { product_url: data.product_url });
+    } else {
+      // No DB record — show product URL (if any) + formula-aware delete
+      if (data && data.product_url) {
+        addProductUrlField(tbody, null, { product_url: data.product_url });
+      }
+      addFormulaDeleteButton(tbody, name);
     }
   } else if (type === "dimension") {
     const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
@@ -2571,20 +2574,66 @@ function addElementActions(tbody, elemRec) {
   dBtn.className = "prop-delete-btn";
   dBtn.addEventListener("click", async () => {
     if (!confirm(`Delete ${elemRec.name}?`)) return;
-    const resp = await fetch(`/api/elements/${elemRec.id}`, { method: "DELETE" });
+    // Use formula-aware delete endpoint (handles dependency re-basing)
+    const v = App.state.variant || "standard";
+    const resp = await fetch(
+      `/api/formulas/${encodeURIComponent(elemRec.name)}/element?variant=${encodeURIComponent(v)}`,
+      { method: "DELETE" }
+    );
     if (!resp.ok) {
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
       showToast(data.error || "Delete failed", "error");
       return;
     }
+    const result = await resp.json();
     clearSelection();
     await loadElements();
     await loadGeometry();
-    showToast(`Deleted ${elemRec.name}`, "success");
+    const rebased = result.rebased || [];
+    const msg = rebased.length > 0
+      ? `Deleted ${elemRec.name} (re-based ${rebased.join(", ")})`
+      : `Deleted ${elemRec.name}`;
+    showToast(msg, "success");
   });
   dTd.appendChild(dBtn);
   dTr.appendChild(dTd);
   tbody.appendChild(dTr);
+}
+
+/** Add delete button for formula-only items (no DB elements record). */
+function addFormulaDeleteButton(tbody, elemName) {
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = 2;
+  td.style.textAlign = "center";
+  const btn = document.createElement("button");
+  btn.textContent = "Delete";
+  btn.className = "prop-delete-btn";
+  btn.addEventListener("click", async () => {
+    if (!confirm(`Delete ${elemName}?`)) return;
+    const v = App.state.variant || "standard";
+    const resp = await fetch(
+      `/api/formulas/${encodeURIComponent(elemName)}/element?variant=${encodeURIComponent(v)}`,
+      { method: "DELETE" }
+    );
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      showToast(data.error || "Delete failed", "error");
+      return;
+    }
+    const result = await resp.json();
+    clearSelection();
+    await loadElements();
+    await loadGeometry();
+    const rebased = result.rebased || [];
+    const msg = rebased.length > 0
+      ? `Deleted ${elemName} (re-based ${rebased.join(", ")})`
+      : `Deleted ${elemName}`;
+    showToast(msg, "success");
+  });
+  td.appendChild(btn);
+  tr.appendChild(td);
+  tbody.appendChild(tr);
 }
 
 /** Phase 12b: Show formula section in properties panel for elements with formulas. */

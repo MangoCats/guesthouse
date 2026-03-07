@@ -10,7 +10,7 @@ from app.database import (
     get_db, update_constant, update_constants_batch,
     create_element_raw, update_element, delete_element,
     create_door_raw, update_door, delete_door,
-    set_formula_lock,
+    set_formula_lock, get_element_formulas,
 )
 
 
@@ -197,6 +197,8 @@ class UndoManager:
                 state["locked"], locked_value=state.get("locked_value"),
                 variant=state.get("variant"), db_path=self._db_path,
             )
+        elif action_type == "formula_delete_element":
+            self._apply_formula_delete(state)
         elif action_type == "full_reset":
             # Combined constants + outline + elements + doors reset
             from app.database import restore_outline_chain, restore_elements
@@ -207,6 +209,53 @@ class UndoManager:
                                  self._db_path)
         else:
             raise ValueError(f"Unknown undo action type: {action_type}")
+
+    def _apply_formula_delete(self, state):
+        """Apply undo/redo for formula_delete_element action."""
+        import json as _json
+        from app.database import (upsert_formula, delete_formula,
+                                  rebuild_formula_deps)
+        from app.evaluator import extract_deps
+        if "own_formulas" in state:
+            # Undo: re-insert the deleted formula(s)
+            for f in state["own_formulas"]:
+                formula = _json.loads(f["formula_json"]) if isinstance(
+                    f["formula_json"], str) else f["formula_json"]
+                upsert_formula(f["element_name"], f["param_name"],
+                               formula, variant=f.get("variant"),
+                               db_path=self._db_path)
+                deps = extract_deps(formula)
+                rebuild_formula_deps(f["element_name"], f["param_name"],
+                                     list(deps), db_path=self._db_path)
+                if f.get("locked"):
+                    set_formula_lock(f["element_name"], f["param_name"],
+                                     True, locked_value=f.get("locked_value"),
+                                     variant=f.get("variant"),
+                                     db_path=self._db_path)
+            # Restore dependent formulas to their pre-inlined state
+            for key, old_json in state.get("updated_deps", {}).items():
+                parts = key.split("/", 1)
+                if len(parts) == 2:
+                    formula = _json.loads(old_json) if isinstance(
+                        old_json, str) else old_json
+                    upsert_formula(parts[0], parts[1], formula,
+                                   db_path=self._db_path)
+                    deps = extract_deps(formula)
+                    rebuild_formula_deps(parts[0], parts[1],
+                                          list(deps), db_path=self._db_path)
+            # Re-insert the elements record if one was deleted
+            if "deleted_element" in state:
+                create_element_raw(state["deleted_element"], self._db_path)
+        else:
+            # Redo: re-delete (state is {"element_name": name})
+            elem_name = state["element_name"]
+            formulas = get_element_formulas(elem_name, db_path=self._db_path)
+            for f in formulas:
+                delete_formula(f["element_name"], f["param_name"],
+                               variant=f.get("variant"),
+                               db_path=self._db_path)
+                rebuild_formula_deps(f["element_name"], f["param_name"],
+                                     [], db_path=self._db_path)
 
     def _load(self):
         """Rebuild the in-memory stack from the undo_history table."""

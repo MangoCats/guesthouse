@@ -1466,6 +1466,19 @@ doors. Client-side `IW_HOSTED_OPENINGS` map provides cascade warning in
 confirmation dialog.
 **Tested:** test_zapp_tools.py::TestTL23CascadeDelete (1 test).
 
+#### TL-25  Formula-Aware Delete with Dependency Re-basing
+Deleting any formula-driven element (wall, opening, furniture, appliance,
+variant item) SHALL replace all references to that element in dependent
+formulas with literal coordinate values (inlining), then delete the
+element's formula.  A delete button SHALL appear in the properties panel
+for all formula-driven items.
+
+**Acceptance:** Delete an element that has dependents via
+`DELETE /api/formulas/<name>/element`.  Dependent formulas are updated to
+inline the deleted element's current position.  Undo restores the original
+formulas.  Items without a DB `elements` record also show the delete button.
+**Tested:** test_zapp_formula_delete.py (6 tests).
+
 ### 6.10  Rotate Tool
 
 #### TL-24  Rotate Element
@@ -2557,7 +2570,7 @@ history) to the requirements that enable each operation through the GUI.
 | Resize elements | ~20 | SEL-10, DT-7, DT-10 |
 | Element styling (colour/opacity) | ~18 | STYLE-1..4 |
 | Product hyperlinks | ~14 | LINK-1, LINK-2, SEL-12, CV-12, DIS-11 |
-| Delete elements | ~8 | TL-22, TL-23, SEL-13, API-22, API-26, API-29 |
+| Delete elements | ~14 | TL-22, TL-23, TL-25, SEL-13, API-22, API-26, API-29 |
 | Undo/redo | implicit | UNDO-1..4, API-30, API-31 |
 
 ## Appendix B: Requirements Summary
