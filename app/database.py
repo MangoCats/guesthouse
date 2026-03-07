@@ -1418,6 +1418,34 @@ def delete_variant_exclusions(variant, db_path=None):
         )
 
 
+def set_variant_exclusion(variant, element_type, element_name,
+                          excluded, db_path=None):
+    """Add or remove a single variant exclusion.
+
+    Returns True if state changed, False if already in desired state.
+    """
+    with get_db(db_path) as conn:
+        exists = conn.execute(
+            "SELECT 1 FROM variant_exclusions "
+            "WHERE variant = ? AND element_type = ? AND element_name = ?",
+            (variant, element_type, element_name),
+        ).fetchone()
+        if excluded and not exists:
+            conn.execute(
+                "INSERT INTO variant_exclusions "
+                "(variant, element_type, element_name) VALUES (?, ?, ?)",
+                (variant, element_type, element_name),
+            )
+            return True
+        if not excluded and exists:
+            conn.execute(
+                "DELETE FROM variant_exclusions "
+                "WHERE variant = ? AND element_type = ? AND element_name = ?",
+                (variant, element_type, element_name),
+            )
+            return True
+        return False
+
 
 def _parse_props(raw):
     """Parse properties JSON, handling double-encoding."""

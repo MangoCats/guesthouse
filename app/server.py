@@ -28,6 +28,7 @@ from app.database import (
     get_variants, get_variant, get_variant_by_id, update_variant,
     create_variant, delete_variant, create_variant_raw,
     clone_variant_exclusions, delete_variant_exclusions,
+    set_variant_exclusion, get_variant_exclusions,
     clone_variant_elements, unclone_variant_elements,
     get_element_formulas, get_all_formulas, upsert_formula,
     delete_formula, set_formula_lock, get_formula_deps,
@@ -723,6 +724,31 @@ def create_app(db_path=None):
         _invalidate()
         _broadcast("variant_changed")
         return jsonify({"deleted": variant_id})
+
+    # -- Exclusions API --
+
+    @app.route("/api/exclusions")
+    def api_get_exclusions():
+        variant = request.args.get("variant", "standard")
+        excl = get_variant_exclusions(variant, db)
+        # Convert sets to lists for JSON
+        return jsonify({k: sorted(v) for k, v in excl.items()})
+
+    @app.route("/api/exclusions", methods=["PUT"])
+    def api_set_exclusion():
+        body = request.get_json(force=True)
+        variant = body.get("variant")
+        element_type = body.get("element_type")
+        element_name = body.get("element_name")
+        excluded = body.get("excluded", True)
+        if not variant or not element_type or not element_name:
+            return jsonify({"error": "variant, element_type, element_name required"}), 400
+        changed = set_variant_exclusion(
+            variant, element_type, element_name, excluded, db)
+        if changed:
+            _invalidate()
+            _broadcast("element_changed")
+        return jsonify({"ok": True, "changed": changed})
 
     # -- Shapes API --
 

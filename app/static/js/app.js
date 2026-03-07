@@ -3316,12 +3316,14 @@ function updateOpeningsTable() {
 
 async function loadElements() {
   try {
-    const [elemResp, doorResp] = await Promise.all([
+    const [elemResp, doorResp, exclResp] = await Promise.all([
       fetch("/api/elements"),
       fetch("/api/doors"),
+      fetch(`/api/exclusions?variant=${App.state.variant}`),
     ]);
     App.state.elements = await elemResp.json();
     App.state.doors = await doorResp.json();
+    App.state.exclusions = await exclResp.json();
     updateElementsTable();
   } catch (e) {
     console.error("Elements load failed:", e);
@@ -3332,6 +3334,8 @@ function updateElementsTable() {
   const g = App.state.geometry;
   const elements = App.state.elements || [];
   const doors = App.state.doors || [];
+  const exclusions = App.state.exclusions || {};
+  const excludedWalls = new Set(exclusions.wall || []);
 
   // Interior walls table
   const tbody1 = App.els["interior-walls-table"]
@@ -3341,6 +3345,7 @@ function updateElementsTable() {
     const walls = elements.filter(e => e.type === "wall");
     for (const wall of walls) {
       const tr = document.createElement("tr");
+      const isExcluded = excludedWalls.has(wall.name);
       const iwData = g ? g.interior_walls[wall.name] : null;
       let thickness = "—";
       let length = "—";
@@ -3350,28 +3355,61 @@ function updateElementsTable() {
         const b = iwData.bbox;
         const ew = b.e - b.w;
         const ns = b.n - b.s;
-        // Thickness is the smaller dimension, length is the larger
         const thick = Math.min(ew, ns);
         const len = Math.max(ew, ns);
         thickness = (thick * 12).toFixed(1).replace(/\.0$/, '') + '"';
         length = fmtFtIn(len);
         orientation = ew > ns ? "H" : "V";
       }
-      // Find hosted openings from rough_openings data
       const hosted = g ? (g.rough_openings || [])
         .filter(ro => ro.wall_name === wall.name)
         .map(ro => ro.name) : [];
       openings = hosted.length > 0 ? hosted.join(", ") : "—";
 
-      tr.innerHTML = `
-        <td>${wall.name}</td>
-        <td>${thickness}</td>
-        <td>${length}</td>
-        <td>${orientation}</td>
-        <td>${openings}</td>
-      `;
+      if (isExcluded) tr.classList.add("excluded");
+
+      // Checkbox cell
+      const tdCheck = document.createElement("td");
+      tdCheck.className = "iw-check-cell";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !isExcluded;
+      cb.title = isExcluded ? `Show ${wall.name} in this layout` : `Hide ${wall.name} in this layout`;
+      cb.addEventListener("change", async (e) => {
+        e.stopPropagation();
+        await toggleWallExclusion(wall.name, !cb.checked);
+      });
+      tdCheck.appendChild(cb);
+
+      // Data cells
+      const tdName = document.createElement("td");
+      tdName.textContent = wall.name;
+      const tdThick = document.createElement("td");
+      tdThick.textContent = thickness;
+      const tdLen = document.createElement("td");
+      tdLen.textContent = length;
+      const tdOrient = document.createElement("td");
+      tdOrient.textContent = orientation;
+      const tdOpen = document.createElement("td");
+      tdOpen.textContent = openings;
+
+      // Delete button cell
+      const tdDel = document.createElement("td");
+      tdDel.className = "iw-del-cell";
+      const delBtn = document.createElement("button");
+      delBtn.className = "iw-del-btn";
+      delBtn.textContent = "\u00d7";
+      delBtn.title = `Delete ${wall.name}`;
+      delBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await deleteWallFromTable(wall);
+      });
+      tdDel.appendChild(delBtn);
+
+      tr.append(tdCheck, tdName, tdThick, tdLen, tdOrient, tdOpen, tdDel);
       tr.classList.add("selectable");
       tr.addEventListener("click", (e) => {
+        if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
         if (iwData) selectElement("wall", wall.name, iwData, e);
       });
       tbody1.appendChild(tr);
@@ -3401,6 +3439,53 @@ function updateElementsTable() {
       });
       tbody2.appendChild(tr);
     }
+  }
+}
+
+async function toggleWallExclusion(wallName, excluded) {
+  try {
+    const resp = await fetch("/api/exclusions", {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        variant: App.state.variant,
+        element_type: "wall",
+        element_name: wallName,
+        excluded,
+      }),
+    });
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(data.error || "Failed to update", "error");
+      return;
+    }
+    await loadElements();
+    await loadGeometry();
+  } catch (e) {
+    showToast("Failed to toggle wall: " + e.message, "error");
+  }
+}
+
+async function deleteWallFromTable(wall) {
+  const hosted = IW_HOSTED_OPENINGS[wall.name] || [];
+  let msg = `Delete ${wall.name}?`;
+  if (hosted.length > 0) {
+    msg = `Delete ${wall.name} (will also delete ${hosted.join(", ")})?`;
+  }
+  if (!confirm(msg)) return;
+  try {
+    const resp = await fetch(`/api/elements/${wall.id}`, {method: "DELETE"});
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(data.error || "Delete failed", "error");
+      return;
+    }
+    clearSelection();
+    await loadElements();
+    await loadGeometry();
+    showToast(`Deleted ${wall.name}`, "success");
+  } catch (e) {
+    showToast("Delete failed: " + e.message, "error");
   }
 }
 
@@ -3596,6 +3681,7 @@ function setupEventListeners() {
     await saveCurrentLayerConfig();
     App.state.variant = e.target.value;
     restoreLayerConfig();
+    loadElements();
     loadGeometry();
     updateDeleteVariantBtn();
     if (App.state.activeView === "floorplan") loadSVGView("floorplan");

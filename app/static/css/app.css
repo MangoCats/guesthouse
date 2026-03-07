@@ -396,6 +396,17 @@ td input:not([type="checkbox"]) {
   font-family: 'Cascadia Code', 'Fira Code', monospace;
 }
 td input:not([type="checkbox"]):focus { border-color: var(--accent); outline: none; }
+
+/* IW checklist: checkbox and delete columns */
+.iw-check-cell, .iw-del-cell { width: 20px; padding: 2px 3px; text-align: center; }
+.iw-check-cell input[type="checkbox"] { cursor: pointer; margin: 0; }
+.iw-del-btn {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  font-size: 14px; line-height: 1; padding: 0 2px; border-radius: 3px;
+}
+.iw-del-btn:hover { color: var(--red, #f38ba8); background: var(--bg-hover); }
+tr.excluded td { opacity: 0.45; }
+tr.excluded td:first-child { opacity: 1; }
 td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 0.1); }
 
 #constants-table-wrap {
