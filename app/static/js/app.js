@@ -2627,7 +2627,6 @@ function addWallActions(tbody, wallName, elemRec) {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.colSpan = 2;
-    td.style.textAlign = "center";
     const btn = document.createElement("button");
     btn.textContent = "Delete";
     btn.className = "prop-delete-btn";
@@ -2660,7 +2659,6 @@ function addFormulaDeleteButton(tbody, elemName) {
   const tr = document.createElement("tr");
   const td = document.createElement("td");
   td.colSpan = 2;
-  td.style.textAlign = "center";
   const btn = document.createElement("button");
   btn.textContent = "Delete";
   btn.className = "prop-delete-btn";

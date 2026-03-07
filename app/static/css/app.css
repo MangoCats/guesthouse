@@ -418,6 +418,9 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
 }
+#props-table { table-layout: fixed; }
+#props-table td:first-child { width: 80px; white-space: nowrap; }
+#props-table td:last-child { white-space: normal; word-break: break-all; overflow-wrap: break-word; }
 
 .prop-btn {
   padding: 2px 8px; font-size: 11px;
