@@ -262,7 +262,7 @@ def _swing_arc(hinge, radius, dir_from, dir_to, n_pts=20):
     return pts
 
 
-def _compute_clearance_zones(variant, variant_items=None, furniture=None):
+def _compute_clearance_zones(variant, variant_items=None):
     """Compute clearance zone polygons for fixture/furniture items.
 
     Returns list of clearance zone dicts with name, poly, style.

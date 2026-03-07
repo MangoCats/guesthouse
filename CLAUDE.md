@@ -109,8 +109,8 @@ The F-series outline is defined purely by:
 ## Workflow
 - After each successful (as determined by passing of all tests) completed request, always: `git commit -a -m "<summary>"` then `python gen_all.py` to regenerate all SVGs.  summary shall be 25 words or less, and shall not include "Co-Authored-By: Claude".
 - Outline geometry lives in `floorplan/geometry.py`; dimension constants in `floorplan/constants.py`
-- Interior layout (rooms, furniture) lives in `floorplan/layout.py`
-- Opening positions (O1-O11, RO1-RO7) live in `floorplan/openings.py` — single source of truth
+- Interior layout (rooms, furniture) lives in `floorplan/layout.py` (reference for gen scripts; app uses DB formulas)
+- Opening positions (O1-O11, RO1-RO7) live in `floorplan/openings.py` (reference for gen scripts; app uses DB formulas)
 - Wall construction constants (shell thickness, air gap, opening radius) defined in `floorplan/constants.py`, re-exported by `walls/constants.py`
 - Shell geometry utilities (inset paths, U-turn polygons, wall sections) live in `shared/wall_shells.py`
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
@@ -123,13 +123,13 @@ app/                 — Flask web editor: interactive canvas + constants editin
   server.py          — Flask routes, SSE broadcast, geometry cache
   engine.py          — Geometry computation orchestrator (patches floorplan.constants)
   database.py        — SQLite schema, seeding from floorplan/ sources, CRUD
-  variants.py        — Variant furniture/appliance positioning (replicates gen_floorplan.py math)
+  variants.py        — Variant registry and item dimension constants
   apputil.py         — Shared JSON serialisation helpers (point_to_list, bbox_from_poly, seg_to_dict)
   templates/         — index.html (single-page layout)
   static/js/app.js   — Client application (~1440 lines, no build step)
   static/css/app.css — Dark theme (Catppuccin palette)
   ARCHITECTURE.md    — Detailed module docs, computation flow, roadmap
-  REQUIREMENTS.md    — 236 testable requirements (213 implemented, 23 planned)
+  REQUIREMENTS.md    — 258 testable requirements (258 implemented)
   CHARTER.md         — Purpose, history, design principles
 ```
 
@@ -150,9 +150,9 @@ phase.  See `app/ROADMAP.md` § Phase Completion Protocol for details.
 ### App Dependency Graph
 ```
 app/server.py ──→ app/database.py ──→ floorplan/constants.py (seed source)
-              └──→ app/engine.py  ──→ floorplan/ (geometry, layout, openings)
+              └──→ app/engine.py  ──→ floorplan/ (geometry only)
                                   └──→ shared/ (geometry, survey, types)
-                                  └──→ app/variants.py ──→ shared/geometry.py
+                                  └──→ app/variants.py
 ```
 `floorplan/` and `shared/` never import from `app/`.
 

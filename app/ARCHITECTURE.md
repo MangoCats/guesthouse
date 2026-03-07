@@ -47,7 +47,7 @@ and `shared/` never import from `app/`.
 
 ### app/database.py — Persistence
 
-Ten SQLite tables:
+Fourteen SQLite tables:
 
 | Table | Rows | Purpose |
 |-------|------|---------|
@@ -344,7 +344,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (50 total):
+**API endpoints** (54 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|

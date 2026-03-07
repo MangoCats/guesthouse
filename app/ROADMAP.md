@@ -126,9 +126,11 @@ tests (~1500 total).  All implemented requirements have automated test coverage.
 | Product URLs in DB element properties (editable via API) | Done |
 | Variant formula cloning on custom variant creation | Done |
 
-**What's missing:** Electrical layout (aspirational).  The database is
-the sole authoritative source for all design data.  No procedural
-element baselines remain in `compute_geometry()`.
+**What's missing:** Phase 14 (DB-driven outline/survey/export-import) and
+electrical layout (aspirational).  The database is the sole authoritative
+source for all element data.  No procedural element baselines remain in
+`compute_geometry()`.  Outline origin and survey data are still hardcoded
+(Phase 14 scope).
 
 ---
 
@@ -688,7 +690,7 @@ base layout is complete.
   - Display uses stored dimensions (not bbox) for correct rotated values
 
 **Tests:** 44 new variant tests (79 total in test_zapp_variants.py).
-1259 tests pass.
+1516 tests pass.
 
 ---
 
@@ -780,6 +782,87 @@ CRUD, canvas rendering, and property editing infrastructure).
 
 ---
 
+## Phase 14 — Fully DB-Driven Outline & Export/Import
+
+**Goal:** Make the entire building definition — outline origin, survey
+traverse, and span analysis — fully database-driven and editable, then
+provide a single-file export/import for the complete project state.
+
+Currently the outline chain segments are DB-driven, but several upstream
+inputs remain hardcoded: the F2 origin position, survey traverse legs, and
+span analysis relies on `patch_constants()` + module reloading.  Phase 14
+eliminates these last procedural holdouts.
+
+**Note:** Phase 14 is expected to be implemented before Phase 13.
+
+### Sub-phases
+
+| Sub-phase | Status | Summary |
+|-----------|--------|---------|
+| **14-A** | Planned | F2 origin in DB: move `F2_E` / `F2_N` from hardcoded values to `constants` table (category "outline"), read in `compute_geometry()` |
+| **14-B** | Planned | Survey data in DB: new `survey_legs` and `survey_config` tables seeded from `shared/survey.py`, `compute_traverse()` reads from DB |
+| **14-C** | Planned | Span analysis without module patching: remove last `patch_constants()` usage, extract span measurements from `compute_geometry()` result directly |
+| **14-D** | Planned | Full export/import: `GET /api/project/export` returns single JSON (constants, outline_chain, survey, elements, formulas, variants, plumbing), `POST /api/project/import` validates and restores with undo support |
+
+### Phase 14-A: F2 Origin in DB
+
+Add two constants (`F2_EASTING` = −18.5, `F2_NORTHING` = −13.5, category
+"outline", unit "ft") to the `constants` table.  Replace hardcoded values
+in `compute_geometry()` with lookups from `constants_dict`.  The outline
+solver `walk_chain()` already accepts F2_E / F2_N as parameters.
+
+### Phase 14-B: Survey Data in DB
+
+New tables:
+
+```sql
+CREATE TABLE IF NOT EXISTS survey_legs (
+    seq       INTEGER PRIMARY KEY,
+    bearing   REAL NOT NULL,      -- degrees
+    distance  REAL NOT NULL,      -- feet
+    label     TEXT                -- POB, P2, P3, P4, P5
+);
+
+CREATE TABLE IF NOT EXISTS survey_config (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL            -- JSON value
+);
+-- Keys: FC_IN_P3_E, FC_IN_P3_N, COORD_ROTATION
+```
+
+Seed from `shared/survey.py` hardcoded values.  `compute_traverse()` reads
+from DB instead of hardcoded arrays.  `FC_IN_P3` and `COORD_ROTATION` from
+`survey_config`.
+
+### Phase 14-C: Span Analysis Without Module Patching
+
+Remove last `patch_constants()` usage.  `compute_span_analysis()` and
+`compute_3d_model()` extract measurements from `compute_geometry()` result
+directly instead of patching floorplan modules and reloading.
+
+### Phase 14-D: Full Export/Import
+
+**Export** (`GET /api/project/export`): returns JSON containing all DB
+tables — constants, outline_chain, survey_legs, survey_config, elements,
+element_formulas, formula_deps, doors, variants, variant_exclusions,
+plumbing_elements.
+
+**Import** (`POST /api/project/import`): validates structure, outline
+closure, formula DAG (no cycles), then replaces all data in a transaction
+with undo support (before-state = full export of current).
+
+**Reset** (`POST /api/reset`): extend to also reset survey data and
+re-seed all metadata.
+
+### Files affected
+
+- `app/database.py` — new tables, seeding, bulk export/import ops
+- `app/engine.py` — read F2 from constants, survey from DB, remove patching
+- `app/server.py` — export/import endpoints
+- `shared/survey.py` — remains as seed data source (read-only)
+
+---
+
 ## Phase 13 — Electrical Layout (Aspirational)
 
 **Goal:** An interactive electrical layout, following the same pattern as the
@@ -844,13 +927,18 @@ Phase 3 (Elements & Doors) ◄──┘                        │
     ├── Phase 11 (View Variants & Polish) ◄── all     │
     │                                                  │
     └── Phase 12 (Parametric Dependencies) ◄── all ───┘
+              │
+              └── Phase 14 (DB-Driven Outline & Export) ◄── 12
+                        │
+                        └── Phase 13 (Electrical) ◄── 10, 14
 ```
 
 (`:` and `?` denote optional dependencies — Phase 6 can start without Phase 5
 but room boundaries adapt to outline changes once Phase 5 is complete.)
 
 Phases 1 and 2 can proceed in parallel.  Phases 4, 5, and 6 can proceed in
-parallel after Phase 3.
+parallel after Phase 3.  Phase 14 follows Phase 12 and is expected to be
+implemented before Phase 13.
 
 ---
 
@@ -859,7 +947,7 @@ parallel after Phase 3.
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 1259+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 1516+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met with no known outstanding
    issues
@@ -909,8 +997,9 @@ persistent data worth preserving.
 | 10 | SITE-1–4, SCAD-1–3, ANALYSIS-1–3, PLUMB-1–11 | 21 |
 | 11 | UI-5–6, SEL-8a | 3 |
 | 12 | SEL-15, Charter Principle 5 | 1 + design spec |
+| 14 | (DB-driven outline, survey, export/import — to be specified) | TBD |
 | 13 | (aspirational — to be specified) | TBD |
-| **Total** | | **240 + Phase 13 TBD** |
+| **Total** | | **240 + Phase 13/14 TBD** |
 
 ---
 
@@ -933,6 +1022,7 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 10 | plumbing.py | site-plan.js, plumbing-editor.js | test_zapp_plumbing.py, test_zapp_views.py |
 | 11 | — | — | test_zapp_variants_ext.py |
 | 12 | dependencies.py | dependency-graph.js | test_zapp_deps.py |
+| 14 | survey_db.py | — | test_zapp_survey.py |
 | 13 | electrical.py | electrical-editor.js | test_zapp_electrical.py |
 
 ---
@@ -955,9 +1045,10 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 10b (done) | 15 | 1090 |
 | 10c (done) | 30 | 1120 |
 | 10 (actual) | 63 (across 10a-c + DB error handling) | 1183 |
-| 11 | ~10 | 1086 |
-| 12 | ~20 | 1106 |
-| 13 | ~20 | 1126 |
+| 11 (actual) | 76 | 1259 |
+| 12 (actual) | 257 | 1516 |
+| 14 | ~30 | ~1546 |
+| 13 | ~20 | ~1566 |
 
 ---
 
