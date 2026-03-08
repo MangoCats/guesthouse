@@ -15,10 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import fmt_dist, left_norm, segment_polyline
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
-from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import WALL_OUTER
 from floorplan.openings import compute_rough_openings
-from floorplan.roof import compute_roof_geometry
 from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges,
@@ -148,31 +146,28 @@ class WallData(NamedTuple):
     roof: object           # RoofGeometry
 
 
-def build_wall_data():
-    """Compute all geometry needed for the wall detail SVG."""
-    fp_data = build_floorplan_data()
-    pts = fp_data.pts
-    to_svg = fp_data.to_svg
-    outline_segs = fp_data.outline_segs
-    inner_segs = fp_data.inner_segs
-    radii = fp_data.radii
-    inner_poly = fp_data.inner_poly
+def build_wall_data(gd=None):
+    """Compute all geometry needed for the wall detail SVG.
 
-    # S/G series, openings, layout, F8-F9 polylines from FloorplanData
-    s_segs = fp_data.s_segs
-    g_segs = fp_data.g_segs
-    layout = fp_data.layout
-    openings = fp_data.openings
-    g_f8f9_poly = fp_data.g_f8f9_poly
-    w_f8f9_poly = fp_data.w_f8f9_poly
+    If gd (GeneratorData) is provided, uses it as the geometry source.
+    Otherwise constructs one from the hardcoded procedural modules.
+    """
+    if gd is None:
+        from floorplan.gen_floorplan import build_floorplan_data, _default_constants_dict
+        from app.gen_provider import GeneratorData, compute_native_geometry
+        constants_dict = _default_constants_dict()
+        pts, outline_segs, inner_segs, radii = compute_native_geometry(
+            constants_dict)
+        gd = GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict)
+
+    to_svg = make_svg_transform()
 
     # --- Page layout: 1:72 scale ---
     _f_names = [f"F{i}" for i in range(19) if i not in (0, 3, 4)]
-    _f_svg = [to_svg(*pts[k]) for k in _f_names]
+    _f_svg = [to_svg(*gd.pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
     _bldg_ymin = min(p[1] for p in _f_svg)
-    _bldg_ymax = max(p[1] for p in _f_svg)
     _bldg_cx = (_bldg_xmin + _bldg_xmax) / 2
 
     _title_y = _bldg_ymin - 49
@@ -200,21 +195,21 @@ def build_wall_data():
     _vb_y = _cb_ymin - _margin_top / _fit_scale
 
     return WallData(
-        pts=pts, to_svg=to_svg,
-        outline_segs=outline_segs, inner_segs=inner_segs,
-        s_segs=s_segs, g_segs=g_segs,
-        radii=radii, openings=openings,
-        layout=layout, inner_poly=inner_poly,
-        outer_area=fp_data.outer_area,
-        inner_area=fp_data.inner_area,
+        pts=gd.pts, to_svg=to_svg,
+        outline_segs=gd.outline_segs, inner_segs=gd.inner_segs,
+        s_segs=gd.s_segs, g_segs=gd.g_segs,
+        radii=gd.radii, openings=gd.openings,
+        layout=gd.layout, inner_poly=gd.inner_poly,
+        outer_area=gd.outer_area,
+        inner_area=gd.inner_area,
         vb_x=_vb_x, vb_y=_vb_y, vb_w=_vb_w, vb_h=_vb_h,
         title_x=_bldg_cx, title_y=_title_y,
         tb_left=_tb_left, tb_right=_tb_right, tb_top=_tb_top,
         tb_bottom=_tb_bottom, tb_w=_tb_w, tb_h=_tb_h, tb_cx=_tb_cx,
         ft_per_inch=_ft_per_inch,
-        g_f8f9_poly=g_f8f9_poly,
-        w_f8f9_poly=w_f8f9_poly,
-        roof=compute_roof_geometry(pts, radii),
+        g_f8f9_poly=gd.g_f8f9_poly,
+        w_f8f9_poly=gd.w_f8f9_poly,
+        roof=gd.roof,
     )
 
 
