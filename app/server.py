@@ -34,6 +34,8 @@ from app.database import (
     delete_formula, set_formula_lock, get_formula_deps,
     get_dependents as db_get_dependents, rebuild_formula_deps,
     get_all_formula_deps,
+    get_survey_legs, get_survey_config,
+    update_survey_leg, update_survey_config, reset_survey,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -277,6 +279,7 @@ def create_app(db_path=None):
         reset_constants(db)
         reset_outline_chain(db)
         reset_elements(db)
+        reset_survey(db)
         after = {
             "constants": get_constants_dict(db),
             "outline": get_outline_chain(db),
@@ -1158,6 +1161,50 @@ def create_app(db_path=None):
     def api_survey_points():
         constants = get_constants_dict(db)
         return jsonify(compute_survey_points(constants))
+
+    # -- Survey Data API (Phase 14-B) --
+
+    @app.route("/api/survey/legs")
+    def api_survey_legs():
+        return jsonify(get_survey_legs(db))
+
+    @app.route("/api/survey/config")
+    def api_survey_config():
+        return jsonify(get_survey_config(db))
+
+    @app.route("/api/survey/legs/<int:seq>", methods=["PUT"])
+    def api_update_survey_leg(seq):
+        data = request.get_json(force=True)
+        before = {"legs": get_survey_legs(db)}
+        update_survey_leg(seq, data, db)
+        after = {"legs": get_survey_legs(db)}
+        undo_mgr.record("survey_leg_update", before, after,
+                        f"Update survey leg {seq}")
+        _invalidate()
+        _broadcast("geometry_changed")
+        return jsonify({"ok": True})
+
+    @app.route("/api/survey/config/<key>", methods=["PUT"])
+    def api_update_survey_config(key):
+        data = request.get_json(force=True)
+        before = {"config": get_survey_config(db)}
+        update_survey_config(key, data["value"], db)
+        after = {"config": get_survey_config(db)}
+        undo_mgr.record("survey_config_update", before, after,
+                        f"Update survey config {key}")
+        _invalidate()
+        _broadcast("geometry_changed")
+        return jsonify({"ok": True})
+
+    @app.route("/api/survey/reset", methods=["POST"])
+    def api_reset_survey():
+        before = {"legs": get_survey_legs(db), "config": get_survey_config(db)}
+        reset_survey(db)
+        after = {"legs": get_survey_legs(db), "config": get_survey_config(db)}
+        undo_mgr.record("survey_reset", before, after, "Reset survey data")
+        _invalidate()
+        _broadcast("geometry_changed")
+        return jsonify({"ok": True})
 
     # -- Plumbing Elements API (PLUMB-5) --
 

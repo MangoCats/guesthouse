@@ -145,6 +145,21 @@ CREATE TABLE IF NOT EXISTS variants (
     is_builtin      INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS survey_legs (
+    seq            INTEGER PRIMARY KEY,
+    bearing_deg    INTEGER NOT NULL,
+    bearing_min    INTEGER NOT NULL,
+    bearing_sec    INTEGER NOT NULL,
+    distance_ft    INTEGER NOT NULL,
+    distance_inch  REAL NOT NULL,
+    label          TEXT               -- endpoint label: P2, P3, P4, P5, POB
+);
+
+CREATE TABLE IF NOT EXISTS survey_config (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL               -- JSON-encoded value
+);
+
 CREATE TABLE IF NOT EXISTS element_formulas (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     element_name TEXT NOT NULL,          -- FK to elements.name
@@ -176,6 +191,7 @@ def init_db(db_path=None):
             _seed_constants(conn)
             _seed_variant_item_constants(conn)
             _seed_outline_chain(conn)
+            _seed_survey(conn)
             _seed_views(conn)
             _seed_shapes(conn)
             _seed_variant_exclusions(conn)
@@ -210,6 +226,8 @@ def init_db(db_path=None):
             seed_plumbing(conn)
             # Ensure IW wall formulas exist (Phase 12c upgrade)
             seed_iw_formulas(conn)
+            # Ensure survey data exists (Phase 14-B upgrade)
+            _seed_survey(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -342,6 +360,47 @@ def _seed_variant_item_constants(conn):
             "(name, value, expr, unit, category, description) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (name, value, str(value), "ft", "geometry", description),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Seed: survey data (Phase 14-B)
+# ---------------------------------------------------------------------------
+
+# Raw traverse legs from shared/survey.py:_accumulate_legs()
+_SURVEY_LEGS = [
+    # (seq, deg, min, sec, ft, inch, label)
+    (1, 257, 53, 45, 19, 1.0,  "P2"),
+    (2, 180, 54, 31, 26, 11.0, "P3"),
+    (3,  93, 36,  7, 31, 10.5, "P4"),
+    (4,  56, 36, 31, 13,  2.5, "P5"),
+    (5, 317, 11, 44, 34, 11.5, "POB"),
+]
+
+# Survey configuration constants
+_SURVEY_CONFIG = {
+    "FC_IN_P3_E": 18.5141152720,
+    "FC_IN_P3_N": 13.3968094375,
+    "COORD_ROTATION": 0.0015153784,
+    "P3_EASTING_OVERRIDE": -19.1177,
+    "P2_P3_NORTHING_OFFSET": 29.0,
+}
+
+
+def _seed_survey(conn):
+    """Seed survey traverse legs and config from hardcoded values."""
+    for seq, deg, mn, sec, ft, inch, label in _SURVEY_LEGS:
+        conn.execute(
+            "INSERT OR IGNORE INTO survey_legs "
+            "(seq, bearing_deg, bearing_min, bearing_sec, "
+            "distance_ft, distance_inch, label) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (seq, deg, mn, sec, ft, inch, label),
+        )
+    for key, value in _SURVEY_CONFIG.items():
+        conn.execute(
+            "INSERT OR IGNORE INTO survey_config (key, value) VALUES (?, ?)",
+            (key, json.dumps(value)),
         )
 
 
@@ -2111,3 +2170,56 @@ def seed_iw_formulas(conn):
                 "VALUES (?, 'position', ?, ?)",
                 (elem_name, dep_type, dep_name),
             )
+
+
+# ---------------------------------------------------------------------------
+# Survey CRUD (Phase 14-B)
+# ---------------------------------------------------------------------------
+
+def get_survey_legs(db_path=None):
+    """Return all survey legs ordered by seq."""
+    with get_db(db_path or DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT seq, bearing_deg, bearing_min, bearing_sec, "
+            "distance_ft, distance_inch, label "
+            "FROM survey_legs ORDER BY seq"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_survey_config(db_path=None):
+    """Return survey config as a dict of key→value."""
+    with get_db(db_path or DB_PATH) as conn:
+        rows = conn.execute("SELECT key, value FROM survey_config").fetchall()
+        return {r["key"]: json.loads(r["value"]) for r in rows}
+
+
+def update_survey_leg(seq, data, db_path=None):
+    """Update a survey leg. data is a dict with optional keys:
+    bearing_deg, bearing_min, bearing_sec, distance_ft, distance_inch, label."""
+    allowed = {"bearing_deg", "bearing_min", "bearing_sec",
+               "distance_ft", "distance_inch", "label"}
+    updates = {k: v for k, v in data.items() if k in allowed}
+    if not updates:
+        return
+    cols = ", ".join(f"{k} = ?" for k in updates)
+    vals = list(updates.values()) + [seq]
+    with get_db(db_path or DB_PATH) as conn:
+        conn.execute(f"UPDATE survey_legs SET {cols} WHERE seq = ?", vals)
+
+
+def update_survey_config(key, value, db_path=None):
+    """Update a survey config value."""
+    with get_db(db_path or DB_PATH) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO survey_config (key, value) VALUES (?, ?)",
+            (key, json.dumps(value)),
+        )
+
+
+def reset_survey(db_path=None):
+    """Reset survey data to defaults."""
+    with get_db(db_path or DB_PATH) as conn:
+        conn.execute("DELETE FROM survey_legs")
+        conn.execute("DELETE FROM survey_config")
+        _seed_survey(conn)

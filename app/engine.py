@@ -1069,6 +1069,51 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
             variant_items, furniture, appliances)
 
 
+def _compute_traverse_from_db(db_path=None):
+    """Compute traverse from DB survey data (Phase 14-B).
+
+    Same math as shared/survey.py:compute_traverse() but reads legs and
+    config from the database instead of hardcoded values.
+    """
+    from app.database import get_survey_legs, get_survey_config
+    from shared.survey import compute_three_arc, compute_inset
+
+    legs = get_survey_legs(db_path)
+    config = get_survey_config(db_path)
+
+    # Walk legs from origin
+    trav = [(0.0, 0.0)]
+    for leg in legs:
+        brg = leg["bearing_deg"] + leg["bearing_min"] / 60.0 + leg["bearing_sec"] / 3600.0
+        dist_in = leg["distance_ft"] * 12 + leg["distance_inch"]
+        brg_rad = math.radians(brg)
+        dE = dist_in * math.sin(brg_rad)
+        dN = dist_in * math.cos(brg_rad)
+        last = trav[-1]
+        trav.append((last[0] + dE, last[1] + dN))
+
+    # Convert to feet, take first 5 points
+    trav_ft = [(e / 12, n / 12) for e, n in trav[:5]]
+
+    # Apply manual corrections from config
+    p3_e_override = config.get("P3_EASTING_OVERRIDE", -19.1177)
+    p2_p3_n_offset = config.get("P2_P3_NORTHING_OFFSET", 29.0)
+    trav_ft[2] = (p3_e_override, trav_ft[3][1])
+    trav_ft[1] = (trav_ft[2][0], trav_ft[2][1] + p2_p3_n_offset)
+
+    # Shift from P3 origin to FC origin
+    fc_e = config.get("FC_IN_P3_E", 18.5141152720)
+    fc_n = config.get("FC_IN_P3_N", 13.3968094375)
+    p3 = trav_ft[2]
+    pts = {}
+    labels = ["POB", "P2", "P3", "P4", "P5"]
+    for i, label in enumerate(labels):
+        pts[label] = (trav_ft[i][0] - p3[0] - fc_e,
+                      trav_ft[i][1] - p3[1] - fc_n)
+
+    return pts
+
+
 def compute_geometry(constants_dict: dict, variant: str = "standard",
                      chain_rows: list[dict] | None = None,
                      doors_data: list[dict] | None = None,
@@ -1092,8 +1137,11 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     from app.evaluator import FormulaEvaluator
     from app.database import get_all_formulas, get_variants as _get_db_variants
 
-    # 1. Survey traverse
-    trav_pts = compute_traverse()
+    # 1. Survey traverse (from DB when available, else hardcoded)
+    if db_path is not None:
+        trav_pts = _compute_traverse_from_db(db_path)
+    else:
+        trav_pts = compute_traverse()
     three_arc = compute_three_arc(trav_pts)
     inset_res = compute_inset(
         trav_pts, three_arc["R1"], three_arc["R2"], three_arc["R3"],

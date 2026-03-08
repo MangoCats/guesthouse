@@ -13,6 +13,8 @@ from app.database import (
     get_outline_chain, get_views, reset_constants,
     get_shapes, get_shape, get_variant_exclusions,
     get_room_label_offsets, set_room_label_offset,
+    get_survey_legs, get_survey_config,
+    update_survey_leg, update_survey_config, reset_survey,
 )
 
 # Re-use the fresh_db fixture from test_zapp_conftest.py
@@ -327,3 +329,69 @@ class TestF2OriginConstants:
         f2_mod = geo_mod["points"]["F2"]
 
         assert abs(f2_mod[0] - f2_base[0] - 1.0) < 1e-6
+
+
+# ── Phase 14-B  Survey Data in DB ──────────────────────────────────────
+
+class TestSurveyData:
+    def test_survey_legs_seeded(self, fresh_db):
+        """5 survey legs are seeded in order."""
+        legs = get_survey_legs(fresh_db)
+        assert len(legs) == 5
+        assert [l["seq"] for l in legs] == [1, 2, 3, 4, 5]
+
+    def test_survey_leg_labels(self, fresh_db):
+        """Leg labels match traverse endpoints."""
+        legs = get_survey_legs(fresh_db)
+        labels = [l["label"] for l in legs]
+        assert labels == ["P2", "P3", "P4", "P5", "POB"]
+
+    def test_survey_config_seeded(self, fresh_db):
+        """Survey config contains required keys."""
+        config = get_survey_config(fresh_db)
+        expected = {"FC_IN_P3_E", "FC_IN_P3_N", "COORD_ROTATION",
+                    "P3_EASTING_OVERRIDE", "P2_P3_NORTHING_OFFSET"}
+        assert expected <= set(config.keys())
+
+    def test_survey_config_values(self, fresh_db):
+        """Survey config has correct default values."""
+        config = get_survey_config(fresh_db)
+        assert abs(config["FC_IN_P3_E"] - 18.5141152720) < 1e-10
+        assert abs(config["FC_IN_P3_N"] - 13.3968094375) < 1e-10
+        assert abs(config["COORD_ROTATION"] - 0.0015153784) < 1e-10
+
+    def test_update_survey_leg(self, fresh_db):
+        """Updating a leg persists the change."""
+        update_survey_leg(1, {"bearing_deg": 260}, fresh_db)
+        legs = get_survey_legs(fresh_db)
+        assert legs[0]["bearing_deg"] == 260
+
+    def test_update_survey_config(self, fresh_db):
+        """Updating survey config persists the change."""
+        update_survey_config("FC_IN_P3_E", 20.0, fresh_db)
+        config = get_survey_config(fresh_db)
+        assert config["FC_IN_P3_E"] == 20.0
+
+    def test_reset_survey(self, fresh_db):
+        """Reset restores original leg and config values."""
+        update_survey_leg(1, {"bearing_deg": 999}, fresh_db)
+        update_survey_config("FC_IN_P3_E", 0.0, fresh_db)
+        reset_survey(fresh_db)
+        legs = get_survey_legs(fresh_db)
+        assert legs[0]["bearing_deg"] == 257
+        config = get_survey_config(fresh_db)
+        assert abs(config["FC_IN_P3_E"] - 18.5141152720) < 1e-10
+
+    def test_traverse_from_db_matches_hardcoded(self, fresh_db):
+        """DB-driven traverse produces same results as hardcoded."""
+        from shared.survey import compute_traverse
+        from app.engine import _compute_traverse_from_db
+
+        hardcoded = compute_traverse()
+        from_db = _compute_traverse_from_db(fresh_db)
+
+        for label in ("POB", "P2", "P3", "P4", "P5"):
+            hc = hardcoded[label]
+            db = from_db[label]
+            assert abs(hc[0] - db[0]) < 1e-6, f"{label} easting mismatch"
+            assert abs(hc[1] - db[1]) < 1e-6, f"{label} northing mismatch"
