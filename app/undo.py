@@ -205,6 +205,10 @@ class UndoManager:
             from app.database import restore_survey
             restore_survey(state.get("legs", []), state.get("config", {}),
                            self._db_path)
+        elif action_type in ("inner_wall_override_upsert",
+                             "inner_wall_override_delete"):
+            from app.database import restore_inner_wall_overrides
+            restore_inner_wall_overrides(state, self._db_path)
         elif action_type == "project_import":
             from app.database import import_project
             import_project(state, self._db_path)

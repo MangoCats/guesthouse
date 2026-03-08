@@ -160,6 +160,18 @@ CREATE TABLE IF NOT EXISTS survey_config (
     value TEXT NOT NULL               -- JSON-encoded value
 );
 
+CREATE TABLE IF NOT EXISTS inner_wall_overrides (
+    seg_index   INTEGER NOT NULL,   -- outline segment index (0-based)
+    sub_seq     INTEGER NOT NULL,   -- ordering within the override chain
+    seg_type    TEXT NOT NULL,       -- 'L' (line), 'CW', or 'CCW' (arc)
+    bearing     REAL,               -- degrees, compass convention (line segs)
+    distance    REAL,               -- feet (line segments)
+    radius      REAL,               -- feet (arc segments)
+    sweep       REAL,               -- degrees (arc segments)
+    n_pts       INTEGER DEFAULT 20, -- arc discretization point count
+    PRIMARY KEY (seg_index, sub_seq)
+);
+
 CREATE TABLE IF NOT EXISTS element_formulas (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     element_name TEXT NOT NULL,          -- FK to elements.name
@@ -192,6 +204,7 @@ def init_db(db_path=None):
             _seed_variant_item_constants(conn)
             _seed_outline_chain(conn)
             _seed_survey(conn)
+            _seed_inner_wall_overrides(conn)
             _seed_views(conn)
             _seed_shapes(conn)
             _seed_variant_exclusions(conn)
@@ -228,6 +241,8 @@ def init_db(db_path=None):
             seed_iw_formulas(conn)
             # Ensure survey data exists (Phase 14-B upgrade)
             _seed_survey(conn)
+            # Ensure inner wall overrides exist (Phase 15½ upgrade)
+            _seed_inner_wall_overrides(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +400,84 @@ _SURVEY_CONFIG = {
     "P3_EASTING_OVERRIDE": -19.1177,
     "P2_P3_NORTHING_OFFSET": 29.0,
 }
+
+
+def _seed_inner_wall_overrides(conn):
+    """Seed the W8-W9 straight-arc-straight override for segment 5 (F8→F9).
+
+    Computes parametric values from the default geometry: two straight
+    segments flanking a 90° CCW arc at the concave F8-F9 corner.
+    """
+    import math
+    from floorplan.geometry import compute_outline_geometry
+    from floorplan.constants import (
+        WALL_OUTER, SHELL_THICKNESS, OPENING_INSIDE_RADIUS,
+    )
+    g = compute_outline_geometry()
+    pts = g.fp_pts
+    F8, C7 = pts["F8"], pts["C7"]
+    F9, F10 = pts["F9"], pts["F10"]
+
+    # CW traversal direction at F8 (tangent at exit of C7 arc)
+    r8x, r8y = F8[0] - C7[0], F8[1] - C7[1]
+    r8_len = math.hypot(r8x, r8y)
+    dir_f8 = (r8y / r8_len, -r8x / r8_len)
+
+    # CW traversal direction at F9 (F9→F10 line)
+    d9x, d9y = F10[0] - F9[0], F10[1] - F9[1]
+    d9_len = math.hypot(d9x, d9y)
+    dir_f9 = (d9x / d9_len, d9y / d9_len)
+
+    brg_f8 = math.degrees(math.atan2(dir_f8[0], dir_f8[1]))
+    brg_f9 = math.degrees(math.atan2(dir_f9[0], dir_f9[1]))
+
+    R_turn = OPENING_INSIDE_RADIUS + SHELL_THICKNESS
+
+    # Inset points (W8, W9)
+    ins_f8 = (dir_f8[1], -dir_f8[0])  # right of CW = inward
+    ins_f9 = (dir_f9[1], -dir_f9[0])
+    W8 = (F8[0] + WALL_OUTER * ins_f8[0], F8[1] + WALL_OUTER * ins_f8[1])
+    W9 = (F9[0] + WALL_OUTER * ins_f9[0], F9[1] + WALL_OUTER * ins_f9[1])
+
+    # Tangent point offsets: arc center is R_turn to the LEFT of each direction
+    left_f8 = (-dir_f8[1], dir_f8[0])
+    left_f9 = (-dir_f9[1], dir_f9[0])
+
+    # Arc center via intersection
+    P1 = (W8[0] + R_turn * left_f8[0], W8[1] + R_turn * left_f8[1])
+    P2 = (W9[0] + R_turn * left_f9[0], W9[1] + R_turn * left_f9[1])
+    dp = (P2[0] - P1[0], P2[1] - P1[1])
+    cross = dir_f8[0] * dir_f9[1] - dir_f8[1] * dir_f9[0]
+    t = (dp[0] * dir_f9[1] - dp[1] * dir_f9[0]) / cross
+    arc_tangent1 = (W8[0] + t * dir_f8[0], W8[1] + t * dir_f8[1])
+
+    # Re-derive from end side
+    t2_dp = (P1[0] - P2[0], P1[1] - P2[1])
+    t2_cross = dir_f9[0] * dir_f8[1] - dir_f9[1] * dir_f8[0]
+    t2 = (t2_dp[0] * dir_f8[1] - t2_dp[1] * dir_f8[0]) / t2_cross
+    arc_tangent2 = (W9[0] + t2 * dir_f9[0], W9[1] + t2 * dir_f9[1])
+
+    dist_start = math.hypot(arc_tangent1[0] - W8[0], arc_tangent1[1] - W8[1])
+    dist_end = math.hypot(W9[0] - arc_tangent2[0], W9[1] - arc_tangent2[1])
+
+    # Arc sweep (CCW)
+    entry = math.atan2(-left_f8[1], -left_f8[0])
+    exit_ = math.atan2(-left_f9[1], -left_f9[0])
+    sweep_rad = (exit_ - entry) % (2 * math.pi)
+    sweep_deg = math.degrees(sweep_rad)
+
+    chain = [
+        (0, "L", brg_f8, dist_start, None, None, 20),
+        (1, "CCW", None, None, R_turn, sweep_deg, 20),
+        (2, "L", brg_f9, dist_end, None, None, 20),
+    ]
+    for sub_seq, seg_type, bearing, distance, radius, sweep, n_pts in chain:
+        conn.execute(
+            "INSERT OR IGNORE INTO inner_wall_overrides "
+            "(seg_index, sub_seq, seg_type, bearing, distance, radius, sweep, n_pts) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (5, sub_seq, seg_type, bearing, distance, radius, sweep, n_pts),
+        )
 
 
 def _seed_survey(conn):
@@ -2310,6 +2403,13 @@ def export_project(db_path=None):
 
     plumbing = get_plumbing_elements(db_path)
 
+    with get_db(db_path) as conn:
+        inner_wall_overrides = [dict(r) for r in conn.execute(
+            "SELECT seg_index, sub_seq, seg_type, bearing, distance, "
+            "radius, sweep, n_pts FROM inner_wall_overrides "
+            "ORDER BY seg_index, sub_seq"
+        ).fetchall()]
+
     return {
         "version": 1,
         "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -2323,6 +2423,7 @@ def export_project(db_path=None):
         "variant_exclusions": variant_exclusions,
         "survey_legs": survey_legs,
         "survey_config": survey_config,
+        "inner_wall_overrides": inner_wall_overrides,
         "plumbing_elements": plumbing,
     }
 
@@ -2390,7 +2491,8 @@ def import_project(data, db_path=None):
         for table in ("constants", "outline_chain", "elements", "doors",
                       "element_formulas", "formula_deps", "variants",
                       "variant_exclusions", "survey_legs", "survey_config",
-                      "plumbing_elements", "room_label_offsets"):
+                      "inner_wall_overrides", "plumbing_elements",
+                      "room_label_offsets"):
             conn.execute(f"DELETE FROM {table}")
 
         # Import constants
@@ -2501,6 +2603,18 @@ def import_project(data, db_path=None):
                 (key, json.dumps(value)),
             )
 
+        # Import inner wall overrides
+        for ov in data.get("inner_wall_overrides", []):
+            conn.execute(
+                "INSERT INTO inner_wall_overrides "
+                "(seg_index, sub_seq, seg_type, bearing, distance, "
+                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (ov["seg_index"], ov["sub_seq"], ov["seg_type"],
+                 ov.get("bearing"), ov.get("distance"),
+                 ov.get("radius"), ov.get("sweep"),
+                 ov.get("n_pts", 20)),
+            )
+
         # Import plumbing elements
         for p in data.get("plumbing_elements", []):
             path = p.get("path", "[]")
@@ -2514,4 +2628,90 @@ def import_project(data, db_path=None):
                 "(type, name, path, properties, fixture) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (p["type"], p["name"], path, props, p.get("fixture")),
+            )
+
+
+# ---------------------------------------------------------------------------
+# Inner Wall Overrides CRUD (Phase 15½)
+# ---------------------------------------------------------------------------
+
+def get_inner_wall_overrides(db_path=None):
+    """Return all inner wall overrides grouped by seg_index.
+
+    Returns dict {seg_index: [sub-segment dicts ordered by sub_seq]}.
+    """
+    with get_db(db_path or DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT seg_index, sub_seq, seg_type, bearing, distance, "
+            "radius, sweep, n_pts FROM inner_wall_overrides "
+            "ORDER BY seg_index, sub_seq"
+        ).fetchall()
+    result = {}
+    for r in rows:
+        d = dict(r)
+        si = d["seg_index"]
+        result.setdefault(si, []).append(d)
+    return result
+
+
+def get_inner_wall_override(seg_index, db_path=None):
+    """Return the override chain for a single segment, or empty list."""
+    with get_db(db_path or DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT seg_index, sub_seq, seg_type, bearing, distance, "
+            "radius, sweep, n_pts FROM inner_wall_overrides "
+            "WHERE seg_index = ? ORDER BY sub_seq",
+            (seg_index,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def upsert_inner_wall_override(seg_index, chain, db_path=None):
+    """Set the override chain for a segment (replaces existing)."""
+    with get_db(db_path or DB_PATH) as conn:
+        conn.execute("DELETE FROM inner_wall_overrides WHERE seg_index = ?",
+                     (seg_index,))
+        for sub_seq, seg in enumerate(chain):
+            conn.execute(
+                "INSERT INTO inner_wall_overrides "
+                "(seg_index, sub_seq, seg_type, bearing, distance, "
+                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (seg_index, sub_seq, seg["seg_type"],
+                 seg.get("bearing"), seg.get("distance"),
+                 seg.get("radius"), seg.get("sweep"),
+                 seg.get("n_pts", 20)),
+            )
+
+
+def delete_inner_wall_override(seg_index, db_path=None):
+    """Remove the override for a segment (reverts to default computation)."""
+    with get_db(db_path or DB_PATH) as conn:
+        conn.execute("DELETE FROM inner_wall_overrides WHERE seg_index = ?",
+                     (seg_index,))
+
+
+def snapshot_inner_wall_overrides(db_path=None):
+    """Snapshot all overrides for undo state capture."""
+    with get_db(db_path or DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT seg_index, sub_seq, seg_type, bearing, distance, "
+            "radius, sweep, n_pts FROM inner_wall_overrides "
+            "ORDER BY seg_index, sub_seq"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def restore_inner_wall_overrides(snapshot, db_path=None):
+    """Restore all overrides from a snapshot (for undo/redo)."""
+    with get_db(db_path or DB_PATH) as conn:
+        conn.execute("DELETE FROM inner_wall_overrides")
+        for ov in snapshot:
+            conn.execute(
+                "INSERT INTO inner_wall_overrides "
+                "(seg_index, sub_seq, seg_type, bearing, distance, "
+                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (ov["seg_index"], ov["sub_seq"], ov["seg_type"],
+                 ov.get("bearing"), ov.get("distance"),
+                 ov.get("radius"), ov.get("sweep"),
+                 ov.get("n_pts", 20)),
             )

@@ -398,3 +398,63 @@ class TestVariantSVGServing:
             resp = app_client.get("/api/svg/floorplan?variant=minik")
             assert resp.status_code == 200
             assert resp.content_type.startswith("image/svg+xml")
+
+
+# ── Inner Wall Overrides API (Phase 15½-C) ─────────────────────────────
+
+class TestInnerWallOverridesAPI:
+    def test_get_all(self, app_client):
+        resp = app_client.get("/api/inner-wall-overrides")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "5" in data  # seeded override for seg 5
+
+    def test_get_single(self, app_client):
+        resp = app_client.get("/api/inner-wall-overrides/5")
+        assert resp.status_code == 200
+        chain = resp.get_json()
+        assert len(chain) == 3
+        assert chain[0]["seg_type"] == "L"
+        assert chain[1]["seg_type"] == "CCW"
+        assert chain[2]["seg_type"] == "L"
+
+    def test_get_missing(self, app_client):
+        resp = app_client.get("/api/inner-wall-overrides/99")
+        assert resp.status_code == 404
+
+    def test_upsert(self, app_client):
+        chain = [
+            {"seg_type": "L", "bearing": 180.0, "distance": 0.5},
+            {"seg_type": "CCW", "radius": 0.2, "sweep": 90.0, "n_pts": 10},
+            {"seg_type": "L", "bearing": 90.0, "distance": 0.5},
+        ]
+        resp = app_client.put("/api/inner-wall-overrides/5",
+                              json={"chain": chain})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"]
+        assert len(data["chain"]) == 3
+
+    def test_upsert_validation(self, app_client):
+        # Missing chain
+        resp = app_client.put("/api/inner-wall-overrides/5", json={})
+        assert resp.status_code == 400
+        # Invalid seg_type
+        resp = app_client.put("/api/inner-wall-overrides/5",
+                              json={"chain": [{"seg_type": "X"}]})
+        assert resp.status_code == 400
+        # Line missing bearing
+        resp = app_client.put("/api/inner-wall-overrides/5",
+                              json={"chain": [{"seg_type": "L", "distance": 1.0}]})
+        assert resp.status_code == 400
+
+    def test_delete(self, app_client):
+        resp = app_client.delete("/api/inner-wall-overrides/5")
+        assert resp.status_code == 200
+        # Now it's gone
+        resp = app_client.get("/api/inner-wall-overrides/5")
+        assert resp.status_code == 404
+
+    def test_delete_missing(self, app_client):
+        resp = app_client.delete("/api/inner-wall-overrides/99")
+        assert resp.status_code == 404

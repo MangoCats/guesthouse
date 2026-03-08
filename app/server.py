@@ -37,6 +37,9 @@ from app.database import (
     get_survey_legs, get_survey_config,
     update_survey_leg, update_survey_config, reset_survey,
     export_project, import_project,
+    get_inner_wall_overrides, get_inner_wall_override,
+    upsert_inner_wall_override, delete_inner_wall_override,
+    snapshot_inner_wall_overrides, restore_inner_wall_overrides,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -1230,6 +1233,71 @@ def create_app(db_path=None):
         reset_survey(db)
         after = {"legs": get_survey_legs(db), "config": get_survey_config(db)}
         undo_mgr.record("survey_reset", before, after, "Reset survey data")
+        _invalidate()
+        _broadcast("geometry_changed")
+        return jsonify({"ok": True})
+
+    # -- Inner Wall Overrides API (Phase 15½-C) --
+
+    @app.route("/api/inner-wall-overrides")
+    def api_inner_wall_overrides():
+        """Get all inner wall overrides."""
+        return jsonify(get_inner_wall_overrides(db))
+
+    @app.route("/api/inner-wall-overrides/<int:seg_index>")
+    def api_inner_wall_override(seg_index):
+        """Get override chain for a single segment."""
+        chain = get_inner_wall_override(seg_index, db)
+        if not chain:
+            return jsonify({"error": f"No override for segment {seg_index}"}), 404
+        return jsonify(chain)
+
+    @app.route("/api/inner-wall-overrides/<int:seg_index>", methods=["PUT"])
+    def api_upsert_inner_wall_override(seg_index):
+        """Create or update an inner wall override chain."""
+        body = request.get_json(force=True)
+        chain = body.get("chain")
+        if not chain or not isinstance(chain, list):
+            return jsonify({"error": "chain must be a non-empty list"}), 400
+
+        # Validate chain entries
+        for i, sub in enumerate(chain):
+            st = sub.get("seg_type")
+            if st not in ("L", "CW", "CCW"):
+                return jsonify({"error": f"sub[{i}]: invalid seg_type '{st}'"}), 400
+            if st == "L":
+                if sub.get("bearing") is None or sub.get("distance") is None:
+                    return jsonify({"error": f"sub[{i}]: line requires bearing and distance"}), 400
+            else:
+                if sub.get("radius") is None or sub.get("sweep") is None:
+                    return jsonify({"error": f"sub[{i}]: arc requires radius and sweep"}), 400
+
+        before = snapshot_inner_wall_overrides(db)
+        upsert_inner_wall_override(seg_index, chain, db)
+        after = snapshot_inner_wall_overrides(db)
+
+        undo_mgr.record("inner_wall_override_upsert", before, after,
+                        f"Set inner wall override seg {seg_index}")
+
+        _invalidate()
+        _broadcast("geometry_changed")
+        return jsonify({"ok": True, "seg_index": seg_index,
+                        "chain": get_inner_wall_override(seg_index, db)})
+
+    @app.route("/api/inner-wall-overrides/<int:seg_index>", methods=["DELETE"])
+    def api_delete_inner_wall_override(seg_index):
+        """Delete an inner wall override, reverting to default computation."""
+        existing = get_inner_wall_override(seg_index, db)
+        if not existing:
+            return jsonify({"error": f"No override for segment {seg_index}"}), 404
+
+        before = snapshot_inner_wall_overrides(db)
+        delete_inner_wall_override(seg_index, db)
+        after = snapshot_inner_wall_overrides(db)
+
+        undo_mgr.record("inner_wall_override_delete", before, after,
+                        f"Remove inner wall override seg {seg_index}")
+
         _invalidate()
         _broadcast("geometry_changed")
         return jsonify({"ok": True})

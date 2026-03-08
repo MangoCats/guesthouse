@@ -35,6 +35,7 @@ const App = {
     svgView: { pan: { x: 0, y: 0 }, zoom: 1 },
     outlineChain: [],
     outlineSelectedSeq: null,
+    innerWallOverrides: {},
     plumbingElements: [],
     variants: [],
   },
@@ -3102,9 +3103,14 @@ async function handleConstantEdit(name, rawValue) {
 /* ========== OUTLINE TABLE ========== */
 
 async function loadOutlineTable() {
-  const resp = await apiFetch("/api/outline?_=" + Date.now());
+  const [resp, ovResp] = await Promise.all([
+    apiFetch("/api/outline?_=" + Date.now()),
+    apiFetch("/api/inner-wall-overrides"),
+  ]);
   const chain = await resp.json();
+  const overrides = await ovResp.json();
   App.state.outlineChain = chain;
+  App.state.innerWallOverrides = overrides;
   const n = chain.length;
 
   // Update closure indicator
@@ -3181,8 +3187,179 @@ async function loadOutlineTable() {
     tdEnd.textContent = seg.end_name;
     tr.appendChild(tdEnd);
 
+    // W Override column — shows button if override exists or to add one
+    const tdOv = document.createElement("td");
+    tdOv.className = "td-override";
+    const innerIdx = _outlineToInnerIndex(seg.seq, chain);
+    if (innerIdx !== null) {
+      const hasOverride = String(innerIdx) in overrides;
+      const btn = document.createElement("button");
+      btn.className = "override-btn" + (hasOverride ? " has-override" : "");
+      btn.textContent = hasOverride ? "\u2726" : "\u2727";
+      btn.title = hasOverride ? "Edit W override" : "Add W override";
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openOverrideEditor(innerIdx, seg.end_name);
+      });
+      tdOv.appendChild(btn);
+    }
+    tr.appendChild(tdOv);
+
     tbody.appendChild(tr);
   }
+}
+
+/**
+ * Map outline seq to inner_segs index.
+ * Outline and inner segments have matching indices (both 0..n-1).
+ */
+function _outlineToInnerIndex(seq, chain) {
+  if (seq >= 0 && seq < chain.length) return seq;
+  return null;
+}
+
+/**
+ * Open the inner wall override editor dialog.
+ * Shows a dynamic table of sub-segments (line/arc chains).
+ */
+function openOverrideEditor(segIndex, endName) {
+  const existing = App.state.innerWallOverrides[String(segIndex)] || [];
+  const chain = existing.length
+    ? existing.map(s => ({ ...s }))
+    : [{ seg_type: "L", bearing: 0, distance: 0, radius: null, sweep: null, n_pts: 20 }];
+
+  const container = document.createElement("div");
+  container.className = "override-editor";
+
+  function render() {
+    container.innerHTML = "";
+    const tbl = document.createElement("table");
+    tbl.className = "override-chain-table";
+    const thead = document.createElement("thead");
+    thead.innerHTML = "<tr><th>#</th><th>Type</th><th>Bearing</th><th>Distance</th><th>Radius</th><th>Sweep</th><th></th></tr>";
+    tbl.appendChild(thead);
+    const tbody = document.createElement("tbody");
+
+    chain.forEach((sub, i) => {
+      const tr = document.createElement("tr");
+      // Sub-seq
+      const td0 = document.createElement("td");
+      td0.textContent = i;
+      tr.appendChild(td0);
+      // Type selector
+      const td1 = document.createElement("td");
+      const sel = document.createElement("select");
+      for (const t of ["L", "CW", "CCW"]) {
+        const opt = document.createElement("option");
+        opt.value = t; opt.textContent = t;
+        if (t === sub.seg_type) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.onchange = () => { sub.seg_type = sel.value; render(); };
+      td1.appendChild(sel);
+      tr.appendChild(td1);
+      // Bearing (lines only)
+      const td2 = document.createElement("td");
+      if (sub.seg_type === "L") {
+        const inp = document.createElement("input");
+        inp.type = "number"; inp.step = "0.01";
+        inp.value = sub.bearing != null ? sub.bearing : "";
+        inp.onchange = () => { sub.bearing = parseFloat(inp.value); };
+        td2.appendChild(inp);
+      } else { td2.textContent = "\u2014"; }
+      tr.appendChild(td2);
+      // Distance (lines only)
+      const td3 = document.createElement("td");
+      if (sub.seg_type === "L") {
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.value = sub.distance != null ? fmtFtIn(sub.distance) : "";
+        inp.onchange = () => { sub.distance = parseDimension(inp.value); };
+        td3.appendChild(inp);
+      } else { td3.textContent = "\u2014"; }
+      tr.appendChild(td3);
+      // Radius (arcs only)
+      const td4 = document.createElement("td");
+      if (sub.seg_type !== "L") {
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.value = sub.radius != null ? fmtFtIn(sub.radius) : "";
+        inp.onchange = () => { sub.radius = parseDimension(inp.value); };
+        td4.appendChild(inp);
+      } else { td4.textContent = "\u2014"; }
+      tr.appendChild(td4);
+      // Sweep (arcs only)
+      const td5 = document.createElement("td");
+      if (sub.seg_type !== "L") {
+        const inp = document.createElement("input");
+        inp.type = "number"; inp.step = "0.01";
+        inp.value = sub.sweep != null ? sub.sweep : "";
+        inp.onchange = () => { sub.sweep = parseFloat(inp.value); };
+        td5.appendChild(inp);
+      } else { td5.textContent = "\u2014"; }
+      tr.appendChild(td5);
+      // Remove button
+      const td6 = document.createElement("td");
+      const rmBtn = document.createElement("button");
+      rmBtn.textContent = "\u2212";
+      rmBtn.className = "override-rm-btn";
+      rmBtn.onclick = () => { chain.splice(i, 1); render(); };
+      td6.appendChild(rmBtn);
+      tr.appendChild(td6);
+
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    container.appendChild(tbl);
+
+    // Add sub-segment button
+    const addBtn = document.createElement("button");
+    addBtn.className = "override-add-btn";
+    addBtn.textContent = "+ Add sub-segment";
+    addBtn.onclick = () => {
+      chain.push({ seg_type: "L", bearing: 0, distance: 0, radius: null, sweep: null, n_pts: 20 });
+      render();
+    };
+    container.appendChild(addBtn);
+
+    // Remove Override button (only for existing overrides)
+    if (existing.length > 0) {
+      const delBtn = document.createElement("button");
+      delBtn.className = "override-add-btn";
+      delBtn.style.color = "var(--red)";
+      delBtn.style.marginLeft = "8px";
+      delBtn.textContent = "Remove Override";
+      delBtn.onclick = async () => {
+        Dialog.close();
+        await apiFetch(`/api/inner-wall-overrides/${segIndex}`, { method: "DELETE" });
+        await loadOutlineTable();
+        await loadGeometry();
+      };
+      container.appendChild(delBtn);
+    }
+  }
+
+  render();
+
+  // Use Dialog with customContent
+  Dialog.show({
+    title: `W Override \u2014 Seg ${segIndex} (${endName})`,
+    customContent: container,
+    fields: [],
+    async onSubmit() {
+      if (chain.length === 0) {
+        showToast("Chain is empty \u2014 use Remove Override instead", "error");
+        return;
+      }
+      await apiFetch(`/api/inner-wall-overrides/${segIndex}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chain }),
+      });
+      await loadOutlineTable();
+      await loadGeometry();
+    },
+  });
 }
 
 function selectOutlineRow(seq) {

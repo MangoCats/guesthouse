@@ -240,3 +240,88 @@ class TestLayoutIdentity:
 
     def test_wall_t(self, reference, gen_data):
         assert abs(gen_data.wall_t - reference.wall_t) < TOL
+
+
+# ── Inner wall overrides (Phase 15½-B) ─────────────────────────────────
+
+from app.gen_provider import walk_override_chain, _splice_poly, _seg_start_bearing
+from app.database import get_inner_wall_overrides, get_constants_dict
+
+
+class TestWalkOverrideChain:
+    def test_straight_line(self):
+        """Walk a single line segment: bearing 0° (due north) for 1 ft."""
+        chain = [{"seg_type": "L", "bearing": 0.0, "distance": 1.0}]
+        poly = walk_override_chain(chain, (0.0, 0.0), 0.0)
+        assert len(poly) == 2
+        assert abs(poly[0][0]) < TOL
+        assert abs(poly[0][1]) < TOL
+        assert abs(poly[1][0]) < TOL
+        assert abs(poly[1][1] - 1.0) < TOL
+
+    def test_straight_east(self):
+        """Walk bearing 90° (due east) for 2 ft."""
+        chain = [{"seg_type": "L", "bearing": 90.0, "distance": 2.0}]
+        poly = walk_override_chain(chain, (0.0, 0.0), 90.0)
+        assert abs(poly[1][0] - 2.0) < TOL
+        assert abs(poly[1][1]) < TOL
+
+    def test_line_arc_line(self):
+        """Walk a line-arc-line chain and verify endpoint continuity."""
+        chain = [
+            {"seg_type": "L", "bearing": 180.0, "distance": 1.0},
+            {"seg_type": "CCW", "radius": 0.5, "sweep": 90.0, "n_pts": 20},
+            {"seg_type": "L", "bearing": 90.0, "distance": 1.0},
+        ]
+        poly = walk_override_chain(chain, (0.0, 0.0), 180.0)
+        # Should have 1 (start) + 1 (line end) + 20 (arc pts) + 1 (line end) = 23
+        assert len(poly) == 23
+        # Final point: went south 1, turned CCW 90° (now heading east), went east 1
+        # After going south 1: (0, -1). CCW 90° turn with r=0.5 around center
+        # that's LEFT of south = (0.5, -1): ends at (0.5, -1.5).
+        # Then east 1: (1.5, -1.5)
+        assert abs(poly[-1][0] - 1.5) < TOL
+        assert abs(poly[-1][1] + 1.5) < TOL
+
+    def test_cw_arc(self):
+        """Walk a CW arc 90° and verify endpoint."""
+        chain = [
+            {"seg_type": "CW", "radius": 1.0, "sweep": 90.0, "n_pts": 20},
+        ]
+        # Heading north, CW turn 90° → end heading east
+        # Center is RIGHT of north = (1, 0). Start at (0, 0).
+        # After 90° CW: (1, 1)
+        poly = walk_override_chain(chain, (0.0, 0.0), 0.0)
+        assert len(poly) == 21  # 1 start + 20 arc
+        assert abs(poly[-1][0] - 1.0) < TOL
+        assert abs(poly[-1][1] - 1.0) < TOL
+
+
+class TestOverrideIdentity:
+    """Verify DB-seeded overrides produce geometry matching the hardcoded path."""
+
+    @pytest.fixture
+    def gen_data_with_overrides(self, fresh_db):
+        """Build GeneratorData using DB-seeded overrides."""
+        constants = get_constants_dict(fresh_db)
+        overrides = get_inner_wall_overrides(fresh_db)
+        return build_generator_data(constants, overrides=overrides)
+
+    def test_overrides_loaded(self, fresh_db):
+        """DB seed creates seg_index=5 override."""
+        overrides = get_inner_wall_overrides(fresh_db)
+        assert 5 in overrides
+        assert len(overrides[5]) == 3  # L, CCW, L
+
+    def test_inner_poly_with_override_matches_hardcoded(
+            self, reference, gen_data_with_overrides):
+        """Inner poly from DB override matches hardcoded F8-F9 splice."""
+        assert len(gen_data_with_overrides.inner_poly) == len(reference.inner_poly)
+        for i, (ref, gen) in enumerate(zip(reference.inner_poly,
+                                            gen_data_with_overrides.inner_poly)):
+            d2 = _pt_dist2(ref, gen)
+            assert d2 < 1e-4, f"inner_poly[{i}]: d²={d2}"
+
+    def test_inner_area_with_override(self, reference, gen_data_with_overrides):
+        """Inner area from DB override is close to hardcoded."""
+        assert abs(gen_data_with_overrides.inner_area - reference.inner_area) < 0.01

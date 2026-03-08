@@ -22,6 +22,118 @@ from floorplan.roof import compute_roof_geometry, roof_polyline
 
 
 # ---------------------------------------------------------------------------
+# Walk override chain (Phase 15½-B)
+# ---------------------------------------------------------------------------
+
+def walk_override_chain(chain, start_pt, start_bearing_deg):
+    """Walk a parametric override chain, returning a polyline.
+
+    Parameters:
+        chain       — list of dicts with keys: seg_type, bearing, distance,
+                       radius, sweep, n_pts
+        start_pt    — (E, N) starting point
+        start_bearing_deg — compass bearing in degrees at chain start
+
+    Returns list of (E, N) points including start_pt and final endpoint.
+    Bearings use compass convention (0=N, 90=E, 180=S, 270=W).
+    """
+    polyline = [start_pt]
+    cur = start_pt
+    cur_bearing = start_bearing_deg
+
+    for sub in chain:
+        seg_type = sub["seg_type"]
+        if seg_type == "L":
+            brg = sub["bearing"]
+            dist = sub["distance"]
+            brg_rad = math.radians(brg)
+            dx = dist * math.sin(brg_rad)
+            dy = dist * math.cos(brg_rad)
+            cur = (cur[0] + dx, cur[1] + dy)
+            polyline.append(cur)
+            cur_bearing = brg
+        else:
+            # Arc: CW or CCW
+            radius = sub["radius"]
+            sweep_deg = sub["sweep"]
+            n_pts = sub.get("n_pts", 20)
+            sweep_rad = math.radians(sweep_deg)
+
+            # Current direction vector from compass bearing
+            dir_x = math.sin(math.radians(cur_bearing))
+            dir_y = math.cos(math.radians(cur_bearing))
+
+            if seg_type == "CCW":
+                # Center is to the LEFT of travel direction
+                cx = cur[0] - dir_y * radius
+                cy = cur[1] + dir_x * radius
+                entry_angle = math.atan2(cur[1] - cy, cur[0] - cx)
+                for i in range(1, n_pts + 1):
+                    a = entry_angle + i * sweep_rad / n_pts
+                    polyline.append((cx + radius * math.cos(a),
+                                     cy + radius * math.sin(a)))
+            else:
+                # CW: center is to the RIGHT of travel direction
+                cx = cur[0] + dir_y * radius
+                cy = cur[1] - dir_x * radius
+                entry_angle = math.atan2(cur[1] - cy, cur[0] - cx)
+                for i in range(1, n_pts + 1):
+                    a = entry_angle - i * sweep_rad / n_pts
+                    polyline.append((cx + radius * math.cos(a),
+                                     cy + radius * math.sin(a)))
+
+            cur = polyline[-1]
+            # Update bearing: rotate by sweep
+            if seg_type == "CCW":
+                cur_bearing = (cur_bearing - sweep_deg) % 360
+            else:
+                cur_bearing = (cur_bearing + sweep_deg) % 360
+
+    return polyline
+
+
+# ---------------------------------------------------------------------------
+# Inner poly splice helpers
+# ---------------------------------------------------------------------------
+
+def _splice_poly(poly, start_pt, end_pt, replacement):
+    """Replace the sub-path from start_pt to end_pt in poly with replacement.
+
+    Finds start_pt and end_pt by coordinate match (within GEOM_EPS),
+    then replaces poly[start_idx:end_idx+1] with replacement.
+    """
+    start_idx = next(i for i, p in enumerate(poly)
+                     if abs(p[0] - start_pt[0]) < GEOM_EPS
+                     and abs(p[1] - start_pt[1]) < GEOM_EPS)
+    end_idx = next(i for i, p in enumerate(poly)
+                   if i > start_idx
+                   and abs(p[0] - end_pt[0]) < GEOM_EPS
+                   and abs(p[1] - end_pt[1]) < GEOM_EPS)
+    poly[start_idx:end_idx + 1] = replacement
+
+
+def _seg_start_bearing(seg, pts):
+    """Compute compass bearing (degrees) at the start of an inner_seg.
+
+    For LineSeg: bearing from start→end.
+    For ArcSeg: CW tangent at start point (right normal of radius vector).
+    """
+    if isinstance(seg, LineSeg):
+        s, e = pts[seg.start], pts[seg.end]
+        dx, dy = e[0] - s[0], e[1] - s[1]
+    else:
+        # Arc: tangent at start = perpendicular to radius
+        c = pts[seg.center]
+        s = pts[seg.start]
+        rx, ry = s[0] - c[0], s[1] - c[1]
+        if seg.direction == "CW":
+            dx, dy = ry, -rx  # CW tangent = right normal of radius
+        else:
+            dx, dy = -ry, rx  # CCW tangent = left normal of radius
+    return math.degrees(math.atan2(dx, dy)) % 360
+
+
+# ---------------------------------------------------------------------------
 # Helpers (moved from engine.py to avoid circular imports)
 # ---------------------------------------------------------------------------
 
@@ -139,7 +251,8 @@ class GeneratorData:
         roof_poly     — list of (E, N) tuples (roof outline polygon)
     """
 
-    def __init__(self, pts, outline_segs, inner_segs, radii, constants_dict):
+    def __init__(self, pts, outline_segs, inner_segs, radii, constants_dict,
+                 overrides=None):
         self.pts = pts
         self.outline_segs = outline_segs
         self.inner_segs = inner_segs
@@ -151,8 +264,8 @@ class GeneratorData:
         self.inner_poly = path_polygon(inner_segs, pts)
         self.outer_area = poly_area(self.outline_poly)
 
-        # Shell geometry (Phase 15-B) — modifies inner_poly with F8-F9 polyline
-        self._compute_shell_geometry(constants_dict)
+        # Shell geometry — modifies inner_poly with override splices
+        self._compute_shell_geometry(constants_dict, overrides=overrides)
 
         # Inner area computed after F8-F9 replacement (matches build_floorplan_data)
         self.inner_area = poly_area(self.inner_poly)
@@ -160,29 +273,28 @@ class GeneratorData:
         # Roof geometry (Phase 15-C)
         self._compute_roof_geometry()
 
-    def _compute_shell_geometry(self, constants_dict):
-        """Compute S/G-series shell paths, F8-F9 polylines, and wall sections."""
+    def _compute_shell_geometry(self, constants_dict, overrides=None):
+        """Compute S/G-series shell paths, F8-F9 polylines, and wall sections.
+
+        overrides — dict {seg_index: [sub-segment dicts]} from DB, or None
+                    to use the hardcoded f8f9_corner_polyline fallback.
+        """
         shell_t = constants_dict.get("SHELL_THICKNESS", 2.0 / 12.0)
         air_gap = constants_dict.get("AIR_GAP",
                                      self.wall_t - 2 * shell_t)
         opening_r = constants_dict.get("OPENING_INSIDE_RADIUS", 1.5 / 12.0)
         f8f9_inner_r = opening_r + shell_t
 
-        # W-series F8-F9 straight-arc-straight polyline
+        # Apply inner wall overrides to inner_poly (W-series)
+        if overrides:
+            self._apply_inner_wall_overrides(overrides)
+        else:
+            # Legacy fallback: hardcoded F8-F9 splice
+            self._apply_f8f9_hardcoded(f8f9_inner_r)
+
+        # W-series F8-F9 polyline (for shell geometry, always from hardcoded)
         self.w_f8f9_poly = f8f9_corner_polyline(
             self.pts, self.wall_t, f8f9_inner_r)
-
-        # Replace W8-W9 arc in inner_poly with straight-arc-straight path
-        w8 = self.pts["W8"]
-        w9 = self.pts["W9"]
-        w8_idx = next(i for i, p in enumerate(self.inner_poly)
-                      if abs(p[0] - w8[0]) < GEOM_EPS
-                      and abs(p[1] - w8[1]) < GEOM_EPS)
-        w9_idx = next(i for i, p in enumerate(self.inner_poly)
-                      if i > w8_idx
-                      and abs(p[0] - w9[0]) < GEOM_EPS
-                      and abs(p[1] - w9[1]) < GEOM_EPS)
-        self.inner_poly[w8_idx:w9_idx + 1] = self.w_f8f9_poly
 
         # S-series (inner face of outer shell)
         self.s_pts, self.s_segs = compute_inset_path(
@@ -209,6 +321,30 @@ class GeneratorData:
         # Wall sections
         self.wall_sections = enumerate_wall_sections(
             self.openings, self.outline_segs)
+
+    def _apply_f8f9_hardcoded(self, f8f9_inner_r):
+        """Legacy hardcoded F8-F9 straight-arc-straight splice."""
+        poly = f8f9_corner_polyline(self.pts, self.wall_t, f8f9_inner_r)
+        _splice_poly(self.inner_poly, self.pts["W8"], self.pts["W9"], poly)
+
+    def _apply_inner_wall_overrides(self, overrides):
+        """Apply DB-driven inner wall overrides to inner_poly.
+
+        Processes overrides in descending seg_index order so that splice
+        index positions remain valid for earlier segments.
+        """
+        for seg_idx in sorted(overrides.keys(), reverse=True):
+            chain = overrides[seg_idx]
+            seg = self.inner_segs[seg_idx]
+            start_name, end_name = seg.start, seg.end
+            start_pt = self.pts[start_name]
+            end_pt = self.pts[end_name]
+
+            # Compute start bearing from inner_segs geometry
+            start_bearing = _seg_start_bearing(seg, self.pts)
+
+            poly = walk_override_chain(chain, start_pt, start_bearing)
+            _splice_poly(self.inner_poly, start_pt, end_pt, poly)
 
     def _compute_roof_geometry(self):
         """Compute R-series roof geometry."""
@@ -290,13 +426,24 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
     return pts, outline_segs, inner_segs, radii
 
 
-def build_generator_data(constants_dict, chain_rows=None, db_path=None):
+def build_generator_data(constants_dict, chain_rows=None, db_path=None,
+                         overrides=None):
     """Build a GeneratorData object from DB state.
 
     This is the main entry point for SVG generators.  It computes all
     geometry from the database and returns a GeneratorData with native
     Python objects ready for rendering.
+
+    overrides — dict {seg_index: [sub-segment dicts]} of inner wall
+                overrides.  If None and db_path is set, loads from DB.
     """
     pts, outline_segs, inner_segs, radii = compute_native_geometry(
         constants_dict, chain_rows=chain_rows, db_path=db_path)
-    return GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict)
+
+    # Load overrides from DB if not explicitly provided
+    if overrides is None and db_path is not None:
+        from app.database import get_inner_wall_overrides
+        overrides = get_inner_wall_overrides(db_path)
+
+    return GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict,
+                         overrides=overrides)

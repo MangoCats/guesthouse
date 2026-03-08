@@ -926,6 +926,28 @@ tr.outline-selected td { background: var(--selection); }
   width: 30px;
 }
 
+/* ========== INNER WALL OVERRIDES ========== */
+.td-override { text-align: center; padding: 0 2px; }
+.override-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; color: var(--text-dim); padding: 0 2px;
+}
+.override-btn.has-override { color: var(--accent); }
+.override-btn:hover { color: var(--text); }
+
+.override-editor { margin: 8px 0; max-height: 300px; overflow-y: auto; }
+.override-chain-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.override-chain-table th { text-align: left; padding: 2px 4px; border-bottom: 1px solid var(--border); }
+.override-chain-table td { padding: 2px 4px; }
+.override-chain-table input { width: 70px; }
+.override-chain-table select { width: 55px; }
+.override-rm-btn { background: none; border: none; color: var(--red); cursor: pointer; font-size: 14px; }
+.override-add-btn {
+  margin-top: 4px; background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); padding: 2px 8px; cursor: pointer; font-size: 12px; border-radius: 3px;
+}
+.override-add-btn:hover { background: var(--surface2); }
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1000px) {
   :root { --palette-w: 50px; --panel-w: 240px; }
