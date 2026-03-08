@@ -2225,6 +2225,28 @@ def reset_survey(db_path=None):
         _seed_survey(conn)
 
 
+def restore_survey(legs, config, db_path=None):
+    """Restore survey legs and config from snapshot (for undo/redo)."""
+    with get_db(db_path or DB_PATH) as conn:
+        conn.execute("DELETE FROM survey_legs")
+        conn.execute("DELETE FROM survey_config")
+        for leg in legs:
+            conn.execute(
+                "INSERT INTO survey_legs "
+                "(seq, bearing_deg, bearing_min, bearing_sec, "
+                "distance_ft, distance_inch, label) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (leg["seq"], leg["bearing_deg"], leg["bearing_min"],
+                 leg["bearing_sec"], leg["distance_ft"],
+                 leg["distance_inch"], leg.get("label")),
+            )
+        for key, value in config.items():
+            conn.execute(
+                "INSERT INTO survey_config (key, value) VALUES (?, ?)",
+                (key, json.dumps(value)),
+            )
+
+
 # ---------------------------------------------------------------------------
 # Project Export / Import (Phase 14-D)
 # ---------------------------------------------------------------------------

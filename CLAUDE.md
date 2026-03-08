@@ -129,7 +129,7 @@ app/                 — Flask web editor: interactive canvas + constants editin
   static/js/app.js   — Client application (~1440 lines, no build step)
   static/css/app.css — Dark theme (Catppuccin palette)
   ARCHITECTURE.md    — Detailed module docs, computation flow, roadmap
-  REQUIREMENTS.md    — 258 testable requirements (258 implemented)
+  REQUIREMENTS.md    — 275 testable requirements (275 implemented)
   CHARTER.md         — Purpose, history, design principles
 ```
 

@@ -47,11 +47,11 @@ and `shared/` never import from `app/`.
 
 ### app/database.py — Persistence
 
-Fourteen SQLite tables:
+Sixteen SQLite tables:
 
 | Table | Rows | Purpose |
 |-------|------|---------|
-| `constants` | 143 | Named numeric constants (value, unit, category) |
+| `constants` | 143+ | Named numeric constants (value, unit, category) |
 | `outline_chain` | 18 | Closed outline segments (line/arc definitions) |
 | `views` | 11 | Registered SVG generators and output paths |
 | `shapes` | ~15 | Complex item shapes (polygon coordinate lists) |
@@ -59,8 +59,14 @@ Fourteen SQLite tables:
 | `variant_exclusions` | 4 | Per-variant element hiding (wall/opening exclusions) |
 | `room_label_offsets` | 0 | User-adjusted room label positions (offset from centroid) |
 | `undo_history` | 0–50 | Serialised undo/redo entries (action type, before/after state) |
-| `elements` | ~59+ | All design elements seeded (walls, openings, variant items) + user-added elements (type, name, properties JSON, variant) |
+| `elements` | ~59+ | All design elements seeded (walls, openings, variant items) + user-added |
 | `doors` | 9+ | Door configurations per opening (width, hinge side, swing direction, type) |
+| `element_formulas` | ~100+ | JSON position/poly formulas per element (locked, variant-scoped) |
+| `formula_deps` | ~200+ | Formula dependency edges (element→element, element→point, element→constant) |
+| `config` | 2+ | Application config key-value pairs (default_variant, etc.) |
+| `plumbing_elements` | 17+ | Supply/drain pipes, fittings, fixture connections |
+| `survey_legs` | 5 | Traverse legs (bearing deg/min/sec, distance ft/inch, label) |
+| `survey_config` | 5 | Survey constants (FC_IN_P3, COORD_ROTATION, corrections) |
 
 **Seeding** — On first run, `init_db()` creates the schema and populates
 tables from source:
@@ -346,7 +352,7 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (54 total):
+**API endpoints** (70 total):
 
 | Method | Path | Purpose |
 |--------|------|---------|

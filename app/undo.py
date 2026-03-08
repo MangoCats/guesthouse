@@ -200,14 +200,26 @@ class UndoManager:
             )
         elif action_type == "formula_delete_element":
             self._apply_formula_delete(state)
+        elif action_type in ("survey_leg_update", "survey_config_update",
+                             "survey_reset"):
+            from app.database import restore_survey
+            restore_survey(state.get("legs", []), state.get("config", {}),
+                           self._db_path)
+        elif action_type == "project_import":
+            from app.database import import_project
+            import_project(state, self._db_path)
         elif action_type == "full_reset":
-            # Combined constants + outline + elements + doors reset
-            from app.database import restore_outline_chain, restore_elements
+            # Combined constants + outline + elements + doors + survey reset
+            from app.database import (restore_outline_chain, restore_elements,
+                                      restore_survey)
             update_constants_batch(state["constants"], self._db_path)
             restore_outline_chain(state["outline"], self._db_path)
             if "elements" in state:
                 restore_elements(state["elements"], state.get("doors", []),
                                  self._db_path)
+            if "survey_legs" in state:
+                restore_survey(state["survey_legs"],
+                               state.get("survey_config", {}), self._db_path)
         else:
             raise ValueError(f"Unknown undo action type: {action_type}")
 

@@ -31,7 +31,7 @@ tests (~1550 total).  All implemented requirements have automated test coverage.
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | Openings table: outer + rough | Done |
-| REST API: 50 endpoints, SSE | Done |
+| REST API: 70 endpoints, SSE | Done |
 | Real-time update cycle | Done |
 | Feet-inches display (NF-6) | Done |
 | Unit-aware dimension input parser (CT-7a–j, CT-8) | Done |
@@ -1338,7 +1338,7 @@ Files already created during Phase 0 work: `app/apputil.py`,
 
 The cutover criteria have been fully met:
 
-1. ✅ All 258 requirements pass automated tests (~1500 tests total)
+1. ✅ All 275 requirements pass automated tests (~1580 tests total)
 2. ✅ All element positions are database-stored JSON formulas evaluated
    by the FormulaEvaluator in topological dependency order
 3. ✅ All 24 dimension constants consolidated in the database; derived

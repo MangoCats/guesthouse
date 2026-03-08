@@ -18,11 +18,13 @@ full commit history are marked **(NEW)**.
 #### DB-1  Schema Initialisation
 The application SHALL create an SQLite database with tables `constants`,
 `outline_chain`, `views`, `shapes`, `variant_exclusions`,
-`room_label_offsets`, `undo_history`, `elements`, `doors`,
-`survey_legs`, and `survey_config` when launched for the first time.
+`room_label_offsets`, `undo_history`, `elements`, `doors`, `config`,
+`element_formulas`, `formula_deps`, `variants`, `plumbing_elements`,
+`survey_legs`, and `survey_config` (16 tables) when launched for the
+first time.
 
 **Acceptance:** Start with no `app/adu.db` file. Run `python run_app.py
---no-browser`. Verify the file is created and contains all six tables.
+--no-browser`. Verify the file is created and contains all 16 tables.
 
 #### DB-2  Constants Seeding
 On first initialisation the database SHALL contain every uppercase numeric

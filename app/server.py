@@ -276,6 +276,8 @@ def create_app(db_path=None):
             "outline": get_outline_chain(db),
             "elements": get_all_elements(db),
             "doors": get_all_doors(db),
+            "survey_legs": get_survey_legs(db),
+            "survey_config": get_survey_config(db),
         }
         reset_constants(db)
         reset_outline_chain(db)
@@ -286,6 +288,8 @@ def create_app(db_path=None):
             "outline": get_outline_chain(db),
             "elements": get_all_elements(db),
             "doors": get_all_doors(db),
+            "survey_legs": get_survey_legs(db),
+            "survey_config": get_survey_config(db),
         }
         undo_mgr.record("full_reset", before, after, "Reset to defaults")
         _invalidate()
