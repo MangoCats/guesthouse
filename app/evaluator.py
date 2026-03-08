@@ -2765,9 +2765,37 @@ def get_variant_item_formulas():
         "depth": _c("MINIK_APPL_D"),
         "anchor_corner": "sw",
     }
+    # Counter SW/SE anchors: use standard APPLIANCE_WIDTH so counter
+    # position is invariant across variants (matches reference layout.py).
+    _ctr_sw_anchor_std = _off(
+        {"element": "DRYER", "corner": "SW"},
+        {"add": [_c("APPLIANCE_WIDTH"), _c("COUNTER_GAP")]},
+        _W2W5_IN,
+    )
+    _ctr_se_anchor_std = _off(
+        _ctr_sw_anchor_std,
+        _c("COUNTER_DEPTH"),
+        _W2W5_IN,
+    )
+    _small_counter = {
+        "type": "four_corner",
+        "sw": _li(_ctr_sw_anchor_std, _W2W5_AL, "W1", _W9W10_AL),
+        "se": _li(_ctr_se_anchor_std, _W2W5_AL, "W1", _W9W10_AL),
+        "ne": _off(
+            _li(_ctr_se_anchor_std, _W2W5_AL, "W1", _W9W10_AL),
+            _c("COUNTER_LENGTH"),
+            _W2W5_AL,
+        ),
+        "nw": _off(
+            _li(_ctr_sw_anchor_std, _W2W5_AL, "W1", _W9W10_AL),
+            _c("COUNTER_LENGTH"),
+            _W2W5_AL,
+        ),
+    }
     for _v in ("minik", "daybed"):
         _f("DRYER", _small_dryer, _v)
         _f("WASHER", _small_washer, _v)
+        _f("COUNTER", _small_counter, _v)
 
     # ===================================================================
     # WATER HEATER — all variants, circle tangent to arc at C7
