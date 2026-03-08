@@ -8,9 +8,6 @@ from datetime import date
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from shared.svg import W, H, git_describe
-from shared.geometry import path_polygon, poly_area, fmt_dist
-from floorplan.gen_floorplan import build_floorplan_data
-from floorplan.roof import compute_roof_geometry, roof_polyline
 
 
 def _svg_pts(pts_list, to_svg):
@@ -18,19 +15,31 @@ def _svg_pts(pts_list, to_svg):
     return " ".join(f"{to_svg(*p)[0]:.2f},{to_svg(*p)[1]:.2f}" for p in pts_list)
 
 
-def render_roof_svg(fp_data, roof):
-    """Render roof SVG with building outline and roof outline overlay."""
+def render_roof_svg(fp_data, roof=None):
+    """Render roof SVG with building outline and roof outline overlay.
+
+    fp_data may be a FloorplanData or a GeneratorData.  If roof is None,
+    it is taken from fp_data.roof (GeneratorData path).
+    """
+    from shared.svg import make_svg_transform
+
+    # Support both GeneratorData and FloorplanData
     pts = fp_data.pts
-    to_svg = fp_data.to_svg
+    to_svg = getattr(fp_data, 'to_svg', None) or make_svg_transform()
+    bldg_poly = getattr(fp_data, 'outline_poly', None)
+    if bldg_poly is None:
+        from shared.geometry import path_polygon
+        bldg_poly = path_polygon(fp_data.outline_segs, pts)
 
-    # Building outline polygon
-    bldg_poly = path_polygon(fp_data.outline_segs, pts)
-
-    # Roof outline polygon
-    roof_poly = roof_polyline(roof)
+    if roof is None:
+        roof = fp_data.roof
+    roof_poly = getattr(fp_data, 'roof_poly', None)
+    if roof_poly is None:
+        from floorplan.roof import roof_polyline
+        roof_poly = roof_polyline(roof)
 
     # --- Page layout ---
-    all_pts = bldg_poly + roof_poly
+    all_pts = list(bldg_poly) + list(roof_poly)
     all_svg = [to_svg(*p) for p in all_pts]
     xmin = min(p[0] for p in all_svg) - 15
     xmax = max(p[0] for p in all_svg) + 15
@@ -119,7 +128,10 @@ def render_roof_svg(fp_data, roof):
 
 
 if __name__ == "__main__":
+    from floorplan.gen_floorplan import build_floorplan_data
+
     fp_data = build_floorplan_data()
+    from floorplan.roof import compute_roof_geometry
     roof = compute_roof_geometry(fp_data.pts, fp_data.radii)
 
     svg_content = render_roof_svg(fp_data, roof)
