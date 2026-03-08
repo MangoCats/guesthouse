@@ -877,7 +877,7 @@ def _seed_elements(conn):
         }, None),
         ("washer", "appliance", {
             "label": "WASHER", "item_type": "appliance", "shape": "rect",
-            "door": {"hinge_idx": 2, "target_idx": 3},
+            "door": {"hinge_idx": 2, "target_idx": 1},
             "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375"},
             "variants": _ALL,
         }, None),

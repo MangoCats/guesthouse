@@ -2731,6 +2731,45 @@ def get_variant_item_formulas():
     })
 
     # ===================================================================
+    # DRYER / WASHER overrides — minik + daybed use smaller appliances
+    # ===================================================================
+    # Standard uses APPLIANCE_WIDTH (35") × APPLIANCE_DEPTH (30") via
+    # layout_item formulas (variant=NULL).  minik + daybed use
+    # MINIK_APPL_W (32") × MINIK_APPL_D (27").
+    _dryer_sw = _li(
+        _off("W2", _c("APPLIANCE_OFFSET_FROM_W2"), _W2W5_IN),
+        _W2W5_AL,
+        _off("W1", _c("APPLIANCE_OFFSET_FROM_W1"), _W2W5_AL),
+        _W9W10_AL,
+    )
+    _small_dryer = {
+        "type": "item_rect",
+        "anchor": _dryer_sw,
+        "along": _W2W5_IN,
+        "across": _W2W5_AL,
+        "width": _c("MINIK_APPL_W"),
+        "depth": _c("MINIK_APPL_D"),
+        "anchor_corner": "sw",
+    }
+    _small_washer_sw = _off(
+        {"element": "DRYER", "corner": "NW"},
+        _c("APPLIANCE_GAP"),
+        _W2W5_AL,
+    )
+    _small_washer = {
+        "type": "item_rect",
+        "anchor": _small_washer_sw,
+        "along": _W2W5_IN,
+        "across": _W2W5_AL,
+        "width": _c("MINIK_APPL_W"),
+        "depth": _c("MINIK_APPL_D"),
+        "anchor_corner": "sw",
+    }
+    for _v in ("minik", "daybed"):
+        _f("DRYER", _small_dryer, _v)
+        _f("WASHER", _small_washer, _v)
+
+    # ===================================================================
     # WATER HEATER — all variants, circle tangent to arc at C7
     # ===================================================================
     # _wh_ref = offset(IW2S.NE, WH_RADIUS, _iw2_e_out)
