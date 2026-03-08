@@ -948,6 +948,89 @@ class GeneratorData:
 
 ---
 
+## Phase 15½ — Inner Wall Segment Overrides (Planned)
+
+**Goal:** Allow selected W-series inner wall segments to be overridden with
+custom geometry (line/arc chains) instead of the default computed offset from
+the F-series outline.  This generalises the hardcoded W8-W9 corner treatment
+into a data-driven mechanism editable from the interactive editor.
+
+**Status:** Planned
+
+**Motivation:** The W-series inner wall boundary is normally computed by
+`compute_inner_walls()` as a uniform inset of `WALL_OUTER` from each F-series
+outline segment.  However, concave corners (like F8-F9) may require special
+treatment — the current W8-W9 straight-arc-straight polyline is hardcoded in
+`gen_provider.py` and `gen_floorplan.py`.  This phase makes such overrides
+data-driven so they can be edited, added, or removed from the interactive
+editor without code changes.
+
+**Scope:**
+
+| Sub-phase | Summary |
+|-----------|---------|
+| **15½-A** | DB schema: `inner_wall_overrides` table storing per-segment override chains (seg_index, sub_seq, seg_type, bearing, distance, radius, sweep).  Seed the W8-W9 straight-arc-straight as the default override for segment 7. |
+| **15½-B** | Engine integration: after `compute_inner_walls()`, apply overrides by walking each override chain from the W-series start point of that segment, splicing the resulting polyline into `inner_poly`. |
+| **15½-C** | API endpoints: `GET /api/inner-wall-overrides`, `PUT /api/inner-wall-overrides/<seg_index>`, `DELETE /api/inner-wall-overrides/<seg_index>`.  Undo/redo support. |
+| **15½-D** | Editor UI: segment override dialog accessible from the outline table or canvas.  Shows the current W segment (default or overridden).  Override editor allows adding a chain of line/arc sub-segments with bearing, distance, radius, and sweep inputs.  Preview shows the resulting polyline before committing. |
+
+### Schema
+
+```sql
+CREATE TABLE IF NOT EXISTS inner_wall_overrides (
+    seg_index   INTEGER NOT NULL,   -- which outline segment (0-based index)
+    sub_seq     INTEGER NOT NULL,   -- ordering within the override chain
+    seg_type    TEXT NOT NULL,       -- 'L' (line), 'CW', or 'CCW' (arc)
+    bearing     REAL,               -- degrees (line segments)
+    distance    REAL,               -- feet (line segments)
+    radius      REAL,               -- feet (arc segments)
+    sweep       REAL,               -- degrees (arc segments)
+    PRIMARY KEY (seg_index, sub_seq)
+);
+```
+
+### Seed data
+
+The current W8-W9 treatment (`f8f9_corner_polyline` with `F8F9_INNER_TURN_R`)
+becomes the seed override for segment index 7, expressed as three sub-segments:
+1. Line: bearing from W8 in the F7→F8 exit direction, distance to arc tangent
+2. CCW arc: radius `F8F9_INNER_TURN_R`, sweep to match F9→F10 bearing
+3. Line: bearing in the F9→F10 direction, distance to W9
+
+### Files affected
+
+- **Modified:** `app/database.py` — new table, seed, CRUD helpers
+- **Modified:** `app/gen_provider.py` — generalise F8-F9 splice to loop over all overrides
+- **Modified:** `app/engine.py` — pass overrides to geometry pipeline
+- **Modified:** `app/server.py` — 3 new API endpoints
+- **Modified:** `app/undo.py` — new action type `inner_wall_override`
+- **Modified:** `app/static/js/app.js` — override editor dialog
+- **New:** `tests/test_zapp_inner_override.py` — override CRUD, undo, geometry identity
+
+### UI design
+
+The override editor is invoked from the outline table (new "W override" column
+with edit/clear buttons per segment) or from the canvas (right-click a W
+segment → "Edit inner wall override").
+
+The dialog shows:
+- **Segment info:** "W8 → W9 (segment 7)" with the default computed geometry
+  as a reference polyline
+- **Override chain:** editable table of sub-segments, each with type dropdown
+  (Line/CW Arc/CCW Arc), bearing/distance or radius/sweep inputs
+- **Preview:** live polyline preview overlaid on the canvas, updating as
+  parameters change
+- **Actions:** Save (commits to DB + records undo), Clear (removes override,
+  reverts to default computed segment), Cancel
+
+Most W segments will never need an override — the UI makes it easy to leave
+them as default while providing full control for the rare special cases.
+
+**Dependencies:** Phase 15 (GeneratorData provides the geometry pipeline
+that overrides plug into).
+
+---
+
 ## Phase 16 — Floorplan & Roof Generator Migration (Planned)
 
 **Goal:** Migrate `gen_floorplan.py` and `gen_roof.py` to read all data from
@@ -1129,6 +1212,8 @@ Phase 3 (Elements & Doors) ◄──┘                        │
                         │
                         └── Phase 15 (Generator Data Provider) ◄── 14
                                   │
+                                  ├── Phase 15½ (Inner Wall Overrides) ◄── 15
+                                  │
                                   ├── Phase 16 (Floorplan & Roof Gen) ◄── 15
                                   │         │
                                   │         ├── Phase 17 (Wall Detail Gen) ◄── 15-B, 16
@@ -1234,6 +1319,7 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 12 | dependencies.py | dependency-graph.js | test_zapp_deps.py |
 | 14 | survey_db.py | — | test_zapp_survey.py |
 | 15 | gen_provider.py | — | test_gen_provider.py |
+| 15½ | — | — | test_zapp_inner_override.py |
 | 16 | — | — | test_gen_identity.py |
 | 17 | — | — | (extends test_gen_identity.py) |
 | 18 | — | — | (extends test_gen_identity.py) |
