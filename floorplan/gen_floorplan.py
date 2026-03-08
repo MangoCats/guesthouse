@@ -11,13 +11,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from shared.types import LineSeg, ArcSeg, BBox
 from shared.geometry import (
-    segment_polyline, path_polygon, poly_area,
-    compute_inner_walls, fmt_dist, f8f9_corner_polyline,
-    seg_vecs, offset_pt, line_isect, require_pts, GEOM_EPS,
+    segment_polyline, poly_area,
+    fmt_dist, seg_vecs, offset_pt, line_isect,
 )
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
 from shared.svg import make_svg_transform, W, H, git_describe
-from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
 from floorplan.constants import (
     WALL_OUTER, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
     WH_RADIUS,
@@ -49,7 +46,7 @@ from floorplan.openings import (
     compute_outer_openings, compute_rough_openings, outer_to_wall_openings,
 )
 from shared.wall_shells import (
-    compute_inset_path, lerp, openings_on_seg, solid_ranges,
+    lerp, openings_on_seg, solid_ranges,
     arc_strip_poly, line_strip_poly, partial_line_strip,
     uturn_polygon, enumerate_wall_sections, build_section_outlines,
 )
@@ -363,63 +360,14 @@ class FloorplanData(NamedTuple):
     layout: Any             # InteriorLayout
 
 
-def build_floorplan_data():
-    """Compute all geometry needed for the floorplan SVG."""
-    pts = compute_traverse()
-    to_svg = make_svg_transform()
-    _arc_info = compute_three_arc(pts)
-    _inset = compute_inset(pts, _arc_info["R1"], _arc_info["R2"], _arc_info["R3"],
-                           _arc_info["nE"], _arc_info["nN"])
-    pts.update(_inset.pts_update)
-    # Align P/Pi with F-series coordinate space
-    align_pts_to_f_series(pts)
-    _outline_geo = compute_outline_geometry()
-    pts.update(_outline_geo.fp_pts)
-    outline_segs = _outline_geo.outline_segs
-    _radii = _outline_geo.radii
+def compute_page_layout(pts, to_svg):
+    """Compute SVG page layout (viewbox, titleblock, north arrow) from geometry.
 
-    wall_t = WALL_OUTER
-    inner_segs = compute_inner_walls(outline_segs, pts, wall_t, _radii)
-    outer_poly = path_polygon(outline_segs, pts)
-    inner_poly = path_polygon(inner_segs, pts)
-
-    # Replace W8-W9 arc in inner_poly with straight-arc-straight path
-    require_pts(pts, "W8", "W9")
-    w_f8f9_poly = f8f9_corner_polyline(pts, WALL_OUTER, F8F9_INNER_TURN_R)
-    w8 = pts["W8"]
-    w9 = pts["W9"]
-    w8_idx = next(i for i, p in enumerate(inner_poly)
-                  if abs(p[0] - w8[0]) < GEOM_EPS and abs(p[1] - w8[1]) < GEOM_EPS)
-    w9_idx = next(i for i, p in enumerate(inner_poly)
-                  if i > w8_idx
-                  and abs(p[0] - w9[0]) < GEOM_EPS and abs(p[1] - w9[1]) < GEOM_EPS)
-    inner_poly[w8_idx:w9_idx + 1] = w_f8f9_poly
-
-    # Compute S-series (2" inset = inner face of outer shell)
-    s_pts, s_segs = compute_inset_path(outline_segs, pts, _radii,
-                                        SHELL_THICKNESS, "S")
-    pts.update(s_pts)
-
-    # Compute G-series (6" inset = outer face of inner shell)
-    g_pts, g_segs = compute_inset_path(outline_segs, pts, _radii,
-                                        SHELL_THICKNESS + AIR_GAP, "G")
-    pts.update(g_pts)
-
-    # G-series F8-F9 straight-arc-straight polyline
-    g_f8f9_poly = f8f9_corner_polyline(
-        pts, SHELL_THICKNESS + AIR_GAP, OPENING_INSIDE_RADIUS)
-
-    # Interior layout and wall openings
-    layout = compute_interior_layout(pts, inner_poly)
-    outer_openings = compute_outer_openings(pts, layout)
-    openings = outer_to_wall_openings(outer_openings, outline_segs, pts)
-
-    outer_area = poly_area(outer_poly)
-    inner_area = poly_area(inner_poly)
-
-    # --- Fit content on letter landscape (792x612) page ---
+    Returns a dict with keys: vb_x, vb_y, vb_w, vb_h, title_x, title_y,
+    tb_left, tb_right, tb_top, tb_bottom, tb_w, tb_h, tb_cx,
+    na_x, na_text_y, na_tip_y, na_base_y, ft_per_inch.
+    """
     _margin_top = 36   # 0.5" top margin
-    _margin = 72       # 1" margins on left, right, bottom
     _f_names = [f"F{i}" for i in range(19) if i not in (0, 3, 4)]
     _f_svg = [to_svg(*pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
@@ -462,23 +410,52 @@ def build_floorplan_data():
     _vb_x = _cb_cx - _vb_w / 2
     _vb_y = _cb_ymin - _margin_top / _fit_scale
 
-    return FloorplanData(
-        pts=pts, to_svg=to_svg,
-        outline_segs=outline_segs, inner_segs=inner_segs,
-        outer_poly=outer_poly, inner_poly=inner_poly,
-        outer_area=outer_area, inner_area=inner_area,
-        radii=_radii, wall_t=wall_t,
+    return dict(
         vb_x=_vb_x, vb_y=_vb_y, vb_w=_vb_w, vb_h=_vb_h,
         title_x=_title_x, title_y=_title_y,
         tb_left=_tb_left, tb_right=_tb_right, tb_top=_tb_top,
         tb_bottom=_tb_bottom, tb_w=_tb_w, tb_h=_tb_h, tb_cx=_tb_cx,
         na_x=_na_x, na_text_y=_na_text_y, na_tip_y=_na_tip_y, na_base_y=_na_base_y,
         ft_per_inch=_ft_per_inch,
-        w_f8f9_poly=w_f8f9_poly,
-        s_segs=s_segs, g_segs=g_segs,
-        openings=openings,
-        g_f8f9_poly=g_f8f9_poly,
-        layout=layout,
+    )
+
+
+def _default_constants_dict():
+    """Build constants dict from floorplan.constants for non-DB usage."""
+    import floorplan.constants as fc
+    return {name: getattr(fc, name) for name in dir(fc)
+            if name[0:1].isupper() and not name.startswith("_")
+            and isinstance(getattr(fc, name), (int, float))}
+
+
+def build_floorplan_data(gd=None):
+    """Compute all geometry needed for the floorplan SVG.
+
+    If gd (GeneratorData) is provided, uses it as the geometry source.
+    Otherwise constructs one from the hardcoded procedural modules.
+    """
+    from app.gen_provider import GeneratorData, compute_native_geometry
+
+    if gd is None:
+        constants_dict = _default_constants_dict()
+        pts, outline_segs, inner_segs, radii = compute_native_geometry(
+            constants_dict)
+        gd = GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict)
+
+    to_svg = make_svg_transform()
+    page = compute_page_layout(gd.pts, to_svg)
+
+    return FloorplanData(
+        pts=gd.pts, to_svg=to_svg,
+        outline_segs=gd.outline_segs, inner_segs=gd.inner_segs,
+        outer_poly=gd.outline_poly, inner_poly=gd.inner_poly,
+        outer_area=gd.outer_area, inner_area=gd.inner_area,
+        radii=gd.radii, wall_t=gd.wall_t,
+        w_f8f9_poly=gd.w_f8f9_poly,
+        s_segs=gd.s_segs, g_segs=gd.g_segs,
+        openings=gd.openings, g_f8f9_poly=gd.g_f8f9_poly,
+        layout=gd.layout,
+        **page,
     )
 
 def compute_placement_points(pts, layout, radii):
