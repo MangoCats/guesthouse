@@ -1131,60 +1131,14 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     If doors_data is provided, door swing arcs are computed from opening
     polygons and door configurations.
     """
-    from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
-    from shared.geometry import compute_inner_walls, path_polygon
-    from shared.survey import compute_traverse, compute_three_arc, compute_inset
+    from shared.geometry import path_polygon
     from app.evaluator import FormulaEvaluator
     from app.database import get_all_formulas, get_variants as _get_db_variants
+    from app.gen_provider import compute_native_geometry
 
-    # 1. Survey traverse (from DB when available, else hardcoded)
-    if db_path is not None:
-        trav_pts = _compute_traverse_from_db(db_path)
-    else:
-        trav_pts = compute_traverse()
-    three_arc = compute_three_arc(trav_pts)
-    inset_res = compute_inset(
-        trav_pts, three_arc["R1"], three_arc["R2"], three_arc["R3"],
-        three_arc["nE"], three_arc["nN"],
-    )
-    trav_pts.update(inset_res.pts_update)
-    align_pts_to_f_series(trav_pts)
-
-    # 2. F-series outline
-    if chain_rows is not None:
-        from app.outline_solver import db_rows_to_chain, solve_closure, walk_chain
-        chain = db_rows_to_chain(chain_rows)
-        R_a1 = _derive_constant(constants_dict, "CORNER_SW_R")
-
-        solver_result = solve_closure(chain, R_a1)
-        if not solver_result.valid:
-            raise ValueError(
-                f"Outline chain does not close: error={solver_result.closure_error:.6f}")
-
-        chain = list(chain)
-        chain[0] = chain[0]._replace(distance=solver_result.d_F2_F5)
-        chain[-2] = chain[-2]._replace(distance=solver_result.d_F18_F1)
-        chain[-1] = chain[-1]._replace(sweep=solver_result.sweep_closure)
-
-        F2_E = constants_dict.get("F2_EASTING", -18.5)
-        F2_N = constants_dict.get("F2_NORTHING", -13.5) + R_a1
-        walk_result = walk_chain(chain, F2_E, F2_N)
-
-        fp_pts = walk_result.points
-        radii = walk_result.radii
-        outline_segs = _build_outline_segs_from_chain(chain)
-
-        pts = dict(fp_pts)
-        pts.update(trav_pts)
-    else:
-        geom = compute_outline_geometry()
-        pts = dict(geom.fp_pts)
-        pts.update(trav_pts)
-        outline_segs = geom.outline_segs
-        radii = geom.radii
-
-    # 3. Inner walls (W-series)
-    inner_segs = compute_inner_walls(outline_segs, pts, constants_dict.get("WALL_OUTER", 8.0/12.0), radii)
+    # 1-3. Survey traverse, F-series outline, inner walls (shared with GeneratorData)
+    pts, outline_segs, inner_segs, radii = compute_native_geometry(
+        constants_dict, chain_rows=chain_rows, db_path=db_path)
     inner_poly = path_polygon(inner_segs, pts)
 
     # 4. Load variant exclusions
