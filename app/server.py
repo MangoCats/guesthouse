@@ -45,7 +45,8 @@ from app.database import (
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
 from app.engine import (
-    compute_geometry, generate_svg, get_svg_content, patch_constants,
+    compute_geometry, generate_svg, generate_svg_db,
+    build_generator_data_from_db, get_svg_content, patch_constants,
     compute_survey_points,
 )
 from app.plumbing import (
@@ -1423,9 +1424,8 @@ def create_app(db_path=None):
 
     @app.route("/api/generate-site-plan", methods=["POST"])
     def api_generate_site_plan():
-        constants = get_constants_dict(db)
-        patch_constants(constants)
-        ok = generate_svg("site_plan", "site/gen_site_plan.py")
+        gd = build_generator_data_from_db(db)
+        ok = generate_svg_db("site_plan", "site/gen_site_plan.py", gd)
         return jsonify({
             "ok": ok,
             "setback_216": get_config("setback_216", db),
@@ -1445,9 +1445,8 @@ def create_app(db_path=None):
         script = _ROOF_SCRIPTS.get(roof_style)
         if not script:
             return jsonify({"ok": False, "error": f"unknown roof style: {roof_style}"}), 400
-        constants = get_constants_dict(db)
-        patch_constants(constants)
-        ok = generate_svg("3d_" + roof_style, script)
+        gd = build_generator_data_from_db(db)
+        ok = generate_svg_db("3d_" + roof_style, script, gd)
         return jsonify({
             "ok": ok,
             "roof_style": roof_style,
@@ -1457,20 +1456,19 @@ def create_app(db_path=None):
     @app.route("/api/generate-views", methods=["POST"])
     def api_generate_views():
         roof_style = get_config("roof_style", db) or "flat"
-        constants = get_constants_dict(db)
-        patch_constants(constants)
+        gd = build_generator_data_from_db(db)
         # 1. Generate SCAD file for selected roof style
         scad_script = _ROOF_SCRIPTS.get(roof_style, "scad/gen_flat_roof.py")
-        ok = generate_svg("scad", scad_script)
+        ok = generate_svg_db("scad", scad_script, gd)
         if not ok:
             return jsonify({"ok": False, "error": "SCAD generation failed"})
-        # 2. Render views (requires OpenSCAD CLI)
+        # 2. Render views (requires OpenSCAD CLI) — subprocess only
         ok = generate_svg("views", "scad/gen_views.py")
         if not ok:
             return jsonify({"ok": False, "error": "View rendering failed (OpenSCAD required)"})
-        # 3. Generate line drawings
+        # 3. Generate line drawings — subprocess only
         generate_svg("line_drawings", "scad/gen_line_drawings.py")
-        # 4. Compose 3-view PDF
+        # 4. Compose 3-view PDF — subprocess only
         ok = generate_svg("3views", "gen_3views.py")
         return jsonify({
             "ok": ok,
@@ -1485,16 +1483,15 @@ def create_app(db_path=None):
         body = request.get_json(force=True) if request.data else {}
         view_name = body.get("view")
 
-        # Apply constants to the module before regenerating
-        constants = get_constants_dict(db)
-        patch_constants(constants)
+        # Build GeneratorData from DB for in-process generation
+        gd = build_generator_data_from_db(db)
 
         views = get_views(db)
         if view_name:
             view = next((v for v in views if v["name"] == view_name), None)
             if not view:
                 return jsonify({"error": "unknown view"}), 404
-            ok = generate_svg(view_name, view["script"])
+            ok = generate_svg_db(view_name, view["script"], gd)
             _broadcast("svg_updated", {"view": view_name})
             return jsonify({"ok": ok, "view": view_name})
         else:
@@ -1503,7 +1500,7 @@ def create_app(db_path=None):
             for v in views:
                 if v["script"] not in seen:
                     seen.add(v["script"])
-                    ok = generate_svg(v["name"], v["script"])
+                    ok = generate_svg_db(v["name"], v["script"], gd)
                     results[v["name"]] = ok
                     _broadcast("svg_updated", {"view": v["name"]})
                 else:

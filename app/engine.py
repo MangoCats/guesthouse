@@ -1223,7 +1223,12 @@ def compute_survey_points(constants_dict: dict) -> dict:
 
 
 def generate_svg(view_name: str, script_path: str) -> bool:
-    """Run a generator script and return True on success."""
+    """Run a generator script as a subprocess and return True on success.
+
+    This is the standalone path — generators construct their own
+    GeneratorData from hardcoded procedural modules.  For DB-driven
+    generation, use generate_svg_db() instead.
+    """
     full_path = os.path.join(_PROJECT, script_path)
     if not os.path.exists(full_path):
         return False
@@ -1238,8 +1243,165 @@ def generate_svg(view_name: str, script_path: str) -> bool:
         return False
 
 
-def generate_all_svgs(views: list[dict]) -> dict:
-    """Regenerate all enabled views. Returns {name: success} dict."""
+def _run_generator_inprocess(script_path: str, gd) -> bool:
+    """Run a generator in-process using DB-sourced GeneratorData.
+
+    Returns True on success, False on error, or None if no in-process
+    handler exists for the given script (caller should fall back to
+    subprocess).
+    """
+    if script_path == "floorplan/gen_floorplan.py":
+        from floorplan.gen_floorplan import build_floorplan_data, render_floorplan_svg
+        data = build_floorplan_data(gd)
+        base = os.path.join(_PROJECT, "floorplan")
+        for suffix, kwargs in [
+            ("", {}),
+            ("_minik", {"room_title": "Parent Suite w/Small Kitchen", "minik": True}),
+            ("_db", {"room_title": "Parent Suite with Daybed", "db": True}),
+            ("_bare", {"room_title": "Room Dimensions", "bare": True}),
+            ("_sf", {"room_title": "Room Dimensions", "sf": True}),
+        ]:
+            svg = render_floorplan_svg(data, **kwargs)
+            with open(os.path.join(base, f"floorplan{suffix}.svg"), "w", encoding="utf-8") as f:
+                f.write(svg)
+        return True
+
+    if script_path == "roof/gen_roof.py":
+        from roof.gen_roof import render_roof_svg
+        svg = render_roof_svg(gd)
+        with open(os.path.join(_PROJECT, "roof", "roof.svg"), "w", encoding="utf-8") as f:
+            f.write(svg)
+        return True
+
+    if script_path == "walls/gen_walls.py":
+        from walls.gen_walls import build_wall_data, render_walls_svg
+        data = build_wall_data(gd)
+        base = os.path.join(_PROJECT, "walls")
+        svg = render_walls_svg(data, title="Outer Walls")
+        with open(os.path.join(base, "walls.svg"), "w", encoding="utf-8") as f:
+            f.write(svg)
+        svg_all = render_walls_svg(data, title="All Walls", include_interior=True)
+        with open(os.path.join(base, "all_walls.svg"), "w", encoding="utf-8") as f:
+            f.write(svg_all)
+        return True
+
+    if script_path == "span/gen_span.py":
+        from span.gen_span import _generate_svg as _span_svg
+        from span._common import build_geometry
+        pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry(gd)
+        svg = _span_svg(pts, outer_poly, inner_poly, layout, roof_poly)
+        with open(os.path.join(_PROJECT, "span", "span.svg"), "w", encoding="utf-8") as f:
+            f.write(svg)
+        return True
+
+    if script_path == "span/gen_span_minmax.py":
+        from span.gen_span_minmax import _generate_svg as _span_mm_svg
+        from span._common import build_geometry
+        pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry(gd)
+        svg = _span_mm_svg(pts, outer_poly, inner_poly, layout, roof_poly)
+        with open(os.path.join(_PROJECT, "span", "span_minmax.svg"), "w", encoding="utf-8") as f:
+            f.write(svg)
+        return True
+
+    if script_path == "span/gen_span_min.py":
+        from span.gen_span_min import _generate_svg as _span_min_svg
+        from span._common import build_geometry
+        pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry(gd)
+        svg = _span_min_svg(pts, outer_poly, inner_poly, layout, roof_poly)
+        with open(os.path.join(_PROJECT, "span", "span_min.svg"), "w", encoding="utf-8") as f:
+            f.write(svg)
+        return True
+
+    if script_path == "site/gen_site_plan.py":
+        # 'site' shadows stdlib module — use importlib
+        import importlib.util
+        _sp = importlib.util.spec_from_file_location(
+            "site_gen_site_plan",
+            os.path.join(_PROJECT, "site", "gen_site_plan.py"))
+        _mod = importlib.util.module_from_spec(_sp)
+        _sp.loader.exec_module(_mod)
+        build_site_plan_data = _mod.build_site_plan_data
+        render_site_plan = _mod.render_site_plan
+        render_site_plan_df = _mod.render_site_plan_df
+        render_site_plan_fs = _mod.render_site_plan_fs
+        sp = build_site_plan_data(gd)
+        base = os.path.join(_PROJECT, "site")
+        doc = render_site_plan(sp)
+        doc.save(os.path.join(base, "site_plan.pdf"))
+        doc.close()
+        doc_df = render_site_plan(sp, corners=False)
+        render_site_plan_df(doc_df, sp)
+        doc_df.save(os.path.join(base, "site_plan_df.pdf"))
+        doc_df.close()
+        doc_fs = render_site_plan(sp, corners=False)
+        render_site_plan_df(doc_fs, sp)
+        render_site_plan_fs(doc_fs, sp)
+        doc_fs.save(os.path.join(base, "site_plan_fs.pdf"))
+        doc_fs.close()
+        return True
+
+    if script_path == "plumbing/gen_plumbing.py":
+        from floorplan.gen_floorplan import build_floorplan_data, render_floorplan_svg
+        from plumbing.gen_plumbing import _compute_boundary_corners
+        data = build_floorplan_data(gd)
+        boundary = _compute_boundary_corners(data.pts)
+        svg = render_floorplan_svg(data, room_title="Plumbing Plan",
+                                   db=True, plumbing=True, boundary=boundary)
+        with open(os.path.join(_PROJECT, "plumbing", "plumbing.svg"), "w", encoding="utf-8") as f:
+            f.write(svg)
+        return True
+
+    if script_path == "scad/gen_flat_roof.py":
+        from scad.gen_flat_roof import generate as gen_flat
+        gen_flat(gd)
+        return True
+
+    if script_path == "scad/gen_2in12.py":
+        from scad.gen_2in12 import generate as gen_2in12
+        gen_2in12(gd)
+        return True
+
+    # No in-process handler — caller should fall back to subprocess
+    return None
+
+
+def generate_svg_db(view_name: str, script_path: str, gd) -> bool:
+    """Generate SVG using DB-sourced GeneratorData (in-process).
+
+    Falls back to subprocess for scripts without in-process dispatch
+    (e.g., gen_views.py, gen_line_drawings.py, gen_3views.py).
+    """
+    try:
+        result = _run_generator_inprocess(script_path, gd)
+        if result is not None:
+            return result
+    except Exception:
+        return False
+    # Fallback to subprocess for unhandled scripts
+    return generate_svg(view_name, script_path)
+
+
+def build_generator_data_from_db(db_path: str):
+    """Build a GeneratorData from the current database state.
+
+    This is the bridge between the app database and the generator
+    data provider.  Used by the regeneration API to pass DB-driven
+    geometry to generators.
+    """
+    from app.database import get_constants_dict, get_outline_chain
+    from app.gen_provider import build_generator_data
+    constants = get_constants_dict(db_path)
+    chain_rows = get_outline_chain(db_path)
+    return build_generator_data(constants, chain_rows=chain_rows,
+                                db_path=db_path)
+
+
+def generate_all_svgs(views: list[dict], gd=None) -> dict:
+    """Regenerate all enabled views. Returns {name: success} dict.
+
+    If gd (GeneratorData) is provided, uses in-process DB-driven
+    generation.  Otherwise falls back to subprocess execution.
+    """
     results = {}
     # Group by script to avoid running the same generator twice
     seen_scripts = set()
@@ -1249,7 +1411,10 @@ def generate_all_svgs(views: list[dict]) -> dict:
             results[v["name"]] = True
             continue
         seen_scripts.add(script)
-        results[v["name"]] = generate_svg(v["name"], script)
+        if gd is not None:
+            results[v["name"]] = generate_svg_db(v["name"], script, gd)
+        else:
+            results[v["name"]] = generate_svg(v["name"], script)
     return results
 
 
