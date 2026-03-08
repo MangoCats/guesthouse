@@ -12,7 +12,6 @@ import sys
 # Ensure project root is on sys.path for package imports
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS,
                                   OPENING_INSIDE_RADIUS)
 from floorplan.roof import compute_roof_geometry, roof_polyline, roof_segments
@@ -271,13 +270,21 @@ def _seg_comment(elem):
     return f"// {direction} {abs(sweep):8.4f}deg R {_fmt_ft_in(r, 7)}"
 
 
-def generate():
-    fp = build_floorplan_data()
-    pts = fp.pts
-    outline_segs = fp.outline_segs
-    inner_segs = fp.inner_segs
-    openings = fp.openings
-    radii = fp.radii
+def generate(gd=None):
+    if gd is None:
+        from floorplan.gen_floorplan import build_floorplan_data
+        fp = build_floorplan_data()
+        pts = fp.pts
+        outline_segs = fp.outline_segs
+        inner_segs = fp.inner_segs
+        openings = fp.openings
+        radii = fp.radii
+    else:
+        pts = dict(gd.pts)
+        outline_segs = gd.outline_segs
+        inner_segs = gd.inner_segs
+        openings = gd.openings
+        radii = gd.radii
 
     shell_t = SHELL_THICKNESS
     shell_half = shell_t / 2.0

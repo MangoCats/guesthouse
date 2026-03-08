@@ -1,44 +1,27 @@
 """Common geometry bootstrap and rotation helpers for span generators."""
 import math
 
-from shared.geometry import (
-    path_polygon, vert_isects, compute_inner_walls,
-    f8f9_corner_polyline, GEOM_EPS, require_pts,
-)
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
-from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
-from floorplan.constants import WALL_OUTER, F8F9_INNER_TURN_R
-from floorplan.layout import compute_interior_layout
-from floorplan.roof import compute_roof_geometry, roof_polyline
+from shared.geometry import vert_isects, GEOM_EPS
 
 
 # ── geometry bootstrap ─────────────────────────────────────────
 
-def build_geometry():
-    """Return (pts, outline_segs, outer_poly, inner_poly, layout, roof_poly)."""
-    pts = compute_traverse()
-    ai = compute_three_arc(pts)
-    ins = compute_inset(pts, ai["R1"], ai["R2"], ai["R3"], ai["nE"], ai["nN"])
-    pts.update(ins.pts_update)
-    align_pts_to_f_series(pts)
-    geo = compute_outline_geometry()
-    pts.update(geo.fp_pts)
-    inner_segs = compute_inner_walls(geo.outline_segs, pts, WALL_OUTER, geo.radii)
-    outer_poly = path_polygon(geo.outline_segs, pts)
-    inner_poly = path_polygon(inner_segs, pts)
-    # patch concave W8-W9 corner
-    require_pts(pts, "W8", "W9")
-    w_f8f9 = f8f9_corner_polyline(pts, WALL_OUTER, F8F9_INNER_TURN_R)
-    w8, w9 = pts["W8"], pts["W9"]
-    i8 = next(i for i, p in enumerate(inner_poly)
-              if abs(p[0] - w8[0]) < GEOM_EPS and abs(p[1] - w8[1]) < GEOM_EPS)
-    i9 = next(i for i, p in enumerate(inner_poly)
-              if i > i8 and abs(p[0] - w9[0]) < GEOM_EPS and abs(p[1] - w9[1]) < GEOM_EPS)
-    inner_poly[i8:i9 + 1] = w_f8f9
-    layout = compute_interior_layout(pts, inner_poly)
-    roof = compute_roof_geometry(pts, geo.radii)
-    roof_poly = roof_polyline(roof)
-    return pts, geo.outline_segs, outer_poly, inner_poly, layout, roof_poly
+def build_geometry(gd=None):
+    """Return (pts, outline_segs, outer_poly, inner_poly, layout, roof_poly).
+
+    If gd (GeneratorData) is provided, uses it as the geometry source.
+    Otherwise constructs one from the hardcoded procedural modules.
+    """
+    if gd is None:
+        from floorplan.gen_floorplan import _default_constants_dict
+        from app.gen_provider import GeneratorData, compute_native_geometry
+        constants_dict = _default_constants_dict()
+        pts, outline_segs, inner_segs, radii = compute_native_geometry(
+            constants_dict)
+        gd = GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict)
+
+    return (gd.pts, gd.outline_segs, gd.outline_poly, gd.inner_poly,
+            gd.layout, gd.roof_poly)
 
 
 # ── IW centerlines ─────────────────────────────────────────────

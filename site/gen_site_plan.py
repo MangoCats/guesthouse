@@ -9,7 +9,6 @@ from collections import namedtuple
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import fitz  # pymupdf
-from floorplan.gen_floorplan import build_floorplan_data
 from shared.geometry import vert_isects, path_polygon, segment_polyline, seg_vecs
 from shared.types import LineSeg, ArcSeg
 from shared.svg import git_describe
@@ -72,12 +71,22 @@ SitePlanData = namedtuple("SitePlanData", [
 ])
 
 
-def build_site_plan_data():
-    """Compute all site plan geometry — no PDF I/O."""
-    data = build_floorplan_data()
-    pts = data.pts
-    outer_poly = data.outer_poly  # F-series outline (350 pts, arcs sampled)
-    inner_poly = data.inner_poly  # W-series inner wall (352 pts)
+def build_site_plan_data(gd=None):
+    """Compute all site plan geometry — no PDF I/O.
+
+    If gd (GeneratorData) is provided, uses it as the geometry source.
+    Otherwise constructs one from the hardcoded procedural modules.
+    """
+    if gd is None:
+        from floorplan.gen_floorplan import build_floorplan_data
+        data = build_floorplan_data()
+        pts = data.pts
+        outer_poly = data.outer_poly
+        inner_poly = data.inner_poly
+    else:
+        pts = gd.pts
+        outer_poly = gd.outline_poly
+        inner_poly = gd.inner_poly
 
     # --- Survey coordinate calibration ---
     # Scale: 1 inch = 30 ft on the survey; 1 inch = 72 PDF pts
