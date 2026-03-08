@@ -3218,18 +3218,185 @@ function _outlineToInnerIndex(seq, chain) {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Override geometry helpers (JS port of gen_provider.py)
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute compass bearing (degrees) at the start of an inner segment.
+ * Mirrors _seg_start_bearing() in gen_provider.py.
+ */
+function segStartBearing(seg, points) {
+  let dx, dy;
+  if (seg.type === "line") {
+    const s = points[seg.start], e = points[seg.end];
+    dx = e[0] - s[0];
+    dy = e[1] - s[1];
+  } else {
+    const c = points[seg.center], s = points[seg.start];
+    const rx = s[0] - c[0], ry = s[1] - c[1];
+    if (seg.direction === "CW") {
+      dx = ry; dy = -rx;
+    } else {
+      dx = -ry; dy = rx;
+    }
+  }
+  return ((Math.atan2(dx, dy) * 180 / Math.PI) % 360 + 360) % 360;
+}
+
+/**
+ * Walk a parametric override chain, returning a polyline.
+ * Mirrors walk_override_chain() in gen_provider.py.
+ * Bearings use compass convention (0=N, 90=E, 180=S, 270=W).
+ */
+function walkOverrideChain(chain, startPt, startBearingDeg) {
+  const polyline = [startPt.slice()];
+  let cx = startPt[0], cy = startPt[1];
+  let bearing = startBearingDeg;
+
+  for (const sub of chain) {
+    if (sub.seg_type === "L") {
+      const brg = sub.bearing || 0;
+      const dist = sub.distance || 0;
+      const rad = brg * Math.PI / 180;
+      cx += dist * Math.sin(rad);
+      cy += dist * Math.cos(rad);
+      polyline.push([cx, cy]);
+      bearing = brg;
+    } else {
+      const radius = sub.radius || 0;
+      const sweepDeg = sub.sweep || 0;
+      const nPts = sub.n_pts || 20;
+      const sweepRad = sweepDeg * Math.PI / 180;
+      const dirX = Math.sin(bearing * Math.PI / 180);
+      const dirY = Math.cos(bearing * Math.PI / 180);
+
+      let acx, acy, entryAngle;
+      if (sub.seg_type === "CCW") {
+        acx = cx - dirY * radius;
+        acy = cy + dirX * radius;
+        entryAngle = Math.atan2(cy - acy, cx - acx);
+        for (let i = 1; i <= nPts; i++) {
+          const a = entryAngle + i * sweepRad / nPts;
+          polyline.push([acx + radius * Math.cos(a), acy + radius * Math.sin(a)]);
+        }
+        bearing = ((bearing - sweepDeg) % 360 + 360) % 360;
+      } else {
+        acx = cx + dirY * radius;
+        acy = cy - dirX * radius;
+        entryAngle = Math.atan2(cy - acy, cx - acx);
+        for (let i = 1; i <= nPts; i++) {
+          const a = entryAngle - i * sweepRad / nPts;
+          polyline.push([acx + radius * Math.cos(a), acy + radius * Math.sin(a)]);
+        }
+        bearing = ((bearing + sweepDeg) % 360 + 360) % 360;
+      }
+      const last = polyline[polyline.length - 1];
+      cx = last[0]; cy = last[1];
+    }
+  }
+  return polyline;
+}
+
+// ---------------------------------------------------------------------------
+// Override preview rendering
+// ---------------------------------------------------------------------------
+
+const OverridePreview = {
+  segIndex: null,
+  chain: null,
+  clickDefineMode: false,
+  waypoints: [],
+
+  /** Render override polyline on canvas from current chain state. */
+  update(segIndex, chain) {
+    this.segIndex = segIndex;
+    this.chain = chain;
+    const layer = document.getElementById("layer-measure");
+    // Remove old preview
+    layer.querySelectorAll(".override-preview").forEach(el => el.remove());
+
+    const g = App.state.geometry;
+    if (!g || !g.inner_segments || !g.inner_segments[segIndex]) return;
+    const seg = g.inner_segments[segIndex];
+    const startPt = g.points[seg.start];
+    if (!startPt) return;
+
+    const bearing = segStartBearing(seg, g.points);
+
+    // Walk the chain to get a polyline
+    const validChain = chain.filter(s => {
+      if (s.seg_type === "L") return s.distance > 0;
+      return s.radius > 0 && s.sweep > 0;
+    });
+    if (validChain.length === 0) return;
+
+    const poly = walkOverrideChain(validChain, startPt, bearing);
+    if (poly.length < 2) return;
+
+    // Draw polyline
+    const pts = poly.map(p => `${p[0]},${-p[1]}`).join(" ");
+    const el = svgEl("polyline", {
+      points: pts,
+      class: "override-preview",
+      fill: "none",
+      stroke: "#f9e2af",
+      "stroke-width": "0.04",
+      "stroke-dasharray": "0.12 0.06",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      opacity: "0.85",
+    });
+    layer.appendChild(el);
+
+    // Draw vertex dots
+    for (const p of poly) {
+      layer.appendChild(svgEl("circle", {
+        cx: p[0], cy: -p[1], r: 0.06,
+        fill: "#f9e2af", opacity: "0.7",
+        class: "override-preview",
+      }));
+    }
+
+    // Draw endpoint marker (target: where the chain should end)
+    const endPt = g.points[seg.end];
+    if (endPt) {
+      layer.appendChild(svgEl("circle", {
+        cx: endPt[0], cy: -endPt[1], r: 0.08,
+        fill: "none", stroke: "#a6e3a1", "stroke-width": "0.02",
+        "stroke-dasharray": "0.04 0.04",
+        class: "override-preview",
+      }));
+    }
+  },
+
+  /** Clear preview from canvas. */
+  clear() {
+    this.segIndex = null;
+    this.chain = null;
+    const layer = document.getElementById("layer-measure");
+    layer.querySelectorAll(".override-preview").forEach(el => el.remove());
+  },
+};
+
 /**
  * Open the inner wall override editor dialog.
  * Shows a dynamic table of sub-segments (line/arc chains).
  */
-function openOverrideEditor(segIndex, endName) {
+function openOverrideEditor(segIndex, endName, initialChain) {
   const existing = App.state.innerWallOverrides[String(segIndex)] || [];
-  const chain = existing.length
-    ? existing.map(s => ({ ...s }))
-    : [{ seg_type: "L", bearing: 0, distance: 0, radius: null, sweep: null, n_pts: 20 }];
+  const chain = initialChain
+    ? initialChain.map(s => ({ ...s }))
+    : existing.length
+      ? existing.map(s => ({ ...s }))
+      : [{ seg_type: "L", bearing: 0, distance: 0, radius: null, sweep: null, n_pts: 20 }];
 
   const container = document.createElement("div");
   container.className = "override-editor";
+
+  function updatePreview() {
+    OverridePreview.update(segIndex, chain);
+  }
 
   function render() {
     container.innerHTML = "";
@@ -3242,7 +3409,6 @@ function openOverrideEditor(segIndex, endName) {
 
     chain.forEach((sub, i) => {
       const tr = document.createElement("tr");
-      // Sub-seq
       const td0 = document.createElement("td");
       td0.textContent = i;
       tr.appendChild(td0);
@@ -3264,7 +3430,7 @@ function openOverrideEditor(segIndex, endName) {
         const inp = document.createElement("input");
         inp.type = "number"; inp.step = "0.01";
         inp.value = sub.bearing != null ? sub.bearing : "";
-        inp.onchange = () => { sub.bearing = parseFloat(inp.value); };
+        inp.onchange = () => { sub.bearing = parseFloat(inp.value); updatePreview(); };
         td2.appendChild(inp);
       } else { td2.textContent = "\u2014"; }
       tr.appendChild(td2);
@@ -3274,7 +3440,7 @@ function openOverrideEditor(segIndex, endName) {
         const inp = document.createElement("input");
         inp.type = "text";
         inp.value = sub.distance != null ? fmtFtIn(sub.distance) : "";
-        inp.onchange = () => { sub.distance = parseDimension(inp.value); };
+        inp.onchange = () => { sub.distance = parseDimension(inp.value); updatePreview(); };
         td3.appendChild(inp);
       } else { td3.textContent = "\u2014"; }
       tr.appendChild(td3);
@@ -3284,7 +3450,7 @@ function openOverrideEditor(segIndex, endName) {
         const inp = document.createElement("input");
         inp.type = "text";
         inp.value = sub.radius != null ? fmtFtIn(sub.radius) : "";
-        inp.onchange = () => { sub.radius = parseDimension(inp.value); };
+        inp.onchange = () => { sub.radius = parseDimension(inp.value); updatePreview(); };
         td4.appendChild(inp);
       } else { td4.textContent = "\u2014"; }
       tr.appendChild(td4);
@@ -3294,7 +3460,7 @@ function openOverrideEditor(segIndex, endName) {
         const inp = document.createElement("input");
         inp.type = "number"; inp.step = "0.01";
         inp.value = sub.sweep != null ? sub.sweep : "";
-        inp.onchange = () => { sub.sweep = parseFloat(inp.value); };
+        inp.onchange = () => { sub.sweep = parseFloat(inp.value); updatePreview(); };
         td5.appendChild(inp);
       } else { td5.textContent = "\u2014"; }
       tr.appendChild(td5);
@@ -3312,43 +3478,82 @@ function openOverrideEditor(segIndex, endName) {
     tbl.appendChild(tbody);
     container.appendChild(tbl);
 
-    // Add sub-segment button
+    // Button row
+    const btnRow = document.createElement("div");
+    btnRow.className = "override-btn-row";
+
+    // Add sub-segment
     const addBtn = document.createElement("button");
     addBtn.className = "override-add-btn";
-    addBtn.textContent = "+ Add sub-segment";
+    addBtn.textContent = "+ Add";
     addBtn.onclick = () => {
       chain.push({ seg_type: "L", bearing: 0, distance: 0, radius: null, sweep: null, n_pts: 20 });
       render();
     };
-    container.appendChild(addBtn);
+    btnRow.appendChild(addBtn);
 
-    // Remove Override button (only for existing overrides)
+    // Compute from default
+    const defaultBtn = document.createElement("button");
+    defaultBtn.className = "override-add-btn";
+    defaultBtn.textContent = "Compute Default";
+    defaultBtn.title = "Compute parametric chain from current geometry";
+    defaultBtn.onclick = async () => {
+      const resp = await apiFetch(`/api/inner-wall-overrides/${segIndex}/compute-default`);
+      if (!resp.ok) {
+        showToast("No default available for this segment", "error");
+        return;
+      }
+      const data = await resp.json();
+      chain.length = 0;
+      chain.push(...data.chain);
+      render();
+    };
+    btnRow.appendChild(defaultBtn);
+
+    // Click-to-define
+    const clickBtn = document.createElement("button");
+    clickBtn.className = "override-add-btn";
+    clickBtn.textContent = "Click to Define";
+    clickBtn.title = "Click waypoints on the canvas to define the chain";
+    clickBtn.onclick = () => {
+      Dialog.close();
+      OverridePreview.clear();
+      startClickDefineMode(segIndex, endName, chain);
+    };
+    btnRow.appendChild(clickBtn);
+
+    // Remove Override (existing overrides only)
     if (existing.length > 0) {
       const delBtn = document.createElement("button");
       delBtn.className = "override-add-btn";
       delBtn.style.color = "var(--red)";
-      delBtn.style.marginLeft = "8px";
-      delBtn.textContent = "Remove Override";
+      delBtn.textContent = "Remove";
       delBtn.onclick = async () => {
         Dialog.close();
+        OverridePreview.clear();
         await apiFetch(`/api/inner-wall-overrides/${segIndex}`, { method: "DELETE" });
         await loadOutlineTable();
         await loadGeometry();
       };
-      container.appendChild(delBtn);
+      btnRow.appendChild(delBtn);
     }
+
+    container.appendChild(btnRow);
+
+    updatePreview();
   }
 
   render();
 
-  // Use Dialog with customContent
   Dialog.show({
     title: `W Override \u2014 Seg ${segIndex} (${endName})`,
     customContent: container,
     fields: [],
+    onCancel() { OverridePreview.clear(); },
     async onSubmit() {
+      OverridePreview.clear();
       if (chain.length === 0) {
-        showToast("Chain is empty — use Remove Override to delete", "error");
+        showToast("Chain is empty \u2014 use Remove to delete", "error");
         return;
       }
       const resp = await apiFetch(`/api/inner-wall-overrides/${segIndex}`, {
@@ -3365,6 +3570,123 @@ function openOverrideEditor(segIndex, endName) {
       await loadGeometry();
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Click-to-define mode
+// ---------------------------------------------------------------------------
+
+function startClickDefineMode(segIndex, endName, existingChain) {
+  const g = App.state.geometry;
+  const seg = g.inner_segments[segIndex];
+  const startPt = g.points[seg.start];
+  const startBearing = segStartBearing(seg, g.points);
+
+  const waypoints = [startPt.slice()];
+  OverridePreview.clickDefineMode = true;
+  OverridePreview.waypoints = waypoints;
+
+  showToast("Click waypoints on canvas. Double-click or Enter to finish.", "info");
+
+  // Draw current waypoints as preview
+  function drawClickPreview() {
+    const layer = document.getElementById("layer-measure");
+    layer.querySelectorAll(".override-preview").forEach(el => el.remove());
+
+    if (waypoints.length < 1) return;
+    const pts = waypoints.map(p => `${p[0]},${-p[1]}`).join(" ");
+    layer.appendChild(svgEl("polyline", {
+      points: pts,
+      class: "override-preview",
+      fill: "none",
+      stroke: "#f9e2af",
+      "stroke-width": "0.04",
+      "stroke-dasharray": "0.12 0.06",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      opacity: "0.85",
+    }));
+    for (const p of waypoints) {
+      layer.appendChild(svgEl("circle", {
+        cx: p[0], cy: -p[1], r: 0.06,
+        fill: "#f9e2af", opacity: "0.7",
+        class: "override-preview",
+      }));
+    }
+    // Target endpoint
+    const endPt = g.points[seg.end];
+    if (endPt) {
+      layer.appendChild(svgEl("circle", {
+        cx: endPt[0], cy: -endPt[1], r: 0.08,
+        fill: "none", stroke: "#a6e3a1", "stroke-width": "0.02",
+        "stroke-dasharray": "0.04 0.04",
+        class: "override-preview",
+      }));
+    }
+  }
+  drawClickPreview();
+
+  function onClick(e) {
+    if (e.button !== 0) return;
+    const [wx, wy] = mouseToWorld(e);
+    waypoints.push([wx, wy]);
+    drawClickPreview();
+    e.stopPropagation();
+    e.preventDefault();
+  }
+
+  function onDblClick(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    finish();
+  }
+
+  function onKeyDown(e) {
+    if (e.key === "Enter") { finish(); e.preventDefault(); }
+    if (e.key === "Escape") { cancel(); e.preventDefault(); }
+  }
+
+  function finish() {
+    cleanup();
+    if (waypoints.length < 2) {
+      openOverrideEditor(segIndex, endName);
+      return;
+    }
+    // Convert waypoints to parametric chain (line segments)
+    const newChain = [];
+    for (let i = 1; i < waypoints.length; i++) {
+      const dx = waypoints[i][0] - waypoints[i - 1][0];
+      const dy = waypoints[i][1] - waypoints[i - 1][1];
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const bearing = ((Math.atan2(dx, dy) * 180 / Math.PI) % 360 + 360) % 360;
+      newChain.push({
+        seg_type: "L", bearing: Math.round(bearing * 100) / 100,
+        distance: Math.round(dist * 1e6) / 1e6,
+        radius: null, sweep: null, n_pts: 20,
+      });
+    }
+    openOverrideEditor(segIndex, endName, newChain);
+  }
+
+  function cancel() {
+    cleanup();
+    openOverrideEditor(segIndex, endName);
+  }
+
+  function cleanup() {
+    OverridePreview.clickDefineMode = false;
+    OverridePreview.waypoints = [];
+    OverridePreview.clear();
+    const vp = App.els["viewport"];
+    vp.removeEventListener("click", onClick, true);
+    vp.removeEventListener("dblclick", onDblClick, true);
+    document.removeEventListener("keydown", onKeyDown, true);
+  }
+
+  const vp = App.els["viewport"];
+  vp.addEventListener("click", onClick, true);
+  vp.addEventListener("dblclick", onDblClick, true);
+  document.addEventListener("keydown", onKeyDown, true);
 }
 
 function selectOutlineRow(seq) {

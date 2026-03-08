@@ -942,8 +942,9 @@ tr.outline-selected td { background: var(--selection); }
 .override-chain-table input { width: 70px; }
 .override-chain-table select { width: 55px; }
 .override-rm-btn { background: none; border: none; color: var(--red); cursor: pointer; font-size: 14px; }
+.override-btn-row { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
 .override-add-btn {
-  margin-top: 4px; background: var(--surface1); border: 1px solid var(--border);
+  background: var(--surface1); border: 1px solid var(--border);
   color: var(--text); padding: 2px 8px; cursor: pointer; font-size: 12px; border-radius: 3px;
 }
 .override-add-btn:hover { background: var(--surface2); }

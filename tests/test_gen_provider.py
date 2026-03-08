@@ -324,3 +324,50 @@ class TestOverrideIdentity:
     def test_inner_area_with_override(self, reference, gen_data_with_overrides):
         """Inner area from DB override is close to hardcoded."""
         assert abs(gen_data_with_overrides.inner_area - reference.inner_area) < 0.01
+
+
+# ── compute_default_override ───────────────────────────────────────────
+
+from app.gen_provider import compute_native_geometry, compute_default_override
+
+
+class TestComputeDefaultOverride:
+    @pytest.fixture
+    def geom(self):
+        from app.database import get_constants_dict as _gcd
+        constants = _gcd()
+        pts, outline_segs, inner_segs, radii = compute_native_geometry(constants)
+        return pts, inner_segs, constants
+
+    def test_line_segment_default(self, geom):
+        """Default for a line segment is a single L chain."""
+        pts, inner_segs, constants = geom
+        # seg 1 is W2->W5 (LineSeg)
+        chain = compute_default_override(1, inner_segs, pts, constants)
+        assert len(chain) == 1
+        assert chain[0]["seg_type"] == "L"
+        assert chain[0]["distance"] > 0
+        assert chain[0]["bearing"] is not None
+
+    def test_arc_segment_default(self, geom):
+        """Default for an arc segment is a single arc chain."""
+        pts, inner_segs, constants = geom
+        # seg 0 is W1->W2 (ArcSeg CW)
+        chain = compute_default_override(0, inner_segs, pts, constants)
+        assert len(chain) == 1
+        assert chain[0]["seg_type"] in ("CW", "CCW")
+        assert chain[0]["radius"] > 0
+        assert chain[0]["sweep"] > 0
+
+    def test_w8w9_default(self, geom):
+        """W8-W9 default is L-CCW-L chain."""
+        pts, inner_segs, constants = geom
+        chain = compute_default_override(5, inner_segs, pts, constants)
+        assert len(chain) == 3
+        assert chain[0]["seg_type"] == "L"
+        assert chain[1]["seg_type"] == "CCW"
+        assert chain[2]["seg_type"] == "L"
+
+    def test_invalid_index(self, geom):
+        pts, inner_segs, constants = geom
+        assert compute_default_override(99, inner_segs, pts, constants) == []

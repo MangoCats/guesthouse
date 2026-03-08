@@ -1256,6 +1256,19 @@ def create_app(db_path=None):
             return jsonify({"error": f"No override for segment {seg_index}"}), 404
         return jsonify(chain)
 
+    @app.route("/api/inner-wall-overrides/<int:seg_index>/compute-default")
+    def api_compute_default_override(seg_index):
+        """Compute the default parametric chain for a segment from geometry."""
+        from app.gen_provider import compute_native_geometry, compute_default_override
+        constants = get_constants_dict(db)
+        chain_rows = get_outline_chain(db)
+        pts, outline_segs, inner_segs, radii = compute_native_geometry(
+            constants, chain_rows=chain_rows, db_path=db)
+        chain = compute_default_override(seg_index, inner_segs, pts, constants)
+        if not chain:
+            return jsonify({"error": f"No default for segment {seg_index}"}), 404
+        return jsonify({"seg_index": seg_index, "chain": chain})
+
     @app.route("/api/inner-wall-overrides/<int:seg_index>", methods=["PUT"])
     def api_upsert_inner_wall_override(seg_index):
         """Create or update an inner wall override chain."""

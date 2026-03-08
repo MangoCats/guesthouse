@@ -458,3 +458,21 @@ class TestInnerWallOverridesAPI:
     def test_delete_missing(self, app_client):
         resp = app_client.delete("/api/inner-wall-overrides/99")
         assert resp.status_code == 404
+
+    def test_compute_default_line(self, app_client):
+        resp = app_client.get("/api/inner-wall-overrides/1/compute-default")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["chain"]) == 1
+        assert data["chain"][0]["seg_type"] == "L"
+
+    def test_compute_default_w8w9(self, app_client):
+        resp = app_client.get("/api/inner-wall-overrides/5/compute-default")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["chain"]) == 3
+        assert data["chain"][1]["seg_type"] == "CCW"
+
+    def test_compute_default_invalid(self, app_client):
+        resp = app_client.get("/api/inner-wall-overrides/99/compute-default")
+        assert resp.status_code == 404

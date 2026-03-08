@@ -133,6 +133,114 @@ def _seg_start_bearing(seg, pts):
     return math.degrees(math.atan2(dx, dy)) % 360
 
 
+def compute_default_override(seg_index, inner_segs, pts, constants_dict):
+    """Compute the default parametric override chain for an inner segment.
+
+    For line segments: single L sub-segment with bearing and distance.
+    For arc segments: single CW/CCW sub-segment with radius and sweep.
+    For seg 5 (W8-W9 concave corner): L-CCW-L straight-arc-straight chain
+    computed from the F-series geometry (same logic as _seed_inner_wall_overrides).
+
+    Returns list of sub-segment dicts, or empty list if seg_index is invalid.
+    """
+    if seg_index < 0 or seg_index >= len(inner_segs):
+        return []
+
+    seg = inner_segs[seg_index]
+    start_pt = pts[seg.start]
+    end_pt = pts[seg.end]
+
+    # Special case: W8-W9 concave corner (seg 5) — straight-arc-straight
+    if seg.start == "W8" and seg.end == "W9":
+        return _compute_w8w9_default_chain(pts, constants_dict)
+
+    if isinstance(seg, LineSeg):
+        dx = end_pt[0] - start_pt[0]
+        dy = end_pt[1] - start_pt[1]
+        dist = math.hypot(dx, dy)
+        bearing = math.degrees(math.atan2(dx, dy)) % 360
+        return [{"seg_type": "L", "bearing": round(bearing, 4),
+                 "distance": round(dist, 6), "n_pts": 20}]
+    else:
+        # Arc segment
+        center = pts[seg.center]
+        r = seg.radius
+        a_start = math.atan2(start_pt[1] - center[1], start_pt[0] - center[0])
+        a_end = math.atan2(end_pt[1] - center[1], end_pt[0] - center[0])
+        if seg.direction == "CW":
+            sweep = (a_start - a_end) % (2 * math.pi)
+        else:
+            sweep = (a_end - a_start) % (2 * math.pi)
+        return [{"seg_type": seg.direction,
+                 "radius": round(r, 6),
+                 "sweep": round(math.degrees(sweep), 4),
+                 "n_pts": seg.n_pts}]
+
+
+def _compute_w8w9_default_chain(pts, constants_dict):
+    """Compute the W8-W9 straight-arc-straight chain from current geometry.
+
+    Same logic as _seed_inner_wall_overrides in database.py, but runs
+    from live geometry instead of import-time constants.
+    """
+    wall_outer = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
+    shell_t = constants_dict.get("SHELL_THICKNESS", 2.0 / 12.0)
+    opening_r = constants_dict.get("OPENING_INSIDE_RADIUS", 1.5 / 12.0)
+    R_turn = opening_r + shell_t
+
+    F8, C7 = pts["F8"], pts["C7"]
+    F9, F10 = pts["F9"], pts["F10"]
+
+    # CW traversal directions
+    r8x, r8y = F8[0] - C7[0], F8[1] - C7[1]
+    r8_len = math.hypot(r8x, r8y)
+    dir_f8 = (r8y / r8_len, -r8x / r8_len)
+
+    d9x, d9y = F10[0] - F9[0], F10[1] - F9[1]
+    d9_len = math.hypot(d9x, d9y)
+    dir_f9 = (d9x / d9_len, d9y / d9_len)
+
+    brg_f8 = math.degrees(math.atan2(dir_f8[0], dir_f8[1]))
+    brg_f9 = math.degrees(math.atan2(dir_f9[0], dir_f9[1]))
+
+    # Inset points
+    ins_f8 = (dir_f8[1], -dir_f8[0])
+    ins_f9 = (dir_f9[1], -dir_f9[0])
+    W8 = (F8[0] + wall_outer * ins_f8[0], F8[1] + wall_outer * ins_f8[1])
+    W9 = (F9[0] + wall_outer * ins_f9[0], F9[1] + wall_outer * ins_f9[1])
+
+    # Arc center and tangent distances
+    left_f8 = (-dir_f8[1], dir_f8[0])
+    left_f9 = (-dir_f9[1], dir_f9[0])
+    P1 = (W8[0] + R_turn * left_f8[0], W8[1] + R_turn * left_f8[1])
+    P2 = (W9[0] + R_turn * left_f9[0], W9[1] + R_turn * left_f9[1])
+    dp = (P2[0] - P1[0], P2[1] - P1[1])
+    cross = dir_f8[0] * dir_f9[1] - dir_f8[1] * dir_f9[0]
+    t = (dp[0] * dir_f9[1] - dp[1] * dir_f9[0]) / cross
+    arc_tangent1 = (W8[0] + t * dir_f8[0], W8[1] + t * dir_f8[1])
+
+    t2_dp = (P1[0] - P2[0], P1[1] - P2[1])
+    t2_cross = dir_f9[0] * dir_f8[1] - dir_f9[1] * dir_f8[0]
+    t2 = (t2_dp[0] * dir_f8[1] - t2_dp[1] * dir_f8[0]) / t2_cross
+    arc_tangent2 = (W9[0] + t2 * dir_f9[0], W9[1] + t2 * dir_f9[1])
+
+    dist_start = math.hypot(arc_tangent1[0] - W8[0], arc_tangent1[1] - W8[1])
+    dist_end = math.hypot(W9[0] - arc_tangent2[0], W9[1] - arc_tangent2[1])
+
+    entry = math.atan2(-left_f8[1], -left_f8[0])
+    exit_ = math.atan2(-left_f9[1], -left_f9[0])
+    sweep_deg = math.degrees((exit_ - entry) % (2 * math.pi))
+
+    return [
+        {"seg_type": "L", "bearing": round(brg_f8, 4),
+         "distance": round(dist_start, 6), "n_pts": 20},
+        {"seg_type": "CCW", "radius": round(R_turn, 6),
+         "sweep": round(sweep_deg, 4), "n_pts": 20},
+        {"seg_type": "L", "bearing": round(brg_f9, 4),
+         "distance": round(dist_end, 6), "n_pts": 20},
+    ]
+
+
 def apply_overrides_to_poly(inner_poly, inner_segs, pts, overrides):
     """Apply DB-driven inner wall overrides to an inner_poly list (in-place).
 
