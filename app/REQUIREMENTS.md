@@ -18,8 +18,8 @@ full commit history are marked **(NEW)**.
 #### DB-1  Schema Initialisation
 The application SHALL create an SQLite database with tables `constants`,
 `outline_chain`, `views`, `shapes`, `variant_exclusions`,
-`room_label_offsets`, `undo_history`, `elements`, and `doors` when
-launched for the first time.
+`room_label_offsets`, `undo_history`, `elements`, `doors`,
+`survey_legs`, and `survey_config` when launched for the first time.
 
 **Acceptance:** Start with no `app/adu.db` file. Run `python run_app.py
 --no-browser`. Verify the file is created and contains all six tables.
@@ -136,6 +136,73 @@ computed centroids. Default is (0, 0) for all rooms (no rows).
 **Acceptance:** Initially `get_room_label_offsets()` returns `{}`.
 After `set_room_label_offset("BEDROOM", 0.5, -0.3)`,
 `get_room_label_offsets()` returns `{"BEDROOM": (0.5, -0.3)}`.
+
+#### DB-14  F2 Origin Constants
+The constants table SHALL include `F2_EASTING` (−18.5) and `F2_NORTHING`
+(−13.5) in the "geometry" category.  `compute_geometry()` SHALL read
+these from `constants_dict` with hardcoded fallback defaults.
+
+**Acceptance:** Fresh DB contains F2_EASTING = −18.5, F2_NORTHING = −13.5
+in category "geometry".  Editing F2_EASTING shifts the F2 point.
+
+#### DB-15  Survey Legs Table
+The `survey_legs` table SHALL store 5 traverse legs with bearing
+(deg/min/sec), distance (ft/inch), and endpoint label.  Seeded from
+`shared/survey.py` hardcoded values on first init.
+
+**Acceptance:** `get_survey_legs()` returns 5 rows with labels
+P2, P3, P4, P5, POB.  `update_survey_leg(1, {"bearing_deg": 260})`
+persists the change.
+
+#### DB-16  Survey Config Table
+The `survey_config` table SHALL store FC_IN_P3_E, FC_IN_P3_N,
+COORD_ROTATION, P3_EASTING_OVERRIDE, and P2_P3_NORTHING_OFFSET as
+JSON-encoded values.
+
+**Acceptance:** `get_survey_config()` returns a dict with all 5 keys.
+`update_survey_config("FC_IN_P3_E", 20.0)` persists the new value.
+
+#### DB-17  Survey Reset
+`reset_survey()` SHALL delete and re-seed both `survey_legs` and
+`survey_config` tables to their default values.
+
+**Acceptance:** Modify a leg and config value, call `reset_survey()`,
+verify original values are restored.
+
+#### DB-18  DB-Driven Traverse
+`_compute_traverse_from_db(db_path)` SHALL produce traverse points
+identical to `shared/survey.py:compute_traverse()` when seeded with
+default values (within 1e-6 ft tolerance).
+
+**Acceptance:** Compare all 5 traverse points (POB, P2, P3, P4, P5)
+between hardcoded and DB-driven functions.
+
+#### DB-19  Project Export
+`export_project(db_path)` SHALL return a dict with version, exported_at,
+and all table data: constants, outline_chain, elements, element_formulas,
+formula_deps, doors, variants, variant_exclusions, survey_legs,
+survey_config, plumbing_elements.
+
+**Acceptance:** Export returns dict with version=1, ≥140 constants,
+≥18 outline chain rows, all survey data.
+
+#### DB-20  Project Import
+`import_project(data, db_path)` SHALL validate structure (required keys,
+version=1), outline closure, formula DAG (no cycles), then replace all
+table data in a single transaction.
+
+**Acceptance:** Export→import round-trip preserves all constant values
+within 1e-10 tolerance and produces identical geometry (d²=0 for all
+points).
+
+#### DB-21  Import Validation
+`import_project()` SHALL reject invalid data: missing keys → ValueError
+with "Missing"; wrong version → ValueError with "Unsupported"; formula
+dependency cycle → ValueError with "cycle".  On rejection, the database
+SHALL remain unchanged.
+
+**Acceptance:** Import with version=99 raises ValueError.  Import with
+cyclic formula deps raises ValueError.  DB state unchanged after both.
 
 ### 1.2  Geometry Engine
 
@@ -731,6 +798,76 @@ The root route SHALL return HTTP 200 with HTML containing the string
 "ADU Editor".
 
 **Acceptance:** `GET /` returns status 200. Body contains `"ADU Editor"`.
+
+### 2.10  Survey Data API
+
+#### API-35  GET /api/survey/legs
+SHALL return HTTP 200 with a JSON array of 5 survey leg objects ordered
+by seq, each with bearing_deg, bearing_min, bearing_sec, distance_ft,
+distance_inch, and label.
+
+**Acceptance:** Response has 5 items with labels P2, P3, P4, P5, POB.
+
+#### API-36  PUT /api/survey/legs/<seq>
+SHALL update the specified survey leg fields and return `{"ok": true}`.
+Triggers geometry_changed SSE and records undo entry.
+
+**Acceptance:** PUT seq=1 with `{"bearing_deg": 260}`. GET legs shows
+updated value. Undo restores original.
+
+#### API-37  GET /api/survey/config
+SHALL return HTTP 200 with a JSON object of survey config key-value pairs.
+
+**Acceptance:** Response contains FC_IN_P3_E, FC_IN_P3_N, COORD_ROTATION,
+P3_EASTING_OVERRIDE, P2_P3_NORTHING_OFFSET.
+
+#### API-38  PUT /api/survey/config/<key>
+SHALL update the specified config value and return `{"ok": true}`.
+
+**Acceptance:** PUT FC_IN_P3_E with `{"value": 20.0}`. GET config shows
+updated value.
+
+#### API-39  POST /api/survey/reset
+SHALL reset survey legs and config to seed defaults and return
+`{"ok": true}`.
+
+**Acceptance:** Modify a leg, POST reset, verify original values restored.
+
+### 2.11  Project Export/Import API
+
+#### API-40  GET /api/project/export
+SHALL return HTTP 200 with a JSON object containing version=1,
+exported_at timestamp, and all table data (constants, outline_chain,
+elements, element_formulas, formula_deps, doors, variants,
+variant_exclusions, survey_legs, survey_config, plumbing_elements).
+
+**Acceptance:** Response has version=1, ≥140 constants, ≥18 chain rows.
+
+#### API-41  POST /api/project/import
+SHALL validate and import project data, replacing all tables. Returns
+`{"ok": true}` on success, 400 with `{"error": ...}` on validation
+failure (missing keys, wrong version, closure error, dependency cycle).
+Records undo entry with before-state = full export.
+
+**Acceptance:** Export→import round-trip. Geometry unchanged (d²=0).
+Import with version=99 returns 400.
+
+### 2.12  Span Analysis (DB-Driven)
+
+#### API-42  GET /api/span-data (Phase 14-C)
+SHALL compute span profile using `compute_geometry()` result directly
+(no `patch_constants()` call). Returns downsampled eastings, spans,
+south_spans, north_spans arrays.
+
+**Acceptance:** Response arrays have matching lengths, positive values,
+monotonic eastings.
+
+#### API-43  GET /api/span-rotation (Phase 14-C)
+SHALL compute span-vs-rotation analysis using `compute_geometry()` result
+directly. Returns min_angle, min_span, max_angle, max_span, and data
+array.
+
+**Acceptance:** min_span < max_span. min_span > 0. data has ≥30 entries.
 
 ---
 
@@ -2620,8 +2757,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 
 | Section | Implemented | Planned | Total |
 |---------|-------------|---------|-------|
-| 1 Data Layer | 40 | 0 | 40 |
-| 2 REST API | 34 | 0 | 34 |
+| 1 Data Layer | 48 | 0 | 48 |
+| 2 REST API | 43 | 0 | 43 |
 | 3 UI Layout | 8 | 0 | 8 |
 | 4 Canvas | 27 | 0 | 27 |
 | 5 Selection | 15 | 0 | 15 |
@@ -2638,7 +2775,7 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
 | 18 Formulas | 19 | 0 | 19 |
-| **Total** | **258** | **0** | **258** |
+| **Total** | **275** | **0** | **275** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

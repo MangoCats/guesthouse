@@ -9,12 +9,16 @@ NF-4 has been lifted (Phase 12g cutover complete).  The FormulaEvaluator
 is the sole source of element geometry.  Phase 12h eliminated all procedural
 element baselines — `compute_geometry()` is now formula-only.
 
+Phase 14 is complete: F2 origin, survey traverse, and span analysis are
+fully DB-driven; `patch_constants()` is no longer called from span analysis;
+full project export/import with validation is available.
+
 ---
 
-## Current State (Phase 12h complete)
+## Current State (Phase 14 complete)
 
-**258 of 258 requirements implemented.**  ~950 app tests, ~550 pre-existing
-tests (~1500 total).  All implemented requirements have automated test coverage.
+**275 of 275 requirements implemented.**  ~970 app tests, ~580 pre-existing
+tests (~1550 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -125,14 +129,21 @@ tests (~1500 total).  All implemented requirements have automated test coverage.
 | Formula-only engine: no procedural calls, all elements from formulas + DB | Done |
 | Product URLs in DB element properties (editable via API) | Done |
 | Variant formula cloning on custom variant creation | Done |
+| F2 origin from DB constants (F2_EASTING, F2_NORTHING) | Done |
+| Survey data in DB (survey_legs, survey_config tables) | Done |
+| DB-driven traverse: `_compute_traverse_from_db()` replaces hardcoded | Done |
+| Span analysis without `patch_constants()` | Done |
+| Survey API: 5 endpoints (GET/PUT legs, GET/PUT config, POST reset) | Done |
+| Full project export (`GET /api/project/export`) | Done |
+| Full project import with validation (`POST /api/project/import`) | Done |
 
-**What's missing:** Phase 14 (DB-driven outline/survey/export-import),
-Phases 15–18 (DB-driven SVG generators), and electrical layout (aspirational).
-The database is the sole authoritative source for all element data.  No
-procedural element baselines remain in `compute_geometry()`.  Outline origin
-and survey data are still hardcoded (Phase 14 scope).  SVG generators still
-read from hardcoded Python modules; edits made in the interactive editor are
-not reflected in generated SVGs (Phases 15–18 scope).
+**What's missing:** Phases 15–18 (DB-driven SVG generators), and electrical
+layout (aspirational).  The database is the sole authoritative source for
+all element data, survey traverse, and outline origin.  No procedural element
+baselines remain in `compute_geometry()`.  Span analysis uses geometry
+result directly without module patching.  SVG generators still read from
+hardcoded Python modules; edits made in the interactive editor are not
+reflected in generated SVGs (Phases 15–18 scope).
 
 ---
 
@@ -801,10 +812,10 @@ eliminates these last procedural holdouts.
 
 | Sub-phase | Status | Summary |
 |-----------|--------|---------|
-| **14-A** | Planned | F2 origin in DB: move `F2_E` / `F2_N` from hardcoded values to `constants` table (category "outline"), read in `compute_geometry()` |
-| **14-B** | Planned | Survey data in DB: new `survey_legs` and `survey_config` tables seeded from `shared/survey.py`, `compute_traverse()` reads from DB |
-| **14-C** | Planned | Span analysis without module patching: remove last `patch_constants()` usage, extract span measurements from `compute_geometry()` result directly |
-| **14-D** | Planned | Full export/import: `GET /api/project/export` returns single JSON (constants, outline_chain, survey, elements, formulas, variants, plumbing), `POST /api/project/import` validates and restores with undo support |
+| **14-A** | Complete | F2 origin in DB: `F2_EASTING` / `F2_NORTHING` constants (category "geometry"), read via `constants_dict.get()` in `compute_geometry()` |
+| **14-B** | Complete | Survey data in DB: `survey_legs` and `survey_config` tables seeded from `shared/survey.py`, `_compute_traverse_from_db()` reads from DB, 5 API endpoints |
+| **14-C** | Complete | Span analysis without module patching: `compute_span_data()` and `compute_span_rotation()` use `compute_geometry()` result directly, no `patch_constants()` calls |
+| **14-D** | Complete | Full export/import: `GET /api/project/export` returns JSON (13 data sections), `POST /api/project/import` validates closure + DAG cycles, undo support |
 
 ### Phase 14-A: F2 Origin in DB
 

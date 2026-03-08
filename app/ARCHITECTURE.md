@@ -210,8 +210,10 @@ longer calls `compute_interior_layout()`, `compute_outer_openings()`,
 metadata (label, type, shape, door/clearance configs, product URLs,
 variant lists) is stored in the `elements` table and queried by
 `_build_elements_from_formulas()`.  The procedural `floorplan/` modules
-provide outline geometry only.  `patch_constants()` remains for the
-span analysis functions (`compute_span_data`, `compute_span_rotation`).
+provide outline geometry only.  `patch_constants()` is no longer called
+from span analysis (Phase 14-C); span functions use `compute_geometry()`
+result directly.  Survey traverse is computed from DB tables when
+`db_path` is provided (Phase 14-B).
 
 **Derived constants** — `_derive_constant()` computes `WALL_EXTRA`,
 `CORNER_SW_R`, and other derived values from the constants dict without
@@ -393,6 +395,13 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | PUT | `/api/config/<key>` | Set config value (SCAD-2, SITE-1) |
 | POST | `/api/reset-database` | Reset DB to defaults |
 | GET | `/api/survey-points` | P-series survey points (SITE-4) |
+| GET | `/api/survey/legs` | Survey traverse legs |
+| PUT | `/api/survey/legs/<seq>` | Update a survey leg |
+| GET | `/api/survey/config` | Survey configuration |
+| PUT | `/api/survey/config/<key>` | Update survey config value |
+| POST | `/api/survey/reset` | Reset survey to defaults |
+| GET | `/api/project/export` | Export full project as JSON |
+| POST | `/api/project/import` | Import project from JSON |
 | POST | `/api/generate-site-plan` | Regenerate site plan PDFs (SITE-1) |
 | POST | `/api/generate-3d` | Generate SCAD 3D model (SCAD-1) |
 | POST | `/api/generate-views` | Generate multi-view PDF (SCAD-3) |
@@ -677,6 +686,8 @@ highlights and SF partition lines.  Responsive breakpoint at
 | Room label offsets | `room_label_offsets` table | Yes — move operation |
 | Item shapes | `shapes` table (seeded from hardcoded data) | Read-only |
 | Plumbing elements | `plumbing_elements` table (seeded with reference pipes/fixtures) | Yes — full CRUD via API |
+| Survey legs | `survey_legs` table (5 legs seeded from `shared/survey.py`) | Yes — PUT endpoint |
+| Survey config | `survey_config` table (FC_IN_P3, COORD_ROTATION, corrections) | Yes — PUT endpoint |
 
 The constants table is the single editable root for building geometry.
 Every other geometric value is deterministically derived from it through
@@ -700,8 +711,9 @@ The sources of truth evolve as phases are completed:
 | 12f | Lock/unlock UI: padlock icon on locked canvas elements, lock/unlock button in properties panel with emoji indicators.  Formula dependency highlighting: blue (upstream) and orange (downstream) on element select.  Lock/unlock undo/redo (`formula_lock` action type).  `formula_locked` SSE event.  `GET /api/deps/graph` endpoint (full DAG as nodes + edges).  `locked_elements` list in geometry response.  `get_all_formula_deps()` database function. |
 | 12g | Cutover: removed `patch_constants()`/`importlib.reload()` from `compute_geometry()`, added outer/rough opening formula overrides, BED formula (`div` length spec), lifted NF-4. |
 | 12h | Eliminated procedural baselines: seeded ~59 element metadata rows (label, type, shape, door/clearance configs, product URLs, variant lists) into `elements` table.  Rewrote `compute_geometry()` as formula-only — removed all procedural calls.  Removed 835 lines of dead code from `variants.py` (984→149 lines).  Product URLs moved to DB.  Variant formula cloning on custom variant creation. |
+| 14 | Fully DB-driven outline & export/import.  F2 origin (`F2_EASTING`, `F2_NORTHING`) as DB constants.  `survey_legs` and `survey_config` tables with 5 API endpoints.  Span analysis refactored to use `compute_geometry()` result — `patch_constants()` no longer called from span functions.  Full project export/import with outline closure and DAG cycle validation. |
 
-### Current Architecture (Phase 12h Complete)
+### Current Architecture (Phase 14 Complete)
 
 The database is the **sole** authoritative source for all design data.
 Every element — interior walls, openings, furniture, appliances,
@@ -792,9 +804,9 @@ provide:
 
 The snapshot/restore mechanism was originally necessary because
 `compute_geometry()` mutated module-level state via `patch_constants()`
-+ `importlib.reload()`.  Since Phase 12h, the main engine no longer does
-this, but the span analysis functions still use `patch_constants()`, so
-the mechanism is retained for test isolation.
++ `importlib.reload()`.  Since Phase 14-C, no engine function calls
+`patch_constants()` — it remains only for SVG generator endpoints.
+The snapshot mechanism is retained for test isolation.
 
 ---
 
@@ -812,9 +824,10 @@ product URLs, shapes) is stored in the `elements` table and queried by
 `_build_elements_from_formulas()`.  `compute_geometry()` no longer imports
 from `floorplan/layout.py` or `floorplan/openings.py`.
 
-**Remaining module patching.**  `patch_constants()` is still used by the
-span analysis functions (`compute_span_data`, `compute_span_rotation`)
-which call into `span/` modules that read from `floorplan.constants`.
+**Module patching.**  `patch_constants()` is retained for SVG generator
+functions that call into `floorplan/` modules, but is no longer used by
+the span analysis functions (Phase 14-C refactored them to use
+`compute_geometry()` result directly).
 
 ---
 
