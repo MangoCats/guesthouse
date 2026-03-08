@@ -1067,13 +1067,19 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     """
     from shared.geometry import path_polygon
     from app.evaluator import FormulaEvaluator
-    from app.database import get_all_formulas, get_variants as _get_db_variants
-    from app.gen_provider import compute_native_geometry
+    from app.database import (get_all_formulas, get_variants as _get_db_variants,
+                              get_inner_wall_overrides)
+    from app.gen_provider import compute_native_geometry, apply_overrides_to_poly
 
     # 1-3. Survey traverse, F-series outline, inner walls (shared with GeneratorData)
     pts, outline_segs, inner_segs, radii = compute_native_geometry(
         constants_dict, chain_rows=chain_rows, db_path=db_path)
     inner_poly = path_polygon(inner_segs, pts)
+
+    # 3b. Apply inner wall overrides (W-series geometry exceptions)
+    overrides = get_inner_wall_overrides(db_path)
+    if overrides:
+        apply_overrides_to_poly(inner_poly, inner_segs, pts, overrides)
 
     # 4. Load variant exclusions
     exclusions = get_variant_exclusions(variant, db_path)

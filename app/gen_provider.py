@@ -133,6 +133,28 @@ def _seg_start_bearing(seg, pts):
     return math.degrees(math.atan2(dx, dy)) % 360
 
 
+def apply_overrides_to_poly(inner_poly, inner_segs, pts, overrides):
+    """Apply DB-driven inner wall overrides to an inner_poly list (in-place).
+
+    Processes overrides in descending seg_index order so that splice
+    index positions remain valid for earlier segments.
+
+    Parameters:
+        inner_poly  — mutable list of (E, N) tuples
+        inner_segs  — list of LineSeg/ArcSeg (for bearing computation)
+        pts         — point dict {name: (E, N)}
+        overrides   — dict {seg_index: [sub-segment dicts]}
+    """
+    for seg_idx in sorted(overrides.keys(), reverse=True):
+        chain = overrides[seg_idx]
+        seg = inner_segs[seg_idx]
+        start_pt = pts[seg.start]
+        end_pt = pts[seg.end]
+        start_bearing = _seg_start_bearing(seg, pts)
+        poly = walk_override_chain(chain, start_pt, start_bearing)
+        _splice_poly(inner_poly, start_pt, end_pt, poly)
+
+
 # ---------------------------------------------------------------------------
 # Helpers (moved from engine.py to avoid circular imports)
 # ---------------------------------------------------------------------------
@@ -328,23 +350,9 @@ class GeneratorData:
         _splice_poly(self.inner_poly, self.pts["W8"], self.pts["W9"], poly)
 
     def _apply_inner_wall_overrides(self, overrides):
-        """Apply DB-driven inner wall overrides to inner_poly.
-
-        Processes overrides in descending seg_index order so that splice
-        index positions remain valid for earlier segments.
-        """
-        for seg_idx in sorted(overrides.keys(), reverse=True):
-            chain = overrides[seg_idx]
-            seg = self.inner_segs[seg_idx]
-            start_name, end_name = seg.start, seg.end
-            start_pt = self.pts[start_name]
-            end_pt = self.pts[end_name]
-
-            # Compute start bearing from inner_segs geometry
-            start_bearing = _seg_start_bearing(seg, self.pts)
-
-            poly = walk_override_chain(chain, start_pt, start_bearing)
-            _splice_poly(self.inner_poly, start_pt, end_pt, poly)
+        """Apply DB-driven inner wall overrides to inner_poly."""
+        apply_overrides_to_poly(
+            self.inner_poly, self.inner_segs, self.pts, overrides)
 
     def _compute_roof_geometry(self):
         """Compute R-series roof geometry."""
