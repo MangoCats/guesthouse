@@ -1108,7 +1108,7 @@ def create_app(db_path=None):
     def api_span_data():
         from app.engine import compute_span_data
         constants = get_constants_dict(db)
-        data = compute_span_data(constants)
+        data = compute_span_data(constants, db_path=db)
         # Downsample to every 6th point (~2-inch resolution)
         step = 6
         return jsonify({
@@ -1122,7 +1122,7 @@ def create_app(db_path=None):
     def api_span_rotation():
         from app.engine import compute_span_rotation
         constants = get_constants_dict(db)
-        return jsonify(compute_span_rotation(constants))
+        return jsonify(compute_span_rotation(constants, db_path=db))
 
     # -- Config API (SCAD-2) --
 

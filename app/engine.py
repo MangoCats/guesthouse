@@ -1372,16 +1372,96 @@ def get_svg_content(svg_path: str) -> str | None:
 # Span analysis (ANALYSIS-1, ANALYSIS-2)
 # ---------------------------------------------------------------------------
 
-def compute_span_data(constants):
+def _extract_iw_centerlines_from_geo(geo):
+    """Extract IW1/IW2/IW8 centerlines from compute_geometry() result.
+
+    Same output format as span/_common.py:extract_iw_centerlines(layout).
+    """
+    iw = geo.get("interior_walls", {})
+    cls = []
+    for name in ("IW1", "IW2", "IW8"):
+        wall = iw.get(name)
+        if not wall:
+            continue
+        poly = wall["poly"]
+        bbox = wall["bbox"]
+        if name in ("IW1", "IW8"):
+            # Horizontal wall: midline at vertical center
+            mid_n = (bbox["s"] + bbox["n"]) / 2
+            cl = ((poly[0][0], mid_n),
+                  ((poly[1][0] + poly[2][0]) / 2, mid_n))
+        else:
+            # Vertical wall (IW2): midline at horizontal center
+            mid_e = (bbox["w"] + bbox["e"]) / 2
+            cl = ((mid_e, bbox["s"]), (mid_e, bbox["n"]))
+        cls.append(cl)
+    return cls
+
+
+def _compute_spans_from_geo(inner_poly, geo):
+    """Compute N-S spans using IW polygons from geometry result.
+
+    Same logic as span/gen_span.py:_compute_spans but uses geo result
+    instead of layout namedtuple.
+    """
+    from shared.geometry import vert_isects
+
+    iw = geo.get("interior_walls", {})
+    iw1_poly = iw["IW1"]["poly"] if "IW1" in iw else []
+    iw8_poly = iw["IW8"]["poly"] if "IW8" in iw else []
+
+    e_min = min(p[0] for p in inner_poly)
+    e_max = max(p[0] for p in inner_poly)
+    inch = 1.0 / 12.0
+    eastings, spans, south_spans, north_spans = [], [], [], []
+    e = e_min
+    while e <= e_max + 1e-9:
+        ns = vert_isects(inner_poly, e)
+        if len(ns) >= 2:
+            south_n = min(ns)
+            north_n = max(ns)
+            span = north_n - south_n
+        else:
+            span = south_n = north_n = 0.0
+
+        spans.append(span)
+
+        mid_n = None
+        if iw1_poly:
+            iw1_ns = vert_isects(iw1_poly, e)
+            if len(iw1_ns) >= 2:
+                mid_n = (min(iw1_ns) + max(iw1_ns)) / 2
+        if iw8_poly:
+            iw8_ns = vert_isects(iw8_poly, e)
+            if len(iw8_ns) >= 2:
+                iw8_mid = (min(iw8_ns) + max(iw8_ns)) / 2
+                if mid_n is None or iw8_mid < mid_n:
+                    mid_n = iw8_mid
+
+        if mid_n is not None and span > 0:
+            south_spans.append(mid_n - south_n)
+            north_spans.append(north_n - mid_n)
+        else:
+            south_spans.append(span)
+            north_spans.append(span)
+
+        eastings.append(e)
+        e += inch
+    return eastings, spans, south_spans, north_spans
+
+
+def compute_span_data(constants, db_path=None):
     """Return N-S span profile data for the current geometry.
 
     Returns dict with eastings, spans, south_spans, north_spans arrays.
+    Uses compute_geometry() result (Phase 14-C), no module patching.
     """
-    patch_constants(constants)
-    from span._common import build_geometry, extract_iw_centerlines
-    from span.gen_span import _compute_spans
-    _pts, _outline_segs, _outer_poly, inner_poly, layout, _roof_poly = build_geometry()
-    eastings, spans, south_spans, north_spans = _compute_spans(inner_poly, layout)
+    from app.database import get_outline_chain
+    chain_rows = get_outline_chain(db_path) if db_path else None
+    geo = compute_geometry(constants, chain_rows=chain_rows, db_path=db_path)
+    inner_poly = [(p[0], p[1]) for p in geo["inner_poly"]]
+    eastings, spans, south_spans, north_spans = _compute_spans_from_geo(
+        inner_poly, geo)
     return {
         "eastings": eastings,
         "spans": spans,
@@ -1390,19 +1470,19 @@ def compute_span_data(constants):
     }
 
 
-def compute_span_rotation(constants):
+def compute_span_rotation(constants, db_path=None):
     """Return span-vs-rotation analysis with min/max.
 
     Returns dict with min_angle, min_span, max_angle, max_span, and
     data array of [angle, max_span] pairs at 5-degree steps.
+    Uses compute_geometry() result (Phase 14-C), no module patching.
     """
-    patch_constants(constants)
-    from span._common import (
-        build_geometry, extract_iw_centerlines,
-        max_span_at_angle, find_min_span_angle,
-    )
-    _pts, _outline_segs, outer_poly, inner_poly, layout, _roof_poly = build_geometry()
-    iw_cls = extract_iw_centerlines(layout)
+    from span._common import max_span_at_angle, find_min_span_angle
+    from app.database import get_outline_chain
+    chain_rows = get_outline_chain(db_path) if db_path else None
+    geo = compute_geometry(constants, chain_rows=chain_rows, db_path=db_path)
+    inner_poly = [(p[0], p[1]) for p in geo["inner_poly"]]
+    iw_cls = _extract_iw_centerlines_from_geo(geo)
 
     # Centroid for rotation
     cx = sum(p[0] for p in inner_poly) / len(inner_poly)
