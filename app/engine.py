@@ -959,12 +959,15 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
 
         # Outer openings (O1-O11, O8a)
         elif elem_type == "opening" and elem_name.startswith("O") and not elem_name.startswith("O_"):
-            outer_openings.append({
+            entry = {
                 "name": elem_name,
                 "seg_start": props.get("seg_start", ""),
                 "seg_end": props.get("seg_end", ""),
                 "poly": poly,
-            })
+            }
+            if props.get("opening_type"):
+                entry["opening_type"] = props["opening_type"]
+            outer_openings.append(entry)
 
         # Rough openings (RO1-RO7)
         elif elem_type == "opening" and elem_name.startswith("RO"):
@@ -1243,7 +1246,7 @@ def generate_svg(view_name: str, script_path: str) -> bool:
         return False
 
 
-def _run_generator_inprocess(script_path: str, gd) -> bool:
+def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
     """Run a generator in-process using DB-sourced GeneratorData.
 
     Returns True on success, False on error, or None if no in-process
@@ -1251,17 +1254,31 @@ def _run_generator_inprocess(script_path: str, gd) -> bool:
     subprocess).
     """
     if script_path == "floorplan/gen_floorplan.py":
-        from floorplan.gen_floorplan import build_floorplan_data, render_floorplan_svg
+        from floorplan.gen_floorplan import build_floorplan_data
+        from app.db_render import render_floorplan_svg_db
+        from app.database import get_all_doors
+
         data = build_floorplan_data(gd)
         base = os.path.join(_PROJECT, "floorplan")
-        for suffix, kwargs in [
-            ("", {}),
-            ("_minik", {"room_title": "Parent Suite w/Small Kitchen", "minik": True}),
-            ("_db", {"room_title": "Parent Suite with Daybed", "db": True}),
-            ("_bare", {"room_title": "Room Dimensions", "bare": True}),
-            ("_sf", {"room_title": "Room Dimensions", "sf": True}),
-        ]:
-            svg = render_floorplan_svg(data, **kwargs)
+
+        # Variant configs: (suffix, variant_name, room_title)
+        _VARIANTS = [
+            ("",       "standard", "Parent Suite"),
+            ("_minik", "minik",    "Parent Suite w/Small Kitchen"),
+            ("_db",    "daybed",   "Parent Suite with Daybed"),
+            ("_bare",  "bare",     "Room Dimensions"),
+            ("_sf",    "sf",       "Room Dimensions"),
+        ]
+
+        constants_dict = gd.constants
+        doors_data = get_all_doors(db_path) if db_path else []
+
+        for suffix, variant, room_title in _VARIANTS:
+            geom = compute_geometry(
+                constants_dict, variant=variant,
+                doors_data=doors_data, db_path=db_path)
+            svg = render_floorplan_svg_db(
+                geom, data, room_title=room_title)
             with open(os.path.join(base, f"floorplan{suffix}.svg"), "w", encoding="utf-8") as f:
                 f.write(svg)
         return True
@@ -1365,14 +1382,15 @@ def _run_generator_inprocess(script_path: str, gd) -> bool:
     return None
 
 
-def generate_svg_db(view_name: str, script_path: str, gd) -> bool:
+def generate_svg_db(view_name: str, script_path: str, gd,
+                    db_path: str = None) -> bool:
     """Generate SVG using DB-sourced GeneratorData (in-process).
 
     Falls back to subprocess for scripts without in-process dispatch
     (e.g., gen_views.py, gen_line_drawings.py, gen_3views.py).
     """
     try:
-        result = _run_generator_inprocess(script_path, gd)
+        result = _run_generator_inprocess(script_path, gd, db_path=db_path)
         if result is not None:
             return result
     except Exception:

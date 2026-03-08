@@ -1425,7 +1425,7 @@ def create_app(db_path=None):
     @app.route("/api/generate-site-plan", methods=["POST"])
     def api_generate_site_plan():
         gd = build_generator_data_from_db(db)
-        ok = generate_svg_db("site_plan", "site/gen_site_plan.py", gd)
+        ok = generate_svg_db("site_plan", "site/gen_site_plan.py", gd, db_path=db)
         return jsonify({
             "ok": ok,
             "setback_216": get_config("setback_216", db),
@@ -1446,7 +1446,7 @@ def create_app(db_path=None):
         if not script:
             return jsonify({"ok": False, "error": f"unknown roof style: {roof_style}"}), 400
         gd = build_generator_data_from_db(db)
-        ok = generate_svg_db("3d_" + roof_style, script, gd)
+        ok = generate_svg_db("3d_" + roof_style, script, gd, db_path=db)
         return jsonify({
             "ok": ok,
             "roof_style": roof_style,
@@ -1459,7 +1459,7 @@ def create_app(db_path=None):
         gd = build_generator_data_from_db(db)
         # 1. Generate SCAD file for selected roof style
         scad_script = _ROOF_SCRIPTS.get(roof_style, "scad/gen_flat_roof.py")
-        ok = generate_svg_db("scad", scad_script, gd)
+        ok = generate_svg_db("scad", scad_script, gd, db_path=db)
         if not ok:
             return jsonify({"ok": False, "error": "SCAD generation failed"})
         # 2. Render views (requires OpenSCAD CLI) — subprocess only
@@ -1491,7 +1491,7 @@ def create_app(db_path=None):
             view = next((v for v in views if v["name"] == view_name), None)
             if not view:
                 return jsonify({"error": "unknown view"}), 404
-            ok = generate_svg_db(view_name, view["script"], gd)
+            ok = generate_svg_db(view_name, view["script"], gd, db_path=db)
             _broadcast("svg_updated", {"view": view_name})
             return jsonify({"ok": ok, "view": view_name})
         else:
@@ -1500,7 +1500,7 @@ def create_app(db_path=None):
             for v in views:
                 if v["script"] not in seen:
                     seen.add(v["script"])
-                    ok = generate_svg_db(v["name"], v["script"], gd)
+                    ok = generate_svg_db(v["name"], v["script"], gd, db_path=db)
                     results[v["name"]] = ok
                     _broadcast("svg_updated", {"view": v["name"]})
                 else:

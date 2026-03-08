@@ -822,18 +822,18 @@ def _seed_elements(conn):
 
     # --- Outer openings (O1-O11, O8a) ---
     _OUTER_OPENINGS = [
-        ("O1",  {"seg_start": "F2",  "seg_end": "F5"}),
-        ("O2",  {"seg_start": "F2",  "seg_end": "F5"}),
-        ("O3",  {"seg_start": "F2",  "seg_end": "F5"}),
-        ("O4",  {"seg_start": "F6",  "seg_end": "F7"}),
-        ("O5",  {"seg_start": "F9",  "seg_end": "F10"}),
-        ("O6",  {"seg_start": "F9",  "seg_end": "F10"}),
-        ("O7",  {"seg_start": "F12", "seg_end": "F13"}),
-        ("O8",  {"seg_start": "F14", "seg_end": "F15"}),
-        ("O8a", {"seg_start": "F18", "seg_end": "F1"}),
-        ("O9",  {"seg_start": "F18", "seg_end": "F1"}),
-        ("O10", {"seg_start": "F18", "seg_end": "F1"}),
-        ("O11", {"seg_start": "F18", "seg_end": "F1"}),
+        ("O1",  {"seg_start": "F2",  "seg_end": "F5",  "opening_type": "window"}),
+        ("O2",  {"seg_start": "F2",  "seg_end": "F5",  "opening_type": "window"}),
+        ("O3",  {"seg_start": "F2",  "seg_end": "F5",  "opening_type": "door"}),
+        ("O4",  {"seg_start": "F6",  "seg_end": "F7",  "opening_type": "window"}),
+        ("O5",  {"seg_start": "F9",  "seg_end": "F10", "opening_type": "window"}),
+        ("O6",  {"seg_start": "F9",  "seg_end": "F10", "opening_type": "door"}),
+        ("O7",  {"seg_start": "F12", "seg_end": "F13", "opening_type": "window"}),
+        ("O8",  {"seg_start": "F14", "seg_end": "F15", "opening_type": "casement"}),
+        ("O8a", {"seg_start": "F18", "seg_end": "F1",  "opening_type": "window"}),
+        ("O9",  {"seg_start": "F18", "seg_end": "F1",  "opening_type": "casement"}),
+        ("O10", {"seg_start": "F18", "seg_end": "F1",  "opening_type": "casement"}),
+        ("O11", {"seg_start": "F18", "seg_end": "F1",  "opening_type": "window"}),
     ]
     for name, props in _OUTER_OPENINGS:
         conn.execute(

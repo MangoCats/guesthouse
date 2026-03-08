@@ -848,7 +848,7 @@ def _svg_wall_poly(out, poly, to_svg):
     out.append(f'<polygon points="{svg}" fill="{WALL_FILL}" stroke="none"/>')
 
 
-def _render_walls(out, data, layout, bare=False):
+def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
     """Render outer wall fill with double-shell detail, outline strokes, and interior walls."""
     pts = data.pts
     to_svg = data.to_svg
@@ -972,6 +972,9 @@ def _render_walls(out, data, layout, bare=False):
     # Half stroke width in survey feet (for inside-only edge lines)
     svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
     half_sw = 0.5 / svg_per_ft
+
+    if skip_interior_walls:
+        return
 
     # Rough openings
     rough_openings = compute_rough_openings(pts, layout)
