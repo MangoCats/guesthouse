@@ -9,16 +9,17 @@ NF-4 has been lifted (Phase 12g cutover complete).  The FormulaEvaluator
 is the sole source of element geometry.  Phase 12h eliminated all procedural
 element baselines — `compute_geometry()` is now formula-only.
 
-Phase 14 is complete: F2 origin, survey traverse, and span analysis are
-fully DB-driven; `patch_constants()` is no longer called from span analysis;
-full project export/import with validation is available.
+Phase 15 is complete: `GeneratorData` in `app/gen_provider.py` provides
+native Python geometry objects (LineSeg/ArcSeg, Point tuples) for all
+outline, shell, roof, and layout data.  32 golden-gate identity tests
+verify exact match with `build_floorplan_data()` output.
 
 ---
 
-## Current State (Phase 14 complete)
+## Current State (Phase 15 complete)
 
-**275 of 275 requirements implemented.**  ~970 app tests, ~580 pre-existing
-tests (~1550 total).  All implemented requirements have automated test coverage.
+**275 of 275 requirements implemented.**  ~1000 app tests, ~580 pre-existing
+tests (~1610 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -137,13 +138,10 @@ tests (~1550 total).  All implemented requirements have automated test coverage.
 | Full project export (`GET /api/project/export`) | Done |
 | Full project import with validation (`POST /api/project/import`) | Done |
 
-**What's missing:** Phases 15–18 (DB-driven SVG generators), and electrical
-layout (aspirational).  The database is the sole authoritative source for
-all element data, survey traverse, and outline origin.  No procedural element
-baselines remain in `compute_geometry()`.  Span analysis uses geometry
-result directly without module patching.  SVG generators still read from
-hardcoded Python modules; edits made in the interactive editor are not
-reflected in generated SVGs (Phases 15–18 scope).
+**What's missing:** Phases 16–18 (SVG generator migration), and electrical
+layout (aspirational).  `GeneratorData` provides the data bridge; generators
+must be migrated to consume it instead of `build_floorplan_data()` and
+hardcoded `floorplan/` imports (Phases 16–18 scope).
 
 ---
 
@@ -876,14 +874,14 @@ re-seed all metadata.
 
 ---
 
-## Phase 15 — Generator Data Provider (Planned)
+## Phase 15 — Generator Data Provider (Complete)
 
 **Goal:** Build a data-access layer that provides SVG generators with all the
 geometry they need from the database and engine, replacing direct imports from
 hardcoded Python modules (`floorplan/layout.py`, `floorplan/openings.py`,
 `floorplan/constants.py`).  This is the foundation for Phases 16–18.
 
-**Status:** Planned
+**Status:** Complete
 
 **Motivation:** Today every generator imports `build_floorplan_data()` and/or
 individual `floorplan/` modules, which read hardcoded Python source.  Edits
