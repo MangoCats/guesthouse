@@ -3235,12 +3235,16 @@ async function loadOutlineTable() {
 }
 
 /**
- * Map outline seq to inner_segs index.
- * Outline and inner segments have matching indices (both 0..n-1).
+ * Map outline table seq to inner_segs index.
+ *
+ * The outline chain (DB) starts at F2 (seq 0 = F2→F5), while
+ * inner_segs starts at W1 (index 0 = W1→W2).  inner_segs mirrors
+ * outline_segs which starts one segment earlier (F1→F2), so
+ * inner_segs index = (outline seq + 1) % n.
  */
 function _outlineToInnerIndex(seq, chain) {
-  if (seq >= 0 && seq < chain.length) return seq;
-  return null;
+  if (seq < 0 || seq >= chain.length) return null;
+  return (seq + 1) % chain.length;
 }
 
 /**
