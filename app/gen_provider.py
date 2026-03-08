@@ -5,25 +5,108 @@ Provides GeneratorData, a typed container of native Python geometry objects
 directly.  This replaces direct imports from floorplan/ modules, allowing
 generators to render from database-edited state.
 
-Phase 15-A: core outline + inner wall geometry
-Phase 15-B: shell geometry (S/G-series), wall sections, U-turn polygons
-Phase 15-C: roof geometry (R-series corners, roof polyline, roof area)
+Also contains the shared geometry pipeline (compute_native_geometry) used by
+both compute_geometry() and GeneratorData, plus helpers for DB-driven traverse,
+outline chain walking, and derived constant computation.
 """
 import math
 
+from shared.types import LineSeg, ArcSeg
 from shared.geometry import (
     compute_inner_walls, path_polygon, poly_area,
     f8f9_corner_polyline, GEOM_EPS,
 )
-from shared.wall_shells import (
-    compute_inset_path, enumerate_wall_sections, uturn_polygon,
-    build_section_outlines,
-)
-from floorplan.openings import (
-    compute_outer_openings, compute_rough_openings, outer_to_wall_openings,
-)
+from shared.wall_shells import compute_inset_path, enumerate_wall_sections
+from floorplan.openings import compute_outer_openings, outer_to_wall_openings
 from floorplan.roof import compute_roof_geometry, roof_polyline
 
+
+# ---------------------------------------------------------------------------
+# Helpers (moved from engine.py to avoid circular imports)
+# ---------------------------------------------------------------------------
+
+def _derive_constant(constants_dict, name):
+    """Compute a derived constant from the constants dict.
+
+    Handles derived constants that depend on other constant values:
+      WALL_EXTRA = WALL_OUTER - 8/12
+      CORNER_SW_R = 10/12 + WALL_EXTRA
+    """
+    wall_outer = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
+    if name == "WALL_EXTRA":
+        return wall_outer - 8.0 / 12.0
+    if name == "CORNER_SW_R":
+        return 10.0 / 12.0 + (wall_outer - 8.0 / 12.0)
+    return constants_dict.get(name)
+
+
+def _build_outline_segs_from_chain(chain):
+    """Build outline_segs from solved chain (matching geometry.py rotation).
+
+    Returns list of LineSeg/ArcSeg in outline convention (F1->F2 first).
+    """
+    point_names = [seg.end_name for seg in chain]
+    start_names = ["F2"] + point_names[:-1]
+
+    segs = []
+    for entry, start, end in zip(chain, start_names, point_names):
+        if entry.seg_type == "L":
+            segs.append(LineSeg(start, end))
+        else:
+            segs.append(ArcSeg(start, end, entry.center_name,
+                               entry.radius, entry.seg_type, entry.n_pts))
+
+    # Rotate: F1->F2 first (last entry becomes first)
+    return segs[-1:] + segs[:-1]
+
+
+def _compute_traverse_from_db(db_path=None):
+    """Compute traverse from DB survey data (Phase 14-B).
+
+    Same math as shared/survey.py:compute_traverse() but reads legs and
+    config from the database instead of hardcoded values.
+    """
+    from app.database import get_survey_legs, get_survey_config
+
+    legs = get_survey_legs(db_path)
+    config = get_survey_config(db_path)
+
+    # Walk legs from origin
+    trav = [(0.0, 0.0)]
+    for leg in legs:
+        brg = leg["bearing_deg"] + leg["bearing_min"] / 60.0 + leg["bearing_sec"] / 3600.0
+        dist_in = leg["distance_ft"] * 12 + leg["distance_inch"]
+        brg_rad = math.radians(brg)
+        dE = dist_in * math.sin(brg_rad)
+        dN = dist_in * math.cos(brg_rad)
+        last = trav[-1]
+        trav.append((last[0] + dE, last[1] + dN))
+
+    # Convert to feet, take first 5 points
+    trav_ft = [(e / 12, n / 12) for e, n in trav[:5]]
+
+    # Apply manual corrections from config
+    p3_e_override = config.get("P3_EASTING_OVERRIDE", -19.1177)
+    p2_p3_n_offset = config.get("P2_P3_NORTHING_OFFSET", 29.0)
+    trav_ft[2] = (p3_e_override, trav_ft[3][1])
+    trav_ft[1] = (trav_ft[2][0], trav_ft[2][1] + p2_p3_n_offset)
+
+    # Shift from P3 origin to FC origin
+    fc_e = config.get("FC_IN_P3_E", 18.5141152720)
+    fc_n = config.get("FC_IN_P3_N", 13.3968094375)
+    p3 = trav_ft[2]
+    pts = {}
+    labels = ["POB", "P2", "P3", "P4", "P5"]
+    for i, label in enumerate(labels):
+        pts[label] = (trav_ft[i][0] - p3[0] - fc_e,
+                      trav_ft[i][1] - p3[1] - fc_n)
+
+    return pts
+
+
+# ---------------------------------------------------------------------------
+# GeneratorData
+# ---------------------------------------------------------------------------
 
 class GeneratorData:
     """All geometry a generator needs, sourced from the database.
@@ -49,17 +132,14 @@ class GeneratorData:
         g_f8f9_poly   — G-series F8-F9 corner polyline
         openings      — WallOpening list (parametric outer wall openings)
         wall_sections — enumerated wall sections with openings
+        layout        — InteriorLayout namedtuple (rooms, appliances, furniture)
 
     Attributes — Roof (Phase 15-C):
         roof          — RoofGeometry namedtuple (pts, radii, centers, area)
         roof_poly     — list of (E, N) tuples (roof outline polygon)
-
-    Attributes — Layout (from procedural modules, for identity with generators):
-        layout        — InteriorLayout namedtuple (rooms, appliances, furniture)
     """
 
-    def __init__(self, pts, outline_segs, inner_segs, radii, constants_dict,
-                 db_path=None):
+    def __init__(self, pts, outline_segs, inner_segs, radii, constants_dict):
         self.pts = pts
         self.outline_segs = outline_segs
         self.inner_segs = inner_segs
@@ -78,10 +158,7 @@ class GeneratorData:
         self.inner_area = poly_area(self.inner_poly)
 
         # Roof geometry (Phase 15-C)
-        self._compute_roof_geometry(constants_dict)
-
-        # Layout from procedural modules (for generator compatibility)
-        self._compute_layout()
+        self._compute_roof_geometry()
 
     def _compute_shell_geometry(self, constants_dict):
         """Compute S/G-series shell paths, F8-F9 polylines, and wall sections."""
@@ -124,8 +201,8 @@ class GeneratorData:
 
         # Openings (parametric on outline segments) for wall section enumeration
         from floorplan.layout import compute_interior_layout
-        layout = compute_interior_layout(self.pts, self.inner_poly)
-        outer_openings = compute_outer_openings(self.pts, layout)
+        self.layout = compute_interior_layout(self.pts, self.inner_poly)
+        outer_openings = compute_outer_openings(self.pts, self.layout)
         self.openings = outer_to_wall_openings(
             outer_openings, self.outline_segs, self.pts)
 
@@ -133,21 +210,17 @@ class GeneratorData:
         self.wall_sections = enumerate_wall_sections(
             self.openings, self.outline_segs)
 
-        # Store layout for later use
-        self._layout = layout
-
-    def _compute_roof_geometry(self, constants_dict):
+    def _compute_roof_geometry(self):
         """Compute R-series roof geometry."""
-        overhang = constants_dict.get("ROOF_OVERHANG", 1.5)
         self.roof = compute_roof_geometry(self.pts, self.radii)
         self.roof_poly = roof_polyline(self.roof)
         # Merge roof points into main pts dict
         self.pts.update(self.roof.pts)
 
-    def _compute_layout(self):
-        """Store the procedural layout for generator compatibility."""
-        self.layout = self._layout
 
+# ---------------------------------------------------------------------------
+# Shared geometry pipeline
+# ---------------------------------------------------------------------------
 
 def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
     """Compute outline + inner wall geometry as native Python objects.
@@ -166,7 +239,6 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
 
     # 1. Survey traverse
     if db_path is not None:
-        from app.engine import _compute_traverse_from_db
         trav_pts = _compute_traverse_from_db(db_path)
     else:
         trav_pts = compute_traverse()
@@ -181,7 +253,6 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
     # 2. F-series outline
     if chain_rows is not None:
         from app.outline_solver import db_rows_to_chain, solve_closure, walk_chain
-        from app.engine import _build_outline_segs_from_chain, _derive_constant
         chain = db_rows_to_chain(chain_rows)
         R_a1 = _derive_constant(constants_dict, "CORNER_SW_R")
 
@@ -228,5 +299,4 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None):
     """
     pts, outline_segs, inner_segs, radii = compute_native_geometry(
         constants_dict, chain_rows=chain_rows, db_path=db_path)
-    return GeneratorData(pts, outline_segs, inner_segs, radii,
-                         constants_dict, db_path=db_path)
+    return GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict)

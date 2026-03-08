@@ -885,42 +885,15 @@ def _compute_room_labels(pts, walls, openings_result, inner_segs, variant,
 
 
 def _build_outline_segs_from_chain(chain):
-    """Build outline_segs from solved chain (matching geometry.py rotation).
-
-    Returns list of LineSeg/ArcSeg in outline convention (F1->F2 first).
-    """
-    from shared.types import LineSeg, ArcSeg
-
-    point_names = [seg.end_name for seg in chain]
-    start_names = ["F2"] + point_names[:-1]
-
-    segs = []
-    for entry, start, end in zip(chain, start_names, point_names):
-        if entry.seg_type == "L":
-            segs.append(LineSeg(start, end))
-        else:
-            segs.append(ArcSeg(start, end, entry.center_name,
-                               entry.radius, entry.seg_type, entry.n_pts))
-
-    # Rotate: F1->F2 first (last entry becomes first)
-    return segs[-1:] + segs[:-1]
-
+    """Build outline_segs from solved chain — delegated to gen_provider."""
+    from app.gen_provider import _build_outline_segs_from_chain as _impl
+    return _impl(chain)
 
 
 def _derive_constant(constants_dict, name):
-    """Compute a derived constant from the constants dict.
-
-    Handles derived constants that depend on other constant values:
-      WALL_EXTRA = WALL_OUTER - 8/12
-      AIR_GAP = WALL_OUTER - 2*SHELL_THICKNESS
-      CORNER_SW_R = 10/12 + WALL_EXTRA
-    """
-    wall_outer = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
-    if name == "WALL_EXTRA":
-        return wall_outer - 8.0 / 12.0
-    if name == "CORNER_SW_R":
-        return 10.0 / 12.0 + (wall_outer - 8.0 / 12.0)
-    return constants_dict.get(name)
+    """Compute a derived constant — delegated to gen_provider."""
+    from app.gen_provider import _derive_constant as _impl
+    return _impl(constants_dict, name)
 
 
 def _build_elements_from_formulas(ev, variant, exclusions, db_path):
@@ -1070,48 +1043,9 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
 
 
 def _compute_traverse_from_db(db_path=None):
-    """Compute traverse from DB survey data (Phase 14-B).
-
-    Same math as shared/survey.py:compute_traverse() but reads legs and
-    config from the database instead of hardcoded values.
-    """
-    from app.database import get_survey_legs, get_survey_config
-    from shared.survey import compute_three_arc, compute_inset
-
-    legs = get_survey_legs(db_path)
-    config = get_survey_config(db_path)
-
-    # Walk legs from origin
-    trav = [(0.0, 0.0)]
-    for leg in legs:
-        brg = leg["bearing_deg"] + leg["bearing_min"] / 60.0 + leg["bearing_sec"] / 3600.0
-        dist_in = leg["distance_ft"] * 12 + leg["distance_inch"]
-        brg_rad = math.radians(brg)
-        dE = dist_in * math.sin(brg_rad)
-        dN = dist_in * math.cos(brg_rad)
-        last = trav[-1]
-        trav.append((last[0] + dE, last[1] + dN))
-
-    # Convert to feet, take first 5 points
-    trav_ft = [(e / 12, n / 12) for e, n in trav[:5]]
-
-    # Apply manual corrections from config
-    p3_e_override = config.get("P3_EASTING_OVERRIDE", -19.1177)
-    p2_p3_n_offset = config.get("P2_P3_NORTHING_OFFSET", 29.0)
-    trav_ft[2] = (p3_e_override, trav_ft[3][1])
-    trav_ft[1] = (trav_ft[2][0], trav_ft[2][1] + p2_p3_n_offset)
-
-    # Shift from P3 origin to FC origin
-    fc_e = config.get("FC_IN_P3_E", 18.5141152720)
-    fc_n = config.get("FC_IN_P3_N", 13.3968094375)
-    p3 = trav_ft[2]
-    pts = {}
-    labels = ["POB", "P2", "P3", "P4", "P5"]
-    for i, label in enumerate(labels):
-        pts[label] = (trav_ft[i][0] - p3[0] - fc_e,
-                      trav_ft[i][1] - p3[1] - fc_n)
-
-    return pts
+    """Compute traverse from DB survey data — delegated to gen_provider."""
+    from app.gen_provider import _compute_traverse_from_db as _impl
+    return _impl(db_path)
 
 
 def compute_geometry(constants_dict: dict, variant: str = "standard",
