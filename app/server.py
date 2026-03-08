@@ -40,6 +40,7 @@ from app.database import (
     get_inner_wall_overrides, get_inner_wall_override,
     upsert_inner_wall_override, delete_inner_wall_override,
     snapshot_inner_wall_overrides, restore_inner_wall_overrides,
+    reset_inner_wall_overrides,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -281,11 +282,13 @@ def create_app(db_path=None):
             "doors": get_all_doors(db),
             "survey_legs": get_survey_legs(db),
             "survey_config": get_survey_config(db),
+            "inner_wall_overrides": snapshot_inner_wall_overrides(db),
         }
         reset_constants(db)
         reset_outline_chain(db)
         reset_elements(db)
         reset_survey(db)
+        reset_inner_wall_overrides(db)
         after = {
             "constants": get_constants_dict(db),
             "outline": get_outline_chain(db),
@@ -293,6 +296,7 @@ def create_app(db_path=None):
             "doors": get_all_doors(db),
             "survey_legs": get_survey_legs(db),
             "survey_config": get_survey_config(db),
+            "inner_wall_overrides": snapshot_inner_wall_overrides(db),
         }
         undo_mgr.record("full_reset", before, after, "Reset to defaults")
         _invalidate()

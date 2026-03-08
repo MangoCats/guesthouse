@@ -213,9 +213,10 @@ class UndoManager:
             from app.database import import_project
             import_project(state, self._db_path)
         elif action_type == "full_reset":
-            # Combined constants + outline + elements + doors + survey reset
+            # Combined constants + outline + elements + doors + survey + overrides
             from app.database import (restore_outline_chain, restore_elements,
-                                      restore_survey)
+                                      restore_survey,
+                                      restore_inner_wall_overrides)
             update_constants_batch(state["constants"], self._db_path)
             restore_outline_chain(state["outline"], self._db_path)
             if "elements" in state:
@@ -224,6 +225,9 @@ class UndoManager:
             if "survey_legs" in state:
                 restore_survey(state["survey_legs"],
                                state.get("survey_config", {}), self._db_path)
+            if "inner_wall_overrides" in state:
+                restore_inner_wall_overrides(state["inner_wall_overrides"],
+                                             self._db_path)
         else:
             raise ValueError(f"Unknown undo action type: {action_type}")
 

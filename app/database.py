@@ -2683,6 +2683,13 @@ def upsert_inner_wall_override(seg_index, chain, db_path=None):
             )
 
 
+def reset_inner_wall_overrides(db_path=None):
+    """Re-seed inner wall overrides from defaults."""
+    with get_db(db_path or DB_PATH) as conn:
+        conn.execute("DELETE FROM inner_wall_overrides")
+        _seed_inner_wall_overrides(conn)
+
+
 def delete_inner_wall_override(seg_index, db_path=None):
     """Remove the override for a segment (reverts to default computation)."""
     with get_db(db_path or DB_PATH) as conn:

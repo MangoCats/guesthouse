@@ -3,7 +3,6 @@
 Verifies that GeneratorData (DB-driven) produces geometry identical
 (within tolerance) to the hardcoded procedural build_floorplan_data().
 """
-import math
 import os
 import sys
 import pytest
@@ -244,8 +243,8 @@ class TestLayoutIdentity:
 
 # ── Inner wall overrides (Phase 15½-B) ─────────────────────────────────
 
-from app.gen_provider import walk_override_chain, _splice_poly, _seg_start_bearing
-from app.database import get_inner_wall_overrides, get_constants_dict
+from app.gen_provider import walk_override_chain
+from app.database import get_inner_wall_overrides
 
 
 class TestWalkOverrideChain:

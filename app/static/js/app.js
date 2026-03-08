@@ -3348,14 +3348,19 @@ function openOverrideEditor(segIndex, endName) {
     fields: [],
     async onSubmit() {
       if (chain.length === 0) {
-        showToast("Chain is empty \u2014 use Remove Override instead", "error");
+        showToast("Chain is empty — use Remove Override to delete", "error");
         return;
       }
-      await apiFetch(`/api/inner-wall-overrides/${segIndex}`, {
+      const resp = await apiFetch(`/api/inner-wall-overrides/${segIndex}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chain }),
       });
+      if (!resp.ok) {
+        const err = await resp.json();
+        showToast(err.error || "Failed to save override", "error");
+        return;
+      }
       await loadOutlineTable();
       await loadGeometry();
     },
