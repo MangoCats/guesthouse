@@ -15,6 +15,7 @@ from app.database import (
     get_room_label_offsets, set_room_label_offset,
     get_survey_legs, get_survey_config,
     update_survey_leg, update_survey_config, reset_survey,
+    export_project, import_project,
 )
 
 # Re-use the fresh_db fixture from test_zapp_conftest.py
@@ -395,3 +396,97 @@ class TestSurveyData:
             db = from_db[label]
             assert abs(hc[0] - db[0]) < 1e-6, f"{label} easting mismatch"
             assert abs(hc[1] - db[1]) < 1e-6, f"{label} northing mismatch"
+
+
+# ── Phase 14-D  Export / Import ────────────────────────────────────────
+
+class TestExportImport:
+    def test_export_has_required_keys(self, fresh_db):
+        """Export contains all required top-level keys."""
+        data = export_project(fresh_db)
+        required = {"version", "exported_at", "constants", "outline_chain",
+                    "elements", "element_formulas", "formula_deps", "doors",
+                    "variants", "variant_exclusions", "survey_legs",
+                    "survey_config", "plumbing_elements"}
+        assert required <= set(data.keys())
+        assert data["version"] == 1
+
+    def test_export_constants_nonempty(self, fresh_db):
+        """Export contains seeded constants."""
+        data = export_project(fresh_db)
+        assert len(data["constants"]) >= 140
+
+    def test_export_outline_chain_nonempty(self, fresh_db):
+        """Export contains outline chain rows."""
+        data = export_project(fresh_db)
+        assert len(data["outline_chain"]) >= 18
+
+    def test_round_trip_constants(self, fresh_db):
+        """Export→import round-trip preserves constants."""
+        data = export_project(fresh_db)
+        import_project(data, fresh_db)
+        data2 = export_project(fresh_db)
+        assert len(data2["constants"]) == len(data["constants"])
+        orig = {c["name"]: c["value"] for c in data["constants"]}
+        imported = {c["name"]: c["value"] for c in data2["constants"]}
+        for name, val in orig.items():
+            assert abs(imported[name] - val) < 1e-10, f"{name} value changed"
+
+    def test_round_trip_geometry(self, fresh_db):
+        """Export→import round-trip produces identical geometry."""
+        from app.engine import compute_geometry
+
+        cd = get_constants_dict(fresh_db)
+        chain_rows = get_outline_chain(fresh_db)
+        geo1 = compute_geometry(cd, chain_rows=chain_rows, db_path=fresh_db)
+
+        data = export_project(fresh_db)
+        import_project(data, fresh_db)
+
+        cd2 = get_constants_dict(fresh_db)
+        chain_rows2 = get_outline_chain(fresh_db)
+        geo2 = compute_geometry(cd2, chain_rows=chain_rows2, db_path=fresh_db)
+
+        # Compare all point positions
+        for name, pt in geo1["points"].items():
+            pt2 = geo2["points"].get(name)
+            assert pt2 is not None, f"Point {name} missing after import"
+            d2 = (pt[0] - pt2[0]) ** 2 + (pt[1] - pt2[1]) ** 2
+            assert d2 < 1e-10, f"Point {name} moved: d²={d2}"
+
+    def test_import_invalid_version(self, fresh_db):
+        """Import rejects unsupported version."""
+        data = export_project(fresh_db)
+        data["version"] = 99
+        with pytest.raises(ValueError, match="Unsupported"):
+            import_project(data, fresh_db)
+
+    def test_import_missing_keys(self, fresh_db):
+        """Import rejects data with missing required keys."""
+        with pytest.raises(ValueError, match="Missing"):
+            import_project({"version": 1}, fresh_db)
+
+    def test_import_cycle_detection(self, fresh_db):
+        """Import rejects formula dependency cycles."""
+        data = export_project(fresh_db)
+        data["formula_deps"].append({
+            "element_name": "CYCLE_A", "param_name": "position",
+            "dep_type": "element", "dep_name": "CYCLE_B",
+        })
+        data["formula_deps"].append({
+            "element_name": "CYCLE_B", "param_name": "position",
+            "dep_type": "element", "dep_name": "CYCLE_A",
+        })
+        with pytest.raises(ValueError, match="cycle"):
+            import_project(data, fresh_db)
+
+    def test_import_no_state_change_on_error(self, fresh_db):
+        """Failed import leaves DB unchanged."""
+        before = export_project(fresh_db)
+        bad_data = {"version": 99}
+        try:
+            import_project(bad_data, fresh_db)
+        except ValueError:
+            pass
+        after = export_project(fresh_db)
+        assert len(after["constants"]) == len(before["constants"])

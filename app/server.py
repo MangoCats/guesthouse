@@ -36,6 +36,7 @@ from app.database import (
     get_all_formula_deps,
     get_survey_legs, get_survey_config,
     update_survey_leg, update_survey_config, reset_survey,
+    export_project, import_project,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -1154,6 +1155,29 @@ def create_app(db_path=None):
         _broadcast("outline_changed")
         _broadcast("plumbing_changed")
         return jsonify({"ok": ok, "issues": issues})
+
+    # -- Project Export/Import API (Phase 14-D) --
+
+    @app.route("/api/project/export")
+    def api_project_export():
+        data = export_project(db)
+        return jsonify(data)
+
+    @app.route("/api/project/import", methods=["POST"])
+    def api_project_import():
+        data = request.get_json(force=True)
+        # Capture current state for undo
+        before = export_project(db)
+        try:
+            import_project(data, db)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        after = export_project(db)
+        undo_mgr.record("project_import", before, after, "Import project")
+        _invalidate()
+        _broadcast("element_changed")
+        _broadcast("outline_changed")
+        return jsonify({"ok": True})
 
     # -- Survey Points API (SITE-4) --
 

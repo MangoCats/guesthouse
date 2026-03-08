@@ -2223,3 +2223,273 @@ def reset_survey(db_path=None):
         conn.execute("DELETE FROM survey_legs")
         conn.execute("DELETE FROM survey_config")
         _seed_survey(conn)
+
+
+# ---------------------------------------------------------------------------
+# Project Export / Import (Phase 14-D)
+# ---------------------------------------------------------------------------
+
+def export_project(db_path=None):
+    """Export the entire project state as a JSON-serialisable dict."""
+    import datetime
+    from app.plumbing import get_plumbing_elements
+
+    db_path = db_path or DB_PATH
+    with get_db(db_path) as conn:
+        constants = [dict(r) for r in conn.execute(
+            "SELECT name, value, expr, unit, category, description "
+            "FROM constants ORDER BY name"
+        ).fetchall()]
+
+        outline_chain = [dict(r) for r in conn.execute(
+            "SELECT seq, seg_type, distance, radius, sweep_name, sweep, "
+            "center_name, n_pts, end_name FROM outline_chain ORDER BY seq"
+        ).fetchall()]
+
+        elements = [dict(r) for r in conn.execute(
+            "SELECT id, type, name, properties, variant "
+            "FROM elements ORDER BY id"
+        ).fetchall()]
+
+        element_formulas = [dict(r) for r in conn.execute(
+            "SELECT element_name, param_name, formula_json, locked, "
+            "locked_value, variant FROM element_formulas ORDER BY id"
+        ).fetchall()]
+
+        formula_deps = [dict(r) for r in conn.execute(
+            "SELECT element_name, param_name, dep_type, dep_name "
+            "FROM formula_deps ORDER BY element_name, param_name"
+        ).fetchall()]
+
+        doors = [dict(r) for r in conn.execute(
+            "SELECT opening_name, width, hinge_side, swing_direction, door_type "
+            "FROM doors ORDER BY opening_name"
+        ).fetchall()]
+
+        variants = [dict(r) for r in conn.execute(
+            "SELECT name, label, source_variant, flags, layer_config, is_builtin "
+            "FROM variants ORDER BY id"
+        ).fetchall()]
+
+        variant_exclusions = [dict(r) for r in conn.execute(
+            "SELECT variant, element_type, element_name "
+            "FROM variant_exclusions ORDER BY variant, element_type, element_name"
+        ).fetchall()]
+
+        survey_legs = [dict(r) for r in conn.execute(
+            "SELECT seq, bearing_deg, bearing_min, bearing_sec, "
+            "distance_ft, distance_inch, label "
+            "FROM survey_legs ORDER BY seq"
+        ).fetchall()]
+
+        survey_config = {}
+        for r in conn.execute("SELECT key, value FROM survey_config").fetchall():
+            survey_config[r["key"]] = json.loads(r["value"])
+
+    plumbing = get_plumbing_elements(db_path)
+
+    return {
+        "version": 1,
+        "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "constants": constants,
+        "outline_chain": outline_chain,
+        "elements": elements,
+        "element_formulas": element_formulas,
+        "formula_deps": formula_deps,
+        "doors": doors,
+        "variants": variants,
+        "variant_exclusions": variant_exclusions,
+        "survey_legs": survey_legs,
+        "survey_config": survey_config,
+        "plumbing_elements": plumbing,
+    }
+
+
+def import_project(data, db_path=None):
+    """Import a project from an exported dict, replacing all data.
+
+    Validates structure before importing. Raises ValueError on invalid data.
+    """
+    db_path = db_path or DB_PATH
+
+    # Validate required keys
+    required = {"version", "constants", "outline_chain", "elements",
+                "element_formulas", "formula_deps", "doors", "variants",
+                "variant_exclusions", "survey_legs", "survey_config"}
+    missing = required - set(data.keys())
+    if missing:
+        raise ValueError(f"Missing required keys: {missing}")
+
+    if data["version"] != 1:
+        raise ValueError(f"Unsupported export version: {data['version']}")
+
+    # Validate outline closure
+    if data["outline_chain"]:
+        from app.outline_solver import db_rows_to_chain, solve_closure
+        chain = db_rows_to_chain(data["outline_chain"])
+        # Find CORNER_SW_R from imported constants
+        cdict = {c["name"]: c["value"] for c in data["constants"]}
+        r_a1 = cdict.get("CORNER_SW_R", 10.0 / 12.0 + (8.0 / 12.0 - 8.0 / 12.0))
+        result = solve_closure(chain, r_a1)
+        if not result.valid:
+            raise ValueError(
+                f"Imported outline chain does not close: "
+                f"error={result.closure_error:.6f}")
+
+    # Validate formula DAG (no cycles)
+    if data["element_formulas"]:
+        from app.evaluator import extract_deps
+        # Build adjacency from formula_deps
+        dep_graph = {}
+        for d in data.get("formula_deps", []):
+            if d["dep_type"] == "element":
+                dep_graph.setdefault(d["element_name"], set()).add(d["dep_name"])
+        # Topological sort check
+        visited = set()
+        in_stack = set()
+        def _has_cycle(node):
+            if node in in_stack:
+                return True
+            if node in visited:
+                return False
+            visited.add(node)
+            in_stack.add(node)
+            for dep in dep_graph.get(node, ()):
+                if _has_cycle(dep):
+                    return True
+            in_stack.discard(node)
+            return False
+        for node in dep_graph:
+            if _has_cycle(node):
+                raise ValueError(f"Formula dependency cycle detected at {node}")
+
+    with get_db(db_path) as conn:
+        # Clear all tables
+        for table in ("constants", "outline_chain", "elements", "doors",
+                      "element_formulas", "formula_deps", "variants",
+                      "variant_exclusions", "survey_legs", "survey_config",
+                      "plumbing_elements", "room_label_offsets"):
+            conn.execute(f"DELETE FROM {table}")
+
+        # Import constants
+        for c in data["constants"]:
+            conn.execute(
+                "INSERT INTO constants (name, value, expr, unit, category, description) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (c["name"], c["value"], c.get("expr"), c.get("unit", "ft"),
+                 c.get("category", "misc"), c.get("description", "")),
+            )
+
+        # Import outline chain
+        for row in data["outline_chain"]:
+            conn.execute(
+                "INSERT INTO outline_chain "
+                "(seq, seg_type, distance, radius, sweep_name, sweep, "
+                "center_name, n_pts, end_name) VALUES (?,?,?,?,?,?,?,?,?)",
+                (row["seq"], row["seg_type"], row.get("distance"),
+                 row.get("radius"), row.get("sweep_name"), row.get("sweep"),
+                 row.get("center_name"), row.get("n_pts", 60), row["end_name"]),
+            )
+
+        # Import elements
+        for e in data["elements"]:
+            props = e.get("properties", "{}")
+            if isinstance(props, dict):
+                props = json.dumps(props)
+            conn.execute(
+                "INSERT INTO elements (id, type, name, properties, variant) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (e.get("id"), e["type"], e["name"], props, e.get("variant")),
+            )
+
+        # Import element formulas
+        for f in data["element_formulas"]:
+            fj = f["formula_json"]
+            if isinstance(fj, dict):
+                fj = json.dumps(fj)
+            lv = f.get("locked_value")
+            if isinstance(lv, (dict, list)):
+                lv = json.dumps(lv)
+            conn.execute(
+                "INSERT INTO element_formulas "
+                "(element_name, param_name, formula_json, locked, locked_value, variant) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (f["element_name"], f["param_name"], fj,
+                 f.get("locked", 0), lv, f.get("variant")),
+            )
+
+        # Import formula deps
+        for d in data["formula_deps"]:
+            conn.execute(
+                "INSERT OR IGNORE INTO formula_deps "
+                "(element_name, param_name, dep_type, dep_name) "
+                "VALUES (?, ?, ?, ?)",
+                (d["element_name"], d["param_name"], d["dep_type"], d["dep_name"]),
+            )
+
+        # Import doors
+        for d in data["doors"]:
+            conn.execute(
+                "INSERT INTO doors "
+                "(opening_name, width, hinge_side, swing_direction, door_type) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (d["opening_name"], d["width"], d["hinge_side"],
+                 d["swing_direction"], d.get("door_type", "single")),
+            )
+
+        # Import variants
+        for v in data["variants"]:
+            flags = v.get("flags", "{}")
+            if isinstance(flags, dict):
+                flags = json.dumps(flags)
+            lc = v.get("layer_config", "{}")
+            if isinstance(lc, dict):
+                lc = json.dumps(lc)
+            conn.execute(
+                "INSERT INTO variants "
+                "(name, label, source_variant, flags, layer_config, is_builtin) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (v["name"], v["label"], v.get("source_variant"),
+                 flags, lc, v.get("is_builtin", 0)),
+            )
+
+        # Import variant exclusions
+        for ve in data["variant_exclusions"]:
+            conn.execute(
+                "INSERT OR IGNORE INTO variant_exclusions "
+                "(variant, element_type, element_name) VALUES (?, ?, ?)",
+                (ve["variant"], ve["element_type"], ve["element_name"]),
+            )
+
+        # Import survey legs
+        for leg in data["survey_legs"]:
+            conn.execute(
+                "INSERT INTO survey_legs "
+                "(seq, bearing_deg, bearing_min, bearing_sec, "
+                "distance_ft, distance_inch, label) VALUES (?,?,?,?,?,?,?)",
+                (leg["seq"], leg["bearing_deg"], leg["bearing_min"],
+                 leg["bearing_sec"], leg["distance_ft"],
+                 leg["distance_inch"], leg.get("label")),
+            )
+
+        # Import survey config
+        for key, value in data.get("survey_config", {}).items():
+            conn.execute(
+                "INSERT INTO survey_config (key, value) VALUES (?, ?)",
+                (key, json.dumps(value)),
+            )
+
+        # Import plumbing elements
+        for p in data.get("plumbing_elements", []):
+            path = p.get("path", "[]")
+            if isinstance(path, list):
+                path = json.dumps(path)
+            props = p.get("properties", "{}")
+            if isinstance(props, dict):
+                props = json.dumps(props)
+            conn.execute(
+                "INSERT INTO plumbing_elements "
+                "(type, name, path, properties, fixture) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (p["type"], p["name"], path, props, p.get("fixture")),
+            )
