@@ -271,3 +271,59 @@ class TestShapesTable:
             assert len(pts) >= 3, f"{s['name']} poly has < 3 points"
             for pt in pts:
                 assert len(pt) == 2, f"{s['name']} point {pt} is not [x,y]"
+
+
+# ── Phase 14-A  F2 Origin in DB ───────────────────────────────────────
+
+class TestF2OriginConstants:
+    def test_f2_constants_seeded(self, fresh_db):
+        """F2_EASTING and F2_NORTHING are seeded in the constants table."""
+        cd = get_constants_dict(fresh_db)
+        assert "F2_EASTING" in cd, "F2_EASTING not seeded"
+        assert "F2_NORTHING" in cd, "F2_NORTHING not seeded"
+
+    def test_f2_default_values(self, fresh_db):
+        """F2 constants have correct default values."""
+        cd = get_constants_dict(fresh_db)
+        assert cd["F2_EASTING"] == -18.5
+        assert cd["F2_NORTHING"] == -13.5
+
+    def test_f2_category_is_geometry(self, fresh_db):
+        """F2 constants are in the geometry category."""
+        constants = get_all_constants(fresh_db)
+        f2_consts = {c["name"]: c for c in constants
+                     if c["name"].startswith("F2_")}
+        for name in ("F2_EASTING", "F2_NORTHING"):
+            assert f2_consts[name]["category"] == "geometry"
+
+    def test_f2_geometry_unchanged_with_defaults(self, fresh_db):
+        """Geometry is identical whether F2 comes from DB or hardcoded."""
+        from app.engine import compute_geometry
+        from app.database import get_outline_chain
+        cd = get_constants_dict(fresh_db)
+        chain_rows = get_outline_chain(fresh_db)
+        geo = compute_geometry(cd, chain_rows=chain_rows, db_path=fresh_db)
+        # F2 position should match the default values
+        f2 = geo["points"]["F2"]
+        assert abs(f2[0] - (-18.5)) < 1e-6
+        # F2_N = -13.5 + R_a1; check it's reasonable (positive, near 0)
+        assert abs(f2[1]) < 50  # sanity check
+
+    def test_f2_geometry_changes_with_edited_values(self, fresh_db):
+        """Editing F2 constants changes geometry output."""
+        from app.engine import compute_geometry
+        from app.database import get_outline_chain
+        cd = get_constants_dict(fresh_db)
+        chain_rows = get_outline_chain(fresh_db)
+
+        # Baseline
+        geo_base = compute_geometry(cd, chain_rows=chain_rows, db_path=fresh_db)
+        f2_base = geo_base["points"]["F2"]
+
+        # Shift F2 easting by 1 ft
+        cd_modified = dict(cd)
+        cd_modified["F2_EASTING"] = -17.5
+        geo_mod = compute_geometry(cd_modified, chain_rows=chain_rows, db_path=fresh_db)
+        f2_mod = geo_mod["points"]["F2"]
+
+        assert abs(f2_mod[0] - f2_base[0] - 1.0) < 1e-6

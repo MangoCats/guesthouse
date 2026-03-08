@@ -126,11 +126,13 @@ tests (~1500 total).  All implemented requirements have automated test coverage.
 | Product URLs in DB element properties (editable via API) | Done |
 | Variant formula cloning on custom variant creation | Done |
 
-**What's missing:** Phase 14 (DB-driven outline/survey/export-import) and
-electrical layout (aspirational).  The database is the sole authoritative
-source for all element data.  No procedural element baselines remain in
-`compute_geometry()`.  Outline origin and survey data are still hardcoded
-(Phase 14 scope).
+**What's missing:** Phase 14 (DB-driven outline/survey/export-import),
+Phases 15–18 (DB-driven SVG generators), and electrical layout (aspirational).
+The database is the sole authoritative source for all element data.  No
+procedural element baselines remain in `compute_geometry()`.  Outline origin
+and survey data are still hardcoded (Phase 14 scope).  SVG generators still
+read from hardcoded Python modules; edits made in the interactive editor are
+not reflected in generated SVGs (Phases 15–18 scope).
 
 ---
 
@@ -863,6 +865,192 @@ re-seed all metadata.
 
 ---
 
+## Phase 15 — Generator Data Provider (Planned)
+
+**Goal:** Build a data-access layer that provides SVG generators with all the
+geometry they need from the database and engine, replacing direct imports from
+hardcoded Python modules (`floorplan/layout.py`, `floorplan/openings.py`,
+`floorplan/constants.py`).  This is the foundation for Phases 16–18.
+
+**Status:** Planned
+
+**Motivation:** Today every generator imports `build_floorplan_data()` and/or
+individual `floorplan/` modules, which read hardcoded Python source.  Edits
+made in the interactive editor (database) are invisible to generators.  This
+phase creates a single entry point that generators call instead, backed by the
+DB-stored constants, formulas, and outline chain.
+
+**Scope:**
+
+| Sub-phase | Summary |
+|-----------|---------|
+| **15-A** | `app/gen_provider.py` — data provider module exposing a `GeneratorData` object that wraps `compute_geometry()` output plus shell geometry, roof geometry, and survey data |
+| **15-B** | Extend `compute_geometry()` (or add companion functions) to expose shell boundary paths (S/G-series), wall section enumeration, and U-turn arc polygons currently computed only inside `shared/wall_shells.py` |
+| **15-C** | Extend to expose roof geometry (R-series corners, roof polyline, roof area) currently computed only inside `floorplan/roof.py` |
+| **15-D** | Golden-gate identity tests: for a freshly-seeded (unedited) database, verify that `GeneratorData` returns values identical (within tolerance) to the hardcoded module outputs |
+
+### Design: GeneratorData
+
+```python
+class GeneratorData:
+    """All geometry a generator needs, sourced from the database."""
+    # Outline
+    points: dict           # F/W/C/P/TC/R-series named points
+    outline_segs: list     # LineSeg/ArcSeg chain
+    outline_poly: list     # [E, N] vertices
+    inner_segs: list       # inner wall boundary segments
+    inner_poly: list       # inner wall boundary polygon
+    radii: dict            # R_a-series arc radii
+    constants: dict        # all constants from DB
+
+    # Interior
+    interior_walls: dict   # IW name → poly/bbox
+    outer_openings: list   # O1-O11 with polys
+    rough_openings: list   # RO1-RO7 with polys
+    variant_items: dict    # furniture/appliance/fixture geometry
+    door_arcs: list        # structural door arcs
+    appliance_doors: list  # appliance door arcs
+    clearance_zones: list  # clearance zone polys
+    room_labels: list      # room name/pos/area
+
+    # Construction detail (Phase 15-B)
+    shell_paths: dict      # S/G-series inset paths per shell
+    wall_sections: list    # enumerated wall sections with openings
+    uturn_polys: list      # U-turn arc polygon fill regions
+
+    # Roof (Phase 15-C)
+    roof_points: dict      # R-series corner points
+    roof_poly: list        # roof outline polygon
+    roof_area: float       # roof area in sq ft
+
+    # Survey (requires Phase 14-B)
+    survey_points: dict    # P-series traverse points
+    survey_legs: list      # bearing/distance legs
+```
+
+### Files affected
+
+- **New:** `app/gen_provider.py` — wraps engine + shell/roof/survey computation
+- **New:** `tests/test_gen_provider.py` — identity tests vs. hardcoded modules
+- **Modified:** `app/engine.py` — expose shell/roof helper functions
+- **Modified:** `shared/wall_shells.py` — factor out reusable computation (if needed)
+
+**Dependencies:** Phase 14 (DB-driven outline and survey data).
+
+---
+
+## Phase 16 — Floorplan & Roof Generator Migration (Planned)
+
+**Goal:** Migrate `gen_floorplan.py` and `gen_roof.py` to read all data from
+the database via `GeneratorData`, so that edits made in the interactive editor
+are reflected in generated SVGs.  The initial (unedited seed) database must
+produce SVG output identical to the current hardcoded generators.
+
+**Status:** Planned
+
+**Scope:**
+
+| Sub-phase | Summary |
+|-----------|---------|
+| **16-A** | Refactor `gen_floorplan.py`: replace `build_floorplan_data()` and direct `floorplan/` imports with `GeneratorData` lookups.  Preserve all rendering logic (SVG paths, labels, dimension lines, colours) |
+| **16-B** | Refactor `gen_roof.py`: replace `build_floorplan_data()` + `compute_roof_geometry()` imports with `GeneratorData.roof_*` fields |
+| **16-C** | SVG identity tests: binary-diff (or pixel-diff) of seed-DB-generated SVGs against current hardcoded SVGs, tolerating only non-semantic whitespace differences |
+| **16-D** | App integration: add "Regenerate SVG" button/endpoint that runs the migrated generator against the live database, so the Floorplan SVG tab reflects the current editor state |
+
+### Key challenge
+
+`gen_floorplan.py` is the master generator (~1000+ lines) with extensive
+rendering logic.  The migration must change only the data source, not the
+rendering.  A phased approach within 16-A is recommended: first replace the
+data acquisition calls, then run identity tests, then clean up.
+
+### Files affected
+
+- **Modified:** `floorplan/gen_floorplan.py` — data source switch
+- **Modified:** `roof/gen_roof.py` — data source switch
+- **Modified:** `app/server.py` — regenerate endpoint (16-D)
+- **New:** `tests/test_gen_identity.py` — SVG identity comparison tests
+
+**Dependencies:** Phase 15 (GeneratorData provider).
+
+---
+
+## Phase 17 — Wall Detail Generator Migration (Planned)
+
+**Goal:** Migrate `gen_walls.py` to read from the database via
+`GeneratorData`, including the shell boundary paths and wall section
+enumeration added in Phase 15-B.
+
+**Status:** Planned
+
+**Scope:**
+
+| Sub-phase | Summary |
+|-----------|---------|
+| **17-A** | Refactor `gen_walls.py`: replace all `floorplan/` and `walls/constants.py` imports with `GeneratorData` lookups.  Shell geometry (S/G-series paths, U-turn arcs) comes from `GeneratorData.shell_paths` / `wall_sections` / `uturn_polys` |
+| **17-B** | SVG identity tests for `walls.svg` and `all_walls.svg` |
+| **17-C** | App integration: wall detail SVG regeneration from live DB state |
+
+### Key challenge
+
+The wall detail generator is the most construction-specific view, relying on
+shell inset paths, U-turn arc polygons, and per-section opening cutouts.  All
+of this geometry must be exposed through Phase 15-B before this phase can
+begin.  The rendering logic itself (SVG path construction, colour scheme,
+annotations) stays unchanged.
+
+### Files affected
+
+- **Modified:** `walls/gen_walls.py` — data source switch
+- **Modified:** `walls/constants.py` — may become a thin re-export or removed
+- **Extended:** `tests/test_gen_identity.py` — wall SVG identity tests
+
+**Dependencies:** Phase 15-B (shell geometry in GeneratorData), Phase 16
+(pattern established).
+
+---
+
+## Phase 18 — Remaining Generator Migration (Planned)
+
+**Goal:** Migrate all remaining SVG/PDF generators to read from the database,
+completing the transition to fully editable views.
+
+**Status:** Planned
+
+**Scope:**
+
+| Sub-phase | Generator | Output files | Notes |
+|-----------|-----------|-------------|-------|
+| **18-A** | `span/gen_span.py`, `span/gen_span_minmax.py`, `span/gen_span_min.py` | `span/*.svg` | Span analysis reads interior wall positions and outline geometry; both now available from `GeneratorData` |
+| **18-B** | `site/gen_site_plan.py` | `site/site_plan_*.pdf` | Requires Phase 14-B survey data in DB.  Site-specific calibration constants (PDF coordinates, property line distances) move to DB constants or a `site_config` table |
+| **18-C** | `plumbing/gen_plumbing.py` | `plumbing/plumbing.svg` | Already has a parallel DB-backed plumbing canvas in the app; this migrates the standalone SVG generator to match |
+| **18-D** | `scad/gen_flat_roof.py`, `scad/gen_2in12.py`, `scad/gen_views.py`, `scad/gen_line_drawings.py` | `scad/*.scad`, `scad/*.svg` | 3D model generators; outline + roof + shell geometry from `GeneratorData`.  Wall heights and roof slope constants move to DB |
+| **18-E** | `survey/gen_path_svg.py` | `survey/path_area.svg` | Survey path overlay; requires Phase 14-B survey data |
+| **18-F** | SVG identity tests for all migrated generators |
+| **18-G** | Procedural module sunset: mark `floorplan/layout.py`, `floorplan/openings.py`, and rendering helpers in `floorplan/gen_floorplan.py` as deprecated seed-only sources.  `gen_all.py` switches to DB-backed generation |
+
+### End state
+
+After Phase 18-G:
+- `python gen_all.py` reads from the database (seeded on first run if empty)
+- All SVG/PDF outputs reflect the current editor state
+- Edits in the interactive editor are visible in every generated view
+- The hardcoded `floorplan/` modules remain as seed data sources only
+- A freshly-seeded database produces output identical to the pre-migration
+  hardcoded generators
+
+### Files affected
+
+- **Modified:** All generator scripts in `span/`, `site/`, `plumbing/`, `scad/`, `survey/`
+- **Modified:** `gen_all.py` — DB-backed generation pipeline
+- **Extended:** `tests/test_gen_identity.py` — full identity suite
+- **Deprecated:** `floorplan/layout.py`, `floorplan/openings.py` (seed-only)
+
+**Dependencies:** Phase 14 (survey data in DB), Phase 15 (GeneratorData),
+Phase 16 (migration pattern established).
+
+---
+
 ## Phase 13 — Electrical Layout (Aspirational)
 
 **Goal:** An interactive electrical layout, following the same pattern as the
@@ -922,7 +1110,7 @@ Phase 3 (Elements & Doors) ◄──┘                        │
     │                                                  │
     ├── Phase 10 (Domain Views) ◄── 3, 7              │
     │         │                                        │
-    │         └── Phase 13 (Electrical) ◄── 10         │
+    │         └── Phase 13 (Electrical) ◄── 10, 18     │
     │                                                  │
     ├── Phase 11 (View Variants & Polish) ◄── all     │
     │                                                  │
@@ -930,15 +1118,24 @@ Phase 3 (Elements & Doors) ◄──┘                        │
               │
               └── Phase 14 (DB-Driven Outline & Export) ◄── 12
                         │
-                        └── Phase 13 (Electrical) ◄── 10, 14
+                        └── Phase 15 (Generator Data Provider) ◄── 14
+                                  │
+                                  ├── Phase 16 (Floorplan & Roof Gen) ◄── 15
+                                  │         │
+                                  │         ├── Phase 17 (Wall Detail Gen) ◄── 15-B, 16
+                                  │         │
+                                  │         └── Phase 18 (Remaining Gens) ◄── 14, 15, 16
+                                  │
+                                  └── Phase 13 (Electrical) ◄── 10, 18
 ```
 
 (`:` and `?` denote optional dependencies — Phase 6 can start without Phase 5
 but room boundaries adapt to outline changes once Phase 5 is complete.)
 
 Phases 1 and 2 can proceed in parallel.  Phases 4, 5, and 6 can proceed in
-parallel after Phase 3.  Phase 14 follows Phase 12 and is expected to be
-implemented before Phase 13.
+parallel after Phase 3.  Phase 14 follows Phase 12.  Phases 15–18 form a
+sequential chain migrating SVG generators to DB-backed data.  Phase 13
+(Electrical) follows Phase 18 (all generators DB-backed).
 
 ---
 
@@ -998,8 +1195,12 @@ persistent data worth preserving.
 | 11 | UI-5–6, SEL-8a | 3 |
 | 12 | SEL-15, Charter Principle 5 | 1 + design spec |
 | 14 | (DB-driven outline, survey, export/import — to be specified) | TBD |
+| 15 | (generator data provider — to be specified) | TBD |
+| 16 | (floorplan & roof generator migration — to be specified) | TBD |
+| 17 | (wall detail generator migration — to be specified) | TBD |
+| 18 | (remaining generator migration — to be specified) | TBD |
 | 13 | (aspirational — to be specified) | TBD |
-| **Total** | | **240 + Phase 13/14 TBD** |
+| **Total** | | **240 + Phase 13–18 TBD** |
 
 ---
 
@@ -1023,6 +1224,10 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 11 | — | — | test_zapp_variants_ext.py |
 | 12 | dependencies.py | dependency-graph.js | test_zapp_deps.py |
 | 14 | survey_db.py | — | test_zapp_survey.py |
+| 15 | gen_provider.py | — | test_gen_provider.py |
+| 16 | — | — | test_gen_identity.py |
+| 17 | — | — | (extends test_gen_identity.py) |
+| 18 | — | — | (extends test_gen_identity.py) |
 | 13 | electrical.py | electrical-editor.js | test_zapp_electrical.py |
 
 ---

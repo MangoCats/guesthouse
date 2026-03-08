@@ -332,6 +332,18 @@ def _seed_variant_item_constants(conn):
             (name, value_ft, expr, "ft", category, description),
         )
 
+    # F2 origin position (Phase 14-A) — already in feet
+    for name, value, description in [
+        ("F2_EASTING",  -18.5, "F2 easting offset from FC"),
+        ("F2_NORTHING", -13.5, "F2 northing offset from FC (before R_a1)"),
+    ]:
+        conn.execute(
+            "INSERT OR IGNORE INTO constants "
+            "(name, value, expr, unit, category, description) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (name, value, str(value), "ft", "geometry", description),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Seed: outline chain
