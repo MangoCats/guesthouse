@@ -28,13 +28,14 @@ app/server.py          Flask routes, SSE broadcast, geometry cache
     ├─ app/undo.py         Undo/redo manager (50-level command stack)
     │      └─ app/database.py     (state application via CRUD functions)
     │
-    ├─ app/engine.py       Geometry computation orchestrator
+    ├─ app/engine.py       Geometry computation + in-process generator dispatch
     │      ├─ app/gen_provider.py       (shared native geometry computation)
     │      ├─ floorplan/geometry.py     (outline, F-series)
     │      ├─ floorplan/gen_floorplan.py (dimension endpoints)
     │      ├─ shared/geometry.py        (inner walls, polygons)
     │      ├─ shared/survey.py          (traverse, inset)
-    │      └─ app/database.py           (element metadata, formulas)
+    │      ├─ app/database.py           (element metadata, formulas)
+    │      └─ generators (11 scripts)   (in-process render via Phase 19)
     │
     ├─ app/gen_provider.py Generator data provider (Phase 15)
     │      ├─ shared/geometry.py        (inner walls, F8-F9 polyline)
@@ -208,8 +209,18 @@ orchestrates the full pipeline:
    18–22 dimension line endpoint pairs with distances
 
 Returns a JSON-serialisable dict with all computed geometry.  Also
-provides `generate_svg()` (runs generator scripts via subprocess) and
-`get_svg_content()` (reads SVG files from disk).
+provides `generate_svg_db()` (in-process generator dispatch with
+DB-built `GeneratorData`, subprocess fallback), `generate_svg()` (legacy
+subprocess path), and `get_svg_content()` (reads SVG files from disk).
+
+**DB-driven regeneration (Phase 19)** — `build_generator_data_from_db(db_path)`
+constructs a `GeneratorData` from the current database state.
+`_run_generator_inprocess(script_path, gd)` dispatches to 11 generator
+render functions (floorplan, roof, walls, span, site plan, SCAD, plumbing,
+survey).  `generate_svg_db(view_name, script_path, gd)` tries in-process
+first, falls back to subprocess for scripts without handlers (gen_views,
+gen_line_drawings, gen_3views).  All regeneration API endpoints in
+`server.py` use this path so generated SVGs reflect DB state.
 
 **Door arc computation** — `_compute_door_arcs(opening_polys, doors_data)`
 resolves abstract hinge/swing directions (east/west/north/south) to

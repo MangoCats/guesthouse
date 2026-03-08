@@ -9,17 +9,17 @@ NF-4 has been lifted (Phase 12g cutover complete).  The FormulaEvaluator
 is the sole source of element geometry.  Phase 12h eliminated all procedural
 element baselines — `compute_geometry()` is now formula-only.
 
-Phases 16–18 are complete: all SVG/PDF generators now accept `GeneratorData`
-as an optional parameter, enabling DB-driven SVG generation.  When called
-standalone (via `gen_all.py`), generators construct their own `GeneratorData`
-from the hardcoded procedural modules.
+Phases 16–19 are complete: all SVG/PDF generators accept `GeneratorData`
+as an optional parameter, and the app's regeneration endpoints pass a
+DB-built `GeneratorData` in-process.  Standalone execution (via `gen_all.py`)
+constructs `GeneratorData` from the hardcoded procedural modules.
 
 ---
 
-## Current State (Phase 18 complete)
+## Current State (Phase 19 complete)
 
 **275 of 275 requirements implemented.**  ~1000 app tests, ~580 pre-existing
-tests (~1610 total).  All implemented requirements have automated test coverage.
+tests (~1640 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -49,14 +49,14 @@ tests (~1610 total).  All implemented requirements have automated test coverage.
 | Full project export/import | Done |
 | Generator data provider (`GeneratorData`) | Done |
 | All generators accept `GeneratorData` (Phases 16–18) | Done |
+| DB-driven regeneration: in-process dispatch (Phase 19) | Done |
 
-**What's missing:** DB-driven regeneration from the app (Phase 19),
-inner wall segment overrides (Phase 15½), electrical layout (Phase 13,
-aspirational).
+**What's missing:** Inner wall segment overrides (Phase 15½), electrical
+layout (Phase 13, aspirational).
 
 ---
 
-## Completed Phases (1–18)
+## Completed Phases (1–19)
 
 ### Phase 1 — Foundation Test Coverage
 22 new tests (774 total).  100% coverage audit for 121 requirements.
@@ -133,78 +133,13 @@ roof, and survey geometry.  Golden-gate identity tests vs hardcoded modules.
 `span/_common.py`, `site/gen_site_plan.py`, `scad/gen_flat_roof.py`,
 `scad/gen_2in12.py` all accept `GeneratorData`.
 
----
-
-## Phase 19 — DB-Driven Regeneration (Planned)
-
-**Goal:** Close the gap between the interactive editor and SVG generation.
-Currently, "File > Regenerate All" runs generators as standalone subprocesses
-(`subprocess.check_call`), so they construct `GeneratorData` from hardcoded
-procedural modules — DB edits (element deletion, constant changes, outline
-modifications) are invisible to generated SVGs.  Phase 19 makes the app's
-regeneration path DB-driven, so generated SVGs reflect the current database
-state.
-
-**Status:** Planned
-
-**Motivation:** After Phases 16–18, every generator accepts an optional
-`GeneratorData` parameter.  But the app's `generate_svg()` function runs
-each generator as a separate Python process via its `__main__` block, which
-always passes `gd=None` and falls back to hardcoded modules.  The plumbing
-is in place — the generators just need to receive a DB-sourced
-`GeneratorData` instead of constructing their own.
-
-**Approach:** Replace subprocess execution with in-process calls that pass
-a DB-built `GeneratorData`.  The `generate_svg()` function in `app/engine.py`
-currently does:
-
-```python
-subprocess.check_call([sys.executable, script_path], cwd=_PROJECT, timeout=60)
-```
-
-This needs to become an in-process call that:
-1. Builds a `GeneratorData` from the current database state
-2. Calls the generator's render function directly, passing the `GeneratorData`
-3. Writes the resulting SVG/PDF to the output path
-
-**Scope:**
-
-| Sub-phase | Summary |
-|-----------|---------|
-| **19-A** | Refactor `generate_svg()`: replace subprocess with in-process generator dispatch.  Build `GeneratorData` from DB once, pass to each generator's render entry point. |
-| **19-B** | Generator entry points: ensure each generator exposes a callable render function (not just `__main__` script logic) that accepts `GeneratorData` and returns SVG content or writes to a file path. |
-| **19-C** | Regeneration API updates: `/api/regenerate` builds `GeneratorData` from DB and passes it through.  `gen_all.py` standalone continues to work via hardcoded path. |
-| **19-D** | Tests: verify that regenerated SVGs from a modified database differ from seed-state SVGs (e.g., delete an element, regenerate, confirm it's absent from SVG output). |
-
-**Design considerations:**
-
-- **In-process vs. subprocess:** In-process is simpler and avoids the DB
-  path serialisation problem.  The generators are pure Python with no global
-  state issues (after Phase 12g removed module patching).  The main risk is
-  import-time side effects in generator modules — these should be audited.
-- **Generator entry points:** Most generators already have a clean render
-  function (`render_roof_svg()`, `render_floorplan_svg()`, etc.) that
-  accepts data and returns SVG.  Some (`gen_flat_roof.py`, `gen_2in12.py`)
-  write to files directly in `generate()` — these need a return-content
-  variant or a file-path parameter.
-- **Performance:** Building `GeneratorData` is fast (~50ms for outline +
-  shell + roof geometry).  For "Regenerate All", build it once and pass
-  to all generators.
-- **Standalone compatibility:** `gen_all.py` and individual generator
-  `__main__` blocks continue to work without the app database — they
-  construct their own `GeneratorData` from hardcoded modules as before.
-
-**Files affected:**
-
-- **Modified:** `app/engine.py` — replace `generate_svg()` subprocess with
-  in-process dispatch
-- **Modified:** `app/server.py` — regeneration endpoints pass `GeneratorData`
-- **Modified:** Generator scripts (minor) — ensure render functions are
-  importable without side effects
-- **New:** `tests/test_zapp_regenerate.py` — DB-driven regeneration tests
-
-**Dependencies:** Phase 15 (GeneratorData), Phases 16–18 (all generators
-accept `GeneratorData`).
+### Phase 19 — DB-Driven Regeneration
+In-process generator dispatch replaces subprocess execution.
+`build_generator_data_from_db()` builds `GeneratorData` from DB state;
+`_run_generator_inprocess()` dispatches to 11 generator render functions;
+`generate_svg_db()` wraps with subprocess fallback.  All regeneration
+endpoints (`/api/regenerate`, `/api/generate-site-plan`, `/api/generate-3d`)
+pass DB-built `GeneratorData`.  17 new tests.
 
 ---
 
@@ -254,9 +189,7 @@ DB-backed).
 ## Phase Dependency Graph
 
 ```
-Phases 1–18 (all complete)
-    │
-    ├── Phase 19 (DB-Driven Regeneration) ◄── 15, 16–18
+Phases 1–19 (all complete)
     │
     ├── Phase 15½ (Inner Wall Overrides) ◄── 15
     │
@@ -270,7 +203,7 @@ Phases 1–18 (all complete)
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 1516+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 1664+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met
 
