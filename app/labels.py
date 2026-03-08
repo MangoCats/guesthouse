@@ -112,7 +112,7 @@ BUILTIN_DIMENSIONS = [
     },
     # dim03: IW12-south-mid → W18-W1 (rotated, along IW11 east direction)
     {
-        "name": "dim03", "variant": None,
+        "name": "dim03", "variant": None, "label_prefix": "CLOSET ",
         "start_anchor": {"type": "wall_face", "target": "IW12", "face": "south"},
         "end_anchor": {
             "type": "line_intersection",
@@ -123,7 +123,7 @@ BUILTIN_DIMENSIONS = [
     },
     # dim04: IW7-south-mid → W18-W1 (rotated, along IW7 west direction)
     {
-        "name": "dim04", "variant": None,
+        "name": "dim04", "variant": None, "label_prefix": "CLOSET ",
         "start_anchor": {"type": "wall_face", "target": "IW7", "face": "south"},
         "end_anchor": {
             "type": "line_intersection",
@@ -432,13 +432,16 @@ def seed_builtin_dimensions(conn):
         ).fetchone()
         if existing:
             continue
-        props = json.dumps({
+        props_dict = {
             "source": "builtin",
             "start_anchor": dim["start_anchor"],
             "end_anchor": dim["end_anchor"],
             "offset": 0,
             "label_rotation": "parallel",
-        })
+        }
+        if dim.get("label_prefix"):
+            props_dict["label_prefix"] = dim["label_prefix"]
+        props = json.dumps(props_dict)
         conn.execute(
             "INSERT INTO elements (type, name, properties, variant) "
             "VALUES (?, ?, ?, ?)",

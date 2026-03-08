@@ -126,10 +126,41 @@ def _appl_circle(out, center, radius, to_svg, label=None, href=None,
 # Interior wall rendering from DB data
 # ---------------------------------------------------------------------------
 
+def _edge_length(p1, p2):
+    """Euclidean distance between two points."""
+    dx = p2[0] - p1[0]
+    dy = p2[1] - p1[1]
+    return math.sqrt(dx * dx + dy * dy)
+
+
+def _long_face_indices(poly):
+    """Determine which polygon edges are 'long faces' (room boundaries).
+
+    For a 4-vertex wall polygon, identifies the two longer opposite face
+    pairs.  Returns set of edge indices to stroke.
+    """
+    if len(poly) != 4:
+        return set(range(len(poly)))
+    # Edges: 0→1, 1→2, 2→3, 3→0
+    lengths = [_edge_length(poly[i], poly[(i + 1) % 4]) for i in range(4)]
+    # Opposite pairs: (0,2) and (1,3)
+    pair_02 = lengths[0] + lengths[2]
+    pair_13 = lengths[1] + lengths[3]
+    # The longer pair is the "long faces"
+    if pair_02 > pair_13 * 1.5:
+        return {0, 2}
+    elif pair_13 > pair_02 * 1.5:
+        return {1, 3}
+    else:
+        # Nearly square — stroke all 4
+        return {0, 1, 2, 3}
+
+
 def render_interior_walls_db(out, geom, to_svg):
     """Render interior walls from compute_geometry() output.
 
-    Each IW is rendered as a filled polygon with clipped strokes on all faces.
+    Each IW is rendered as a filled polygon with strokes on long faces only
+    (matching the reference renderer's approach for thin walls).
     Rough openings split their host wall into segments with jamb blocks.
     """
     interior_walls = geom.get("interior_walls", {})
@@ -158,8 +189,9 @@ def render_interior_walls_db(out, geom, to_svg):
         if not wall_ros:
             # Simple wall — no openings
             _wall_poly(out, poly, to_svg, stroke=False)
-            # Stroke all 4 faces
-            for i in range(len(poly)):
+            # Stroke only long faces (room boundaries) by default
+            faces = _long_face_indices(poly)
+            for i in faces:
                 _wall_stroke_line(out, poly[i], poly[(i + 1) % len(poly)], half_sw, to_svg)
         else:
             # Wall with rough openings — split and render segments
@@ -313,6 +345,21 @@ def _unit_vec(p1, p2):
 # Variant items rendering from DB data
 # ---------------------------------------------------------------------------
 
+# Default font sizes by item name (matching the reference renderer).
+# Items not listed default to "7".
+_ITEM_FONT_SIZES_BY_NAME = {
+    "hamper": "6", "ice_maker": "6", "rocker": "6", "et": "6",
+    "et_east": "6", "et_west": "6",
+    "loveseat": "6", "loveseat2": "6",
+    "chair": "6", "desk_chair": "6",
+    "ottoman": "6",
+    "counter": "6",        # bath area counter
+    "north_counter": "6",  # north wall counter
+    "microwave": "5", "coffee_maker": "5", "toaster": "5",
+}
+_DEFAULT_FONT_SIZE = "7"
+
+
 def render_variant_items_db(out, geom, to_svg):
     """Render all variant items (furniture, appliances, fixtures) from DB data.
 
@@ -329,13 +376,14 @@ def render_variant_items_db(out, geom, to_svg):
         shape = item.get("shape", "rect")
         label = item.get("label", name.upper())
         href = item.get("product_url")
+        font_size = _ITEM_FONT_SIZES_BY_NAME.get(name, _DEFAULT_FONT_SIZE)
 
         if shape == "circle":
             center = item.get("center")
             radius = item.get("radius")
             if center and radius:
                 _appl_circle(out, center, radius, to_svg,
-                             label=label, href=href, font_size="7")
+                             label=label, href=href, font_size=font_size)
         else:
             poly = item.get("poly", [])
             if not poly:
@@ -354,7 +402,7 @@ def render_variant_items_db(out, geom, to_svg):
                         text_rot = angle
 
             _appl_poly(out, poly, to_svg, label=label, href=href,
-                       font_size="7", text_rot=text_rot)
+                       font_size=font_size, text_rot=text_rot)
 
 
 # ---------------------------------------------------------------------------
@@ -609,39 +657,145 @@ def _rotated_dim(out, p1, p2, label, to_svg, label_pt=None):
 # Room labels rendering from DB data
 # ---------------------------------------------------------------------------
 
+# Room labels to render in standard/minik/daybed variants (matching reference)
+_STANDARD_ROOM_LABELS = {"BEDROOM", "UTIL_N", "KITCHEN", "LIVING", "BATH", "OFFICE"}
+
+# Per-label SVG attribute overrides (matching reference renderer)
+_ROOM_LABEL_ATTRS = {
+    "BEDROOM": {"text_anchor": "end", "dominant_baseline": "hanging"},
+    "UTIL_N": {"text_anchor": "middle", "dominant_baseline": "hanging",
+               "display": "UTIL"},
+    "KITCHEN": {"text_anchor": "middle"},
+    "LIVING": {"text_anchor": "middle"},
+    "BATH": {"text_anchor": "middle"},
+    "OFFICE": {"text_anchor": "middle", "y_offset": 3},
+}
+
+
 def render_room_labels_db(out, geom, to_svg):
-    """Render room labels from compute_geometry() output."""
+    """Render room labels from compute_geometry() output.
+
+    In standard/minik/daybed variants, renders only the 6 main room labels
+    (BEDROOM, UTIL, KITCHEN, LIVING, BATH, OFFICE) matching the reference
+    renderer's output.  In bare/sf variants, room labels are omitted here
+    (sf variant handles them separately via render_sf_extras_db).
+    """
+    variant = geom.get("variant", "standard")
+    if variant in ("bare", "sf"):
+        return  # bare has no room labels; sf renders them in sf_extras
+
     for rl in geom.get("room_labels", []):
         pos = rl.get("pos")
         if not pos:
             continue
         name = rl.get("name", "")
 
-        # Look up font size from label_elements
-        font_size = 8  # default
-        for le in geom.get("label_elements", []):
-            if le.get("name") == name:
-                props = le.get("properties", {})
-                fs = props.get("font_size")
-                if fs and fs > 0:
-                    # Convert from feet to SVG px
-                    sx0, _ = to_svg(0, 0)
-                    sx1, _ = to_svg(fs, 0)
-                    font_size = abs(sx1 - sx0)
-                break
+        # Only render the standard room labels
+        if name not in _STANDARD_ROOM_LABELS:
+            continue
+
+        attrs = _ROOM_LABEL_ATTRS.get(name, {})
+        display_text = attrs.get("display", name)
+        text_anchor = attrs.get("text_anchor", "middle")
+        y_off = attrs.get("y_offset", 0)
 
         sx, sy = to_svg(pos[0], pos[1])
-        # Display text from label element or room name
-        display_text = name
-        for le in geom.get("label_elements", []):
-            if le.get("name") == name:
-                props = le.get("properties", {})
-                display_text = props.get("text", name)
-                break
+        sy += y_off
 
-        out.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="middle" '
-                   f'font-family="Arial" font-size="{font_size:.1f}" '
+        db_attr = ""
+        if "dominant_baseline" in attrs:
+            db_attr = f' dominant-baseline="{attrs["dominant_baseline"]}"'
+
+        out.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="{text_anchor}"'
+                   f'{db_attr} font-family="Arial" font-size="8" '
                    f'fill="#666">{display_text}</text>')
+
+
+# ---------------------------------------------------------------------------
+# SF variant extras rendering from DB data
+# ---------------------------------------------------------------------------
+
+# SF room labels: same as standard but includes area below each label
+_SF_ROOM_LABELS = ["BEDROOM", "UTIL_N", "UTIL_S", "KITCHEN", "LIVING",
+                   "BATH", "OFFICE"]
+_SF_ROOM_ATTRS = {
+    "BEDROOM": {"text_anchor": "end", "dominant_baseline": "hanging",
+                "display": "BEDROOM"},
+    "UTIL_N": {"text_anchor": "middle", "dominant_baseline": "hanging",
+               "display": "UTIL"},
+    "KITCHEN": {"text_anchor": "middle"},
+    "LIVING": {"text_anchor": "middle"},
+    "BATH": {"text_anchor": "middle"},
+    "OFFICE": {"text_anchor": "middle", "y_offset": 3},
+}
+
+
+def render_sf_extras_db(out, geom, to_svg):
+    """Render SF variant extras: room labels with areas and dashed lines.
+
+    The SF variant shows room names, square footage values, and dashed
+    partition reference lines — all from compute_geometry() output.
+    """
+    half_gap = 2.0  # gap between label and sf value
+
+    # Dashed partition lines
+    for sf_line in geom.get("sf_lines", []):
+        start = sf_line.get("start")
+        end = sf_line.get("end")
+        if start and end:
+            sx1, sy1 = to_svg(start[0], start[1])
+            sx2, sy2 = to_svg(end[0], end[1])
+            out.append(f'<line x1="{sx1:.1f}" y1="{sy1:.1f}" '
+                       f'x2="{sx2:.1f}" y2="{sy2:.1f}" '
+                       f'stroke="{DIM_COLOR}" stroke-width="0.5" '
+                       f'stroke-dasharray="4,3"/>')
+
+    # Room labels with areas
+    labels_by_name = {}
+    for rl in geom.get("room_labels", []):
+        labels_by_name[rl.get("name", "")] = rl
+
+    for name in _SF_ROOM_LABELS:
+        rl = labels_by_name.get(name)
+        if not rl:
+            continue
+        pos = rl.get("pos")
+        if not pos:
+            continue
+        area = rl.get("area", 0)
+
+        attrs = _SF_ROOM_ATTRS.get(name, {})
+        display_text = attrs.get("display", name)
+        text_anchor = attrs.get("text_anchor", "middle")
+        y_off = attrs.get("y_offset", 0)
+
+        sx, sy = to_svg(pos[0], pos[1])
+        sy += y_off
+
+        db_attr = ""
+        if "dominant_baseline" in attrs:
+            db_attr = f' dominant-baseline="{attrs["dominant_baseline"]}"'
+
+        # Room name
+        out.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="{text_anchor}"'
+                   f'{db_attr} font-family="Arial" font-size="8" '
+                   f'fill="#666">{display_text}</text>')
+
+        # Area value below (skip for UTIL_S — it only gets the sf value,
+        # positioned at its own centroid)
+        if name == "UTIL_S":
+            # UTIL_S: only render the sf value at its centroid
+            out.append(f'<text x="{sx:.1f}" y="{sy + half_gap:.1f}" '
+                       f'text-anchor="middle" dominant-baseline="hanging" '
+                       f'font-family="Arial" font-size="8" '
+                       f'fill="#666">{area:.1f} sf</text>')
+        elif name != "UTIL_S":
+            sf_y = sy + 8.0 + half_gap
+            out.append(f'<text x="{sx:.1f}" y="{sf_y:.1f}" '
+                       f'text-anchor="{text_anchor}"'
+                       f' dominant-baseline="hanging" '
+                       f'font-family="Arial" font-size="8" '
+                       f'fill="#666">{area:.1f} sf</text>')
 
 
 # ---------------------------------------------------------------------------
@@ -717,8 +871,12 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     render_dimensions_db(out, geom, to_svg)
     out.append('</g>')
 
-    # Room labels
+    # Room labels (standard/minik/daybed variants)
     render_room_labels_db(out, geom, to_svg)
+
+    # SF variant extras (room labels with areas + dashed lines)
+    if variant == "sf":
+        render_sf_extras_db(out, geom, to_svg)
 
     # Title block
     # Compute inner area from DB geometry
