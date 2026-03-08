@@ -1023,7 +1023,7 @@ completing the transition to fully editable views.
 |-----------|-----------|-------------|-------|
 | **18-A** | `span/gen_span.py`, `span/gen_span_minmax.py`, `span/gen_span_min.py` | `span/*.svg` | Span analysis reads interior wall positions and outline geometry; both now available from `GeneratorData` |
 | **18-B** | `site/gen_site_plan.py` | `site/site_plan_*.pdf` | Requires Phase 14-B survey data in DB.  Site-specific calibration constants (PDF coordinates, property line distances) move to DB constants or a `site_config` table |
-| **18-C** | `plumbing/gen_plumbing.py` | `plumbing/plumbing.svg` | Already has a parallel DB-backed plumbing canvas in the app; this migrates the standalone SVG generator to match |
+| **18-C** | `plumbing/gen_plumbing.py` | `plumbing/plumbing.svg` | Unify plumbing into the layout model: plumbing becomes a layout variant (selectable alongside standard/minik/daybed/bare/sf) rather than a separate top-level view tab.  The Plumbing SVG is generated from DB `plumbing_elements` data overlaid on the building ghost (same data the Plumbing Edit canvas already renders).  The standalone `_render_plumbing_path()` in gen_floorplan.py (~235 lines of hardcoded pipe routing) is deleted — the DB-seeded reference pipes replace it.  The current separate "Plumbing" SVG tab and "Plumbing Edit" canvas tab merge into a single Floorplan view with plumbing as the selected layout |
 | **18-D** | `scad/gen_flat_roof.py`, `scad/gen_2in12.py`, `scad/gen_views.py`, `scad/gen_line_drawings.py` | `scad/*.scad`, `scad/*.svg` | 3D model generators; outline + roof + shell geometry from `GeneratorData`.  Wall heights and roof slope constants move to DB |
 | **18-E** | `survey/gen_path_svg.py` | `survey/path_area.svg` | Survey path overlay; requires Phase 14-B survey data |
 | **18-F** | SVG identity tests for all migrated generators |
@@ -1253,7 +1253,11 @@ Files already created during Phase 0 work: `app/apputil.py`,
 | 11 (actual) | 76 | 1259 |
 | 12 (actual) | 257 | 1516 |
 | 14 | ~30 | ~1546 |
-| 13 | ~20 | ~1566 |
+| 15 | ~25 | ~1571 |
+| 16 | ~20 | ~1591 |
+| 17 | ~10 | ~1601 |
+| 18 | ~30 | ~1631 |
+| 13 | ~20 | ~1651 |
 
 ---
 
@@ -1300,6 +1304,22 @@ Files already created during Phase 0 work: `app/apputil.py`,
    before implementation.  Given its scope (formula storage, DAG evaluation,
    element migration, cutover consolidation), it will likely be implemented
    as multiple sub-phases.  This is the largest planned change by far.
+
+8. **SVG Identity Verification (Phases 15–18)** — The seed-database SVG
+   output must be identical to the current hardcoded-module SVG output.
+   Floating-point precision, SVG path discretization (arc-to-polyline
+   step counts), and string formatting differences can cause false
+   negatives.  Identity tests need a tolerance-aware comparison strategy
+   (e.g., numeric path coordinate tolerance of ±0.001 ft, ignoring
+   whitespace-only differences).
+
+9. **Generator Rendering/Data Separation (Phase 15–16)** — Generators
+   currently interleave data acquisition and SVG rendering in a single
+   script.  The migration must cleanly separate "get data" (now from DB)
+   from "render SVG" (unchanged).  Some generators (notably
+   `gen_floorplan.py`) compute intermediate derived values inline during
+   rendering; these must be identified and either moved into the engine
+   or preserved as local rendering logic.
 
 ---
 
