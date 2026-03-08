@@ -371,3 +371,122 @@ class TestComputeDefaultOverride:
     def test_invalid_index(self, geom):
         pts, inner_segs, constants = geom
         assert compute_default_override(99, inner_segs, pts, constants) == []
+
+
+# ── Multi-segment spans ───────────────────────────────────────────────
+
+from app.gen_provider import (
+    compute_default_span_override, validate_override_endpoint,
+    _seg_start_bearing, apply_overrides_to_poly, _walk_chain_exit,
+)
+from shared.geometry import path_polygon
+
+
+class TestMultiSegmentSpan:
+    @pytest.fixture
+    def geom(self):
+        from app.database import get_constants_dict as _gcd
+        constants = _gcd()
+        pts, outline_segs, inner_segs, radii = compute_native_geometry(constants)
+        return pts, inner_segs, constants
+
+    def test_span_default_concatenates(self, geom):
+        """Default span override concatenates individual defaults."""
+        pts, inner_segs, constants = geom
+        # Span segs 1-3 (three consecutive segments)
+        span_chain = compute_default_span_override(1, 3, inner_segs, pts, constants)
+        individual = []
+        for i in range(1, 4):
+            individual.extend(compute_default_override(i, inner_segs, pts, constants))
+        assert len(span_chain) == len(individual)
+        for s, ind in zip(span_chain, individual):
+            assert s["seg_type"] == ind["seg_type"]
+
+    def test_span_default_invalid(self, geom):
+        """Invalid span range returns empty list."""
+        pts, inner_segs, constants = geom
+        assert compute_default_span_override(5, 3, inner_segs, pts, constants) == []
+        assert compute_default_span_override(-1, 2, inner_segs, pts, constants) == []
+
+    def test_apply_span_override(self, geom):
+        """Apply a multi-segment span override to inner_poly."""
+        pts, inner_segs, constants = geom
+        # Get default span chain for segments 1-3
+        span_chain = compute_default_span_override(1, 3, inner_segs, pts, constants)
+        # Tag with span_end
+        for sub in span_chain:
+            sub["span_end"] = 3
+        inner_poly = path_polygon(inner_segs, pts)
+        orig_len = len(inner_poly)
+        apply_overrides_to_poly(inner_poly, inner_segs, pts, {1: span_chain})
+        # Polygon should still be valid (may differ in length due to arc discretization)
+        assert len(inner_poly) > 3
+
+    def test_walk_chain_exit_line(self):
+        """Exit bearing for a line segment equals the line's bearing."""
+        exit_brg = _walk_chain_exit(
+            [{"seg_type": "L", "bearing": 45.0, "distance": 1.0}], 0.0)
+        assert abs(exit_brg - 45.0) < 0.01
+
+    def test_walk_chain_exit_arc(self):
+        """Exit bearing for a CW arc rotates by sweep."""
+        exit_brg = _walk_chain_exit(
+            [{"seg_type": "CW", "radius": 1.0, "sweep": 90.0}], 0.0)
+        assert abs(exit_brg - 90.0) < 0.01
+
+    def test_validate_endpoint_ok(self, geom):
+        """Default chain passes endpoint validation."""
+        pts, inner_segs, constants = geom
+        seg = inner_segs[1]
+        chain = compute_default_override(1, inner_segs, pts, constants)
+        start_pt = pts[seg.start]
+        end_pt = pts[seg.end]
+        start_brg = _seg_start_bearing(seg, pts)
+        next_brg = _seg_start_bearing(inner_segs[2], pts)
+        result = validate_override_endpoint(
+            chain, start_pt, start_brg, end_pt, next_brg)
+        assert result["ok"]
+        assert result["warnings"] == []
+
+    def test_validate_endpoint_bad(self, geom):
+        """Off-target chain produces warnings."""
+        pts, inner_segs, constants = geom
+        seg = inner_segs[1]
+        chain = [{"seg_type": "L", "bearing": 0.0, "distance": 100.0}]
+        start_pt = pts[seg.start]
+        end_pt = pts[seg.end]
+        start_brg = _seg_start_bearing(seg, pts)
+        next_brg = _seg_start_bearing(inner_segs[2], pts)
+        result = validate_override_endpoint(
+            chain, start_pt, start_brg, end_pt, next_brg)
+        assert not result["ok"]
+        assert len(result["warnings"]) > 0
+
+
+class TestOverrideOverlap:
+    def test_no_overlap(self, fresh_db):
+        """Non-overlapping override doesn't conflict."""
+        from app.database import check_override_overlap
+        conflicts = check_override_overlap(10, None, fresh_db)
+        assert conflicts == []
+
+    def test_overlap_single(self, fresh_db):
+        """Span overlapping existing seg 5 override conflicts."""
+        from app.database import check_override_overlap
+        conflicts = check_override_overlap(3, 6, fresh_db)
+        assert 5 in conflicts
+
+    def test_self_upsert_no_conflict(self, fresh_db):
+        """Upserting at same seg_index doesn't conflict with itself."""
+        from app.database import check_override_overlap
+        conflicts = check_override_overlap(5, None, fresh_db)
+        assert conflicts == []
+
+    def test_span_end_in_db(self, fresh_db):
+        """Upserted span_end is stored and retrievable."""
+        from app.database import upsert_inner_wall_override, get_inner_wall_override
+        chain = [{"seg_type": "L", "bearing": 0.0, "distance": 1.0}]
+        upsert_inner_wall_override(10, chain, span_end=12, db_path=fresh_db)
+        stored = get_inner_wall_override(10, fresh_db)
+        assert len(stored) == 1
+        assert stored[0]["span_end"] == 12

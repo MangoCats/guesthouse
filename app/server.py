@@ -40,7 +40,7 @@ from app.database import (
     get_inner_wall_overrides, get_inner_wall_override,
     upsert_inner_wall_override, delete_inner_wall_override,
     snapshot_inner_wall_overrides, restore_inner_wall_overrides,
-    reset_inner_wall_overrides,
+    reset_inner_wall_overrides, check_override_overlap,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -1259,23 +1259,46 @@ def create_app(db_path=None):
     @app.route("/api/inner-wall-overrides/<int:seg_index>/compute-default")
     def api_compute_default_override(seg_index):
         """Compute the default parametric chain for a segment from geometry."""
-        from app.gen_provider import compute_native_geometry, compute_default_override
+        from app.gen_provider import (
+            compute_native_geometry, compute_default_override,
+            compute_default_span_override,
+        )
+        span_end = request.args.get("span_end", type=int)
         constants = get_constants_dict(db)
         chain_rows = get_outline_chain(db)
         pts, outline_segs, inner_segs, radii = compute_native_geometry(
             constants, chain_rows=chain_rows, db_path=db)
-        chain = compute_default_override(seg_index, inner_segs, pts, constants)
+        if span_end is not None:
+            chain = compute_default_span_override(
+                seg_index, span_end, inner_segs, pts, constants)
+        else:
+            chain = compute_default_override(
+                seg_index, inner_segs, pts, constants)
         if not chain:
             return jsonify({"error": f"No default for segment {seg_index}"}), 404
-        return jsonify({"seg_index": seg_index, "chain": chain})
+        return jsonify({"seg_index": seg_index, "span_end": span_end,
+                        "chain": chain})
 
     @app.route("/api/inner-wall-overrides/<int:seg_index>", methods=["PUT"])
     def api_upsert_inner_wall_override(seg_index):
         """Create or update an inner wall override chain."""
         body = request.get_json(force=True)
         chain = body.get("chain")
+        span_end = body.get("span_end")  # None for single-segment
         if not chain or not isinstance(chain, list):
             return jsonify({"error": "chain must be a non-empty list"}), 400
+
+        # Validate span_end
+        if span_end is not None:
+            if not isinstance(span_end, int) or span_end < seg_index:
+                return jsonify({"error": "span_end must be >= seg_index"}), 400
+
+        # Check overlap with existing overrides
+        conflicts = check_override_overlap(seg_index, span_end, db)
+        if conflicts:
+            return jsonify({
+                "error": f"Span overlaps existing override(s) at seg {conflicts}"
+            }), 400
 
         # Validate chain entries
         for i, sub in enumerate(chain):
@@ -1290,15 +1313,46 @@ def create_app(db_path=None):
                     return jsonify({"error": f"sub[{i}]: arc requires radius and sweep"}), 400
 
         before = snapshot_inner_wall_overrides(db)
-        upsert_inner_wall_override(seg_index, chain, db)
+        upsert_inner_wall_override(seg_index, chain, span_end=span_end,
+                                   db_path=db)
         after = snapshot_inner_wall_overrides(db)
 
-        undo_mgr.record("inner_wall_override_upsert", before, after,
-                        f"Set inner wall override seg {seg_index}")
+        label = (f"Set inner wall override seg {seg_index}-{span_end}"
+                 if span_end is not None
+                 else f"Set inner wall override seg {seg_index}")
+        undo_mgr.record("inner_wall_override_upsert", before, after, label)
+
+        # Endpoint validation (warnings, not blocking)
+        warnings = []
+        try:
+            from app.gen_provider import (
+                compute_native_geometry, validate_override_endpoint,
+                _seg_start_bearing,
+            )
+            constants = get_constants_dict(db)
+            chain_rows = get_outline_chain(db)
+            pts, outline_segs, inner_segs, radii = compute_native_geometry(
+                constants, chain_rows=chain_rows, db_path=db)
+            seg = inner_segs[seg_index]
+            end_idx = span_end if span_end is not None else seg_index
+            end_seg = inner_segs[end_idx]
+            start_pt = pts[seg.start]
+            end_pt = pts[end_seg.end]
+            start_brg = _seg_start_bearing(seg, pts)
+            # Expected exit bearing: bearing at start of the NEXT segment
+            next_idx = (end_idx + 1) % len(inner_segs)
+            expected_exit = _seg_start_bearing(inner_segs[next_idx], pts)
+            result = validate_override_endpoint(
+                chain, start_pt, start_brg, end_pt, expected_exit)
+            warnings = result.get("warnings", [])
+        except Exception:
+            pass  # Don't block save on validation errors
 
         _invalidate()
         _broadcast("geometry_changed")
         return jsonify({"ok": True, "seg_index": seg_index,
+                        "span_end": span_end,
+                        "warnings": warnings,
                         "chain": get_inner_wall_override(seg_index, db)})
 
     @app.route("/api/inner-wall-overrides/<int:seg_index>", methods=["DELETE"])

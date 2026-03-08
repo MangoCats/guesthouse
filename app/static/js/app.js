@@ -3192,16 +3192,41 @@ async function loadOutlineTable() {
     tdOv.className = "td-override";
     const innerIdx = _outlineToInnerIndex(seg.seq, chain);
     if (innerIdx !== null) {
-      const hasOverride = String(innerIdx) in overrides;
-      const btn = document.createElement("button");
-      btn.className = "override-btn" + (hasOverride ? " has-override" : "");
-      btn.textContent = hasOverride ? "\u2726" : "\u2727";
-      btn.title = hasOverride ? "Edit W override" : "Add W override";
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openOverrideEditor(innerIdx, seg.end_name);
-      });
-      tdOv.appendChild(btn);
+      // Check if this segment is a span start, mid-span, or standalone
+      const spanInfo = _getSpanInfo(innerIdx, overrides);
+      if (spanInfo.type === "start") {
+        const btn = document.createElement("button");
+        btn.className = "override-btn has-override";
+        btn.textContent = "\u2726";
+        btn.title = `Edit W override (span ${spanInfo.start}\u2013${spanInfo.end})`;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openOverrideEditor(spanInfo.start, seg.end_name, null, spanInfo.end);
+        });
+        tdOv.appendChild(btn);
+      } else if (spanInfo.type === "mid") {
+        const btn = document.createElement("button");
+        btn.className = "override-btn has-override";
+        btn.textContent = "\u2502";
+        btn.title = `Part of span ${spanInfo.start}\u2013${spanInfo.end}`;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openOverrideEditor(spanInfo.start, seg.end_name, null, spanInfo.end);
+        });
+        tdOv.appendChild(btn);
+      } else {
+        // Standalone: either has single-segment override or none
+        const hasOverride = String(innerIdx) in overrides;
+        const btn = document.createElement("button");
+        btn.className = "override-btn" + (hasOverride ? " has-override" : "");
+        btn.textContent = hasOverride ? "\u2726" : "\u2727";
+        btn.title = hasOverride ? "Edit W override" : "Add W override";
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openOverrideEditor(innerIdx, seg.end_name);
+        });
+        tdOv.appendChild(btn);
+      }
     }
     tr.appendChild(tdOv);
 
@@ -3216,6 +3241,36 @@ async function loadOutlineTable() {
 function _outlineToInnerIndex(seq, chain) {
   if (seq >= 0 && seq < chain.length) return seq;
   return null;
+}
+
+/**
+ * Determine span info for a given inner_seg index relative to overrides.
+ * Returns { type: "start"|"mid"|"none", start, end } where:
+ *   - "start": this index is the start of a span override
+ *   - "mid": this index is inside a span override (not the start)
+ *   - "none": no span covers this index
+ */
+function _getSpanInfo(innerIdx, overrides) {
+  // Check if this index is a span start
+  const key = String(innerIdx);
+  if (key in overrides) {
+    const chain = overrides[key];
+    const spanEnd = chain[0]?.span_end;
+    if (spanEnd != null && spanEnd > innerIdx) {
+      return { type: "start", start: innerIdx, end: spanEnd };
+    }
+    // Single-segment override — handled by caller
+    return { type: "none" };
+  }
+  // Check if this index is mid-span of another override
+  for (const [startStr, chain] of Object.entries(overrides)) {
+    const start = parseInt(startStr, 10);
+    const spanEnd = chain[0]?.span_end;
+    if (spanEnd != null && innerIdx > start && innerIdx <= spanEnd) {
+      return { type: "mid", start, end: spanEnd };
+    }
+  }
+  return { type: "none" };
 }
 
 // ---------------------------------------------------------------------------
@@ -3309,7 +3364,7 @@ const OverridePreview = {
   waypoints: [],
 
   /** Render override polyline on canvas from current chain state. */
-  update(segIndex, chain) {
+  update(segIndex, chain, spanEnd) {
     this.segIndex = segIndex;
     this.chain = chain;
     const layer = document.getElementById("layer-measure");
@@ -3359,7 +3414,10 @@ const OverridePreview = {
     }
 
     // Draw endpoint marker (target: where the chain should end)
-    const endPt = g.points[seg.end];
+    // For spans, use the end of the last segment in the span
+    const endSegIdx = spanEnd != null ? spanEnd : segIndex;
+    const endSeg = g.inner_segments[endSegIdx];
+    const endPt = endSeg ? g.points[endSeg.end] : null;
     if (endPt) {
       layer.appendChild(svgEl("circle", {
         cx: endPt[0], cy: -endPt[1], r: 0.08,
@@ -3382,9 +3440,17 @@ const OverridePreview = {
 /**
  * Open the inner wall override editor dialog.
  * Shows a dynamic table of sub-segments (line/arc chains).
+ * @param {number} segIndex - Inner segment start index
+ * @param {string} endName - End point name for display
+ * @param {Array} [initialChain] - Pre-filled chain (from click-to-define)
+ * @param {number|null} [spanEnd] - Span end index (null = single segment)
  */
-function openOverrideEditor(segIndex, endName, initialChain) {
+function openOverrideEditor(segIndex, endName, initialChain, spanEnd) {
   const existing = App.state.innerWallOverrides[String(segIndex)] || [];
+  // Determine initial span_end from existing data or parameter
+  let currentSpanEnd = spanEnd != null ? spanEnd
+    : (existing.length && existing[0].span_end != null) ? existing[0].span_end
+    : null;
   const chain = initialChain
     ? initialChain.map(s => ({ ...s }))
     : existing.length
@@ -3395,11 +3461,55 @@ function openOverrideEditor(segIndex, endName, initialChain) {
   container.className = "override-editor";
 
   function updatePreview() {
-    OverridePreview.update(segIndex, chain);
+    OverridePreview.update(segIndex, chain, currentSpanEnd);
   }
 
   function render() {
     container.innerHTML = "";
+
+    // Span range picker
+    const g = App.state.geometry;
+    const nSegs = g && g.inner_segments ? g.inner_segments.length : 20;
+    const spanRow = document.createElement("div");
+    spanRow.className = "override-btn-row";
+    spanRow.style.marginBottom = "6px";
+    const spanLabel = document.createElement("span");
+    spanLabel.textContent = "Span: ";
+    spanLabel.style.marginRight = "4px";
+    spanRow.appendChild(spanLabel);
+
+    const startLabel = document.createElement("span");
+    startLabel.textContent = `seg ${segIndex}`;
+    startLabel.style.marginRight = "8px";
+    spanRow.appendChild(startLabel);
+
+    const toLabel = document.createElement("span");
+    toLabel.textContent = " \u2192 ";
+    toLabel.style.marginRight = "4px";
+    spanRow.appendChild(toLabel);
+
+    const endSel = document.createElement("select");
+    endSel.style.width = "auto";
+    for (let i = segIndex; i < nSegs; i++) {
+      const opt = document.createElement("option");
+      opt.value = i === segIndex ? "" : String(i);
+      const segName = g && g.inner_segments[i]
+        ? g.inner_segments[i].end : `seg ${i}`;
+      opt.textContent = i === segIndex ? `seg ${i} (single)` : `seg ${i} (${segName})`;
+      if ((currentSpanEnd == null && i === segIndex) ||
+          (currentSpanEnd != null && i === currentSpanEnd)) {
+        opt.selected = true;
+      }
+      endSel.appendChild(opt);
+    }
+    endSel.onchange = () => {
+      const val = endSel.value;
+      currentSpanEnd = val ? parseInt(val, 10) : null;
+      updatePreview();
+    };
+    spanRow.appendChild(endSel);
+    container.appendChild(spanRow);
+
     const tbl = document.createElement("table");
     tbl.className = "override-chain-table";
     const thead = document.createElement("thead");
@@ -3498,7 +3608,9 @@ function openOverrideEditor(segIndex, endName, initialChain) {
     defaultBtn.textContent = "Compute Default";
     defaultBtn.title = "Compute parametric chain from current geometry";
     defaultBtn.onclick = async () => {
-      const resp = await apiFetch(`/api/inner-wall-overrides/${segIndex}/compute-default`);
+      let url = `/api/inner-wall-overrides/${segIndex}/compute-default`;
+      if (currentSpanEnd != null) url += `?span_end=${currentSpanEnd}`;
+      const resp = await apiFetch(url);
       if (!resp.ok) {
         showToast("No default available for this segment", "error");
         return;
@@ -3518,7 +3630,7 @@ function openOverrideEditor(segIndex, endName, initialChain) {
     clickBtn.onclick = () => {
       Dialog.close();
       OverridePreview.clear();
-      startClickDefineMode(segIndex, endName, chain);
+      startClickDefineMode(segIndex, endName, chain, currentSpanEnd);
     };
     btnRow.appendChild(clickBtn);
 
@@ -3545,8 +3657,11 @@ function openOverrideEditor(segIndex, endName, initialChain) {
 
   render();
 
+  const spanTitle = currentSpanEnd != null
+    ? `W Override \u2014 Seg ${segIndex}\u2013${currentSpanEnd}`
+    : `W Override \u2014 Seg ${segIndex} (${endName})`;
   Dialog.show({
-    title: `W Override \u2014 Seg ${segIndex} (${endName})`,
+    title: spanTitle,
     customContent: container,
     fields: [],
     onCancel() { OverridePreview.clear(); },
@@ -3556,15 +3671,21 @@ function openOverrideEditor(segIndex, endName, initialChain) {
         showToast("Chain is empty \u2014 use Remove to delete", "error");
         return;
       }
+      const payload = { chain };
+      if (currentSpanEnd != null) payload.span_end = currentSpanEnd;
       const resp = await apiFetch(`/api/inner-wall-overrides/${segIndex}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chain }),
+        body: JSON.stringify(payload),
       });
       if (!resp.ok) {
         const err = await resp.json();
         showToast(err.error || "Failed to save override", "error");
         return;
+      }
+      const result = await resp.json();
+      if (result.warnings && result.warnings.length > 0) {
+        showToast("Saved with warnings: " + result.warnings.join("; "), "warning");
       }
       await loadOutlineTable();
       await loadGeometry();
@@ -3576,7 +3697,7 @@ function openOverrideEditor(segIndex, endName, initialChain) {
 // Click-to-define mode
 // ---------------------------------------------------------------------------
 
-function startClickDefineMode(segIndex, endName, existingChain) {
+function startClickDefineMode(segIndex, endName, existingChain, spanEnd) {
   const g = App.state.geometry;
   const seg = g.inner_segments[segIndex];
   const startPt = g.points[seg.start];
@@ -3613,8 +3734,10 @@ function startClickDefineMode(segIndex, endName, existingChain) {
         class: "override-preview",
       }));
     }
-    // Target endpoint
-    const endPt = g.points[seg.end];
+    // Target endpoint (use span end if set)
+    const endSegIdx = spanEnd != null ? spanEnd : segIndex;
+    const endSeg = g.inner_segments[endSegIdx];
+    const endPt = endSeg ? g.points[endSeg.end] : null;
     if (endPt) {
       layer.appendChild(svgEl("circle", {
         cx: endPt[0], cy: -endPt[1], r: 0.08,
@@ -3649,7 +3772,7 @@ function startClickDefineMode(segIndex, endName, existingChain) {
   function finish() {
     cleanup();
     if (waypoints.length < 2) {
-      openOverrideEditor(segIndex, endName);
+      openOverrideEditor(segIndex, endName, null, spanEnd);
       return;
     }
     // Convert waypoints to parametric chain (line segments)
@@ -3665,12 +3788,12 @@ function startClickDefineMode(segIndex, endName, existingChain) {
         radius: null, sweep: null, n_pts: 20,
       });
     }
-    openOverrideEditor(segIndex, endName, newChain);
+    openOverrideEditor(segIndex, endName, newChain, spanEnd);
   }
 
   function cancel() {
     cleanup();
-    openOverrideEditor(segIndex, endName);
+    openOverrideEditor(segIndex, endName, null, spanEnd);
   }
 
   function cleanup() {

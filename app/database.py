@@ -161,7 +161,8 @@ CREATE TABLE IF NOT EXISTS survey_config (
 );
 
 CREATE TABLE IF NOT EXISTS inner_wall_overrides (
-    seg_index   INTEGER NOT NULL,   -- outline segment index (0-based)
+    seg_index   INTEGER NOT NULL,   -- span start inner_seg index (0-based)
+    span_end    INTEGER,            -- span end inner_seg index (NULL = single segment)
     sub_seq     INTEGER NOT NULL,   -- ordering within the override chain
     seg_type    TEXT NOT NULL,       -- 'L' (line), 'CW', or 'CCW' (arc)
     bearing     REAL,               -- degrees, compass convention (line segs)
@@ -241,6 +242,12 @@ def init_db(db_path=None):
             seed_iw_formulas(conn)
             # Ensure survey data exists (Phase 14-B upgrade)
             _seed_survey(conn)
+            # Add span_end column if missing (Phase 15½ multi-segment upgrade)
+            cols = {r[1] for r in conn.execute(
+                "PRAGMA table_info(inner_wall_overrides)").fetchall()}
+            if "span_end" not in cols:
+                conn.execute("ALTER TABLE inner_wall_overrides "
+                             "ADD COLUMN span_end INTEGER")
             # Ensure inner wall overrides exist (Phase 15½ upgrade)
             _seed_inner_wall_overrides(conn)
 
@@ -474,9 +481,11 @@ def _seed_inner_wall_overrides(conn):
     for sub_seq, seg_type, bearing, distance, radius, sweep, n_pts in chain:
         conn.execute(
             "INSERT OR IGNORE INTO inner_wall_overrides "
-            "(seg_index, sub_seq, seg_type, bearing, distance, radius, sweep, n_pts) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (5, sub_seq, seg_type, bearing, distance, radius, sweep, n_pts),
+            "(seg_index, span_end, sub_seq, seg_type, bearing, distance, "
+            "radius, sweep, n_pts) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (5, None, sub_seq, seg_type, bearing, distance, radius, sweep,
+             n_pts),
         )
 
 
@@ -2405,7 +2414,7 @@ def export_project(db_path=None):
 
     with get_db(db_path) as conn:
         inner_wall_overrides = [dict(r) for r in conn.execute(
-            "SELECT seg_index, sub_seq, seg_type, bearing, distance, "
+            "SELECT seg_index, span_end, sub_seq, seg_type, bearing, distance, "
             "radius, sweep, n_pts FROM inner_wall_overrides "
             "ORDER BY seg_index, sub_seq"
         ).fetchall()]
@@ -2607,10 +2616,10 @@ def import_project(data, db_path=None):
         for ov in data.get("inner_wall_overrides", []):
             conn.execute(
                 "INSERT INTO inner_wall_overrides "
-                "(seg_index, sub_seq, seg_type, bearing, distance, "
-                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (ov["seg_index"], ov["sub_seq"], ov["seg_type"],
-                 ov.get("bearing"), ov.get("distance"),
+                "(seg_index, span_end, sub_seq, seg_type, bearing, distance, "
+                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (ov["seg_index"], ov.get("span_end"), ov["sub_seq"],
+                 ov["seg_type"], ov.get("bearing"), ov.get("distance"),
                  ov.get("radius"), ov.get("sweep"),
                  ov.get("n_pts", 20)),
             )
@@ -2639,10 +2648,11 @@ def get_inner_wall_overrides(db_path=None):
     """Return all inner wall overrides grouped by seg_index.
 
     Returns dict {seg_index: [sub-segment dicts ordered by sub_seq]}.
+    Each sub-segment dict includes span_end (None for single-segment overrides).
     """
     with get_db(db_path or DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT seg_index, sub_seq, seg_type, bearing, distance, "
+            "SELECT seg_index, span_end, sub_seq, seg_type, bearing, distance, "
             "radius, sweep, n_pts FROM inner_wall_overrides "
             "ORDER BY seg_index, sub_seq"
         ).fetchall()
@@ -2658,7 +2668,7 @@ def get_inner_wall_override(seg_index, db_path=None):
     """Return the override chain for a single segment, or empty list."""
     with get_db(db_path or DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT seg_index, sub_seq, seg_type, bearing, distance, "
+            "SELECT seg_index, span_end, sub_seq, seg_type, bearing, distance, "
             "radius, sweep, n_pts FROM inner_wall_overrides "
             "WHERE seg_index = ? ORDER BY sub_seq",
             (seg_index,),
@@ -2666,21 +2676,48 @@ def get_inner_wall_override(seg_index, db_path=None):
         return [dict(r) for r in rows]
 
 
-def upsert_inner_wall_override(seg_index, chain, db_path=None):
-    """Set the override chain for a segment (replaces existing)."""
+def upsert_inner_wall_override(seg_index, chain, span_end=None, db_path=None):
+    """Set the override chain for a segment or span (replaces existing).
+
+    When span_end is not None, the override spans inner_segs[seg_index]
+    through inner_segs[span_end] inclusive.
+    """
     with get_db(db_path or DB_PATH) as conn:
         conn.execute("DELETE FROM inner_wall_overrides WHERE seg_index = ?",
                      (seg_index,))
         for sub_seq, seg in enumerate(chain):
             conn.execute(
                 "INSERT INTO inner_wall_overrides "
-                "(seg_index, sub_seq, seg_type, bearing, distance, "
-                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (seg_index, sub_seq, seg["seg_type"],
+                "(seg_index, span_end, sub_seq, seg_type, bearing, distance, "
+                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (seg_index, span_end, sub_seq, seg["seg_type"],
                  seg.get("bearing"), seg.get("distance"),
                  seg.get("radius"), seg.get("sweep"),
                  seg.get("n_pts", 20)),
             )
+
+
+def check_override_overlap(seg_index, span_end, db_path=None):
+    """Check if a proposed override span overlaps any existing overrides.
+
+    Returns list of overlapping seg_index values, or empty list if no overlap.
+    Ignores the override at seg_index itself (for upsert replacement).
+    """
+    new_start = seg_index
+    new_end = span_end if span_end is not None else seg_index
+    with get_db(db_path or DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT seg_index, span_end FROM inner_wall_overrides "
+            "WHERE seg_index != ?", (seg_index,)
+        ).fetchall()
+    conflicts = []
+    for r in rows:
+        ex_start = r["seg_index"]
+        ex_end = r["span_end"] if r["span_end"] is not None else ex_start
+        # Ranges overlap if new_start <= ex_end and ex_start <= new_end
+        if new_start <= ex_end and ex_start <= new_end:
+            conflicts.append(ex_start)
+    return conflicts
 
 
 def reset_inner_wall_overrides(db_path=None):
@@ -2701,7 +2738,7 @@ def snapshot_inner_wall_overrides(db_path=None):
     """Snapshot all overrides for undo state capture."""
     with get_db(db_path or DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT seg_index, sub_seq, seg_type, bearing, distance, "
+            "SELECT seg_index, span_end, sub_seq, seg_type, bearing, distance, "
             "radius, sweep, n_pts FROM inner_wall_overrides "
             "ORDER BY seg_index, sub_seq"
         ).fetchall()
@@ -2715,10 +2752,10 @@ def restore_inner_wall_overrides(snapshot, db_path=None):
         for ov in snapshot:
             conn.execute(
                 "INSERT INTO inner_wall_overrides "
-                "(seg_index, sub_seq, seg_type, bearing, distance, "
-                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (ov["seg_index"], ov["sub_seq"], ov["seg_type"],
-                 ov.get("bearing"), ov.get("distance"),
+                "(seg_index, span_end, sub_seq, seg_type, bearing, distance, "
+                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (ov["seg_index"], ov.get("span_end"), ov["sub_seq"],
+                 ov["seg_type"], ov.get("bearing"), ov.get("distance"),
                  ov.get("radius"), ov.get("sweep"),
                  ov.get("n_pts", 20)),
             )

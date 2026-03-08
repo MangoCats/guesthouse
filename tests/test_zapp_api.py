@@ -476,3 +476,50 @@ class TestInnerWallOverridesAPI:
     def test_compute_default_invalid(self, app_client):
         resp = app_client.get("/api/inner-wall-overrides/99/compute-default")
         assert resp.status_code == 404
+
+    def test_upsert_with_span_end(self, app_client):
+        """PUT with span_end stores and returns it."""
+        chain = [{"seg_type": "L", "bearing": 0.0, "distance": 1.0}]
+        resp = app_client.put("/api/inner-wall-overrides/10",
+                              json={"chain": chain, "span_end": 12})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"]
+        assert data["span_end"] == 12
+
+    def test_upsert_span_overlap(self, app_client):
+        """PUT with overlapping span returns 400."""
+        chain = [{"seg_type": "L", "bearing": 0.0, "distance": 1.0}]
+        # Seg 5 already has an override; span 3-6 should conflict
+        resp = app_client.put("/api/inner-wall-overrides/3",
+                              json={"chain": chain, "span_end": 6})
+        assert resp.status_code == 400
+        assert "overlap" in resp.get_json()["error"].lower()
+
+    def test_upsert_warnings(self, app_client):
+        """PUT response includes endpoint validation warnings."""
+        # Deliberately wrong chain for seg 1
+        chain = [{"seg_type": "L", "bearing": 0.0, "distance": 100.0}]
+        resp = app_client.put("/api/inner-wall-overrides/1",
+                              json={"chain": chain})
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "warnings" in data
+        assert len(data["warnings"]) > 0
+
+    def test_compute_default_span(self, app_client):
+        """Compute default for a span returns concatenated chain."""
+        resp = app_client.get(
+            "/api/inner-wall-overrides/1/compute-default?span_end=3")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["span_end"] == 3
+        assert len(data["chain"]) >= 3  # at least one sub-seg per inner seg
+
+    def test_get_all_includes_span_end(self, app_client):
+        """GET all overrides includes span_end field."""
+        resp = app_client.get("/api/inner-wall-overrides")
+        data = resp.get_json()
+        for key, chain in data.items():
+            for sub in chain:
+                assert "span_end" in sub

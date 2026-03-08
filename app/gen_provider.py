@@ -177,6 +177,65 @@ def compute_default_override(seg_index, inner_segs, pts, constants_dict):
                  "n_pts": seg.n_pts}]
 
 
+def _walk_chain_exit(chain, start_bearing_deg):
+    """Compute the exit bearing after walking a parametric chain.
+
+    Returns the compass bearing (degrees) at the end of the chain.
+    """
+    cur_bearing = start_bearing_deg
+    for sub in chain:
+        seg_type = sub["seg_type"]
+        if seg_type == "L":
+            cur_bearing = sub["bearing"]
+        elif seg_type == "CCW":
+            cur_bearing = (cur_bearing - sub["sweep"]) % 360
+        else:  # CW
+            cur_bearing = (cur_bearing + sub["sweep"]) % 360
+    return cur_bearing
+
+
+def validate_override_endpoint(chain, start_pt, start_bearing_deg,
+                               expected_end_pt, expected_exit_bearing_deg,
+                               pos_tol=0.01, brg_tol=0.5):
+    """Validate that an override chain arrives at the expected endpoint.
+
+    Returns dict with ``ok`` (bool) and ``warnings`` (list of strings).
+    pos_tol is in feet, brg_tol is in degrees.
+    """
+    warnings = []
+    poly = walk_override_chain(chain, start_pt, start_bearing_deg)
+    actual_end = poly[-1]
+    dist_err = math.hypot(actual_end[0] - expected_end_pt[0],
+                          actual_end[1] - expected_end_pt[1])
+    if dist_err > pos_tol:
+        warnings.append(
+            f"Endpoint error: {dist_err:.4f} ft from target "
+            f"(tolerance {pos_tol} ft)")
+    exit_brg = _walk_chain_exit(chain, start_bearing_deg)
+    brg_err = abs((exit_brg - expected_exit_bearing_deg + 180) % 360 - 180)
+    if brg_err > brg_tol:
+        warnings.append(
+            f"Exit bearing error: {brg_err:.2f}\u00b0 from target "
+            f"(tolerance {brg_tol}\u00b0)")
+    return {"ok": len(warnings) == 0, "warnings": warnings}
+
+
+def compute_default_span_override(seg_index, span_end, inner_segs, pts,
+                                   constants_dict):
+    """Compute the default parametric chain for a multi-segment span.
+
+    Concatenates the default chain for each inner_seg in the range
+    [seg_index, span_end] inclusive.  Returns list of sub-segment dicts.
+    """
+    if seg_index < 0 or span_end >= len(inner_segs) or span_end < seg_index:
+        return []
+    chain = []
+    for idx in range(seg_index, span_end + 1):
+        chain.extend(compute_default_override(idx, inner_segs, pts,
+                                              constants_dict))
+    return chain
+
+
 def _compute_w8w9_default_chain(pts, constants_dict):
     """Compute the W8-W9 straight-arc-straight chain from current geometry.
 
@@ -247,6 +306,10 @@ def apply_overrides_to_poly(inner_poly, inner_segs, pts, overrides):
     Processes overrides in descending seg_index order so that splice
     index positions remain valid for earlier segments.
 
+    Supports multi-segment spans: when a chain's first entry has a non-None
+    ``span_end``, the override replaces inner_segs[seg_index] through
+    inner_segs[span_end] inclusive.
+
     Parameters:
         inner_poly  — mutable list of (E, N) tuples
         inner_segs  — list of LineSeg/ArcSeg (for bearing computation)
@@ -257,7 +320,11 @@ def apply_overrides_to_poly(inner_poly, inner_segs, pts, overrides):
         chain = overrides[seg_idx]
         seg = inner_segs[seg_idx]
         start_pt = pts[seg.start]
-        end_pt = pts[seg.end]
+        # Determine span end
+        span_end = chain[0].get("span_end") if chain else None
+        end_seg_idx = span_end if span_end is not None else seg_idx
+        end_seg = inner_segs[end_seg_idx]
+        end_pt = pts[end_seg.end]
         start_bearing = _seg_start_bearing(seg, pts)
         poly = walk_override_chain(chain, start_pt, start_bearing)
         _splice_poly(inner_poly, start_pt, end_pt, poly)
