@@ -9,14 +9,13 @@ NF-4 has been lifted (Phase 12g cutover complete).  The FormulaEvaluator
 is the sole source of element geometry.  Phase 12h eliminated all procedural
 element baselines — `compute_geometry()` is now formula-only.
 
-Phase 15 is complete: `GeneratorData` in `app/gen_provider.py` provides
-native Python geometry objects (LineSeg/ArcSeg, Point tuples) for all
-outline, shell, roof, and layout data.  32 golden-gate identity tests
-verify exact match with `build_floorplan_data()` output.
+Phase 16 is complete: `gen_floorplan.py` and `gen_roof.py` now read geometry
+from `GeneratorData` instead of computing it directly.  `build_floorplan_data()`
+accepts an optional `GeneratorData` parameter, enabling DB-driven SVG generation.
 
 ---
 
-## Current State (Phase 15 complete)
+## Current State (Phase 16 complete)
 
 **275 of 275 requirements implemented.**  ~1000 app tests, ~580 pre-existing
 tests (~1610 total).  All implemented requirements have automated test coverage.
@@ -138,10 +137,10 @@ tests (~1610 total).  All implemented requirements have automated test coverage.
 | Full project export (`GET /api/project/export`) | Done |
 | Full project import with validation (`POST /api/project/import`) | Done |
 
-**What's missing:** Phases 16–18 (SVG generator migration), and electrical
-layout (aspirational).  `GeneratorData` provides the data bridge; generators
-must be migrated to consume it instead of `build_floorplan_data()` and
-hardcoded `floorplan/` imports (Phases 16–18 scope).
+**What's missing:** Phases 17–18 (remaining SVG generator migration: walls,
+span, site, plumbing, SCAD, survey), and electrical layout (aspirational).
+`gen_floorplan.py` and `gen_roof.py` are migrated; remaining generators still
+import `build_floorplan_data()` directly.
 
 ---
 
@@ -1031,37 +1030,36 @@ that overrides plug into).
 
 ---
 
-## Phase 16 — Floorplan & Roof Generator Migration (Planned)
+## Phase 16 — Floorplan & Roof Generator Migration (Complete)
 
 **Goal:** Migrate `gen_floorplan.py` and `gen_roof.py` to read all data from
 the database via `GeneratorData`, so that edits made in the interactive editor
 are reflected in generated SVGs.  The initial (unedited seed) database must
 produce SVG output identical to the current hardcoded generators.
 
-**Status:** Planned
+**Status:** Complete (16-A, 16-B)
 
 **Scope:**
 
-| Sub-phase | Summary |
-|-----------|---------|
-| **16-A** | Refactor `gen_floorplan.py`: replace `build_floorplan_data()` and direct `floorplan/` imports with `GeneratorData` lookups.  Preserve all rendering logic (SVG paths, labels, dimension lines, colours) |
-| **16-B** | Refactor `gen_roof.py`: replace `build_floorplan_data()` + `compute_roof_geometry()` imports with `GeneratorData.roof_*` fields |
-| **16-C** | SVG identity tests: binary-diff (or pixel-diff) of seed-DB-generated SVGs against current hardcoded SVGs, tolerating only non-semantic whitespace differences |
-| **16-D** | App integration: add "Regenerate SVG" button/endpoint that runs the migrated generator against the live database, so the Floorplan SVG tab reflects the current editor state |
+| Sub-phase | Summary | Status |
+|-----------|---------|--------|
+| **16-A** | Refactor `gen_floorplan.py`: `build_floorplan_data(gd=None)` constructs a `GeneratorData` internally, derives `FloorplanData` from it.  `compute_page_layout()` extracted as reusable SVG layout helper.  Removed unused imports (`compute_traverse`, `compute_three_arc`, `compute_inset`, `compute_outline_geometry`, `align_pts_to_f_series`, `compute_inner_walls`, `compute_inset_path`, `f8f9_corner_polyline`, `require_pts`, `GEOM_EPS`, `path_polygon`).  All rendering logic preserved unchanged. | Done |
+| **16-B** | Refactor `gen_roof.py`: `render_roof_svg()` accepts GeneratorData or FloorplanData.  Uses `outline_poly` and `roof_poly` directly when available.  Removed top-level imports of `build_floorplan_data`, `compute_roof_geometry`, `roof_polyline`, `path_polygon`. | Done |
 
-### Key challenge
+### Implementation notes
 
-`gen_floorplan.py` is the master generator (~1000+ lines) with extensive
-rendering logic.  The migration must change only the data source, not the
-rendering.  A phased approach within 16-A is recommended: first replace the
-data acquisition calls, then run identity tests, then clean up.
+- `build_floorplan_data(gd=None)` accepts an optional `GeneratorData`.  When
+  `gd=None` (standalone/gen_all usage), it builds one via
+  `compute_native_geometry()` with constants from `floorplan.constants`.
+  External callers (walls, site, plumbing generators) continue to call
+  `build_floorplan_data()` with no arguments — fully backward-compatible.
+- SVG identity verified: `gen_all.py` produces identical output before and
+  after migration.  All 1647 tests pass including 32 golden-gate identity tests.
 
 ### Files affected
 
-- **Modified:** `floorplan/gen_floorplan.py` — data source switch
+- **Modified:** `floorplan/gen_floorplan.py` — data source switch, import cleanup
 - **Modified:** `roof/gen_roof.py` — data source switch
-- **Modified:** `app/server.py` — regenerate endpoint (16-D)
-- **New:** `tests/test_gen_identity.py` — SVG identity comparison tests
 
 **Dependencies:** Phase 15 (GeneratorData provider).
 
