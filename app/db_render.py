@@ -861,9 +861,12 @@ _LABEL_TO_DB_NAMES = {
 }
 
 # Map from href substrings to DB item names — for <a> blocks with no text label.
-_HREF_TO_DB_NAMES = {
-    "Oscar-3-Piece": {"dining_table", "dining_chair_1", "dining_chair_2"},
-}
+# Each entry maps (href_substring, svg_element_tag) → set of DB names.
+# The block is stripped when NONE of the mapped names are in db_items.
+_HREF_TO_DB_NAMES = [
+    ("Oscar-3-Piece", "<path", {"dining_table"}),
+    ("Oscar-3-Piece", "<polygon", {"dining_chair_1", "dining_chair_2"}),
+]
 
 
 def _strip_deleted_items(out, db_items):
@@ -883,13 +886,7 @@ def _strip_deleted_items(out, db_items):
         if not names & db_items:
             deleted_labels.add(label)
 
-    # Build set of href substrings whose ALL corresponding DB names are absent
-    deleted_hrefs = set()
-    for substr, names in _HREF_TO_DB_NAMES.items():
-        if not names & db_items:
-            deleted_hrefs.add(substr)
-
-    if not deleted_labels and not deleted_hrefs:
+    if not deleted_labels and not _HREF_TO_DB_NAMES:
         return  # nothing to strip
 
     # Scan for <a>...</a> blocks containing deleted labels or hrefs
@@ -901,12 +898,14 @@ def _strip_deleted_items(out, db_items):
             block_end = i
             block_label = None
             block_href = None
+            block_lines = []
             # Extract href from the <a> tag itself
             hm = _href_re.search(line)
             if hm:
                 block_href = hm.group(1)
             for j in range(i, min(i + 10, len(out))):
                 stripped = out[j].strip()
+                block_lines.append(stripped)
                 m = _text_re.search(stripped)
                 if m:
                     block_label = m.group(1)
@@ -916,9 +915,12 @@ def _strip_deleted_items(out, db_items):
             should_strip = False
             if block_label and block_label in deleted_labels:
                 should_strip = True
-            elif block_href and deleted_hrefs:
-                for substr in deleted_hrefs:
-                    if substr in block_href:
+            elif block_href:
+                block_text = "\n".join(block_lines)
+                for href_sub, tag, names in _HREF_TO_DB_NAMES:
+                    if (href_sub in block_href
+                            and tag in block_text
+                            and not names & db_items):
                         should_strip = True
                         break
             if should_strip:

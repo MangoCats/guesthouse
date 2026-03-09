@@ -184,3 +184,35 @@ class TestRegenerateAPI:
         assert svg_resp.status_code == 200
         new_svg = svg_resp.data.decode("utf-8")
         assert "OTTO" not in new_svg, "OTTO should be absent after deletion"
+
+    def test_regenerate_strips_table_keeps_chairs(self, app_client):
+        """Deleting dining_table removes table path but keeps chair polygons."""
+        # Delete dining_table via formula-aware endpoint
+        resp = app_client.delete(
+            "/api/formulas/dining_table/element?variant=standard")
+        assert resp.status_code == 200
+
+        # Regenerate floorplan
+        resp = app_client.post(
+            "/api/regenerate",
+            data=json.dumps({"view": "floorplan"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+
+        svg_resp = app_client.get("/api/svg/floorplan")
+        svg = svg_resp.data.decode("utf-8")
+
+        # The Oscar href should still appear (for the chairs) but
+        # there should be no <path> block with that href (table gone)
+        oscar = "Oscar-3-Piece"
+        # Count <a> blocks with Oscar href
+        import re
+        a_blocks = re.findall(
+            r'<a [^>]*Oscar-3-Piece[^>]*>.*?</a>', svg, re.DOTALL)
+        path_blocks = [b for b in a_blocks if '<path' in b]
+        poly_blocks = [b for b in a_blocks if '<polygon' in b]
+        assert len(path_blocks) == 0, \
+            "table <path> block should be stripped after deletion"
+        assert len(poly_blocks) == 2, \
+            "chair <polygon> blocks should survive table deletion"
