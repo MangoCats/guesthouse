@@ -860,34 +860,51 @@ _LABEL_TO_DB_NAMES = {
     "TABLE": {"dining_table"}, "TOILET": {"toilet_n", "toilet_s"},
 }
 
+# Map from href substrings to DB item names — for <a> blocks with no text label.
+_HREF_TO_DB_NAMES = {
+    "Oscar-3-Piece": {"dining_table", "dining_chair_1", "dining_chair_2"},
+}
+
 
 def _strip_deleted_items(out, db_items):
     """Remove SVG elements for items that have been deleted from the DB.
 
-    Scans `out` for <a>...</a> blocks.  If the block's <text> label maps
-    to a DB item name that is NOT in `db_items`, the entire block is removed.
+    Scans `out` for <a>...</a> blocks.  If the block's <text> label OR href
+    maps to DB item names that are ALL absent from `db_items`, the block is
+    removed.
     """
+    import re
+    _text_re = re.compile(r'<text[^>]*>([^<]+)</text>')
+    _href_re = re.compile(r'href="([^"]*)"')
+
     # Build set of labels whose ALL corresponding DB names are absent
     deleted_labels = set()
     for label, names in _LABEL_TO_DB_NAMES.items():
         if not names & db_items:
             deleted_labels.add(label)
 
-    if not deleted_labels:
+    # Build set of href substrings whose ALL corresponding DB names are absent
+    deleted_hrefs = set()
+    for substr, names in _HREF_TO_DB_NAMES.items():
+        if not names & db_items:
+            deleted_hrefs.add(substr)
+
+    if not deleted_labels and not deleted_hrefs:
         return  # nothing to strip
 
-    # Scan for <a>...</a> blocks containing deleted labels
-    import re
-    _text_re = re.compile(r'<text[^>]*>([^<]+)</text>')
-
+    # Scan for <a>...</a> blocks containing deleted labels or hrefs
     i = 0
     while i < len(out):
         line = out[i].strip()
         if line.startswith('<a '):
-            # Find the closing </a>
             block_start = i
             block_end = i
             block_label = None
+            block_href = None
+            # Extract href from the <a> tag itself
+            hm = _href_re.search(line)
+            if hm:
+                block_href = hm.group(1)
             for j in range(i, min(i + 10, len(out))):
                 stripped = out[j].strip()
                 m = _text_re.search(stripped)
@@ -896,7 +913,15 @@ def _strip_deleted_items(out, db_items):
                 if stripped == '</a>':
                     block_end = j
                     break
+            should_strip = False
             if block_label and block_label in deleted_labels:
+                should_strip = True
+            elif block_href and deleted_hrefs:
+                for substr in deleted_hrefs:
+                    if substr in block_href:
+                        should_strip = True
+                        break
+            if should_strip:
                 del out[block_start:block_end + 1]
                 continue  # don't increment i
         i += 1
