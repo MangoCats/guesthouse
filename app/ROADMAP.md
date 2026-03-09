@@ -9,17 +9,19 @@ NF-4 has been lifted (Phase 12g cutover complete).  The FormulaEvaluator
 is the sole source of element geometry.  Phase 12h eliminated all procedural
 element baselines — `compute_geometry()` is now formula-only.
 
-Phases 16–19 are complete: all SVG/PDF generators accept `GeneratorData`
-as an optional parameter, and the app's regeneration endpoints pass a
-DB-built `GeneratorData` in-process.  Standalone execution (via `gen_all.py`)
-constructs `GeneratorData` from the hardcoded procedural modules.
+Phases 15½ and 16–19 are complete: inner wall segment overrides are
+DB-driven and editable from the UI; all SVG/PDF generators accept
+`GeneratorData` as an optional parameter, and the app's regeneration
+endpoints pass a DB-built `GeneratorData` in-process.  Standalone
+execution (via `gen_all.py`) constructs `GeneratorData` from the hardcoded
+procedural modules.
 
 ---
 
-## Current State (Phase 19 complete)
+## Current State (Phase 19 + 15½ complete)
 
-**275 of 275 requirements implemented.**  ~1000 app tests, ~580 pre-existing
-tests (~1640 total).  All implemented requirements have automated test coverage.
+**285 of 285 requirements implemented.**  ~1100 app tests, ~590 pre-existing
+tests (~1695 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -50,9 +52,9 @@ tests (~1640 total).  All implemented requirements have automated test coverage.
 | Generator data provider (`GeneratorData`) | Done |
 | All generators accept `GeneratorData` (Phases 16–18) | Done |
 | DB-driven regeneration: in-process dispatch (Phase 19) | Done |
+| Inner wall segment overrides: DB, engine, API, editor UI (Phase 15½) | Done |
 
-**What's missing:** Inner wall segment overrides (Phase 15½), electrical
-layout (Phase 13, aspirational).
+**What's missing:** Electrical layout (Phase 13, aspirational).
 
 ---
 
@@ -141,27 +143,13 @@ In-process generator dispatch replaces subprocess execution.
 endpoints (`/api/regenerate`, `/api/generate-site-plan`, `/api/generate-3d`)
 pass DB-built `GeneratorData`.  17 new tests.
 
----
-
-## Phase 15½ — Inner Wall Segment Overrides (Planned)
-
-**Goal:** Allow selected W-series inner wall segments to be overridden with
-custom geometry (line/arc chains) instead of the default computed offset from
-the F-series outline.  This generalises the hardcoded W8-W9 corner treatment
-into a data-driven mechanism editable from the interactive editor.
-
-**Status:** Planned
-
-**Scope:**
-
-| Sub-phase | Summary |
-|-----------|---------|
-| **15½-A** | DB schema: `inner_wall_overrides` table (seg_index, sub_seq, seg_type, bearing, distance, radius, sweep).  Seed W8-W9 as default override for segment 7. |
-| **15½-B** | Engine integration: apply overrides after `compute_inner_walls()`, splicing override polylines into `inner_poly`. |
-| **15½-C** | API endpoints: GET/PUT/DELETE `/api/inner-wall-overrides/<seg_index>`.  Undo/redo support. |
-| **15½-D** | Editor UI: segment override dialog from outline table or canvas context menu.  Live preview. |
-
-**Dependencies:** Phase 15 (GeneratorData).
+### Phase 15½ — Inner Wall Segment Overrides
+4 sub-phases (15½-A–D).  `inner_wall_overrides` DB table with
+`walk_override_chain()` parametric engine.  Generalises the hardcoded
+W8-W9 corner treatment into a data-driven system supporting single-segment
+and multi-segment span overrides.  Editor UI with live canvas preview,
+compute-default, and click-to-define mode.  Endpoint validation (position
+and bearing tolerance), overlap detection.  ~28 new tests (1695 total).
 
 ---
 
@@ -189,9 +177,7 @@ DB-backed).
 ## Phase Dependency Graph
 
 ```
-Phases 1–19 (all complete)
-    │
-    ├── Phase 15½ (Inner Wall Overrides) ◄── 15
+Phases 1–19 + 15½ (all complete)
     │
     └── Phase 13 (Electrical) ◄── 10, 18
 ```
@@ -203,7 +189,7 @@ Phases 1–19 (all complete)
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 1664+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. All 1695+ tests continue to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met
 

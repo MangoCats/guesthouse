@@ -55,7 +55,7 @@ and `shared/` never import from `app/`.
 
 ### app/database.py — Persistence
 
-Sixteen SQLite tables:
+Seventeen SQLite tables:
 
 | Table | Rows | Purpose |
 |-------|------|---------|
@@ -75,6 +75,7 @@ Sixteen SQLite tables:
 | `plumbing_elements` | 17+ | Supply/drain pipes, fittings, fixture connections |
 | `survey_legs` | 5 | Traverse legs (bearing deg/min/sec, distance ft/inch, label) |
 | `survey_config` | 5 | Survey constants (FC_IN_P3, COORD_ROTATION, corrections) |
+| `inner_wall_overrides` | 3+ | Parametric override chains for W-series inner wall segments (seg_index, span_end, sub_seq, seg_type L/CW/CCW, bearing, distance, radius, sweep, n_pts) |
 
 **Seeding** — On first run, `init_db()` creates the schema and populates
 tables from source:
@@ -141,6 +142,14 @@ tables from source:
 | `delete_variant_exclusions(variant)` | Remove all exclusion rows for a variant |
 | `clone_variant_elements(source, target)` | Add target to element visibility lists |
 | `unclone_variant_elements(target)` | Remove target from element visibility lists |
+| `get_inner_wall_overrides()` | `{seg_index: [chain dicts]}` for all overrides |
+| `get_inner_wall_override(seg_index)` | Chain dicts for single segment |
+| `upsert_inner_wall_override(seg_index, chain, span_end)` | Create/update override chain |
+| `delete_inner_wall_override(seg_index)` | Remove override for segment |
+| `reset_inner_wall_overrides()` | Re-seed defaults (W8-W9) |
+| `check_override_overlap(seg_index, span_end)` | Validate no overlapping spans |
+| `snapshot_inner_wall_overrides()` | Capture full state for undo |
+| `restore_inner_wall_overrides(snapshot)` | Restore from undo snapshot |
 
 Connection management uses a context manager with WAL journaling and
 foreign keys enabled.
@@ -169,16 +178,21 @@ Validates door parameters against allowed values.
 | `VALID_TYPES` | Set of allowed door types: `{single, double}` |
 | `validate_door(hinge, swing, type)` | Return error string or `None` |
 
-### app/gen_provider.py — Generator Data Provider (Phase 15)
+### app/gen_provider.py — Generator Data Provider (Phase 15 + 15½)
 
 Provides `GeneratorData`, a typed container of native Python geometry objects
 for SVG generators.  Replaces direct imports from `floorplan/` modules.
+Also implements the inner wall override engine (Phase 15½).
 
 | Function / Class | Purpose |
 |------------------|---------|
 | `compute_native_geometry(constants, chain_rows, db_path)` | Shared steps 1-3: survey traverse, outline, inner walls.  Returns `(pts, outline_segs, inner_segs, radii)` as native objects.  Used by both `compute_geometry()` and `GeneratorData`. |
 | `build_generator_data(constants, chain_rows, db_path)` | Main entry point — builds `GeneratorData` from DB state |
 | `GeneratorData` | Contains `pts`, `outline_segs`, `inner_segs`, `radii`, `outline_poly`, `inner_poly`, `s_segs`, `g_segs`, `w_f8f9_poly`, `g_f8f9_poly`, `openings`, `wall_sections`, `roof`, `roof_poly`, `layout`, `constants`, `wall_t`, `outer_area`, `inner_area` |
+| `walk_override_chain(chain, start_pt, start_bearing)` | Parametric chain walk: line (bearing+distance) and arc (radius+sweep CW/CCW) segments. Returns polyline. |
+| `compute_default_override(seg_index, inner_segs, pts, constants)` | Computes default parametric chain for a single inner wall segment. |
+| `compute_default_span_override(seg_index, span_end, ...)` | Computes default chain for a multi-segment span. |
+| `apply_overrides_to_poly(inner_poly, inner_segs, pts, overrides)` | Splices override polylines into `inner_poly` in-place, replacing default offset geometry. Processes in descending index order. |
 
 ### app/engine.py — Computation
 
@@ -188,6 +202,10 @@ orchestrates the full pipeline:
 1. **Survey traverse** → F-series alignment (via `compute_native_geometry()`)
 2. **Outline geometry** → 20 F-series points, 18 segments, arc radii
 3. **Inner walls** → 18 W-series inset segments, closed polygon
+3b. **Inner wall overrides** → `apply_overrides_to_poly()` splices
+   DB-stored override chains (from `inner_wall_overrides` table) into
+   `inner_poly`, replacing default offset geometry with parametric
+   line/arc chains.  Supports single-segment and multi-segment spans.
 4. **Formula evaluation** → `FormulaEvaluator` evaluates all DB-stored
    formulas in topological order, producing element polygons
 5. **Build elements from formulas** → `_build_elements_from_formulas()`
@@ -772,6 +790,9 @@ compute_outline_geometry()     → F-series points, segments, radii
 compute_inner_walls()          → W-series inset path
     │
     ▼
+apply_overrides_to_poly()      → splice DB-stored inner wall overrides
+    │                             (line/arc chains replacing offset segments)
+    ▼
 FormulaEvaluator               → evaluate all formulas in topo order
     │                             (walls, openings, variant items)
     ▼
@@ -914,7 +935,16 @@ The development arc followed three stages:
    FormulaEvaluator from database-stored JSON formulas.  All element
    metadata stored in DB.  NF-4 lifted.  No procedural baselines remain.
 
-See `app/ROADMAP.md` for the complete 13-phase development plan
+Phase 15½ generalised the hardcoded W8-W9 inner wall corner treatment
+into a database-driven system.  `inner_wall_overrides` table stores
+parametric line/arc chains keyed by inner wall segment index.
+`walk_override_chain()` evaluates chains; `apply_overrides_to_poly()`
+splices results into `inner_poly`.  Supports single-segment and
+multi-segment spans with endpoint validation and overlap detection.
+Editor UI provides a dialog with compute-default, click-to-define mode,
+and live canvas preview.
+
+See `app/ROADMAP.md` for the complete development plan
 covering all remaining requirements, phase dependencies, new file
 inventory, test growth estimates, anticipated challenges, and cutover
 criteria.

@@ -2726,6 +2726,94 @@ match any import of `floorplan.layout` or `floorplan.openings`.
 
 ---
 
+## 19  Inner Wall Overrides (Phase 15½)
+
+`IWO-1` The `inner_wall_overrides` table SHALL store parametric
+override chains keyed by `(seg_index, sub_seq)` with `seg_type`
+(L/CW/CCW), `bearing`, `distance`, `radius`, `sweep`, `n_pts`,
+and optional `span_end` for multi-segment spans.
+
+**Acceptance:** Schema exists with all columns.  Seeded with W8-W9
+default override for segment 5 (L-CCW-L chain).
+**Tested:** test_gen_provider.py::TestOverrideIdentity::test_overrides_loaded
+
+`IWO-2` `walk_override_chain()` SHALL evaluate a parametric chain
+of line segments (compass bearing + distance) and arc segments
+(radius + sweep angle CW/CCW), returning a polyline starting from
+a given point and bearing.
+
+**Acceptance:** A three-segment L-CCW-L chain produces the correct
+W8-W9 corner geometry matching the hardcoded implementation.
+**Tested:** test_gen_provider.py::TestWalkOverrideChain (4 tests)
+
+`IWO-3` `apply_overrides_to_poly()` SHALL splice override polylines
+into `inner_poly` in-place, replacing the default offset geometry
+for the specified segment(s).  Multi-segment spans SHALL be supported.
+
+**Acceptance:** Inner polygon with override matches the hardcoded
+W8-W9 path.  Multi-segment span correctly replaces contiguous range.
+**Tested:** test_gen_provider.py::TestOverrideIdentity, TestMultiSegmentSpan
+
+`IWO-4` `compute_default_override()` SHALL compute the default
+parametric chain for any single inner wall segment from the current
+outline geometry, returning sub-segment dicts with validation status.
+
+**Acceptance:** Line segment defaults produce single L sub-segment.
+Arc segment defaults produce appropriate arc chain.  W8-W9 default
+matches the seeded override.
+**Tested:** test_gen_provider.py::TestComputeDefaultOverride (4 tests)
+
+`IWO-5` GET `/api/inner-wall-overrides` SHALL return all stored
+overrides.  GET `/api/inner-wall-overrides/<seg_index>` SHALL return
+the chain for a single segment (404 if not found).
+
+**Acceptance:** API returns correct override data.
+**Tested:** test_zapp_api.py::TestInnerWallOverridesAPI::test_get_all,
+test_get_single, test_get_missing
+
+`IWO-6` PUT `/api/inner-wall-overrides/<seg_index>` SHALL validate
+the chain (non-empty, required fields per seg_type), validate endpoint
+position and bearing within tolerance, detect overlapping spans, and
+support undo/redo.
+
+**Acceptance:** Valid chains are stored.  Invalid chains return 400.
+Overlapping spans return warnings.  Undo restores previous state.
+**Tested:** test_zapp_api.py::TestInnerWallOverridesAPI::test_upsert,
+test_upsert_validation, test_upsert_with_span_end, test_upsert_span_overlap,
+test_upsert_warnings
+
+`IWO-7` DELETE `/api/inner-wall-overrides/<seg_index>` SHALL remove
+the override and revert to default geometry.  404 if not found.
+
+**Acceptance:** Override is removed.  Subsequent GET returns 404.
+**Tested:** test_zapp_api.py::TestInnerWallOverridesAPI::test_delete,
+test_delete_missing
+
+`IWO-8` GET `/api/inner-wall-overrides/<seg_index>/compute-default`
+SHALL compute the default parametric chain for a segment or
+multi-segment span (via `?span_end=<int>` query parameter).
+
+**Acceptance:** Returns valid chain with sub-segment dicts.
+**Tested:** test_zapp_api.py::TestInnerWallOverridesAPI::test_compute_default_line,
+test_compute_default_w8w9, test_compute_default_invalid, test_compute_default_span
+
+`IWO-9` The editor UI SHALL provide an override dialog accessible
+from the outline table with: dynamic sub-segment table, compute-default
+button, click-to-define mode, remove button, and save button.
+
+**Acceptance:** Dialog opens from outline table.  Compute-default
+populates the chain.  Click-to-define captures canvas waypoints.
+Save stores the override via PUT API.
+
+`IWO-10` The canvas SHALL display a live preview of the override
+chain (yellow dashed polyline with vertex dots and green target
+endpoint circle) while the override editor is open.
+
+**Acceptance:** Preview updates in real-time as chain is edited.
+Preview clears when dialog closes.
+
+---
+
 ## Appendix A: Requirement Cross-Reference by User Operation
 
 This table maps common user operations (identified from the full commit
@@ -2749,6 +2837,7 @@ history) to the requirements that enable each operation through the GUI.
 | Element styling (colour/opacity) | ~18 | STYLE-1..4 |
 | Product hyperlinks | ~14 | LINK-1, LINK-2, SEL-12, CV-12, DIS-11 |
 | Delete elements | ~14 | TL-22, TL-23, TL-25, SEL-13, API-22, API-26, API-29 |
+| Inner wall overrides | ~5 | IWO-1..10 |
 | Undo/redo | implicit | UNDO-1..4, API-30, API-31 |
 
 ## Appendix B: Requirements Summary
@@ -2777,7 +2866,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
 | 18 Formulas | 19 | 0 | 19 |
-| **Total** | **275** | **0** | **275** |
+| 19 Inner Wall Overrides | 10 | 0 | 10 |
+| **Total** | **285** | **0** | **285** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted
