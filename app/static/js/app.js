@@ -794,6 +794,7 @@ function clearLayers() {
   App.els["layer-outline"].style.opacity = "";
   App.els["layer-inner"].style.opacity = "";
   App.els["layer-walls"].style.opacity = "";
+  App.els["layer-furniture"].style.opacity = "";
 }
 
 function polyToStr(poly) {
@@ -1419,7 +1420,14 @@ function renderPlumbingCanvas() {
   App.els["layer-inner"].style.opacity = "0.25";
   App.els["layer-walls"].style.opacity = "0.25";
 
-  // Render plumbing elements
+  // Render plumbing-relevant fixtures/appliances (ghosted, matching SVG)
+  const savedShowFurn = App.state.showFurniture;
+  App.state.showFurniture = true;
+  renderFurniture(g, {});
+  App.state.showFurniture = savedShowFurn;
+  App.els["layer-furniture"].style.opacity = "0.6";
+
+  // Render plumbing elements (on top of ghosted fixtures)
   renderPlumbingPipes();
   renderPlumbingFittings();
   renderPlumbingFixtures();
