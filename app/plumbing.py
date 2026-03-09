@@ -12,19 +12,19 @@ from shared.geometry import seg_vecs, offset_pt, line_isect, poly_centroid
 # Valid plumbing element types
 PLUMBING_TYPES = {"supply_pipe", "drain_pipe", "fitting", "fixture_connection"}
 
-# Fixture definitions: (name, cold, hot, drain)
+# Fixture definitions: (name, cold, hot, drain, sort_order)
 FIXTURE_DEFS = [
-    ("Washer", True, True, True),
-    ("Toilet1", True, False, True),
-    ("Toilet2", True, False, True),
-    ("Util Sink", True, True, True),
-    ("Bath Sink", True, True, True),
-    ("Fridge", True, False, False),
-    ("Shower", True, True, True),
-    ("Kitchen Sink", True, True, True),
-    ("Dishwasher", False, True, True),
-    ("Ice Maker", True, False, False),
-    ("Water Heater", True, True, False),
+    ("Washer",       True,  True,  True,  1),
+    ("Toilet1",      True,  True,  True,  2),
+    ("Toilet2",      True,  True,  True,  3),
+    ("Util Sink",    True,  True,  True,  4),
+    ("Bath Sink",    True,  True,  True,  5),
+    ("Fridge",       True,  False, False, 6),
+    ("Shower",       True,  True,  True,  7),
+    ("Kitchen Sink", True,  True,  True,  8),
+    ("Dishwasher",   False, True,  False, 9),
+    ("Ice Maker",    True,  False, False, 10),
+    ("Water Heater", True,  True,  False, 11),
 ]
 
 
@@ -41,7 +41,7 @@ def get_plumbing_elements(db_path=None):
     """Return all plumbing elements as a list of dicts."""
     with get_db(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM plumbing_elements ORDER BY id"
+            "SELECT * FROM plumbing_elements ORDER BY sort_order, id"
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
 
@@ -56,7 +56,7 @@ def get_plumbing_element(element_id, db_path=None):
 
 
 def create_plumbing_element(type_, name, path=None, properties=None,
-                            fixture=None, db_path=None):
+                            fixture=None, sort_order=0, db_path=None):
     """Create a plumbing element. Returns the created record dict."""
     if type_ not in PLUMBING_TYPES:
         raise ValueError(f"Invalid plumbing type: {type_}")
@@ -64,14 +64,15 @@ def create_plumbing_element(type_, name, path=None, properties=None,
     props_json = json.dumps(properties or {})
     with get_db(db_path) as conn:
         cur = conn.execute(
-            "INSERT INTO plumbing_elements (type, name, path, properties, fixture) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (type_, name, path_json, props_json, fixture),
+            "INSERT INTO plumbing_elements "
+            "(type, name, path, properties, fixture, sort_order) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (type_, name, path_json, props_json, fixture, sort_order),
         )
         return {
             "id": cur.lastrowid, "type": type_, "name": name,
             "path": path or [], "properties": properties or {},
-            "fixture": fixture,
+            "fixture": fixture, "sort_order": sort_order,
         }
 
 
@@ -83,16 +84,18 @@ def create_plumbing_raw(record, db_path=None):
         props_json = json.dumps(props_json)
     with get_db(db_path) as conn:
         conn.execute(
-            "INSERT INTO plumbing_elements (id, type, name, path, properties, fixture) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO plumbing_elements "
+            "(id, type, name, path, properties, fixture, sort_order) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (record["id"], record["type"], record["name"],
-             path_json, props_json, record.get("fixture")),
+             path_json, props_json, record.get("fixture"),
+             record.get("sort_order", 0)),
         )
 
 
 def update_plumbing_element(element_id, updates, db_path=None):
     """Update plumbing element fields. Returns updated record or None."""
-    allowed = {"type", "name", "path", "properties", "fixture"}
+    allowed = {"type", "name", "path", "properties", "fixture", "sort_order"}
     sets = []
     vals = []
     for k, v in updates.items():
@@ -134,13 +137,14 @@ def seed_plumbing(conn):
     existing_names = {row["name"] for row in conn.execute(
         "SELECT name FROM plumbing_elements WHERE type = 'fixture_connection'"
     ).fetchall()}
-    for name, cold, hot, drain in FIXTURE_DEFS:
+    for name, cold, hot, drain, sort_order in FIXTURE_DEFS:
         if name not in existing_names:
             props = json.dumps({"cold": cold, "hot": hot, "drain": drain})
             conn.execute(
-                "INSERT INTO plumbing_elements (type, name, path, properties, fixture) "
-                "VALUES (?, ?, '[]', ?, ?)",
-                ("fixture_connection", name, props, name),
+                "INSERT INTO plumbing_elements "
+                "(type, name, path, properties, fixture, sort_order) "
+                "VALUES (?, ?, '[]', ?, ?, ?)",
+                ("fixture_connection", name, props, name, sort_order),
             )
 
 

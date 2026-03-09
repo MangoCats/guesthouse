@@ -1342,6 +1342,7 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         from plumbing.gen_plumbing import _compute_boundary_corners
         from app.db_render import render_floorplan_svg_db
         from app.database import get_all_doors
+        from app.plumbing import get_plumbing_elements
 
         data = build_floorplan_data(gd)
         boundary = _compute_boundary_corners(data.pts)
@@ -1360,11 +1361,17 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         constants_dict = gd.constants
         doors_data = get_all_doors(db_path) if db_path else []
 
+        # Fetch fixture connections once for plumbing variant
+        fc_elems = [e for e in get_plumbing_elements(db_path)
+                    if e["type"] == "fixture_connection"]
+
         for suffix, variant, room_title in _VARIANTS:
             geom = compute_geometry(
                 constants_dict, variant=variant,
                 doors_data=doors_data, db_path=db_path)
             bdy = boundary if variant == "plumbing" else None
+            if variant == "plumbing":
+                geom["fixture_connections"] = fc_elems
             svg = render_floorplan_svg_db(
                 geom, data, room_title=room_title, boundary=bdy)
             with open(os.path.join(base, f"floorplan{suffix}.svg"), "w", encoding="utf-8") as f:

@@ -63,7 +63,7 @@ class TestPlumbingSeed:
     def test_fixture_names(self, fresh_db):
         elems = get_plumbing_elements(fresh_db)
         names = {e["name"] for e in elems}
-        expected = {name for name, _, _, _ in FIXTURE_DEFS}
+        expected = {name for name, *_ in FIXTURE_DEFS}
         assert names == expected
 
     def test_cold_hot_drain_flags(self, fresh_db):

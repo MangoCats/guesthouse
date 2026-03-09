@@ -1048,7 +1048,19 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     inner_area = data.inner_area - compute_iw_area(layout)
     _render_title_block(out, data, inner_area)
     if plumbing:
-        _render_supplies_table(out, data)
+        # Build supplies rows from fixture_connection records in geom dict
+        fc_elems = geom.get("fixture_connections", [])
+        if fc_elems:
+            supply_rows = [
+                (e["name"].upper(),
+                 (e.get("properties") or {}).get("cold", False),
+                 (e.get("properties") or {}).get("hot", False),
+                 (e.get("properties") or {}).get("drain", False))
+                for e in fc_elems
+            ]
+            _render_supplies_table(out, data, supply_rows=supply_rows)
+        else:
+            _render_supplies_table(out, data)
 
     out.append('</svg>')
     return "\n".join(out)

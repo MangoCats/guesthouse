@@ -136,7 +136,8 @@ CREATE TABLE IF NOT EXISTS plumbing_elements (
     name       TEXT NOT NULL UNIQUE,
     path       TEXT DEFAULT '[]',
     properties TEXT DEFAULT '{}',
-    fixture    TEXT
+    fixture    TEXT,
+    sort_order INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS variants (
@@ -254,6 +255,12 @@ def init_db(db_path=None):
                              "ADD COLUMN span_end INTEGER")
             # Ensure inner wall overrides exist (Phase 15½ upgrade)
             _seed_inner_wall_overrides(conn)
+            # Add sort_order column if missing (plumbing supplies upgrade)
+            pe_cols = {r[1] for r in conn.execute(
+                "PRAGMA table_info(plumbing_elements)").fetchall()}
+            if "sort_order" not in pe_cols:
+                conn.execute("ALTER TABLE plumbing_elements "
+                             "ADD COLUMN sort_order INTEGER DEFAULT 0")
 
 
 # ---------------------------------------------------------------------------
@@ -2635,9 +2642,10 @@ def import_project(data, db_path=None):
                 props = json.dumps(props)
             conn.execute(
                 "INSERT INTO plumbing_elements "
-                "(type, name, path, properties, fixture) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (p["type"], p["name"], path, props, p.get("fixture")),
+                "(type, name, path, properties, fixture, sort_order) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (p["type"], p["name"], path, props, p.get("fixture"),
+                 p.get("sort_order", 0)),
             )
 
 

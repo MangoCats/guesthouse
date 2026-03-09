@@ -3400,27 +3400,34 @@ def _render_sf_extras(out, data, layout):
                f' stroke="#666" stroke-width="0.7" stroke-dasharray="4,3"/>')
 
 
-def _render_supplies_table(out, data):
-    """Render the plumbing supplies table below the title block."""
+def _render_supplies_table(out, data, supply_rows=None):
+    """Render the plumbing supplies table below the title block.
+
+    If supply_rows is provided, use it instead of the hardcoded default.
+    Each row is (fixture_name, cold, hot, drain).
+    """
     tbl_left = data.tb_left
     tbl_top = data.tb_bottom + 12
     row_h = 7.5
     clr = "#333"
     check = "&#x2713;"
 
-    rows = [
-        # (fixture,  cold, hot, drain)
-        ("WASHER",       True, True, True),
-        ("TOILET1",      True, True, True),
-        ("TOILET2",      True, True, True),
-        ("UTIL SINK",    True, True, True),
-        ("BATH SINK",    True, True, True),
-        ("FRIDGE",       True, False, False),
-        ("SHOWER",       True, True, True),
-        ("KITCHEN SINK", True, True, True),
-        ("DISHWASHER",   False, True, False),
-        ("ICE",          True, False, False),
-    ]
+    if supply_rows is not None:
+        rows = supply_rows
+    else:
+        rows = [
+            # (fixture,  cold, hot, drain)
+            ("WASHER",       True, True, True),
+            ("TOILET1",      True, True, True),
+            ("TOILET2",      True, True, True),
+            ("UTIL SINK",    True, True, True),
+            ("BATH SINK",    True, True, True),
+            ("FRIDGE",       True, False, False),
+            ("SHOWER",       True, True, True),
+            ("KITCHEN SINK", True, True, True),
+            ("DISHWASHER",   False, True, False),
+            ("ICE",          True, False, False),
+        ]
 
     col_r = [tbl_left + 62, tbl_left + 80, tbl_left + 95, tbl_left + 112]
 
