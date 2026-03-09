@@ -38,7 +38,7 @@ except ImportError:
 # ============================================================
 _PI_2 = math.pi / 2
 _C10_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)
-_C11_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)
+_C11_SWEEP = _C10_SWEEP
 _C13_SWEEP = math.atan(1.0 / 3.0)
 
 _R_a1 = CORNER_SW_R

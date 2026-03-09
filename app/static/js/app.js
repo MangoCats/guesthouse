@@ -265,6 +265,10 @@ async function loadGeometry() {
   }
 }
 
+async function reloadAfterChange() {
+  await reloadAfterChange();
+}
+
 async function loadViews() {
   try {
     const resp = await apiFetch("/api/views");
@@ -1887,8 +1891,7 @@ function showProperties(type, name, data) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ properties: newProps }),
         });
-        await loadElements();
-        await loadGeometry();
+        await reloadAfterChange();
       });
       thickTd2.appendChild(thickInp);
       thickTr.appendChild(thickTd2);
@@ -2048,8 +2051,7 @@ function showProperties(type, name, data) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ properties: newProps }),
         });
-        await loadElements();
-        await loadGeometry();
+        await reloadAfterChange();
       });
       styleTd2.appendChild(styleSel);
       styleTr.appendChild(styleTd2);
@@ -2093,8 +2095,7 @@ function showProperties(type, name, data) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ properties: newProps }),
         });
-        await loadElements();
-        await loadGeometry();
+        await reloadAfterChange();
       });
       fsTd2.appendChild(fsInp);
       fsTr.appendChild(fsTd2);
@@ -2274,8 +2275,7 @@ function addStyleControls(tbody, elemRec, props, elementType) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ properties: newProps }),
     });
-    await loadElements();
-    await loadGeometry();
+    await reloadAfterChange();
   }
 
   // Fill colour (not for dimension/label)
@@ -2411,8 +2411,7 @@ function addViewOverrideControls(tbody, elemRec, props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ properties: newProps }),
     });
-    await loadElements();
-    await loadGeometry();
+    await reloadAfterChange();
   }
 
   // Opacity override for current view
@@ -2500,8 +2499,7 @@ function addProductUrlField(tbody, elemRec, props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ properties: newProps }),
       });
-      await loadElements();
-      await loadGeometry();
+      await reloadAfterChange();
     });
   }
   td2.appendChild(inp);
@@ -2557,8 +2555,7 @@ function addElementActions(tbody, elemRec) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ properties: newProps }),
       });
-      await loadElements();
-      await loadGeometry();
+      await reloadAfterChange();
     });
     boxes.push(cb);
     label.appendChild(cb);
@@ -2609,8 +2606,7 @@ function addWallActions(tbody, wallName, elemRec) {
           cb.checked = !cb.checked;
           return;
         }
-        await loadElements();
-        await loadGeometry();
+        await reloadAfterChange();
       } catch (e) {
         showToast("Failed to toggle wall: " + e.message, "error");
         cb.checked = !cb.checked;
@@ -2668,8 +2664,7 @@ async function addFormulaDeleteButton(tbody, elemName) {
     }
     const result = await resp.json();
     clearSelection();
-    await loadElements();
-    await loadGeometry();
+    await reloadAfterChange();
     const rebased = result.rebased || [];
     const toast = rebased.length > 0
       ? `Deleted ${elemName} (re-based ${rebased.join(", ")})`
@@ -4692,8 +4687,7 @@ function onLabelDblClick(e) {
         body: JSON.stringify({ properties: props }),
       });
       Dialog.close();
-      await loadElements();
-      await loadGeometry();
+      await reloadAfterChange();
     },
   });
 }
@@ -4764,8 +4758,7 @@ async function setDimRotation(name, rotation) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ properties: props }),
   });
-  await loadElements();
-  await loadGeometry();
+  await reloadAfterChange();
 }
 
 async function detachAnchor(name, which) {
@@ -4779,8 +4772,7 @@ async function detachAnchor(name, which) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ properties: props }),
   });
-  await loadElements();
-  await loadGeometry();
+  await reloadAfterChange();
 }
 
 function onKeyDown(e) {
@@ -4897,8 +4889,7 @@ async function deleteSelectedElements() {
   }
 
   clearSelection();
-  await loadElements();
-  await loadGeometry();
+  await reloadAfterChange();
   showToast(`Deleted ${toDelete.map(e => e.name).join(", ")}`, "success");
 }
 
@@ -5019,8 +5010,7 @@ async function endpointDragMouseUp(e) {
       body: JSON.stringify({ properties: p }),
     });
     if (!resp.ok) throw new Error((await resp.json()).error);
-    await loadElements();
-    await loadGeometry();
+    await reloadAfterChange();
   } catch (err) {
     showToast(`Error: ${err.message}`, "error");
   }
@@ -5128,8 +5118,7 @@ function openingToolMouseDown(e) {
         showToast(`Created opening ${name} on ${wall.name}`, "success");
         OpeningTool.active = false;
         App.els["viewport"].style.cursor = "crosshair";
-        await loadElements();
-        await loadGeometry();
+        await reloadAfterChange();
       } catch (err) {
         showToast(`Error: ${err.message}`, "error");
       }
@@ -5194,8 +5183,7 @@ function showRotationDialog() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ properties: newProps }),
       });
-      await loadElements();
-      await loadGeometry();
+      await reloadAfterChange();
       showToast(`Rotated ${sel.name} to ${angle}°`, "success");
     },
   });
@@ -5527,8 +5515,7 @@ async function handleMenuAction(action) {
         await apiFetch("/api/constants/reset", { method: "POST" });
         await loadConstants();
         await loadOutlineTable();
-        await loadElements();
-        await loadGeometry();
+        await reloadAfterChange();
         showToast("Reset to defaults", "success");
       } catch (e) { showToast(`Reset failed: ${e.message}`, "error"); }
       break;

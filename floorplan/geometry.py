@@ -26,7 +26,7 @@ _PI_12 = math.pi / 12          # 15 deg
 _C15_SWEEP = math.pi / 2 - math.atan(7.0 / 12.0)  # F15→F16: π/2 − arctan(7/12)
 _C17_SWEEP = math.atan(7.0 / 12.0)                 # F17→F18: arctan(7/12)
 _C10_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)  # F10→F11: 90° - arctan(1/3)
-_C11_SWEEP = math.pi / 2 - math.atan(1.0 / 3.0)  # F11b→F12: 90° - arctan(1/3)
+_C11_SWEEP = _C10_SWEEP                           # F11b→F12: same as C10
 _C13_SWEEP = math.atan(1.0 / 3.0)                 # F13→F14: arctan(1/3) → exit bearing = π
 
 # Chain: ("L", distance) for lines

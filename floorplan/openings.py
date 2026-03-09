@@ -50,6 +50,25 @@ class WallOpening(NamedTuple):
     t_end: float    # parametric position [0, 1] along the segment
 
 
+def _opening_quad(pts: dict[str, Point],
+                  f_start: str, f_end: str, w_start: str, w_end: str,
+                  t_start: float, t_end: float) -> list[Point]:
+    """Build a 4-vertex opening polygon by lerping along F-face and W-face.
+
+    Returns [outer_start, outer_end, inner_end, inner_start].
+    """
+    fs, fe = pts[f_start], pts[f_end]
+    ws, we = pts[w_start], pts[w_end]
+    dEf, dNf = fe[0] - fs[0], fe[1] - fs[1]
+    dEw, dNw = we[0] - ws[0], we[1] - ws[1]
+    return [
+        (fs[0] + t_start * dEf, fs[1] + t_start * dNf),
+        (fs[0] + t_end * dEf,   fs[1] + t_end * dNf),
+        (ws[0] + t_end * dEw,   ws[1] + t_end * dNw),
+        (ws[0] + t_start * dEw, ws[1] + t_start * dNw),
+    ]
+
+
 def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     """Compute all 11 outer-wall opening polygons.
 
@@ -62,96 +81,54 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     _dE2, _dN2, _seg2_len = seg_vec(pts["F2"], pts["F5"])
     _t3_end = 1 - O3_GAP_F5 / _seg2_len       # closer to F5
     _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg2_len  # farther from F5
-    openings.append(OuterOpening("O3", "F2", "F5", [
-        (pts["F2"][0] + _t3_start * _dE2, pts["F2"][1] + _t3_start * _dN2),
-        (pts["F2"][0] + _t3_end * _dE2, pts["F2"][1] + _t3_end * _dN2),
-        (pts["W2"][0] + _t3_end * (pts["W5"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t3_end * (pts["W5"][1] - pts["W2"][1])),
-        (pts["W2"][0] + _t3_start * (pts["W5"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t3_start * (pts["W5"][1] - pts["W2"][1])),
-    ]))
+    openings.append(OuterOpening("O3", "F2", "F5",
+        _opening_quad(pts, "F2", "F5", "W2", "W5", _t3_start, _t3_end)))
 
     # O2: F2-F5, 48" south of O3
     _t2_end = _t3_start - O2_GAP_O3 / _seg2_len    # north edge, 48" south of O3
     _t2_start = _t2_end - O2_WIDTH / _seg2_len      # south edge
-    openings.append(OuterOpening("O2", "F2", "F5", [
-        (pts["F2"][0] + _t2_start * _dE2, pts["F2"][1] + _t2_start * _dN2),
-        (pts["F2"][0] + _t2_end * _dE2, pts["F2"][1] + _t2_end * _dN2),
-        (pts["W2"][0] + _t2_end * (pts["W5"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t2_end * (pts["W5"][1] - pts["W2"][1])),
-        (pts["W2"][0] + _t2_start * (pts["W5"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t2_start * (pts["W5"][1] - pts["W2"][1])),
-    ]))
+    openings.append(OuterOpening("O2", "F2", "F5",
+        _opening_quad(pts, "F2", "F5", "W2", "W5", _t2_start, _t2_end)))
 
     # O1: F2-F5, 72" south of O2
     _t1_end = _t2_start - O1_GAP_O2 / _seg2_len    # north edge, 72" south of O2
     _t1_start = _t1_end - O1_WIDTH / _seg2_len      # south edge
-    openings.append(OuterOpening("O1", "F2", "F5", [
-        (pts["F2"][0] + _t1_start * _dE2, pts["F2"][1] + _t1_start * _dN2),
-        (pts["F2"][0] + _t1_end * _dE2, pts["F2"][1] + _t1_end * _dN2),
-        (pts["W2"][0] + _t1_end * (pts["W5"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t1_end * (pts["W5"][1] - pts["W2"][1])),
-        (pts["W2"][0] + _t1_start * (pts["W5"][0] - pts["W2"][0]),
-         pts["W2"][1] + _t1_start * (pts["W5"][1] - pts["W2"][1])),
-    ]))
+    openings.append(OuterOpening("O1", "F2", "F5",
+        _opening_quad(pts, "F2", "F5", "W2", "W5", _t1_start, _t1_end)))
 
-    # O4: F6-F7, centered on segment at t=0.5
+    # O4: F6-F7, centered on segment at t=0.5 (inner-first winding)
     _dE4, _dN4, _seg4_len = seg_vec(pts["F6"], pts["F7"])
     _t4_half = O4_HALF_WIDTH / _seg4_len
     _t4_start = 0.5 - _t4_half
     _t4_end = 0.5 + _t4_half
-    openings.append(OuterOpening("O4", "F6", "F7", [
-        (pts["W6"][0] + _t4_start * (pts["W7"][0] - pts["W6"][0]),
-         pts["W6"][1] + _t4_start * (pts["W7"][1] - pts["W6"][1])),
-        (pts["W6"][0] + _t4_end * (pts["W7"][0] - pts["W6"][0]),
-         pts["W6"][1] + _t4_end * (pts["W7"][1] - pts["W6"][1])),
-        (pts["F6"][0] + _t4_end * _dE4, pts["F6"][1] + _t4_end * _dN4),
-        (pts["F6"][0] + _t4_start * _dE4, pts["F6"][1] + _t4_start * _dN4),
-    ]))
+    openings.append(OuterOpening("O4", "F6", "F7",
+        _opening_quad(pts, "W6", "W7", "F6", "F7", _t4_start, _t4_end)))
 
     # O5 and O6 share segment F9-F10
     _dE56, _dN56, _seg56_len = seg_vec(pts["F9"], pts["F10"])
 
-    # O5: F9-F10, anchored at IW2s east face projection + offset
+    # O5: F9-F10, anchored at IW2s east face projection + offset (inner-first winding)
     _iw2_e_mid = ((layout.iw2s.poly[1][0] + layout.iw2s.poly[2][0]) / 2,
                   (layout.iw2s.poly[1][1] + layout.iw2s.poly[2][1]) / 2)
     _t5_ref = ((_iw2_e_mid[0] - pts["F9"][0]) * _dE56
                + (_iw2_e_mid[1] - pts["F9"][1]) * _dN56) / (_dE56**2 + _dN56**2)
     _t5_end = _t5_ref + O5_OFFSET_FROM_IW2 / _seg56_len
     _t5_start = _t5_end - O5_WIDTH / _seg56_len
-    openings.append(OuterOpening("O5", "F9", "F10", [
-        (pts["W9"][0] + _t5_start * (pts["W10"][0] - pts["W9"][0]),
-         pts["W9"][1] + _t5_start * (pts["W10"][1] - pts["W9"][1])),
-        (pts["W9"][0] + _t5_end * (pts["W10"][0] - pts["W9"][0]),
-         pts["W9"][1] + _t5_end * (pts["W10"][1] - pts["W9"][1])),
-        (pts["F9"][0] + _t5_end * _dE56, pts["F9"][1] + _t5_end * _dN56),
-        (pts["F9"][0] + _t5_start * _dE56, pts["F9"][1] + _t5_start * _dN56),
-    ]))
+    openings.append(OuterOpening("O5", "F9", "F10",
+        _opening_quad(pts, "W9", "W10", "F9", "F10", _t5_start, _t5_end)))
 
-    # O6: F9-F10, offset from F10 end by O6_GAP_F10
+    # O6: F9-F10, offset from F10 end by O6_GAP_F10 (inner-first winding)
     _t6_end = 1.0 - O6_GAP_F10 / _seg56_len
     _t6_start = _t6_end - O6_WIDTH / _seg56_len
-    openings.append(OuterOpening("O6", "F9", "F10", [
-        (pts["W9"][0] + _t6_start * (pts["W10"][0] - pts["W9"][0]),
-         pts["W9"][1] + _t6_start * (pts["W10"][1] - pts["W9"][1])),
-        (pts["W9"][0] + _t6_end * (pts["W10"][0] - pts["W9"][0]),
-         pts["W9"][1] + _t6_end * (pts["W10"][1] - pts["W9"][1])),
-        (pts["F9"][0] + _t6_end * _dE56, pts["F9"][1] + _t6_end * _dN56),
-        (pts["F9"][0] + _t6_start * _dE56, pts["F9"][1] + _t6_start * _dN56),
-    ]))
+    openings.append(OuterOpening("O6", "F9", "F10",
+        _opening_quad(pts, "W9", "W10", "F9", "F10", _t6_start, _t6_end)))
 
     # O7: F12-F13, diagonal — NW end 2' from F12, 6' opening
     dE, dN, seg_len = seg_vec(pts["F12"], pts["F13"])
     ts = O7_NW_GAP / seg_len
     te = ts + 2 * O7_HALF_WIDTH / seg_len
-    openings.append(OuterOpening("O7", "F12", "F13", [
-        (pts["F12"][0] + ts * dE, pts["F12"][1] + ts * dN),
-        (pts["F12"][0] + te * dE, pts["F12"][1] + te * dN),
-        (pts["W12"][0] + te * (pts["W13"][0] - pts["W12"][0]),
-         pts["W12"][1] + te * (pts["W13"][1] - pts["W12"][1])),
-        (pts["W12"][0] + ts * (pts["W13"][0] - pts["W12"][0]),
-         pts["W12"][1] + ts * (pts["W13"][1] - pts["W12"][1])),
-    ]))
+    openings.append(OuterOpening("O7", "F12", "F13",
+        _opening_quad(pts, "F12", "F13", "W12", "W13", ts, te)))
 
     # O8: F14-F15, centered between IW5 south face projection and F15
     _dE8, _dN8, _seg8_len = seg_vec(pts["F14"], pts["F15"])
@@ -163,29 +140,16 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     _t8_half = O8_HALF_WIDTH / _seg8_len
     _t8_start = _t8_ctr - _t8_half   # toward F14
     _t8_end = _t8_ctr + _t8_half     # toward F15
-    openings.append(OuterOpening("O8", "F14", "F15", [
-        (pts["F14"][0] + _t8_end * _dE8, pts["F14"][1] + _t8_end * _dN8),
-        (pts["F14"][0] + _t8_start * _dE8, pts["F14"][1] + _t8_start * _dN8),
-        (pts["W14"][0] + _t8_start * (pts["W15"][0] - pts["W14"][0]),
-         pts["W14"][1] + _t8_start * (pts["W15"][1] - pts["W14"][1])),
-        (pts["W14"][0] + _t8_end * (pts["W15"][0] - pts["W14"][0]),
-         pts["W14"][1] + _t8_end * (pts["W15"][1] - pts["W14"][1])),
-    ]))
+    openings.append(OuterOpening("O8", "F14", "F15",
+        _opening_quad(pts, "F14", "F15", "W14", "W15", _t8_end, _t8_start)))
 
     # O8a, O9, O10, O11: F18-F1 — parametric positions from layout (single source)
-    _dE9, _dN9, _ = seg_vec(pts["F18"], pts["F1"])
     for _name, _ts, _te in [("O8a", layout.sw_t_o8a_start, layout.sw_t_o8a_end),
                              ("O9",  layout.sw_t_o9_start,  layout.sw_t_o9_end),
                              ("O10", layout.sw_t_o10_start, layout.sw_t_o10_end),
                              ("O11", layout.sw_t_o11_start, layout.sw_t_o11_end)]:
-        openings.append(OuterOpening(_name, "F18", "F1", [
-            (pts["F18"][0] + _ts * _dE9, pts["F18"][1] + _ts * _dN9),
-            (pts["F18"][0] + _te * _dE9, pts["F18"][1] + _te * _dN9),
-            (pts["W18"][0] + _te * (pts["W1"][0] - pts["W18"][0]),
-             pts["W18"][1] + _te * (pts["W1"][1] - pts["W18"][1])),
-            (pts["W18"][0] + _ts * (pts["W1"][0] - pts["W18"][0]),
-             pts["W18"][1] + _ts * (pts["W1"][1] - pts["W18"][1])),
-        ]))
+        openings.append(OuterOpening(_name, "F18", "F1",
+            _opening_quad(pts, "F18", "F1", "W18", "W1", _ts, _te)))
 
     return openings
 

@@ -16,6 +16,10 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT = os.path.dirname(_DIR)
 DB_PATH = os.path.join(_PROJECT, "app", "adu.db")
 
+# Inner wall override column list — shared across SELECT/INSERT queries
+_IW_OV_COLS = ("seg_index, span_end, sub_seq, seg_type, bearing, "
+               "distance, radius, sweep, n_pts")
+
 # ---------------------------------------------------------------------------
 # Connection helper
 # ---------------------------------------------------------------------------
@@ -480,9 +484,8 @@ def _seed_inner_wall_overrides(conn):
     ]
     for sub_seq, seg_type, bearing, distance, radius, sweep, n_pts in chain:
         conn.execute(
-            "INSERT OR IGNORE INTO inner_wall_overrides "
-            "(seg_index, span_end, sub_seq, seg_type, bearing, distance, "
-            "radius, sweep, n_pts) "
+            f"INSERT OR IGNORE INTO inner_wall_overrides "
+            f"({_IW_OV_COLS}) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (5, None, sub_seq, seg_type, bearing, distance, radius, sweep,
              n_pts),
@@ -2414,8 +2417,7 @@ def export_project(db_path=None):
 
     with get_db(db_path) as conn:
         inner_wall_overrides = [dict(r) for r in conn.execute(
-            "SELECT seg_index, span_end, sub_seq, seg_type, bearing, distance, "
-            "radius, sweep, n_pts FROM inner_wall_overrides "
+            f"SELECT {_IW_OV_COLS} FROM inner_wall_overrides "
             "ORDER BY seg_index, sub_seq"
         ).fetchall()]
 
@@ -2616,8 +2618,7 @@ def import_project(data, db_path=None):
         for ov in data.get("inner_wall_overrides", []):
             conn.execute(
                 "INSERT INTO inner_wall_overrides "
-                "(seg_index, span_end, sub_seq, seg_type, bearing, distance, "
-                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                f"({_IW_OV_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (ov["seg_index"], ov.get("span_end"), ov["sub_seq"],
                  ov["seg_type"], ov.get("bearing"), ov.get("distance"),
                  ov.get("radius"), ov.get("sweep"),
@@ -2652,8 +2653,7 @@ def get_inner_wall_overrides(db_path=None):
     """
     with get_db(db_path or DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT seg_index, span_end, sub_seq, seg_type, bearing, distance, "
-            "radius, sweep, n_pts FROM inner_wall_overrides "
+            f"SELECT {_IW_OV_COLS} FROM inner_wall_overrides "
             "ORDER BY seg_index, sub_seq"
         ).fetchall()
     result = {}
@@ -2668,8 +2668,7 @@ def get_inner_wall_override(seg_index, db_path=None):
     """Return the override chain for a single segment, or empty list."""
     with get_db(db_path or DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT seg_index, span_end, sub_seq, seg_type, bearing, distance, "
-            "radius, sweep, n_pts FROM inner_wall_overrides "
+            f"SELECT {_IW_OV_COLS} FROM inner_wall_overrides "
             "WHERE seg_index = ? ORDER BY sub_seq",
             (seg_index,),
         ).fetchall()
@@ -2688,8 +2687,7 @@ def upsert_inner_wall_override(seg_index, chain, span_end=None, db_path=None):
         for sub_seq, seg in enumerate(chain):
             conn.execute(
                 "INSERT INTO inner_wall_overrides "
-                "(seg_index, span_end, sub_seq, seg_type, bearing, distance, "
-                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                f"({_IW_OV_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (seg_index, span_end, sub_seq, seg["seg_type"],
                  seg.get("bearing"), seg.get("distance"),
                  seg.get("radius"), seg.get("sweep"),
@@ -2738,8 +2736,7 @@ def snapshot_inner_wall_overrides(db_path=None):
     """Snapshot all overrides for undo state capture."""
     with get_db(db_path or DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT seg_index, span_end, sub_seq, seg_type, bearing, distance, "
-            "radius, sweep, n_pts FROM inner_wall_overrides "
+            f"SELECT {_IW_OV_COLS} FROM inner_wall_overrides "
             "ORDER BY seg_index, sub_seq"
         ).fetchall()
         return [dict(r) for r in rows]
@@ -2752,8 +2749,7 @@ def restore_inner_wall_overrides(snapshot, db_path=None):
         for ov in snapshot:
             conn.execute(
                 "INSERT INTO inner_wall_overrides "
-                "(seg_index, span_end, sub_seq, seg_type, bearing, distance, "
-                "radius, sweep, n_pts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                f"({_IW_OV_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (ov["seg_index"], ov.get("span_end"), ov["sub_seq"],
                  ov["seg_type"], ov.get("bearing"), ov.get("distance"),
                  ov.get("radius"), ov.get("sweep"),

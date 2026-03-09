@@ -17,6 +17,7 @@ from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS,
 from floorplan.roof import compute_roof_geometry, roof_polyline, roof_segments
 from shared.wall_shells import compute_inset_path, enumerate_wall_sections, lerp
 from shared.types import ArcSeg
+from scad._common import seg_to_elem as _seg_to_elem, f8f9_elems as _f8f9_elems
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _OUT = os.path.join(_DIR, "flat_roof.scad")
@@ -37,45 +38,6 @@ ROOF_THICK_IN = 18.0   # minimum roof slab thickness (inches), at south edge
 ROOF_THICK_FT = ROOF_THICK_IN / 12.0
 ROOF_SLOPE_IN_PER_FT = 0.25   # 1/4" rise per foot of northing
 ROOF_SLOPE = ROOF_SLOPE_IN_PER_FT / 12.0  # ft/ft
-
-
-# ── element types ────────────────────────────────────────────
-# ("line", x1, y1, x2, y2)             — line segment
-# ("arc", cx, cy, r, a1_deg, a2_deg)   — circular arc
-
-
-def _seg_to_elem(seg, pts):
-    """Convert a LineSeg or ArcSeg to a T-path element."""
-    if isinstance(seg, ArcSeg):
-        c = pts[seg.center]
-        a1 = math.degrees(math.atan2(pts[seg.start][1] - c[1],
-                                      pts[seg.start][0] - c[0]))
-        a2 = math.degrees(math.atan2(pts[seg.end][1] - c[1],
-                                      pts[seg.end][0] - c[0]))
-        if seg.direction == "CW":
-            sweep = (a1 - a2) % 360
-            a2 = a1 - sweep
-        else:
-            sweep = (a2 - a1) % 360
-            a2 = a1 + sweep
-        return ("arc", c[0], c[1], seg.radius, a1, a2)
-    return ("line", pts[seg.start][0], pts[seg.start][1],
-                    pts[seg.end][0], pts[seg.end][1])
-
-
-def _f8f9_elems(pts, inset, R_turn):
-    """F8-F9 corner override: straight south, arc 180→270, straight east."""
-    F8, C8 = pts["F8"], pts["C8"]
-    R_a8 = C8[0] - F8[0]
-    se, sn = F8[0] - inset, F8[1]
-    ee, en_ = C8[0], F8[1] - R_a8 - inset
-    d = R_a8 + inset - R_turn
-    acx, acy = se + R_turn, sn - d
-    return [
-        ("line", se, sn, se, acy),
-        ("arc", acx, acy, R_turn, 180, 270),
-        ("line", acx, acy - R_turn, ee, en_),
-    ]
 
 
 # ── boundary tracing ─────────────────────────────────────────

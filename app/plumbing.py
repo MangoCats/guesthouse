@@ -7,7 +7,7 @@ import json
 import math
 
 from app.database import get_db
-from shared.geometry import seg_vecs, offset_pt, line_isect
+from shared.geometry import seg_vecs, offset_pt, line_isect, poly_centroid
 
 # Valid plumbing element types
 PLUMBING_TYPES = {"supply_pipe", "drain_pipe", "fitting", "fixture_connection"}
@@ -160,11 +160,11 @@ _APPL_D = 27.0 / 12.0
 
 
 def _poly_centroid(poly):
-    """Centroid of a polygon given as list of [E, N]."""
-    n = len(poly)
-    if n == 0:
+    """Centroid of a polygon given as list of [E, N]. Returns list."""
+    if not poly:
         return [0, 0]
-    return [sum(p[0] for p in poly) / n, sum(p[1] for p in poly) / n]
+    cx, cy = poly_centroid(poly)
+    return [cx, cy]
 
 
 def compute_reference_plumbing(geom, wall_t):

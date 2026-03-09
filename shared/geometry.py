@@ -97,10 +97,11 @@ def circle_circle_isect(c1: Point, r1: float, c2: Point, r2: float, near: Point)
     d2 = (I2[0]-near[0])**2+(I2[1]-near[1])**2
     return I1 if d1 < d2 else I2
 
-def line_circle_isect_min_t_gt(p: Point, d: Point, c: Point, r: float, t_min: float) -> Point:
-    """Line-circle intersection with smallest parameter t > t_min.
+def _line_circle_t_values(p: Point, d: Point, c: Point, r: float) -> tuple[float, float]:
+    """Solve line-circle intersection for parameter values t1, t2.
 
     Line parametrised as p + t*d; circle centered at c with radius r.
+    Returns (t1, t2) where t1 >= t2.
     """
     ax = p[0]-c[0]; ay = p[1]-c[1]
     A = d[0]**2+d[1]**2; B = 2*(ax*d[0]+ay*d[1]); C = ax**2+ay**2-r**2
@@ -109,6 +110,14 @@ def line_circle_isect_min_t_gt(p: Point, d: Point, c: Point, r: float, t_min: fl
         raise GeometryError(f"Line misses circle: disc={disc:.6f}")
     disc = max(0, disc)
     t1 = (-B+math.sqrt(disc))/(2*A); t2 = (-B-math.sqrt(disc))/(2*A)
+    return t1, t2
+
+def line_circle_isect_min_t_gt(p: Point, d: Point, c: Point, r: float, t_min: float) -> Point:
+    """Line-circle intersection with smallest parameter t > t_min.
+
+    Line parametrised as p + t*d; circle centered at c with radius r.
+    """
+    t1, t2 = _line_circle_t_values(p, d, c, r)
     candidates = [t for t in [t1, t2] if t > t_min]
     if not candidates:
         raise GeometryError(f"No intersection with t > {t_min}: t1={t1}, t2={t2}")
@@ -120,13 +129,7 @@ def line_circle_isect_min_abs_t(p: Point, d: Point, c: Point, r: float) -> Point
 
     Line parametrised as p + t*d; circle centered at c with radius r.
     """
-    ax = p[0]-c[0]; ay = p[1]-c[1]
-    A = d[0]**2+d[1]**2; B = 2*(ax*d[0]+ay*d[1]); C = ax**2+ay**2-r**2
-    disc = B**2-4*A*C
-    if disc < -GEOM_EPS:
-        raise GeometryError(f"Line misses circle: disc={disc:.6f}")
-    disc = max(0, disc)
-    t1 = (-B+math.sqrt(disc))/(2*A); t2 = (-B-math.sqrt(disc))/(2*A)
+    t1, t2 = _line_circle_t_values(p, d, c, r)
     t = min(t1, t2, key=lambda t: abs(t))
     return (p[0]+t*d[0], p[1]+t*d[1])
 
@@ -134,6 +137,28 @@ def bbox_from_points(pts: list[Point]) -> BBox:
     """Compute axis-aligned bounding box from a list of points."""
     return BBox(w=min(p[0] for p in pts), s=min(p[1] for p in pts),
                 e=max(p[0] for p in pts), n=max(p[1] for p in pts))
+
+
+def poly_centroid(poly: list[Point]) -> Point:
+    """Area-weighted centroid of a simple polygon.
+
+    Falls back to vertex average for degenerate (zero-area) polygons.
+    """
+    n = len(poly)
+    area6 = 0.0
+    cx = cy = 0.0
+    for i in range(n):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % n]
+        cross = x0 * y1 - x1 * y0
+        area6 += cross
+        cx += (x0 + x1) * cross
+        cy += (y0 + y1) * cross
+    if abs(area6) < 1e-12:
+        return (sum(p[0] for p in poly) / n, sum(p[1] for p in poly) / n)
+    cx /= 3.0 * area6
+    cy /= 3.0 * area6
+    return (cx, cy)
 
 
 def poly_area(verts: list[Point]) -> float:
