@@ -1339,10 +1339,12 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
     """
     if script_path == "floorplan/gen_floorplan.py":
         from floorplan.gen_floorplan import build_floorplan_data
+        from plumbing.gen_plumbing import _compute_boundary_corners
         from app.db_render import render_floorplan_svg_db
         from app.database import get_all_doors
 
         data = build_floorplan_data(gd)
+        boundary = _compute_boundary_corners(data.pts)
         base = os.path.join(_PROJECT, "floorplan")
 
         # Variant configs: (suffix, variant_name, room_title)
@@ -1362,8 +1364,9 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
             geom = compute_geometry(
                 constants_dict, variant=variant,
                 doors_data=doors_data, db_path=db_path)
+            bdy = boundary if variant == "plumbing" else None
             svg = render_floorplan_svg_db(
-                geom, data, room_title=room_title)
+                geom, data, room_title=room_title, boundary=bdy)
             with open(os.path.join(base, f"floorplan{suffix}.svg"), "w", encoding="utf-8") as f:
                 f.write(svg)
         return True

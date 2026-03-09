@@ -934,7 +934,7 @@ def _strip_deleted_items(out, db_items):
 # ---------------------------------------------------------------------------
 
 def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
-                            shell_thickness=None):
+                            shell_thickness=None, boundary=None):
     """Render complete floorplan SVG from DB-driven geometry.
 
     Args:
@@ -942,6 +942,8 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
         data: FloorplanData (page layout, outer wall shell geometry)
         room_title: title string for the SVG
         shell_thickness: shell thickness in feet (for casement window hinges)
+        boundary: optional dict with 'sw', 'south_start', 'west_start' keys
+                  mapping to (E,N) tuples for property boundary lines
 
     Returns:
         SVG string
@@ -950,7 +952,7 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
         _render_walls, _render_title_block, _render_sf_extras,
         _render_plumbing_path, _render_supplies_table,
         _render_openings, _render_appliances, _render_kitchen,
-        _render_furniture, _render_dimensions,
+        _render_furniture, _render_dimensions, _render_boundary,
         compute_iw_area, git_describe,
     )
     from floorplan.constants import SHELL_THICKNESS
@@ -964,6 +966,23 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
 
     vb_x, vb_y, vb_w, vb_h = data.vb_x, data.vb_y, data.vb_w, data.vb_h
     page_w, page_h = W, H
+
+    if boundary:
+        bdy_keys = ['sw', 'south_start', 'west_start']
+        bdy_svg = [to_svg(*boundary[k]) for k in bdy_keys]
+        cur_x2 = vb_x + vb_w
+        cur_y2 = vb_y + vb_h
+        all_x = [vb_x, cur_x2] + [p[0] for p in bdy_svg]
+        all_y = [vb_y, cur_y2] + [p[1] for p in bdy_svg]
+        margin = 30
+        new_vb_x = min(all_x) - margin
+        new_vb_y = min(all_y) - margin
+        new_vb_w = max(all_x) - new_vb_x + margin
+        new_vb_h = max(all_y) - new_vb_y + margin
+        css_per_svg = page_w / vb_w
+        page_w = new_vb_w * css_per_svg
+        page_h = new_vb_h * css_per_svg
+        vb_x, vb_y, vb_w, vb_h = new_vb_x, new_vb_y, new_vb_w, new_vb_h
 
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{page_w:.0f}" height="{page_h:.0f}"'
@@ -1020,6 +1039,10 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     # SF variant extras
     if sf:
         _render_sf_extras(out, data, layout)
+
+    # Property boundary lines
+    if boundary:
+        _render_boundary(out, data, boundary)
 
     # Title block
     inner_area = data.inner_area - compute_iw_area(layout)
