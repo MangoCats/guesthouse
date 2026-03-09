@@ -1590,11 +1590,37 @@ def create_app(db_path=None):
             "updated_deps": {},
         }
 
-        # 5. Rebase element references in dependent formulas
+        # 5. Rebase element references in dependent formulas.
+        #    If rebasing produces a broken formula (no longer a dict with
+        #    a "type" key, or still references the deleted element),
+        #    cascade-delete that dependent instead.
         rebased_deps = {}  # key → new_json (for redo)
+        cascade_delete = []  # dep names that can't be rebased
         for dep_name in dep_names:
             dep_formulas = get_element_formulas(dep_name, variant=variant,
                                                 db_path=db)
+            should_cascade = False
+            for f in dep_formulas:
+                old_json = f["formula_json"]
+                formula = json.loads(old_json) if isinstance(old_json, str) else old_json
+                new_formula = rebase_element_refs(
+                    formula, element_name, elem_formula, elem_data)
+                # Detect broken rebasing: formula collapsed to non-dict,
+                # lost its type, or still references deleted element
+                if (not isinstance(new_formula, dict)
+                        or "type" not in new_formula):
+                    should_cascade = True
+                    break
+                new_deps = extract_deps(new_formula)
+                still_depends = any(dt == "element" and dn == element_name
+                                    for dt, dn in new_deps)
+                if still_depends:
+                    should_cascade = True
+                    break
+            if should_cascade:
+                cascade_delete.append(dep_name)
+                continue
+            # Apply rebased formulas
             for f in dep_formulas:
                 old_json = f["formula_json"]
                 formula = json.loads(old_json) if isinstance(old_json, str) else old_json
@@ -1608,7 +1634,6 @@ def create_app(db_path=None):
                     upsert_formula(f["element_name"], f["param_name"],
                                    new_formula, variant=f.get("variant"),
                                    db_path=db)
-                    # Rebuild deps for updated formula
                     new_deps = extract_deps(new_formula)
                     rebuild_formula_deps(f["element_name"], f["param_name"],
                                          list(new_deps), db_path=db)
@@ -1628,15 +1653,51 @@ def create_app(db_path=None):
             delete_element(elem_rec["id"], db)
             before_state["deleted_element"] = deleted_element
 
-        # 8. Record undo
+        # 8. Cascade-delete dependents that couldn't be rebased
+        cascaded_state = []
+        for cdep in cascade_delete:
+            cd_formulas = get_element_formulas(cdep, variant=variant,
+                                               db_path=db)
+            cd_before = {
+                "element_name": cdep,
+                "own_formulas": [
+                    {"element_name": f["element_name"],
+                     "param_name": f["param_name"],
+                     "formula_json": f["formula_json"],
+                     "locked": f.get("locked", 0),
+                     "locked_value": f.get("locked_value"),
+                     "variant": f.get("variant")}
+                    for f in cd_formulas
+                ],
+            }
+            for f in cd_formulas:
+                delete_formula(f["element_name"], f["param_name"],
+                               variant=f.get("variant"), db_path=db)
+                rebuild_formula_deps(f["element_name"], f["param_name"],
+                                      [], db_path=db)
+            cd_elem = get_element_by_name(cdep, db)
+            if cd_elem:
+                cd_before["deleted_element"] = dict(cd_elem)
+                delete_element(cd_elem["id"], db)
+            cascaded_state.append(cd_before)
+        if cascaded_state:
+            before_state["cascaded"] = cascaded_state
+
+        # 9. Record undo
         after_state = {"element_name": element_name,
-                       "rebased_deps": rebased_deps}
+                       "variant": variant,
+                       "rebased_deps": rebased_deps,
+                       "cascaded": [c["element_name"]
+                                    for c in cascaded_state]}
         undo_mgr.record("formula_delete_element", before_state,
                          after_state, f"Delete {element_name}")
 
         _broadcast("element_changed")
         _invalidate()
-        return jsonify({"ok": True, "rebased": list(dep_names)})
+        rebased_names = dep_names - set(cascade_delete)
+        return jsonify({"ok": True,
+                        "rebased": list(rebased_names),
+                        "cascaded": cascade_delete})
 
     @app.route("/api/formulas/<element_name>/<param_name>", methods=["DELETE"])
     def api_delete_formula(element_name, param_name):

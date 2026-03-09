@@ -240,6 +240,72 @@ class TestFormulaDelete:
         ).get_json()
         assert len(formulas) == 0
 
+    def test_delete_cascades_unrebaseable_dependents(self, app_client):
+        """Deleting dining_table cascade-deletes dining_chair_1/2."""
+        # Verify chairs exist before deletion
+        c1 = app_client.get("/api/formulas/dining_chair_1").get_json()
+        c2 = app_client.get("/api/formulas/dining_chair_2").get_json()
+        assert len(c1) > 0, "dining_chair_1 formula should exist"
+        assert len(c2) > 0, "dining_chair_2 formula should exist"
+
+        resp = app_client.delete(
+            "/api/formulas/dining_table/element?variant=standard")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert "dining_chair_1" in data.get("cascaded", [])
+        assert "dining_chair_2" in data.get("cascaded", [])
+        # Chairs should NOT be in rebased list
+        assert "dining_chair_1" not in data.get("rebased", [])
+        assert "dining_chair_2" not in data.get("rebased", [])
+
+        # Chair formulas should be gone
+        assert len(app_client.get("/api/formulas/dining_chair_1").get_json()) == 0
+        assert len(app_client.get("/api/formulas/dining_chair_2").get_json()) == 0
+
+    def test_cascade_delete_undo_restores_dependents(self, app_client):
+        """Undoing a cascade delete restores all cascade-deleted elements."""
+        # Delete table (cascades to chairs)
+        resp = app_client.delete(
+            "/api/formulas/dining_table/element?variant=standard")
+        assert resp.status_code == 200
+        assert len(resp.get_json().get("cascaded", [])) == 2
+
+        # Undo
+        app_client.post("/api/undo")
+
+        # Table and chairs should all be restored
+        tbl = app_client.get(
+            "/api/formulas/dining_table?variant=standard").get_json()
+        assert len(tbl) > 0, "dining_table formula should be restored"
+        c1 = app_client.get(
+            "/api/formulas/dining_chair_1?variant=standard").get_json()
+        c2 = app_client.get(
+            "/api/formulas/dining_chair_2?variant=standard").get_json()
+        assert len(c1) > 0, "dining_chair_1 should be restored"
+        assert len(c2) > 0, "dining_chair_2 should be restored"
+        # Chair formula should still reference dining_table
+        c1_f = json.loads(c1[0]["formula_json"])
+        assert c1_f.get("table") == "dining_table"
+
+    def test_cascade_delete_redo(self, app_client):
+        """Redo after undo re-deletes cascade targets."""
+        app_client.delete(
+            "/api/formulas/dining_table/element?variant=standard")
+        app_client.post("/api/undo")
+        app_client.post("/api/redo")
+
+        # All should be gone again
+        tbl = app_client.get(
+            "/api/formulas/dining_table?variant=standard").get_json()
+        assert len(tbl) == 0
+        c1 = app_client.get(
+            "/api/formulas/dining_chair_1?variant=standard").get_json()
+        assert len(c1) == 0
+        c2 = app_client.get(
+            "/api/formulas/dining_chair_2?variant=standard").get_json()
+        assert len(c2) == 0
+
 
 # ---------------------------------------------------------------------------
 # Evaluator: inline_element_refs unit tests
