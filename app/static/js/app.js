@@ -1672,21 +1672,34 @@ function renderPlumbingDrawPreview() {
 }
 
 async function placeFixture(wx, wy) {
-  const elems = App.state.plumbingElements || [];
-  const n = elems.filter(e => e.type === "fixture_connection").length + 1;
-  const name = `Fixture ${n}`;
   const pt = [Math.round(wx * 100) / 100, Math.round(wy * 100) / 100];
+  const pendingId = App.state._pendingFixturePlacement;
   try {
-    await apiFetch("/api/plumbing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "fixture_connection", name,
-        path: [pt],
-        properties: { cold: 1, hot: 0, drain: 0 },
-      }),
-    });
-    showToast("Fixture placed", "success");
+    if (pendingId) {
+      // Update existing fixture's position
+      await apiFetch(`/api/plumbing/${pendingId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: [pt] }),
+      });
+      delete App.state._pendingFixturePlacement;
+      showToast("Fixture placed", "success");
+    } else {
+      // Create new fixture at click location
+      const elems = App.state.plumbingElements || [];
+      const n = elems.filter(e => e.type === "fixture_connection").length + 1;
+      const name = `Fixture ${n}`;
+      await apiFetch("/api/plumbing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "fixture_connection", name,
+          path: [pt],
+          properties: { cold: 1, hot: 0, drain: 0 },
+        }),
+      });
+      showToast("Fixture placed", "success");
+    }
   } catch (e) {
     showToast(`Failed: ${e.message}`, "error");
   }
@@ -1698,7 +1711,7 @@ async function addFixtureConnection() {
   const name = prompt("Fixture name:", `Fixture ${n}`);
   if (!name) return;
   try {
-    await apiFetch("/api/plumbing", {
+    const resp = await apiFetch("/api/plumbing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1707,8 +1720,14 @@ async function addFixtureConnection() {
         properties: { cold: 0, hot: 0, drain: 0 },
       }),
     });
-    loadPlumbingElements();
-    showToast("Fixture added", "success");
+    const created = await resp.json();
+    await loadPlumbingElements();
+    // Select the new fixture and prompt placement
+    selectElement("plumbing", name, created);
+    showToast("Fixture added — click canvas to place it", "success");
+    // Activate place-fixture tool with pending update for this fixture
+    App.state._pendingFixturePlacement = created.id;
+    setTool("place-fixture");
   } catch (e) {
     showToast(`Failed: ${e.message}`, "error");
   }
@@ -1879,7 +1898,17 @@ function clearSelection() {
   App.els["props-detail"].style.display = "none";
 }
 
+function switchToPanel(panelName) {
+  document.querySelectorAll(".panel-tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".panel-content").forEach(p => p.classList.remove("active"));
+  const tab = document.querySelector(`.panel-tab[data-panel="${panelName}"]`);
+  const panel = document.getElementById(`panel-${panelName}`);
+  if (tab) tab.classList.add("active");
+  if (panel) panel.classList.add("active");
+}
+
 function showProperties(type, name, data) {
+  switchToPanel("properties");
   App.els["props-empty"].style.display = "none";
   App.els["props-detail"].style.display = "block";
   App.els["props-title"].textContent = `${type.toUpperCase()}: ${name}`;
