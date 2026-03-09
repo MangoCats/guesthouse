@@ -982,27 +982,40 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     sf = variant == "sf"
     minik = variant == "minik"
     db_flag = variant == "daybed"
+    plumbing = variant == "plumbing"
 
     # Wall shells + interior walls (uses GeneratorData — geometry from DB)
     _render_walls(out, data, layout, bare=bare or sf)
 
+    # Plumbing pipes (before furniture, which is ghosted in plumbing mode)
+    if plumbing:
+        _render_plumbing_path(out, data, layout)
+
     # Variant items: use ref renderers (matching output) but filter by DB state.
     # Items absent from geom["variant_items"] (DB-deleted) are stripped from output.
     if not bare and not sf:
-        _render_appliances(out, data, layout, minik=minik, db=db_flag)
-        _render_kitchen(out, data, layout, minik=minik, db=db_flag)
-        _render_furniture(out, data, layout, minik=minik, db=db_flag)
+        if plumbing:
+            out.append('<g opacity="0.6">')
+        _render_appliances(out, data, layout, minik=minik, db=db_flag, plumbing=plumbing)
+        _render_kitchen(out, data, layout, minik=minik, db=db_flag, plumbing=plumbing)
+        _render_furniture(out, data, layout, minik=minik, db=db_flag, plumbing=plumbing)
+        if plumbing:
+            out.append('</g>')
         # Strip items deleted from DB (ref renderers always render from layout)
         db_items = set(geom.get("variant_items", {}).keys())
         _strip_deleted_items(out, db_items)
 
     # Dimensions (ref renderer for exact position match)
     out.append('<g opacity="0.5">')
-    _render_dimensions(out, data, layout, bare=bare or sf)
+    _render_dimensions(out, data, layout, bare=bare or sf, plumbing=plumbing)
     out.append('</g>')
 
     # Openings (door swings, casement windows, door caps)
+    if plumbing:
+        out.append('<g opacity="0.2">')
     _render_openings(out, data, layout, bare=bare or sf)
+    if plumbing:
+        out.append('</g>')
 
     # SF variant extras
     if sf:
@@ -1011,6 +1024,8 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     # Title block
     inner_area = data.inner_area - compute_iw_area(layout)
     _render_title_block(out, data, inner_area)
+    if plumbing:
+        _render_supplies_table(out, data)
 
     out.append('</svg>')
     return "\n".join(out)

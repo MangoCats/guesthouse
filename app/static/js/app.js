@@ -438,9 +438,31 @@ function renderViewTabs() {
     container.appendChild(fpTab);
   }
 
+  // Plumbing Edit tab (canvas editor, mirrors Interactive)
+  const pe = App.state.views.find(v => v.name === "plumbing_edit");
+  if (pe) {
+    const peTab = document.createElement("button");
+    peTab.className = "view-tab";
+    peTab.textContent = pe.label;
+    peTab.dataset.view = pe.name;
+    peTab.onclick = () => switchView(pe.name);
+    container.appendChild(peTab);
+  }
+
+  // Plumbing SVG tab (right after Plumbing Edit, mirrors Floorplan)
+  const pl = App.state.views.find(v => v.name === "plumbing");
+  if (pl) {
+    const plTab = document.createElement("button");
+    plTab.className = "view-tab";
+    plTab.textContent = pl.label;
+    plTab.dataset.view = pl.name;
+    plTab.onclick = () => switchView(pl.name);
+    container.appendChild(plTab);
+  }
+
   // Remaining generated SVG view tabs
   for (const v of App.state.views) {
-    if (v.name === "floorplan") continue; // already added above
+    if (v.name === "floorplan" || v.name === "plumbing_edit" || v.name === "plumbing") continue;
     const tab = document.createElement("button");
     tab.className = "view-tab";
     tab.textContent = v.label;
@@ -468,9 +490,10 @@ function switchView(viewName) {
   const showVariant = viewName === "interactive" || viewName === "floorplan";
   App.els["variant-selector"].style.display = showVariant ? "inline-block" : "none";
 
-  // Show/hide plumbing tools
+  // Show/hide plumbing tools (visible for both plumbing canvas and SVG views)
   if (App.els["plumbing-tools"]) {
-    App.els["plumbing-tools"].style.display = viewName === "plumbing_edit" ? "" : "none";
+    const isPlumbingView = viewName === "plumbing_edit" || viewName === "plumbing";
+    App.els["plumbing-tools"].style.display = isPlumbingView ? "" : "none";
   }
 
   if (isCanvasView(viewName)) {

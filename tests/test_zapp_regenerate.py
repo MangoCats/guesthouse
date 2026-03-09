@@ -88,10 +88,14 @@ class TestInprocessDispatch:
         assert result is True
         assert os.path.exists(os.path.join(_PROJECT, "span", "span_min.svg"))
 
-    def test_plumbing_generates_file(self, gd):
-        result = _run_generator_inprocess("plumbing/gen_plumbing.py", gd)
+    def test_plumbing_generated_by_floorplan(self, gd):
+        result = _run_generator_inprocess("floorplan/gen_floorplan.py", gd)
         assert result is True
-        assert os.path.exists(os.path.join(_PROJECT, "plumbing", "plumbing.svg"))
+        assert os.path.exists(os.path.join(_PROJECT, "floorplan", "floorplan_plumbing.svg"))
+
+    def test_plumbing_script_returns_none(self, gd):
+        result = _run_generator_inprocess("plumbing/gen_plumbing.py", gd)
+        assert result is None
 
     def test_unknown_script_returns_none(self, gd):
         result = _run_generator_inprocess("nonexistent/script.py", gd)

@@ -558,7 +558,7 @@ def _seed_views(conn):
         ("span_minmax", "Span vs Rotation", "span/gen_span_minmax.py", "span/span_minmax.svg", "analysis"),
         ("path_area", "Survey Path", "survey/gen_path_svg.py", "survey/path_area.svg", "survey"),
         ("roof", "Roof", "roof/gen_roof.py", "roof/roof.svg", "design"),
-        ("plumbing", "Plumbing", "plumbing/gen_plumbing.py", "plumbing/plumbing.svg", "design"),
+        ("plumbing", "Plumbing", "floorplan/gen_floorplan.py", "floorplan/floorplan_plumbing.svg", "design"),
         ("plumbing_edit", "Plumbing Edit", "", "plumbing_edit", "design"),
         ("site_plan_df", "Site Plan (DF)", "site/gen_site_plan.py", "site/site_plan_df.pdf", "site"),
         ("site_plan_fs", "Site Plan (FS)", "site/gen_site_plan.py", "site/site_plan_fs.pdf", "site"),

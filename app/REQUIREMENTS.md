@@ -2361,6 +2361,29 @@ read-only E/N from `path[0]`, service flag checkboxes, and delete button.
 Pipe/fitting sub-case shows type, point count, properties (with editable
 `buried` checkbox), and delete button.
 
+#### PLUMB-12  Plumbing SVG Variant ✅
+The Plumbing tab SHALL display a DB-driven regenerated SVG (a floorplan
+variant), not a standalone generator output.  The plumbing SVG is produced
+by `render_floorplan_svg_db()` with `variant="plumbing"`, showing plumbing
+pipes beneath ghosted furniture (60% opacity) and ghosted openings (20%
+opacity), with a supplies table appended.
+
+**Acceptance:** Delete an element from the DB, regenerate, and confirm the
+Plumbing SVG reflects the deletion — proving it uses DB state, not
+hardcoded modules.  The plumbing view seed points to
+`floorplan/gen_floorplan.py` and outputs `floorplan/floorplan_plumbing.svg`.
+
+**Implementation:** `_VARIANTS` in `engine.py` includes
+`("_plumbing", "plumbing", "Plumbing Plan")`.  `render_floorplan_svg_db()`
+in `db_render.py` handles the plumbing variant with opacity groups and
+`_render_plumbing_path()` / `_render_supplies_table()` calls.  The old
+standalone `plumbing/gen_plumbing.py` handler is removed from
+`_run_generator_inprocess()`.  Plumbing tools are visible in both
+`plumbing_edit` and `plumbing` views.
+
+**Tested:** `test_zapp_regenerate.py::TestInprocessDispatch::test_plumbing_generated_by_floorplan`,
+`test_zapp_regenerate.py::TestInprocessDispatch::test_plumbing_script_returns_none`.
+
 ---
 
 ## 15  Undo/Redo
@@ -2861,13 +2884,13 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 11 Site Plan | 4 | 0 | 4 |
 | 12 3D Model | 3 | 0 | 3 |
 | 13 Analysis | 3 | 0 | 3 |
-| 14 Plumbing | 11 | 0 | 11 |
+| 14 Plumbing | 12 | 0 | 12 |
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
 | 18 Formulas | 19 | 0 | 19 |
 | 19 Inner Wall Overrides | 10 | 0 | 10 |
-| **Total** | **285** | **0** | **285** |
+| **Total** | **286** | **0** | **286** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

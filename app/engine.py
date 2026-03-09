@@ -1347,11 +1347,12 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
 
         # Variant configs: (suffix, variant_name, room_title)
         _VARIANTS = [
-            ("",       "standard", "Parent Suite"),
-            ("_minik", "minik",    "Parent Suite w/Small Kitchen"),
-            ("_db",    "daybed",   "Parent Suite with Daybed"),
-            ("_bare",  "bare",     "Room Dimensions"),
-            ("_sf",    "sf",       "Room Dimensions"),
+            ("",          "standard",  "Parent Suite"),
+            ("_minik",    "minik",     "Parent Suite w/Small Kitchen"),
+            ("_db",       "daybed",    "Parent Suite with Daybed"),
+            ("_bare",     "bare",      "Room Dimensions"),
+            ("_sf",       "sf",        "Room Dimensions"),
+            ("_plumbing", "plumbing",  "Plumbing Plan"),
         ]
 
         constants_dict = gd.constants
@@ -1439,17 +1440,6 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         render_site_plan_fs(doc_fs, sp)
         doc_fs.save(os.path.join(base, "site_plan_fs.pdf"))
         doc_fs.close()
-        return True
-
-    if script_path == "plumbing/gen_plumbing.py":
-        from floorplan.gen_floorplan import build_floorplan_data, render_floorplan_svg
-        from plumbing.gen_plumbing import _compute_boundary_corners
-        data = build_floorplan_data(gd)
-        boundary = _compute_boundary_corners(data.pts)
-        svg = render_floorplan_svg(data, room_title="Plumbing Plan",
-                                   db=True, plumbing=True, boundary=boundary)
-        with open(os.path.join(_PROJECT, "plumbing", "plumbing.svg"), "w", encoding="utf-8") as f:
-            f.write(svg)
         return True
 
     if script_path == "scad/gen_flat_roof.py":

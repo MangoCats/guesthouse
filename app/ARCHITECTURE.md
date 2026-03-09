@@ -231,11 +231,13 @@ provides `generate_svg_db()` (in-process generator dispatch with
 DB-built `GeneratorData`, subprocess fallback), `generate_svg()` (legacy
 subprocess path), and `get_svg_content()` (reads SVG files from disk).
 
-**DB-driven regeneration (Phase 19)** — `build_generator_data_from_db(db_path)`
+**DB-driven regeneration (Phase 19 + 19½)** — `build_generator_data_from_db(db_path)`
 constructs a `GeneratorData` from the current database state.
 `_run_generator_inprocess(script_path, gd)` dispatches to 11 generator
-render functions (floorplan, roof, walls, span, site plan, SCAD, plumbing,
-survey).  `generate_svg_db(view_name, script_path, gd)` tries in-process
+render functions (floorplan variants including plumbing, roof, walls, span,
+site plan, SCAD, survey).  The plumbing SVG is a floorplan variant
+(`render_floorplan_svg_db()` with `variant="plumbing"`), not a standalone
+generator.  `generate_svg_db(view_name, script_path, gd)` tries in-process
 first, falls back to subprocess for scripts without handlers (gen_views,
 gen_line_drawings, gen_3views).  All regeneration API endpoints in
 `server.py` use this path so generated SVGs reflect DB state.
@@ -943,6 +945,12 @@ splices results into `inner_poly`.  Supports single-segment and
 multi-segment spans with endpoint validation and overlap detection.
 Editor UI provides a dialog with compute-default, click-to-define mode,
 and live canvas preview.
+
+Phase 19½ migrated the plumbing SVG from a standalone generator to a
+floorplan variant.  `render_floorplan_svg_db()` handles
+`variant="plumbing"` with plumbing pipes, ghosted furniture/openings,
+and a supplies table.  The plumbing view seed points to
+`floorplan/gen_floorplan.py`.
 
 See `app/ROADMAP.md` for the complete development plan
 covering all remaining requirements, phase dependencies, new file

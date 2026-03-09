@@ -9,18 +9,19 @@ NF-4 has been lifted (Phase 12g cutover complete).  The FormulaEvaluator
 is the sole source of element geometry.  Phase 12h eliminated all procedural
 element baselines — `compute_geometry()` is now formula-only.
 
-Phases 15½ and 16–19 are complete: inner wall segment overrides are
+Phases 15½, 16–19, and 19½ are complete: inner wall segment overrides are
 DB-driven and editable from the UI; all SVG/PDF generators accept
 `GeneratorData` as an optional parameter, and the app's regeneration
-endpoints pass a DB-built `GeneratorData` in-process.  Standalone
-execution (via `gen_all.py`) constructs `GeneratorData` from the hardcoded
-procedural modules.
+endpoints pass a DB-built `GeneratorData` in-process.  The plumbing SVG
+is now a floorplan variant produced by `render_floorplan_svg_db()`.
+Standalone execution (via `gen_all.py`) constructs `GeneratorData` from
+the hardcoded procedural modules.
 
 ---
 
-## Current State (Phase 19 + 15½ complete)
+## Current State (Phase 19½ + 15½ complete)
 
-**285 of 285 requirements implemented.**  ~1100 app tests, ~590 pre-existing
+**286 of 286 requirements implemented.**  ~1100 app tests, ~590 pre-existing
 tests (~1695 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
@@ -53,6 +54,7 @@ tests (~1695 total).  All implemented requirements have automated test coverage.
 | All generators accept `GeneratorData` (Phases 16–18) | Done |
 | DB-driven regeneration: in-process dispatch (Phase 19) | Done |
 | Inner wall segment overrides: DB, engine, API, editor UI (Phase 15½) | Done |
+| Plumbing SVG as floorplan variant (Phase 19½) | Done |
 
 **What's missing:** Electrical layout (Phase 13, aspirational).
 
@@ -151,6 +153,15 @@ and multi-segment span overrides.  Editor UI with live canvas preview,
 compute-default, and click-to-define mode.  Endpoint validation (position
 and bearing tolerance), overlap detection.  ~28 new tests (1695 total).
 
+### Phase 19½ — Plumbing SVG as Floorplan Variant
+Migrated the Plumbing SVG from a standalone generator (`plumbing/gen_plumbing.py`)
+to a floorplan variant.  `render_floorplan_svg_db()` handles
+`variant="plumbing"` with plumbing pipes, ghosted furniture (60% opacity),
+ghosted openings (20% opacity), and a supplies table.  The plumbing view
+seed now points to `floorplan/gen_floorplan.py` producing
+`floorplan/floorplan_plumbing.svg`.  Plumbing tools visible in both
+`plumbing_edit` and `plumbing` views.  1 new requirement (PLUMB-12).
+
 ---
 
 ## Phase 13 — Electrical Layout (Aspirational)
@@ -177,7 +188,7 @@ DB-backed).
 ## Phase Dependency Graph
 
 ```
-Phases 1–19 + 15½ (all complete)
+Phases 1–19 + 15½ + 19½ (all complete)
     │
     └── Phase 13 (Electrical) ◄── 10, 18
 ```
