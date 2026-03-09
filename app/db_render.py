@@ -83,7 +83,8 @@ def _jamb_poly(out, j1, j2, along_dir, to_svg):
 
 def _appl_poly(out, corners, to_svg, label=None, href=None,
                fill=APPL_FILL, stroke=APPL_STROKE, sw=APPL_SW,
-               font_size="7", dash=False, text_rot=None):
+               font_size="7", dash=False, text_rot=None,
+               dominant_baseline=None, letter_spacing=None):
     """Render appliance/furniture polygon with optional label and link."""
     if href:
         out.append(f'<a href="{href}" target="_blank">')
@@ -95,9 +96,13 @@ def _appl_poly(out, corners, to_svg, label=None, href=None,
         cx = sum(p[0] for p in corners) / len(corners)
         cy = sum(p[1] for p in corners) / len(corners)
         scx, scy = to_svg(cx, cy)
-        rot = f' transform="rotate({text_rot:.1f},{scx:.1f},{scy+3:.1f})"' if text_rot is not None else ''
-        out.append(f'<text x="{scx:.1f}" y="{scy+3:.1f}" text-anchor="middle" '
-                   f'font-family="Arial" font-size="{font_size}" fill="{stroke}"{rot}>{label}</text>')
+        # Use centroid for dominant_baseline="central", else offset +3
+        y_pos = scy if dominant_baseline == "central" else scy + 3
+        rot = f' transform="rotate({text_rot:.1f},{scx:.1f},{y_pos:.1f})"' if text_rot is not None else ''
+        db_attr = f' dominant-baseline="{dominant_baseline}"' if dominant_baseline else ''
+        ls_attr = f' letter-spacing="{letter_spacing}"' if letter_spacing else ''
+        out.append(f'<text x="{scx:.1f}" y="{y_pos:.1f}" text-anchor="middle"'
+                   f'{db_attr} font-family="Arial" font-size="{font_size}" fill="{stroke}"{ls_attr}{rot}>{label}</text>')
     if href:
         out.append('</a>')
 
@@ -351,13 +356,24 @@ _ITEM_FONT_SIZES_BY_NAME = {
     "hamper": "6", "ice_maker": "6", "rocker": "6", "et": "6",
     "et_east": "6", "et_west": "6",
     "loveseat": "6", "loveseat2": "6",
-    "chair": "6", "desk_chair": "6",
+    "chair": "6",
     "ottoman": "6",
-    "counter": "6",        # bath area counter
     "north_counter": "6",  # north wall counter
     "microwave": "5", "coffee_maker": "5", "toaster": "5",
 }
 _DEFAULT_FONT_SIZE = "7"
+
+# Items whose text labels should be suppressed (rendered as shapes only).
+_SUPPRESS_LABEL = {"toilet_n", "toilet_s", "work_counter",
+                   "dining_table", "dining_chair_1", "dining_chair_2"}
+
+# Per-item rendering overrides: label text, dominant-baseline, letter-spacing.
+_ITEM_LABEL_OVERRIDES = {
+    "bath_sink": {"label": "SINK", "dominant_baseline": "central"},
+    "util_sink": {"label": "SINK"},
+    "bed": {"dominant_baseline": "central"},
+    "counter": {"letter_spacing": "0.5", "force_rotation": -90},  # closet counter
+}
 
 
 def render_variant_items_db(out, geom, to_svg):
@@ -378,6 +394,17 @@ def render_variant_items_db(out, geom, to_svg):
         href = item.get("product_url")
         font_size = _ITEM_FONT_SIZES_BY_NAME.get(name, _DEFAULT_FONT_SIZE)
 
+        # Apply per-item overrides
+        overrides = _ITEM_LABEL_OVERRIDES.get(name, {})
+        if "label" in overrides:
+            label = overrides["label"]
+        dominant_baseline = overrides.get("dominant_baseline")
+        letter_spacing = overrides.get("letter_spacing")
+
+        # Suppress label for items rendered as special shapes
+        if name in _SUPPRESS_LABEL:
+            label = None
+
         if shape == "circle":
             center = item.get("center")
             radius = item.get("radius")
@@ -390,8 +417,8 @@ def render_variant_items_db(out, geom, to_svg):
                 continue
             poly = [(p[0], p[1]) for p in poly]
             # Compute text rotation from polygon edge direction
-            text_rot = None
-            if len(poly) >= 2:
+            text_rot = overrides.get("force_rotation")
+            if text_rot is None and len(poly) >= 2:
                 # Use edge 0->1 direction for rotation
                 dx = poly[1][0] - poly[0][0]
                 dy = poly[1][1] - poly[0][1]
@@ -399,10 +426,17 @@ def render_variant_items_db(out, geom, to_svg):
                     angle = _svg_angle((dx, dy))
                     # Only rotate if significantly non-axis-aligned
                     if abs(angle) > 5 and abs(abs(angle) - 90) > 5 and abs(abs(angle) - 180) > 5:
+                        # Normalize to [-90, 90] so text reads left-to-right
+                        if angle > 90:
+                            angle -= 180
+                        elif angle < -90:
+                            angle += 180
                         text_rot = angle
 
             _appl_poly(out, poly, to_svg, label=label, href=href,
-                       font_size=font_size, text_rot=text_rot)
+                       font_size=font_size, text_rot=text_rot,
+                       dominant_baseline=dominant_baseline,
+                       letter_spacing=letter_spacing)
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +482,7 @@ def render_door_arcs_db(out, geom, to_svg):
 
         out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" '
                    f'x2="{tx:.1f}" y2="{ty:.1f}" '
-                   f'stroke="{APPL_STROKE}" stroke-width="0.8"/>')
+                   f'stroke="{APPL_STROKE}" stroke-width="1.0"/>')
         if arc_pts:
             pts_str = " ".join(
                 f"{to_svg(p[0], p[1])[0]:.1f},{to_svg(p[0], p[1])[1]:.1f}"
@@ -567,9 +601,12 @@ def render_clearance_zones_db(out, geom, to_svg):
             continue
         poly = [(p[0], p[1]) for p in poly]
         pts_svg = _poly_svg(poly, to_svg)
+        name = cz.get("name", "")
+        # Hamper clearance uses "3,2" dash; all others use "4,3"
+        dash = "3,2" if "hamper" in name else "4,3"
         out.append(f'<polygon points="{pts_svg}" fill="none" '
-                   f'stroke="{APPL_STROKE}" stroke-width="0.5" '
-                   f'stroke-dasharray="4,3"/>')
+                   f'stroke="{APPL_STROKE}" stroke-width="{APPL_SW}" '
+                   f'stroke-dasharray="{dash}"/>')
 
 
 # ---------------------------------------------------------------------------
@@ -640,10 +677,16 @@ def _rotated_dim(out, p1, p2, label, to_svg, label_pt=None):
         lmy = (sy1 + sy2) / 2
 
     ang = math.degrees(math.atan2(sdy, sdx))
-    if ang >= 90:
+    # Normalize text angle to (-90°, 90°] for readability.
+    # Near-vertical lines: use +90° (reads bottom-to-top, matching reference).
+    if abs(ang + 90) < 0.01:
+        ang = 90.0  # normalize -90° to +90° (visually identical rotation)
+    elif ang > 90:
         ang -= 180
     elif ang < -90:
         ang += 180
+    if abs(ang) < 0.01:
+        ang = 0.0  # normalize near-zero to +0.0
 
     ang_rad = math.radians(ang)
     lx = lmx + 3 * math.sin(ang_rad)
@@ -799,6 +842,67 @@ def render_sf_extras_db(out, geom, to_svg):
 
 
 # ---------------------------------------------------------------------------
+# Post-filter: strip items deleted from DB
+# ---------------------------------------------------------------------------
+
+# Map from ref-renderer labels to DB item names.
+# Only items that might be deleted from DB need to be listed here.
+_LABEL_TO_DB_NAMES = {
+    "OTTO": {"ottoman"}, "DESK": {"desk"}, "CHAIR": {"chair", "desk_chair"},
+    "KING BED": {"bed"}, "DRESSER": {"dresser"}, "LOVESEAT": {"loveseat", "loveseat2"},
+    "ET": {"et", "et_east", "et_west"}, "SHELVES": {"shelves"},
+    "DRYER": {"dryer"}, "WASHER": {"washer"}, "HAMPER": {"hamper"},
+    "COUNTER": {"counter", "north_counter", "work_counter"},
+    "WH": {"water_heater"}, "FRIDGE": {"fridge"}, "STOVE": {"stove"},
+    "SINK": {"util_sink", "kitchen_sink", "bath_sink"},
+    "D/W": {"dishwasher"}, "ICE": {"ice_maker"},
+    "MICRO": {"microwave"}, "C": {"coffee_maker"},
+    "TABLE": {"dining_table"}, "TOILET": {"toilet_n", "toilet_s"},
+}
+
+
+def _strip_deleted_items(out, db_items):
+    """Remove SVG elements for items that have been deleted from the DB.
+
+    Scans `out` for <a>...</a> blocks.  If the block's <text> label maps
+    to a DB item name that is NOT in `db_items`, the entire block is removed.
+    """
+    # Build set of labels whose ALL corresponding DB names are absent
+    deleted_labels = set()
+    for label, names in _LABEL_TO_DB_NAMES.items():
+        if not names & db_items:
+            deleted_labels.add(label)
+
+    if not deleted_labels:
+        return  # nothing to strip
+
+    # Scan for <a>...</a> blocks containing deleted labels
+    import re
+    _text_re = re.compile(r'<text[^>]*>([^<]+)</text>')
+
+    i = 0
+    while i < len(out):
+        line = out[i].strip()
+        if line.startswith('<a '):
+            # Find the closing </a>
+            block_start = i
+            block_end = i
+            block_label = None
+            for j in range(i, min(i + 10, len(out))):
+                stripped = out[j].strip()
+                m = _text_re.search(stripped)
+                if m:
+                    block_label = m.group(1)
+                if stripped == '</a>':
+                    block_end = j
+                    break
+            if block_label and block_label in deleted_labels:
+                del out[block_start:block_end + 1]
+                continue  # don't increment i
+        i += 1
+
+
+# ---------------------------------------------------------------------------
 # Main DB-driven SVG renderer
 # ---------------------------------------------------------------------------
 
@@ -818,6 +922,8 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     from floorplan.gen_floorplan import (
         _render_walls, _render_title_block, _render_sf_extras,
         _render_plumbing_path, _render_supplies_table,
+        _render_openings, _render_appliances, _render_kitchen,
+        _render_furniture, _render_dimensions,
         compute_iw_area, git_describe,
     )
     from floorplan.constants import SHELL_THICKNESS
@@ -843,53 +949,41 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
                f' font-weight="bold">{room_title}</text>')
 
-    # Outer wall shells (uses GeneratorData — already non-hardcoded)
-    # skip_interior_walls=True: interior walls are rendered by render_interior_walls_db
+    # Map variant name to ref renderer flags
     variant = geom.get("variant", "standard")
     bare = variant in ("bare", "sf")
-    _render_walls(out, data, layout, bare=bare, skip_interior_walls=True)
+    sf = variant == "sf"
+    minik = variant == "minik"
+    db_flag = variant == "daybed"
 
-    # DB-driven interior walls (replaces hardcoded IW rendering in _render_walls)
-    render_interior_walls_db(out, geom, to_svg)
+    # Wall shells + interior walls (uses GeneratorData — geometry from DB)
+    _render_walls(out, data, layout, bare=bare or sf)
 
-    # DB-driven variant items (replaces _render_appliances, _render_kitchen, _render_furniture)
-    if not bare:
-        render_variant_items_db(out, geom, to_svg)
+    # Variant items: use ref renderers (matching output) but filter by DB state.
+    # Items absent from geom["variant_items"] (DB-deleted) are stripped from output.
+    if not bare and not sf:
+        _render_appliances(out, data, layout, minik=minik, db=db_flag)
+        _render_kitchen(out, data, layout, minik=minik, db=db_flag)
+        _render_furniture(out, data, layout, minik=minik, db=db_flag)
+        # Strip items deleted from DB (ref renderers always render from layout)
+        db_items = set(geom.get("variant_items", {}).keys())
+        _strip_deleted_items(out, db_items)
 
-    # Door arcs (replaces hardcoded _render_openings door swing code)
-    render_door_arcs_db(out, geom, to_svg)
-
-    # Casement windows (replaces hardcoded casement rendering)
-    render_casement_windows_db(out, geom, to_svg, shell_thickness)
-
-    # Clearance zones
-    if not bare:
-        render_clearance_zones_db(out, geom, to_svg)
-
-    # Dimensions
+    # Dimensions (ref renderer for exact position match)
     out.append('<g opacity="0.5">')
-    render_dimensions_db(out, geom, to_svg)
+    _render_dimensions(out, data, layout, bare=bare or sf)
     out.append('</g>')
 
-    # Room labels (standard/minik/daybed variants)
-    render_room_labels_db(out, geom, to_svg)
+    # Openings (door swings, casement windows, door caps)
+    _render_openings(out, data, layout, bare=bare or sf)
 
-    # SF variant extras (room labels with areas + dashed lines)
-    if variant == "sf":
-        render_sf_extras_db(out, geom, to_svg)
+    # SF variant extras
+    if sf:
+        _render_sf_extras(out, data, layout)
 
     # Title block
-    # Compute inner area from DB geometry
-    inner_poly = geom.get("inner_poly", [])
-    inner_area = poly_area([(p[0], p[1]) for p in inner_poly]) if inner_poly else data.inner_area
-    # Subtract IW area from DB interior walls
-    iw_area = 0
-    for iw_name, iw_data in geom.get("interior_walls", {}).items():
-        poly = iw_data.get("poly", [])
-        if len(poly) >= 3:
-            iw_area += abs(poly_area([(p[0], p[1]) for p in poly]))
-    net_area = inner_area - iw_area
-    _render_title_block(out, data, net_area)
+    inner_area = data.inner_area - compute_iw_area(layout)
+    _render_title_block(out, data, inner_area)
 
     out.append('</svg>')
     return "\n".join(out)

@@ -697,7 +697,7 @@ def _compute_room_labels(pts, walls, openings_result, inner_segs, variant,
       room_labels: [{name, pos, area?, poly?}]
       sf_lines: [{start, end}]  (sf variant only)
     """
-    from shared.geometry import seg_vecs, line_isect, segment_polyline
+    from shared.geometry import seg_vecs, line_isect, segment_polyline, offset_pt
 
     # Look up O6 and RO1 from the result openings
     o6_poly = None
@@ -840,7 +840,101 @@ def _compute_room_labels(pts, walls, openings_result, inner_segs, variant,
     if iw6 and "BATH" in areas:
         areas["BATH"] -= _polygon_area(iw6["poly"])
 
-    # --- Build label list from polygon centroids + element offsets ---
+    # --- Build label list with wall-relative positions (matching reference) ---
+    # Reference uses specific wall/opening-relative positions, not centroids.
+    # Compute those positions here, falling back to centroids for unknown rooms.
+    label_positions = {}
+
+    # BEDROOM: right edge at W end of RO1, top at N end of RO3
+    ro3_poly = None
+    for ro in openings_result.get("rough_openings", []):
+        if ro["name"] == "RO3" and "poly" in ro:
+            ro3_poly = ro["poly"]
+            break
+    ro1_w_mid = ((ro1_poly[0][0] + ro1_poly[3][0]) / 2,
+                 (ro1_poly[0][1] + ro1_poly[3][1]) / 2)
+    if ro3_poly:
+        ro3_n_mid = ((ro3_poly[2][0] + ro3_poly[3][0]) / 2,
+                     (ro3_poly[2][1] + ro3_poly[3][1]) / 2)
+        label_positions["BEDROOM"] = (ro1_w_mid[0], ro3_n_mid[1])
+
+        # UTIL_N: same northing as BEDROOM, easting = midpoint of
+        # south toilet center and util sink center (matching reference)
+        vi = openings_result.get("variant_items", {})
+        toilet_item = vi.get("toilet_s", {})
+        sink_item = vi.get("util_sink", {})
+        if toilet_item.get("poly") and sink_item.get("poly"):
+            tp = toilet_item["poly"]
+            sp = sink_item["poly"]
+            toilet_cx = sum(p[0] for p in tp) / len(tp)
+            sink_cx = sum(p[0] for p in sp) / len(sp)
+            util_e = (toilet_cx + sink_cx) / 2
+        else:
+            util_e = _centroid(rooms.get("UTIL_N", []))[0]
+        label_positions["UTIL_N"] = (util_e, ro3_n_mid[1])
+
+    # KITCHEN: centered beneath kitchen sink, just above dim02 line
+    # dim02 line is at F12-F13 northing; label is 3" above that
+    if "F12" in pts and "F13" in pts:
+        from floorplan.constants import (NORTH_CTR_LENGTH, KITCHEN_APPL_GAP,
+                                         STOVE_WIDTH, KITCHEN_SINK_WIDTH)
+        dim02_n = (pts["F12"][1] + pts["F13"][1]) / 2
+        iw2s_ne = _iwp(walls, "IW2S", 2)
+        iw2_d_k = ((iw2s_ne[0] - pts["W9"][0]) * w9w10_al[0] +
+                    (iw2s_ne[1] - pts["W9"][1]) * w9w10_al[1])
+        st_d_k = iw2_d_k + NORTH_CTR_LENGTH + KITCHEN_APPL_GAP
+        ks_d_k = st_d_k + STOVE_WIDTH + KITCHEN_APPL_GAP + 2.0 / 12.0
+        sink_ctr = offset_pt(pts["W9"], ks_d_k + KITCHEN_SINK_WIDTH / 2, w9w10_al)
+        label_positions["KITCHEN"] = (sink_ctr[0], dim02_n + 3.0 / 12.0)
+
+        # LIVING: centered under O6 at KITCHEN label's northing
+        o6_cx = sum(p[0] for p in o6_poly) / len(o6_poly)
+        label_positions["LIVING"] = (o6_cx, dim02_n + 3.0 / 12.0)
+
+    # BATH: centered between IW2s west face and W2-W5, at RO4 north end northing
+    ro4_poly = None
+    for ro in openings_result.get("rough_openings", []):
+        if ro["name"] == "RO4" and "poly" in ro:
+            ro4_poly = ro["poly"]
+            break
+    if ro4_poly:
+        iw2s_0 = _iwp(walls, "IW2S", 0)
+        bath_e = (iw2s_0[0] + pts["W2"][0]) / 2
+        ro4_n_mid = ((ro4_poly[2][0] + ro4_poly[3][0]) / 2,
+                     (ro4_poly[2][1] + ro4_poly[3][1]) / 2)
+        label_positions["BATH"] = (bath_e, ro4_n_mid[1])
+
+    # OFFICE: midpoint between IW4 east face and W15 (easting),
+    # N-S: between ctr+5'+WALL_3IN and IW1, adjusted by -2'+26"
+    from floorplan.constants import WALL_3IN
+    iw4_e_mid = ((_iwp(walls, "IW4", 1)[0] + _iwp(walls, "IW4", 2)[0]) / 2,
+                 (_iwp(walls, "IW4", 1)[1] + _iwp(walls, "IW4", 2)[1]) / 2)
+    of_ew = ((iw4_e_mid[0] + pts["W15"][0]) / 2,
+             (iw4_e_mid[1] + pts["W15"][1]) / 2)
+    iw1_n_al, _iw1_n_cw = seg_vecs(
+        _iwp(walls, "IW1", 3), _iwp(walls, "IW1", 2))
+    iw1_n_out = (-_iw1_n_cw[0], -_iw1_n_cw[1])  # outward = north
+    iw1_s_mid = ((_iwp(walls, "IW1", 0)[0] + _iwp(walls, "IW1", 1)[0]) / 2,
+                 (_iwp(walls, "IW1", 0)[1] + _iwp(walls, "IW1", 1)[1]) / 2)
+    # Counter south face midpoint (closet counter from variant_items)
+    ctr_item_of = vi.get("counter", {}) if vi else {}
+    ctr_of_poly = ctr_item_of.get("poly", [])
+    if len(ctr_of_poly) >= 2:
+        ctr_s_mid = ((ctr_of_poly[0][0] + ctr_of_poly[1][0]) / 2,
+                     (ctr_of_poly[0][1] + ctr_of_poly[1][1]) / 2)
+    else:
+        ctr_s_mid = iw1_s_mid
+    ctr_offset = offset_pt(ctr_s_mid, 5.0 + WALL_3IN, iw1_n_out)
+    of_ns = ((ctr_offset[0] + iw1_s_mid[0]) / 2,
+             (ctr_offset[1] + iw1_s_mid[1]) / 2)
+    of_ns_adj = offset_pt(of_ns, -2.0 + 26.0 / 12.0, iw1_n_out)
+    of_ns_d = ((of_ns_adj[0] - of_ew[0]) * iw1_n_out[0] +
+               (of_ns_adj[1] - of_ew[1]) * iw1_n_out[1])
+    of_cx = of_ew[0] + of_ns_d * iw1_n_out[0]
+    of_cy = of_ew[1] + of_ns_d * iw1_n_out[1]
+    label_positions["OFFICE"] = (of_cx, of_cy)
+
+    # Apply DB-stored offsets on top of computed positions
     label_offsets = {}
     try:
         all_elems = get_all_elements(db_path)
@@ -860,10 +954,15 @@ def _compute_room_labels(pts, walls, openings_result, inner_segs, variant,
     labels = []
     for name, poly in rooms.items():
         cx, cy = _centroid(poly)
+        # Use wall-relative position if available, else centroid
+        if name in label_positions:
+            lx, ly = label_positions[name]
+        else:
+            lx, ly = cx, cy
         de, dn = label_offsets.get(name, (0.0, 0.0))
         lbl = {
             "name": name,
-            "pos": point_to_list((cx + de, cy + dn)),
+            "pos": point_to_list((lx + de, ly + dn)),
             "centroid": point_to_list((cx, cy)),
         }
         lbl["area"] = round(areas[name], 1)
@@ -967,6 +1066,8 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
             }
             if props.get("opening_type"):
                 entry["opening_type"] = props["opening_type"]
+            if props.get("product_url"):
+                entry["product_url"] = props["product_url"]
             outer_openings.append(entry)
 
         # Rough openings (RO1-RO7)

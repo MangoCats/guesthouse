@@ -108,12 +108,16 @@ def _rotated_dim(out, p1, p2, label, to_svg, label_pt=None):
         lmx = sx1 + t * ux; lmy = sy1 + t * uy
     else:
         lmx = (sx1 + sx2) / 2; lmy = (sy1 + sy2) / 2
-    # Normalize text angle to [-90°, 90°) for readability
+    # Normalize text angle to (-90°, 90°] for readability
     ang = math.degrees(math.atan2(sdy, sdx))
-    if ang >= 90:
+    if abs(ang + 90) < 0.01:
+        ang = 90.0  # near-vertical: read bottom-to-top
+    elif ang > 90:
         ang -= 180
     elif ang < -90:
         ang += 180
+    if abs(ang) < 0.01:
+        ang = 0.0  # normalize near-zero to +0.0
     # Label offset: above for horizontal, left for vertical (drafting convention)
     ang_rad = math.radians(ang)
     lx = lmx + 3 * math.sin(ang_rad)

@@ -157,7 +157,7 @@ BUILTIN_DIMENSIONS = [
     },
     # dim07: IW11-east → W14-W15 (horizontal at storage midpoint)
     {
-        "name": "dim07", "variant": None,
+        "name": "dim07", "variant": None, "label_prefix": "STORAGE ",
         "start_anchor": {
             "type": "line_intersection",
             "line1_point": {"face_mid": "IW11", "face": "east"},
