@@ -1379,7 +1379,9 @@ function updatePlumbingTable() {
       const p = e.properties || {};
       const tr = document.createElement("tr");
       tr.className = "selectable";
-      tr.innerHTML = `<td>${e.name}</td><td>${p.cold ? "\u2713" : ""}</td><td>${p.hot ? "\u2713" : ""}</td><td>${p.drain ? "\u2713" : ""}</td>`;
+      if (p.show_in_table === false) tr.style.opacity = "0.4";
+      const label = p.table_label || e.name;
+      tr.innerHTML = `<td>${label}</td><td>${p.cold ? "\u2713" : ""}</td><td>${p.hot ? "\u2713" : ""}</td><td>${p.drain ? "\u2713" : ""}</td>`;
       tr.addEventListener("click", () => selectElement("plumbing", e.name, e));
       ftBody.appendChild(tr);
     }
@@ -1684,6 +1686,28 @@ async function placeFixture(wx, wy) {
       }),
     });
     showToast("Fixture placed", "success");
+  } catch (e) {
+    showToast(`Failed: ${e.message}`, "error");
+  }
+}
+
+async function addFixtureConnection() {
+  const elems = App.state.plumbingElements || [];
+  const n = elems.filter(e => e.type === "fixture_connection").length + 1;
+  const name = prompt("Fixture name:", `Fixture ${n}`);
+  if (!name) return;
+  try {
+    await apiFetch("/api/plumbing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "fixture_connection", name,
+        path: [],
+        properties: { cold: false, hot: false, drain: false },
+      }),
+    });
+    loadPlumbingElements();
+    showToast("Fixture added", "success");
   } catch (e) {
     showToast(`Failed: ${e.message}`, "error");
   }
@@ -2164,6 +2188,53 @@ function showProperties(type, name, data) {
           loadPlumbingElements();
         });
         td2.appendChild(cb);
+        tr.appendChild(td2);
+        tbody.appendChild(tr);
+      }
+
+      // Show in table checkbox
+      {
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"); td1.textContent = "In Table";
+        tr.appendChild(td1);
+        const td2 = document.createElement("td");
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.checked = p.show_in_table !== false;
+        cb.addEventListener("change", async () => {
+          const newProps = { ...p, show_in_table: cb.checked };
+          await apiFetch(`/api/plumbing/${pe.id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ properties: newProps }),
+          });
+          loadPlumbingElements();
+        });
+        td2.appendChild(cb);
+        tr.appendChild(td2);
+        tbody.appendChild(tr);
+      }
+
+      // Table label override
+      {
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"); td1.textContent = "Table Label";
+        tr.appendChild(td1);
+        const td2 = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "text"; inp.className = "prop-edit-input";
+        inp.value = p.table_label || "";
+        inp.placeholder = pe.name.toUpperCase();
+        inp.addEventListener("change", async () => {
+          const v = inp.value.trim();
+          const newProps = { ...p };
+          if (v) newProps.table_label = v;
+          else delete newProps.table_label;
+          await apiFetch(`/api/plumbing/${pe.id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ properties: newProps }),
+          });
+          loadPlumbingElements();
+        });
+        td2.appendChild(inp);
         tr.appendChild(td2);
         tbody.appendChild(tr);
       }

@@ -12,19 +12,21 @@ from shared.geometry import seg_vecs, offset_pt, line_isect, poly_centroid
 # Valid plumbing element types
 PLUMBING_TYPES = {"supply_pipe", "drain_pipe", "fitting", "fixture_connection"}
 
-# Fixture definitions: (name, cold, hot, drain, sort_order)
+# Fixture definitions: (name, properties_dict, sort_order)
+# Properties: cold, hot, drain (booleans); show_in_table (default True);
+#             table_label (optional display name override for Water Services table)
 FIXTURE_DEFS = [
-    ("Washer",       True,  True,  True,  1),
-    ("Toilet1",      True,  True,  True,  2),
-    ("Toilet2",      True,  True,  True,  3),
-    ("Util Sink",    True,  True,  True,  4),
-    ("Bath Sink",    True,  True,  True,  5),
-    ("Fridge",       True,  False, False, 6),
-    ("Shower",       True,  True,  True,  7),
-    ("Kitchen Sink", True,  True,  True,  8),
-    ("Dishwasher",   False, True,  False, 9),
-    ("Ice Maker",    True,  False, False, 10),
-    ("Water Heater", True,  True,  False, 11),
+    ("Washer",       {"cold": True,  "hot": True,  "drain": True},                    1),
+    ("Toilet1",      {"cold": True,  "hot": True,  "drain": True},                    2),
+    ("Toilet2",      {"cold": True,  "hot": True,  "drain": True},                    3),
+    ("Util Sink",    {"cold": True,  "hot": True,  "drain": True},                    4),
+    ("Bath Sink",    {"cold": True,  "hot": True,  "drain": True},                    5),
+    ("Fridge",       {"cold": True,  "hot": False, "drain": False},                   6),
+    ("Shower",       {"cold": True,  "hot": True,  "drain": True},                    7),
+    ("Kitchen Sink", {"cold": True,  "hot": True,  "drain": True},                    8),
+    ("Dishwasher",   {"cold": False, "hot": True,  "drain": False},                   9),
+    ("Ice Maker",    {"cold": True,  "hot": False, "drain": False, "table_label": "ICE"}, 10),
+    ("Water Heater", {"cold": True,  "hot": True,  "drain": False, "show_in_table": False}, 11),
 ]
 
 
@@ -137,9 +139,9 @@ def seed_plumbing(conn):
     existing_names = {row["name"] for row in conn.execute(
         "SELECT name FROM plumbing_elements WHERE type = 'fixture_connection'"
     ).fetchall()}
-    for name, cold, hot, drain, sort_order in FIXTURE_DEFS:
+    for name, props_dict, sort_order in FIXTURE_DEFS:
         if name not in existing_names:
-            props = json.dumps({"cold": cold, "hot": hot, "drain": drain})
+            props = json.dumps(props_dict)
             conn.execute(
                 "INSERT INTO plumbing_elements "
                 "(type, name, path, properties, fixture, sort_order) "

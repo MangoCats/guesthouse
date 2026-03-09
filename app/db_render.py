@@ -1051,13 +1051,18 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
         # Build supplies rows from fixture_connection records in geom dict
         fc_elems = geom.get("fixture_connections", [])
         if fc_elems:
-            supply_rows = [
-                (e["name"].upper(),
-                 (e.get("properties") or {}).get("cold", False),
-                 (e.get("properties") or {}).get("hot", False),
-                 (e.get("properties") or {}).get("drain", False))
-                for e in fc_elems
-            ]
+            supply_rows = []
+            for e in fc_elems:
+                props = e.get("properties") or {}
+                if not props.get("show_in_table", True):
+                    continue
+                label = props.get("table_label", e["name"].upper())
+                supply_rows.append((
+                    label,
+                    props.get("cold", False),
+                    props.get("hot", False),
+                    props.get("drain", False),
+                ))
             _render_supplies_table(out, data, supply_rows=supply_rows)
         else:
             _render_supplies_table(out, data)
