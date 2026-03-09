@@ -1073,7 +1073,7 @@ def create_app(db_path=None):
 
     _FLOORPLAN_VARIANT_SUFFIX = {
         "standard": "", "minik": "_minik", "daybed": "_db",
-        "bare": "_bare", "sf": "_sf",
+        "bare": "_bare", "sf": "_sf", "plumbing": "_plumbing",
     }
 
     @app.route("/api/svg/<view_name>")

@@ -251,17 +251,23 @@ class TestPlumbingUndo:
 # =========================================================================
 
 class TestPlumbingView:
-    """Plumbing edit view registered."""
+    """Plumbing is a layout variant with a view for SVG regeneration."""
 
-    def test_plumbing_edit_view_registered(self, fresh_db):
-        views = get_views(fresh_db)
-        names = {v["name"] for v in views}
-        assert "plumbing_edit" in names
+    def test_plumbing_variant_registered(self, fresh_db):
+        from app.database import get_variants
+        variants = get_variants(fresh_db)
+        names = {v["name"] for v in variants}
+        assert "plumbing" in names
 
-    def test_plumbing_static_view_still_exists(self, fresh_db):
+    def test_plumbing_view_for_regeneration(self, fresh_db):
         views = get_views(fresh_db)
         names = {v["name"] for v in views}
         assert "plumbing" in names
+
+    def test_plumbing_edit_view_removed(self, fresh_db):
+        views = get_views(fresh_db)
+        names = {v["name"] for v in views}
+        assert "plumbing_edit" not in names
 
 
 # =========================================================================

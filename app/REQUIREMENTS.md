@@ -2384,6 +2384,27 @@ standalone `plumbing/gen_plumbing.py` handler is removed from
 **Tested:** `test_zapp_regenerate.py::TestInprocessDispatch::test_plumbing_generated_by_floorplan`,
 `test_zapp_regenerate.py::TestInprocessDispatch::test_plumbing_script_returns_none`.
 
+#### PLUMB-13  Plumbing as Layout Variant ✅
+Plumbing SHALL be a layout variant in the variant selector (like standard,
+minik, daybed, bare, sf), not a separate set of view tabs.  Selecting
+the Plumbing variant: Interactive view renders the plumbing canvas;
+Floorplan view loads the plumbing SVG.  The standalone Plumbing Edit
+and Plumbing tabs are removed.
+
+**Acceptance:** Open the variant selector. "Plumbing" appears as an option.
+Select it.  Interactive view shows the plumbing canvas with drawing tools.
+Switch to Floorplan: the plumbing SVG is displayed.
+
+**Implementation:** `plumbing` added to `_VARIANT_SEEDS` in `database.py`
+and `VARIANTS` in `variants.py`.  `plumbing_edit` view removed from
+`_seed_views()`.  `app.js` routes plumbing rendering through variant
+check: `switchView()` renders plumbing canvas when `variant === "plumbing"`
+and view is Interactive; plumbing tools shown when variant is plumbing.
+
+**Tested:** `test_zapp_plumbing.py::TestPlumbingView::test_plumbing_variant_registered`,
+`test_zapp_plumbing.py::TestPlumbingView::test_plumbing_edit_view_removed`,
+`test_zapp_variants.py::TestVariantRegistry::test_all_variants_defined`.
+
 ---
 
 ## 15  Undo/Redo
@@ -2884,13 +2905,13 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 11 Site Plan | 4 | 0 | 4 |
 | 12 3D Model | 3 | 0 | 3 |
 | 13 Analysis | 3 | 0 | 3 |
-| 14 Plumbing | 12 | 0 | 12 |
+| 14 Plumbing | 13 | 0 | 13 |
 | 15 Undo/Redo | 4 | 0 | 4 |
 | 16 Real-Time | 5 | 0 | 5 |
 | 17 Application | 10 | 0 | 10 |
 | 18 Formulas | 19 | 0 | 19 |
 | 19 Inner Wall Overrides | 10 | 0 | 10 |
-| **Total** | **286** | **0** | **286** |
+| **Total** | **287** | **0** | **287** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

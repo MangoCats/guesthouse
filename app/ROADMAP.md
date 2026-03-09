@@ -19,10 +19,10 @@ the hardcoded procedural modules.
 
 ---
 
-## Current State (Phase 19½ + 15½ complete)
+## Current State (Phase 20 + 15½ complete)
 
-**286 of 286 requirements implemented.**  ~1100 app tests, ~590 pre-existing
-tests (~1695 total).  All implemented requirements have automated test coverage.
+**287 of 287 requirements implemented.**  ~1100 app tests, ~590 pre-existing
+tests (~1670 total).  All implemented requirements have automated test coverage.
 
 | Capability | Status |
 |------------|--------|
@@ -30,8 +30,8 @@ tests (~1695 total).  All implemented requirements have automated test coverage.
 | Outline chain: view, edit, add/remove, closure solver | Done |
 | Geometry engine: full recomputation (formula-only) | Done |
 | Interactive canvas: outline, walls, openings, furniture, points, dims | Done |
-| Five layout variants + user-defined variants | Done |
-| 15 view tabs (SVG + PDF + PNG + plumbing canvas) with zoom/pan | Done |
+| Six layout variants (incl. plumbing) + user-defined variants | Done |
+| 13 view tabs (SVG + PDF + PNG) with zoom/pan | Done |
 | Properties panel with related constants | Done |
 | Constants table: sort, filter, inline edit, category colours | Done |
 | REST API: 70 endpoints, SSE | Done |
@@ -55,6 +55,7 @@ tests (~1695 total).  All implemented requirements have automated test coverage.
 | DB-driven regeneration: in-process dispatch (Phase 19) | Done |
 | Inner wall segment overrides: DB, engine, API, editor UI (Phase 15½) | Done |
 | Plumbing SVG as floorplan variant (Phase 19½) | Done |
+| Plumbing as layout variant in variant selector (Phase 20) | Done |
 
 **What's missing:** Electrical layout (Phase 13, aspirational).
 
@@ -162,6 +163,14 @@ seed now points to `floorplan/gen_floorplan.py` producing
 `floorplan/floorplan_plumbing.svg`.  Plumbing tools visible in both
 `plumbing_edit` and `plumbing` views.  1 new requirement (PLUMB-12).
 
+### Phase 20 — Plumbing as Layout Variant
+Made "Plumbing" a layout variant in the variant selector (like standard,
+minik, daybed, bare, sf) instead of separate Plumbing Edit / Plumbing
+tabs.  Selecting Plumbing variant: Interactive view renders plumbing
+canvas (`renderPlumbingCanvas()`); Floorplan view loads plumbing SVG.
+Removed `plumbing_edit` view registration.  Added `plumbing` to
+`_VARIANT_SEEDS` (6 built-in variants).  1 new requirement (PLUMB-13).
+
 ---
 
 ## Phase 13 — Electrical Layout (Aspirational)
@@ -188,7 +197,7 @@ DB-backed).
 ## Phase Dependency Graph
 
 ```
-Phases 1–19 + 15½ + 19½ (all complete)
+Phases 1–20 + 15½ + 19½ (all complete)
     │
     └── Phase 13 (Electrical) ◄── 10, 18
 ```

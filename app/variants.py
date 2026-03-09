@@ -15,6 +15,7 @@ VARIANTS = {
     "daybed":   {"label": "Daybed", "flags": {"db": True}},
     "bare":     {"label": "Room Dimensions", "flags": {"bare": True}},
     "sf":       {"label": "Square Footage", "flags": {"sf": True}},
+    "plumbing": {"label": "Plumbing", "flags": {"plumbing": True}},
 }
 
 

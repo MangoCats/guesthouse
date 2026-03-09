@@ -358,9 +358,9 @@ constants used by formula evaluation, and product URL lookup (legacy
 reference).  All procedural positioning math was removed in Phase 12h
 (835 lines deleted).
 
-**Variant registry** — five built-in variants stored in the `variants` DB
-table (Phase 11).  User-created variants clone from a source variant and
-inherit its flags, exclusions, element visibility, and formulas.
+**Variant registry** — six built-in variants stored in the `variants` DB
+table (Phase 11 + Phase 20).  User-created variants clone from a source
+variant and inherit its flags, exclusions, element visibility, and formulas.
 
 | Variant | Label | Items | Built-in |
 |---------|-------|-------|----------|
@@ -369,6 +369,7 @@ inherit its flags, exclusions, element visibility, and formulas.
 | daybed | Daybed | ~24 (daybed, shelves2, no loveseat/sofa) | Yes |
 | bare | Room Dimensions | 0 (walls only, IW6/RO5 excluded) | Yes |
 | sf | Square Footage | 0 (walls only, IW6/RO5 excluded; adds SF labels + highlight polygons) | Yes |
+| plumbing | Plumbing | standard items (plumbing canvas overlay) | Yes |
 | (user) | (custom) | Matches source variant | No |
 
 Each item is a dict with `type` (appliance/furniture/fixture), `poly`
@@ -951,6 +952,11 @@ floorplan variant.  `render_floorplan_svg_db()` handles
 `variant="plumbing"` with plumbing pipes, ghosted furniture/openings,
 and a supplies table.  The plumbing view seed points to
 `floorplan/gen_floorplan.py`.
+
+Phase 20 made plumbing a layout variant in the variant selector (like
+standard/minik/daybed/bare/sf).  The standalone Plumbing Edit and
+Plumbing tabs were removed.  Interactive view renders the plumbing
+canvas when variant is plumbing; Floorplan view loads the plumbing SVG.
 
 See `app/ROADMAP.md` for the complete development plan
 covering all remaining requirements, phase dependencies, new file

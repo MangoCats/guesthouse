@@ -115,8 +115,10 @@ function connectSSE() {
   App.sse.addEventListener("element_changed", async () => {
     await loadElements();
     if (App.state.geometry) {
-      if (App.state.activeView === "interactive") renderCanvas();
-      else if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+      if (App.state.activeView === "interactive") {
+        if (App.state.variant === "plumbing") renderPlumbingCanvas();
+        else renderCanvas();
+      }
     }
   });
 
@@ -255,8 +257,10 @@ async function loadGeometry() {
     }
     App.state.geometry = await resp.json();
     hideErrorBanner();
-    if (App.state.activeView === "interactive") renderCanvas();
-    else if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+    if (App.state.activeView === "interactive") {
+      if (App.state.variant === "plumbing") renderPlumbingCanvas();
+      else renderCanvas();
+    }
     updateOpeningsTable();
     updateElementsTable();
   } catch (e) {
@@ -438,31 +442,9 @@ function renderViewTabs() {
     container.appendChild(fpTab);
   }
 
-  // Plumbing Edit tab (canvas editor, mirrors Interactive)
-  const pe = App.state.views.find(v => v.name === "plumbing_edit");
-  if (pe) {
-    const peTab = document.createElement("button");
-    peTab.className = "view-tab";
-    peTab.textContent = pe.label;
-    peTab.dataset.view = pe.name;
-    peTab.onclick = () => switchView(pe.name);
-    container.appendChild(peTab);
-  }
-
-  // Plumbing SVG tab (right after Plumbing Edit, mirrors Floorplan)
-  const pl = App.state.views.find(v => v.name === "plumbing");
-  if (pl) {
-    const plTab = document.createElement("button");
-    plTab.className = "view-tab";
-    plTab.textContent = pl.label;
-    plTab.dataset.view = pl.name;
-    plTab.onclick = () => switchView(pl.name);
-    container.appendChild(plTab);
-  }
-
   // Remaining generated SVG view tabs
   for (const v of App.state.views) {
-    if (v.name === "floorplan" || v.name === "plumbing_edit" || v.name === "plumbing") continue;
+    if (v.name === "floorplan" || v.name === "plumbing") continue;
     const tab = document.createElement("button");
     tab.className = "view-tab";
     tab.textContent = v.label;
@@ -477,7 +459,7 @@ function renderViewTabs() {
 
 function isCanvasView(name) {
   const v = name || App.state.activeView;
-  return v === "interactive" || v === "plumbing_edit";
+  return v === "interactive";
 }
 
 function switchView(viewName) {
@@ -490,17 +472,18 @@ function switchView(viewName) {
   const showVariant = viewName === "interactive" || viewName === "floorplan";
   App.els["variant-selector"].style.display = showVariant ? "inline-block" : "none";
 
-  // Show/hide plumbing tools (visible for both plumbing canvas and SVG views)
+  // Show/hide plumbing tools (visible when plumbing variant is active)
   if (App.els["plumbing-tools"]) {
-    const isPlumbingView = viewName === "plumbing_edit" || viewName === "plumbing";
-    App.els["plumbing-tools"].style.display = isPlumbingView ? "" : "none";
+    const isPlumbing = App.state.variant === "plumbing" &&
+                       (viewName === "interactive" || viewName === "floorplan");
+    App.els["plumbing-tools"].style.display = isPlumbing ? "" : "none";
   }
 
   if (isCanvasView(viewName)) {
     App.els["canvas"].style.display = "block";
     App.els["svg-view-container"].style.display = "none";
     App.els["viewport"].style.cursor = App.state.activeTool === "pan" ? "grab" : "crosshair";
-    if (viewName === "plumbing_edit") renderPlumbingCanvas();
+    if (App.state.variant === "plumbing") renderPlumbingCanvas();
     else renderCanvas();
   } else {
     App.els["canvas"].style.display = "none";
@@ -1377,7 +1360,7 @@ async function loadPlumbingElements() {
   try {
     const resp = await apiFetch("/api/plumbing");
     App.state.plumbingElements = await resp.json();
-    if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+    if (App.state.activeView === "interactive" && App.state.variant === "plumbing") renderPlumbingCanvas();
     updatePlumbingTable();
   } catch (e) {
     console.error("Plumbing load failed:", e);
@@ -1648,7 +1631,7 @@ function cancelPlumbingDraw() {
   PlumbingDraw.points = [];
   PlumbingDraw.type = null;
   PlumbingDraw.hotCold = null;
-  if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+  if (App.state.activeView === "interactive" && App.state.variant === "plumbing") renderPlumbingCanvas();
 }
 
 function renderPlumbingDrawPreview() {
@@ -4288,7 +4271,7 @@ function setupEventListeners() {
 
   // Display toggles
   function rerender() {
-    if (App.state.activeView === "plumbing_edit") renderPlumbingCanvas();
+    if (App.state.variant === "plumbing") renderPlumbingCanvas();
     else renderCanvas();
   }
   // Data-driven display toggle listeners
@@ -4330,6 +4313,12 @@ function setupEventListeners() {
     loadElements();
     loadGeometry();
     updateDeleteVariantBtn();
+    // Show/hide plumbing tools based on variant
+    if (App.els["plumbing-tools"]) {
+      const isPlumbing = App.state.variant === "plumbing" &&
+                         (App.state.activeView === "interactive" || App.state.activeView === "floorplan");
+      App.els["plumbing-tools"].style.display = isPlumbing ? "" : "none";
+    }
     if (App.state.activeView === "floorplan") loadSVGView("floorplan");
   });
 

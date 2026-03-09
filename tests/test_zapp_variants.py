@@ -49,8 +49,8 @@ def all_variant_items(fresh_db):
 # =========================================================================
 
 class TestVariantRegistry:
-    def test_all_five_variants_defined(self):
-        assert set(VARIANTS.keys()) == {"standard", "minik", "daybed", "bare", "sf"}
+    def test_all_variants_defined(self):
+        assert set(VARIANTS.keys()) == {"standard", "minik", "daybed", "bare", "sf", "plumbing"}
 
     def test_variant_labels_non_empty(self):
         for name, info in VARIANTS.items():
@@ -196,9 +196,9 @@ class TestVariantAPI:
         resp = app_client.get("/api/variants")
         assert resp.status_code == 200
         data = resp.get_json()
-        assert len(data) == 5
+        assert len(data) == 6
         names = {v["name"] for v in data}
-        assert names == {"standard", "minik", "daybed", "bare", "sf"}
+        assert names == {"standard", "minik", "daybed", "bare", "sf", "plumbing"}
 
     def test_geometry_default_variant_is_standard(self, app_client):
         resp = app_client.get("/api/geometry")
@@ -233,7 +233,7 @@ class TestVariantAPI:
         resp = app_client.get("/api/geometry")
         data = resp.get_json()
         assert "available_variants" in data
-        assert set(data["available_variants"]) == {"standard", "minik", "daybed", "bare", "sf"}
+        assert set(data["available_variants"]) == {"standard", "minik", "daybed", "bare", "sf", "plumbing"}
         # Each item should have required keys
         for name, item in data["variant_items"].items():
             assert "type" in item
@@ -357,11 +357,11 @@ class TestVariantsTable:
         assert len(rows) == 1
 
     def test_builtin_variants_seeded(self, fresh_db):
-        """5 built-in variants should be seeded."""
+        """6 built-in variants should be seeded."""
         variants = get_variants(fresh_db)
-        assert len(variants) == 5
+        assert len(variants) == 6
         names = {v["name"] for v in variants}
-        assert names == {"standard", "minik", "daybed", "bare", "sf"}
+        assert names == {"standard", "minik", "daybed", "bare", "sf", "plumbing"}
 
     def test_builtin_labels(self, fresh_db):
         """Built-in variants have correct labels."""
@@ -443,9 +443,9 @@ class TestVariantsAPI_DB:
         resp = app_client.get("/api/variants")
         assert resp.status_code == 200
         data = resp.get_json()
-        assert len(data) == 5
+        assert len(data) == 6
         names = {v["name"] for v in data}
-        assert names == {"standard", "minik", "daybed", "bare", "sf"}
+        assert names == {"standard", "minik", "daybed", "bare", "sf", "plumbing"}
         # Each variant should have DB fields
         for v in data:
             assert "id" in v
