@@ -1000,7 +1000,7 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     bare = variant in ("bare", "sf")
     sf = variant == "sf"
     minik = variant == "minik"
-    db_flag = variant == "daybed"
+    db_flag = variant in ("daybed", "plumbing")
     plumbing = variant == "plumbing"
 
     # Wall shells + interior walls (uses GeneratorData — geometry from DB)

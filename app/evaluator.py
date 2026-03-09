@@ -2933,6 +2933,7 @@ def get_variant_item_formulas():
     }
     _f("dishwasher", _dw_formula, "standard")
     _f("dishwasher", _dw_formula, "daybed")
+    _f("dishwasher", _dw_formula, "plumbing")
 
     # ===================================================================
     # FRIDGE — different positioning per variant
@@ -2950,6 +2951,7 @@ def get_variant_item_formulas():
     }
     _f("fridge", _std_fridge, "standard")
     _f("fridge", _std_fridge, "daybed")
+    _f("fridge", _std_fridge, "plumbing")
 
     # Minik fridge: on north wall
     _fr_mk_d = {"add": [_ks_d, _c("KITCHEN_SINK_WIDTH"), _in(3)]}
@@ -2980,9 +2982,9 @@ def get_variant_item_formulas():
         "anchor_corner": "sw",
     }, "standard")
 
-    # Daybed: _dw_d + DW_WIDTH + 2/12, gap = KITCHEN_APPL_GAP
+    # Daybed + plumbing: _dw_d + DW_WIDTH + 2/12, gap = KITCHEN_APPL_GAP
     _ice_d_db = {"add": [_dw_d, _c("DW_WIDTH"), _in(2)]}
-    _f("ice_maker", {
+    _ice_db_formula = {
         "type": "item_rect",
         "anchor": _nwp(_ice_d_db, {"add": [_ice_i_std, _c("ICE_DEPTH")]}),
         "along": _W9W10_AL,
@@ -2990,7 +2992,9 @@ def get_variant_item_formulas():
         "width": _c("ICE_WIDTH"),
         "depth": _c("ICE_DEPTH"),
         "anchor_corner": "sw",
-    }, "daybed")
+    }
+    _f("ice_maker", _ice_db_formula, "daybed")
+    _f("ice_maker", _ice_db_formula, "plumbing")
 
     # Minik: after fridge
     _ice_d_mk = {"add": [_fr_mk_d, _c("MINIK_FRIDGE_W"), _in(3)]}

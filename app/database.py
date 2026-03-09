@@ -875,7 +875,9 @@ def _seed_elements(conn):
     # Properties include: label, item_type, shape, stacked, door, clearance,
     # product_url, variants (list of variant names where item appears)
     _ALL = ["standard", "minik", "daybed"]
+    _ALL_P = ["standard", "minik", "daybed", "plumbing"]
     _STD_DB = ["standard", "daybed"]
+    _STD_DB_P = ["standard", "daybed", "plumbing"]
 
     _VARIANT_ITEMS = [
         # --- Utility / laundry ---
@@ -889,7 +891,7 @@ def _seed_elements(conn):
             "label": "WASHER", "item_type": "appliance", "shape": "rect",
             "door": {"hinge_idx": 2, "target_idx": 1},
             "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375"},
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
         ("hamper", "appliance", {
             "label": "HAMPER", "item_type": "appliance", "shape": "rect",
@@ -899,7 +901,7 @@ def _seed_elements(conn):
         }, None),
         ("water_heater", "appliance", {
             "label": "WH", "item_type": "appliance", "shape": "circle",
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
         ("counter", "appliance", {
             "label": "COUNTER", "item_type": "appliance", "shape": "rect",
@@ -910,26 +912,26 @@ def _seed_elements(conn):
         # --- Toilets & sinks ---
         ("toilet_s", "fixture", {
             "label": "TOILET", "item_type": "fixture", "shape": "toilet",
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
         ("toilet_n", "fixture", {
             "label": "TOILET", "item_type": "fixture", "shape": "toilet",
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
         ("util_sink", "fixture", {
             "label": "SINK", "item_type": "fixture", "shape": "rect",
             "product_url": "https://www.magnushomeproducts.com/products/24-petten-matte-gray-vitreous-china-console-sink-with-black-powdercoat-steel-stand-and-shelves",
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
         ("bath_sink", "fixture", {
             "label": "BATH SINK", "item_type": "fixture", "shape": "bath_sink",
             "product_url": "https://www.magnushomeproducts.com/products/tripoli-vitreous-china-wall-mount-bathroom-sink",
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
         ("kitchen_sink", "fixture", {
             "label": "SINK", "item_type": "fixture", "shape": "rect",
             "product_url": "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html",
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
 
         # --- Kitchen: standard/daybed ---
@@ -941,7 +943,7 @@ def _seed_elements(conn):
         ("dishwasher", "appliance", {
             "label": "D/W", "item_type": "appliance", "shape": "rect",
             "clearance": {"face": [0, 1], "distance": 31.0 / 12.0},
-            "variants": _STD_DB,
+            "variants": _STD_DB_P,
         }, None),
         ("north_counter", "appliance", {
             "label": "COUNTER", "item_type": "appliance", "shape": "rect",
@@ -982,12 +984,12 @@ def _seed_elements(conn):
                 "daybed": {"hinge_idx": 3, "target_idx": 2},
             },
             "product_url": {"minik": "https://www.ikea.com/us/en/p/bergsnaes-bottom-freezer-refrigerator-stainless-steel-color-60607883/", "default": "https://www.lowes.com/pd/LG-25-5-cu-ft-Bottom-Freezer-Refrigerator-with-Ice-Maker-Fingerprint-Resistant-Printproof-Stainless-Steel-ENERGY-STAR/1002543648"},
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
         ("ice_maker", "appliance", {
             "label": "ICE", "item_type": "appliance", "shape": "rect",
             "product_url": "https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876",
-            "variants": _ALL,
+            "variants": _ALL_P,
         }, None),
         ("microwave", "appliance", {
             "label": "MICRO", "item_type": "appliance", "shape": "rect",
