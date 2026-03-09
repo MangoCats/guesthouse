@@ -1381,7 +1381,8 @@ function updatePlumbingTable() {
       tr.className = "selectable";
       if (p.show_in_table === false) tr.style.opacity = "0.4";
       const label = p.table_label || e.name;
-      tr.innerHTML = `<td>${label}</td><td>${p.cold ? "\u2713" : ""}</td><td>${p.hot ? "\u2713" : ""}</td><td>${p.drain ? "\u2713" : ""}</td>`;
+      const fmtConn = v => { const n = (v === true ? 1 : v === false ? 0 : Number(v) || 0); return n > 1 ? "\u2713".repeat(n) : n === 1 ? "\u2713" : ""; };
+      tr.innerHTML = `<td>${label}</td><td>${fmtConn(p.cold)}</td><td>${fmtConn(p.hot)}</td><td>${fmtConn(p.drain)}</td>`;
       tr.addEventListener("click", () => selectElement("plumbing", e.name, e));
       ftBody.appendChild(tr);
     }
@@ -1682,7 +1683,7 @@ async function placeFixture(wx, wy) {
       body: JSON.stringify({
         type: "fixture_connection", name,
         path: [pt],
-        properties: { cold: true, hot: false, drain: false },
+        properties: { cold: 1, hot: 0, drain: 0 },
       }),
     });
     showToast("Fixture placed", "success");
@@ -1703,7 +1704,7 @@ async function addFixtureConnection() {
       body: JSON.stringify({
         type: "fixture_connection", name,
         path: [],
-        properties: { cold: false, hot: false, drain: false },
+        properties: { cold: 0, hot: 0, drain: 0 },
       }),
     });
     loadPlumbingElements();
@@ -2171,23 +2172,29 @@ function showProperties(type, name, data) {
         addPropRow(tbody, "N", fmtFtIn(pe.path[0][1]));
       }
 
-      // Service flag checkboxes
+      // Service connection counts (0 = none, 1+ = number of connections)
       for (const flag of ["cold", "hot", "drain"]) {
         const tr = document.createElement("tr");
         const td1 = document.createElement("td"); td1.textContent = flag.charAt(0).toUpperCase() + flag.slice(1);
         tr.appendChild(td1);
         const td2 = document.createElement("td");
-        const cb = document.createElement("input");
-        cb.type = "checkbox"; cb.checked = !!p[flag];
-        cb.addEventListener("change", async () => {
-          const newProps = { ...p, [flag]: cb.checked };
+        const inp = document.createElement("input");
+        inp.type = "number"; inp.min = "0"; inp.max = "9"; inp.step = "1";
+        inp.style.width = "3em";
+        // Normalize: true→1, false→0, number→number
+        const cur = p[flag];
+        inp.value = (cur === true ? 1 : cur === false ? 0 : Number(cur) || 0);
+        inp.addEventListener("change", async () => {
+          const v = Math.max(0, parseInt(inp.value) || 0);
+          inp.value = v;
+          const newProps = { ...p, [flag]: v };
           await apiFetch(`/api/plumbing/${pe.id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ properties: newProps }),
           });
           loadPlumbingElements();
         });
-        td2.appendChild(cb);
+        td2.appendChild(inp);
         tr.appendChild(td2);
         tbody.appendChild(tr);
       }

@@ -3453,13 +3453,18 @@ def _render_supplies_table(out, data, supply_rows=None):
                f' x2="{col_r[-1]:.1f}" y2="{line_y:.1f}"'
                f' stroke="#999" stroke-width="0.5"/>')
 
+    def _fmt_conn(v):
+        """Format connection value: bool or int → checkmarks."""
+        if v is True:
+            return check
+        if isinstance(v, int) and v > 1:
+            return check * v
+        return check if v else ""
+
     # Data rows
     for ri, (fixture, cold, hot, drain) in enumerate(rows):
         y = line_y + (ri + 1) * row_h
-        vals = [fixture,
-                check if cold else "",
-                check if hot else "",
-                check if drain else ""]
+        vals = [fixture, _fmt_conn(cold), _fmt_conn(hot), _fmt_conn(drain)]
         for vx, va, vv in zip(hdr_x, hdr_a, vals):
             out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
                        f' text-anchor="{va}" font-family="Arial"'
