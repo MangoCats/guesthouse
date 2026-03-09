@@ -2671,12 +2671,9 @@ async function addFormulaDeleteButton(tbody, elemName) {
     await loadElements();
     await loadGeometry();
     const rebased = result.rebased || [];
-    const cascaded = result.cascaded || [];
-    let toast = `Deleted ${elemName}`;
-    if (rebased.length > 0)
-      toast += ` (re-based ${rebased.join(", ")})`;
-    if (cascaded.length > 0)
-      toast += ` (also deleted ${cascaded.join(", ")})`;
+    const toast = rebased.length > 0
+      ? `Deleted ${elemName} (re-based ${rebased.join(", ")})`
+      : `Deleted ${elemName}`;
     showToast(toast, "success");
   });
   td.appendChild(btn);

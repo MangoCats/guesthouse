@@ -266,19 +266,6 @@ class UndoManager:
             # Re-insert the elements record if one was deleted
             if "deleted_element" in state:
                 create_element_raw(state["deleted_element"], self._db_path)
-            # Restore cascade-deleted dependents
-            for cd in state.get("cascaded", []):
-                for f in cd["own_formulas"]:
-                    formula = json.loads(f["formula_json"]) if isinstance(
-                        f["formula_json"], str) else f["formula_json"]
-                    upsert_formula(f["element_name"], f["param_name"],
-                                   formula, variant=f.get("variant"),
-                                   db_path=self._db_path)
-                    deps = extract_deps(formula)
-                    rebuild_formula_deps(f["element_name"], f["param_name"],
-                                         list(deps), db_path=self._db_path)
-                if "deleted_element" in cd:
-                    create_element_raw(cd["deleted_element"], self._db_path)
         else:
             # Redo: re-inline dependents then re-delete
             elem_name = state["element_name"]
@@ -309,20 +296,6 @@ class UndoManager:
             elem_rec = get_element_by_name(elem_name, self._db_path)
             if elem_rec:
                 delete_element(elem_rec["id"], self._db_path)
-            # Redo cascade-deleted dependents
-            for cd_name in state.get("cascaded", []):
-                cd_formulas = get_element_formulas(cd_name,
-                                                    variant=redo_variant,
-                                                    db_path=self._db_path)
-                for f in cd_formulas:
-                    delete_formula(f["element_name"], f["param_name"],
-                                   variant=f.get("variant"),
-                                   db_path=self._db_path)
-                    rebuild_formula_deps(f["element_name"], f["param_name"],
-                                          [], db_path=self._db_path)
-                cd_elem = get_element_by_name(cd_name, self._db_path)
-                if cd_elem:
-                    delete_element(cd_elem["id"], self._db_path)
 
     def _load(self):
         """Rebuild the in-memory stack from the undo_history table."""
