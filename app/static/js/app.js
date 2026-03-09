@@ -442,6 +442,9 @@ function renderViewTabs() {
     container.appendChild(fpTab);
   }
 
+  // Variant selector right after Floorplan
+  container.appendChild(vs);
+
   // Remaining generated SVG view tabs
   for (const v of App.state.views) {
     if (v.name === "floorplan" || v.name === "plumbing") continue;
@@ -453,8 +456,6 @@ function renderViewTabs() {
     container.appendChild(tab);
   }
 
-  // Re-append variant selector
-  container.appendChild(vs);
 }
 
 function isCanvasView(name) {
