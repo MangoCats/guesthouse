@@ -525,6 +525,57 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
     shape.finish(color=BLACK, width=LW_OUTLINE, fill=WALL_FILL,
                  closePath=True)
 
+    # ── 5b. Curve shading on curved wall segments ──────────────────
+    # Graduated vertical hatching indicates where the wall curves away
+    # from the viewer.  Convex walls get denser hatching at the edges;
+    # concave walls get denser hatching at the center.
+    for seg in outline_segs:
+        if not isinstance(seg, ArcSeg):
+            continue
+        nx, ny = _seg_outward_normal(pts, seg)
+        if not normal_test(nx, ny):
+            continue
+
+        # Sample the arc
+        p1s = pts[seg.start]
+        c = pts[seg.center]
+        R = seg.radius
+        a1 = math.atan2(p1s[1] - c[1], p1s[0] - c[0])
+        p2s = pts[seg.end]
+        a2 = math.atan2(p2s[1] - c[1], p2s[0] - c[0])
+        n_samp = 60
+        if seg.direction == "CW":
+            sweep = (a1 - a2) % (2 * math.pi)
+            angles = [a1 - sweep * i / n_samp for i in range(n_samp + 1)]
+        else:
+            sweep = (a2 - a1) % (2 * math.pi)
+            angles = [a1 + sweep * i / n_samp for i in range(n_samp + 1)]
+
+        samples = []
+        for a in angles:
+            e = c[0] + R * math.cos(a)
+            n_pt = c[1] + R * math.sin(a)
+            h = h_func(e, n_pt)
+            d = depth_func(e, n_pt)
+            samples.append((h, d))
+
+        depths = [d for _, d in samples]
+        d_min, d_max = min(depths), max(depths)
+        d_range = d_max - d_min
+        if d_range < 0.02:
+            continue  # nearly flat — no shading needed
+
+        # Draw vertical hatch lines with density proportional to depth
+        for h, d in samples:
+            t = (d - d_min) / d_range          # 0 = closest, 1 = farthest
+            if t < 0.08:
+                continue                        # skip near the apex
+            gray_val = 0.96 - 0.18 * t          # subtle range: 0.96 → 0.78
+            lw = LW_HATCH * (0.4 + 0.8 * t)    # thinner near apex
+            z_top_h = _interp_profile(eave_under, h) if eave_under else WALL_HEIGHT_FT
+            shape.draw_line(to_page(h, 0), to_page(h, z_top_h))
+            shape.finish(color=(gray_val, gray_val, gray_val), width=lw)
+
     # Roof slab polygon (from eave_under to roof top profile)
     # This sits on top of the wall and overhangs on both sides.
     if upper_profile and eave_under:
@@ -542,15 +593,6 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         shape.draw_polyline(roof_sil)
         shape.finish(color=BLACK, width=LW_ROOF, fill=WALL_FILL,
                      closePath=True)
-
-    # For South/North views, draw the near-side fascia top line (visible
-    # feature: top edge of the fascia board, between soffit and ridge).
-    # For East/West views the filled roof polygon silhouette is sufficient;
-    # drawing additional lines would show hidden far-side edges.
-    if is_south_north and eave_top:
-        et_pts = [to_page(h, z) for h, z in eave_top]
-        shape.draw_polyline(et_pts)
-        shape.finish(color=BLACK, width=LW_ROOF)
 
     # Roof slope annotation for East/West (slope directly visible)
     # Standard architectural pitch symbol: compact right triangle with
@@ -631,16 +673,31 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
             shape.draw_line(to_page(h_l, 0), to_page(h_r, 0))
             shape.finish(color=BLACK, width=LW_OPENING)
 
-        # Opening dimension label (width × height in inches)
+        # Opening dimension label (width x height in inches)
         w_in = _fmt_inches(h_r - h_l)
         h_in = _fmt_inches(z_t - z_b)
-        dim_label = f"{w_in} x {h_in}"
         h_ctr = (h_l + h_r) / 2
         z_ctr = (z_b + z_t) / 2
         lbl_pt = to_page(h_ctr, z_ctr)
-        tw = len(dim_label) * LABEL_FONT * 0.3
-        shape.insert_text(fitz.Point(lbl_pt.x - tw, lbl_pt.y + 2),
-                          dim_label, fontsize=LABEL_FONT, color=BLACK)
+        # Approximate page width of the opening
+        op_page_w = abs(to_page(h_r, 0).x - to_page(h_l, 0).x)
+        dim_label = f"{w_in} x {h_in}"
+        char_w = LABEL_FONT * 0.42  # approximate character width
+        label_w = len(dim_label) * char_w
+        if label_w > op_page_w * 0.85:
+            # Narrow opening: stack on two lines, centered above midline
+            for i, line in enumerate((w_in, f"x {h_in}")):
+                lw = len(line) * char_w
+                # Both lines sit above the midline: line 0 higher, line 1 just above
+                y_off = -(1 - i) * (LABEL_FONT + 1) - 2
+                shape.insert_text(
+                    fitz.Point(lbl_pt.x - lw / 2, lbl_pt.y + y_off),
+                    line, fontsize=LABEL_FONT, color=BLACK)
+        else:
+            # Single line, centered horizontally, just above midline
+            shape.insert_text(
+                fitz.Point(lbl_pt.x - label_w / 2, lbl_pt.y - 3),
+                dim_label, fontsize=LABEL_FONT, color=BLACK)
 
     # ── 7. Dimension lines ─────────────────────────────────────────
     # --- Vertical dimensions (left side) ---
