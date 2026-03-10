@@ -473,23 +473,40 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
                       fontsize=LABEL_FONT, color=GRAY)
 
     # ── 5. Building silhouette ─────────────────────────────────────
-    # Build silhouette polygon: grade → right side → roof top → left side
-    sil_pts = []
-    sil_pts.append(to_page(upper_profile[0][0], 0))   # bottom-left
-    sil_pts.append(to_page(upper_profile[-1][0], 0))   # bottom-right
-    # Right side up
-    sil_pts.append(to_page(upper_profile[-1][0], upper_profile[-1][1]))
-    # Roof top profile right-to-left
-    for h, z in reversed(upper_profile):
-        sil_pts.append(to_page(h, z))
-    # Close left side
-    sil_pts.append(to_page(upper_profile[0][0], 0))
+    # The wall face extends from grade to WALL_HEIGHT_FT between h_min_wall
+    # and h_max_wall.  The roof overhangs 6" beyond the wall on each side.
+    # Build the silhouette as: wall rect + roof polygon on top.
 
-    shape.draw_polyline(sil_pts)
+    # Wall rectangle (grade to wall top, wall-face edges only)
+    wall_sil = [
+        to_page(h_min_wall, 0),
+        to_page(h_max_wall, 0),
+        to_page(h_max_wall, WALL_HEIGHT_FT),
+        to_page(h_min_wall, WALL_HEIGHT_FT),
+    ]
+    shape.draw_polyline(wall_sil)
     shape.finish(color=BLACK, width=LW_OUTLINE, fill=WALL_FILL,
                  closePath=True)
 
-    # Eave/soffit line (roof underside — lower half of roof projection)
+    # Roof slab polygon (from eave_under to roof top profile)
+    # This sits on top of the wall and overhangs on both sides.
+    if upper_profile and eave_under:
+        roof_sil = []
+        # Bottom edge of roof slab (soffit) left-to-right
+        for h, z in eave_under:
+            roof_sil.append(to_page(h, z))
+        # Right fascia (up from soffit to roof top)
+        roof_sil.append(to_page(upper_profile[-1][0], upper_profile[-1][1]))
+        # Top edge of roof slab right-to-left
+        for h, z in reversed(upper_profile):
+            roof_sil.append(to_page(h, z))
+        # Left fascia (down from roof top to soffit)
+        roof_sil.append(to_page(eave_under[0][0], eave_under[0][1]))
+        shape.draw_polyline(roof_sil)
+        shape.finish(color=BLACK, width=LW_ROOF, fill=WALL_FILL,
+                     closePath=True)
+
+    # Eave/soffit line (roof underside)
     if eave_under:
         eu_pts = [to_page(h, z) for h, z in eave_under]
         shape.draw_polyline(eu_pts)
@@ -502,52 +519,65 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         shape.finish(color=BLACK, width=LW_ROOF)
 
     # Vertical fascia strips at the left and right ends
-    if eave_under and eave_top:
+    if eave_under and upper_profile:
         shape.draw_line(to_page(eave_under[0][0], eave_under[0][1]),
-                        to_page(eave_top[0][0], eave_top[0][1]))
+                        to_page(upper_profile[0][0], upper_profile[0][1]))
         shape.finish(color=BLACK, width=LW_ROOF)
         shape.draw_line(to_page(eave_under[-1][0], eave_under[-1][1]),
-                        to_page(eave_top[-1][0], eave_top[-1][1]))
+                        to_page(upper_profile[-1][0], upper_profile[-1][1]))
         shape.finish(color=BLACK, width=LW_ROOF)
 
     # Roof slope annotation for East/West (slope directly visible)
-    # Standard architectural pitch symbol: right triangle with 12 horizontal, 2 vertical
+    # Standard architectural pitch symbol: compact right triangle with
+    # hypotenuse ON the roof slope.  Right angle on the ridge (high) side.
+    # Horizontal leg labelled "12", vertical leg labelled "2".
     if not is_south_north and len(upper_profile) > 4:
-        # Find mid-profile point and place symbol well inside the building
-        idx_mid = len(upper_profile) // 2
-        h_m, z_m = upper_profile[idx_mid]
-        # Place at wall-height level (safely inside building, below roof)
-        z_place = WALL_HEIGHT_FT - 1.0
-        # Pitch symbol: horizontal leg = 3ft, vertical leg = 3 * 2/12 = 0.5ft
-        leg_h = 3.0   # horizontal leg in building-ft
-        leg_v = leg_h * ROOF_SLOPE  # vertical leg
-        if name == "West":
-            # Roof slopes up to the left (north = left in west view)
-            p_bl = to_page(h_m + leg_h / 2, z_place)       # bottom-right of horiz leg
-            p_br = to_page(h_m - leg_h / 2, z_place)       # bottom-left
-            p_top = to_page(h_m - leg_h / 2, z_place + leg_v)  # top-left
+        # Fixed symbol size: horizontal leg ≈ 1" on paper → run_ft = 1/scale
+        sym_page_w = 60.0   # ~0.8" on paper for horizontal leg
+        run_ft = sym_page_w / scale
+        rise_ft = run_ft * ROOF_SLOPE
+
+        # Anchor at ~45% along the roof profile (from low side)
+        idx_pos = int(len(upper_profile) * 0.45)
+        h_anchor, z_anchor = upper_profile[idx_pos]
+
+        if name == "East":
+            # Roof slopes up to the right; right angle at upper-right
+            h_lo = h_anchor
+            z_lo = z_anchor
+            h_hi = h_anchor + run_ft
+            z_hi = z_anchor + rise_ft
+            p_hyp_lo = to_page(h_lo, z_lo)          # low end of hypotenuse
+            p_corner = to_page(h_hi, z_lo)           # right-angle corner
+            p_hyp_hi = to_page(h_hi, z_hi)           # high end of hypotenuse
+            # "2" to the right of vertical leg
+            v_lbl = fitz.Point(p_corner.x + 3,
+                               (p_corner.y + p_hyp_hi.y) / 2 + 3)
+            # "12" below horizontal leg
+            h_lbl = fitz.Point((p_hyp_lo.x + p_corner.x) / 2 - 5,
+                               p_corner.y + 10)
         else:
-            # East: roof slopes up to the right (north = right)
-            p_bl = to_page(h_m - leg_h / 2, z_place)       # bottom-left
-            p_br = to_page(h_m + leg_h / 2, z_place)       # bottom-right
-            p_top = to_page(h_m + leg_h / 2, z_place + leg_v)  # top-right
-        tri = [p_bl, p_br, p_top]
+            # West: roof slopes up to the left; right angle at upper-left
+            h_lo = h_anchor
+            z_lo = z_anchor
+            h_hi = h_anchor - run_ft
+            z_hi = z_anchor + rise_ft
+            p_hyp_lo = to_page(h_lo, z_lo)          # low end (right)
+            p_corner = to_page(h_hi, z_lo)           # right-angle corner (left)
+            p_hyp_hi = to_page(h_hi, z_hi)           # high end (left)
+            # "2" to the left of vertical leg
+            v_lbl = fitz.Point(p_corner.x - 12,
+                               (p_corner.y + p_hyp_hi.y) / 2 + 3)
+            # "12" below horizontal leg
+            h_lbl = fitz.Point((p_hyp_lo.x + p_corner.x) / 2 - 5,
+                               p_corner.y + 10)
+
+        # Draw: low → corner (horiz) → high (vert), close = hypotenuse
+        tri = [p_hyp_lo, p_corner, p_hyp_hi]
         shape.draw_polyline(tri)
         shape.finish(color=BLACK, width=LW_DIM, closePath=True)
-        # "2" label on vertical leg, "12" on horizontal leg
-        v_mid_x = (p_br.x + p_top.x) / 2
-        v_mid_y = (p_br.y + p_top.y) / 2
-        h_mid_x = (p_bl.x + p_br.x) / 2
-        h_mid_y = p_bl.y
-        # Offset labels slightly from the legs
-        if name == "West":
-            shape.insert_text(fitz.Point(v_mid_x - 12, v_mid_y + 3),
-                              "2", fontsize=LABEL_FONT, color=BLACK)
-        else:
-            shape.insert_text(fitz.Point(v_mid_x + 3, v_mid_y + 3),
-                              "2", fontsize=LABEL_FONT, color=BLACK)
-        shape.insert_text(fitz.Point(h_mid_x - 4, h_mid_y + 10),
-                          "12", fontsize=LABEL_FONT, color=BLACK)
+        shape.insert_text(v_lbl, "2", fontsize=LABEL_FONT, color=BLACK)
+        shape.insert_text(h_lbl, "12", fontsize=LABEL_FONT, color=BLACK)
 
     # ── 6. Openings ────────────────────────────────────────────────
     for op_name, h_l, h_r, z_b, z_t, is_door in visible_openings:
