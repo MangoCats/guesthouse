@@ -324,7 +324,7 @@ def _upper_envelope(pts_list, n_bins=300):
 def _generate_elevation(name, h_func, depth_func, normal_test,
                         pts, outline_segs, outline_poly, roof_poly,
                         roof_z_offset, wall_openings, outer_openings,
-                        filename):
+                        filename, roof_pts=None, roof_geo=None):
     """Generate one elevation PDF."""
 
     is_south_north = name in ("South", "North")
@@ -441,8 +441,15 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
 
         # Vertical extent
         is_door = wo.name in ("O3", "O6")
-        z_bot = 0.0 if is_door else LOWER_HEIGHT_FT
-        z_top_op = WALL_HEIGHT_FT
+        if wo.name == "O5":
+            z_bot = 42.0 / 12.0      # 42" sill height
+            z_top_op = 66.0 / 12.0   # 66" head height (24" tall)
+        elif is_door:
+            z_bot = 0.0
+            z_top_op = WALL_HEIGHT_FT
+        else:
+            z_bot = LOWER_HEIGHT_FT
+            z_top_op = WALL_HEIGHT_FT
 
         visible_openings.append((wo.name, h_left, h_right, z_bot, z_top_op,
                                  is_door))
@@ -496,10 +503,10 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
                     to_page(h_max + pad_h * 0.4, 0))
     shape.finish(color=BLACK, width=LW_GRADE)
 
-    # "GRADE" label
-    gl_pt = to_page(h_max + pad_h * 0.15, 0)
-    shape.insert_text(fitz.Point(gl_pt.x, gl_pt.y - 3), "GRADE",
-                      fontsize=LABEL_FONT, color=GRAY)
+    # "GRADE" label — positioned right of the right-side dimension line
+    gl_pt = to_page(h_max, 0)
+    shape.insert_text(fitz.Point(gl_pt.x + DIM_OFFSET_PT + 6, gl_pt.y - 3),
+                      "GRADE", fontsize=LABEL_FONT, color=GRAY)
 
     # ── 5-pre. South/North roof (drawn BEFORE wall so wall fill occludes
     #    lines behind the wall — no analytical clipping needed) ─────
@@ -522,26 +529,33 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
             shape.finish(color=WALL_FILL, width=0, fill=WALL_FILL,
                          closePath=True)
 
-        # Roof top outline — filter by facing direction (same as fascia)
+        # Roof top outline — For South, draw ALL edges (the north-facing
+        # top edges are the high side of the roof, visible from the south).
+        # For North, filter by facing direction (south-facing top edges
+        # are the low side, hidden behind the wall).
         n_top = len(roof_top_proj)
         n_rv = len(roof_under_proj)
         for i in range(n_top):
-            e1, n1 = roof_poly[i]
-            e2, n2 = roof_poly[(i + 1) % n_top]
-            dx, dy = e2 - e1, n2 - n1
-            out_nx, out_ny = -dy, dx
-            L = (out_nx**2 + out_ny**2)**0.5
-            if L < 1e-10:
-                continue
-            if _fascia_hidden(out_nx / L, out_ny / L):
-                continue
+            if name == "North":
+                e1, n1 = roof_poly[i]
+                e2, n2 = roof_poly[(i + 1) % n_top]
+                dx, dy = e2 - e1, n2 - n1
+                out_nx, out_ny = -dy, dx
+                L = (out_nx**2 + out_ny**2)**0.5
+                if L < 1e-10:
+                    continue
+                if _fascia_hidden(out_nx / L, out_ny / L):
+                    continue
             h1, z1 = roof_top_proj[i]
             h2, z2 = roof_top_proj[(i + 1) % n_top]
             if abs(h1 - h2) > 0.01 or abs(z1 - z2) > 0.01:
                 shape.draw_line(to_page(h1, z1), to_page(h2, z2))
                 shape.finish(color=BLACK, width=LW_ROOF)
 
-        # Fascia (soffit) edges — filtered by facing direction
+        # Fascia (soffit) edges — filter by facing direction for both
+        # South and North to avoid back-facing soffit edges showing
+        # through the wall fill (they create straight-line artifacts
+        # across curved wall segments).
         for i in range(n_rv):
             e1, n1 = roof_poly[i]
             e2, n2 = roof_poly[(i + 1) % n_rv]
@@ -604,7 +618,26 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
     # ── 5b. Curve shading on curved wall segments ──────────────────
     # Drawn after wall fill so hatching is visible on top of the wall color.
     # Hatch lines are inset slightly from grade and soffit to avoid bleed.
+    #
+    # First pass: collect all visible arcs with their samples and h ranges,
+    # so we can do depth-based occlusion (skip shading for a farther arc
+    # where a closer arc covers the same h position).
+    # Also collect visible line segments for wall-occludes-arc checks.
     SHADE_INSET = 0.04  # feet inset from grade (bottom) and soffit (top)
+    _vis_lines = []  # list of (h1, d1, h2, d2) for visible LineSeg walls
+    for seg in outline_segs:
+        if isinstance(seg, ArcSeg):
+            continue
+        nx, ny = _seg_outward_normal(pts, seg)
+        if not normal_test(nx, ny):
+            continue
+        p1 = pts[seg.start]
+        p2 = pts[seg.end]
+        h1, d1 = h_func(*p1), depth_func(*p1)
+        h2, d2 = h_func(*p2), depth_func(*p2)
+        _vis_lines.append((h1, d1, h2, d2))
+
+    _vis_arcs = []  # list of (seg, samples, d_min, d_max, d_range, h_min, h_max)
     for seg in outline_segs:
         if not isinstance(seg, ArcSeg):
             continue
@@ -641,9 +674,48 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         if d_range < 0.02:
             continue  # nearly flat — no shading needed
 
-        # Draw vertical hatch lines with density proportional to depth
+        h_vals = [h for h, _ in samples]
+        _vis_arcs.append((seg, samples, d_min, d_max, d_range,
+                          min(h_vals), max(h_vals)))
+
+    # Second pass: draw shading with depth-based occlusion.
+    for arc_idx, (seg, samples, d_min, d_max, d_range, _hlo, _hhi) in enumerate(_vis_arcs):
+        # For CCW (concave) arcs, reverse t so junctions with adjacent
+        # CW (convex) arcs share the same darkness at the meeting point.
+        _ccw = seg.direction == "CCW"
         for h, d in samples:
+            # Skip if a closer wall (line segment) or arc covers this h
+            _occluded = False
+            # Check line segments first (walls in front hide curves behind)
+            for lh1, ld1, lh2, ld2 in _vis_lines:
+                lo, hi = min(lh1, lh2), max(lh1, lh2)
+                if lo <= h <= hi and (hi - lo) > 0.01:
+                    # Interpolate depth along the line at this h
+                    frac = (h - lh1) / (lh2 - lh1)
+                    ld = ld1 + frac * (ld2 - ld1)
+                    if ld < d:
+                        _occluded = True
+                        break
+            if not _occluded:
+                # Check other arcs
+                for oi, (_, _, _, _, _, o_hlo, o_hhi) in enumerate(_vis_arcs):
+                    if oi == arc_idx:
+                        continue
+                    if o_hlo <= h <= o_hhi:
+                        o_samples = _vis_arcs[oi][1]
+                        best_od = None
+                        for oh, od in o_samples:
+                            if abs(oh - h) < 0.3:
+                                if best_od is None or od < best_od:
+                                    best_od = od
+                        if best_od is not None and best_od < d:
+                            _occluded = True
+                            break
+            if _occluded:
+                continue
             t = (d - d_min) / d_range          # 0 = closest, 1 = farthest
+            if _ccw:
+                t = 1.0 - t
             if t < 0.08:
                 continue                        # skip near the apex
             gray_val = 0.96 - 0.18 * t          # subtle range: 0.96 → 0.78
@@ -667,6 +739,161 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         shape.finish(color=BLACK, width=LW_ROOF, fill=WALL_FILL,
                      closePath=True)
 
+    # ── 5d. Roof ridge lines at R5/R6 + roof curve gradients (East/West)
+    if name in ("East", "West") and roof_pts and eave_under and upper_profile:
+        # Sharp ridge lines at R5/R6 (East only)
+        if name == "East":
+            for rname in ("R5", "R6"):
+                if rname in roof_pts:
+                    e_r, n_r = roof_pts[rname]
+                    h_r = h_func(e_r, n_r)
+                    z_bot_r = _interp_profile(eave_under, h_r)
+                    z_top_r = _interp_profile(upper_profile, h_r)
+                    if abs(z_top_r - z_bot_r) > 0.01:
+                        shape.draw_line(to_page(h_r, z_bot_r),
+                                        to_page(h_r, z_top_r))
+                        shape.finish(color=BLACK, width=LW_OUTLINE)
+
+        # Roof arc curve gradients: R4 on East, R3 on West
+        if roof_geo:
+            if name == "East":
+                arc_configs = [("R4s", "R4e", roof_geo.r4_center,
+                                roof_geo.r4_radius)]
+            else:
+                arc_configs = [("R3s", "R3e", roof_geo.r3_center,
+                                roof_geo.r3_radius)]
+            for s_name, e_name, arc_c, arc_r in arc_configs:
+                if s_name not in roof_pts or e_name not in roof_pts:
+                    continue
+                ps = roof_pts[s_name]
+                pe = roof_pts[e_name]
+                a1 = math.atan2(ps[1] - arc_c[1], ps[0] - arc_c[0])
+                a2 = math.atan2(pe[1] - arc_c[1], pe[0] - arc_c[0])
+                # CW arc: sweep from a1 down to a2
+                sweep = (a1 - a2) % (2 * math.pi)
+                n_samp = 60
+                samples = []
+                for i in range(n_samp + 1):
+                    a = a1 - sweep * i / n_samp
+                    e = arc_c[0] + arc_r * math.cos(a)
+                    n_pt = arc_c[1] + arc_r * math.sin(a)
+                    h = h_func(e, n_pt)
+                    d = depth_func(e, n_pt)
+                    samples.append((h, d))
+                depths = [d for _, d in samples]
+                d_min, d_max = min(depths), max(depths)
+                d_range = d_max - d_min
+                if d_range > 0.02:
+                    for h, d in samples:
+                        t = (d - d_min) / d_range
+                        if t < 0.08:
+                            continue
+                        gray_val = 0.96 - 0.18 * t
+                        lw = LW_HATCH * (0.4 + 0.8 * t)
+                        z_bot_r = _interp_profile(eave_under, h)
+                        z_top_r = _interp_profile(upper_profile, h)
+                        if abs(z_top_r - z_bot_r) > 0.01:
+                            shape.draw_line(to_page(h, z_bot_r),
+                                            to_page(h, z_top_r))
+                            shape.finish(color=(gray_val, gray_val, gray_val),
+                                         width=lw)
+
+    # ── 5e. Wall-roof junction lines (North only) ─────────────────
+    # Trace where each visible wall segment meets the roof underside.
+    if name == "North":
+        LW_JUNCTION = 0.35
+        # Collect junction samples per visible segment: list of [(h, z_junc), ...]
+        _junc_segments = []
+        for seg in outline_segs:
+            nx, ny = _seg_outward_normal(pts, seg)
+            if not normal_test(nx, ny):
+                continue
+            p1 = pts[seg.start]
+            p2 = pts[seg.end]
+            samples_hz = []
+            if isinstance(seg, ArcSeg):
+                c = pts[seg.center]
+                R = seg.radius
+                a1 = math.atan2(p1[1] - c[1], p1[0] - c[0])
+                a2 = math.atan2(p2[1] - c[1], p2[0] - c[0])
+                n_samp = 40
+                if seg.direction == "CW":
+                    sweep = (a1 - a2) % (2 * math.pi)
+                    angles = [a1 - sweep * i / n_samp
+                              for i in range(n_samp + 1)]
+                else:
+                    sweep = (a2 - a1) % (2 * math.pi)
+                    angles = [a1 + sweep * i / n_samp
+                              for i in range(n_samp + 1)]
+                for a in angles:
+                    e = c[0] + R * math.cos(a)
+                    n_pt = c[1] + R * math.sin(a)
+                    h = h_func(e, n_pt)
+                    z = ROOF_SLOPE * n_pt + roof_z_offset
+                    samples_hz.append((h, z))
+            else:
+                h1, h2 = h_func(*p1), h_func(*p2)
+                z1 = ROOF_SLOPE * p1[1] + roof_z_offset
+                z2 = ROOF_SLOPE * p2[1] + roof_z_offset
+                samples_hz.append((h1, z1))
+                samples_hz.append((h2, z2))
+            if len(samples_hz) >= 2:
+                _junc_segments.append(samples_hz)
+
+        # Split into line segments and arcs
+        _junc_lines = [s for s in _junc_segments if len(s) <= 2]
+        _junc_arcs = [s for s in _junc_segments if len(s) > 2]
+
+        # Compute arc h-ranges for clipping line segments
+        _arc_h_ranges = []
+        for samples_hz in _junc_arcs:
+            ah = [h for h, _ in samples_hz]
+            _arc_h_ranges.append((min(ah), max(ah)))
+
+        # Draw line segments: skip any whose h-range is mostly
+        # covered by an arc (the arc will handle that region)
+        WHITE = (1, 1, 1)
+        for samples_hz in _junc_lines:
+            lh1, _ = samples_hz[0]
+            lh2, _ = samples_hz[1]
+            lo, hi = min(lh1, lh2), max(lh1, lh2)
+            span = hi - lo
+            if span < 0.01:
+                continue
+            # Check how much of this line is covered by arcs
+            covered = 0.0
+            for alo, ahi in _arc_h_ranges:
+                olap_lo = max(lo, alo)
+                olap_hi = min(hi, ahi)
+                if olap_hi > olap_lo:
+                    covered += olap_hi - olap_lo
+            if covered / span > 0.5:
+                continue  # mostly inside an arc — skip
+            # White fill
+            fill_poly = [to_page(h, z) for h, z in samples_hz]
+            for h, _ in reversed(samples_hz):
+                z_soffit = _interp_profile(eave_under, h)
+                fill_poly.append(to_page(h, z_soffit))
+            shape.draw_polyline(fill_poly)
+            shape.finish(color=None, width=0, fill=WHITE, closePath=True)
+            # Junction line
+            shape.draw_line(to_page(*samples_hz[0]),
+                            to_page(*samples_hz[1]))
+            shape.finish(color=BLACK, width=LW_JUNCTION)
+
+        # Draw arcs on top (white fill + junction curve)
+        for samples_hz in _junc_arcs:
+            fill_poly = [to_page(h, z) for h, z in samples_hz]
+            for h, _ in reversed(samples_hz):
+                z_soffit = _interp_profile(eave_under, h)
+                fill_poly.append(to_page(h, z_soffit))
+            shape.draw_polyline(fill_poly)
+            shape.finish(color=None, width=0, fill=WHITE, closePath=True)
+        for samples_hz in _junc_arcs:
+            junc_pts = [to_page(h, z) for h, z in samples_hz]
+            shape.draw_polyline(junc_pts)
+            shape.finish(color=BLACK, width=LW_JUNCTION)
+
     # Roof slope annotation for East/West (slope directly visible)
     # Standard architectural pitch symbol: compact right triangle with
     # hypotenuse ON the roof slope.  Right angle on the ridge (high) side.
@@ -677,9 +904,24 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         run_ft = sym_page_w / scale
         rise_ft = run_ft * ROOF_SLOPE
 
-        # Anchor at ~45% along the roof profile (from low side)
-        idx_pos = int(len(upper_profile) * 0.45)
-        h_anchor, z_anchor = upper_profile[idx_pos]
+        # Anchor position: East centers over O7 opening; otherwise 45%
+        # along the roof profile (from low side).
+        if name == "East":
+            # Find O7 h-center from visible_openings
+            o7_h_center = None
+            for oname, h_l, h_r, *_ in visible_openings:
+                if oname == "O7":
+                    o7_h_center = (h_l + h_r) / 2
+                    break
+            if o7_h_center is not None:
+                h_anchor = o7_h_center - run_ft / 2  # center symbol over O7
+                z_anchor = _interp_profile(upper_profile, h_anchor)
+            else:
+                idx_pos = int(len(upper_profile) * 0.45)
+                h_anchor, z_anchor = upper_profile[idx_pos]
+        else:
+            idx_pos = int(len(upper_profile) * 0.45)
+            h_anchor, z_anchor = upper_profile[idx_pos]
 
         if name == "East":
             # Roof slopes up to the right; right angle at upper-right
@@ -734,69 +976,83 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
             # Window sill line
             shape.draw_line(to_page(h_l, z_b), to_page(h_r, z_b))
             shape.finish(color=BLACK, width=LW_SILL)
-            # Window cross (mullion indication)
-            h_mid = (h_l + h_r) / 2
-            z_mid = (z_b + z_t) / 2
-            shape.draw_line(to_page(h_mid, z_b), to_page(h_mid, z_t))
-            shape.finish(color=GRAY, width=0.3)
-            shape.draw_line(to_page(h_l, z_mid), to_page(h_r, z_mid))
-            shape.finish(color=GRAY, width=0.3)
         else:
             # Door threshold line
             shape.draw_line(to_page(h_l, 0), to_page(h_r, 0))
             shape.finish(color=BLACK, width=LW_OPENING)
 
-        # Opening dimension label (width x height in inches)
-        w_in = _fmt_inches(h_r - h_l)
-        h_in = _fmt_inches(z_t - z_b)
-        h_ctr = (h_l + h_r) / 2
-        z_ctr = (z_b + z_t) / 2
-        lbl_pt = to_page(h_ctr, z_ctr)
-        # Approximate page width of the opening
-        op_page_w = abs(to_page(h_r, 0).x - to_page(h_l, 0).x)
-        dim_label = f"{w_in} x {h_in}"
-        char_w = LABEL_FONT * 0.42  # approximate character width
-        label_w = len(dim_label) * char_w
-        if label_w > op_page_w * 0.85:
-            # Narrow opening: stack on two lines, centered above midline
-            for i, line in enumerate((w_in, f"x {h_in}")):
-                lw = len(line) * char_w
-                # Both lines sit above the midline: line 0 higher, line 1 just above
-                y_off = -(1 - i) * (LABEL_FONT + 1) - 2
-                shape.insert_text(
-                    fitz.Point(lbl_pt.x - lw / 2, lbl_pt.y + y_off),
-                    line, fontsize=LABEL_FONT, color=BLACK)
-        else:
-            # Single line, centered horizontally, just above midline
-            shape.insert_text(
-                fitz.Point(lbl_pt.x - label_w / 2, lbl_pt.y - 3),
-                dim_label, fontsize=LABEL_FONT, color=BLACK)
+
 
     # ── 7. Dimension lines ─────────────────────────────────────────
     # --- Vertical dimensions (left side) ---
     dim_x = to_page(h_min, 0).x - DIM_OFFSET_PT
 
-    # Grade to eave (roof underside at viewer-side)
-    z_eave = z_eave_repr
-    _draw_dim_v(shape, to_page, h_min, 0, z_eave, dim_x,
-                label=_fmt_ft_in(z_eave))
+    # Grade to eave (roof underside).  For East/West cross-section views,
+    # measure to the bottommost (lowest z) edge of the roof soffit.
+    if not is_south_north and eave_under:
+        z_eave = min(z for _, z in eave_under)
+    else:
+        z_eave = z_eave_repr
 
-    # Grade to ridge (overall height)
-    dim_x2 = dim_x - DIM_GAP_PT
-    max_z_entry = max(upper_profile, key=lambda x: x[1])
-    _draw_dim_v(shape, to_page, h_min, 0, max_z_entry[1], dim_x2,
-                label=_fmt_ft_in(max_z_entry[1]))
+    # West: swap eave/slab dims to right side, wall height to left side
+    if name == "West":
+        dim_x_r = to_page(h_max, 0).x + DIM_OFFSET_PT
+        _draw_dim_v(shape, to_page, h_max, 0, z_eave, dim_x_r,
+                    label=_fmt_ft_in(z_eave))
+        if not is_south_north and upper_profile:
+            z_roof_top_south = min(z for _, z in upper_profile)
+            _draw_dim_v(shape, to_page, h_max, z_eave, z_roof_top_south,
+                        dim_x_r,
+                        label=_fmt_ft_in(z_roof_top_south - z_eave))
+        _draw_dim_v(shape, to_page, h_min, 0, WALL_HEIGHT_FT, dim_x,
+                    label=_fmt_ft_in(WALL_HEIGHT_FT))
+    elif name == "North" and roof_pts:
+        # Dim 1: GRADE to roof bottom at R6
+        e6, n6 = roof_pts["R6"]
+        h_r6 = h_func(e6, n6)
+        z_under_r6 = ROOF_SLOPE * n6 + roof_z_offset
+        _draw_dim_v(shape, to_page, h_r6, 0, z_under_r6, dim_x,
+                    label=_fmt_ft_in(z_under_r6))
+        # Dim 2: GRADE to roof bottom at R5
+        e5, n5 = roof_pts["R5"]
+        h_r5 = h_func(e5, n5)
+        z_under_r5 = ROOF_SLOPE * n5 + roof_z_offset
+        dim_x2n = dim_x - DIM_GAP_PT
+        _draw_dim_v(shape, to_page, h_r5, 0, z_under_r5, dim_x2n,
+                    label=_fmt_ft_in(z_under_r5))
+        # Dim 3: roof bottom to roof top at R5 (stacked)
+        z_top_r5 = z_under_r5 + ROOF_THICK_FT
+        _draw_dim_v(shape, to_page, h_r5, z_under_r5, z_top_r5, dim_x2n,
+                    label=_fmt_ft_in(ROOF_THICK_FT))
+        dim_x_r = to_page(h_max, 0).x + DIM_OFFSET_PT
+        _draw_dim_v(shape, to_page, h_max, 0, WALL_HEIGHT_FT, dim_x_r,
+                    label=_fmt_ft_in(WALL_HEIGHT_FT))
+    else:
+        _draw_dim_v(shape, to_page, h_min, 0, z_eave, dim_x,
+                    label=_fmt_ft_in(z_eave))
+        if not is_south_north and upper_profile:
+            z_roof_top_south = min(z for _, z in upper_profile)
+            _draw_dim_v(shape, to_page, h_min, z_eave, z_roof_top_south,
+                        dim_x,
+                        label=_fmt_ft_in(z_roof_top_south - z_eave))
+        dim_x_r = to_page(h_max, 0).x + DIM_OFFSET_PT
+        _draw_dim_v(shape, to_page, h_max, 0, WALL_HEIGHT_FT, dim_x_r,
+                    label=_fmt_ft_in(WALL_HEIGHT_FT))
 
-    # Eave to ridge (if South/North where they differ significantly)
-    if is_south_north and abs(max_z_entry[1] - z_eave) > 0.5:
-        dim_x3 = dim_x - 2 * DIM_GAP_PT
-        _draw_dim_v(shape, to_page, h_min, z_eave, max_z_entry[1], dim_x3,
-                    label=_fmt_ft_in(max_z_entry[1] - z_eave))
+    # Grade to ridge (overall height) — skip for North (has custom R5/R6 dims)
+    if name != "North":
+        dim_x2 = dim_x - DIM_GAP_PT
+        max_z_entry = max(upper_profile, key=lambda x: x[1])
+        _draw_dim_v(shape, to_page, h_min, 0, max_z_entry[1], dim_x2,
+                    label=_fmt_ft_in(max_z_entry[1]))
 
-    # Wall height (grade to wall top = 6'8")
-    dim_x_r = to_page(h_max, 0).x + DIM_OFFSET_PT
-    _draw_dim_v(shape, to_page, h_max, 0, WALL_HEIGHT_FT, dim_x_r,
-                label=_fmt_ft_in(WALL_HEIGHT_FT))
+        # Eave to ridge (if South/North where they differ significantly)
+        if is_south_north and abs(max_z_entry[1] - z_eave) > 0.5:
+            # South: stack on dim_x (above grade-to-eave); others: separate
+            _eave_ridge_x = dim_x if name == "South" else dim_x - 2 * DIM_GAP_PT
+            _draw_dim_v(shape, to_page, h_min, z_eave, max_z_entry[1],
+                        _eave_ridge_x,
+                        label=_fmt_ft_in(max_z_entry[1] - z_eave))
 
     # --- Horizontal dimensions (bottom) ---
     dim_y = to_page(h_min, 0).y + DIM_OFFSET_PT
@@ -824,12 +1080,15 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
 
     # Title text
     title = f"{name.upper()} ELEVATION"
-    shape.insert_text(fitz.Point(36, tb_y + 22), title,
+    shape.insert_text(fitz.Point(36, tb_y + 15), title,
                       fontsize=TITLE_FONT, color=BLACK)
 
     # Subtitle
+    shape.insert_text(fitz.Point(36, tb_y + 26),
+                      "11910 Hood Landing Road ADU",
+                      fontsize=SUBTITLE_FONT, color=GRAY)
     shape.insert_text(fitz.Point(36, tb_y + 36),
-                      "Accessory Dwelling Unit — 2:12 Roof",
+                      "Z 6962",
                       fontsize=SUBTITLE_FONT, color=GRAY)
 
     # Scale
@@ -851,25 +1110,25 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         if abs(in_per_ft - ns) / ns < 0.15:
             best_label = f"Scale: {nl}"
             break
-    shape.insert_text(fitz.Point(400, tb_y + 22), best_label,
+    shape.insert_text(fitz.Point(400, tb_y + 15), best_label,
                       fontsize=SUBTITLE_FONT, color=BLACK)
 
     # Sheet number
     sheet_map = {"South": "A-201", "North": "A-202",
                  "East": "A-203", "West": "A-204"}
-    shape.insert_text(fitz.Point(650, tb_y + 22),
+    shape.insert_text(fitz.Point(650, tb_y + 15),
                       f"Sheet {sheet_map.get(name, 'A-200')}",
                       fontsize=SUBTITLE_FONT, color=BLACK)
 
     # Date placeholder
     import datetime
     date_str = datetime.date.today().strftime("%Y-%m-%d")
-    shape.insert_text(fitz.Point(400, tb_y + 36),
+    shape.insert_text(fitz.Point(400, tb_y + 25),
                       f"Date: {date_str}",
                       fontsize=SUBTITLE_FONT - 1, color=GRAY)
 
     # ── 10. Scale bar ──────────────────────────────────────────────
-    sb_y = tb_y + 50
+    sb_y = tb_y + 35
     sb_x = 400
     bar_ft = 5  # 5-foot scale bar
     bar_len = bar_ft * scale
@@ -882,7 +1141,7 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         shape.draw_line(fitz.Point(x, sb_y - tick_h),
                         fitz.Point(x, sb_y + tick_h))
         if i % 5 == 0 or i == bar_ft:
-            shape.insert_text(fitz.Point(x - 3, sb_y + 12),
+            shape.insert_text(fitz.Point(x - 3, sb_y + 10),
                               f"{i}'", fontsize=5, color=BLACK)
     shape.finish(color=BLACK, width=0.5)
 
@@ -930,20 +1189,21 @@ def generate():
     # Generate each elevation
     elevations = [
         ("South", lambda e, n: e,  lambda e, n: n,
-         lambda nx, ny: ny < -0.5, "elevation_south.pdf"),
+         lambda nx, ny: ny < -0.4, "elevation_south.pdf"),
         ("North", lambda e, n: -e, lambda e, n: -n,
-         lambda nx, ny: ny > 0.5,  "elevation_north.pdf"),
+         lambda nx, ny: ny > 0.1,  "elevation_north.pdf"),
         ("East",  lambda e, n: n,  lambda e, n: -e,
-         lambda nx, ny: nx > 0.5,  "elevation_east.pdf"),
+         lambda nx, ny: nx > 0.2,  "elevation_east.pdf"),
         ("West",  lambda e, n: -n, lambda e, n: e,
-         lambda nx, ny: nx < -0.5, "elevation_west.pdf"),
+         lambda nx, ny: nx < -0.6, "elevation_west.pdf"),
     ]
 
     for elev_name, h_func, depth_func, normal_test, filename in elevations:
         _generate_elevation(
             elev_name, h_func, depth_func, normal_test,
             pts, outline_segs, outline_poly, roof_poly,
-            roof_z_offset, wall_openings, outer_openings, filename)
+            roof_z_offset, wall_openings, outer_openings, filename,
+            roof_pts=roof_geo.pts, roof_geo=roof_geo)
 
 
 if __name__ == "__main__":
