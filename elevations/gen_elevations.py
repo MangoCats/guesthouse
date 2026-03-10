@@ -572,6 +572,18 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
                 shape.draw_line(to_page(h1, z1), to_page(h2, z2))
                 shape.finish(color=BLACK, width=LW_ROOF)
 
+        # Far-side roof bottom edges (R6→R7, R7→R1) — visible from North
+        # above the wall as the south-side soffit line.
+        if name == "North" and roof_pts:
+            for rA, rB in [("R6", "R7"), ("R7", "R1")]:
+                eA, nA = roof_pts[rA]
+                eB, nB = roof_pts[rB]
+                zA = ROOF_SLOPE * nA + roof_z_offset
+                zB = ROOF_SLOPE * nB + roof_z_offset
+                hA, hB = h_func(eA, nA), h_func(eB, nB)
+                shape.draw_line(to_page(hA, zA), to_page(hB, zB))
+                shape.finish(color=BLACK, width=LW_ROOF)
+
         # Fascia side edges at left/right extremes
         visible_soffit = []
         for i in range(n_rv):
