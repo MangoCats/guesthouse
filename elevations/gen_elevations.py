@@ -501,21 +501,97 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
     shape.insert_text(fitz.Point(gl_pt.x, gl_pt.y - 3), "GRADE",
                       fontsize=LABEL_FONT, color=GRAY)
 
-    # ── 5. Building silhouette ─────────────────────────────────────
-    # Wall polygon extends from grade up to the roof soffit (eave_under),
-    # so walls seamlessly meet the bottom of the roof with no gap.
+    # ── 5-pre. South/North roof (drawn BEFORE wall so wall fill occludes
+    #    lines behind the wall — no analytical clipping needed) ─────
+    if is_south_north and roof_top_proj:
+        # roof_poly is CCW; outward normal for CCW edge (dx,dy) is (-dy,dx).
+        if name == "South":
+            _fascia_hidden = lambda nx, ny: ny > 0.3
+        else:  # North
+            _fascia_hidden = lambda nx, ny: ny < -0.3
 
+        # Roof slab fill: soffit to upper envelope
+        if eave_under and upper_profile:
+            fill_poly = [to_page(h, z) for h, z in eave_under]
+            fill_poly.append(to_page(upper_profile[-1][0],
+                                     upper_profile[-1][1]))
+            for h, z in reversed(upper_profile):
+                fill_poly.append(to_page(h, z))
+            fill_poly.append(to_page(eave_under[0][0], eave_under[0][1]))
+            shape.draw_polyline(fill_poly)
+            shape.finish(color=WALL_FILL, width=0, fill=WALL_FILL,
+                         closePath=True)
+
+        # Roof top outline — filter by facing direction (same as fascia)
+        n_top = len(roof_top_proj)
+        n_rv = len(roof_under_proj)
+        for i in range(n_top):
+            e1, n1 = roof_poly[i]
+            e2, n2 = roof_poly[(i + 1) % n_top]
+            dx, dy = e2 - e1, n2 - n1
+            out_nx, out_ny = -dy, dx
+            L = (out_nx**2 + out_ny**2)**0.5
+            if L < 1e-10:
+                continue
+            if _fascia_hidden(out_nx / L, out_ny / L):
+                continue
+            h1, z1 = roof_top_proj[i]
+            h2, z2 = roof_top_proj[(i + 1) % n_top]
+            if abs(h1 - h2) > 0.01 or abs(z1 - z2) > 0.01:
+                shape.draw_line(to_page(h1, z1), to_page(h2, z2))
+                shape.finish(color=BLACK, width=LW_ROOF)
+
+        # Fascia (soffit) edges — filtered by facing direction
+        for i in range(n_rv):
+            e1, n1 = roof_poly[i]
+            e2, n2 = roof_poly[(i + 1) % n_rv]
+            dx, dy = e2 - e1, n2 - n1
+            out_nx, out_ny = -dy, dx
+            L = (out_nx**2 + out_ny**2)**0.5
+            if L < 1e-10:
+                continue
+            if _fascia_hidden(out_nx / L, out_ny / L):
+                continue
+            h1, z1 = roof_under_proj[i]
+            h2, z2 = roof_under_proj[(i + 1) % n_rv]
+            if abs(h1 - h2) > 0.01 or abs(z1 - z2) > 0.01:
+                shape.draw_line(to_page(h1, z1), to_page(h2, z2))
+                shape.finish(color=BLACK, width=LW_ROOF)
+
+        # Fascia side edges at left/right extremes
+        visible_soffit = []
+        for i in range(n_rv):
+            e1, n1 = roof_poly[i]
+            e2, n2 = roof_poly[(i + 1) % n_rv]
+            dx, dy = e2 - e1, n2 - n1
+            out_nx, out_ny = -dy, dx
+            L = (out_nx**2 + out_ny**2)**0.5
+            if L > 1e-10 and not _fascia_hidden(out_nx / L, out_ny / L):
+                visible_soffit.append(i)
+                visible_soffit.append((i + 1) % n_rv)
+        if visible_soffit:
+            left_idx = min(visible_soffit,
+                           key=lambda j: roof_under_proj[j][0])
+            right_idx = max(visible_soffit,
+                            key=lambda j: roof_under_proj[j][0])
+            for idx in (left_idx, right_idx):
+                h_bot, z_bot = roof_under_proj[idx]
+                h_top, z_top = roof_top_proj[idx]
+                if abs(z_top - z_bot) > 0.01:
+                    shape.draw_line(to_page(h_bot, z_bot),
+                                    to_page(h_top, z_top))
+                    shape.finish(color=BLACK, width=LW_ROOF)
+
+    # ── 5. Building silhouette ─────────────────────────────────────
+    # Wall polygon: grade to wall top (eave_under clipped to wall range).
     wall_sil = [to_page(h_min_wall, 0), to_page(h_max_wall, 0)]
     if eave_under:
-        # Right side up to soffit
         wall_sil.append(to_page(h_max_wall,
                                 _interp_profile(eave_under, h_max_wall)))
-        # Top follows soffit right-to-left (clipped to wall range)
         eu_clipped = [(h, z) for h, z in eave_under
                       if h_min_wall <= h <= h_max_wall]
         for h, z in reversed(eu_clipped):
             wall_sil.append(to_page(h, z))
-        # Left side back down
         wall_sil.append(to_page(h_min_wall,
                                 _interp_profile(eave_under, h_min_wall)))
     else:
@@ -526,9 +602,9 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
                  closePath=True)
 
     # ── 5b. Curve shading on curved wall segments ──────────────────
-    # Graduated vertical hatching indicates where the wall curves away
-    # from the viewer.  Convex walls get denser hatching at the edges;
-    # concave walls get denser hatching at the center.
+    # Drawn after wall fill so hatching is visible on top of the wall color.
+    # Hatch lines are inset slightly from grade and soffit to avoid bleed.
+    SHADE_INSET = 0.04  # feet inset from grade (bottom) and soffit (top)
     for seg in outline_segs:
         if not isinstance(seg, ArcSeg):
             continue
@@ -572,23 +648,20 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
                 continue                        # skip near the apex
             gray_val = 0.96 - 0.18 * t          # subtle range: 0.96 → 0.78
             lw = LW_HATCH * (0.4 + 0.8 * t)    # thinner near apex
-            z_top_h = _interp_profile(eave_under, h) if eave_under else WALL_HEIGHT_FT
-            shape.draw_line(to_page(h, 0), to_page(h, z_top_h))
+            z_top_h = (_interp_profile(eave_under, h) if eave_under
+                       else WALL_HEIGHT_FT) - SHADE_INSET
+            shape.draw_line(to_page(h, SHADE_INSET), to_page(h, z_top_h))
             shape.finish(color=(gray_val, gray_val, gray_val), width=lw)
 
-    # Roof slab polygon (from eave_under to roof top profile)
-    # This sits on top of the wall and overhangs on both sides.
-    if upper_profile and eave_under:
+    # ── 5c. Roof (East/West only — South/North handled in 5-pre) ──
+    if not is_south_north and upper_profile and eave_under:
+        # East/West: full roof slab cross-section
         roof_sil = []
-        # Bottom edge of roof slab (soffit) left-to-right
         for h, z in eave_under:
             roof_sil.append(to_page(h, z))
-        # Right fascia (up from soffit to roof top)
         roof_sil.append(to_page(upper_profile[-1][0], upper_profile[-1][1]))
-        # Top edge of roof slab right-to-left
         for h, z in reversed(upper_profile):
             roof_sil.append(to_page(h, z))
-        # Left fascia (down from roof top to soffit)
         roof_sil.append(to_page(eave_under[0][0], eave_under[0][1]))
         shape.draw_polyline(roof_sil)
         shape.finish(color=BLACK, width=LW_ROOF, fill=WALL_FILL,
@@ -737,15 +810,7 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
                                      upper_profile[0][0])
                                  if upper_profile else 0))
 
-    # ── 8. Roof slope annotation (South/North) ────────────────────
-    if is_south_north:
-        # Add "2:12 SLOPE" text near the ridge
-        if ridge_half:
-            mid_rt = ridge_half[len(ridge_half) // 2]
-            rt_pt = to_page(mid_rt[0], mid_rt[1])
-            shape.insert_text(fitz.Point(rt_pt.x - 20, rt_pt.y - 6),
-                              f"ROOF SLOPE {_fmt_slope()}",
-                              fontsize=LABEL_FONT, color=BLACK)
+    # (Roof slope annotation omitted for South/North; shown on East/West.)
 
     # ── 9. Title block ─────────────────────────────────────────────
     # Border
