@@ -246,6 +246,35 @@ def _draw_dim_v(shape, to_page, h_anchor, z1, z2, dim_x_pt, label=None):
 
 # ── Main elevation drawing ─────────────────────────────────────────────
 
+def _interp_profile(profile, h):
+    """Linearly interpolate z at a given h from a (h, z) profile."""
+    if not profile:
+        return WALL_HEIGHT_FT
+    if h <= profile[0][0]:
+        return profile[0][1]
+    if h >= profile[-1][0]:
+        return profile[-1][1]
+    for i in range(len(profile) - 1):
+        h0, z0 = profile[i]
+        h1, z1 = profile[i + 1]
+        if h0 <= h <= h1:
+            if abs(h1 - h0) < 1e-10:
+                return z0
+            t = (h - h0) / (h1 - h0)
+            return z0 + t * (z1 - z0)
+    return profile[-1][1]
+
+
+def _fmt_inches(ft):
+    """Format feet as inches, e.g. 36\" — for opening dimensions."""
+    inches = abs(ft) * 12
+    # Round to nearest 0.5"
+    inches = round(inches * 2) / 2
+    if inches == int(inches):
+        return f"{int(inches)}\""
+    return f"{inches}\""
+
+
 def _upper_envelope(pts_list, n_bins=300):
     """Compute the upper envelope of a set of (h, z) points.
 
@@ -473,17 +502,25 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
                       fontsize=LABEL_FONT, color=GRAY)
 
     # ── 5. Building silhouette ─────────────────────────────────────
-    # The wall face extends from grade to WALL_HEIGHT_FT between h_min_wall
-    # and h_max_wall.  The roof overhangs 6" beyond the wall on each side.
-    # Build the silhouette as: wall rect + roof polygon on top.
+    # Wall polygon extends from grade up to the roof soffit (eave_under),
+    # so walls seamlessly meet the bottom of the roof with no gap.
 
-    # Wall rectangle (grade to wall top, wall-face edges only)
-    wall_sil = [
-        to_page(h_min_wall, 0),
-        to_page(h_max_wall, 0),
-        to_page(h_max_wall, WALL_HEIGHT_FT),
-        to_page(h_min_wall, WALL_HEIGHT_FT),
-    ]
+    wall_sil = [to_page(h_min_wall, 0), to_page(h_max_wall, 0)]
+    if eave_under:
+        # Right side up to soffit
+        wall_sil.append(to_page(h_max_wall,
+                                _interp_profile(eave_under, h_max_wall)))
+        # Top follows soffit right-to-left (clipped to wall range)
+        eu_clipped = [(h, z) for h, z in eave_under
+                      if h_min_wall <= h <= h_max_wall]
+        for h, z in reversed(eu_clipped):
+            wall_sil.append(to_page(h, z))
+        # Left side back down
+        wall_sil.append(to_page(h_min_wall,
+                                _interp_profile(eave_under, h_min_wall)))
+    else:
+        wall_sil.append(to_page(h_max_wall, WALL_HEIGHT_FT))
+        wall_sil.append(to_page(h_min_wall, WALL_HEIGHT_FT))
     shape.draw_polyline(wall_sil)
     shape.finish(color=BLACK, width=LW_OUTLINE, fill=WALL_FILL,
                  closePath=True)
@@ -506,25 +543,13 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         shape.finish(color=BLACK, width=LW_ROOF, fill=WALL_FILL,
                      closePath=True)
 
-    # Eave/soffit line (roof underside)
-    if eave_under:
-        eu_pts = [to_page(h, z) for h, z in eave_under]
-        shape.draw_polyline(eu_pts)
-        shape.finish(color=BLACK, width=LW_ROOF)
-
-    # Fascia top line (top of near-side roof edge)
-    if eave_top:
+    # For South/North views, draw the near-side fascia top line (visible
+    # feature: top edge of the fascia board, between soffit and ridge).
+    # For East/West views the filled roof polygon silhouette is sufficient;
+    # drawing additional lines would show hidden far-side edges.
+    if is_south_north and eave_top:
         et_pts = [to_page(h, z) for h, z in eave_top]
         shape.draw_polyline(et_pts)
-        shape.finish(color=BLACK, width=LW_ROOF)
-
-    # Vertical fascia strips at the left and right ends
-    if eave_under and upper_profile:
-        shape.draw_line(to_page(eave_under[0][0], eave_under[0][1]),
-                        to_page(upper_profile[0][0], upper_profile[0][1]))
-        shape.finish(color=BLACK, width=LW_ROOF)
-        shape.draw_line(to_page(eave_under[-1][0], eave_under[-1][1]),
-                        to_page(upper_profile[-1][0], upper_profile[-1][1]))
         shape.finish(color=BLACK, width=LW_ROOF)
 
     # Roof slope annotation for East/West (slope directly visible)
@@ -580,7 +605,7 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
         shape.insert_text(h_lbl, "12", fontsize=LABEL_FONT, color=BLACK)
 
     # ── 6. Openings ────────────────────────────────────────────────
-    for op_name, h_l, h_r, z_b, z_t, is_door in visible_openings:
+    for _, h_l, h_r, z_b, z_t, is_door in visible_openings:
         # Draw opening rectangle (white fill = cut through wall)
         corners = [
             to_page(h_l, z_b), to_page(h_r, z_b),
@@ -606,13 +631,16 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
             shape.draw_line(to_page(h_l, 0), to_page(h_r, 0))
             shape.finish(color=BLACK, width=LW_OPENING)
 
-        # Opening label
+        # Opening dimension label (width × height in inches)
+        w_in = _fmt_inches(h_r - h_l)
+        h_in = _fmt_inches(z_t - z_b)
+        dim_label = f"{w_in} x {h_in}"
         h_ctr = (h_l + h_r) / 2
         z_ctr = (z_b + z_t) / 2
         lbl_pt = to_page(h_ctr, z_ctr)
-        tw = len(op_name) * LABEL_FONT * 0.35
+        tw = len(dim_label) * LABEL_FONT * 0.3
         shape.insert_text(fitz.Point(lbl_pt.x - tw, lbl_pt.y + 2),
-                          op_name, fontsize=LABEL_FONT, color=BLACK)
+                          dim_label, fontsize=LABEL_FONT, color=BLACK)
 
     # ── 7. Dimension lines ─────────────────────────────────────────
     # --- Vertical dimensions (left side) ---
