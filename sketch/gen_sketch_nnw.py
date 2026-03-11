@@ -359,7 +359,7 @@ def main():
         if all(x is not None for x in [wp1, wp2, rp1, rp2]):
             fd = polypath([wp1, wp2, rp2, rp1])
             if fd:
-                svg.append(f'<path d="{fd}" fill="{FASC_F}" stroke="none" opacity="0.6"/>')
+                svg.append(f'<path d="{fd}" fill="{FASC_F}" stroke="none"/>')
 
     # ── 5. Adobe texture (subtle stipple/spatter) ────────────────────
     # Smooth adobe walls: sparse random short marks for surface grain
@@ -424,11 +424,6 @@ def main():
     sp = [p for p in (proj(e, n, rz_bot(n)) for e, n in vis) if p]
     if sp:
         svg.append(f'<path d="{linepath(sp)}" fill="none" stroke="{INK}" stroke-width="1.8"/>')
-    # Wall-height line
-    wtp = [p for p in (proj(e, n, WALL_HT) for e, n in vis) if p]
-    if wtp:
-        svg.append(f'<path d="{linepath(wtp)}" fill="none" stroke="{INK_L}"'
-                   f' stroke-width="0.6" opacity="0.5"/>')
     # Roof top north edge
     rtep = [p for p in (proj(e, n, rz_top(n)) for e, n in ne) if p]
     if rtep:
@@ -469,6 +464,16 @@ def main():
                    f' stroke-width="1.2" opacity="0.3"/>')
 
     # ── 8. Roof texture (standing seam) ──────────────────────────────
+    # Clip to roof top polygon so lines don't bleed onto wall face
+    rt_clip = [p for p in rt_proj if p]
+    _has_roofclip = False
+    if rt_clip:
+        cp = polypath(rt_clip)
+        if cp:
+            svg.append(f'<clipPath id="roofclip"><path d="{cp}"/></clipPath>')
+            _has_roofclip = True
+    if _has_roofclip:
+        svg.append('<g clip-path="url(#roofclip)">')
     re_min = min(p[0] for p in rpoly)
     re_max = max(p[0] for p in rpoly)
     rn_min = min(p[1] for p in rpoly)
@@ -481,16 +486,41 @@ def main():
             svg.append(f'<path d="{sline(p1[0],p1[1],p2[0],p2[1],0.8)}"'
                        f' fill="none" stroke="{INK_L}" stroke-width="0.3" opacity="0.3"/>')
         ev += 2.0
+    if _has_roofclip:
+        svg.append('</g>')
 
     # ── 9. Ground and vegetation ─────────────────────────────────────
-    # Extended ground line
-    for offset in [0, 0.5, -0.5]:
-        gl1 = proj(-35, -14+offset, 0)
-        gl2 = proj(30, -14+offset, 0)
-        if gl1 and gl2:
-            sw = 1.8 if offset == 0 else 0.6
-            svg.append(f'<path d="{sline(gl1[0],gl1[1],gl2[0],gl2[1],1.5)}"'
-                       f' fill="none" stroke="{INK}" stroke-width="{sw}" opacity="0.5"/>')
+    # 4' two-rail fence along 216.73' property line
+    # Line direction (0.2304, -0.9731), passes through ~(28, -8)
+    fence_dir = (0.2304, -0.9731)
+    fence_ref = (28.0, -8.0)
+    FENCE_HT = 4.0
+    RAIL1_Z = 1.5; RAIL2_Z = 3.2       # rail heights
+    POST_SPACING = 8.0
+    n_posts = 9
+    fence_pts = []
+    for i in range(n_posts):
+        t = (i - n_posts//2) * POST_SPACING
+        fe = fence_ref[0] + t * fence_dir[0]
+        fn = fence_ref[1] + t * fence_dir[1]
+        fence_pts.append((fe, fn))
+    # Draw posts
+    for fe, fn in fence_pts:
+        pb = proj(fe, fn, 0)
+        pt = proj(fe, fn, FENCE_HT)
+        if pb and pt:
+            svg.append(f'<path d="{sline(pb[0],pb[1],pt[0],pt[1],0.3)}"'
+                       f' fill="none" stroke="{INK_L}" stroke-width="1.2" opacity="0.5"/>')
+    # Draw rails between consecutive posts
+    for rz in [RAIL1_Z, RAIL2_Z]:
+        rail_scr = []
+        for fe, fn in fence_pts:
+            p = proj(fe, fn, rz)
+            if p:
+                rail_scr.append(p)
+        if len(rail_scr) >= 2:
+            svg.append(f'<path d="{linepath(rail_scr)}"'
+                       f' fill="none" stroke="{INK_L}" stroke-width="0.8" opacity="0.45"/>')
     bl = proj(-25, -14, 0)
     br = proj(20, -14, 0)
     if bl and br:
@@ -510,8 +540,8 @@ def main():
                        random.uniform(14, 22), density=35)
 
     # ── 10. Foreground trees ─────────────────────────────────────────
-    # Large tree right side (partially overlapping building)
-    fg = proj(20, -6, 0)
+    # Large tree right side (clear of O6 door view)
+    fg = proj(28, -8, 0)
     if fg:
         draw_tree(svg, fg[0], fg[1], 350, 200, bare=False)
     # Bare/sparse tree left foreground
@@ -520,18 +550,26 @@ def main():
         draw_tree(svg, fg2[0], fg2[1], 300, 140, bare=True)
 
     # ── 11. Extra foreground vegetation ──────────────────────────────
-    for _ in range(60):
+    # Dense grass across full foreground
+    for _ in range(160):
+        gx = random.uniform(SVG_W*0.05, SVG_W*0.95)
+        gy = random.uniform(SVG_H*0.75, SVG_H*0.96)
+        gh = random.uniform(5, 20)
+        svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-5,5), gy-gh, 0.5)}"'
+                   f' fill="none" stroke="#4a5830" stroke-width="0.6" opacity="0.4"/>')
+    # Extra dense patches at bottom corners
+    for _ in range(80):
         gx = random.uniform(SVG_W*0.55, SVG_W*0.98)
-        gy = random.uniform(SVG_H*0.82, SVG_H*0.95)
+        gy = random.uniform(SVG_H*0.85, SVG_H*0.98)
+        gh = random.uniform(6, 22)
+        svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-6,6), gy-gh, 0.5)}"'
+                   f' fill="none" stroke="#4a5830" stroke-width="0.7" opacity="0.45"/>')
+    for _ in range(80):
+        gx = random.uniform(SVG_W*0.02, SVG_W*0.45)
+        gy = random.uniform(SVG_H*0.85, SVG_H*0.98)
         gh = random.uniform(5, 18)
         svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-5,5), gy-gh, 0.5)}"'
                    f' fill="none" stroke="#4a5830" stroke-width="0.6" opacity="0.4"/>')
-    for _ in range(40):
-        gx = random.uniform(SVG_W*0.02, SVG_W*0.35)
-        gy = random.uniform(SVG_H*0.82, SVG_H*0.95)
-        gh = random.uniform(5, 15)
-        svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-5,5), gy-gh, 0.5)}"'
-                   f' fill="none" stroke="#4a5830" stroke-width="0.5" opacity="0.35"/>')
 
     # ── 12. Shadow hatching ──────────────────────────────────────────
     # Diagonal hatching on upper wall (above window height) for depth
