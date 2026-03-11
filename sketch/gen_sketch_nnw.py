@@ -297,7 +297,7 @@ def main():
     FENCE_HT = 4.0
     RAIL1_Z = 1.5; RAIL2_Z = 3.2
     POST_SPACING = 8.0
-    n_posts = 15                             # enough to span the page
+    n_posts = 25                             # enough to span the page
     fence_pts = []
     for i in range(n_posts):
         t = (i - n_posts // 2) * POST_SPACING
@@ -326,27 +326,24 @@ def main():
     if bl and br:
         draw_ground_veg(svg, bl[0]-80, br[0]+80, (bl[1]+br[1])/2+15, n_strokes=180)
 
-    # ── 2. Wall fill ─────────────────────────────────────────────────
-    # Wall extends from ground to roof soffit at each outline point
+    # ── 2. Building silhouette ─────────────────────────────────────────
+    # Two overlapping opaque fills to ensure nothing behind bleeds through:
+    #   A) Wall face: ground to roof-top along vis outline
+    #   B) Full roof at soffit level: covers back/south overhang underside
     gnd  = [proj(e, n, 0)          for e, n in vis]
-    soff = [proj(e, n, rz_bot(n))  for e, n in vis]
+    rtop = [proj(e, n, rz_top(n))  for e, n in vis]
     gnd_ok  = [p for p in gnd if p]
-    soff_ok = [p for p in reversed(soff) if p]
-    wall_pts = gnd_ok + soff_ok
+    rtop_ok = [p for p in reversed(rtop) if p]
+    wall_pts = gnd_ok + rtop_ok
     wp = polypath(wall_pts)
     if wp:
         svg.append(f'<path d="{wp}" fill="{WALL_F}" stroke="none"/>')
-    # Mask below ground line
-    if len(gnd_ok) >= 2:
-        base_y = max(p[1] for p in gnd_ok) + 3
-        max_y = base_y + 60
-        mask_pts = [(gnd_ok[0][0] - 40, base_y),
-                    (gnd_ok[-1][0] + 40, base_y),
-                    (gnd_ok[-1][0] + 40, max_y),
-                    (gnd_ok[0][0] - 40, max_y)]
-        mfp = polypath(mask_pts)
-        if mfp:
-            svg.append(f'<path d="{mfp}" fill="{BG}" stroke="none"/>')
+    # Full roof at soffit height — covers the back overhang underside
+    rsoff = [proj(e, n, rz_bot(n)) for e, n in rpoly]
+    rsoff_ok = [p for p in rsoff if p]
+    rsp = polypath(rsoff_ok)
+    if rsp:
+        svg.append(f'<path d="{rsp}" fill="{WALL_F}" stroke="none"/>')
 
     # ── 3. Roof top fill ─────────────────────────────────────────────
     rt_proj = [proj(e, n, rz_top(n)) for e, n in rpoly]
@@ -550,8 +547,8 @@ def main():
                        random.uniform(14, 22), density=35)
 
     # ── 10. Foreground trees ─────────────────────────────────────────
-    # Large tree right side — moved forward (north / bearing 0°)
-    fg = proj(28, -2, 0)
+    # Large tree right side — moved further east to clear building
+    fg = proj(36, -2, 0)
     if fg:
         draw_tree(svg, fg[0], fg[1], 350, 200, bare=False)
     # Bare/sparse tree left foreground

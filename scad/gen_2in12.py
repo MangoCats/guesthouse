@@ -40,6 +40,13 @@ ROOF_SLOPE_IN_PER_FT = 2.0   # 2" rise per foot of northing (2:12)
 ROOF_SLOPE = ROOF_SLOPE_IN_PER_FT / 12.0  # ft/ft (rise in Z per ft in Y)
 ROOF_REF_ELEV_FT = 7.5  # 7'6" roof underside elevation at F18-F1
 
+SEAM_SPACING_IN = 16.0    # standing seam on-center spacing (inches)
+SEAM_SPACING_FT = SEAM_SPACING_IN / 12.0
+SEAM_WIDTH_IN = 1.0       # seam rib width (inches)
+SEAM_WIDTH_FT = SEAM_WIDTH_IN / 12.0
+SEAM_HEIGHT_IN = 1.5      # seam rib height (inches)
+SEAM_HEIGHT_FT = SEAM_HEIGHT_IN / 12.0
+
 
 
 # ── U-turn centerline ────────────────────────────────────────
@@ -203,6 +210,9 @@ def generate(gd=None):
     ref_y = pts["F18"][1]  # F18-F1 northing (south reference)
     roof_z_offset = ROOF_REF_ELEV_FT - ROOF_SLOPE * ref_y
     max_roof_y = max(y for _, y in roof_pts)
+    min_roof_y = min(y for _, y in roof_pts)
+    min_roof_x = min(x for x, _ in roof_pts)
+    max_roof_x = max(x for x, _ in roof_pts)
     max_roof_z = ROOF_SLOPE * max_roof_y + roof_z_offset
     max_upper_h = max_roof_z - UPPER_BASE_FT  # generous upper wall height
 
@@ -314,6 +324,9 @@ def generate(gd=None):
     out.append(f"upper_base = {UPPER_BASE_FT:.6f};")
     out.append(f"max_upper_h = {max_upper_h:.6f};")
     out.append(f"roof_thick = {ROOF_THICK_FT:.6f};")
+    out.append(f"seam_spacing = {SEAM_SPACING_FT:.6f};  // {SEAM_SPACING_IN:.0f}\" on center")
+    out.append(f"seam_w = {SEAM_WIDTH_FT:.6f};  // {SEAM_WIDTH_IN:.0f}\" wide")
+    out.append(f"seam_h = {SEAM_HEIGHT_FT:.6f};  // {SEAM_HEIGHT_IN:.1f}\" tall")
     out.append(f"roof_slope = {ROOF_SLOPE:.8f};  // {ROOF_SLOPE_IN_PER_FT}\" per ft (2:12)")
     out.append(f"roof_z_off = {roof_z_offset:.8f};")
     out.append("roof_shear = [[1,0,0,0], [0,1,0,0],")
@@ -411,10 +424,22 @@ def generate(gd=None):
     out.append("  }")
     out.append("}")
     out.append("// Sloped roof slab (18\", 2:12 slope N, 7'6\" at F18-F1)")
-    out.append("color(roof_teal)")
+    out.append("color(roof_teal) {")
     out.append("  multmatrix(roof_shear)")
     out.append("    linear_extrude(height = roof_thick)")
     out.append("      polygon(points = shell_pts(roof_outline, 0));")
+    out.append(f"  // Standing seam ribs ({SEAM_SPACING_IN:.0f}\" o.c., "
+               f"{SEAM_WIDTH_IN:.0f}\" wide, {SEAM_HEIGHT_IN:.1f}\" tall)")
+    out.append("  multmatrix(roof_shear)")
+    out.append(f"    for (x = [{min_roof_x + SEAM_SPACING_FT / 2:.6f} "
+               f": seam_spacing : {max_roof_x:.6f}])")
+    out.append("      intersection() {")
+    out.append(f"        translate([x - seam_w/2, {min_roof_y:.6f}, roof_thick])")
+    out.append(f"          cube([seam_w, {max_roof_y - min_roof_y:.6f}, seam_h]);")
+    out.append("        linear_extrude(height = roof_thick + seam_h + 0.01)")
+    out.append("          polygon(points = shell_pts(roof_outline, 0));")
+    out.append("      }")
+    out.append("}")
     out.append("// Window panels (1\" opaque, middle wall openings only)")
     out.append("window_blue_grey = [0.80, 0.84, 0.90];")
     out.append("color(window_blue_grey) {")

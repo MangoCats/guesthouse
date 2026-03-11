@@ -58,6 +58,9 @@ upper_base = 6.666667;
 upper_height = 2.666667;
 roof_thick = 1.500000;
 max_roof_thick = 2.090278;
+seam_spacing = 1.333333;  // 16" on center
+seam_w = 0.083333;  // 1" wide
+seam_h = 0.125000;  // 1.5" tall
 roof_slope = 0.02083333;  // 0.25" per ft
 roof_z_base = 1.79166667;
 
@@ -419,7 +422,7 @@ color(wall_cream) union() {
       wall_shell(t_full_O4, half_t);
 }
 // Wedge roof slab (18"-25.1", 1/4"/ft slope N)
-color(roof_teal)
+color(roof_teal) {
   translate([0, 0, upper_base + upper_height])
     render() intersection() {
       linear_extrude(height = max_roof_thick + 0.1)
@@ -429,6 +432,18 @@ color(roof_teal)
         translate([-25, -20, -25])
           cube([50, 40, 25]);
     }
+  // Standing seam ribs (16" o.c., 1" wide, 1.5" tall)
+  translate([0, 0, upper_base + upper_height])
+    for (x = [-18.333333 : seam_spacing : 18.000000])
+      intersection() {
+        multmatrix([[1,0,0,0], [0,1,0,0],
+                    [0, roof_slope, 1, roof_z_base], [0,0,0,1]])
+          translate([x - seam_w/2, -14.000000, 0])
+            cube([seam_w, 28.333333, seam_h]);
+        linear_extrude(height = max_roof_thick + seam_h + 0.01)
+          polygon(points = shell_pts(roof_outline, 0));
+      }
+}
 // Window panels (1" opaque, middle wall openings only)
 window_blue_grey = [0.80, 0.84, 0.90];
 color(window_blue_grey) {

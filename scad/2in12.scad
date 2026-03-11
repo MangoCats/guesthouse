@@ -57,6 +57,9 @@ middle_height = 5.000000;
 upper_base = 6.666667;
 max_upper_h = 5.472222;
 roof_thick = 1.500000;
+seam_spacing = 1.333333;  // 16" on center
+seam_w = 0.083333;  // 1" wide
+seam_h = 0.125000;  // 1.5" tall
 roof_slope = 0.16666667;  // 2.0" per ft (2:12)
 roof_z_off = 9.75000000;
 roof_shear = [[1,0,0,0], [0,1,0,0],
@@ -425,10 +428,20 @@ color(wall_cream) union() {
   }
 }
 // Sloped roof slab (18", 2:12 slope N, 7'6" at F18-F1)
-color(roof_teal)
+color(roof_teal) {
   multmatrix(roof_shear)
     linear_extrude(height = roof_thick)
       polygon(points = shell_pts(roof_outline, 0));
+  // Standing seam ribs (16" o.c., 1" wide, 1.5" tall)
+  multmatrix(roof_shear)
+    for (x = [-18.333333 : seam_spacing : 18.000000])
+      intersection() {
+        translate([x - seam_w/2, -14.000000, roof_thick])
+          cube([seam_w, 28.333333, seam_h]);
+        linear_extrude(height = roof_thick + seam_h + 0.01)
+          polygon(points = shell_pts(roof_outline, 0));
+      }
+}
 // Window panels (1" opaque, middle wall openings only)
 window_blue_grey = [0.80, 0.84, 0.90];
 color(window_blue_grey) {
