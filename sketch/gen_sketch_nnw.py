@@ -57,13 +57,15 @@ def _cross(a, b):
 def _dot(a, b):
     return sum(x*y for x, y in zip(a, b))
 
-# ── Camera (NNW, slightly elevated) ──────────────────────────────────
+# ── Camera (NNW, ~8' above grade) ────────────────────────────────────
 AZ   = math.radians(332)
-EL   = math.radians(12)
 DIST = 55
 LOOK = (-1.0, 0.0, 4.5)
+_cam_e = DIST * math.sin(AZ)
+_cam_n = DIST * math.cos(AZ)
+_cam_z = 8.0                        # 8' above grade
 
-_cam = (DIST*math.sin(AZ), DIST*math.cos(AZ), LOOK[2]+DIST*math.sin(EL))
+_cam = (_cam_e, _cam_n, _cam_z)
 _fwd = _norm((LOOK[0]-_cam[0], LOOK[1]-_cam[1], LOOK[2]-_cam[2]))
 _rt  = _norm(_cross(_fwd, (0, 0, 1)))
 _up  = _cross(_rt, _fwd)
@@ -219,8 +221,7 @@ def main():
     rg  = compute_roof_geometry(fp, geo.radii)
     rp  = rg.pts
 
-    # ── Visible outline (F2 → ... → F10) ─────────────────────────────
-    # Skip F1-F2 arc (SW corner faces away) and F10+ (NE bump is edge-on)
+    # ── Visible outline (F2 → ... → F12) ─────────────────────────────
     vis = []
     vis += [fp["F2"], fp["F5"]]
     vis += arc_pts(fp["C5"],  geo.radii["R_a5"],  fp["F5"],  fp["F6"],  cw=True,  n=15)
@@ -228,6 +229,10 @@ def main():
     vis += arc_pts(fp["C7"],  geo.radii["R_a7"],  fp["F7"],  fp["F8"],  cw=True,  n=12)
     vis += arc_pts(fp["C8"],  geo.radii["R_a8"],  fp["F8"],  fp["F9"],  cw=False, n=8)
     vis += [fp["F9"], fp["F10"]]
+    vis += arc_pts(fp["C10"], geo.radii["R_a10"], fp["F10"], fp["F11"], cw=False, n=10)
+    vis += arc_pts(fp["C11a"],geo.radii["R_a11"], fp["F11"], fp["F11a"],cw=True,  n=10)
+    vis += [fp["F11a"], fp["F11b"]]
+    vis += arc_pts(fp["C11"], geo.radii["R_a11"], fp["F11b"],fp["F12"], cw=True,  n=10)
     vis = dedup(vis)
 
     # ── Roof north edge ──────────────────────────────────────────────
@@ -278,6 +283,7 @@ def main():
             draw_tree(svg, b[0], b[1], th, ts)
 
     # ── 2. Wall fill ─────────────────────────────────────────────────
+    # Wall extends from ground to roof soffit at each outline point
     gnd  = [proj(e, n, 0)          for e, n in vis]
     soff = [proj(e, n, rz_bot(n))  for e, n in vis]
     gnd_ok  = [p for p in gnd if p]
@@ -286,7 +292,7 @@ def main():
     wp = polypath(wall_pts)
     if wp:
         svg.append(f'<path d="{wp}" fill="{WALL_F}" stroke="none"/>')
-    # Mask below ground line to clean up any projection artifacts
+    # Mask below ground line
     if len(gnd_ok) >= 2:
         base_y = max(p[1] for p in gnd_ok) + 3
         max_y = base_y + 60
@@ -304,7 +310,9 @@ def main():
     if rtp:
         svg.append(f'<path d="{rtp}" fill="{ROOF_F}" stroke="none"/>')
 
-    # ── 4. Fascia strips ─────────────────────────────────────────────
+    # ── 4. Fascia strips (connect wall top to roof edge) ─────────────
+    # The roof overhangs the wall by ROOF_OH. The fascia fills the gap
+    # between the wall-face soffit line and the roof-edge soffit/top.
     # North fascia
     for i in range(len(ne)-1):
         e1, n1 = ne[i]; e2, n2 = ne[i+1]
@@ -317,7 +325,7 @@ def main():
             if fd:
                 svg.append(f'<path d="{fd}" fill="{FASC_F}" stroke="none"/>')
 
-    # West fascia (R7→R1), sampled
+    # West fascia (R7→R1), sampled for smooth slope
     e1w, n1w = rp["R7"]; e2w, n2w = rp["R1"]
     for j in range(20):
         t0 = j/20; t1v = (j+1)/20
@@ -330,22 +338,45 @@ def main():
             if fd:
                 svg.append(f'<path d="{fd}" fill="{FASC_F}" stroke="none"/>')
 
-    # ── 5. Siding lines ──────────────────────────────────────────────
-    z = 4.0/12.0
-    while z < 14.0:
-        pts_z = []
-        for e, n in vis:
-            if z < rz_bot(n):
-                p2 = proj(e, n, z)
-                if p2:
-                    pts_z.append(p2)
-        if len(pts_z) >= 2:
-            d = linepath(pts_z)
-            if d:
-                op = 0.35 if z < WALL_HT else 0.25
-                svg.append(f'<path d="{d}" fill="none" stroke="{INK_L}"'
-                           f' stroke-width="0.4" opacity="{op}"/>')
-        z += 6.0/12.0
+    # Soffit underside strip (visible between wall face and roof edge)
+    # Draw as a filled band connecting wall outline at soffit Z to roof edge at soffit Z
+    for i in range(len(vis)-1):
+        we1, wn1 = vis[i]; we2, wn2 = vis[i+1]
+        if abs(we1-we2) < 0.005 and abs(wn1-wn2) < 0.005:
+            continue
+        # Find corresponding roof-edge points (offset outward by ROOF_OH)
+        # Approximate: use the vis outline direction to compute outward offset
+        dx, dy = we2-we1, wn2-wn1
+        ln = math.sqrt(dx*dx+dy*dy)
+        if ln < 0.01: continue
+        # Left normal (outward for CW traversal)
+        nx, ny = dy/ln, -dx/ln
+        oh = 6.0/12.0
+        re1, rn1 = we1+oh*nx, wn1+oh*ny
+        re2, rn2 = we2+oh*nx, wn2+oh*ny
+        wp1 = proj(we1, wn1, rz_bot(wn1)); wp2 = proj(we2, wn2, rz_bot(wn2))
+        rp1 = proj(re1, rn1, rz_bot(rn1)); rp2 = proj(re2, rn2, rz_bot(rn2))
+        if all(x is not None for x in [wp1, wp2, rp1, rp2]):
+            fd = polypath([wp1, wp2, rp2, rp1])
+            if fd:
+                svg.append(f'<path d="{fd}" fill="{FASC_F}" stroke="none" opacity="0.6"/>')
+
+    # ── 5. Adobe texture (subtle stipple/spatter) ────────────────────
+    # Smooth adobe walls: sparse random short marks for surface grain
+    for _ in range(400):
+        idx = random.randint(0, len(vis)-2)
+        e1, n1 = vis[idx]; e2, n2 = vis[idx+1]
+        t = random.uniform(0, 1)
+        pe, pn = e1+t*(e2-e1), n1+t*(n2-n1)
+        z = random.uniform(0.3, min(WALL_HT, rz_bot(pn)-0.2))
+        p = proj(pe, pn, z)
+        if p:
+            ml = random.uniform(1, 3)
+            ma = random.uniform(0, 2*math.pi)
+            x2 = p[0]+ml*math.cos(ma); y2 = p[1]+ml*math.sin(ma)
+            op = random.uniform(0.06, 0.15)
+            svg.append(f'<path d="M{p[0]:.1f},{p[1]:.1f} L{x2:.1f},{y2:.1f}"'
+                       f' fill="none" stroke="{INK_L}" stroke-width="0.3" opacity="{op:.2f}"/>')
 
     # ── 6. Openings ──────────────────────────────────────────────────
     def draw_op(wall_val, is_west, s, e_val, zb, zt, door=False, pv=0, ph=0):
@@ -375,14 +406,14 @@ def main():
                        f' fill="none" stroke="#8a8070" stroke-width="0.8"/>')
 
     # West wall: O1, O2 (windows), O3 (door)
-    draw_op(we, True, o1_ns, o1_ne, LOWER_HT, WALL_HT, pv=2, ph=2)
-    draw_op(we, True, o2_ns, o2_ne, LOWER_HT, WALL_HT, pv=2, ph=2)
-    draw_op(we, True, o3_ns, o3_ne, 0, WALL_HT, door=True, pv=2, ph=3)
+    draw_op(we, True, o1_ns, o1_ne, LOWER_HT, WALL_HT)
+    draw_op(we, True, o2_ns, o2_ne, LOWER_HT, WALL_HT)
+    draw_op(we, True, o3_ns, o3_ne, 0, WALL_HT, door=True)
     # North wall: O4
     draw_op(nn, False, o4_ce-o4_hw, o4_ce+o4_hw, LOWER_HT, WALL_HT)
-    # F9-F10 wall: O5 (window), O6 (door)
-    draw_op(n910, False, o5_es, o5_ee, LOWER_HT, WALL_HT, pv=4, ph=2)
-    draw_op(n910, False, o6_es, o6_ee, 0, WALL_HT, door=True, pv=2, ph=3)
+    # F9-F10 wall: O5 (window, 42" sill to 66" head), O6 (door)
+    draw_op(n910, False, o5_es, o5_ee, 42.0/12.0, 66.0/12.0)
+    draw_op(n910, False, o6_es, o6_ee, 0, WALL_HT, door=True)
 
     # ── 7. Heavy building edges ──────────────────────────────────────
     # Ground
@@ -416,7 +447,7 @@ def main():
             svg.append(f'<path d="{sline(p1[0],p1[1],p2[0],p2[1],0.4)}"'
                        f' fill="none" stroke="{INK}" stroke-width="1.5" opacity="0.6"/>')
     # Vertical corners
-    for name in ["F2", "F10"]:
+    for name in ["F2", "F12"]:
         e, n = fp[name]
         b, t = proj(e, n, 0), proj(e, n, rz_bot(n))
         if b and t:
@@ -547,6 +578,25 @@ def main():
     with open(out, "w") as f:
         f.write("\n".join(svg))
     print(f"Wrote {out}")
+
+    # ── Render to PDF ──────────────────────────────────────────────────
+    try:
+        import fitz  # PyMuPDF
+        svg_doc = fitz.open(out)                       # open SVG
+        pix = svg_doc[0].get_pixmap(dpi=150)           # rasterize
+        svg_doc.close()
+        img_bytes = pix.tobytes("png")
+        pdf_doc = fitz.open()
+        page = pdf_doc.new_page(width=SVG_W, height=SVG_H)
+        page.insert_image(fitz.Rect(0, 0, SVG_W, SVG_H), stream=img_bytes)
+        pdf_out = os.path.join(_DIR, "sketch_nnw.pdf")
+        pdf_doc.save(pdf_out)
+        pdf_doc.close()
+        print(f"Wrote {pdf_out}")
+    except ImportError:
+        print("PyMuPDF (fitz) not available — PDF output skipped")
+    except Exception as ex:
+        print(f"PDF rendering failed: {ex}")
 
 
 if __name__ == "__main__":
