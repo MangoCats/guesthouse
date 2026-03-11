@@ -369,9 +369,9 @@ roof_outline = [
 ];
 
 // --- Assembly ---
-adobe_beige = [0.82, 0.71, 0.55];
-roof_green = [0.065, 0.275, 0.065];
-color(adobe_beige) union() {
+wall_cream = [0.88, 0.82, 0.60];  // warm cream-yellow (match main house)
+roof_teal = [0.10, 0.35, 0.33];  // dark teal-green metal (match main house)
+color(wall_cream) union() {
   // Lower walls (0 to 20", doors O3 and O6 only)
   linear_extrude(height = lower_height)
     wall_shell(t_lower_O6_O3, half_t);
@@ -425,7 +425,7 @@ color(adobe_beige) union() {
   }
 }
 // Sloped roof slab (18", 2:12 slope N, 7'6" at F18-F1)
-color(roof_green)
+color(roof_teal)
   multmatrix(roof_shear)
     linear_extrude(height = roof_thick)
       polygon(points = shell_pts(roof_outline, 0));

@@ -392,9 +392,9 @@ def generate(gd=None):
     out.append("")
 
     out.append("// --- Assembly ---")
-    out.append("adobe_beige = [0.82, 0.71, 0.55];")
-    out.append("roof_green = [0.065, 0.275, 0.065];")
-    out.append("color(adobe_beige) union() {")
+    out.append("wall_cream = [0.88, 0.82, 0.60];  // warm cream-yellow (match main house)")
+    out.append("roof_teal = [0.10, 0.35, 0.33];  // dark teal-green metal (match main house)")
+    out.append("color(wall_cream) union() {")
     out.append(f"  // Lower walls (0 to {LOWER_HEIGHT_IN:.0f}\", doors O3 and O6 only)")
     for label, _ in lower_section_data:
         out.append(f"  linear_extrude(height = lower_height)")
@@ -412,7 +412,7 @@ def generate(gd=None):
     out.append("}")
     out.append(f"// Wedge roof slab ({ROOF_THICK_IN:.0f}\"-{max_roof_thick_in:.1f}\", "
                f"1/4\"/ft slope N)")
-    out.append("color(roof_green)")
+    out.append("color(roof_teal)")
     out.append(f"  translate([0, 0, upper_base + upper_height])")
     out.append("    render() intersection() {")
     out.append("      linear_extrude(height = max_roof_thick + 0.1)")
