@@ -899,12 +899,16 @@ def _generate_elevation(name, h_func, depth_func, normal_test,
             for h, _ in reversed(samples_hz):
                 z_soffit = _interp_profile(eave_under, h)
                 fill_poly.append(to_page(h, z_soffit))
+            # Close explicitly and use white stroke to hide fill boundary
+            fill_poly.append(fill_poly[0])
             shape.draw_polyline(fill_poly)
-            shape.finish(color=None, width=0, fill=WHITE, closePath=True)
+            shape.finish(color=WHITE, width=0.1, fill=WHITE, closePath=False)
         for samples_hz in _junc_arcs:
+            # Draw as individual segments to avoid any polyline closing artifact
             junc_pts = [to_page(h, z) for h, z in samples_hz]
-            shape.draw_polyline(junc_pts)
-            shape.finish(color=BLACK, width=LW_JUNCTION)
+            for i in range(len(junc_pts) - 1):
+                shape.draw_line(junc_pts[i], junc_pts[i + 1])
+                shape.finish(color=BLACK, width=LW_JUNCTION)
 
     # Roof slope annotation for East/West (slope directly visible)
     # Standard architectural pitch symbol: compact right triangle with
