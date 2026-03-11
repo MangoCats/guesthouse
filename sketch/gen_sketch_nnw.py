@@ -282,6 +282,50 @@ def main():
         if b:
             draw_tree(svg, b[0], b[1], th, ts)
 
+    # ── 1b. Fence (behind building — drawn before wall fill) ────────
+    # 4' two-rail fence parallel to F16-F17, 11' outward (exterior)
+    f16e, f16n = fp["F16"]; f17e, f17n = fp["F17"]
+    _fdx = f17e - f16e; _fdy = f17n - f16n
+    _fln = math.sqrt(_fdx*_fdx + _fdy*_fdy)
+    fence_dir = (_fdx/_fln, _fdy/_fln)      # parallel to F16-F17
+    # Exterior normal (right of CW traversal = opposite of left normal)
+    _ext_nx, _ext_ny = -_fdy/_fln, _fdx/_fln
+    # Reference point: midpoint of F16-F17 offset 11' outward
+    _fmid_e = (f16e + f17e) / 2 + 11.0 * _ext_nx
+    _fmid_n = (f16n + f17n) / 2 + 11.0 * _ext_ny
+    fence_ref = (_fmid_e, _fmid_n)
+    FENCE_HT = 4.0
+    RAIL1_Z = 1.5; RAIL2_Z = 3.2
+    POST_SPACING = 8.0
+    n_posts = 15                             # enough to span the page
+    fence_pts = []
+    for i in range(n_posts):
+        t = (i - n_posts // 2) * POST_SPACING
+        fe = fence_ref[0] + t * fence_dir[0]
+        fn = fence_ref[1] + t * fence_dir[1]
+        fence_pts.append((fe, fn))
+    for fe, fn in fence_pts:
+        pb = proj(fe, fn, 0)
+        pt = proj(fe, fn, FENCE_HT)
+        if pb and pt:
+            svg.append(f'<path d="{sline(pb[0],pb[1],pt[0],pt[1],0.3)}"'
+                       f' fill="none" stroke="{INK_L}" stroke-width="1.2" opacity="0.5"/>')
+    for rz in [RAIL1_Z, RAIL2_Z]:
+        rail_scr = []
+        for fe, fn in fence_pts:
+            p = proj(fe, fn, rz)
+            if p:
+                rail_scr.append(p)
+        if len(rail_scr) >= 2:
+            svg.append(f'<path d="{linepath(rail_scr)}"'
+                       f' fill="none" stroke="{INK_L}" stroke-width="0.8" opacity="0.45"/>')
+
+    # ── 1c. Background ground vegetation (behind building) ──────────
+    bl = proj(-25, -14, 0)
+    br = proj(20, -14, 0)
+    if bl and br:
+        draw_ground_veg(svg, bl[0]-80, br[0]+80, (bl[1]+br[1])/2+15, n_strokes=180)
+
     # ── 2. Wall fill ─────────────────────────────────────────────────
     # Wall extends from ground to roof soffit at each outline point
     gnd  = [proj(e, n, 0)          for e, n in vis]
@@ -490,58 +534,24 @@ def main():
         svg.append('</g>')
 
     # ── 9. Ground and vegetation ─────────────────────────────────────
-    # 4' two-rail fence along 216.73' property line
-    # Line direction (0.2304, -0.9731), passes through ~(28, -8)
-    fence_dir = (0.2304, -0.9731)
-    fence_ref = (28.0, -8.0)
-    FENCE_HT = 4.0
-    RAIL1_Z = 1.5; RAIL2_Z = 3.2       # rail heights
-    POST_SPACING = 8.0
-    n_posts = 9
-    fence_pts = []
-    for i in range(n_posts):
-        t = (i - n_posts//2) * POST_SPACING
-        fe = fence_ref[0] + t * fence_dir[0]
-        fn = fence_ref[1] + t * fence_dir[1]
-        fence_pts.append((fe, fn))
-    # Draw posts
-    for fe, fn in fence_pts:
-        pb = proj(fe, fn, 0)
-        pt = proj(fe, fn, FENCE_HT)
-        if pb and pt:
-            svg.append(f'<path d="{sline(pb[0],pb[1],pt[0],pt[1],0.3)}"'
-                       f' fill="none" stroke="{INK_L}" stroke-width="1.2" opacity="0.5"/>')
-    # Draw rails between consecutive posts
-    for rz in [RAIL1_Z, RAIL2_Z]:
-        rail_scr = []
-        for fe, fn in fence_pts:
-            p = proj(fe, fn, rz)
-            if p:
-                rail_scr.append(p)
-        if len(rail_scr) >= 2:
-            svg.append(f'<path d="{linepath(rail_scr)}"'
-                       f' fill="none" stroke="{INK_L}" stroke-width="0.8" opacity="0.45"/>')
-    bl = proj(-25, -14, 0)
-    br = proj(20, -14, 0)
-    if bl and br:
-        draw_ground_veg(svg, bl[0]-80, br[0]+80, (bl[1]+br[1])/2+15, n_strokes=180)
-    # Foundation plantings along north wall
-    for se, sn in [(-16, 13.5), (-12, 13.5), (-8, 13), (-4, 12),
-                    (0, 12), (3, 12), (6, 12)]:
+    # (Fence and background ground veg moved to before wall fill)
+    # Foundation plantings — east of F11a and west of F7 only
+    for se, sn in [(-16, 13.5), (-13, 13.5),               # west of F7
+                    (11, 13.5), (14, 13), (17, 12)]:        # east of F11a
         sb = proj(se, sn, 0)
         if sb:
             draw_shrub(svg, sb[0], sb[1]-5, random.uniform(30, 50),
                        random.uniform(18, 30), density=50)
-    # Foundation plantings along west wall
-    for se, sn in [(-19, -10), (-19, -5), (-19, 0), (-19, 5), (-19, 9)]:
+    # Foundation plantings along west wall (skip O3 zone: N ~ 8-11)
+    for se, sn in [(-19, -10), (-19, -5), (-19, 0), (-19, 5)]:
         sb = proj(se, sn, 0)
         if sb:
             draw_shrub(svg, sb[0]-8, sb[1]-3, random.uniform(22, 35),
                        random.uniform(14, 22), density=35)
 
     # ── 10. Foreground trees ─────────────────────────────────────────
-    # Large tree right side (clear of O6 door view)
-    fg = proj(28, -8, 0)
+    # Large tree right side — moved forward (north / bearing 0°)
+    fg = proj(28, -2, 0)
     if fg:
         draw_tree(svg, fg[0], fg[1], 350, 200, bare=False)
     # Bare/sparse tree left foreground
@@ -550,26 +560,26 @@ def main():
         draw_tree(svg, fg2[0], fg2[1], 300, 140, bare=True)
 
     # ── 11. Extra foreground vegetation ──────────────────────────────
-    # Dense grass across full foreground
-    for _ in range(160):
+    # Dense grass across full foreground (thicker strokes)
+    for _ in range(200):
         gx = random.uniform(SVG_W*0.05, SVG_W*0.95)
         gy = random.uniform(SVG_H*0.75, SVG_H*0.96)
         gh = random.uniform(5, 20)
         svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-5,5), gy-gh, 0.5)}"'
-                   f' fill="none" stroke="#4a5830" stroke-width="0.6" opacity="0.4"/>')
+                   f' fill="none" stroke="#4a5830" stroke-width="1.0" opacity="0.45"/>')
     # Extra dense patches at bottom corners
-    for _ in range(80):
+    for _ in range(100):
         gx = random.uniform(SVG_W*0.55, SVG_W*0.98)
         gy = random.uniform(SVG_H*0.85, SVG_H*0.98)
         gh = random.uniform(6, 22)
         svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-6,6), gy-gh, 0.5)}"'
-                   f' fill="none" stroke="#4a5830" stroke-width="0.7" opacity="0.45"/>')
-    for _ in range(80):
+                   f' fill="none" stroke="#4a5830" stroke-width="1.1" opacity="0.5"/>')
+    for _ in range(100):
         gx = random.uniform(SVG_W*0.02, SVG_W*0.45)
         gy = random.uniform(SVG_H*0.85, SVG_H*0.98)
         gh = random.uniform(5, 18)
         svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-5,5), gy-gh, 0.5)}"'
-                   f' fill="none" stroke="#4a5830" stroke-width="0.6" opacity="0.4"/>')
+                   f' fill="none" stroke="#4a5830" stroke-width="1.0" opacity="0.45"/>')
 
     # ── 12. Shadow hatching ──────────────────────────────────────────
     # Diagonal hatching on upper wall (above window height) for depth
