@@ -34,15 +34,16 @@ def rz_top(n):
 
 # ── Canvas ────────────────────────────────────────────────────────────
 SVG_W, SVG_H = 1400, 1050
-BG      = "#f5f0e0"
-INK     = "#1a1208"
-INK_L   = "#5a4d3a"
-INK_M   = "#3a2d1a"
-WALL_F  = "#e0d8c8"
-ROOF_F  = "#d0c8b8"
-FASC_F  = "#b8b0a0"
-WIN_F   = "#4a5868"
-DOOR_F  = "#2a2418"
+BG      = "#ffffff"
+INK     = "#000000"
+INK_L   = "#000000"
+INK_M   = "#000000"
+WALL_F  = "#ffffff"
+ROOF_F  = "#ffffff"
+FASC_F  = "#ffffff"
+SOFF_F  = "#ffffff"
+WIN_F   = "#ffffff"
+DOOR_F  = "#ffffff"
 
 random.seed(42)
 
@@ -115,6 +116,15 @@ def polypath(pts):
         d += f" L{p[0]:.1f},{p[1]:.1f}"
     return d + " Z"
 
+def polypath_rev(pts):
+    """Like polypath but with reversed point order (for even-odd holes)."""
+    if not pts or any(p is None for p in pts): return ""
+    rp = list(reversed(pts))
+    d = f"M{rp[0][0]:.1f},{rp[0][1]:.1f}"
+    for p in rp[1:]:
+        d += f" L{p[0]:.1f},{p[1]:.1f}"
+    return d + " Z"
+
 def linepath(pts):
     if not pts or any(p is None for p in pts): return ""
     d = f"M{pts[0][0]:.1f},{pts[0][1]:.1f}"
@@ -129,7 +139,7 @@ def draw_tree(svg, bx, by, h, spread, bare=False):
     # Trunk
     for dx, sw in [(0, 2.5), (1.2, 1.2), (-0.8, 0.8)]:
         svg.append(f'<path d="{sline(bx+dx, by, tx+dx, ty+h*0.15, 2)}"'
-                   f' fill="none" stroke="#3a2a15" stroke-width="{sw}"/>')
+                   f' fill="none" stroke="#000000" stroke-width="{sw}"/>')
     # Branches
     tips = []
     for _ in range(random.randint(5, 8)):
@@ -142,7 +152,7 @@ def draw_tree(svg, bx, by, h, spread, bare=False):
         ey = sy - bl*math.sin(angle)
         sw = random.uniform(0.8, 1.8)
         svg.append(f'<path d="{sline(sx, sy, ex, ey, 2.5)}"'
-                   f' fill="none" stroke="#3a2a15" stroke-width="{sw}"/>')
+                   f' fill="none" stroke="#000000" stroke-width="{sw}"/>')
         tips.append((ex, ey))
         n_sub = random.randint(2, 4) if bare else random.randint(1, 3)
         for _ in range(n_sub):
@@ -151,7 +161,7 @@ def draw_tree(svg, bx, by, h, spread, bare=False):
             sex = ex + side*sl*math.cos(sa)
             sey = ey - sl*math.sin(sa)
             svg.append(f'<path d="{sline(ex, ey, sex, sey, 1.5)}"'
-                       f' fill="none" stroke="#4a3a25" stroke-width="{random.uniform(0.5,1.0)}"/>')
+                       f' fill="none" stroke="#000000" stroke-width="{random.uniform(0.5,1.0)}"/>')
             tips.append((sex, sey))
             # Tertiary twigs for bare trees
             if bare:
@@ -161,7 +171,7 @@ def draw_tree(svg, bx, by, h, spread, bare=False):
                     tex = sex + side*tl*math.cos(ta)
                     tey = sey - tl*math.sin(ta)
                     svg.append(f'<path d="{sline(sex, sey, tex, tey, 1)}"'
-                               f' fill="none" stroke="#5a4a35" stroke-width="{random.uniform(0.3,0.6)}"/>')
+                               f' fill="none" stroke="#000000" stroke-width="{random.uniform(0.3,0.6)}"/>')
     if bare:
         return
     # Foliage masses
@@ -176,7 +186,7 @@ def draw_tree(svg, bx, by, h, spread, bare=False):
             x2 = x1+sl*math.cos(sa); y2 = y1+sl*math.sin(sa)
             op = random.uniform(0.3, 0.7)
             svg.append(f'<path d="{sline(x1, y1, x2, y2, 1)}"'
-                       f' fill="none" stroke="#3a4a28" stroke-width="0.7" opacity="{op:.2f}"/>')
+                       f' fill="none" stroke="#000000" stroke-width="0.7" opacity="{op:.2f}"/>')
     # Canopy outline
     rx = spread*0.45; ry = h*0.35
     cpts = []
@@ -190,7 +200,42 @@ def draw_tree(svg, bx, by, h, spread, bare=False):
         mx = (cpts[i-1][0]+cpts[i][0])/2 + random.uniform(-2, 2)
         my = (cpts[i-1][1]+cpts[i][1])/2 + random.uniform(-2, 2)
         d += f" Q{mx:.1f},{my:.1f} {cpts[i][0]:.1f},{cpts[i][1]:.1f}"
-    svg.append(f'<path d="{d}" fill="none" stroke="#3a4a28" stroke-width="1" opacity="0.5"/>')
+    svg.append(f'<path d="{d}" fill="none" stroke="#000000" stroke-width="1" opacity="0.5"/>')
+
+_hatch_id = [0]
+
+def hatch_quad(svg, pts, spacing=5, angle=0.6, sw=0.5, op=0.5, cross=False):
+    """Fill a screen-space quad with diagonal pen hatching, clipped by SVG clipPath."""
+    if len(pts) < 3 or any(p is None for p in pts):
+        return
+    cp = polypath(pts)
+    if not cp:
+        return
+    _hatch_id[0] += 1
+    cid = f"hq{_hatch_id[0]}"
+    svg.append(f'<clipPath id="{cid}"><path d="{cp}"/></clipPath>')
+    svg.append(f'<g clip-path="url(#{cid})">')
+    xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+    xmin, xmax = min(xs), max(xs); ymin, ymax = min(ys), max(ys)
+    diag = math.sqrt((xmax-xmin)**2 + (ymax-ymin)**2)
+    cx, cy = (xmin+xmax)/2, (ymin+ymax)/2
+
+    def _pass(a):
+        ca, sa = math.cos(a), math.sin(a)
+        n_lines = int(diag / spacing) + 1
+        for i in range(-n_lines, n_lines + 1):
+            off = i * spacing
+            lx, ly = cx + off * ca, cy + off * sa
+            x1 = lx + diag * sa;  y1 = ly - diag * ca
+            x2 = lx - diag * sa;  y2 = ly + diag * ca
+            jit = spacing * 0.12
+            svg.append(f'<path d="{sline(x1,y1,x2,y2,jit)}"'
+                       f' fill="none" stroke="{INK}" stroke-width="{sw}" opacity="{op}"/>')
+
+    _pass(angle)
+    if cross:
+        _pass(angle + math.pi / 2)
+    svg.append('</g>')
 
 def draw_ground_veg(svg, x1, x2, y, n_strokes=80):
     for _ in range(n_strokes):
@@ -202,7 +247,7 @@ def draw_ground_veg(svg, x1, x2, y, n_strokes=80):
         gey = gy - gh*math.sin(ga)
         op = random.uniform(0.3, 0.6)
         svg.append(f'<path d="{sline(gx, gy, gex, gey, 0.5)}"'
-                   f' fill="none" stroke="#4a5a30" stroke-width="0.6" opacity="{op:.2f}"/>')
+                   f' fill="none" stroke="#000000" stroke-width="0.6" opacity="{op:.2f}"/>')
 
 def draw_shrub(svg, cx, cy, w, h, density=30):
     for _ in range(density):
@@ -211,7 +256,7 @@ def draw_shrub(svg, cx, cy, w, h, density=30):
         sl = random.uniform(3, 8); sa = random.uniform(0, 2*math.pi)
         x2 = x1+sl*math.cos(sa); y2 = y1+sl*math.sin(sa)
         svg.append(f'<path d="{sline(x1, y1, x2, y2, 0.5)}"'
-                   f' fill="none" stroke="#4a5838" stroke-width="0.6" opacity="0.5"/>')
+                   f' fill="none" stroke="#000000" stroke-width="0.6" opacity="0.5"/>')
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -221,7 +266,24 @@ def main():
     rg  = compute_roof_geometry(fp, geo.radii)
     rp  = rg.pts
 
-    # ── Visible outline (F2 → ... → F12) ─────────────────────────────
+    # ── East silhouette point on F11b-F12 arc ─────────────────────────
+    # Tangent from camera to C11 arc gives the last visible point before
+    # the curve turns away.  Used to trim vis outline and vertical corner.
+    _c11e, _c11n = fp["C11"]
+    _r11 = geo.radii["R_a11"]
+    _dce = _cam_e - _c11e; _dcn = _cam_n - _c11n
+    _dc = math.sqrt(_dce**2 + _dcn**2)
+    _sil_pt = fp["F12"]                     # fallback
+    if _dc > _r11:
+        _ang_cam = math.atan2(_dcn, _dce)
+        _ang_off = math.acos(_r11 / _dc)
+        _tp1_a = _ang_cam + _ang_off
+        _tp2_a = _ang_cam - _ang_off
+        _tp1 = (_c11e + _r11 * math.cos(_tp1_a), _c11n + _r11 * math.sin(_tp1_a))
+        _tp2 = (_c11e + _r11 * math.cos(_tp2_a), _c11n + _r11 * math.sin(_tp2_a))
+        _sil_pt = _tp1 if _tp1[0] > _tp2[0] else _tp2
+
+    # ── Visible outline (F2 → ... → silhouette point) ──────────────
     vis = []
     vis += [fp["F2"], fp["F5"]]
     vis += arc_pts(fp["C5"],  geo.radii["R_a5"],  fp["F5"],  fp["F6"],  cw=True,  n=15)
@@ -232,7 +294,7 @@ def main():
     vis += arc_pts(fp["C10"], geo.radii["R_a10"], fp["F10"], fp["F11"], cw=False, n=10)
     vis += arc_pts(fp["C11a"],geo.radii["R_a11"], fp["F11"], fp["F11a"],cw=True,  n=10)
     vis += [fp["F11a"], fp["F11b"]]
-    vis += arc_pts(fp["C11"], geo.radii["R_a11"], fp["F11b"],fp["F12"], cw=True,  n=10)
+    vis += arc_pts(fp["C11"], geo.radii["R_a11"], fp["F11b"], _sil_pt, cw=True, n=10)
     vis = dedup(vis)
 
     # ── Roof north edge ──────────────────────────────────────────────
@@ -259,7 +321,8 @@ def main():
     # ══════════════════════════════════════════════════════════════════
     # Build SVG
     # ══════════════════════════════════════════════════════════════════
-    svg = [f'<svg xmlns="http://www.w3.org/2000/svg" '
+    svg = ['<?xml version="1.0" encoding="UTF-8"?>',
+           f'<svg xmlns="http://www.w3.org/2000/svg" '
            f'width="{SVG_W}" height="{SVG_H}" viewBox="0 0 {SVG_W} {SVG_H}">']
 
     svg.append('''<defs>
@@ -326,35 +389,63 @@ def main():
     if bl and br:
         draw_ground_veg(svg, bl[0]-80, br[0]+80, (bl[1]+br[1])/2+15, n_strokes=180)
 
-    # ── 2. Building silhouette ─────────────────────────────────────────
-    # Two overlapping opaque fills to ensure nothing behind bleeds through:
-    #   A) Wall face: ground to roof-top along vis outline
-    #   B) Full roof at soffit level: covers back/south overhang underside
-    gnd  = [proj(e, n, 0)          for e, n in vis]
-    rtop = [proj(e, n, rz_top(n))  for e, n in vis]
-    gnd_ok  = [p for p in gnd if p]
-    rtop_ok = [p for p in reversed(rtop) if p]
-    wall_pts = gnd_ok + rtop_ok
-    wp = polypath(wall_pts)
-    if wp:
-        svg.append(f'<path d="{wp}" fill="{WALL_F}" stroke="none"/>')
-    # Full roof at soffit height — covers the back overhang underside
+    # ── 2. Roof + fascia (drawn BEFORE wall fill so wall covers overlap) ─
+    # 2a. Full roof at soffit height — occludes back overhang underside
     rsoff = [proj(e, n, rz_bot(n)) for e, n in rpoly]
     rsoff_ok = [p for p in rsoff if p]
     rsp = polypath(rsoff_ok)
     if rsp:
         svg.append(f'<path d="{rsp}" fill="{WALL_F}" stroke="none"/>')
 
-    # ── 3. Roof top fill ─────────────────────────────────────────────
+    # 2b. Roof top fill
     rt_proj = [proj(e, n, rz_top(n)) for e, n in rpoly]
     rtp = polypath([p for p in rt_proj if p])
     if rtp:
         svg.append(f'<path d="{rtp}" fill="{ROOF_F}" stroke="none"/>')
 
-    # ── 4. Fascia strips (connect wall top to roof edge) ─────────────
-    # The roof overhangs the wall by ROOF_OH. The fascia fills the gap
-    # between the wall-face soffit line and the roof-edge soffit/top.
-    # North fascia
+    # 2b2. Roof texture (standing seam) — drawn here so wall fill covers bleed
+    rt_clip = [p for p in rt_proj if p]
+    if rt_clip:
+        cp = polypath(rt_clip)
+        if cp:
+            svg.append(f'<clipPath id="roofclip"><path d="{cp}"/></clipPath>')
+            svg.append('<g clip-path="url(#roofclip)">')
+        re_min = min(p[0] for p in rpoly)
+        re_max = max(p[0] for p in rpoly)
+        rn_min = min(p[1] for p in rpoly)
+        rn_max = max(p[1] for p in rpoly)
+        ev = re_min + 2.0
+        while ev < re_max:
+            p1 = proj(ev, rn_min, rz_top(rn_min))
+            p2 = proj(ev, rn_max, rz_top(rn_max))
+            if p1 and p2:
+                svg.append(f'<path d="{sline(p1[0],p1[1],p2[0],p2[1],0.8)}"'
+                           f' fill="none" stroke="{INK_L}" stroke-width="0.3" opacity="0.3"/>')
+            ev += 2.0
+        if cp:
+            svg.append('</g>')
+
+    # 2b3. Roof edge lines — drawn before wall fill so wall covers bleed
+    # Roof top north edge
+    rtep = [p for p in (proj(e, n, rz_top(n)) for e, n in ne) if p]
+    if rtep:
+        svg.append(f'<path d="{linepath(rtep)}" fill="none" stroke="{INK}" stroke-width="2.2"/>')
+    # Roof top west edge
+    r7t = proj(rp["R7"][0], rp["R7"][1], rz_top(rp["R7"][1]))
+    r1t = proj(rp["R1"][0], rp["R1"][1], rz_top(rp["R1"][1]))
+    if r7t and r1t:
+        svg.append(f'<path d="{sline(r7t[0],r7t[1],r1t[0],r1t[1],0.6)}"'
+                   f' fill="none" stroke="{INK}" stroke-width="2.2"/>')
+    # South/east roof edges (visible above building)
+    for pa, pb in [(rp["R7"], rp["R6"]), (rp["R6"], rp["R5"]), (rp["R4e"], rp["R5"])]:
+        p1 = proj(pa[0], pa[1], rz_top(pa[1]))
+        p2 = proj(pb[0], pb[1], rz_top(pb[1]))
+        if p1 and p2:
+            svg.append(f'<path d="{sline(p1[0],p1[1],p2[0],p2[1],0.4)}"'
+                       f' fill="none" stroke="{INK}" stroke-width="1.5" opacity="0.6"/>')
+
+    # 2c. Fascia strips (north and west) — dense hatching
+    fascia_quads = []
     for i in range(len(ne)-1):
         e1, n1 = ne[i]; e2, n2 = ne[i+1]
         if abs(e1-e2) < 0.005 and abs(n1-n2) < 0.005:
@@ -365,7 +456,7 @@ def main():
             fd = polypath([b1, b2, t2, t1])
             if fd:
                 svg.append(f'<path d="{fd}" fill="{FASC_F}" stroke="none"/>')
-
+                fascia_quads.append([b1, b2, t2, t1])
     # West fascia (R7→R1), sampled for smooth slope
     e1w, n1w = rp["R7"]; e2w, n2w = rp["R1"]
     for j in range(20):
@@ -378,19 +469,17 @@ def main():
             fd = polypath([b1, b2, t2, t1])
             if fd:
                 svg.append(f'<path d="{fd}" fill="{FASC_F}" stroke="none"/>')
-
-    # Soffit underside strip (visible between wall face and roof edge)
-    # Draw as a filled band connecting wall outline at soffit Z to roof edge at soffit Z
+                fascia_quads.append([b1, b2, t2, t1])
+    for fq in fascia_quads:
+        hatch_quad(svg, fq, spacing=3, angle=0.5, sw=0.4, op=0.6)
+    # Soffit underside strip
     for i in range(len(vis)-1):
         we1, wn1 = vis[i]; we2, wn2 = vis[i+1]
         if abs(we1-we2) < 0.005 and abs(wn1-wn2) < 0.005:
             continue
-        # Find corresponding roof-edge points (offset outward by ROOF_OH)
-        # Approximate: use the vis outline direction to compute outward offset
         dx, dy = we2-we1, wn2-wn1
         ln = math.sqrt(dx*dx+dy*dy)
         if ln < 0.01: continue
-        # Left normal (outward for CW traversal)
         nx, ny = dy/ln, -dx/ln
         oh = 6.0/12.0
         re1, rn1 = we1+oh*nx, wn1+oh*ny
@@ -400,7 +489,18 @@ def main():
         if all(x is not None for x in [wp1, wp2, rp1, rp2]):
             fd = polypath([wp1, wp2, rp2, rp1])
             if fd:
-                svg.append(f'<path d="{fd}" fill="{FASC_F}" stroke="none"/>')
+                svg.append(f'<path d="{fd}" fill="{SOFF_F}" stroke="none"/>')
+                hatch_quad(svg, [wp1, wp2, rp2, rp1], spacing=6, angle=0.3, sw=0.3, op=0.35)
+
+    # ── 3. Wall fill (ON TOP of roof — covers any roof that projects over wall) ─
+    gnd  = [proj(e, n, 0)          for e, n in vis]
+    rtop = [proj(e, n, rz_top(n))  for e, n in vis]
+    gnd_ok  = [p for p in gnd if p]
+    rtop_ok = [p for p in reversed(rtop) if p]
+    wall_pts = gnd_ok + rtop_ok
+    wp = polypath(wall_pts)
+    if wp:
+        svg.append(f'<path d="{wp}" fill="{WALL_F}" stroke="none"/>')
 
     # ── 5. Adobe texture (subtle stipple/spatter) ────────────────────
     # Smooth adobe walls: sparse random short marks for surface grain
@@ -432,19 +532,24 @@ def main():
         fill = DOOR_F if door else WIN_F
         pp = polypath([bl, br, tr, tl])
         svg.append(f'<path d="{pp}" fill="{fill}" stroke="{INK_M}" stroke-width="1.2"/>')
+        # Pen hatching: doors very dense cross-hatch, windows medium diagonal
+        if door:
+            hatch_quad(svg, [bl, br, tr, tl], spacing=3, angle=0.7, sw=0.5, op=0.7, cross=True)
+        else:
+            hatch_quad(svg, [bl, br, tr, tl], spacing=4, angle=0.6, sw=0.4, op=0.55)
         # Pane dividers
         for iv in range(1, max(pv, 1)):
             t = iv/pv
             p1 = (bl[0]+t*(br[0]-bl[0]), bl[1]+t*(br[1]-bl[1]))
             p2 = (tl[0]+t*(tr[0]-tl[0]), tl[1]+t*(tr[1]-tl[1]))
             svg.append(f'<path d="{sline(p1[0],p1[1],p2[0],p2[1],0.3)}"'
-                       f' fill="none" stroke="#8a8070" stroke-width="0.8"/>')
+                       f' fill="none" stroke="#000000" stroke-width="0.8"/>')
         for ih in range(1, max(ph, 1)):
             t = ih/ph
             p1 = (bl[0]+t*(tl[0]-bl[0]), bl[1]+t*(tl[1]-bl[1]))
             p2 = (br[0]+t*(tr[0]-br[0]), br[1]+t*(tr[1]-br[1]))
             svg.append(f'<path d="{sline(p1[0],p1[1],p2[0],p2[1],0.3)}"'
-                       f' fill="none" stroke="#8a8070" stroke-width="0.8"/>')
+                       f' fill="none" stroke="#000000" stroke-width="0.8"/>')
 
     # West wall: O1, O2 (windows), O3 (door)
     draw_op(we, True, o1_ns, o1_ne, LOWER_HT, WALL_HT)
@@ -465,27 +570,34 @@ def main():
     sp = [p for p in (proj(e, n, rz_bot(n)) for e, n in vis) if p]
     if sp:
         svg.append(f'<path d="{linepath(sp)}" fill="none" stroke="{INK}" stroke-width="1.8"/>')
-    # Roof top north edge
-    rtep = [p for p in (proj(e, n, rz_top(n)) for e, n in ne) if p]
-    if rtep:
-        svg.append(f'<path d="{linepath(rtep)}" fill="none" stroke="{INK}" stroke-width="2.2"/>')
-    # Roof top west edge
-    r7t = proj(rp["R7"][0], rp["R7"][1], rz_top(rp["R7"][1]))
-    r1t = proj(rp["R1"][0], rp["R1"][1], rz_top(rp["R1"][1]))
-    if r7t and r1t:
-        svg.append(f'<path d="{sline(r7t[0],r7t[1],r1t[0],r1t[1],0.6)}"'
-                   f' fill="none" stroke="{INK}" stroke-width="2.2"/>')
-    # South/east roof edges (visible above building)
-    for pa, pb in [(rp["R7"], rp["R6"]), (rp["R6"], rp["R5"]), (rp["R4e"], rp["R5"])]:
-        p1 = proj(pa[0], pa[1], rz_top(pa[1]))
-        p2 = proj(pb[0], pb[1], rz_top(pb[1]))
-        if p1 and p2:
-            svg.append(f'<path d="{sline(p1[0],p1[1],p2[0],p2[1],0.4)}"'
-                       f' fill="none" stroke="{INK}" stroke-width="1.5" opacity="0.6"/>')
+    # (Roof edge lines moved to step 2b3, before wall fill)
     # Vertical corners
-    for name in ["F2", "F12"]:
-        e, n = fp[name]
-        b, t = proj(e, n, 0), proj(e, n, rz_bot(n))
+    # F2: true corner
+    e2, n2 = fp["F2"]
+    b, t = proj(e2, n2, 0), proj(e2, n2, rz_bot(n2))
+    if b and t:
+        svg.append(f'<path d="{sline(b[0],b[1],t[0],t[1],0.5)}"'
+                   f' fill="none" stroke="{INK}" stroke-width="1.8"/>')
+    # East side: silhouette point on F11b-F12 arc (tangent from camera)
+    # The silhouette is where the view direction is tangent to the arc.
+    # In plan view: from camera (E,N) to arc center C11, the tangent touch
+    # points are at ang_to_cam ± acos(R/d).  We want the one that's on the
+    # visible (camera-facing) side AND on the F11b→F12 arc segment.
+    _c11e, _c11n = fp["C11"]
+    _r11 = geo.radii["R_a11"]
+    _dce = _cam_e - _c11e; _dcn = _cam_n - _c11n
+    _dc = math.sqrt(_dce**2 + _dcn**2)
+    if _dc > _r11:
+        _ang_cam = math.atan2(_dcn, _dce)
+        _ang_off = math.acos(_r11 / _dc)
+        _tp1_a = _ang_cam + _ang_off
+        _tp2_a = _ang_cam - _ang_off
+        _tp1 = (_c11e + _r11 * math.cos(_tp1_a), _c11n + _r11 * math.sin(_tp1_a))
+        _tp2 = (_c11e + _r11 * math.cos(_tp2_a), _c11n + _r11 * math.sin(_tp2_a))
+        # Pick the tangent point with the largest E coordinate (easternmost),
+        # which is the right-edge silhouette from NNW.
+        _sil = _tp1 if _tp1[0] > _tp2[0] else _tp2
+        b, t = proj(_sil[0], _sil[1], 0), proj(_sil[0], _sil[1], rz_bot(_sil[1]))
         if b and t:
             svg.append(f'<path d="{sline(b[0],b[1],t[0],t[1],0.5)}"'
                        f' fill="none" stroke="{INK}" stroke-width="1.8"/>')
@@ -504,31 +616,7 @@ def main():
         svg.append(f'<path d="{linepath(soff_ok2)}" fill="none" stroke="{INK}"'
                    f' stroke-width="1.2" opacity="0.3"/>')
 
-    # ── 8. Roof texture (standing seam) ──────────────────────────────
-    # Clip to roof top polygon so lines don't bleed onto wall face
-    rt_clip = [p for p in rt_proj if p]
-    _has_roofclip = False
-    if rt_clip:
-        cp = polypath(rt_clip)
-        if cp:
-            svg.append(f'<clipPath id="roofclip"><path d="{cp}"/></clipPath>')
-            _has_roofclip = True
-    if _has_roofclip:
-        svg.append('<g clip-path="url(#roofclip)">')
-    re_min = min(p[0] for p in rpoly)
-    re_max = max(p[0] for p in rpoly)
-    rn_min = min(p[1] for p in rpoly)
-    rn_max = max(p[1] for p in rpoly)
-    ev = re_min + 2.0
-    while ev < re_max:
-        p1 = proj(ev, rn_min, rz_top(rn_min))
-        p2 = proj(ev, rn_max, rz_top(rn_max))
-        if p1 and p2:
-            svg.append(f'<path d="{sline(p1[0],p1[1],p2[0],p2[1],0.8)}"'
-                       f' fill="none" stroke="{INK_L}" stroke-width="0.3" opacity="0.3"/>')
-        ev += 2.0
-    if _has_roofclip:
-        svg.append('</g>')
+    # (Roof texture moved to step 2b2, before wall fill)
 
     # ── 9. Ground and vegetation ─────────────────────────────────────
     # (Fence and background ground veg moved to before wall fill)
@@ -547,10 +635,6 @@ def main():
                        random.uniform(14, 22), density=35)
 
     # ── 10. Foreground trees ─────────────────────────────────────────
-    # Large tree right side — moved further east to clear building
-    fg = proj(36, -2, 0)
-    if fg:
-        draw_tree(svg, fg[0], fg[1], 350, 200, bare=False)
     # Bare/sparse tree left foreground
     fg2 = proj(-24, -10, 0)
     if fg2:
@@ -563,20 +647,20 @@ def main():
         gy = random.uniform(SVG_H*0.75, SVG_H*0.96)
         gh = random.uniform(5, 20)
         svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-5,5), gy-gh, 0.5)}"'
-                   f' fill="none" stroke="#4a5830" stroke-width="1.0" opacity="0.45"/>')
+                   f' fill="none" stroke="#000000" stroke-width="1.0" opacity="0.45"/>')
     # Extra dense patches at bottom corners
     for _ in range(100):
         gx = random.uniform(SVG_W*0.55, SVG_W*0.98)
         gy = random.uniform(SVG_H*0.85, SVG_H*0.98)
         gh = random.uniform(6, 22)
         svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-6,6), gy-gh, 0.5)}"'
-                   f' fill="none" stroke="#4a5830" stroke-width="1.1" opacity="0.5"/>')
+                   f' fill="none" stroke="#000000" stroke-width="1.1" opacity="0.5"/>')
     for _ in range(100):
         gx = random.uniform(SVG_W*0.02, SVG_W*0.45)
         gy = random.uniform(SVG_H*0.85, SVG_H*0.98)
         gh = random.uniform(5, 18)
         svg.append(f'<path d="{sline(gx, gy, gx+random.uniform(-5,5), gy-gh, 0.5)}"'
-                   f' fill="none" stroke="#4a5830" stroke-width="1.0" opacity="0.45"/>')
+                   f' fill="none" stroke="#000000" stroke-width="1.0" opacity="0.45"/>')
 
     # ── 12. Shadow hatching ──────────────────────────────────────────
     # Diagonal hatching on upper wall (above window height) for depth
@@ -620,7 +704,7 @@ def main():
     svg.append('</svg>')
 
     out = os.path.join(_DIR, "sketch_nnw.svg")
-    with open(out, "w") as f:
+    with open(out, "w", encoding="utf-8") as f:
         f.write("\n".join(svg))
     print(f"Wrote {out}")
 
