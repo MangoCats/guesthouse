@@ -5,8 +5,11 @@ updates, and serves the single-page frontend.
 """
 import datetime
 import json
+import math
 import os
 import queue
+import re
+import shutil
 import sqlite3
 import subprocess
 import threading
@@ -345,6 +348,158 @@ def create_app(db_path=None):
             return jsonify(get_elements_for_variant(variant, db))
         return jsonify(get_all_elements(db))
 
+    # -- Wall-relative anchor utilities --
+
+    # W-series inner wall segment pairs (CW traversal order).
+    # Each tuple is (start_point_name, end_point_name).
+    _INNER_WALL_SEGS = [
+        ("W1", "W2"), ("W2", "W5"), ("W5", "W6"), ("W6", "W7"),
+        ("W7", "W8"), ("W8", "W9"), ("W9", "W10"), ("W10", "W11"),
+        ("W11", "W11a"), ("W11a", "W11b"), ("W11b", "W12"),
+        ("W12", "W13"), ("W13", "W14"), ("W14", "W15"),
+        ("W15", "W16"), ("W16", "W17"), ("W17", "W18"),
+        ("W18", "W19"), ("W19", "W20"), ("W20", "W1"),
+    ]
+
+    _WALL_SNAP_THRESHOLD = 4.0  # feet — max distance to snap to a wall
+
+    def _snap_to_wall(cx, cy, variant=None):
+        """Find nearest inner wall segment and compute along/across offsets.
+
+        Returns dict with wall-relative anchor spec, or None if no wall is
+        within threshold.  Result:
+            {"base": "W9", "along_wall": "W10",
+             "along_dist": 1.25, "across_dist": 0.5,
+             "wall_bearing_deg": 45.0}
+        """
+        geom = _get_geometry(variant)
+        pts = geom.get("points", {})
+
+        best = None
+        best_dist = _WALL_SNAP_THRESHOLD
+
+        for seg_start, seg_end in _INNER_WALL_SEGS:
+            a = pts.get(seg_start)
+            b = pts.get(seg_end)
+            if not a or not b:
+                continue
+            ax, ay = a[0], a[1]
+            bx, by = b[0], b[1]
+            dx, dy = bx - ax, by - ay
+            seg_len = math.sqrt(dx * dx + dy * dy)
+            if seg_len < 1e-9:
+                continue
+            # Unit along vector
+            ux, uy = dx / seg_len, dy / seg_len
+            # Vector from a to point
+            px, py = cx - ax, cy - ay
+            # Along-wall distance (projection)
+            along_dist = px * ux + py * uy
+            # Across-wall distance (perpendicular, positive = left/interior)
+            across_dist = px * (-uy) + py * ux
+            # Clamp along to segment
+            along_clamped = max(0, min(seg_len, along_dist))
+            # Nearest point on segment
+            nx = ax + along_clamped * ux
+            ny = ay + along_clamped * uy
+            perp_dist = math.sqrt((cx - nx) ** 2 + (cy - ny) ** 2)
+
+            if perp_dist < best_dist:
+                best_dist = perp_dist
+                wall_bearing = math.atan2(uy, ux) * 180 / math.pi
+                best = {
+                    "base": seg_start,
+                    "along_wall": seg_end,
+                    "along_dist": along_dist,
+                    "across_dist": across_dist,
+                    "wall_bearing_deg": wall_bearing,
+                }
+
+        return best
+
+    def _build_wall_relative_formula(cx, cy, width, depth, rotation_deg=0,
+                                     variant=None, shape="rect"):
+        """Build a wall-relative item formula for a position.
+
+        If a wall is within threshold, creates a parametric anchor using
+        wall base point + along/across offsets.  Otherwise falls back to
+        absolute coordinates.
+        """
+        snap = _snap_to_wall(cx, cy, variant)
+
+        if shape == "circle":
+            if snap:
+                center_spec = _wall_offset_point(snap)
+                return {"type": "item_circle", "center": center_spec,
+                        "radius": width / 2}
+            return {"type": "item_circle", "center": [cx, cy],
+                    "radius": width / 2}
+
+        if snap:
+            wall_bearing = snap["wall_bearing_deg"]
+            rel_rotation = rotation_deg - wall_bearing
+            anchor_spec = _wall_offset_point(snap)
+            along_dir = {"segment": [snap["base"], snap["along_wall"]]}
+            across_dir = {"segment_perp": [snap["base"], snap["along_wall"]]}
+            return {
+                "type": "item_rect",
+                "anchor": anchor_spec,
+                "along": along_dir,
+                "across": across_dir,
+                "width": width,
+                "depth": depth,
+                "anchor_corner": "center",
+                "rotation_deg": rel_rotation,
+            }
+
+        # Fallback: absolute coordinates
+        return {
+            "type": "item_rect",
+            "anchor": [cx, cy],
+            "along": [1, 0],
+            "across": [0, 1],
+            "width": width,
+            "depth": depth,
+            "anchor_corner": "center",
+            "rotation_deg": rotation_deg,
+        }
+
+    def _wall_offset_point(snap):
+        """Build a nested offset point spec from wall snap result.
+
+        Returns a point spec: base + along_dist * wall_dir + across_dist * wall_perp
+        """
+        base = snap["base"]
+        along_wall = snap["along_wall"]
+        wall_dir = {"segment": [base, along_wall]}
+        wall_perp = {"segment_perp": [base, along_wall]}
+        # Two nested offsets: first along wall, then across
+        return {
+            "offset": {
+                "offset": base,
+                "dist": snap["along_dist"],
+                "dir": wall_dir,
+            },
+            "dist": snap["across_dist"],
+            "dir": wall_perp,
+        }
+
+    def _build_item_formula(props, variant=None):
+        """Build a formula for any item (placed or seeded) from properties."""
+        shape = props.get("shape", "rect")
+        center = props.get("center", [0, 0])
+        cx, cy = center[0], center[1]
+        width = props.get("width", 1)
+        depth = props.get("depth", 1)
+        rotation_deg = props.get("rotation", 0)
+        return _build_wall_relative_formula(
+            cx, cy, width, depth, rotation_deg, variant, shape)
+
+    def _seed_item_formula(name, props, variant=None):
+        """Create/update a formula for an item."""
+        formula = _build_item_formula(props, variant)
+        upsert_formula(name, "position", formula, variant=None, db_path=db)
+
     @app.route("/api/elements", methods=["POST"])
     def api_create_element():
         body = request.get_json(force=True)
@@ -358,6 +513,9 @@ def create_app(db_path=None):
             record = create_element(type_, name, properties, variant, db)
         except Exception as exc:
             return jsonify({"error": str(exc)}), 400
+        # Create formula for placed items so they go through the evaluator
+        if properties.get("source") == "placed":
+            _seed_item_formula(name, properties, variant)
         undo_mgr.record(
             "element_create", record, record,
             f"Create {type_} {name}",
@@ -373,6 +531,13 @@ def create_app(db_path=None):
             return jsonify({"error": "not found"}), 404
         body = request.get_json(force=True)
         updated = update_element(element_id, body, db)
+        # Update formula for placed items when properties change
+        if "properties" in body:
+            props = body["properties"]
+            if isinstance(props, str):
+                props = json.loads(props)
+            if props.get("source") == "placed":
+                _seed_item_formula(old["name"], props)
         undo_mgr.record(
             "element_update", old, updated,
             f"Update {old['name']}",
@@ -493,6 +658,74 @@ def create_app(db_path=None):
         props = el.get("properties") or {}
         if isinstance(props, str):
             props = json.loads(props)
+
+        # Unified item move: re-anchor to nearest wall at new position
+        # Only for items that have a position formula (seeded or placed items)
+        has_formula = bool(get_element_formulas(name, db_path=db))
+        if el["type"] in ("furniture", "appliance", "fixture") and has_formula:
+            variant = el.get("variant") or "standard"
+            geom = _get_geometry(variant)
+            # Get current center from geometry output
+            vi = geom.get("variant_items", {})
+            item_geom = vi.get(name, {})
+            old_center = item_geom.get("center")
+            if not old_center:
+                # Fall back to bbox center
+                bbox = item_geom.get("bbox", {})
+                if bbox:
+                    old_center = [(bbox.get("w", 0) + bbox.get("e", 0)) / 2,
+                                  (bbox.get("s", 0) + bbox.get("n", 0)) / 2]
+                else:
+                    old_center = props.get("center", [0, 0])
+
+            new_cx = old_center[0] + dx
+            new_cy = old_center[1] + dy
+            width = item_geom.get("width") or props.get("width", 1)
+            depth = item_geom.get("depth") or props.get("depth", 1)
+            rotation = item_geom.get("rotation") or props.get("rotation", 0)
+            shape = props.get("shape", "rect")
+
+            # Save old formula for undo
+            old_formulas = get_element_formulas(name, db_path=db)
+            old_formula_json = None
+            for f in old_formulas:
+                if f["param_name"] == "position":
+                    fj = f["formula_json"]
+                    old_formula_json = json.loads(fj) if isinstance(fj, str) else fj
+                    break
+
+            # Build new wall-relative formula at new position
+            formula = _build_wall_relative_formula(
+                new_cx, new_cy, width, depth, rotation, variant, shape)
+            upsert_formula(name, "position", formula, variant=None,
+                           db_path=db)
+
+            # Update center in element properties for placed items
+            if props.get("source") == "placed" or props.get("center"):
+                new_props = dict(props, center=[new_cx, new_cy])
+                update_element(element_id, {"properties": new_props}, db)
+
+            undo_mgr.record(
+                "element_move",
+                {"move_type": "formula", "id": element_id, "name": name,
+                 "formula": old_formula_json,
+                 "properties": props},
+                {"move_type": "formula", "id": element_id, "name": name,
+                 "formula": formula,
+                 "properties": dict(props, center=[new_cx, new_cy])
+                               if props.get("source") == "placed" or props.get("center")
+                               else props},
+                f"Move {name}",
+            )
+            _broadcast("element_changed")
+            _invalidate()
+            return jsonify({
+                "ok": True,
+                "center": [new_cx, new_cy],
+                "can_undo": undo_mgr.can_undo,
+                "can_redo": undo_mgr.can_redo,
+            })
+
         old_ox = props.get("offset_x", 0)
         old_oy = props.get("offset_y", 0)
         new_ox = old_ox + dx
@@ -511,6 +744,82 @@ def create_app(db_path=None):
         return jsonify({
             "ok": True,
             "offset_x": new_ox, "offset_y": new_oy,
+            "can_undo": undo_mgr.can_undo,
+            "can_redo": undo_mgr.can_redo,
+        })
+
+    @app.route("/api/elements/<int:element_id>/update-formula", methods=["PUT"])
+    def api_update_formula(element_id):
+        """Update an item's formula fields (width, depth, rotation).
+
+        Replaces the symbolic constant with a literal value in the formula,
+        leaving the anchor (wall-relative position) unchanged.
+        """
+        el = get_element(element_id, db)
+        if not el:
+            return jsonify({"error": "not found"}), 404
+        body = request.get_json(force=True)
+        name = el["name"]
+
+        # Get current formula
+        formulas = get_element_formulas(name, db_path=db)
+        old_formula = None
+        for f in formulas:
+            if f["param_name"] == "position":
+                fj = f["formula_json"]
+                old_formula = json.loads(fj) if isinstance(fj, str) else fj
+                break
+
+        if not old_formula:
+            return jsonify({"error": "no position formula found"}), 400
+
+        new_formula = dict(old_formula)
+        changed = False
+
+        if "width" in body:
+            new_formula["width"] = body["width"]
+            changed = True
+        if "depth" in body:
+            new_formula["depth"] = body["depth"]
+            changed = True
+        if "rotation_deg" in body:
+            new_formula["rotation_deg"] = body["rotation_deg"]
+            changed = True
+
+        if not changed:
+            return jsonify({"error": "no fields to update"}), 400
+
+        upsert_formula(name, "position", new_formula, variant=None,
+                       db_path=db)
+
+        # Also update element properties for consistency
+        props = el.get("properties") or {}
+        if isinstance(props, str):
+            props = json.loads(props)
+        new_props = dict(props)
+        if "width" in body:
+            new_props["width"] = body["width"]
+        if "depth" in body:
+            new_props["depth"] = body["depth"]
+        if "rotation_deg" in body:
+            # Store as world rotation in properties
+            new_props["rotation"] = body.get("world_rotation", body["rotation_deg"])
+        update_element(element_id, {"properties": new_props}, db)
+
+        undo_mgr.record(
+            "formula_update",
+            {"id": element_id, "name": name,
+             "formula": old_formula,
+             "properties": el.get("properties")},
+            {"id": element_id, "name": name,
+             "formula": new_formula,
+             "properties": new_props},
+            f"Update {name} formula",
+        )
+        _broadcast("element_changed")
+        _invalidate()
+        return jsonify({
+            "ok": True,
             "can_undo": undo_mgr.can_undo,
             "can_redo": undo_mgr.can_redo,
         })
@@ -1190,6 +1499,172 @@ def create_app(db_path=None):
         _broadcast("element_changed")
         _broadcast("outline_changed")
         return jsonify({"ok": True})
+
+    # -- Configuration Files API (Phase 20) --
+
+    _CONFIGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "configs")
+    os.makedirs(_CONFIGS_DIR, exist_ok=True)
+    _INVALID_NAME_RE = re.compile(r'[<>:"/\\|?*]')
+
+    def _validate_config_name(name):
+        if not name or not name.strip():
+            return "name is required"
+        if _INVALID_NAME_RE.search(name) or '..' in name:
+            return "invalid characters in name"
+        return None
+
+    @app.route("/api/configs")
+    def api_config_list():
+        entries = []
+        for fname in os.listdir(_CONFIGS_DIR):
+            if not fname.endswith(".db"):
+                continue
+            fpath = os.path.join(_CONFIGS_DIR, fname)
+            stat = os.stat(fpath)
+            entries.append({
+                "name": fname[:-3],  # strip .db
+                "modified": datetime.datetime.fromtimestamp(
+                    stat.st_mtime).isoformat(),
+                "size": stat.st_size,
+            })
+        entries.sort(key=lambda e: e["modified"], reverse=True)
+        return jsonify(entries)
+
+    @app.route("/api/configs/save", methods=["POST"])
+    def api_config_save():
+        data = request.get_json(force=True)
+        name = data.get("name", "").strip()
+        err = _validate_config_name(name)
+        if err:
+            return jsonify({"error": err}), 400
+        target = os.path.join(_CONFIGS_DIR, f"{name}.db")
+        if os.path.exists(target) and not data.get("overwrite"):
+            return jsonify({"status": "exists"}), 409
+        # Checkpoint WAL then copy
+        with get_db(db) as conn:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        shutil.copy2(db, target)
+        # Store config name in DB
+        set_config("config_name", name, db)
+        return jsonify({"status": "ok", "name": name})
+
+    @app.route("/api/configs/load", methods=["POST"])
+    def api_config_load():
+        data = request.get_json(force=True)
+        name = data.get("name", "").strip()
+        err = _validate_config_name(name)
+        if err:
+            return jsonify({"error": err}), 400
+        source = os.path.join(_CONFIGS_DIR, f"{name}.db")
+        if not os.path.exists(source):
+            return jsonify({"error": "configuration not found"}), 404
+        # Validate the source DB
+        ok, issues = validate_db(source)
+        if not ok:
+            return jsonify({"error": "invalid config file",
+                            "issues": issues}), 400
+        # Checkpoint current DB, then replace
+        with get_db(db) as conn:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        shutil.copy2(source, db)
+        # Remove WAL/SHM files for the live DB
+        for ext in ("-wal", "-shm"):
+            p = db + ext
+            if os.path.exists(p):
+                os.remove(p)
+        # Set config name in the loaded DB
+        set_config("config_name", name, db)
+        _invalidate()
+        _broadcast("element_changed")
+        _broadcast("outline_changed")
+        _broadcast("plumbing_changed")
+        _broadcast("variant_changed")
+        return jsonify({"status": "ok", "name": name})
+
+    @app.route("/api/configs/<name>", methods=["DELETE"])
+    def api_config_delete(name):
+        err = _validate_config_name(name)
+        if err:
+            return jsonify({"error": err}), 400
+        target = os.path.join(_CONFIGS_DIR, f"{name}.db")
+        if not os.path.exists(target):
+            return jsonify({"error": "configuration not found"}), 404
+        os.remove(target)
+        for ext in ("-wal", "-shm"):
+            p = target + ext
+            if os.path.exists(p):
+                os.remove(p)
+        return jsonify({"status": "ok"})
+
+    # -- Catalog API (Phase 20) --
+
+    @app.route("/api/catalog")
+    def api_catalog():
+        """Return placement catalog derived from variant_items geometry."""
+        # Collect items across variants, preferring standard for dimensions
+        seen = {}  # key -> catalog entry
+        for vname in ("standard", "minik", "daybed"):
+            data = _get_geometry(vname)
+            vi = data.get("variant_items", {})
+            for item_name, item in vi.items():
+                if item_name in seen:
+                    # Add this variant to existing entry
+                    if vname not in seen[item_name]["variants"]:
+                        seen[item_name]["variants"].append(vname)
+                    continue
+                bbox = item.get("bbox", {})
+                width = bbox.get("e", 0) - bbox.get("w", 0)
+                depth = bbox.get("n", 0) - bbox.get("s", 0)
+                entry = {
+                    "key": item_name,
+                    "label": item.get("label", item_name.upper()),
+                    "type": item.get("type", "furniture"),
+                    "width": round(width, 6),
+                    "depth": round(depth, 6),
+                    "shape": item.get("shape", "rect"),
+                    "variants": [vname],
+                }
+                if item.get("product_url"):
+                    entry["product_url"] = item["product_url"]
+                # Get full product_url from DB element properties
+                # (may be variant-keyed dict)
+                elem = get_element_by_name(item_name, db)
+                if elem:
+                    props = elem.get("properties", {})
+                    if isinstance(props, str):
+                        try:
+                            props = json.loads(props)
+                        except (json.JSONDecodeError, TypeError):
+                            props = {}
+                    raw_url = props.get("product_url")
+                    if raw_url and not entry.get("product_url"):
+                        if isinstance(raw_url, dict):
+                            entry["product_url"] = raw_url.get(
+                                "default", next(iter(raw_url.values()), None))
+                        else:
+                            entry["product_url"] = raw_url
+                    if props.get("door"):
+                        entry["door"] = props["door"]
+                    if props.get("clearance"):
+                        entry["clearance"] = props["clearance"]
+                    if props.get("stacked"):
+                        entry["stacked"] = True
+                    if props.get("clip_to_inner"):
+                        entry["clip_to_inner"] = True
+                if item.get("radius"):
+                    entry["radius"] = item["radius"]
+                if item.get("center"):
+                    entry["center"] = item["center"]
+                seen[item_name] = entry
+
+        # Group by type, then by label for sub-menus
+        result = {"furniture": [], "appliance": [], "fixture": []}
+        for entry in seen.values():
+            t = entry["type"]
+            if t in result:
+                result[t].append(entry)
+        return jsonify(result)
 
     # -- Survey Points API (SITE-4) --
 

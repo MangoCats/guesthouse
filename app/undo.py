@@ -9,9 +9,9 @@ import time
 from app.database import (
     get_db, update_constant, update_constants_batch,
     create_element_raw, update_element, delete_element,
-    get_element_by_name,
+    get_element, get_element_by_name,
     create_door_raw, update_door, delete_door,
-    set_formula_lock, get_element_formulas,
+    set_formula_lock, get_element_formulas, upsert_formula,
 )
 
 
@@ -93,11 +93,35 @@ class UndoManager:
             delete_element(state["id"], self._db_path)
         elif action_type == "element_delete":
             # Undo: re-insert the deleted element(s)
-            if isinstance(state, list):
-                for rec in state:
-                    create_element_raw(rec, self._db_path)
-            else:
-                create_element_raw(state, self._db_path)
+            recs = state if isinstance(state, list) else [state]
+            for rec in recs:
+                create_element_raw(rec, self._db_path)
+                # Re-create formula for placed items (absolute fallback)
+                props = rec.get("properties", {})
+                if isinstance(props, str):
+                    try:
+                        props = json.loads(props)
+                    except (ValueError, TypeError):
+                        props = {}
+                if props.get("source") == "placed":
+                    center = props.get("center", [0, 0])
+                    shape = props.get("shape", "rect")
+                    w = props.get("width", 1)
+                    d = props.get("depth", 1)
+                    rotation = props.get("rotation", 0)
+                    if shape == "circle":
+                        r = props.get("radius") or w / 2
+                        formula = {"type": "item_circle",
+                                   "center": center, "radius": r}
+                    else:
+                        formula = {"type": "item_rect",
+                                   "anchor": center,
+                                   "along": [1, 0], "across": [0, 1],
+                                   "width": w, "depth": d,
+                                   "anchor_corner": "center",
+                                   "rotation_deg": rotation}
+                    upsert_formula(rec["name"], "position", formula,
+                                   variant=None, db_path=self._db_path)
         elif action_type == "element_update":
             # Undo: restore old field values
             eid = state["id"]
@@ -130,9 +154,52 @@ class UndoManager:
             # Move undo/redo: state contains move_type + details
             if state.get("move_type") == "constant":
                 update_constant(state["constant"], state["value"], self._db_path)
+            elif state.get("move_type") == "formula":
+                # Unified formula-based move: restore formula + properties
+                if state.get("formula"):
+                    upsert_formula(state["name"], "position",
+                                   state["formula"], variant=None,
+                                   db_path=self._db_path)
+                if state.get("properties"):
+                    update_element(state["id"],
+                                   {"properties": state["properties"]},
+                                   self._db_path)
+            elif state.get("move_type") == "placed":
+                # Legacy placed item move (for undo history compat)
+                update_element(state["id"],
+                               {"properties": state["properties"]}, self._db_path)
+                props = state["properties"]
+                el = get_element(state["id"], self._db_path)
+                if el:
+                    center = props.get("center", [0, 0])
+                    shape = props.get("shape", "rect")
+                    if shape == "circle":
+                        r = props.get("radius") or props.get("width", 1) / 2
+                        formula = {"type": "item_circle",
+                                   "center": center, "radius": r}
+                    else:
+                        w = props.get("width", 1)
+                        d = props.get("depth", 1)
+                        sw = [center[0] - w / 2, center[1] - d / 2]
+                        formula = {"type": "item_rect", "anchor": sw,
+                                   "along": [1, 0], "across": [0, 1],
+                                   "width": w, "depth": d,
+                                   "anchor_corner": "sw"}
+                    upsert_formula(el["name"], "position", formula,
+                                   variant=None, db_path=self._db_path)
             else:
                 update_element(state["id"],
                                {"properties": state["properties"]}, self._db_path)
+        elif action_type == "formula_update":
+            # Formula field update (width/depth/rotation): restore formula + props
+            if state.get("formula"):
+                upsert_formula(state["name"], "position",
+                               state["formula"], variant=None,
+                               db_path=self._db_path)
+            if state.get("properties"):
+                update_element(state["id"],
+                               {"properties": state["properties"]},
+                               self._db_path)
         elif action_type == "plumbing_create":
             from app.plumbing import delete_plumbing_element
             delete_plumbing_element(state["id"], self._db_path)

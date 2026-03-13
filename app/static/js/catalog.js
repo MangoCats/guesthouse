@@ -1,33 +1,8 @@
 /* ========== Catalog & Placement Tool (TL-18, TL-19, TL-20, TL-21) ========== */
 "use strict";
 
-/** Hardcoded catalog items (mirrors floorplan constants, per NF-4 pattern). */
-const CATALOG = {
-  furniture: [
-    { key: "bed",      label: "King Bed",     width: 76.0/12, depth: 80.0/12 },
-    { key: "dresser",  label: "Dresser",      width: 34.0/12, depth: 18.0/12 },
-    { key: "shelves",  label: "Shelves",      width: 16.0/12, depth: 16.0/12 },
-    { key: "loveseat", label: "Loveseat",     width: 35.0/12, depth: 72.0/12 },
-    { key: "desk",     label: "Desk",         width: 60.0/12, depth: 24.0/12 },
-    { key: "chair",    label: "Chair",        width: 32.0/12, depth: 33.0/12 },
-    { key: "sofa",     label: "Sofa",         width: 97.2/12, depth: 38.0/12 },
-    { key: "rocker",   label: "Rocking Chair",width: 26.75/12,depth: 32.0/12 },
-  ],
-  appliance: [
-    { key: "washer",       label: "Washer",       width: 35.0/12, depth: 31.0/12 },
-    { key: "dryer",        label: "Dryer",        width: 35.0/12, depth: 31.0/12 },
-    { key: "stove",        label: "Stove",        width: 30.0/12, depth: 25.0/12 },
-    { key: "dishwasher",   label: "Dishwasher",   width: 28.0/12, depth: 24.0/12 },
-    { key: "ice_maker",    label: "Ice Maker",    width: 17.7/12, depth: 23.0/12 },
-    { key: "kitchen_sink", label: "Kitchen Sink",  width: 45.0/12, depth: 22.0/12 },
-  ],
-  fixture: [
-    { key: "toilet",   label: "Toilet",   width: 15.0/12, depth: 28.0/12 },
-    { key: "tub",      label: "Bathtub",  width: 30.0/12, depth: 60.0/12 },
-    { key: "vanity",   label: "Vanity",   width: 24.0/12, depth: 21.0/12 },
-  ],
-};
-
+/** Cached catalog data from server (populated by loadCatalog). */
+let _catalogData = null;
 
 /** Placement tool state. */
 const PlaceTool = {
@@ -36,6 +11,20 @@ const PlaceTool = {
   itemType: null,
   previewEl: null, // reserved for future hover-preview during placement
 };
+
+
+/** Fetch catalog from server, caching result. */
+async function loadCatalog(force) {
+  if (_catalogData && !force) return _catalogData;
+  try {
+    const resp = await apiFetch("/api/catalog");
+    _catalogData = await resp.json();
+  } catch (e) {
+    showToast("Failed to load catalog: " + e.message, "error");
+    _catalogData = { furniture: [], appliance: [], fixture: [] };
+  }
+  return _catalogData;
+}
 
 
 /** Auto-generate a unique name for a placed item. */
@@ -66,25 +55,148 @@ function rectPoly(cx, cy, w, d) {
 }
 
 
+/** Format item dimensions for catalog display. */
+function catalogDimText(item) {
+  if (item.shape === "circle" && item.radius) {
+    return `${fmtFtIn(item.radius * 2)} dia`;
+  }
+  return `${fmtFtIn(item.width)} × ${fmtFtIn(item.depth)}`;
+}
+
+
+/** Build a catalog card element for an item or group. */
+function buildCatalogCard(item, itemType, onSelect) {
+  const card = document.createElement("div");
+  card.className = "catalog-item";
+
+  const nameEl = document.createElement("span");
+  nameEl.className = "catalog-item-label";
+  nameEl.textContent = item.label;
+  card.appendChild(nameEl);
+
+  if (item.product_url) {
+    const linkIcon = document.createElement("span");
+    linkIcon.className = "catalog-link-icon";
+    linkIcon.textContent = "\u2197"; // ↗
+    linkIcon.title = "Has product link";
+    card.appendChild(linkIcon);
+  }
+
+  const dims = document.createElement("small");
+  dims.textContent = catalogDimText(item);
+  card.appendChild(document.createElement("br"));
+  card.appendChild(dims);
+
+  if (item.shape && item.shape !== "rect") {
+    const shapeTag = document.createElement("span");
+    shapeTag.className = "catalog-shape-tag";
+    shapeTag.textContent = item.shape;
+    card.appendChild(shapeTag);
+  }
+
+  card.addEventListener("click", () => onSelect(item));
+  return card;
+}
+
+
 /** Show the catalog dialog for a given item type. */
-function showCatalog(itemType) {
-  const items = CATALOG[itemType];
+async function showCatalog(itemType) {
+  const catalog = await loadCatalog();
+  const items = catalog[itemType];
   if (!items || items.length === 0) {
     showToast(`No ${itemType} items in catalog`, "warning");
     return;
   }
 
+  // Show all items from all variants (not filtered by current variant)
+  const available = items;
+
+  // Group items by label to create sub-menus for items like COUNTER
+  const groups = new Map();
+  for (const item of available) {
+    const label = item.label;
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(item);
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "catalog-grid";
+
+  for (const [label, groupItems] of groups) {
+    if (groupItems.length === 1) {
+      // Single item — direct placement
+      const card = buildCatalogCard(groupItems[0], itemType, (item) => {
+        Dialog.close();
+        startPlacement(item, itemType);
+      });
+      grid.appendChild(card);
+    } else {
+      // Multiple items sharing a label — show sub-menu on click
+      const card = document.createElement("div");
+      card.className = "catalog-item catalog-group";
+
+      const nameEl = document.createElement("span");
+      nameEl.className = "catalog-item-label";
+      nameEl.textContent = label;
+      card.appendChild(nameEl);
+
+      const countEl = document.createElement("small");
+      countEl.textContent = `${groupItems.length} variants \u25B6`;
+      card.appendChild(document.createElement("br"));
+      card.appendChild(countEl);
+
+      card.addEventListener("click", () => {
+        Dialog.close();
+        showCatalogSubMenu(label, groupItems, itemType);
+      });
+      grid.appendChild(card);
+    }
+  }
+
+  Dialog.show({
+    title: `Add ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}`,
+    customContent: grid,
+    fields: [],
+    onSubmit() {},
+  });
+}
+
+
+/** Show sub-menu for items sharing a label (e.g. COUNTER variants). */
+function showCatalogSubMenu(label, items, itemType) {
   const grid = document.createElement("div");
   grid.className = "catalog-grid";
 
   for (const item of items) {
     const card = document.createElement("div");
     card.className = "catalog-item";
-    card.textContent = item.label;
+
+    // Show the specific key name for disambiguation
+    const nameEl = document.createElement("span");
+    nameEl.className = "catalog-item-label";
+    nameEl.textContent = item.key.replace(/_/g, " ");
+    card.appendChild(nameEl);
+
+    if (item.product_url) {
+      const linkIcon = document.createElement("span");
+      linkIcon.className = "catalog-link-icon";
+      linkIcon.textContent = "\u2197";
+      linkIcon.title = "Has product link";
+      card.appendChild(linkIcon);
+    }
+
     const dims = document.createElement("small");
-    dims.textContent = `${fmtFtIn(item.width)} x ${fmtFtIn(item.depth)}`;
+    dims.textContent = catalogDimText(item);
     card.appendChild(document.createElement("br"));
     card.appendChild(dims);
+
+    if (item.variants && item.variants.length < 3) {
+      const varTag = document.createElement("span");
+      varTag.className = "catalog-shape-tag";
+      varTag.textContent = item.variants.join(", ");
+      card.appendChild(varTag);
+    }
+
     card.addEventListener("click", () => {
       Dialog.close();
       startPlacement(item, itemType);
@@ -93,7 +205,7 @@ function showCatalog(itemType) {
   }
 
   Dialog.show({
-    title: `Add ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}`,
+    title: `${label} Variants`,
     customContent: grid,
     fields: [],
     onSubmit() {},
@@ -107,7 +219,7 @@ function startPlacement(item, type) {
   PlaceTool.itemTemplate = item;
   PlaceTool.itemType = type;
   App.els["viewport"].style.cursor = "copy";
-  showToast(`Click to place ${item.label}`, "info");
+  showToast(`Click to place ${item.label} (${item.key})`, "info");
 }
 
 
@@ -138,6 +250,26 @@ async function placeElement(wx, wy) {
   const name = nextPlacedName(type, item.key);
   const poly = rectPoly(wx, wy, item.width, item.depth);
 
+  const properties = {
+    source: "placed",
+    center: [wx, wy],
+    width: item.width,
+    depth: item.depth,
+    rotation: 0,
+    poly: poly,
+    shape: item.shape || "rect",
+    catalog_key: item.key,
+    label: item.label,
+  };
+
+  // Carry over metadata from catalog
+  if (item.variants) properties.variants = item.variants;
+  if (item.product_url) properties.product_url = item.product_url;
+  if (item.door) properties.door = item.door;
+  if (item.clearance) properties.clearance = item.clearance;
+  if (item.stacked) properties.stacked = true;
+  if (item.clip_to_inner) properties.clip_to_inner = true;
+
   const resp = await fetch("/api/elements", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -145,16 +277,7 @@ async function placeElement(wx, wy) {
       type: type,
       name: name,
       variant: App.state.variant,
-      properties: {
-        source: "placed",
-        center: [wx, wy],
-        width: item.width,
-        depth: item.depth,
-        rotation: 0,
-        poly: poly,
-        shape: "rect",
-        catalog_key: item.key,
-      },
+      properties: properties,
     }),
   });
 

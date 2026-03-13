@@ -2858,6 +2858,129 @@ Preview clears when dialog closes.
 
 ---
 
+## 20  Configuration Files (Save/Load)
+
+### 20.1  Save Configuration
+
+#### CFG-1  Save Database As Named File
+The application SHALL provide a UI action (menu item or button) to save the
+current database state as a named configuration file.
+
+**Acceptance:** Click "Save As". Enter a name (e.g., "kitchen-v2"). A file
+is created that captures the full database state. Success feedback is shown
+to the user.
+
+#### CFG-2  Save File Format
+Saved configuration files SHALL be copies of the SQLite database file,
+stored in a designated directory (e.g., `app/configs/`).
+
+**Acceptance:** After saving, verify the file exists in the configs directory
+and can be opened as a valid SQLite database with the expected schema.
+
+#### CFG-3  Save File Naming
+The user-supplied name SHALL be used as the file stem. Invalid filesystem
+characters SHALL be rejected with an error message. The `.db` extension
+SHALL be appended automatically.
+
+**Acceptance:** Save with name "my config". File is created as
+`my config.db`. Attempt to save with name "foo/bar" — error is shown,
+no file is created.
+
+#### CFG-4  Overwrite Confirmation
+If a configuration file with the chosen name already exists, the application
+SHALL prompt for confirmation before overwriting.
+
+**Acceptance:** Save twice with the same name. On the second save, a
+confirmation dialog appears. Cancelling preserves the original file.
+Confirming overwrites it.
+
+### 20.2  Load Configuration
+
+#### CFG-5  Load Named Configuration
+The application SHALL provide a UI action to load a previously saved
+configuration file, replacing the current database state.
+
+**Acceptance:** Load a saved configuration. All constants, elements,
+outline chain, formulas, and other DB content reflect the loaded file.
+The canvas updates to show the loaded configuration.
+
+#### CFG-6  Configuration File List
+The load UI SHALL display a list of available saved configuration files
+with their names and last-modified timestamps.
+
+**Acceptance:** Save two configurations. Open the load dialog. Both
+appear in the list with correct names and timestamps, sorted by most
+recent first.
+
+#### CFG-7  Unsaved Changes Warning
+If the current database has unsaved changes (modifications since last
+save or load), the application SHALL warn the user before loading a
+different configuration.
+
+**Acceptance:** Modify a constant. Attempt to load a configuration.
+A warning dialog appears offering to save, discard, or cancel.
+
+#### CFG-8  Load Validation
+The application SHALL validate that a configuration file has the expected
+schema before loading it. Invalid or corrupted files SHALL be rejected
+with an error message.
+
+**Acceptance:** Attempt to load a truncated or non-SQLite file. An error
+message is shown. The current database is unchanged.
+
+### 20.3  API Endpoints
+
+#### CFG-9  Save API
+`POST /api/config/save` with body `{"name": "<config-name>"}` SHALL save
+the current database to the named configuration file and return
+`{"status": "ok", "path": "<file-path>"}`.
+
+**Acceptance:** `curl -X POST -d '{"name":"test1"}' /api/config/save`
+returns 200 with status "ok". File exists on disk.
+
+#### CFG-10  Load API
+`POST /api/config/load` with body `{"name": "<config-name>"}` SHALL
+replace the current database with the named configuration file and return
+`{"status": "ok"}`. The server SHALL broadcast an SSE event to refresh
+all connected clients.
+
+**Acceptance:** `curl -X POST -d '{"name":"test1"}' /api/config/load`
+returns 200. Subsequent API calls reflect the loaded configuration.
+Connected browser clients refresh automatically.
+
+#### CFG-11  List API
+`GET /api/config/list` SHALL return a JSON array of available
+configuration files: `[{"name": "...", "modified": "...", "size": ...}, ...]`.
+
+**Acceptance:** Save two configurations. `GET /api/config/list` returns
+both entries with correct names, ISO timestamps, and file sizes.
+
+#### CFG-12  Delete API
+`DELETE /api/config/<name>` SHALL delete the named configuration file
+and return `{"status": "ok"}`.
+
+**Acceptance:** Save a configuration, then delete it via API. The file
+is removed. Subsequent list call does not include it.
+
+### 20.4  UI Integration
+
+#### CFG-13  Save/Load Controls
+The application toolbar or menu SHALL include Save, Save As, and Load
+controls accessible via mouse and keyboard shortcuts.
+
+**Acceptance:** Visual inspection — Save/Load controls are present in
+the UI. Keyboard shortcuts (e.g., Ctrl+S for Save, Ctrl+Shift+S for
+Save As, Ctrl+O for Load) function correctly.
+
+#### CFG-14  Current Configuration Indicator
+The UI SHALL display the name of the currently loaded configuration
+(or "Unsaved" if no configuration has been saved or loaded).
+
+**Acceptance:** Load "kitchen-v2". The title bar or status area shows
+"kitchen-v2". Start fresh — shows "Unsaved".
+
+---
+
 ## Appendix A: Requirement Cross-Reference by User Operation
 
 This table maps common user operations (identified from the full commit
@@ -2882,6 +3005,7 @@ history) to the requirements that enable each operation through the GUI.
 | Product hyperlinks | ~14 | LINK-1, LINK-2, SEL-12, CV-12, DIS-11 |
 | Delete elements | ~14 | TL-22, TL-23, TL-25, SEL-13, API-22, API-26, API-29 |
 | Inner wall overrides | ~5 | IWO-1..10 |
+| Save/load configurations | 0 | CFG-1..14 |
 | Undo/redo | implicit | UNDO-1..4, API-30, API-31 |
 
 ## Appendix B: Requirements Summary
@@ -2911,7 +3035,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 17 Application | 10 | 0 | 10 |
 | 18 Formulas | 19 | 0 | 19 |
 | 19 Inner Wall Overrides | 10 | 0 | 10 |
-| **Total** | **287** | **0** | **287** |
+| 20 Configuration Files | 0 | 14 | 14 |
+| **Total** | **287** | **14** | **301** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

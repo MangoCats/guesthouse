@@ -13,6 +13,10 @@
       <div class="menu-item" data-menu="file">
         File
         <div class="dropdown">
+          <button data-action="config-save">Save <span class="shortcut">Ctrl+S</span></button>
+          <button data-action="config-save-as">Save As… <span class="shortcut">Ctrl+Shift+S</span></button>
+          <button data-action="config-load">Load… <span class="shortcut">Ctrl+O</span></button>
+          <hr>
           <button data-action="regenerate-all">Regenerate All</button>
           <button data-action="regenerate-view">Regenerate Current View</button>
           <hr>
@@ -62,6 +66,8 @@
       </div>
     </div>
     <div class="status-right">
+      <span id="config-name" title="Current configuration">Unsaved</span>
+      <span class="status-sep">|</span>
       <span id="coord-display">E: — N: —</span>
       <span id="build-label"></span><button id="build-copy" title="Copy build info" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:0 2px;">&#9112;</button>
       <span id="connection-status" class="disconnected">Disconnected</span>

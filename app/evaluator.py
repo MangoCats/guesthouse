@@ -333,7 +333,13 @@ class FormulaEvaluator:
         return {"poly": poly_out, "bbox": _bbox_from_poly(poly_out)}
 
     def _eval_item_rect(self, formula):
-        """Evaluate an item_rect formula → {"poly": [...], "bbox": {...}}."""
+        """Evaluate an item_rect formula → {"poly": [...], "bbox": {...}, ...}.
+
+        Supports optional ``rotation_deg`` (degrees, relative to along/across
+        vectors).  When present the rectangle is rotated around its center.
+        The result dict includes ``center``, ``width``, ``depth``, and
+        ``rotation`` so downstream code doesn't need to re-derive them.
+        """
         anchor = self.resolve_point(formula.get("anchor"))
         along = self.resolve_dir(formula.get("along"))
         across = self.resolve_dir(formula.get("across"))
@@ -344,7 +350,11 @@ class FormulaEvaluator:
 
         corner = formula.get("anchor_corner", "sw")
         # Compute SW corner from anchor + corner type
-        if corner == "sw":
+        if corner == "center":
+            hw, hd = width / 2, depth / 2
+            sw = [anchor[0] - hw * along[0] - hd * across[0],
+                  anchor[1] - hw * along[1] - hd * across[1]]
+        elif corner == "sw":
             sw = anchor
         elif corner == "se":
             sw = [anchor[0] - width * along[0], anchor[1] - width * along[1]]
@@ -360,7 +370,37 @@ class FormulaEvaluator:
         ne = [se[0] + depth * across[0], se[1] + depth * across[1]]
         nw = [sw[0] + depth * across[0], sw[1] + depth * across[1]]
         poly = [sw, se, ne, nw]
-        return {"poly": poly, "bbox": _bbox_from_poly(poly)}
+
+        # Compute center (before rotation) for result and as rotation pivot
+        cx = (sw[0] + ne[0]) / 2
+        cy = (sw[1] + ne[1]) / 2
+
+        # Compute world rotation angle from along vector + optional rotation_deg
+        base_angle = math.atan2(along[1], along[0]) * 180 / math.pi
+        rotation_deg = self.resolve_length(formula.get("rotation_deg")) or 0
+        world_rotation = base_angle + rotation_deg
+
+        # Apply rotation_deg around center if non-zero
+        if abs(rotation_deg) > 1e-9:
+            rad = rotation_deg * math.pi / 180
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            rotated = []
+            for p in poly:
+                dx, dy = p[0] - cx, p[1] - cy
+                rotated.append([
+                    cx + dx * cos_r - dy * sin_r,
+                    cy + dx * sin_r + dy * cos_r,
+                ])
+            poly = rotated
+
+        return {
+            "poly": poly,
+            "bbox": _bbox_from_poly(poly),
+            "center": [cx, cy],
+            "width": width,
+            "depth": depth,
+            "rotation": world_rotation,
+        }
 
     def _eval_item_circle(self, formula):
         """Evaluate an item_circle formula → {"center": [...], "radius": R, "poly": [...], "bbox": {...}}."""

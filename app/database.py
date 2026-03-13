@@ -261,6 +261,49 @@ def init_db(db_path=None):
             if "sort_order" not in pe_cols:
                 conn.execute("ALTER TABLE plumbing_elements "
                              "ADD COLUMN sort_order INTEGER DEFAULT 0")
+            # Migrate existing placed items: create formulas if missing
+            _migrate_placed_item_formulas(conn)
+
+
+def _migrate_placed_item_formulas(conn):
+    """Create formulas for placed items that don't have them yet."""
+    rows = conn.execute(
+        "SELECT name, properties FROM elements "
+        "WHERE json_extract(properties, '$.source') = 'placed'"
+    ).fetchall()
+    for row in rows:
+        name = row["name"]
+        existing = conn.execute(
+            "SELECT id FROM element_formulas WHERE element_name = ?",
+            (name,),
+        ).fetchone()
+        if existing:
+            continue
+        props = json.loads(row["properties"]) if isinstance(
+            row["properties"], str) else (row["properties"] or {})
+        center = props.get("center", [0, 0])
+        shape = props.get("shape", "rect")
+        if shape == "circle":
+            radius = props.get("radius") or props.get("width", 1) / 2
+            formula = {"type": "item_circle", "center": center,
+                       "radius": radius}
+        else:
+            w = props.get("width", 1)
+            d = props.get("depth", 1)
+            rotation = props.get("rotation", 0)
+            formula = {
+                "type": "item_rect", "anchor": center,
+                "along": [1, 0], "across": [0, 1],
+                "width": w, "depth": d,
+                "anchor_corner": "center",
+                "rotation_deg": rotation,
+            }
+        conn.execute(
+            "INSERT INTO element_formulas "
+            "(element_name, param_name, formula_json, variant) "
+            "VALUES (?, 'position', ?, NULL)",
+            (name, json.dumps(formula)),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1950,6 +1993,11 @@ def delete_element(element_id, db_path=None):
                     )
                 conn.execute("DELETE FROM elements WHERE id = ?", (h["id"],))
                 deleted.append(h["id"])
+        # Clean up formulas and deps for the deleted element
+        conn.execute("DELETE FROM element_formulas WHERE element_name = ?",
+                     (row["name"],))
+        conn.execute("DELETE FROM formula_deps WHERE element_name = ?",
+                     (row["name"],))
         conn.execute("DELETE FROM elements WHERE id = ?", (element_id,))
         deleted.append(element_id)
     return deleted

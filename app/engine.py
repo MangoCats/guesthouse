@@ -1085,6 +1085,12 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
             }
             if computed.get("center"):
                 entry["center"] = computed["center"]
+            if computed.get("width"):
+                entry["width"] = computed["width"]
+            if computed.get("depth"):
+                entry["depth"] = computed["depth"]
+            if computed.get("rotation") is not None:
+                entry["rotation"] = computed["rotation"]
             if computed.get("radius"):
                 entry["radius"] = computed["radius"]
             if props.get("stacked"):

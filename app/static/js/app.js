@@ -38,6 +38,8 @@ const App = {
     innerWallOverrides: {},
     plumbingElements: [],
     variants: [],
+    configName: null,
+    configDirty: false,
   },
   els: {},
   sse: null,
@@ -65,6 +67,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadShapes();
   loadBuildLabel();
   loadRoofStyle();
+  loadConfigName();
+  loadCatalog();
 });
 
 function cacheElements() {
@@ -90,6 +94,7 @@ function cacheElements() {
     "plumbing-tools", "plumbing-fixtures-table", "plumbing-pipes-table",
     "variant-select", "variant-selector",
     "error-banner", "error-banner-text", "error-banner-action", "error-banner-dismiss",
+    "config-name",
   ];
   for (const id of ids) {
     App.els[id] = document.getElementById(id);
@@ -110,9 +115,11 @@ function connectSSE() {
 
   App.sse.addEventListener("constants_changed", () => {
     loadConstants();
+    markConfigDirty();
   });
 
   App.sse.addEventListener("element_changed", async () => {
+    markConfigDirty();
     await loadElements();
     if (App.state.geometry) {
       if (App.state.activeView === "interactive") {
@@ -127,6 +134,7 @@ function connectSSE() {
   });
 
   App.sse.addEventListener("plumbing_changed", () => {
+    markConfigDirty();
     loadPlumbingElements();
   });
 
@@ -142,10 +150,12 @@ function connectSSE() {
   });
 
   App.sse.addEventListener("outline_changed", () => {
+    markConfigDirty();
     loadOutlineTable();
   });
 
   App.sse.addEventListener("variant_changed", async () => {
+    markConfigDirty();
     await loadVariants();
     ensureActiveVariantValid();
   });
@@ -1141,22 +1151,8 @@ function renderFurniture(g, overrides) {
     }
   }
 
-  // Render custom placed elements from elements table
-  for (const elem of (App.state.elements || [])) {
-    const props = typeof elem.properties === "string"
-      ? JSON.parse(elem.properties) : elem.properties;
-    if (props && props.source === "placed" && props.poly) {
-      const cssClass = `item-${elem.type} selectable`;
-      const el = svgEl("polygon", {
-        points: polyToStr(props.poly),
-        class: cssClass,
-        "data-type": elem.type,
-        "data-name": elem.name,
-      });
-      el.addEventListener("click", (e) => selectElement(elem.type, elem.name, { ...props, bbox: bboxFromPoly(props.poly) }, e));
-      layer.appendChild(el);
-    }
-  }
+  // Placed items now go through the formula evaluator and appear in
+  // variant_items above — no fallback rendering loop needed.
 }
 
 function renderRoomLabels(g) {
@@ -2025,13 +2021,13 @@ function showProperties(type, name, data) {
     const w = b.e - b.w;
     const d = b.n - b.s;
     addPropRow(tbody, "Type", type);
-    // SEL-8a: check for DB record to make Width/Depth editable
+    // Editable Width/Depth for all items with DB records (unified system)
     const elemRec = (App.state.elements || []).find(e => e.name === name);
     const elemProps = elemRec ? parseProps(elemRec) : null;
-    if (elemRec && elemProps && (elemProps.width !== undefined || elemProps.source === "placed")) {
-      // Editable Width/Depth for placed items — use stored dimensions (not bbox)
-      const dispW = elemProps.width !== undefined ? elemProps.width : w;
-      const dispD = elemProps.depth !== undefined ? elemProps.depth : d;
+    // Use geometry-computed width/depth if available, fall back to props then bbox
+    const dispW = data.width || (elemProps && elemProps.width) || w;
+    const dispD = data.depth || (elemProps && elemProps.depth) || d;
+    if (elemRec) {
       const tr1 = document.createElement("tr");
       tr1.innerHTML = `<td>Width</td><td><input type="text" value="${fmtFtIn(dispW)}" /></td>`;
       tr1.querySelector("input").addEventListener("change", (e) => handleElementPropEdit(elemRec.id, "width", e.target.value));
@@ -2041,8 +2037,8 @@ function showProperties(type, name, data) {
       tr2.querySelector("input").addEventListener("change", (e) => handleElementPropEdit(elemRec.id, "depth", e.target.value));
       tbody.appendChild(tr2);
     } else {
-      addPropRow(tbody, "Width", fmtFtIn(w));
-      addPropRow(tbody, "Depth", fmtFtIn(d));
+      addPropRow(tbody, "Width", fmtFtIn(dispW));
+      addPropRow(tbody, "Depth", fmtFtIn(dispD));
     }
     if (data.center) {
       addPropRow(tbody, "Center E", fmtFtIn(data.center[0]));
@@ -2055,7 +2051,7 @@ function showProperties(type, name, data) {
     if (elemRec) {
       const props = typeof elemRec.properties === "string"
         ? JSON.parse(elemRec.properties) : elemRec.properties;
-      if (props && props.source === "placed" && typeof addShapePicker === "function") {
+      if (props && typeof addShapePicker === "function") {
         addShapePicker(tbody, elemRec, props);
       }
     }
@@ -3165,22 +3161,13 @@ async function handleElementPropEdit(elemId, propKey, rawValue) {
     return;
   }
   try {
-    const elem = (App.state.elements || []).find(e => e.id === elemId);
-    if (!elem) throw new Error("element not found");
-    const props = parseProps(elem);
-    props[propKey] = value; // store in feet (same unit as catalog)
-    // Recompute poly if placed element with center
-    if (props.source === "placed" && props.center && props.width && props.depth) {
-      const angle = props.rotation || 0;
-      props.poly = rotatedRectPoly(
-        props.center[0], props.center[1],
-        props.width, props.depth, angle
-      );
-    }
-    const resp = await apiFetch(`/api/elements/${elemId}`, {
+    // Use formula update endpoint — replaces symbolic constant with literal
+    const body = {};
+    body[propKey] = value;
+    const resp = await apiFetch(`/api/elements/${elemId}/update-formula`, {
       method: "PUT",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({properties: props}),
+      body: JSON.stringify(body),
     });
     if (!resp.ok) throw new Error((await resp.json()).error);
     showToast(`${propKey} = ${fmtFtIn(value)}`, "success");
@@ -4906,6 +4893,19 @@ async function detachAnchor(name, which) {
 function onKeyDown(e) {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
 
+  // Config Save / Save As / Load
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    if (e.shiftKey) handleMenuAction("config-save-as");
+    else handleMenuAction("config-save");
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
+    e.preventDefault();
+    handleMenuAction("config-load");
+    return;
+  }
+
   // Undo / Redo
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
     e.preventDefault();
@@ -5254,7 +5254,7 @@ function openingToolMouseDown(e) {
   });
 }
 
-/** Show rotation dialog for selected placed/drawn element (TL-24). */
+/** Show rotation dialog for selected element (TL-24, unified). */
 function showRotationDialog() {
   const sel = App.state.selection;
   if (!sel) {
@@ -5264,21 +5264,29 @@ function showRotationDialog() {
   const elements = App.state.elements || [];
   const elemRec = elements.find(e => e.name === sel.name);
   if (!elemRec) {
-    showToast("Only custom elements can be rotated", "warning");
+    showToast("No editable element selected", "warning");
     return;
   }
   const props = typeof elemRec.properties === "string"
     ? JSON.parse(elemRec.properties) : elemRec.properties;
-  if (!props || (props.source !== "placed" && props.source !== "drawn")) {
-    showToast("Only placed/drawn elements can be rotated", "warning");
+  const elemType = elemRec.type;
+  // Allow rotation for furniture, appliance, fixture, and drawn walls
+  if (!["furniture", "appliance", "fixture"].includes(elemType) &&
+      !(props && props.source === "drawn")) {
+    showToast("Rotation is available for furniture, appliances, and fixtures", "warning");
     return;
   }
 
-  const currentAngle = props.rotation || 0;
+  // Get current rotation from geometry if available, fall back to props
+  const geom = App.state.geometry;
+  const vi = geom ? (geom.variant_items || {}) : {};
+  const itemGeom = vi[sel.name] || {};
+  const currentAngle = itemGeom.rotation || (props && props.rotation) || 0;
+
   Dialog.show({
     title: `Rotate ${sel.name}`,
     fields: [
-      { label: "Angle (degrees)", name: "angle", value: String(currentAngle) },
+      { label: "Angle (degrees)", name: "angle", value: String(Math.round(currentAngle * 10) / 10) },
     ],
     presetButtons: {
       target: "angle",
@@ -5295,22 +5303,22 @@ function showRotationDialog() {
         showToast("Invalid angle", "error");
         return;
       }
-      const newProps = { ...props, rotation: angle };
-      // Recompute poly for placed elements
-      if (props.source === "placed" && props.center && props.width && props.depth) {
-        newProps.poly = rotatedRectPoly(
-          props.center[0], props.center[1],
-          props.width, props.depth, angle
-        );
+      // For drawn walls, use legacy property update
+      if (props && props.source === "drawn") {
+        const newProps = { ...props, rotation: angle };
+        await fetch(`/api/elements/${elemRec.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ properties: newProps }),
+        });
+      } else {
+        // Use formula update endpoint for all items
+        await fetch(`/api/elements/${elemRec.id}/update-formula`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rotation_deg: angle, world_rotation: angle }),
+        });
       }
-      // For drawn walls, recompute poly from start/end/thickness with rotation
-      // (drawn walls use the poly from wallPoly, rotation not applicable the same way)
-
-      await fetch(`/api/elements/${elemRec.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ properties: newProps }),
-      });
       await reloadAfterChange();
       showToast(`Rotated ${sel.name} to ${angle}°`, "success");
     },
@@ -5637,6 +5645,22 @@ async function handleMenuAction(action) {
       } catch (e) { showToast(`Export failed: ${e.message}`, "error"); }
       break;
     }
+    case "config-save": {
+      if (App.state.configName) {
+        await saveConfig(App.state.configName, true);
+      } else {
+        await promptSaveConfigAs();
+      }
+      break;
+    }
+    case "config-save-as": {
+      await promptSaveConfigAs();
+      break;
+    }
+    case "config-load": {
+      await showLoadConfigDialog();
+      break;
+    }
     case "reset-constants": {
       if (!confirm("Reset all constants, outline, and elements to original values?")) return;
       try {
@@ -5708,6 +5732,148 @@ function showErrorBanner(text, actionLabel, actionFn) {
 function hideErrorBanner() {
   const banner = App.els["error-banner"];
   if (banner) banner.style.display = "none";
+}
+
+/* ========== CONFIGURATION FILES ========== */
+
+function markConfigDirty() {
+  App.state.configDirty = true;
+  updateConfigIndicator();
+}
+
+function updateConfigIndicator() {
+  const el = App.els["config-name"];
+  if (!el) return;
+  const name = App.state.configName || "Unsaved";
+  el.textContent = App.state.configDirty ? name + " *" : name;
+}
+
+async function loadConfigName() {
+  try {
+    const resp = await apiFetch("/api/config/config_name");
+    const data = await resp.json();
+    if (data.value) {
+      App.state.configName = data.value;
+      App.state.configDirty = false;
+      updateConfigIndicator();
+    }
+  } catch (_) { /* no config name set yet */ }
+}
+
+async function saveConfig(name, overwrite = false) {
+  try {
+    const resp = await apiFetch("/api/configs/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, overwrite }),
+    });
+    if (resp.status === 409) {
+      if (confirm(`Configuration "${name}" already exists. Overwrite?`)) {
+        return saveConfig(name, true);
+      }
+      return;
+    }
+    if (!resp.ok) {
+      const err = await resp.json();
+      showToast(`Save failed: ${err.error}`, "error");
+      return;
+    }
+    App.state.configName = name;
+    App.state.configDirty = false;
+    updateConfigIndicator();
+    showToast(`Saved "${name}"`, "success");
+  } catch (e) { showToast(`Save failed: ${e.message}`, "error"); }
+}
+
+async function promptSaveConfigAs() {
+  const name = prompt("Configuration name:", App.state.configName || "");
+  if (!name || !name.trim()) return;
+  await saveConfig(name.trim());
+}
+
+async function showLoadConfigDialog() {
+  if (App.state.configDirty) {
+    const ans = confirm("You have unsaved changes. Discard and load a different configuration?");
+    if (!ans) return;
+  }
+  try {
+    const resp = await apiFetch("/api/configs");
+    const configs = await resp.json();
+    if (configs.length === 0) {
+      showToast("No saved configurations", "error");
+      return;
+    }
+    // Build modal
+    const overlay = document.createElement("div");
+    overlay.className = "config-modal-overlay";
+    const modal = document.createElement("div");
+    modal.className = "config-modal";
+    modal.innerHTML = `<h3>Load Configuration</h3><div class="config-list"></div><button class="config-modal-close">Cancel</button>`;
+    const list = modal.querySelector(".config-list");
+    for (const cfg of configs) {
+      const row = document.createElement("div");
+      row.className = "config-item";
+      const modified = new Date(cfg.modified).toLocaleString();
+      const sizeKB = (cfg.size / 1024).toFixed(0);
+      row.innerHTML = `<span class="config-item-name">${escapeHtml(cfg.name)}</span><span class="config-item-info">${modified} (${sizeKB} KB)</span><button class="config-item-delete" title="Delete">&#x2715;</button>`;
+      row.querySelector(".config-item-name").addEventListener("click", async () => {
+        overlay.remove();
+        await loadConfig(cfg.name);
+      });
+      row.querySelector(".config-item-delete").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete configuration "${cfg.name}"?`)) return;
+        try {
+          await apiFetch(`/api/configs/${encodeURIComponent(cfg.name)}`, { method: "DELETE" });
+          row.remove();
+          if (!list.children.length) {
+            overlay.remove();
+            showToast("No saved configurations", "error");
+          }
+        } catch (err) { showToast(`Delete failed: ${err.message}`, "error"); }
+      });
+      list.appendChild(row);
+    }
+    modal.querySelector(".config-modal-close").addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  } catch (e) { showToast(`Failed to list configs: ${e.message}`, "error"); }
+}
+
+async function loadConfig(name) {
+  showToast(`Loading "${name}"...`);
+  try {
+    const resp = await apiFetch("/api/configs/load", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      showToast(`Load failed: ${err.error}`, "error");
+      return;
+    }
+    App.state.configName = name;
+    App.state.configDirty = false;
+    updateConfigIndicator();
+    // Full reload (same pattern as resetDatabase)
+    loadConstants();
+    await loadElements();
+    loadPlumbingElements();
+    loadGeometry();
+    loadViews();
+    loadOutlineTable();
+    await loadVariants();
+    ensureActiveVariantValid();
+    showToast(`Loaded "${name}"`, "success");
+  } catch (e) { showToast(`Load failed: ${e.message}`, "error"); }
+}
+
+function escapeHtml(str) {
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
 }
 
 async function resetDatabase() {

@@ -770,6 +770,13 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 }
 .catalog-item:hover { background: var(--surface1); border-color: var(--accent); }
 .catalog-item small { color: var(--text-dim); font-size: 0.75rem; }
+.catalog-item-label { font-weight: 600; }
+.catalog-link-icon { color: var(--blue); margin-left: 4px; font-size: 0.7rem; }
+.catalog-shape-tag {
+  display: inline-block; font-size: 0.65rem; color: var(--text-dim);
+  background: var(--surface1); border-radius: 3px; padding: 1px 4px; margin-top: 2px;
+}
+.catalog-group { border-style: dashed; }
 
 /* ========== DIALOG PRESETS ========== */
 .dialog-presets {
@@ -948,6 +955,39 @@ tr.outline-selected td { background: var(--selection); }
   color: var(--text); padding: 2px 8px; cursor: pointer; font-size: 12px; border-radius: 3px;
 }
 .override-add-btn:hover { background: var(--surface2); }
+
+/* ========== CONFIG MODAL ========== */
+.config-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+}
+.config-modal {
+  background: var(--surface0); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; min-width: 360px; max-width: 500px;
+  color: var(--text);
+}
+.config-modal h3 { margin: 0 0 12px; font-size: 14px; }
+.config-list { max-height: 300px; overflow-y: auto; margin-bottom: 12px; }
+.config-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 4px; cursor: pointer;
+}
+.config-item:hover { background: var(--surface1); }
+.config-item-name { flex: 1; font-weight: 600; font-size: 13px; }
+.config-item-info { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.config-item-delete {
+  background: none; border: none; color: var(--red); cursor: pointer;
+  font-size: 14px; padding: 2px 4px; opacity: 0.6;
+}
+.config-item-delete:hover { opacity: 1; }
+.config-modal-close {
+  background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); padding: 4px 16px; cursor: pointer; border-radius: 4px;
+}
+.config-modal-close:hover { background: var(--surface2); }
+#config-name { font-weight: 600; color: var(--blue); }
+.status-sep { color: var(--text-dim); opacity: 0.4; }
+.dropdown .shortcut { float: right; color: var(--text-dim); font-size: 11px; margin-left: 16px; }
 
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1000px) {
