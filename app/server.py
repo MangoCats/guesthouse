@@ -742,9 +742,15 @@ def create_app(db_path=None):
                     old_formula_json = json.loads(fj) if isinstance(fj, str) else fj
                     break
 
-            # Build new wall-relative formula at new position
-            formula = _build_wall_relative_formula(
-                new_cx, new_cy, width, depth, rotation, variant, shape)
+            # Build new formula at new position, preserving formula type
+            if old_formula_json and old_formula_json.get("type") == "dining_triangle":
+                formula = _build_dining_triangle_formula(new_cx, new_cy, rotation)
+            elif old_formula_json and old_formula_json.get("type") == "shape_transform":
+                formula = dict(old_formula_json)
+                formula["center"] = [new_cx, new_cy]
+            else:
+                formula = _build_wall_relative_formula(
+                    new_cx, new_cy, width, depth, rotation, variant, shape)
             upsert_formula(name, "position", formula, variant=None,
                            db_path=db)
 
@@ -831,7 +837,14 @@ def create_app(db_path=None):
             new_formula["depth"] = body["depth"]
             changed = True
         if "rotation_deg" in body:
-            new_formula["rotation_deg"] = body["rotation_deg"]
+            if new_formula.get("type") == "dining_triangle":
+                # Rebuild direction vectors from rotation
+                rad = body["rotation_deg"] * math.pi / 180
+                cos_r, sin_r = math.cos(rad), math.sin(rad)
+                new_formula["toward_apex"] = [sin_r, -cos_r]
+                new_formula["along_base"] = [cos_r, sin_r]
+            else:
+                new_formula["rotation_deg"] = body["rotation_deg"]
             changed = True
 
         if not changed:
