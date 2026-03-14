@@ -711,6 +711,7 @@ class FormulaEvaluator:
         result["ne_side"] = [f_ne_tang, t_right]
         result["nw_side"] = [t_left, f_nw_tang]
         result["base_center"] = bc
+        result["center"] = bc  # for move handler compatibility
         return result
 
     def _eval_dining_chair(self, formula):

@@ -716,7 +716,7 @@ def create_app(db_path=None):
             # Get current center from geometry output
             vi = geom.get("variant_items", {})
             item_geom = vi.get(name, {})
-            old_center = item_geom.get("center")
+            old_center = item_geom.get("center") or item_geom.get("base_center")
             if not old_center:
                 # Fall back to bbox center
                 bbox = item_geom.get("bbox", {})
