@@ -326,7 +326,7 @@ def _migrate_placed_item_formulas(conn):
             formula = {
                 "type": "dining_triangle",
                 "base_center": center,
-                "toward_apex": [-sin_r, cos_r],
+                "toward_apex": [sin_r, -cos_r],
                 "along_base": [cos_r, sin_r],
                 "base_width": {"const": "DINING_TBL_BASE"},
                 "height": {"const": "DINING_TBL_H"},

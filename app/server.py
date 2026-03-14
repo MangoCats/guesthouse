@@ -510,7 +510,7 @@ def create_app(db_path=None):
         """Build a dining_triangle formula for absolute placement."""
         rad = rotation_deg * math.pi / 180
         cos_r, sin_r = math.cos(rad), math.sin(rad)
-        toward_apex = [-sin_r, cos_r]  # default north, rotated
+        toward_apex = [sin_r, -cos_r]  # default south, rotated
         along_base = [cos_r, sin_r]    # default east, rotated
         return {
             "type": "dining_triangle",
