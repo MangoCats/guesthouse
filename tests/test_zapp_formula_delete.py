@@ -57,6 +57,38 @@ class TestFormulaDelete:
         resp = app_client.delete("/api/formulas/NOSUCH/element")
         assert resp.status_code == 404
 
+    def test_delete_element_without_formula(self, app_client):
+        """Deleting an element that has a DB record but no formula succeeds."""
+        # Create element with no formula (e.g. legacy seeded item)
+        resp = app_client.post(
+            "/api/elements",
+            data=json.dumps({
+                "type": "furniture", "name": "NOFMLA",
+                "properties": {"width": 3.0, "depth": 2.0},
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code in (200, 201)
+
+        # Verify element exists
+        elems = app_client.get("/api/elements").get_json()
+        assert any(e["name"] == "NOFMLA" for e in elems)
+
+        # Delete should succeed (not return 404 "no formula found")
+        resp = app_client.delete("/api/formulas/NOFMLA/element")
+        assert resp.status_code == 200
+        assert resp.get_json()["ok"] is True
+
+        # Element is gone
+        elems = app_client.get("/api/elements").get_json()
+        assert not any(e["name"] == "NOFMLA" for e in elems)
+
+        # Undo restores the element
+        resp = app_client.post("/api/undo")
+        assert resp.status_code == 200
+        elems = app_client.get("/api/elements").get_json()
+        assert any(e["name"] == "NOFMLA" for e in elems)
+
     def test_delete_rebases_dependents(self, app_client):
         """Deleting an element structurally rebases dependent formulas."""
         _create_wall(app_client, "BASE")

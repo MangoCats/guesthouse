@@ -2047,7 +2047,20 @@ function showProperties(type, name, data) {
       addPropRow(tbody, "Center E", fmtFtIn((b.w + b.e) / 2));
       addPropRow(tbody, "Center N", fmtFtIn((b.s + b.n) / 2));
     }
-    if (data.rotation !== undefined) addPropRow(tbody, "Rotation", data.rotation.toFixed(1) + "°");
+    if (data.rotation !== undefined) {
+      if (elemRec) {
+        const rotVal = Math.round(data.rotation * 10) / 10;
+        const trR = document.createElement("tr");
+        trR.innerHTML = `<td>Rotation</td><td><input type="text" value="${rotVal}°" /></td>`;
+        trR.querySelector("input").addEventListener("change", (e) => {
+          const v = parseFloat(e.target.value.replace("°", ""));
+          if (!isNaN(v)) handleElementPropEdit(elemRec.id, "rotation", v);
+        });
+        tbody.appendChild(trR);
+      } else {
+        addPropRow(tbody, "Rotation", data.rotation.toFixed(1) + "°");
+      }
+    }
     if (elemRec) {
       const props = typeof elemRec.properties === "string"
         ? JSON.parse(elemRec.properties) : elemRec.properties;
@@ -3155,7 +3168,13 @@ function parseDimension(text) {
 }
 
 async function handleElementPropEdit(elemId, propKey, rawValue) {
-  const value = parseDimension(rawValue);
+  let value;
+  if (propKey === "rotation") {
+    // Rotation is in degrees, not a dimension
+    value = parseFloat(String(rawValue).replace("°", ""));
+  } else {
+    value = parseDimension(rawValue);
+  }
   if (isNaN(value)) {
     showToast(`Invalid value: ${rawValue}`, "error");
     return;
@@ -3163,14 +3182,20 @@ async function handleElementPropEdit(elemId, propKey, rawValue) {
   try {
     // Use formula update endpoint — replaces symbolic constant with literal
     const body = {};
-    body[propKey] = value;
+    if (propKey === "rotation") {
+      body.rotation_deg = value;
+      body.world_rotation = value;
+    } else {
+      body[propKey] = value;
+    }
     const resp = await apiFetch(`/api/elements/${elemId}/update-formula`, {
       method: "PUT",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body),
     });
     if (!resp.ok) throw new Error((await resp.json()).error);
-    showToast(`${propKey} = ${fmtFtIn(value)}`, "success");
+    const msg = propKey === "rotation" ? `${propKey} = ${value}°` : `${propKey} = ${fmtFtIn(value)}`;
+    showToast(msg, "success");
     loadElements();
     loadGeometry();
   } catch (e) {
@@ -4808,30 +4833,52 @@ function onLabelDblClick(e) {
 }
 
 function onContextMenu(e) {
-  const target = e.target.closest("[data-type='dimension']");
-  if (!target) return;
-  e.preventDefault();
-  const name = target.getAttribute("data-name");
-  const items = [
-    { label: "Horizontal", action: () => setDimRotation(name, "horizontal") },
-    { label: "Vertical", action: () => setDimRotation(name, "vertical") },
-    { label: "Parallel", action: () => setDimRotation(name, "parallel") },
-    { label: "Perpendicular", action: () => setDimRotation(name, "perpendicular") },
-  ];
-  // Add detach options if anchors are present
-  const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "dimension");
-  if (elemRec) {
-    const props = parseProps(elemRec);
-    const hasStart = !!props.start_anchor;
-    const hasEnd = !!props.end_anchor;
-    if (hasStart || hasEnd) {
-      items.push({ label: "---" }); // separator
-      if (hasStart) items.push({ label: "Detach Start", action: () => detachAnchor(name, "start") });
-      if (hasEnd) items.push({ label: "Detach End", action: () => detachAnchor(name, "end") });
-      if (hasStart && hasEnd) items.push({ label: "Detach Both", action: () => detachAnchor(name, "both") });
+  // Context menu for dimensions
+  const dimTarget = e.target.closest("[data-type='dimension']");
+  if (dimTarget) {
+    e.preventDefault();
+    const name = dimTarget.getAttribute("data-name");
+    const items = [
+      { label: "Horizontal", action: () => setDimRotation(name, "horizontal") },
+      { label: "Vertical", action: () => setDimRotation(name, "vertical") },
+      { label: "Parallel", action: () => setDimRotation(name, "parallel") },
+      { label: "Perpendicular", action: () => setDimRotation(name, "perpendicular") },
+    ];
+    const elemRec = (App.state.elements || []).find(el => el.name === name && el.type === "dimension");
+    if (elemRec) {
+      const props = parseProps(elemRec);
+      const hasStart = !!props.start_anchor;
+      const hasEnd = !!props.end_anchor;
+      if (hasStart || hasEnd) {
+        items.push({ label: "---" });
+        if (hasStart) items.push({ label: "Detach Start", action: () => detachAnchor(name, "start") });
+        if (hasEnd) items.push({ label: "Detach End", action: () => detachAnchor(name, "end") });
+        if (hasStart && hasEnd) items.push({ label: "Detach Both", action: () => detachAnchor(name, "both") });
+      }
     }
+    showContextMenu(e.clientX, e.clientY, items);
+    return;
   }
-  showContextMenu(e.clientX, e.clientY, items);
+
+  // Context menu for furniture/appliance/fixture items
+  const itemTarget = e.target.closest("[data-type='furniture'], [data-type='appliance'], [data-type='fixture']");
+  if (itemTarget) {
+    e.preventDefault();
+    const name = itemTarget.getAttribute("data-name");
+    const type = itemTarget.getAttribute("data-type");
+    const elemRec = (App.state.elements || []).find(el => el.name === name);
+    // Select the item
+    const geom = App.state.geometry;
+    const vi = geom ? (geom.variant_items || {}) : {};
+    const itemData = vi[name];
+    if (itemData) selectElement(type, name, itemData);
+
+    const menuItems = [
+      { label: `Rotate...`, action: () => showRotationDialog() },
+    ];
+    showContextMenu(e.clientX, e.clientY, menuItems);
+    return;
+  }
 }
 
 function showContextMenu(x, y, items) {

@@ -18,7 +18,7 @@ import time
 from flask import Flask, jsonify, render_template, request, Response, send_file
 
 from app.database import (
-    DB_PATH, init_db, get_all_constants, get_constants_dict,
+    DB_PATH, init_db, get_db, get_all_constants, get_constants_dict,
     get_constant_value, update_constant, update_constants_batch,
     get_categories, get_outline_chain, get_views, reset_constants,
     get_all_elements, get_element, get_element_by_name,
@@ -2032,8 +2032,27 @@ def create_app(db_path=None):
         # 1. Get the element's own formula (for structural rebasing)
         own_formulas = get_element_formulas(element_name, variant=variant,
                                             db_path=db)
+
+        # If no formula, just delete the element record directly
         if not own_formulas:
-            return jsonify({"error": "no formula found"}), 404
+            elem_rec = get_element_by_name(element_name, db)
+            if not elem_rec:
+                return jsonify({"error": "element not found"}), 404
+            deleted_element = dict(elem_rec)
+            delete_element(elem_rec["id"], db)
+            before_state = {
+                "element_name": element_name,
+                "own_formulas": [],
+                "updated_deps": {},
+                "deleted_element": deleted_element,
+            }
+            after_state = {"element_name": element_name,
+                           "variant": variant, "rebased_deps": {}}
+            undo_mgr.record("formula_delete_element", before_state,
+                             after_state, f"Delete {element_name}")
+            _broadcast("element_changed")
+            _invalidate()
+            return jsonify({"ok": True, "rebased": []})
 
         # Parse the element's position formula for corner extraction
         elem_formula = None
