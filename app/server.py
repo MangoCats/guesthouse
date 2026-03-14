@@ -535,6 +535,20 @@ def create_app(db_path=None):
         catalog_key = props.get("catalog_key")
         if catalog_key == "dining_table":
             return _build_dining_triangle_formula(cx, cy, rotation_deg)
+        # For circle items, try to copy radius from seeded formula if available
+        if shape == "circle" and catalog_key:
+            from app.database import get_element_formulas
+            seeded = get_element_formulas(catalog_key, db_path=db)
+            for f in seeded:
+                if f["param_name"] == "position":
+                    fj = json.loads(f["formula_json"]) if isinstance(
+                        f["formula_json"], str) else f["formula_json"]
+                    if fj.get("type") == "item_circle" and fj.get("radius"):
+                        snap = _snap_to_wall(cx, cy, variant)
+                        center_spec = _wall_offset_point(snap) if snap else [cx, cy]
+                        return {"type": "item_circle", "center": center_spec,
+                                "radius": fj["radius"]}
+                    break
         # For custom shapes, prefer catalog_key as shapes-table lookup name
         if shape not in ("rect", "circle") and catalog_key:
             from app.database import get_shape

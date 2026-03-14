@@ -215,6 +215,27 @@ CREATE TABLE IF NOT EXISTS catalog_items (
 """
 
 
+def _create_catalog_table(conn):
+    """Create catalog_items table if it doesn't exist."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS catalog_items (
+            key         TEXT PRIMARY KEY,
+            item_type   TEXT NOT NULL,
+            label       TEXT NOT NULL,
+            width       REAL,
+            depth       REAL,
+            radius      REAL,
+            shape       TEXT NOT NULL DEFAULT 'rect',
+            door        TEXT,
+            clearance   TEXT,
+            product_url TEXT,
+            variants    TEXT NOT NULL DEFAULT '[]',
+            stacked     INTEGER DEFAULT 0,
+            clip_to_inner INTEGER DEFAULT 0
+        )
+    """)
+
+
 def init_db(db_path=None):
     """Create tables and seed data if the database does not exist."""
     db_path = db_path or DB_PATH
@@ -2378,9 +2399,18 @@ def rebuild_formula_deps(element_name, param_name, deps, db_path=None):
 def get_all_catalog_items(db_path=None):
     """Return all catalog items as list of dicts."""
     with get_db(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM catalog_items ORDER BY item_type, label, key"
-        ).fetchall()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM catalog_items ORDER BY item_type, label, key"
+            ).fetchall()
+        except Exception:
+            # Table missing — create and seed it
+            _create_catalog_table(conn)
+            _seed_catalog_items(conn, db_path)
+            conn.commit()
+            rows = conn.execute(
+                "SELECT * FROM catalog_items ORDER BY item_type, label, key"
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
