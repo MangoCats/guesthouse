@@ -437,6 +437,26 @@ def create_app(db_path=None):
             return {"type": "item_circle", "center": [cx, cy],
                     "radius": width / 2}
 
+        # Check if shape has a custom polygon in the shapes table
+        if shape and shape != "rect":
+            from app.database import get_shape
+            shape_row = get_shape(shape, db)
+            if shape_row:
+                center_spec = [cx, cy]
+                if snap:
+                    center_spec = _wall_offset_point(snap)
+                formula = {
+                    "type": "shape_transform",
+                    "shape_name": shape,
+                    "center": center_spec,
+                    "rotation_deg": rotation_deg,
+                }
+                if width:
+                    formula["width"] = width
+                if depth:
+                    formula["depth"] = depth
+                return formula
+
         if snap:
             wall_bearing = snap["wall_bearing_deg"]
             rel_rotation = rotation_deg - wall_bearing
@@ -486,6 +506,23 @@ def create_app(db_path=None):
             "dir": wall_perp,
         }
 
+    def _build_dining_triangle_formula(cx, cy, rotation_deg=0):
+        """Build a dining_triangle formula for absolute placement."""
+        rad = rotation_deg * math.pi / 180
+        cos_r, sin_r = math.cos(rad), math.sin(rad)
+        toward_apex = [-sin_r, cos_r]  # default north, rotated
+        along_base = [cos_r, sin_r]    # default east, rotated
+        return {
+            "type": "dining_triangle",
+            "base_center": [cx, cy],
+            "toward_apex": toward_apex,
+            "along_base": along_base,
+            "base_width": {"const": "DINING_TBL_BASE"},
+            "height": {"const": "DINING_TBL_H"},
+            "apex_radius": 1.0,
+            "fillet_radius": 0.5,
+        }
+
     def _build_item_formula(props, variant=None):
         """Build a formula for any item (placed or seeded) from properties."""
         shape = props.get("shape", "rect")
@@ -494,6 +531,15 @@ def create_app(db_path=None):
         width = props.get("width", 1)
         depth = props.get("depth", 1)
         rotation_deg = props.get("rotation", 0)
+        # Check for dedicated formula builders (e.g. dining_table → dining_triangle)
+        catalog_key = props.get("catalog_key")
+        if catalog_key == "dining_table":
+            return _build_dining_triangle_formula(cx, cy, rotation_deg)
+        # For custom shapes, prefer catalog_key as shapes-table lookup name
+        if shape not in ("rect", "circle") and catalog_key:
+            from app.database import get_shape
+            if get_shape(catalog_key, db):
+                shape = catalog_key
         return _build_wall_relative_formula(
             cx, cy, width, depth, rotation_deg, variant, shape)
 

@@ -155,6 +155,9 @@ class FormulaEvaluator:
         # Topological order
         self.eval_order = []
 
+        # Database path (set by load_formulas_from_db)
+        self._db_path = None
+
     def add_formula(self, element_name, param_name, formula_json, locked=False,
                     locked_value=None):
         """Register a formula for evaluation."""
@@ -171,6 +174,7 @@ class FormulaEvaluator:
 
     def load_formulas_from_db(self, db_path=None, variant=None):
         """Load all formulas from the database."""
+        self._db_path = db_path
         from app.database import get_all_formulas
         rows = get_all_formulas(variant=variant, db_path=db_path)
         for row in rows:
@@ -264,6 +268,8 @@ class FormulaEvaluator:
             return self._eval_dining_chair(formula)
         if ftype == "ellipse_rect":
             return self._eval_ellipse_rect(formula)
+        if ftype == "shape_transform":
+            return self._eval_shape_transform(formula)
         return None
 
     # -------------------------------------------------------------------
@@ -773,6 +779,68 @@ class FormulaEvaluator:
               anchor[1] - rx * al[1] + ry * out[1]]
         poly = [sw, se, ne, nw]
         return {"poly": poly, "bbox": _bbox_from_poly(poly)}
+
+    def _eval_shape_transform(self, formula):
+        """Evaluate a shape_transform formula → {"poly": [...], "bbox": {...}}.
+
+        Transforms a named shape polygon (from the shapes table) to world
+        coordinates using center + rotation.  Supports placement of items
+        with custom shapes (toilet, bath_sink, dining_table, etc.).
+
+        Formula keys:
+          shape_name: name in the shapes table
+          center: [E, N] world center point
+          rotation_deg: rotation in degrees (default 0)
+          width: target width in feet (optional, for scaling)
+          depth: target depth in feet (optional, for scaling)
+        """
+        shape_name = formula.get("shape_name")
+        center = self.resolve_point(formula.get("center"))
+        rotation = formula.get("rotation_deg", 0)
+        if center is None or not shape_name:
+            return None
+
+        # Load shape polygon from DB
+        from app.database import get_shape
+        shape_row = get_shape(shape_name, self._db_path)
+        if not shape_row:
+            return None
+        local_pts = json.loads(shape_row["poly_json"])
+        scale = shape_row["scale"] or 1.0
+        origin = shape_row["origin"] or "center"
+
+        # Scale local points to feet
+        pts_ft = [[p[0] * scale, p[1] * scale] for p in local_pts]
+
+        # If origin is "center", shift so centroid is at (0, 0)
+        if origin == "center":
+            cx = sum(p[0] for p in pts_ft) / len(pts_ft)
+            cy = sum(p[1] for p in pts_ft) / len(pts_ft)
+            pts_ft = [[p[0] - cx, p[1] - cy] for p in pts_ft]
+
+        # Optional rescaling to target width/depth
+        target_w = formula.get("width")
+        target_d = formula.get("depth")
+        if target_w and target_d:
+            cur_xs = [p[0] for p in pts_ft]
+            cur_ys = [p[1] for p in pts_ft]
+            cur_w = max(cur_xs) - min(cur_xs)
+            cur_d = max(cur_ys) - min(cur_ys)
+            if cur_w > 1e-9 and cur_d > 1e-9:
+                sx = target_w / cur_w
+                sy = target_d / cur_d
+                pts_ft = [[p[0] * sx, p[1] * sy] for p in pts_ft]
+
+        # Rotate and translate to world coordinates
+        rad = rotation * math.pi / 180
+        cos_r = math.cos(rad)
+        sin_r = math.sin(rad)
+        poly = [[center[0] + p[0] * cos_r - p[1] * sin_r,
+                 center[1] + p[0] * sin_r + p[1] * cos_r]
+                for p in pts_ft]
+        result = {"poly": poly, "bbox": _bbox_from_poly(poly),
+                  "center": center, "rotation": rotation}
+        return result
 
     # -------------------------------------------------------------------
     # Resolution functions

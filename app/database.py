@@ -291,6 +291,10 @@ def _seed_catalog_items_post(db_path):
 
 def _migrate_placed_item_formulas(conn):
     """Create formulas for placed items that don't have them yet."""
+    # Shapes that have entries in the shapes table (custom polygons)
+    shape_table_names = {r[0] for r in conn.execute(
+        "SELECT name FROM shapes").fetchall()}
+
     rows = conn.execute(
         "SELECT name, properties FROM elements "
         "WHERE json_extract(properties, '$.source') = 'placed'"
@@ -307,14 +311,47 @@ def _migrate_placed_item_formulas(conn):
             row["properties"], str) else (row["properties"] or {})
         center = props.get("center", [0, 0])
         shape = props.get("shape", "rect")
-        if shape == "circle":
+        rotation = props.get("rotation", 0)
+        # Resolve shape name: prefer catalog_key for shapes table lookup
+        catalog_key = props.get("catalog_key")
+        shape_key = shape
+        if shape not in ("rect", "circle"):
+            if catalog_key and catalog_key in shape_table_names:
+                shape_key = catalog_key
+        # Dedicated formula types for specific catalog items
+        if catalog_key == "dining_table":
+            import math as _math
+            rad = rotation * _math.pi / 180
+            cos_r, sin_r = _math.cos(rad), _math.sin(rad)
+            formula = {
+                "type": "dining_triangle",
+                "base_center": center,
+                "toward_apex": [-sin_r, cos_r],
+                "along_base": [cos_r, sin_r],
+                "base_width": {"const": "DINING_TBL_BASE"},
+                "height": {"const": "DINING_TBL_H"},
+                "apex_radius": 1.0,
+                "fillet_radius": 0.5,
+            }
+        elif shape == "circle":
             radius = props.get("radius") or props.get("width", 1) / 2
             formula = {"type": "item_circle", "center": center,
                        "radius": radius}
+        elif shape_key in shape_table_names:
+            # Use shape_transform for items with custom shape polygons
+            formula = {
+                "type": "shape_transform",
+                "shape_name": shape_key,
+                "center": center,
+                "rotation_deg": rotation,
+            }
+            if props.get("width"):
+                formula["width"] = props["width"]
+            if props.get("depth"):
+                formula["depth"] = props["depth"]
         else:
             w = props.get("width", 1)
             d = props.get("depth", 1)
-            rotation = props.get("rotation", 0)
             formula = {
                 "type": "item_rect", "anchor": center,
                 "along": [1, 0], "across": [0, 1],
