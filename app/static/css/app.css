@@ -863,6 +863,12 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   color: var(--text);
 }
 .dialog-btn-cancel:hover { background: var(--bg-hover); }
+.dialog-btn-danger {
+  background: #d94040;
+  color: #fff;
+  border-color: #d94040 !important;
+}
+.dialog-btn-danger:hover { background: #c03030; }
 
 /* ========== OUTLINE EDITOR ========== */
 #outline-closure-indicator {

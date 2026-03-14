@@ -330,8 +330,11 @@ class UndoManager:
                     deps = extract_deps(formula)
                     rebuild_formula_deps(parts[0], parts[1],
                                           list(deps), db_path=self._db_path)
-            # Re-insert the elements record if one was deleted
-            if "deleted_element" in state:
+            # Re-insert the elements record(s) if deleted
+            if "deleted_elements" in state:
+                for de in state["deleted_elements"]:
+                    create_element_raw(de, self._db_path)
+            elif "deleted_element" in state:
                 create_element_raw(state["deleted_element"], self._db_path)
         else:
             # Redo: re-inline dependents then re-delete
@@ -349,20 +352,24 @@ class UndoManager:
                     deps = extract_deps(formula)
                     rebuild_formula_deps(parts[0], parts[1],
                                           list(deps), db_path=self._db_path)
-            # Delete the element's own formulas
-            formulas = get_element_formulas(elem_name,
-                                            variant=redo_variant,
-                                            db_path=self._db_path)
-            for f in formulas:
-                delete_formula(f["element_name"], f["param_name"],
-                               variant=f.get("variant"),
-                               db_path=self._db_path)
-                rebuild_formula_deps(f["element_name"], f["param_name"],
-                                     [], db_path=self._db_path)
-            # Delete elements record if it exists
-            elem_rec = get_element_by_name(elem_name, self._db_path)
-            if elem_rec:
-                delete_element(elem_rec["id"], self._db_path)
+            # Delete the element's own formulas (check case variants)
+            for name_candidate in {elem_name, elem_name.upper()}:
+                formulas = get_element_formulas(name_candidate,
+                                                variant=redo_variant,
+                                                db_path=self._db_path)
+                for f in formulas:
+                    delete_formula(f["element_name"], f["param_name"],
+                                   variant=f.get("variant"),
+                                   db_path=self._db_path)
+                    rebuild_formula_deps(f["element_name"], f["param_name"],
+                                         [], db_path=self._db_path)
+            # Delete elements records (check case variants)
+            for name_candidate in {elem_name, elem_name.lower(),
+                                   elem_name.upper()}:
+                elem_rec = get_element_by_name(name_candidate,
+                                               self._db_path)
+                if elem_rec:
+                    delete_element(elem_rec["id"], self._db_path)
 
     def _load(self):
         """Rebuild the in-memory stack from the undo_history table."""

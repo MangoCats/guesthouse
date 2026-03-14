@@ -44,6 +44,8 @@ from app.database import (
     upsert_inner_wall_override, delete_inner_wall_override,
     snapshot_inner_wall_overrides, restore_inner_wall_overrides,
     reset_inner_wall_overrides, check_override_overlap,
+    get_all_catalog_items, get_catalog_item,
+    create_catalog_item, delete_catalog_item, ensure_catalog_item,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -1601,70 +1603,56 @@ def create_app(db_path=None):
 
     @app.route("/api/catalog")
     def api_catalog():
-        """Return placement catalog derived from variant_items geometry."""
-        # Collect items across variants, preferring standard for dimensions
-        seen = {}  # key -> catalog entry
-        for vname in ("standard", "minik", "daybed"):
-            data = _get_geometry(vname)
-            vi = data.get("variant_items", {})
-            for item_name, item in vi.items():
-                if item_name in seen:
-                    # Add this variant to existing entry
-                    if vname not in seen[item_name]["variants"]:
-                        seen[item_name]["variants"].append(vname)
-                    continue
-                bbox = item.get("bbox", {})
-                width = bbox.get("e", 0) - bbox.get("w", 0)
-                depth = bbox.get("n", 0) - bbox.get("s", 0)
-                entry = {
-                    "key": item_name,
-                    "label": item.get("label", item_name.upper()),
-                    "type": item.get("type", "furniture"),
-                    "width": round(width, 6),
-                    "depth": round(depth, 6),
-                    "shape": item.get("shape", "rect"),
-                    "variants": [vname],
-                }
-                if item.get("product_url"):
-                    entry["product_url"] = item["product_url"]
-                # Get full product_url from DB element properties
-                # (may be variant-keyed dict)
-                elem = get_element_by_name(item_name, db)
-                if elem:
-                    props = elem.get("properties", {})
-                    if isinstance(props, str):
-                        try:
-                            props = json.loads(props)
-                        except (json.JSONDecodeError, TypeError):
-                            props = {}
-                    raw_url = props.get("product_url")
-                    if raw_url and not entry.get("product_url"):
-                        if isinstance(raw_url, dict):
-                            entry["product_url"] = raw_url.get(
-                                "default", next(iter(raw_url.values()), None))
-                        else:
-                            entry["product_url"] = raw_url
-                    if props.get("door"):
-                        entry["door"] = props["door"]
-                    if props.get("clearance"):
-                        entry["clearance"] = props["clearance"]
-                    if props.get("stacked"):
-                        entry["stacked"] = True
-                    if props.get("clip_to_inner"):
-                        entry["clip_to_inner"] = True
-                if item.get("radius"):
-                    entry["radius"] = item["radius"]
-                if item.get("center"):
-                    entry["center"] = item["center"]
-                seen[item_name] = entry
-
-        # Group by type, then by label for sub-menus
+        """Return placement catalog from catalog_items DB table."""
+        items = get_all_catalog_items(db)
         result = {"furniture": [], "appliance": [], "fixture": []}
-        for entry in seen.values():
-            t = entry["type"]
-            if t in result:
-                result[t].append(entry)
+        for item in items:
+            t = item["item_type"]
+            if t not in result:
+                continue
+            entry = {
+                "key": item["key"],
+                "label": item["label"],
+                "type": t,
+                "width": item["width"] or 0,
+                "depth": item["depth"] or 0,
+                "shape": item["shape"],
+                "variants": json.loads(item["variants"])
+                            if item["variants"] else [],
+            }
+            if item["radius"]:
+                entry["radius"] = item["radius"]
+            if item["product_url"]:
+                try:
+                    entry["product_url"] = json.loads(item["product_url"])
+                except (json.JSONDecodeError, TypeError):
+                    entry["product_url"] = item["product_url"]
+            if item["door"]:
+                try:
+                    entry["door"] = json.loads(item["door"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if item["clearance"]:
+                try:
+                    entry["clearance"] = json.loads(item["clearance"])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            if item["stacked"]:
+                entry["stacked"] = True
+            if item["clip_to_inner"]:
+                entry["clip_to_inner"] = True
+            result[t].append(entry)
         return jsonify(result)
+
+    @app.route("/api/catalog/<key>", methods=["DELETE"])
+    def api_catalog_delete(key):
+        """Remove an item from the catalog. Does NOT delete placed instances."""
+        item = get_catalog_item(key, db)
+        if not item:
+            return jsonify({"error": "catalog item not found"}), 404
+        delete_catalog_item(key, db)
+        _broadcast("catalog_changed")
+        return jsonify({"ok": True})
 
     # -- Survey Points API (SITE-4) --
 
@@ -2033,7 +2021,20 @@ def create_app(db_path=None):
         own_formulas = get_element_formulas(element_name, variant=variant,
                                             db_path=db)
 
-        # If no formula, just delete the element record directly
+        # If no formula, check for uppercase alias with formulas
+        # (e.g. "dryer" has no formula but "DRYER" does — engine maps
+        # DRYER→dryer via layout_item fallback)
+        formula_name = element_name  # name used for formula/dep lookups
+        if not own_formulas:
+            alias = element_name.upper()
+            if alias != element_name:
+                alias_formulas = get_element_formulas(
+                    alias, variant=variant, db_path=db)
+                if alias_formulas:
+                    own_formulas = alias_formulas
+                    formula_name = alias  # deps reference uppercase name
+
+        # If still no formula, just delete the element record directly
         if not own_formulas:
             elem_rec = get_element_by_name(element_name, db)
             if not elem_rec:
@@ -2063,10 +2064,10 @@ def create_app(db_path=None):
                 break
 
         # 2. Get evaluated geometry as fallback for literal inlining
-        elem_data = _evaluate_element(element_name, variant)
+        elem_data = _evaluate_element(formula_name, variant)
 
         # 3. Find dependent formulas
-        dependents = db_get_dependents(element_name, db_path=db)
+        dependents = db_get_dependents(formula_name, db_path=db)
         dep_names = {d["element_name"] for d in dependents}
 
         # 4. Capture before state for undo
@@ -2097,13 +2098,13 @@ def create_app(db_path=None):
                 old_json = f["formula_json"]
                 formula = json.loads(old_json) if isinstance(old_json, str) else old_json
                 new_formula = rebase_element_refs(
-                    formula, element_name, elem_formula, elem_data)
+                    formula, formula_name, elem_formula, elem_data)
                 # Check if rebasing produced a broken formula
                 broken = (not isinstance(new_formula, dict)
                           or "type" not in new_formula)
                 if not broken:
                     new_deps = extract_deps(new_formula)
-                    broken = any(dt == "element" and dn == element_name
+                    broken = any(dt == "element" and dn == formula_name
                                  for dt, dn in new_deps)
                 if broken:
                     # Fall back: convert to four_corner with literal coords
@@ -2143,12 +2144,20 @@ def create_app(db_path=None):
                                   [], db_path=db)
 
         # 7. Also delete the elements DB record if one exists
-        deleted_element = None
-        elem_rec = get_element_by_name(element_name, db)
-        if elem_rec:
-            deleted_element = dict(elem_rec)
-            delete_element(elem_rec["id"], db)
-            before_state["deleted_element"] = deleted_element
+        #    Check both the requested name and case variants (e.g.
+        #    "dryer"/"DRYER") since engine maps uppercase formula names
+        #    to lowercase element records via layout_item fallback.
+        deleted_elements = []
+        for candidate in {element_name, element_name.lower(),
+                          element_name.upper()}:
+            elem_rec = get_element_by_name(candidate, db)
+            if elem_rec:
+                deleted_elements.append(dict(elem_rec))
+                delete_element(elem_rec["id"], db)
+        if deleted_elements:
+            before_state["deleted_element"] = deleted_elements[0]
+            if len(deleted_elements) > 1:
+                before_state["deleted_elements"] = deleted_elements
 
         # 8. Record undo
         after_state = {"element_name": element_name,

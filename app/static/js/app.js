@@ -2696,7 +2696,7 @@ function addElementActions(tbody, elemRec) {
   vTr.appendChild(vTd2);
   tbody.appendChild(vTr);
   // Delete button (uses shared helper)
-  addFormulaDeleteButton(tbody, elemRec.name);
+  addFormulaDeleteButton(tbody, elemRec.name, elemRec.type);
 }
 
 /** Add layout checkboxes + delete for IW walls using variant_exclusions. */
@@ -2756,15 +2756,58 @@ function addWallActions(tbody, wallName, elemRec) {
   }
 }
 
+/** Show a modal dialog with custom buttons. Returns a Promise that resolves
+ *  with the button's data-action value, or null if cancelled/dismissed. */
+function showDeleteDialog(title, message, buttons) {
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.className = "dialog-overlay";
+    const dialog = document.createElement("div");
+    dialog.className = "dialog";
+    const h3 = document.createElement("h3");
+    h3.textContent = title;
+    dialog.appendChild(h3);
+    if (message) {
+      const p = document.createElement("p");
+      p.style.fontSize = "12px";
+      p.style.marginBottom = "8px";
+      p.style.whiteSpace = "pre-line";
+      p.textContent = message;
+      dialog.appendChild(p);
+    }
+    const btnRow = document.createElement("div");
+    btnRow.className = "dialog-buttons";
+    btnRow.style.flexWrap = "wrap";
+    for (const b of buttons) {
+      const btn = document.createElement("button");
+      btn.textContent = b.label;
+      btn.className = b.className || "dialog-btn-cancel";
+      btn.addEventListener("click", () => {
+        overlay.remove();
+        resolve(b.action);
+      });
+      btnRow.appendChild(btn);
+    }
+    dialog.appendChild(btnRow);
+    overlay.appendChild(dialog);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) { overlay.remove(); resolve(null); }
+    });
+    document.body.appendChild(overlay);
+  });
+}
+
 /** Add delete button for formula-driven elements.  Disabled when other
  *  elements depend on this one (dependents check via API). */
-async function addFormulaDeleteButton(tbody, elemName) {
+async function addFormulaDeleteButton(tbody, elemName, elemType) {
   const tr = document.createElement("tr");
   const td = document.createElement("td");
   td.colSpan = 2;
   const btn = document.createElement("button");
   btn.textContent = "Delete";
   btn.className = "prop-delete-btn";
+
+  const isCatalogType = elemType === "furniture" || elemType === "appliance" || elemType === "fixture";
 
   // Check for dependents — include in confirmation message
   let depNames = [];
@@ -2778,11 +2821,31 @@ async function addFormulaDeleteButton(tbody, elemName) {
   } catch (_) { /* proceed without dep info */ }
 
   btn.addEventListener("click", async () => {
-    let msg = `Delete ${elemName}?`;
+    let depMsg = "";
     if (depNames.length > 0) {
-      msg += `\n\n${depNames.join(", ")} will be rebased to ${elemName}'s parent references.`;
+      depMsg = `${depNames.join(", ")} will be rebased to ${elemName}'s parent references.`;
     }
-    if (!confirm(msg)) return;
+
+    let action;
+    if (isCatalogType) {
+      // Three-button dialog for catalog items
+      action = await showDeleteDialog(
+        `Delete ${elemName}?`,
+        depMsg || null,
+        [
+          { label: "Delete", action: "delete", className: "dialog-btn-primary" },
+          { label: "Also delete from ADD menu", action: "delete_catalog", className: "dialog-btn-danger" },
+          { label: "Cancel", action: null, className: "dialog-btn-cancel" },
+        ]
+      );
+    } else {
+      let msg = `Delete ${elemName}?`;
+      if (depMsg) msg += "\n\n" + depMsg;
+      action = confirm(msg) ? "delete" : null;
+    }
+
+    if (!action) return;
+
     const v = App.state.variant || "standard";
     const resp = await fetch(
       `/api/formulas/${encodeURIComponent(elemName)}/element?variant=${encodeURIComponent(v)}`,
@@ -2794,12 +2857,20 @@ async function addFormulaDeleteButton(tbody, elemName) {
       return;
     }
     const result = await resp.json();
+
+    // If user chose to also delete from catalog, remove catalog entry
+    if (action === "delete_catalog") {
+      const catalogKey = elemName;
+      await fetch(`/api/catalog/${encodeURIComponent(catalogKey)}`, { method: "DELETE" });
+    }
+
     clearSelection();
     await reloadAfterChange();
     const rebased = result.rebased || [];
-    const toast = rebased.length > 0
+    let toast = rebased.length > 0
       ? `Deleted ${elemName} (re-based ${rebased.join(", ")})`
       : `Deleted ${elemName}`;
+    if (action === "delete_catalog") toast += " and removed from ADD menu";
     showToast(toast, "success");
   });
   td.appendChild(btn);
@@ -5039,6 +5110,10 @@ async function deleteSelectedElements() {
     return;
   }
 
+  // Check if any targets are catalog items (furniture/appliance/fixture)
+  const catalogTypes = new Set(["furniture", "appliance", "fixture"]);
+  const hasCatalogItems = toDelete.some(el => catalogTypes.has(el.type));
+
   // Build confirmation message with cascade warnings
   const lines = toDelete.map(el => {
     let line = el.name;
@@ -5050,8 +5125,22 @@ async function deleteSelectedElements() {
     }
     return line;
   });
-  const msg = `Delete ${lines.join(", ")}?`;
-  if (!confirm(msg)) return;
+
+  let action;
+  if (hasCatalogItems) {
+    action = await showDeleteDialog(
+      `Delete ${lines.join(", ")}?`,
+      null,
+      [
+        { label: "Delete", action: "delete", className: "dialog-btn-primary" },
+        { label: "Also delete from ADD menu", action: "delete_catalog", className: "dialog-btn-danger" },
+        { label: "Cancel", action: null, className: "dialog-btn-cancel" },
+      ]
+    );
+  } else {
+    action = confirm(`Delete ${lines.join(", ")}?`) ? "delete" : null;
+  }
+  if (!action) return;
 
   // Delete each element via API
   for (const el of toDelete) {
@@ -5063,9 +5152,21 @@ async function deleteSelectedElements() {
     }
   }
 
+  // If user chose to also delete from catalog, remove catalog entries
+  if (action === "delete_catalog") {
+    for (const el of toDelete) {
+      if (catalogTypes.has(el.type)) {
+        const catalogKey = el.name;
+        await fetch(`/api/catalog/${encodeURIComponent(catalogKey)}`, { method: "DELETE" });
+      }
+    }
+  }
+
   clearSelection();
   await reloadAfterChange();
-  showToast(`Deleted ${toDelete.map(e => e.name).join(", ")}`, "success");
+  let toast = `Deleted ${toDelete.map(e => e.name).join(", ")}`;
+  if (action === "delete_catalog") toast += " and removed from ADD menu";
+  showToast(toast, "success");
 }
 
 /** Compute a rotated rectangle polygon from center, width, depth, angle (degrees). */

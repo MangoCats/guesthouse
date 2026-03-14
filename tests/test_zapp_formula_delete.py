@@ -89,6 +89,62 @@ class TestFormulaDelete:
         elems = app_client.get("/api/elements").get_json()
         assert any(e["name"] == "NOFMLA" for e in elems)
 
+    def test_delete_element_with_uppercase_alias(self, app_client):
+        """Deleting lowercase element also removes uppercase alias with formula.
+
+        Regression: engine maps UPPER formula names to lower element records
+        (layout_item fallback). Deleting 'lower' must also remove 'UPPER'
+        formula and element, otherwise the item reappears on next render.
+        """
+        # Create lowercase element record (no formula, like legacy seed)
+        app_client.post(
+            "/api/elements",
+            data=json.dumps({
+                "type": "appliance", "name": "gadget",
+                "properties": {"width": 2.0, "depth": 1.5},
+            }),
+            content_type="application/json",
+        )
+        # Create uppercase element record with a formula (like placed item)
+        app_client.post(
+            "/api/elements",
+            data=json.dumps({
+                "type": "appliance", "name": "GADGET",
+                "properties": {"layout_item": True, "width": 2.0, "depth": 1.5},
+            }),
+            content_type="application/json",
+        )
+        formula = {
+            "type": "item_rect",
+            "anchor": [1, 2], "along": [1, 0], "across": [0, 1],
+            "width": 2.0, "depth": 1.5, "anchor_corner": "center",
+        }
+        _put_formula(app_client, "GADGET", formula)
+
+        # Verify both exist
+        elems = app_client.get("/api/elements").get_json()
+        assert any(e["name"] == "gadget" for e in elems)
+        assert any(e["name"] == "GADGET" for e in elems)
+
+        # Delete via lowercase name (what UI sends)
+        resp = app_client.delete("/api/formulas/gadget/element")
+        assert resp.status_code == 200
+
+        # Both element records and formula should be gone
+        elems = app_client.get("/api/elements").get_json()
+        assert not any(e["name"] == "gadget" for e in elems), "lowercase element should be deleted"
+        assert not any(e["name"] == "GADGET" for e in elems), "uppercase element should be deleted"
+        formulas = app_client.get("/api/formulas/GADGET").get_json()
+        assert len(formulas) == 0, "uppercase formula should be deleted"
+
+        # Undo restores both
+        app_client.post("/api/undo")
+        elems = app_client.get("/api/elements").get_json()
+        assert any(e["name"] == "gadget" for e in elems)
+        assert any(e["name"] == "GADGET" for e in elems)
+        formulas = app_client.get("/api/formulas/GADGET").get_json()
+        assert len(formulas) > 0
+
     def test_delete_rebases_dependents(self, app_client):
         """Deleting an element structurally rebases dependent formulas."""
         _create_wall(app_client, "BASE")

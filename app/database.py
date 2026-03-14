@@ -196,6 +196,22 @@ CREATE TABLE IF NOT EXISTS formula_deps (
     dep_name     TEXT NOT NULL,          -- name of dependency target
     UNIQUE(element_name, param_name, dep_type, dep_name)
 );
+
+CREATE TABLE IF NOT EXISTS catalog_items (
+    key         TEXT PRIMARY KEY,
+    item_type   TEXT NOT NULL,          -- 'furniture', 'appliance', 'fixture'
+    label       TEXT NOT NULL,
+    width       REAL,                   -- default width in feet (NULL for circles)
+    depth       REAL,                   -- default depth in feet (NULL for circles)
+    radius      REAL,                   -- radius in feet (for circle shapes)
+    shape       TEXT NOT NULL DEFAULT 'rect',
+    door        TEXT,                   -- JSON: door config or variant-keyed dict
+    clearance   TEXT,                   -- JSON: clearance config
+    product_url TEXT,                   -- JSON: string or variant-keyed dict
+    variants    TEXT NOT NULL DEFAULT '[]',  -- JSON array of variant names
+    stacked     INTEGER DEFAULT 0,
+    clip_to_inner INTEGER DEFAULT 0
+);
 """
 
 
@@ -263,6 +279,14 @@ def init_db(db_path=None):
                              "ADD COLUMN sort_order INTEGER DEFAULT 0")
             # Migrate existing placed items: create formulas if missing
             _migrate_placed_item_formulas(conn)
+    # Seed catalog items after DB is committed (needs geometry computation)
+    _seed_catalog_items_post(db_path)
+
+
+def _seed_catalog_items_post(db_path):
+    """Seed catalog_items after DB is committed (separate connection)."""
+    with get_db(db_path) as conn:
+        _seed_catalog_items(conn, db_path)
 
 
 def _migrate_placed_item_formulas(conn):
@@ -858,6 +882,240 @@ _IW_SEED = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Variant items master list (module-level, used by both _seed_elements and
+# _seed_catalog_items)
+# ---------------------------------------------------------------------------
+_VI_ALL = ["standard", "minik", "daybed"]
+_VI_ALL_P = ["standard", "minik", "daybed", "plumbing"]
+_VI_STD_DB = ["standard", "daybed"]
+_VI_STD_DB_P = ["standard", "daybed", "plumbing"]
+
+_VARIANT_ITEMS = [
+    # --- Utility / laundry ---
+    ("dryer", "appliance", {
+        "label": "DRYER", "item_type": "appliance", "shape": "rect",
+        "door": {"hinge_idx": 1, "target_idx": 2},
+        "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377"},
+        "variants": _VI_ALL,
+    }, None),
+    ("washer", "appliance", {
+        "label": "WASHER", "item_type": "appliance", "shape": "rect",
+        "door": {"hinge_idx": 2, "target_idx": 1},
+        "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375"},
+        "variants": _VI_ALL_P,
+    }, None),
+    ("hamper", "appliance", {
+        "label": "HAMPER", "item_type": "appliance", "shape": "rect",
+        "clearance": {"face": [3, 2], "distance": 19.0 / 12.0},
+        "product_url": "https://www.homedepot.com/p/Casual-Home-Eco-Home-Laundry-Prep-Hamper-761-30/307595219",
+        "variants": _VI_ALL,
+    }, None),
+    ("water_heater", "appliance", {
+        "label": "WH", "item_type": "appliance", "shape": "circle",
+        "variants": _VI_ALL_P,
+    }, None),
+    ("counter", "appliance", {
+        "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+        "clip_to_inner": True,
+        "variants": _VI_STD_DB,
+    }, None),
+    # --- Toilets & sinks ---
+    ("toilet_s", "fixture", {
+        "label": "TOILET", "item_type": "fixture", "shape": "toilet",
+        "variants": _VI_ALL_P,
+    }, None),
+    ("toilet_n", "fixture", {
+        "label": "TOILET", "item_type": "fixture", "shape": "toilet",
+        "variants": _VI_ALL_P,
+    }, None),
+    ("util_sink", "fixture", {
+        "label": "SINK", "item_type": "fixture", "shape": "rect",
+        "product_url": "https://www.magnushomeproducts.com/products/24-petten-matte-gray-vitreous-china-console-sink-with-black-powdercoat-steel-stand-and-shelves",
+        "variants": _VI_ALL_P,
+    }, None),
+    ("bath_sink", "fixture", {
+        "label": "BATH SINK", "item_type": "fixture", "shape": "bath_sink",
+        "product_url": "https://www.magnushomeproducts.com/products/tripoli-vitreous-china-wall-mount-bathroom-sink",
+        "variants": _VI_ALL_P,
+    }, None),
+    ("kitchen_sink", "fixture", {
+        "label": "SINK", "item_type": "fixture", "shape": "rect",
+        "product_url": "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html",
+        "variants": _VI_ALL_P,
+    }, None),
+    # --- Kitchen: standard/daybed ---
+    ("stove", "appliance", {
+        "label": "STOVE", "item_type": "appliance", "shape": "rect",
+        "clearance": {"face": [0, 1], "distance": 24.0 / 12.0},
+        "variants": _VI_STD_DB,
+    }, None),
+    ("dishwasher", "appliance", {
+        "label": "D/W", "item_type": "appliance", "shape": "rect",
+        "clearance": {"face": [0, 1], "distance": 31.0 / 12.0},
+        "variants": _VI_STD_DB_P,
+    }, None),
+    ("north_counter", "appliance", {
+        "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+        "product_url": "https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html",
+        "variants": _VI_STD_DB,
+    }, None),
+    ("work_counter", "appliance", {
+        "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+        "product_url": "https://www.webstaurantstore.com/table-s-s-18x60-s-s-under/600TS1860S.html",
+        "variants": _VI_STD_DB,
+    }, None),
+    # --- Kitchen: minik ---
+    ("kitchen_counter", "appliance", {
+        "label": "COUNTER", "item_type": "appliance", "shape": "rect",
+        "product_url": "https://www.webstaurantstore.com/regency-spec-line-30-x-72-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3072S.html",
+        "variants": ["minik"],
+    }, None),
+    ("cooktop", "appliance", {
+        "label": "COOKTOP", "item_type": "appliance", "shape": "rect",
+        "stacked": True,
+        "product_url": "https://www.homedepot.com/p/Empava-Portable-13-4-in-Induction-Electric-Cooktop-in-Black-with-2-Elements-EMPV-ID12/313815692",
+        "variants": ["minik"],
+    }, None),
+    ("toaster", "appliance", {
+        "label": "TOASTER", "item_type": "appliance", "shape": "rect",
+        "stacked": True,
+        "product_url": "https://www.amazon.com/Roter-Mond-Stainless-Independent-Removable/dp/B0CGTQZTDZ?th=1",
+        "variants": ["minik"],
+    }, None),
+    # --- Kitchen: all variants ---
+    ("fridge", "appliance", {
+        "label": "FRIDGE", "item_type": "appliance", "shape": "rect",
+        "door": {
+            "standard": {"hinge_idx": 3, "target_idx": 2},
+            "minik": {"hinge_idx": 1, "target_idx": 0},
+            "daybed": {"hinge_idx": 3, "target_idx": 2},
+        },
+        "product_url": {"minik": "https://www.ikea.com/us/en/p/bergsnaes-bottom-freezer-refrigerator-stainless-steel-color-60607883/", "default": "https://www.lowes.com/pd/LG-25-5-cu-ft-Bottom-Freezer-Refrigerator-with-Ice-Maker-Fingerprint-Resistant-Printproof-Stainless-Steel-ENERGY-STAR/1002543648"},
+        "variants": _VI_ALL_P,
+    }, None),
+    ("ice_maker", "appliance", {
+        "label": "ICE", "item_type": "appliance", "shape": "rect",
+        "product_url": "https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876",
+        "variants": _VI_ALL_P,
+    }, None),
+    ("microwave", "appliance", {
+        "label": "MICRO", "item_type": "appliance", "shape": "rect",
+        "stacked": True,
+        "door": {
+            "standard": {"hinge_idx": 2, "target_idx": 3},
+            "minik": {"hinge_idx": 0, "target_idx": 1},
+            "daybed": {"hinge_idx": 2, "target_idx": 3},
+        },
+        "product_url": "https://www.ikea.com/us/en/p/gatebo-microwave-oven-with-air-fryer-function-ikea-500-black-70603506/",
+        "variants": _VI_ALL,
+    }, None),
+    ("coffee_maker", "appliance", {
+        "label": "C", "item_type": "appliance", "shape": "rect",
+        "stacked": True,
+        "product_url": "https://www.amazon.com/Holstein-Housewares-HH-0914701E-5-Cup-Coffee/dp/B08HSRCC4T/?th=1",
+        "variants": _VI_ALL,
+    }, None),
+    # --- Dining ---
+    ("dining_table", "furniture", {
+        "label": "TABLE", "item_type": "furniture", "shape": "triangle",
+        "product_url": "https://www.homedepot.com/pep/NEW-CLASSIC-HOME-FURNISHINGS-New-Classic-Furniture-Oscar-3-Piece-Wood-Top-Triangle-Dining-Set-Walnut-40-1651-D2C/327836175",
+        "variants": _VI_ALL,
+    }, None),
+    ("dining_chair_1", "furniture", {
+        "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+        "variants": _VI_ALL,
+    }, None),
+    ("dining_chair_2", "furniture", {
+        "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+        "variants": _VI_ALL,
+    }, None),
+    # --- Bedroom ---
+    ("bed", "furniture", {
+        "label": "KING BED", "item_type": "furniture", "shape": "rect",
+        "variants": _VI_ALL,
+    }, None),
+    ("dresser", "furniture", {
+        "label": "DRESSER", "item_type": "furniture", "shape": "rect",
+        "clearance": {"face": [0, 1], "distance": 15.0 / 12.0},
+        "variants": _VI_ALL,
+    }, None),
+    ("shelves", "furniture", {
+        "label": "SHELVES", "item_type": "furniture", "shape": "rect",
+        "product_url": "https://www.ikea.com/us/en/p/kallax-shelving-unit-with-underframe-white-stained-oak-effect-black-s49442718/",
+        "variants": _VI_ALL,
+    }, None),
+    # --- Living: chair + ottoman (all) ---
+    ("chair", "furniture", {
+        "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+        "product_url": "https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/",
+        "variants": _VI_ALL,
+    }, None),
+    ("ottoman", "furniture", {
+        "label": "OTTO", "item_type": "furniture", "shape": "rect",
+        "product_url": "https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/",
+        "variants": _VI_ALL,
+    }, None),
+    # --- Living: standard seating ---
+    ("loveseat", "furniture", {
+        "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
+        "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/",
+        "variants": ["standard"],
+    }, "standard"),
+    ("et", "furniture", {
+        "label": "ET", "item_type": "furniture", "shape": "circle",
+        "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
+        "variants": ["standard"],
+    }, "standard"),
+    ("loveseat2", "furniture", {
+        "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
+        "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/",
+        "variants": ["standard"],
+    }, "standard"),
+    # --- Living: minik seating ---
+    ("sofa", "furniture", {
+        "label": "SOFA", "item_type": "furniture", "shape": "rect",
+        "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-3-seat-sofa-gunnared-light-green-s89599953/",
+        "variants": ["minik"],
+    }, "minik"),
+    ("rocker", "furniture", {
+        "label": "ROCKER", "item_type": "furniture", "shape": "rect",
+        "product_url": {"minik": "https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/", "db": "https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/"},
+        "variants": ["minik", "daybed"],
+    }, None),
+    # --- Living: daybed seating ---
+    ("shelves2", "furniture", {
+        "label": "SHELVES", "item_type": "furniture", "shape": "rect",
+        "product_url": "https://www.ikea.com/us/en/p/kallax-shelving-unit-with-underframe-white-stained-oak-effect-black-s49442718/",
+        "variants": ["daybed"],
+    }, "daybed"),
+    ("et_east", "furniture", {
+        "label": "ET", "item_type": "furniture", "shape": "circle",
+        "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
+        "variants": ["daybed"],
+    }, "daybed"),
+    ("daybed", "furniture", {
+        "label": "DAYBED", "item_type": "furniture", "shape": "rect",
+        "variants": ["daybed"],
+    }, "daybed"),
+    ("et_west", "furniture", {
+        "label": "ET", "item_type": "furniture", "shape": "circle",
+        "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
+        "variants": ["daybed"],
+    }, "daybed"),
+    # --- Office ---
+    ("desk", "furniture", {
+        "label": "DESK", "item_type": "furniture", "shape": "rect",
+        "variants": _VI_ALL,
+    }, None),
+    ("desk_chair", "furniture", {
+        "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+        "product_url": "https://www.amazon.com/BESTFAIR-Ergonomic-Office-Chair-Adjustable/dp/B0FDQDMP2D?th=1",
+        "variants": _VI_ALL,
+    }, None),
+]
+
+
 def _seed_elements(conn):
     """Seed the elements table with interior walls, openings, and variant items."""
 
@@ -912,251 +1170,6 @@ def _seed_elements(conn):
             ("opening", name, json.dumps(props), None),
         )
 
-    # --- Variant items (furniture, appliances, fixtures) ---
-    # Each entry: (name, elem_type, properties_dict, variant)
-    # variant=None means present in all non-bare/sf variants;
-    # Properties include: label, item_type, shape, stacked, door, clearance,
-    # product_url, variants (list of variant names where item appears)
-    _ALL = ["standard", "minik", "daybed"]
-    _ALL_P = ["standard", "minik", "daybed", "plumbing"]
-    _STD_DB = ["standard", "daybed"]
-    _STD_DB_P = ["standard", "daybed", "plumbing"]
-
-    _VARIANT_ITEMS = [
-        # --- Utility / laundry ---
-        ("dryer", "appliance", {
-            "label": "DRYER", "item_type": "appliance", "shape": "rect",
-            "door": {"hinge_idx": 1, "target_idx": 2},
-            "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377"},
-            "variants": _ALL,
-        }, None),
-        ("washer", "appliance", {
-            "label": "WASHER", "item_type": "appliance", "shape": "rect",
-            "door": {"hinge_idx": 2, "target_idx": 1},
-            "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375"},
-            "variants": _ALL_P,
-        }, None),
-        ("hamper", "appliance", {
-            "label": "HAMPER", "item_type": "appliance", "shape": "rect",
-            "clearance": {"face": [3, 2], "distance": 19.0 / 12.0},
-            "product_url": "https://www.homedepot.com/p/Casual-Home-Eco-Home-Laundry-Prep-Hamper-761-30/307595219",
-            "variants": _ALL,
-        }, None),
-        ("water_heater", "appliance", {
-            "label": "WH", "item_type": "appliance", "shape": "circle",
-            "variants": _ALL_P,
-        }, None),
-        ("counter", "appliance", {
-            "label": "COUNTER", "item_type": "appliance", "shape": "rect",
-            "clip_to_inner": True,
-            "variants": _STD_DB,
-        }, None),
-
-        # --- Toilets & sinks ---
-        ("toilet_s", "fixture", {
-            "label": "TOILET", "item_type": "fixture", "shape": "toilet",
-            "variants": _ALL_P,
-        }, None),
-        ("toilet_n", "fixture", {
-            "label": "TOILET", "item_type": "fixture", "shape": "toilet",
-            "variants": _ALL_P,
-        }, None),
-        ("util_sink", "fixture", {
-            "label": "SINK", "item_type": "fixture", "shape": "rect",
-            "product_url": "https://www.magnushomeproducts.com/products/24-petten-matte-gray-vitreous-china-console-sink-with-black-powdercoat-steel-stand-and-shelves",
-            "variants": _ALL_P,
-        }, None),
-        ("bath_sink", "fixture", {
-            "label": "BATH SINK", "item_type": "fixture", "shape": "bath_sink",
-            "product_url": "https://www.magnushomeproducts.com/products/tripoli-vitreous-china-wall-mount-bathroom-sink",
-            "variants": _ALL_P,
-        }, None),
-        ("kitchen_sink", "fixture", {
-            "label": "SINK", "item_type": "fixture", "shape": "rect",
-            "product_url": "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html",
-            "variants": _ALL_P,
-        }, None),
-
-        # --- Kitchen: standard/daybed ---
-        ("stove", "appliance", {
-            "label": "STOVE", "item_type": "appliance", "shape": "rect",
-            "clearance": {"face": [0, 1], "distance": 24.0 / 12.0},
-            "variants": _STD_DB,
-        }, None),
-        ("dishwasher", "appliance", {
-            "label": "D/W", "item_type": "appliance", "shape": "rect",
-            "clearance": {"face": [0, 1], "distance": 31.0 / 12.0},
-            "variants": _STD_DB_P,
-        }, None),
-        ("north_counter", "appliance", {
-            "label": "COUNTER", "item_type": "appliance", "shape": "rect",
-            "product_url": "https://www.webstaurantstore.com/regency-spec-line-30-x-36-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3036S.html",
-            "variants": _STD_DB,
-        }, None),
-        ("work_counter", "appliance", {
-            "label": "COUNTER", "item_type": "appliance", "shape": "rect",
-            "product_url": "https://www.webstaurantstore.com/table-s-s-18x60-s-s-under/600TS1860S.html",
-            "variants": _STD_DB,
-        }, None),
-
-        # --- Kitchen: minik ---
-        ("kitchen_counter", "appliance", {
-            "label": "COUNTER", "item_type": "appliance", "shape": "rect",
-            "product_url": "https://www.webstaurantstore.com/regency-spec-line-30-x-72-14-gauge-stainless-steel-commercial-work-table-with-4-backsplash-and-undershelf/600TSSB3072S.html",
-            "variants": ["minik"],
-        }, None),
-        ("cooktop", "appliance", {
-            "label": "COOKTOP", "item_type": "appliance", "shape": "rect",
-            "stacked": True,
-            "product_url": "https://www.homedepot.com/p/Empava-Portable-13-4-in-Induction-Electric-Cooktop-in-Black-with-2-Elements-EMPV-ID12/313815692",
-            "variants": ["minik"],
-        }, None),
-        ("toaster", "appliance", {
-            "label": "TOASTER", "item_type": "appliance", "shape": "rect",
-            "stacked": True,
-            "product_url": "https://www.amazon.com/Roter-Mond-Stainless-Independent-Removable/dp/B0CGTQZTDZ?th=1",
-            "variants": ["minik"],
-        }, None),
-
-        # --- Kitchen: all variants ---
-        ("fridge", "appliance", {
-            "label": "FRIDGE", "item_type": "appliance", "shape": "rect",
-            "door": {
-                "standard": {"hinge_idx": 3, "target_idx": 2},
-                "minik": {"hinge_idx": 1, "target_idx": 0},
-                "daybed": {"hinge_idx": 3, "target_idx": 2},
-            },
-            "product_url": {"minik": "https://www.ikea.com/us/en/p/bergsnaes-bottom-freezer-refrigerator-stainless-steel-color-60607883/", "default": "https://www.lowes.com/pd/LG-25-5-cu-ft-Bottom-Freezer-Refrigerator-with-Ice-Maker-Fingerprint-Resistant-Printproof-Stainless-Steel-ENERGY-STAR/1002543648"},
-            "variants": _ALL_P,
-        }, None),
-        ("ice_maker", "appliance", {
-            "label": "ICE", "item_type": "appliance", "shape": "rect",
-            "product_url": "https://www.homedepot.com/p/EUHOMY-17-3-in-100-lb-24H-Full-Ice-Sizes-Commercial-Ice-Maker-in-Black-33-lb-Storage-Bin-Ice-Full-Alert-and-Auto-Cleaning-CIM001-100BL-E/337185876",
-            "variants": _ALL_P,
-        }, None),
-        ("microwave", "appliance", {
-            "label": "MICRO", "item_type": "appliance", "shape": "rect",
-            "stacked": True,
-            "door": {
-                "standard": {"hinge_idx": 2, "target_idx": 3},
-                "minik": {"hinge_idx": 0, "target_idx": 1},
-                "daybed": {"hinge_idx": 2, "target_idx": 3},
-            },
-            "product_url": "https://www.ikea.com/us/en/p/gatebo-microwave-oven-with-air-fryer-function-ikea-500-black-70603506/",
-            "variants": _ALL,
-        }, None),
-        ("coffee_maker", "appliance", {
-            "label": "C", "item_type": "appliance", "shape": "rect",
-            "stacked": True,
-            "product_url": "https://www.amazon.com/Holstein-Housewares-HH-0914701E-5-Cup-Coffee/dp/B08HSRCC4T/?th=1",
-            "variants": _ALL,
-        }, None),
-
-        # --- Dining ---
-        ("dining_table", "furniture", {
-            "label": "TABLE", "item_type": "furniture", "shape": "triangle",
-            "product_url": "https://www.homedepot.com/pep/NEW-CLASSIC-HOME-FURNISHINGS-New-Classic-Furniture-Oscar-3-Piece-Wood-Top-Triangle-Dining-Set-Walnut-40-1651-D2C/327836175",
-            "variants": _ALL,
-        }, None),
-        ("dining_chair_1", "furniture", {
-            "label": "CHAIR", "item_type": "furniture", "shape": "rect",
-            "variants": _ALL,
-        }, None),
-        ("dining_chair_2", "furniture", {
-            "label": "CHAIR", "item_type": "furniture", "shape": "rect",
-            "variants": _ALL,
-        }, None),
-
-        # --- Bedroom ---
-        ("bed", "furniture", {
-            "label": "KING BED", "item_type": "furniture", "shape": "rect",
-            "variants": _ALL,
-        }, None),
-        ("dresser", "furniture", {
-            "label": "DRESSER", "item_type": "furniture", "shape": "rect",
-            "clearance": {"face": [0, 1], "distance": 15.0 / 12.0},
-            "variants": _ALL,
-        }, None),
-        ("shelves", "furniture", {
-            "label": "SHELVES", "item_type": "furniture", "shape": "rect",
-            "product_url": "https://www.ikea.com/us/en/p/kallax-shelving-unit-with-underframe-white-stained-oak-effect-black-s49442718/",
-            "variants": _ALL,
-        }, None),
-
-        # --- Living: chair + ottoman (all) ---
-        ("chair", "furniture", {
-            "label": "CHAIR", "item_type": "furniture", "shape": "rect",
-            "product_url": "https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/",
-            "variants": _ALL,
-        }, None),
-        ("ottoman", "furniture", {
-            "label": "OTTO", "item_type": "furniture", "shape": "rect",
-            "product_url": "https://www.ikea.com/us/en/p/havberg-swivel-easy-chair-and-footstool-grann-bomstad-golden-brown-s59485321/",
-            "variants": _ALL,
-        }, None),
-
-        # --- Living: standard seating ---
-        ("loveseat", "furniture", {
-            "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
-            "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/",
-            "variants": ["standard"],
-        }, "standard"),
-        ("et", "furniture", {
-            "label": "ET", "item_type": "furniture", "shape": "circle",
-            "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
-            "variants": ["standard"],
-        }, "standard"),
-        ("loveseat2", "furniture", {
-            "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
-            "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/",
-            "variants": ["standard"],
-        }, "standard"),
-
-        # --- Living: minik seating ---
-        ("sofa", "furniture", {
-            "label": "SOFA", "item_type": "furniture", "shape": "rect",
-            "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-3-seat-sofa-gunnared-light-green-s89599953/",
-            "variants": ["minik"],
-        }, "minik"),
-        ("rocker", "furniture", {
-            "label": "ROCKER", "item_type": "furniture", "shape": "rect",
-            "product_url": {"minik": "https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/", "db": "https://www.ikea.com/us/en/p/poaeng-rocking-chair-brown-gunnared-beige-s39502048/"},
-            "variants": ["minik", "daybed"],
-        }, None),
-
-        # --- Living: daybed seating ---
-        ("shelves2", "furniture", {
-            "label": "SHELVES", "item_type": "furniture", "shape": "rect",
-            "product_url": "https://www.ikea.com/us/en/p/kallax-shelving-unit-with-underframe-white-stained-oak-effect-black-s49442718/",
-            "variants": ["daybed"],
-        }, "daybed"),
-        ("et_east", "furniture", {
-            "label": "ET", "item_type": "furniture", "shape": "circle",
-            "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
-            "variants": ["daybed"],
-        }, "daybed"),
-        ("daybed", "furniture", {
-            "label": "DAYBED", "item_type": "furniture", "shape": "rect",
-            "variants": ["daybed"],
-        }, "daybed"),
-        ("et_west", "furniture", {
-            "label": "ET", "item_type": "furniture", "shape": "circle",
-            "product_url": "https://www.ikea.com/us/en/p/listerby-side-table-oak-veneer-30515314/",
-            "variants": ["daybed"],
-        }, "daybed"),
-
-        # --- Office ---
-        ("desk", "furniture", {
-            "label": "DESK", "item_type": "furniture", "shape": "rect",
-            "variants": _ALL,
-        }, None),
-        ("desk_chair", "furniture", {
-            "label": "CHAIR", "item_type": "furniture", "shape": "rect",
-            "product_url": "https://www.amazon.com/BESTFAIR-Ergonomic-Office-Chair-Adjustable/dp/B0FDQDMP2D?th=1",
-            "variants": _ALL,
-        }, None),
-    ]
-
     for name, elem_type, props, variant in _VARIANT_ITEMS:
         conn.execute(
             "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
@@ -1180,6 +1193,64 @@ def _seed_elements(conn):
             "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
             "VALUES (?, ?, ?, ?)",
             (elem_type, name, json.dumps(props), None),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Seed: catalog items
+# ---------------------------------------------------------------------------
+
+def _seed_catalog_items(conn, db_path=None):
+    """Seed catalog_items from _VARIANT_ITEMS with computed dimensions.
+
+    Uses INSERT OR IGNORE so existing entries are not overwritten on upgrade.
+    Dimensions come from geometry computation at seed time.
+    """
+    # Compute dimensions from geometry for all variants
+    dims = {}  # key -> {width, depth} or {radius}
+    try:
+        from app.engine import compute_geometry
+        constants = {r[0]: r[1] for r in conn.execute(
+            "SELECT name, value FROM constants").fetchall()}
+        for v in ("standard", "minik", "daybed"):
+            from app.engine import compute_geometry
+            geom = compute_geometry(constants, variant=v, db_path=db_path)
+            vi = geom.get("variant_items", {})
+            for name, item in vi.items():
+                if name in dims:
+                    continue
+                b = item.get("bbox", {})
+                shape = item.get("shape", "rect")
+                if shape == "circle":
+                    dims[name] = {"radius": round(item.get("radius", 0), 6)}
+                else:
+                    dims[name] = {
+                        "width": round(b.get("e", 0) - b.get("w", 0), 6),
+                        "depth": round(b.get("n", 0) - b.get("s", 0), 6),
+                    }
+    except Exception:
+        pass  # Dimensions will be NULL if geometry computation fails
+
+    for name, elem_type, props, _variant in _VARIANT_ITEMS:
+        d = dims.get(name, {})
+        product_url = props.get("product_url")
+        door = props.get("door")
+        clearance = props.get("clearance")
+        variants = props.get("variants", [])
+        conn.execute(
+            "INSERT OR IGNORE INTO catalog_items "
+            "(key, item_type, label, width, depth, radius, shape, "
+            " door, clearance, product_url, variants, stacked, clip_to_inner) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, elem_type, props.get("label", name.upper()),
+             d.get("width"), d.get("depth"), d.get("radius"),
+             props.get("shape", "rect"),
+             json.dumps(door) if door else None,
+             json.dumps(clearance) if clearance else None,
+             json.dumps(product_url) if product_url else None,
+             json.dumps(variants),
+             1 if props.get("stacked") else 0,
+             1 if props.get("clip_to_inner") else 0),
         )
 
 
@@ -2261,6 +2332,90 @@ def rebuild_formula_deps(element_name, param_name, deps, db_path=None):
                 "VALUES (?, ?, ?, ?)",
                 (element_name, param_name, dep_type, dep_name),
             )
+
+
+# ---------------------------------------------------------------------------
+# Catalog items CRUD
+# ---------------------------------------------------------------------------
+
+def get_all_catalog_items(db_path=None):
+    """Return all catalog items as list of dicts."""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM catalog_items ORDER BY item_type, label, key"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_catalog_item(key, db_path=None):
+    """Return a single catalog item by key, or None."""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM catalog_items WHERE key = ?", (key,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def create_catalog_item(data, db_path=None):
+    """Insert a new catalog item. Returns the created record."""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT INTO catalog_items "
+            "(key, item_type, label, width, depth, radius, shape, "
+            " door, clearance, product_url, variants, stacked, clip_to_inner) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (data["key"], data["item_type"], data["label"],
+             data.get("width"), data.get("depth"), data.get("radius"),
+             data.get("shape", "rect"),
+             data.get("door"), data.get("clearance"),
+             data.get("product_url"), data.get("variants", "[]"),
+             data.get("stacked", 0), data.get("clip_to_inner", 0)),
+        )
+        return get_catalog_item(data["key"], db_path)
+
+
+def update_catalog_item(key, data, db_path=None):
+    """Update specific fields of a catalog item."""
+    allowed = {"label", "width", "depth", "radius", "shape", "door",
+               "clearance", "product_url", "variants", "stacked",
+               "clip_to_inner", "item_type"}
+    sets = []
+    vals = []
+    for k, v in data.items():
+        if k in allowed:
+            sets.append(f"{k} = ?")
+            vals.append(v)
+    if not sets:
+        return
+    vals.append(key)
+    with get_db(db_path) as conn:
+        conn.execute(
+            f"UPDATE catalog_items SET {', '.join(sets)} WHERE key = ?",
+            vals,
+        )
+
+
+def delete_catalog_item(key, db_path=None):
+    """Delete a catalog item by key."""
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM catalog_items WHERE key = ?", (key,))
+
+
+def ensure_catalog_item(data, db_path=None):
+    """Insert a catalog item if it doesn't already exist (INSERT OR IGNORE)."""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO catalog_items "
+            "(key, item_type, label, width, depth, radius, shape, "
+            " door, clearance, product_url, variants, stacked, clip_to_inner) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (data["key"], data["item_type"], data["label"],
+             data.get("width"), data.get("depth"), data.get("radius"),
+             data.get("shape", "rect"),
+             data.get("door"), data.get("clearance"),
+             data.get("product_url"), data.get("variants", "[]"),
+             data.get("stacked", 0), data.get("clip_to_inner", 0)),
+        )
 
 
 def seed_iw_formulas(conn):
