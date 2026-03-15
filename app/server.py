@@ -365,17 +365,19 @@ def create_app(db_path=None):
 
     _WALL_SNAP_THRESHOLD = 4.0  # feet — max distance to snap to a wall
 
-    def _snap_to_wall(cx, cy, variant=None):
-        """Find nearest inner wall segment and compute along/across offsets.
+    def _snap_to_wall_grid(cx, cy, variant=None, grid_in=1.0):
+        """Snap a point to the nearest wall-grid position.
 
-        Returns dict with wall-relative anchor spec, or None if no wall is
-        within threshold.  Result:
-            {"base": "W9", "along_wall": "W10",
-             "along_dist": 1.25, "across_dist": 0.5,
-             "wall_bearing_deg": 45.0}
+        Finds the nearest inner-wall segment, projects the point onto
+        wall-relative (along, across) coordinates, rounds both to the
+        nearest grid_in inches, and converts back to absolute [E, N].
+
+        Returns snapped [E, N] in absolute world coordinates.
+        Falls back to global grid snap if no wall is within threshold.
         """
         geom = _get_geometry(variant)
         pts = geom.get("points", {})
+        grid_ft = grid_in / 12.0
 
         best = None
         best_dist = _WALL_SNAP_THRESHOLD
@@ -387,124 +389,48 @@ def create_app(db_path=None):
                 continue
             ax, ay = a[0], a[1]
             bx, by = b[0], b[1]
-            dx, dy = bx - ax, by - ay
-            seg_len = math.sqrt(dx * dx + dy * dy)
+            sdx, sdy = bx - ax, by - ay
+            seg_len = math.sqrt(sdx * sdx + sdy * sdy)
             if seg_len < 1e-9:
                 continue
-            # Unit along vector
-            ux, uy = dx / seg_len, dy / seg_len
-            # Vector from a to point
+            ux, uy = sdx / seg_len, sdy / seg_len
             px, py = cx - ax, cy - ay
-            # Along-wall distance (projection)
-            along_dist = px * ux + py * uy
-            # Across-wall distance (perpendicular, positive = left/interior)
-            across_dist = px * (-uy) + py * ux
-            # Clamp along to segment
-            along_clamped = max(0, min(seg_len, along_dist))
-            # Nearest point on segment
+            along = px * ux + py * uy
+            across = px * (-uy) + py * ux  # left perp
+            along_clamped = max(0, min(seg_len, along))
             nx = ax + along_clamped * ux
             ny = ay + along_clamped * uy
             perp_dist = math.sqrt((cx - nx) ** 2 + (cy - ny) ** 2)
 
             if perp_dist < best_dist:
                 best_dist = perp_dist
-                wall_bearing = math.atan2(uy, ux) * 180 / math.pi
-                best = {
-                    "base": seg_start,
-                    "along_wall": seg_end,
-                    "along_dist": along_dist,
-                    "across_dist": across_dist,
-                    "wall_bearing_deg": wall_bearing,
-                }
+                best = (ax, ay, ux, uy, along, across)
 
-        return best
+        if best:
+            ax, ay, ux, uy, along, across = best
+            # Left perpendicular (consistent with how across was computed)
+            lx, ly = -uy, ux
+            along_s = round(along / grid_ft) * grid_ft
+            across_s = round(across / grid_ft) * grid_ft
+            return [ax + along_s * ux + across_s * lx,
+                    ay + along_s * uy + across_s * ly]
 
-    def _build_wall_relative_formula(cx, cy, width, depth, rotation_deg=0,
-                                     variant=None, shape="rect"):
-        """Build a wall-relative item formula for a position.
+        # No wall nearby — snap to global grid
+        return [round(cx / grid_ft) * grid_ft,
+                round(cy / grid_ft) * grid_ft]
 
-        If a wall is within threshold, creates a parametric anchor using
-        wall base point + along/across offsets.  Otherwise falls back to
-        absolute coordinates.
-        """
-        snap = _snap_to_wall(cx, cy, variant)
-
-        if shape == "circle":
-            if snap:
-                center_spec = _wall_offset_point(snap)
-                return {"type": "item_circle", "center": center_spec,
-                        "radius": width / 2}
-            return {"type": "item_circle", "center": [cx, cy],
-                    "radius": width / 2}
-
-        # Check if shape has a custom polygon in the shapes table
-        if shape and shape != "rect":
-            from app.database import get_shape
-            shape_row = get_shape(shape, db)
-            if shape_row:
-                center_spec = [cx, cy]
-                if snap:
-                    center_spec = _wall_offset_point(snap)
-                formula = {
-                    "type": "shape_transform",
-                    "shape_name": shape,
-                    "center": center_spec,
-                    "rotation_deg": rotation_deg,
-                }
-                if width:
-                    formula["width"] = width
-                if depth:
-                    formula["depth"] = depth
-                return formula
-
-        if snap:
-            wall_bearing = snap["wall_bearing_deg"]
-            rel_rotation = rotation_deg - wall_bearing
-            anchor_spec = _wall_offset_point(snap)
-            along_dir = {"segment": [snap["base"], snap["along_wall"]]}
-            across_dir = {"segment_perp": [snap["base"], snap["along_wall"]]}
-            return {
-                "type": "item_rect",
-                "anchor": anchor_spec,
-                "along": along_dir,
-                "across": across_dir,
-                "width": width,
-                "depth": depth,
-                "anchor_corner": "center",
-                "rotation_deg": rel_rotation,
-            }
-
-        # Fallback: absolute coordinates
-        return {
-            "type": "item_rect",
-            "anchor": [cx, cy],
-            "along": [1, 0],
-            "across": [0, 1],
-            "width": width,
-            "depth": depth,
-            "anchor_corner": "center",
-            "rotation_deg": rotation_deg,
-        }
-
-    def _wall_offset_point(snap):
-        """Build a nested offset point spec from wall snap result.
-
-        Returns a point spec: base + along_dist * wall_dir + across_dist * wall_perp
-        """
-        base = snap["base"]
-        along_wall = snap["along_wall"]
-        wall_dir = {"segment": [base, along_wall]}
-        wall_perp = {"segment_perp": [base, along_wall]}
-        # Two nested offsets: first along wall, then across
-        return {
-            "offset": {
-                "offset": base,
-                "dist": snap["along_dist"],
-                "dir": wall_dir,
-            },
-            "dist": snap["across_dist"],
-            "dir": wall_perp,
-        }
+    # Maps formula type → the field name that holds the position point.
+    # Used by the unified move handler and placement code.
+    _FORMULA_POSITION_FIELD = {
+        "item_rect": "anchor",
+        "item_circle": "center",
+        "shape_transform": "center",
+        "dining_triangle": "base_center",
+        "toilet_shape": "center",
+        "bath_sink_shape": "anchor",
+        "ellipse_rect": "anchor",
+        "four_corner": None,  # special: 4 independent corners
+    }
 
     def _build_dining_triangle_formula(cx, cy, rotation_deg=0):
         """Build a dining_triangle formula for absolute placement."""
@@ -524,38 +450,67 @@ def create_app(db_path=None):
         }
 
     def _build_item_formula(props, variant=None):
-        """Build a formula for any item (placed or seeded) from properties."""
+        """Build a formula for a placed item from properties.
+
+        All placed items use absolute (wall-grid-snapped) coordinates.
+        The formula type is chosen based on the item's shape/catalog_key.
+        """
         shape = props.get("shape", "rect")
         center = props.get("center", [0, 0])
-        cx, cy = center[0], center[1]
+        cx, cy = _snap_to_wall_grid(center[0], center[1], variant)
         width = props.get("width", 1)
         depth = props.get("depth", 1)
         rotation_deg = props.get("rotation", 0)
-        # Check for dedicated formula builders (e.g. dining_table → dining_triangle)
         catalog_key = props.get("catalog_key")
+
+        # Dining table → dining_triangle formula
         if catalog_key == "dining_table":
             return _build_dining_triangle_formula(cx, cy, rotation_deg)
-        # For circle items, try to copy radius from seeded formula if available
-        if shape == "circle" and catalog_key:
-            from app.database import get_element_formulas
-            seeded = get_element_formulas(catalog_key, db_path=db)
-            for f in seeded:
-                if f["param_name"] == "position":
-                    fj = json.loads(f["formula_json"]) if isinstance(
-                        f["formula_json"], str) else f["formula_json"]
-                    if fj.get("type") == "item_circle" and fj.get("radius"):
-                        snap = _snap_to_wall(cx, cy, variant)
-                        center_spec = _wall_offset_point(snap) if snap else [cx, cy]
-                        return {"type": "item_circle", "center": center_spec,
-                                "radius": fj["radius"]}
-                    break
-        # For custom shapes, prefer catalog_key as shapes-table lookup name
-        if shape not in ("rect", "circle") and catalog_key:
+
+        # Circle items — get radius from seeded formula or width
+        if shape == "circle":
+            radius = width / 2
+            if catalog_key:
+                from app.database import get_element_formulas
+                seeded = get_element_formulas(catalog_key, db_path=db)
+                for f in seeded:
+                    if f["param_name"] == "position":
+                        fj = json.loads(f["formula_json"]) if isinstance(
+                            f["formula_json"], str) else f["formula_json"]
+                        if fj.get("type") == "item_circle" and fj.get("radius"):
+                            radius = fj["radius"]
+                        break
+            return {"type": "item_circle", "center": [cx, cy],
+                    "radius": radius}
+
+        # Custom shape from shapes table
+        if shape not in ("rect", "circle"):
+            shape_name = catalog_key or shape
             from app.database import get_shape
-            if get_shape(catalog_key, db):
-                shape = catalog_key
-        return _build_wall_relative_formula(
-            cx, cy, width, depth, rotation_deg, variant, shape)
+            if get_shape(shape_name, db):
+                formula = {
+                    "type": "shape_transform",
+                    "shape_name": shape_name,
+                    "center": [cx, cy],
+                    "rotation_deg": rotation_deg,
+                }
+                if width:
+                    formula["width"] = width
+                if depth:
+                    formula["depth"] = depth
+                return formula
+
+        # Default: rectangle with absolute coordinates
+        return {
+            "type": "item_rect",
+            "anchor": [cx, cy],
+            "along": [1, 0],
+            "across": [0, 1],
+            "width": width,
+            "depth": depth,
+            "anchor_corner": "center",
+            "rotation_deg": rotation_deg,
+        }
 
     def _seed_item_formula(name, props, variant=None):
         """Create/update a formula for an item."""
@@ -721,33 +676,23 @@ def create_app(db_path=None):
         if isinstance(props, str):
             props = json.loads(props)
 
-        # Unified item move: re-anchor to nearest wall at new position
-        # Only for items that have a position formula (seeded or placed items)
+        # Unified item move: copy formula, update only the position field.
+        # Preserves formula type, rotation, shape, dimensions — everything
+        # except the position point, which becomes absolute coordinates.
         has_formula = bool(get_element_formulas(name, db_path=db))
         if el["type"] in ("furniture", "appliance", "fixture") and has_formula:
             variant = el.get("variant") or "standard"
             geom = _get_geometry(variant)
-            # Get current center from geometry output
             vi = geom.get("variant_items", {})
             item_geom = vi.get(name, {})
-            old_center = item_geom.get("center") or item_geom.get("base_center")
+            old_center = item_geom.get("center")
             if not old_center:
-                # Fall back to bbox center
-                bbox = item_geom.get("bbox", {})
-                if bbox:
-                    old_center = [(bbox.get("w", 0) + bbox.get("e", 0)) / 2,
-                                  (bbox.get("s", 0) + bbox.get("n", 0)) / 2]
-                else:
-                    old_center = props.get("center", [0, 0])
+                return jsonify({"error": f"no center in geometry for {name}"}), 400
 
             new_cx = old_center[0] + dx
             new_cy = old_center[1] + dy
-            width = item_geom.get("width") or props.get("width", 1)
-            depth = item_geom.get("depth") or props.get("depth", 1)
-            rotation = item_geom.get("rotation") or props.get("rotation", 0)
-            shape = props.get("shape", "rect")
 
-            # Save old formula for undo
+            # Get old formula and update only its position field
             old_formulas = get_element_formulas(name, db_path=db)
             old_formula_json = None
             for f in old_formulas:
@@ -756,15 +701,25 @@ def create_app(db_path=None):
                     old_formula_json = json.loads(fj) if isinstance(fj, str) else fj
                     break
 
-            # Build new formula at new position, preserving formula type
-            if old_formula_json and old_formula_json.get("type") == "dining_triangle":
-                formula = _build_dining_triangle_formula(new_cx, new_cy, rotation)
-            elif old_formula_json and old_formula_json.get("type") == "shape_transform":
-                formula = dict(old_formula_json)
-                formula["center"] = [new_cx, new_cy]
+            if not old_formula_json:
+                return jsonify({"error": f"no position formula for {name}"}), 400
+
+            formula = dict(old_formula_json)
+            ftype = formula.get("type")
+            pos_field = _FORMULA_POSITION_FIELD.get(ftype)
+            if pos_field:
+                formula[pos_field] = [new_cx, new_cy]
+            elif ftype == "four_corner":
+                # Translate all 4 corners
+                for corner in ("sw", "se", "ne", "nw"):
+                    old_pt = item_geom.get("poly", [[0,0]]*4)
+                    idx = {"sw": 0, "se": 1, "ne": 2, "nw": 3}[corner]
+                    if idx < len(old_pt):
+                        formula[corner] = [old_pt[idx][0] + dx,
+                                           old_pt[idx][1] + dy]
             else:
-                formula = _build_wall_relative_formula(
-                    new_cx, new_cy, width, depth, rotation, variant, shape)
+                return jsonify({"error": f"unsupported formula type {ftype}"}), 400
+
             upsert_formula(name, "position", formula, variant=None,
                            db_path=db)
 

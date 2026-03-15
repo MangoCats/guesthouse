@@ -441,7 +441,9 @@ class FormulaEvaluator:
         if any(v is None for v in (sw, se, ne, nw)):
             return None
         poly = [sw, se, ne, nw]
-        return {"poly": poly, "bbox": _bbox_from_poly(poly)}
+        cx = (sw[0] + ne[0]) / 2
+        cy = (sw[1] + ne[1]) / 2
+        return {"poly": poly, "bbox": _bbox_from_poly(poly), "center": [cx, cy]}
 
     def _eval_wall_opening(self, formula):
         """Evaluate a wall_opening formula → {"poly": [...], "bbox": {...}}.
@@ -570,7 +572,7 @@ class FormulaEvaluator:
                             + dy * _SVG_TO_FT * facing[1])
                 for dx, dy in _TOILET_SVG]
         poly = [[p[0], p[1]] for p in poly]
-        return {"poly": poly, "bbox": _bbox_from_poly(poly)}
+        return {"poly": poly, "bbox": _bbox_from_poly(poly), "center": center}
 
     def _eval_bath_sink_shape(self, formula):
         """Evaluate a bath_sink_shape formula → {"poly": [...], "bbox": {...}}.
@@ -603,7 +605,7 @@ class FormulaEvaluator:
             pts.append(_pt(math.cos(t) * quarter_len,
                            rect_depth + math.sin(t) * quarter_len))
         pts.append(_pt(half_len, rect_depth))
-        return {"poly": pts, "bbox": _bbox_from_poly(pts)}
+        return {"poly": pts, "bbox": _bbox_from_poly(pts), "center": anchor}
 
     def _eval_dining_triangle(self, elem_name, formula):
         """Evaluate a dining_triangle formula → {"poly": [...], "bbox": {...}}.
@@ -779,7 +781,7 @@ class FormulaEvaluator:
         nw = [anchor[0] - rx * al[0] + ry * out[0],
               anchor[1] - rx * al[1] + ry * out[1]]
         poly = [sw, se, ne, nw]
-        return {"poly": poly, "bbox": _bbox_from_poly(poly)}
+        return {"poly": poly, "bbox": _bbox_from_poly(poly), "center": anchor}
 
     def _eval_shape_transform(self, formula):
         """Evaluate a shape_transform formula → {"poly": [...], "bbox": {...}}.
