@@ -680,10 +680,7 @@ def create_app(db_path=None):
         # Unified item move: copy formula, update only the position field.
         # Preserves formula type, rotation, shape, dimensions — everything
         # except the position point, which becomes absolute coordinates.
-        #
-        # Formula lookup: try element name, then UPPERCASE (layout items
-        # like bed→BED).  Also try with variant since some formulas are
-        # variant-specific (e.g. dining_table/standard).
+        # COLLATE NOCASE on element_formulas handles case-insensitive lookup.
         variant = el.get("variant") or "standard"
         formula_name = name
         formula_variant = None  # variant stored on the formula row
@@ -697,7 +694,8 @@ def create_app(db_path=None):
                         fj = r["formula_json"]
                         return (
                             json.loads(fj) if isinstance(fj, str) else fj,
-                            fname, v,
+                            r["element_name"],  # actual stored name
+                            r.get("variant"),    # actual stored variant
                         )
             return None, fname, None
 
