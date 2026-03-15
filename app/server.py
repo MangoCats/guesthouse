@@ -430,6 +430,7 @@ def create_app(db_path=None):
         "bath_sink_shape": "anchor",
         "ellipse_rect": "anchor",
         "four_corner": None,  # special: 4 independent corners
+        "dining_chair": None,  # follows table, not independently movable
     }
 
     def _build_dining_triangle_formula(cx, cy, rotation_deg=0):
@@ -679,9 +680,35 @@ def create_app(db_path=None):
         # Unified item move: copy formula, update only the position field.
         # Preserves formula type, rotation, shape, dimensions — everything
         # except the position point, which becomes absolute coordinates.
-        has_formula = bool(get_element_formulas(name, db_path=db))
-        if el["type"] in ("furniture", "appliance", "fixture") and has_formula:
-            variant = el.get("variant") or "standard"
+        #
+        # Formula lookup: try element name, then UPPERCASE (layout items
+        # like bed→BED).  Also try with variant since some formulas are
+        # variant-specific (e.g. dining_table/standard).
+        variant = el.get("variant") or "standard"
+        formula_name = name
+        formula_variant = None  # variant stored on the formula row
+
+        def _find_position_formula(fname, var):
+            """Find the position formula, trying variant then NULL."""
+            for v in (var, None):
+                rows = get_element_formulas(fname, variant=v, db_path=db)
+                for r in rows:
+                    if r["param_name"] == "position":
+                        fj = r["formula_json"]
+                        return (
+                            json.loads(fj) if isinstance(fj, str) else fj,
+                            fname, v,
+                        )
+            return None, fname, None
+
+        old_formula_json, formula_name, formula_variant = \
+            _find_position_formula(name, variant)
+        if not old_formula_json:
+            # Try uppercase (layout items: bed→BED, counter→COUNTER)
+            old_formula_json, formula_name, formula_variant = \
+                _find_position_formula(name.upper(), variant)
+
+        if el["type"] in ("furniture", "appliance", "fixture") and old_formula_json:
             geom = _get_geometry(variant)
             vi = geom.get("variant_items", {})
             item_geom = vi.get(name, {})
@@ -692,36 +719,27 @@ def create_app(db_path=None):
             new_cx = old_center[0] + dx
             new_cy = old_center[1] + dy
 
-            # Get old formula and update only its position field
-            old_formulas = get_element_formulas(name, db_path=db)
-            old_formula_json = None
-            for f in old_formulas:
-                if f["param_name"] == "position":
-                    fj = f["formula_json"]
-                    old_formula_json = json.loads(fj) if isinstance(fj, str) else fj
-                    break
-
-            if not old_formula_json:
-                return jsonify({"error": f"no position formula for {name}"}), 400
-
             formula = dict(old_formula_json)
             ftype = formula.get("type")
             pos_field = _FORMULA_POSITION_FIELD.get(ftype)
             if pos_field:
                 formula[pos_field] = [new_cx, new_cy]
-            elif ftype == "four_corner":
-                # Translate all 4 corners
-                for corner in ("sw", "se", "ne", "nw"):
-                    old_pt = item_geom.get("poly", [[0,0]]*4)
-                    idx = {"sw": 0, "se": 1, "ne": 2, "nw": 3}[corner]
-                    if idx < len(old_pt):
-                        formula[corner] = [old_pt[idx][0] + dx,
-                                           old_pt[idx][1] + dy]
+            elif ftype in ("four_corner", "dining_chair"):
+                # Translate all corners / derived items by delta
+                poly = item_geom.get("poly", [])
+                if ftype == "four_corner":
+                    for i, corner in enumerate(("sw", "se", "ne", "nw")):
+                        if i < len(poly):
+                            formula[corner] = [poly[i][0] + dx,
+                                               poly[i][1] + dy]
+                elif ftype == "dining_chair":
+                    # Dining chairs follow their table — not independently movable
+                    return jsonify({"error": "dining chairs move with their table"}), 400
             else:
                 return jsonify({"error": f"unsupported formula type {ftype}"}), 400
 
-            upsert_formula(name, "position", formula, variant=None,
-                           db_path=db)
+            upsert_formula(formula_name, "position", formula,
+                           variant=formula_variant, db_path=db)
 
             # Update center in element properties for placed items
             if props.get("source") == "placed" or props.get("center"):

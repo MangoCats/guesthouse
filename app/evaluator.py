@@ -753,7 +753,8 @@ class FormulaEvaluator:
             ce = cc_e + su[0] * ds * ch_short / 2 + sn[0] * dn * ch_long / 2
             cn = cc_n + su[1] * ds * ch_short / 2 + sn[1] * dn * ch_long / 2
             corners.append([ce, cn])
-        return {"poly": corners, "bbox": _bbox_from_poly(corners)}
+        return {"poly": corners, "bbox": _bbox_from_poly(corners),
+                "center": [cc_e, cc_n]}
 
     def _eval_ellipse_rect(self, formula):
         """Evaluate an ellipse_rect formula → bounding rect of an ellipse.
