@@ -949,11 +949,9 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
         SVG string
     """
     from floorplan.gen_floorplan import (
-        _render_walls, _render_title_block, _render_sf_extras,
+        _render_walls, _render_title_block,
         _render_plumbing_path, _render_supplies_table,
-        _render_openings, _render_appliances, _render_kitchen,
-        _render_furniture, _render_dimensions, _render_boundary,
-        compute_iw_area, git_describe,
+        _render_boundary, git_describe,
     )
     from floorplan.constants import SHELL_THICKNESS
 
@@ -962,7 +960,7 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
 
     pts = data.pts
     to_svg = data.to_svg
-    layout = data.layout  # still needed for outer wall shell rendering
+    layout = data.layout  # needed for outer wall shell rendering
 
     vb_x, vb_y, vb_w, vb_h = data.vb_x, data.vb_y, data.vb_w, data.vb_h
     page_w, page_h = W, H
@@ -995,57 +993,62 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     out.append(f'<text x="{data.title_x:.1f}" y="{data.title_y:.1f}" text-anchor="middle" font-family="Arial" font-size="14"'
                f' font-weight="bold">{room_title}</text>')
 
-    # Map variant name to ref renderer flags
+    # Map variant name to renderer flags
     variant = geom.get("variant", "standard")
     bare = variant in ("bare", "sf")
     sf = variant == "sf"
-    minik = variant == "minik"
-    db_flag = variant in ("daybed", "plumbing")
     plumbing = variant == "plumbing"
 
-    # Wall shells + interior walls (uses GeneratorData — geometry from DB)
-    _render_walls(out, data, layout, bare=bare or sf)
+    # Outer wall shells (outline-derived, not from interior formulas)
+    _render_walls(out, data, layout, bare=bare or sf, skip_interior_walls=True)
+
+    # Interior walls from DB
+    render_interior_walls_db(out, geom, to_svg)
 
     # Plumbing pipes (before furniture, which is ghosted in plumbing mode)
     if plumbing:
         _render_plumbing_path(out, data, layout)
 
-    # Variant items: use ref renderers (matching output) but filter by DB state.
-    # Items absent from geom["variant_items"] (DB-deleted) are stripped from output.
+    # Variant items from DB (furniture, appliances, fixtures)
     if not bare and not sf:
         if plumbing:
             out.append('<g opacity="0.6">')
-        _render_appliances(out, data, layout, minik=minik, db=db_flag, plumbing=plumbing)
-        _render_kitchen(out, data, layout, minik=minik, db=db_flag, plumbing=plumbing)
-        _render_furniture(out, data, layout, minik=minik, db=db_flag, plumbing=plumbing)
+        render_variant_items_db(out, geom, to_svg)
         if plumbing:
             out.append('</g>')
-        # Strip items deleted from DB (ref renderers always render from layout)
-        db_items = set(geom.get("variant_items", {}).keys())
-        _strip_deleted_items(out, db_items)
 
-    # Dimensions (ref renderer for exact position match)
+    # Dimensions from DB
     out.append('<g opacity="0.5">')
-    _render_dimensions(out, data, layout, bare=bare or sf, plumbing=plumbing)
+    render_dimensions_db(out, geom, to_svg)
     out.append('</g>')
 
-    # Openings (door swings, casement windows, door caps)
+    # Openings from DB (door swings, casement windows, appliance doors)
     if plumbing:
         out.append('<g opacity="0.2">')
-    _render_openings(out, data, layout, bare=bare or sf)
+    render_door_arcs_db(out, geom, to_svg)
+    render_casement_windows_db(out, geom, to_svg, shell_thickness)
     if plumbing:
         out.append('</g>')
 
-    # SF variant extras
+    # SF variant extras from DB
     if sf:
-        _render_sf_extras(out, data, layout)
+        render_sf_extras_db(out, geom, to_svg)
+
+    # Room labels from DB
+    render_room_labels_db(out, geom, to_svg)
+
+    # Clearance zones from DB
+    render_clearance_zones_db(out, geom, to_svg)
 
     # Property boundary lines
     if boundary:
         _render_boundary(out, data, boundary)
 
-    # Title block
-    inner_area = data.inner_area - compute_iw_area(layout)
+    # Title block — IW area computed from DB geometry
+    iw_area = sum(abs(poly_area([(p[0], p[1]) for p in iw["poly"]]))
+                  for iw in geom.get("interior_walls", {}).values()
+                  if len(iw.get("poly", [])) >= 3)
+    inner_area = data.inner_area - iw_area
     _render_title_block(out, data, inner_area)
     if plumbing:
         # Build supplies rows from fixture_connection records in geom dict

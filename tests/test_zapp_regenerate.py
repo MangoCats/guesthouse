@@ -207,16 +207,13 @@ class TestRegenerateAPI:
         svg_resp = app_client.get("/api/svg/floorplan")
         svg = svg_resp.data.decode("utf-8")
 
-        # The Oscar href should still appear (for the chairs) but
-        # there should be no <path> block with that href (table gone)
-        oscar = "Oscar-3-Piece"
-        # Count <a> blocks with Oscar href
+        # After deleting the table, the chairs should still appear
+        # as polygons with their labels, but the table path should be gone.
         import re
-        a_blocks = re.findall(
-            r'<a [^>]*Oscar-3-Piece[^>]*>.*?</a>', svg, re.DOTALL)
-        path_blocks = [b for b in a_blocks if '<path' in b]
-        poly_blocks = [b for b in a_blocks if '<polygon' in b]
-        assert len(path_blocks) == 0, \
-            "table <path> block should be stripped after deletion"
-        assert len(poly_blocks) == 2, \
-            "chair <polygon> blocks should survive table deletion"
+        # Table is rendered as a <path> in the reference renderer;
+        # with DB rendering, it simply won't appear at all.
+        assert "DINING TABLE" not in svg, \
+            "dining table label should not appear after deletion"
+        # Chairs should still be rendered
+        assert "CHAIR" in svg, \
+            "chair labels should survive table deletion"
