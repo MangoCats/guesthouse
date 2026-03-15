@@ -352,21 +352,24 @@ class UndoManager:
                     deps = extract_deps(formula)
                     rebuild_formula_deps(parts[0], parts[1],
                                           list(deps), db_path=self._db_path)
-            # Delete the element's own formulas (check case variants)
-            for name_candidate in {elem_name, elem_name.upper()}:
-                formulas = get_element_formulas(name_candidate,
-                                                variant=redo_variant,
-                                                db_path=self._db_path)
-                for f in formulas:
-                    delete_formula(f["element_name"], f["param_name"],
-                                   variant=f.get("variant"),
-                                   db_path=self._db_path)
-                    rebuild_formula_deps(f["element_name"], f["param_name"],
-                                         [], db_path=self._db_path)
-            # Delete elements records (check case variants)
-            for name_candidate in {elem_name, elem_name.lower(),
-                                   elem_name.upper()}:
-                elem_rec = get_element_by_name(name_candidate,
+            # Delete the element's own formulas for this variant
+            formulas = get_element_formulas(elem_name,
+                                            variant=redo_variant,
+                                            db_path=self._db_path)
+            for f in formulas:
+                delete_formula(f["element_name"], f["param_name"],
+                               variant=f.get("variant"),
+                               db_path=self._db_path)
+                rebuild_formula_deps(f["element_name"], f["param_name"],
+                                     [], db_path=self._db_path)
+            # Delete element record only if no formulas remain
+            with get_db(self._db_path) as conn:
+                remaining = conn.execute(
+                    "SELECT 1 FROM element_formulas "
+                    "WHERE element_name = ? LIMIT 1", (elem_name,),
+                ).fetchone()
+            if not remaining:
+                elem_rec = get_element_by_name(elem_name,
                                                self._db_path)
                 if elem_rec:
                     delete_element(elem_rec["id"], self._db_path)

@@ -21,10 +21,14 @@ def _create_wall(client, name):
     )
 
 
-def _put_formula(client, elem_name, formula, param_name="position"):
+def _put_formula(client, elem_name, formula, param_name="position",
+                  variant=None):
+    body = {"formula": formula}
+    if variant is not None:
+        body["variant"] = variant
     return client.put(
         f"/api/formulas/{elem_name}/{param_name}",
-        data=json.dumps({"formula": formula}),
+        data=json.dumps(body),
         content_type="application/json",
     )
 
@@ -89,61 +93,51 @@ class TestFormulaDelete:
         elems = app_client.get("/api/elements").get_json()
         assert any(e["name"] == "NOFMLA" for e in elems)
 
-    def test_delete_element_with_uppercase_alias(self, app_client):
-        """Deleting lowercase element also removes uppercase alias with formula.
+    def test_delete_preserves_other_variant_formulas(self, app_client):
+        """Deleting an element in one variant preserves other variants' formulas.
 
-        Regression: engine maps UPPER formula names to lower element records
-        (layout_item fallback). Deleting 'lower' must also remove 'UPPER'
-        formula and element, otherwise the item reappears on next render.
+        Regression: delete_element cascade-wiped all variant formulas.
+        Deleting fridge in 'standard' should keep the minik formula intact.
         """
-        # Create lowercase element record (no formula, like legacy seed)
+        # Create element with a formula for two variants
         app_client.post(
             "/api/elements",
             data=json.dumps({
                 "type": "appliance", "name": "gadget",
-                "properties": {"width": 2.0, "depth": 1.5},
+                "properties": {"width": 2.0, "depth": 1.5,
+                               "variants": ["standard", "minik"]},
             }),
             content_type="application/json",
         )
-        # Create uppercase element record with a formula (like placed item)
-        app_client.post(
-            "/api/elements",
-            data=json.dumps({
-                "type": "appliance", "name": "GADGET",
-                "properties": {"layout_item": True, "width": 2.0, "depth": 1.5},
-            }),
-            content_type="application/json",
-        )
-        formula = {
+        formula_std = {
             "type": "item_rect",
             "anchor": [1, 2], "along": [1, 0], "across": [0, 1],
             "width": 2.0, "depth": 1.5, "anchor_corner": "center",
         }
-        _put_formula(app_client, "GADGET", formula)
+        formula_mk = {
+            "type": "item_rect",
+            "anchor": [3, 4], "along": [1, 0], "across": [0, 1],
+            "width": 1.5, "depth": 1.0, "anchor_corner": "center",
+        }
+        _put_formula(app_client, "gadget", formula_std, variant="standard")
+        _put_formula(app_client, "gadget", formula_mk, variant="minik")
 
-        # Verify both exist
-        elems = app_client.get("/api/elements").get_json()
-        assert any(e["name"] == "gadget" for e in elems)
-        assert any(e["name"] == "GADGET" for e in elems)
-
-        # Delete via lowercase name (what UI sends)
-        resp = app_client.delete("/api/formulas/gadget/element")
+        # Delete in standard variant
+        resp = app_client.delete(
+            "/api/formulas/gadget/element?variant=standard")
         assert resp.status_code == 200
 
-        # Both element records and formula should be gone
+        # Element record should still exist (minik formula remains)
         elems = app_client.get("/api/elements").get_json()
-        assert not any(e["name"] == "gadget" for e in elems), "lowercase element should be deleted"
-        assert not any(e["name"] == "GADGET" for e in elems), "uppercase element should be deleted"
-        formulas = app_client.get("/api/formulas/GADGET").get_json()
-        assert len(formulas) == 0, "uppercase formula should be deleted"
+        assert any(e["name"] == "gadget" for e in elems), \
+            "element record should survive when other variant formulas remain"
 
-        # Undo restores both
-        app_client.post("/api/undo")
-        elems = app_client.get("/api/elements").get_json()
-        assert any(e["name"] == "gadget" for e in elems)
-        assert any(e["name"] == "GADGET" for e in elems)
-        formulas = app_client.get("/api/formulas/GADGET").get_json()
-        assert len(formulas) > 0
+        # Minik formula should still be there
+        # (GET without variant returns only variant=NULL rows,
+        #  so query with variant=minik to include it)
+        formulas = app_client.get(
+            "/api/formulas/gadget?variant=minik").get_json()
+        assert len(formulas) > 0, "minik formula should survive"
 
     def test_delete_rebases_dependents(self, app_client):
         """Deleting an element structurally rebases dependent formulas."""

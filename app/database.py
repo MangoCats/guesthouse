@@ -1047,7 +1047,7 @@ _VARIANT_ITEMS = [
     ("counter", "appliance", {
         "label": "COUNTER", "item_type": "appliance", "shape": "rect",
         "clip_to_inner": True,
-        "variants": _VI_STD_DB,
+        "variants": _VI_ALL,
     }, None),
     # --- Toilets & sinks ---
     ("toilet_s", "fixture", {

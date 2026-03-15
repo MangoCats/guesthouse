@@ -2176,16 +2176,26 @@ def create_app(db_path=None):
             rebuild_formula_deps(f["element_name"], f["param_name"],
                                   [], db_path=db)
 
-        # 7. Also delete the elements DB record if one exists
-        #    Check both the requested name and case variants in case
-        #    of mismatched casing between formula and element records.
+        # 7. Delete the element record only if no formulas remain
+        #    (other variants may still have formulas for this element).
         deleted_elements = []
-        for candidate in {element_name, element_name.lower(),
-                          element_name.upper()}:
-            elem_rec = get_element_by_name(candidate, db)
+        with get_db(db) as conn:
+            remaining = conn.execute(
+                "SELECT 1 FROM element_formulas WHERE element_name = ? "
+                "LIMIT 1", (element_name,),
+            ).fetchone()
+        if not remaining:
+            elem_rec = get_element_by_name(element_name, db)
             if elem_rec:
                 deleted_elements.append(dict(elem_rec))
-                delete_element(elem_rec["id"], db)
+                # Delete element record without cascade (formulas
+                # already removed in step 6).
+                with get_db(db) as conn:
+                    conn.execute("DELETE FROM formula_deps "
+                                 "WHERE element_name = ?",
+                                 (elem_rec["name"],))
+                    conn.execute("DELETE FROM elements WHERE id = ?",
+                                 (elem_rec["id"],))
         if deleted_elements:
             before_state["deleted_element"] = deleted_elements[0]
             if len(deleted_elements) > 1:
