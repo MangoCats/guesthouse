@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS inner_wall_overrides (
 
 CREATE TABLE IF NOT EXISTS element_formulas (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    element_name TEXT NOT NULL,          -- FK to elements.name
+    element_name TEXT NOT NULL COLLATE NOCASE,  -- FK to elements.name
     param_name   TEXT NOT NULL,          -- 'position', 'poly', 'center', etc.
     formula_json TEXT NOT NULL,          -- JSON formula spec
     locked       INTEGER DEFAULT 0,     -- 1 = frozen at locked_value
@@ -190,10 +190,10 @@ CREATE TABLE IF NOT EXISTS element_formulas (
 );
 
 CREATE TABLE IF NOT EXISTS formula_deps (
-    element_name TEXT NOT NULL,          -- element with the formula
+    element_name TEXT NOT NULL COLLATE NOCASE,  -- element with the formula
     param_name   TEXT NOT NULL,          -- which parameter formula
     dep_type     TEXT NOT NULL,          -- 'element', 'point', 'constant'
-    dep_name     TEXT NOT NULL,          -- name of dependency target
+    dep_name     TEXT NOT NULL COLLATE NOCASE,  -- name of dependency target
     UNIQUE(element_name, param_name, dep_type, dep_name)
 );
 
@@ -298,6 +298,8 @@ def init_db(db_path=None):
             if "sort_order" not in pe_cols:
                 conn.execute("ALTER TABLE plumbing_elements "
                              "ADD COLUMN sort_order INTEGER DEFAULT 0")
+            # Migrate element_formulas/formula_deps to COLLATE NOCASE
+            _migrate_nocase_formulas(conn)
             # Migrate existing placed items: create formulas if missing
             _migrate_placed_item_formulas(conn)
     # Seed catalog items after DB is committed (needs geometry computation)
@@ -308,6 +310,65 @@ def _seed_catalog_items_post(db_path):
     """Seed catalog_items after DB is committed (separate connection)."""
     with get_db(db_path) as conn:
         _seed_catalog_items(conn, db_path)
+
+
+def _migrate_nocase_formulas(conn):
+    """Migrate element_formulas/formula_deps to COLLATE NOCASE columns.
+
+    SQLite doesn't support ALTER COLUMN, so we recreate the tables with
+    COLLATE NOCASE on element_name/dep_name.  This makes all lookups and
+    UNIQUE constraints case-insensitive, fixing the case mismatch between
+    formula names (e.g. BED) and UI element names (e.g. bed).
+    """
+    # Check if migration is needed by inspecting column collation
+    info = conn.execute("PRAGMA table_info(element_formulas)").fetchall()
+    # PRAGMA table_info doesn't expose COLLATE — check the CREATE TABLE SQL
+    sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE name = 'element_formulas'"
+    ).fetchone()
+    if sql and "COLLATE NOCASE" in sql[0]:
+        return  # Already migrated
+
+    # --- element_formulas ---
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS element_formulas_new (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            element_name TEXT NOT NULL COLLATE NOCASE,
+            param_name   TEXT NOT NULL,
+            formula_json TEXT NOT NULL,
+            locked       INTEGER DEFAULT 0,
+            locked_value TEXT,
+            variant      TEXT,
+            UNIQUE(element_name, param_name, variant)
+        )
+    """)
+    conn.execute("""
+        INSERT OR IGNORE INTO element_formulas_new
+            (id, element_name, param_name, formula_json, locked, locked_value, variant)
+        SELECT id, element_name, param_name, formula_json, locked, locked_value, variant
+        FROM element_formulas
+    """)
+    conn.execute("DROP TABLE element_formulas")
+    conn.execute("ALTER TABLE element_formulas_new RENAME TO element_formulas")
+
+    # --- formula_deps ---
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS formula_deps_new (
+            element_name TEXT NOT NULL COLLATE NOCASE,
+            param_name   TEXT NOT NULL,
+            dep_type     TEXT NOT NULL,
+            dep_name     TEXT NOT NULL COLLATE NOCASE,
+            UNIQUE(element_name, param_name, dep_type, dep_name)
+        )
+    """)
+    conn.execute("""
+        INSERT OR IGNORE INTO formula_deps_new
+            (element_name, param_name, dep_type, dep_name)
+        SELECT element_name, param_name, dep_type, dep_name
+        FROM formula_deps
+    """)
+    conn.execute("DROP TABLE formula_deps")
+    conn.execute("ALTER TABLE formula_deps_new RENAME TO formula_deps")
 
 
 def _migrate_placed_item_formulas(conn):

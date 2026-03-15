@@ -703,10 +703,6 @@ def create_app(db_path=None):
 
         old_formula_json, formula_name, formula_variant = \
             _find_position_formula(name, variant)
-        if not old_formula_json:
-            # Try uppercase (layout items: bed→BED, counter→COUNTER)
-            old_formula_json, formula_name, formula_variant = \
-                _find_position_formula(name.upper(), variant)
 
         if el["type"] in ("furniture", "appliance", "fixture") and old_formula_json:
             geom = _get_geometry(variant)
@@ -2071,18 +2067,7 @@ def create_app(db_path=None):
         own_formulas = get_element_formulas(element_name, variant=variant,
                                             db_path=db)
 
-        # If no formula, check for uppercase alias with formulas
-        # (e.g. "dryer" has no formula but "DRYER" does — engine maps
-        # DRYER→dryer via layout_item fallback)
         formula_name = element_name  # name used for formula/dep lookups
-        if not own_formulas:
-            alias = element_name.upper()
-            if alias != element_name:
-                alias_formulas = get_element_formulas(
-                    alias, variant=variant, db_path=db)
-                if alias_formulas:
-                    own_formulas = alias_formulas
-                    formula_name = alias  # deps reference uppercase name
 
         # If still no formula, just delete the element record directly
         if not own_formulas:
