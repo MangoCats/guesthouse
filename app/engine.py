@@ -1187,6 +1187,9 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     (iw, oo, ro, vi, furn, appl) = _build_elements_from_formulas(
         ev, variant, exclusions, db_path)
 
+    # 6b. Site path (survey outer boundary as dense polyline)
+    site_path = _compute_site_path(pts)
+
     # 7. Build result
     outline_poly_pts = path_polygon(outline_segs, pts)
     result = {
@@ -1204,6 +1207,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         "variant": variant,
         "locked_elements": locked,
         "radii": dict(radii),
+        "site_path": site_path,
     }
 
     # Bounding box
@@ -1275,6 +1279,35 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     result["label_elements"] = label_elems
 
     return result
+
+
+def _compute_site_path(pts: dict) -> list[list[float]]:
+    """Compute site boundary (survey outer path) as a dense polyline.
+
+    Uses the P-series traverse points already present in pts (aligned to
+    F-series coordinates) to build the outer boundary segments, then
+    returns a polygon approximation as [[E, N], ...].
+    """
+    from shared.types import LineSeg, ArcSeg
+    from shared.geometry import path_polygon
+    from shared.survey import compute_traverse, compute_three_arc
+    from floorplan.geometry import align_pts_to_f_series
+
+    trav_pts = compute_traverse()
+    three_arc = compute_three_arc(trav_pts)
+    R1, R2, R3 = three_arc["R1"], three_arc["R2"], three_arc["R3"]
+    align_pts_to_f_series(trav_pts)
+
+    outer_segs = [
+        LineSeg("POB", "P2"), LineSeg("P2", "P3"), LineSeg("P3", "T3"),
+        ArcSeg("T3", "PX", "TC3", R3, "CW", 60),
+        LineSeg("PX", "P4"), LineSeg("P4", "P5"), LineSeg("P5", "T1"),
+        ArcSeg("T1", "PA", "TC1", R1, "CW", 60),
+        ArcSeg("PA", "T2", "TC2", R2, "CW", 60),
+        LineSeg("T2", "POB"),
+    ]
+    poly = path_polygon(outer_segs, trav_pts)
+    return [point_to_list(p) for p in poly]
 
 
 def compute_survey_points(constants_dict: dict) -> dict:

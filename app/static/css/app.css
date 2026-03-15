@@ -485,6 +485,7 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 }
 
 /* ========== SVG CANVAS STYLES ========== */
+.site-stroke { fill: none; stroke: #7a6a3a; stroke-width: 0.04; stroke-dasharray: 0.2 0.1; }
 .outline-fill { fill: #1a2030; stroke: none; }
 .outline-stroke { fill: none; stroke: var(--text); stroke-width: 0.05; }
 .inner-stroke { fill: none; stroke: var(--accent-dim); stroke-width: 0.04; stroke-dasharray: 0.15 0.08; }

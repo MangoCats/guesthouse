@@ -24,6 +24,7 @@ const App = {
     showClearance: false,
     openLinks: true,
     showAreas: false,
+    showSite: false,
     variant: "standard",
     measureStart: null,
     rubberBand: null,
@@ -74,7 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 function cacheElements() {
   const ids = [
     "canvas", "canvas-transform", "viewport",
-    "layer-outline", "layer-inner", "layer-walls",
+    "layer-site", "layer-outline", "layer-inner", "layer-walls",
     "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
     "layer-rooms", "layer-points",
     "layer-labels", "layer-dims",
@@ -90,7 +91,8 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-user-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
-    "show-doors", "show-clearance", "open-links", "show-areas", "roof-style",
+    "show-doors", "show-clearance", "open-links", "show-areas", "show-site",
+    "roof-style",
     "plumbing-tools", "plumbing-fixtures-table", "plumbing-pipes-table",
     "variant-select", "variant-selector",
     "error-banner", "error-banner-text", "error-banner-action", "error-banner-dismiss",
@@ -770,6 +772,7 @@ function renderCanvas() {
 
   clearLayers();
   const overrides = itemOverrides();
+  renderSitePath(g);
   renderOutline(g);
   renderInnerWalls(g);
   renderInteriorWalls(g);
@@ -791,7 +794,7 @@ function renderCanvas() {
 }
 
 function clearLayers() {
-  const layers = ["layer-outline", "layer-inner", "layer-walls",
+  const layers = ["layer-site", "layer-outline", "layer-inner", "layer-walls",
     "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
     "layer-rooms", "layer-points",
     "layer-labels", "layer-dims",
@@ -856,6 +859,18 @@ function fmtFtIn(ft) {
 function fmtDeg(deg) {
   const s = deg.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
   return `${s}°`;
+}
+
+function renderSitePath(g) {
+  if (!App.state.showSite) return;
+  const layer = App.els["layer-site"];
+  if (g.site_path && g.site_path.length > 0) {
+    const el = svgEl("polygon", {
+      points: polyToStr(g.site_path),
+      class: "site-stroke",
+    });
+    layer.appendChild(el);
+  }
 }
 
 function renderOutline(g) {
@@ -4480,7 +4495,7 @@ function setupEventListeners() {
     ["show-openings", "showOpenings"], ["show-furniture", "showFurniture"],
     ["show-rooms", "showRooms"], ["show-doors", "showDoors"],
     ["show-clearance", "showClearance"], ["open-links", "openLinks"],
-    ["show-areas", "showAreas"],
+    ["show-areas", "showAreas"], ["show-site", "showSite"],
   ];
   for (const [elId, stateKey] of toggleMap) {
     App.els[elId].addEventListener("change", (e) => {

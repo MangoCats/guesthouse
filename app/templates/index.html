@@ -160,6 +160,7 @@
         <label class="toggle"><input type="checkbox" id="show-clearance"><span>Clearance</span></label>
         <label class="toggle"><input type="checkbox" id="open-links" checked title="Open object web links in a new tab when clicked"><span>Open Links</span></label>
         <label class="toggle"><input type="checkbox" id="show-areas" title="Show room areas in square feet"><span>Areas</span></label>
+        <label class="toggle"><input type="checkbox" id="show-site" title="Show site boundary outline"><span>Site</span></label>
       </div>
     </aside>
 
@@ -185,6 +186,7 @@
           </defs>
           <g id="canvas-transform">
             <rect id="grid-rect" fill="url(#grid-pattern)" x="-100" y="-100" width="200" height="200" visibility="hidden"/>
+            <g id="layer-site"></g>
             <g id="layer-outline"></g>
             <g id="layer-inner"></g>
             <g id="layer-walls"></g>
