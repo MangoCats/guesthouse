@@ -529,13 +529,13 @@ class TestEvaluateAll:
                        "thickness_dir": "north", "thickness": 0.5,
                        "end_mode": "fixed", "length": 10})
         # Second: item anchored to IW1's NE corner
-        ev.add_formula("BED", "position", {"type": "item_rect",
+        ev.add_formula("bed", "position", {"type": "item_rect",
                        "anchor": {"element": "IW1", "corner": "NE"},
                        "along": "east", "across": "north",
                        "width": 5, "depth": 6.5, "anchor_corner": "sw"})
         ev.evaluate_all()
         # IW1 NE = [10, 3.5]
-        assert ev.elements["BED"]["poly"][0] == pytest.approx([10, 3.5])
+        assert ev.elements["bed"]["poly"][0] == pytest.approx([10, 3.5])
 
 
 # ---------------------------------------------------------------------------
@@ -811,14 +811,14 @@ class TestFormulaCRUD:
 
     def test_get_dependents(self, fresh_db):
         from app.database import rebuild_formula_deps, get_dependents as db_get_dependents
-        rebuild_formula_deps("BED", "position",
+        rebuild_formula_deps("bed", "position",
                              [("element", "IW1")], db_path=fresh_db)
-        rebuild_formula_deps("DRESSER", "position",
+        rebuild_formula_deps("dresser", "position",
                              [("element", "IW1")], db_path=fresh_db)
         result = db_get_dependents("IW1", dep_type="element", db_path=fresh_db)
         names = {r["element_name"] for r in result}
-        assert "BED" in names
-        assert "DRESSER" in names
+        assert "bed" in names
+        assert "dresser" in names
 
 
 # ---------------------------------------------------------------------------
@@ -1008,23 +1008,23 @@ class TestLayoutItemFormulas:
 
     def test_dryer(self, geom_and_evaluator):
         geom, ev = geom_and_evaluator
-        self._assert_item_match(geom, ev, "DRYER", "appliances")
+        self._assert_item_match(geom, ev, "dryer", "appliances")
 
     def test_washer(self, geom_and_evaluator):
         geom, ev = geom_and_evaluator
-        self._assert_item_match(geom, ev, "WASHER", "appliances")
+        self._assert_item_match(geom, ev, "washer", "appliances")
 
     def test_counter(self, geom_and_evaluator):
         geom, ev = geom_and_evaluator
-        self._assert_item_match(geom, ev, "COUNTER", "appliances")
+        self._assert_item_match(geom, ev, "counter", "appliances")
 
     def test_dresser(self, geom_and_evaluator):
         geom, ev = geom_and_evaluator
-        self._assert_item_match(geom, ev, "DRESSER", "furniture")
+        self._assert_item_match(geom, ev, "dresser", "furniture")
 
     def test_shelves(self, geom_and_evaluator):
         geom, ev = geom_and_evaluator
-        self._assert_item_match(geom, ev, "SHELVES", "furniture")
+        self._assert_item_match(geom, ev, "shelves", "furniture")
 
 
 class TestOuterOpeningFormulas:
@@ -1256,7 +1256,7 @@ class TestSeededIWFormulas:
         # 13 IW walls + 5 layout items + 12 outer openings + 7 rough openings = 37
         expected_iw = {"IW1", "IW2", "IW2S", "IW2O", "IW3", "IW4", "IW5",
                        "IW6", "IW7", "IW8", "IW9", "IW11", "IW12"}
-        expected_items = {"DRYER", "WASHER", "COUNTER", "DRESSER", "SHELVES"}
+        expected_items = {"dryer", "washer", "counter", "dresser", "shelves"}
         expected_openings = {"O1", "O2", "O3", "O4", "O5", "O6", "O7",
                              "O8", "O8a", "O9", "O10", "O11"}
         expected_ro = {"RO1", "RO2", "RO3", "RO4", "RO5", "RO6", "RO7"}

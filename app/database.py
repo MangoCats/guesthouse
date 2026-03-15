@@ -370,6 +370,16 @@ def _migrate_nocase_formulas(conn):
     conn.execute("DROP TABLE formula_deps")
     conn.execute("ALTER TABLE formula_deps_new RENAME TO formula_deps")
 
+    # Remove orphaned uppercase layout_item element records (BED, DRYER, etc.)
+    # that collide case-insensitively with lowercase variant items.
+    _OLD_LAYOUT_ITEMS = ("BED", "COUNTER", "DRESSER", "DRYER", "SHELVES", "WASHER")
+    for name in _OLD_LAYOUT_ITEMS:
+        conn.execute(
+            "DELETE FROM elements WHERE name = ? AND "
+            "json_extract(properties, '$.layout_item') = 1",
+            (name,),
+        )
+
 
 def _migrate_placed_item_formulas(conn):
     """Create formulas for placed items that don't have them yet."""
@@ -1296,23 +1306,8 @@ def _seed_elements(conn):
             (elem_type, name, json.dumps(props), variant),
         )
 
-    # --- Layout items (uppercase names from layout.py formulas) ---
-    # These are the same physical elements as some variant items above but
-    # referenced by uppercase names in get_layout_item_formulas().
-    _LAYOUT_ITEMS = [
-        ("BED",     "furniture", {"label": "KING BED", "layout_item": True}),
-        ("COUNTER", "appliance", {"label": "COUNTER", "layout_item": True, "clip_to_inner": True}),
-        ("DRESSER", "furniture", {"label": "DRESSER", "layout_item": True}),
-        ("DRYER",   "appliance", {"label": "DRYER", "layout_item": True}),
-        ("SHELVES", "furniture", {"label": "SHELVES", "layout_item": True}),
-        ("WASHER",  "appliance", {"label": "WASHER", "layout_item": True}),
-    ]
-    for name, elem_type, props in _LAYOUT_ITEMS:
-        conn.execute(
-            "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
-            "VALUES (?, ?, ?, ?)",
-            (elem_type, name, json.dumps(props), None),
-        )
+    # Layout item placeholders (BED, COUNTER, etc.) were removed — layout
+    # formulas now use lowercase names matching _VARIANT_ITEMS directly.
 
 
 # ---------------------------------------------------------------------------

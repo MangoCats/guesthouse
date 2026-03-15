@@ -2177,9 +2177,8 @@ def create_app(db_path=None):
                                   [], db_path=db)
 
         # 7. Also delete the elements DB record if one exists
-        #    Check both the requested name and case variants (e.g.
-        #    "dryer"/"DRYER") since engine maps uppercase formula names
-        #    to lowercase element records via layout_item fallback.
+        #    Check both the requested name and case variants in case
+        #    of mismatched casing between formula and element records.
         deleted_elements = []
         for candidate in {element_name, element_name.lower(),
                           element_name.upper()}:

@@ -2258,7 +2258,7 @@ def get_layout_item_formulas():
     # --- Washer ---
     # SW = offset(dryer.NW, APPLIANCE_GAP, w2w5_al)
     _washer_sw = _off(
-        {"element": "DRYER", "corner": "NW"},
+        {"element": "dryer", "corner": "NW"},
         {"const": "APPLIANCE_GAP"},
         _W2W5_AL,
     )
@@ -2272,7 +2272,7 @@ def get_layout_item_formulas():
     # ctr_ne = offset(ctr_se, COUNTER_LENGTH, w2w5_al)
     # where ctr_se_anchor = offset(ctr_sw_anchor, COUNTER_DEPTH, w2w5_in)
     _ctr_sw_anchor = _off(
-        {"element": "DRYER", "corner": "SE"},
+        {"element": "dryer", "corner": "SE"},
         {"const": "COUNTER_GAP"},
         _W2W5_IN,
     )
@@ -2344,7 +2344,7 @@ def get_layout_item_formulas():
     _bed_se = _off(_bed_se_wall, {"const": "BED_WALL_GAP"}, _W18W1_IN)
 
     return {
-        "BED": {
+        "bed": {
             "type": "item_rect",
             "anchor": _bed_se,
             "along": {"neg": _W18W1_AL},
@@ -2353,7 +2353,7 @@ def get_layout_item_formulas():
             "depth": {"const": "BED_LENGTH"},
             "anchor_corner": "se",
         },
-        "DRYER": {
+        "dryer": {
             "type": "item_rect",
             "anchor": _dryer_sw,
             "along": _W2W5_IN,
@@ -2362,7 +2362,7 @@ def get_layout_item_formulas():
             "depth": {"const": "APPLIANCE_DEPTH"},
             "anchor_corner": "sw",
         },
-        "WASHER": {
+        "washer": {
             "type": "item_rect",
             "anchor": _washer_sw,
             "along": _W2W5_IN,
@@ -2371,7 +2371,7 @@ def get_layout_item_formulas():
             "depth": {"const": "APPLIANCE_DEPTH"},
             "anchor_corner": "sw",
         },
-        "COUNTER": {
+        "counter": {
             "type": "four_corner",
             "sw": _li(_ctr_sw_anchor, _W2W5_AL, "W1", _W9W10_AL),
             "se": _li(_ctr_se_anchor, _W2W5_AL, "W1", _W9W10_AL),
@@ -2386,7 +2386,7 @@ def get_layout_item_formulas():
                 _W2W5_AL,
             ),
         },
-        "DRESSER": {
+        "dresser": {
             "type": "item_rect",
             "anchor": _dresser_ne,
             "along": _W9W10_AL,
@@ -2395,7 +2395,7 @@ def get_layout_item_formulas():
             "depth": {"const": "DRESSER_DEPTH"},
             "anchor_corner": "ne",
         },
-        "SHELVES": {
+        "shelves": {
             "type": "item_rect",
             "anchor": _shelves_ne,
             "along": {"neg": _W18W1_AL},
@@ -2834,7 +2834,7 @@ def get_variant_item_formulas():
     # ===================================================================
     # hamper sw = offset(offset(W2, _washer_nw_d + 2/12, w2w5_al), 2/12, w2w5_in)
     # _washer_nw_d = proj(WASHER.NW, W2, w2w5_al)
-    _washer_nw_d = {"proj": {"target": {"element": "WASHER", "corner": "NW"},
+    _washer_nw_d = {"proj": {"target": {"element": "washer", "corner": "NW"},
                               "anchor": "W2", "dir": _W2W5_AL}}
     _hm_sw = _off(
         _off("W2", {"add": [_washer_nw_d, _in(2)]}, _W2W5_AL),
@@ -2872,7 +2872,7 @@ def get_variant_item_formulas():
         "anchor_corner": "sw",
     }
     _small_washer_sw = _off(
-        {"element": "DRYER", "corner": "NW"},
+        {"element": "dryer", "corner": "NW"},
         _c("APPLIANCE_GAP"),
         _W2W5_AL,
     )
@@ -2888,7 +2888,7 @@ def get_variant_item_formulas():
     # Counter SW/SE anchors: use standard APPLIANCE_WIDTH so counter
     # position is invariant across variants (matches reference layout.py).
     _ctr_sw_anchor_std = _off(
-        {"element": "DRYER", "corner": "SW"},
+        {"element": "dryer", "corner": "SW"},
         {"add": [_c("APPLIANCE_WIDTH"), _c("COUNTER_GAP")]},
         _W2W5_IN,
     )
@@ -2913,9 +2913,9 @@ def get_variant_item_formulas():
         ),
     }
     for _v in ("minik", "daybed"):
-        _f("DRYER", _small_dryer, _v)
-        _f("WASHER", _small_washer, _v)
-        _f("COUNTER", _small_counter, _v)
+        _f("dryer", _small_dryer, _v)
+        _f("washer", _small_washer, _v)
+        _f("counter", _small_counter, _v)
 
     # ===================================================================
     # WATER HEATER — all variants, circle tangent to arc at C7
@@ -2942,7 +2942,7 @@ def get_variant_item_formulas():
     # ===================================================================
     # South toilet: center on IW8 south face, aligned with dryer centroid
     # _d_dryer_al = proj(DRYER_centroid, IW8.SW, iw8_al)
-    _dryer_cx = {"element_centroid": "DRYER"}
+    _dryer_cx = {"element_centroid": "dryer"}
     _d_dryer_al = {"proj": {"target": _dryer_cx,
                              "anchor": {"element": "IW8", "corner": "SW"},
                              "dir": _IW8_AL}}
@@ -2973,7 +2973,7 @@ def get_variant_item_formulas():
     # ===================================================================
     # _sink_mid = midpoint(dryer_centroid, counter_centroid)
     # _d_sink_al = proj(_sink_mid, IW8.SW, iw8_al)
-    _ctr_cx = {"element_centroid": "COUNTER"}
+    _ctr_cx = {"element_centroid": "counter"}
     _sink_mid = {"midpoint": [_dryer_cx, _ctr_cx]}
     _d_sink_al = {"proj": {"target": _sink_mid,
                             "anchor": {"element": "IW8", "corner": "SW"},

@@ -53,7 +53,7 @@ class TestGetAllFormulas:
         # 13 IW + 5 items + 12 outer openings + 7 rough openings = 37
         names = {f["element_name"] for f in data}
         assert "IW1" in names
-        assert "DRYER" in names
+        assert "dryer" in names
         assert "O3" in names
         assert "RO1" in names
         assert len(names) >= 37

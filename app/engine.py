@@ -1021,16 +1021,9 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
         poly = computed["poly"]
         bbox = computed.get("bbox", {})
 
-        # Look up metadata: try exact name, then lowercase (handles BED→bed)
         meta = meta_by_name.get(elem_name, {})
         props = meta.get("props", {})
-        # If the exact match is a layout_item placeholder, use lowercase
-        # variant-item metadata instead (BED→bed, DRYER→dryer, etc.)
         item_name = elem_name
-        if props.get("layout_item") and elem_name.lower() in meta_by_name:
-            meta = meta_by_name[elem_name.lower()]
-            props = meta.get("props", {})
-            item_name = elem_name.lower()
         elem_type = meta.get("type", "")
 
         # Interior walls (IW* uppercase names)
