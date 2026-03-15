@@ -1085,6 +1085,8 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
             }
             if computed.get("center"):
                 entry["center"] = computed["center"]
+            if computed.get("pos_origin"):
+                entry["pos_origin"] = computed["pos_origin"]
             if computed.get("width"):
                 entry["width"] = computed["width"]
             if computed.get("depth"):

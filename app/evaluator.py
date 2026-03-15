@@ -403,6 +403,7 @@ class FormulaEvaluator:
             "poly": poly,
             "bbox": _bbox_from_poly(poly),
             "center": [cx, cy],
+            "pos_origin": list(anchor),
             "width": width,
             "depth": depth,
             "rotation": world_rotation,
@@ -423,6 +424,7 @@ class FormulaEvaluator:
                          center[1] + radius * math.sin(angle)])
         return {
             "center": center,
+            "pos_origin": center,
             "radius": radius,
             "poly": poly,
             "bbox": _bbox_from_poly(poly),
@@ -443,7 +445,8 @@ class FormulaEvaluator:
         poly = [sw, se, ne, nw]
         cx = (sw[0] + ne[0]) / 2
         cy = (sw[1] + ne[1]) / 2
-        return {"poly": poly, "bbox": _bbox_from_poly(poly), "center": [cx, cy]}
+        return {"poly": poly, "bbox": _bbox_from_poly(poly),
+                "center": [cx, cy], "pos_origin": [cx, cy]}
 
     def _eval_wall_opening(self, formula):
         """Evaluate a wall_opening formula → {"poly": [...], "bbox": {...}}.
@@ -572,7 +575,8 @@ class FormulaEvaluator:
                             + dy * _SVG_TO_FT * facing[1])
                 for dx, dy in _TOILET_SVG]
         poly = [[p[0], p[1]] for p in poly]
-        return {"poly": poly, "bbox": _bbox_from_poly(poly), "center": center}
+        return {"poly": poly, "bbox": _bbox_from_poly(poly),
+                "center": center, "pos_origin": center}
 
     def _eval_bath_sink_shape(self, formula):
         """Evaluate a bath_sink_shape formula → {"poly": [...], "bbox": {...}}.
@@ -605,7 +609,8 @@ class FormulaEvaluator:
             pts.append(_pt(math.cos(t) * quarter_len,
                            rect_depth + math.sin(t) * quarter_len))
         pts.append(_pt(half_len, rect_depth))
-        return {"poly": pts, "bbox": _bbox_from_poly(pts), "center": anchor}
+        return {"poly": pts, "bbox": _bbox_from_poly(pts),
+                "center": anchor, "pos_origin": anchor}
 
     def _eval_dining_triangle(self, elem_name, formula):
         """Evaluate a dining_triangle formula → {"poly": [...], "bbox": {...}}.
@@ -713,7 +718,8 @@ class FormulaEvaluator:
         result["ne_side"] = [f_ne_tang, t_right]
         result["nw_side"] = [t_left, f_nw_tang]
         result["base_center"] = bc
-        result["center"] = bc  # for move handler compatibility
+        result["center"] = bc
+        result["pos_origin"] = bc
         return result
 
     def _eval_dining_chair(self, formula):
@@ -754,7 +760,7 @@ class FormulaEvaluator:
             cn = cc_n + su[1] * ds * ch_short / 2 + sn[1] * dn * ch_long / 2
             corners.append([ce, cn])
         return {"poly": corners, "bbox": _bbox_from_poly(corners),
-                "center": [cc_e, cc_n]}
+                "center": [cc_e, cc_n], "pos_origin": [cc_e, cc_n]}
 
     def _eval_ellipse_rect(self, formula):
         """Evaluate an ellipse_rect formula → bounding rect of an ellipse.
@@ -782,7 +788,8 @@ class FormulaEvaluator:
         nw = [anchor[0] - rx * al[0] + ry * out[0],
               anchor[1] - rx * al[1] + ry * out[1]]
         poly = [sw, se, ne, nw]
-        return {"poly": poly, "bbox": _bbox_from_poly(poly), "center": anchor}
+        return {"poly": poly, "bbox": _bbox_from_poly(poly),
+                "center": anchor, "pos_origin": anchor}
 
     def _eval_shape_transform(self, formula):
         """Evaluate a shape_transform formula → {"poly": [...], "bbox": {...}}.
@@ -843,7 +850,8 @@ class FormulaEvaluator:
                  center[1] + p[0] * sin_r + p[1] * cos_r]
                 for p in pts_ft]
         result = {"poly": poly, "bbox": _bbox_from_poly(poly),
-                  "center": center, "rotation": rotation}
+                  "center": center, "pos_origin": center,
+                  "rotation": rotation}
         return result
 
     # -------------------------------------------------------------------

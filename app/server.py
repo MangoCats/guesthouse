@@ -712,12 +712,16 @@ def create_app(db_path=None):
             geom = _get_geometry(variant)
             vi = geom.get("variant_items", {})
             item_geom = vi.get(name, {})
-            old_center = item_geom.get("center")
-            if not old_center:
-                return jsonify({"error": f"no center in geometry for {name}"}), 400
+            # pos_origin = resolved value of the formula's position field.
+            # For item_rect with anchor_corner != "center", this differs
+            # from the geometric center.  Using pos_origin ensures the
+            # delta is applied to the same coordinate the formula stores.
+            old_pos = item_geom.get("pos_origin") or item_geom.get("center")
+            if not old_pos:
+                return jsonify({"error": f"no position in geometry for {name}"}), 400
 
-            new_cx = old_center[0] + dx
-            new_cy = old_center[1] + dy
+            new_cx = old_pos[0] + dx
+            new_cy = old_pos[1] + dy
 
             formula = dict(old_formula_json)
             ftype = formula.get("type")
