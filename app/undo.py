@@ -216,6 +216,21 @@ class UndoManager:
             # Outline undo/redo: state is full chain snapshot (list of dicts)
             from app.database import restore_outline_chain
             restore_outline_chain(state, self._db_path)
+        elif action_type == "outline_pivot":
+            # Pivot undo/redo: state = {"chain": [...], "anchor": str|None,
+            #                           "pivot": str|None}
+            from app.database import (restore_outline_chain,
+                                      set_outline_anchor_pivot,
+                                      clear_outline_pivot)
+            restore_outline_chain(state["chain"], self._db_path)
+            if state.get("anchor") and state.get("pivot"):
+                set_outline_anchor_pivot(state["anchor"], state["pivot"],
+                                         self._db_path)
+            else:
+                # Clear config keys (no pivot active)
+                with get_db(self._db_path) as conn:
+                    conn.execute("DELETE FROM config WHERE key IN "
+                                 "('outline_anchor', 'outline_pivot')")
         elif action_type == "variant_update":
             from app.database import update_variant
             vid = state["id"]

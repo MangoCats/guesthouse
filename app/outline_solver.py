@@ -181,13 +181,17 @@ def solve_closure_general(chain, flex_specs):
                         closure_error=err, exit_bearing=brg)
 
 
-def _solve_positional_linear(chain, pf_a, pf_b):
+def _solve_positional_linear(chain, pf_a, pf_b, target=(0.0, 0.0)):
     """Solve for two flex line distances using a 2×2 linear system.
 
     Walk the chain in pieces to determine the bearing at each flex line,
-    then solve: [sin(brg_a) sin(brg_b)] [d_a]   [-E_rest]
-                [cos(brg_a) cos(brg_b)] [d_b] = [-N_rest]
+    then solve: [sin(brg_a) sin(brg_b)] [d_a]   [tE - E_rest]
+                [cos(brg_a) cos(brg_b)] [d_b] = [tN - N_rest]
+
+    target: (tE, tN) endpoint to hit — (0,0) for closure, or a specific point
+            for sub-chain solving with a pivot.
     """
+    tE, tN = target
     # Walk chain with both flex distances set to 0
     ch = _inject_value(chain, pf_a.seq, "distance", 0.0)
     ch = _inject_value(ch, pf_b.seq, "distance", 0.0)
@@ -204,16 +208,21 @@ def _solve_positional_linear(chain, pf_a, pf_b):
     if abs(det) < 1e-15:
         return None  # parallel flex lines — singular
 
-    d_a = (-E_rest * cb + sb * N_rest) / det
-    d_b = (E_rest * ca - sa * N_rest) / det
+    rhs_E = tE - E_rest
+    rhs_N = tN - N_rest
+    d_a = (rhs_E * cb - sb * rhs_N) / det
+    d_b = (-rhs_E * ca + sa * rhs_N) / det
     return (d_a, d_b)
 
 
-def _solve_positional_newton(chain, pf_a, pf_b, max_iter=30, tol=1e-10):
+def _solve_positional_newton(chain, pf_a, pf_b, target=(0.0, 0.0),
+                             max_iter=30, tol=1e-10):
     """Solve for two positional flex values using Newton iteration.
 
     Used when at least one flex is an arc radius (nonlinear in position).
+    target: (tE, tN) endpoint to hit — (0,0) for closure.
     """
+    tE, tN = target
     # Initial guesses from current chain values
     val_a = _get_flex_value(chain, pf_a)
     val_b = _get_flex_value(chain, pf_b)
@@ -226,8 +235,9 @@ def _solve_positional_newton(chain, pf_a, pf_b, max_iter=30, tol=1e-10):
         ch = _inject_value(chain, pf_a.seq, pf_a.param, val_a)
         ch = _inject_value(ch, pf_b.seq, pf_b.param, val_b)
         dE, dN, _ = chain_offset(ch)
+        rE, rN = dE - tE, dN - tN
 
-        if math.hypot(dE, dN) < tol:
+        if math.hypot(rE, rN) < tol:
             return (val_a, val_b)
 
         # Jacobian by finite differences
@@ -245,9 +255,9 @@ def _solve_positional_newton(chain, pf_a, pf_b, max_iter=30, tol=1e-10):
         if abs(det) < 1e-30:
             return None  # singular Jacobian
 
-        # Newton step: [va, vb] -= J^{-1} @ [dE, dN]
-        delta_a = (dNdvb * dE - dEdvb * dN) / det
-        delta_b = (dEdva * dN - dNdva * dE) / det
+        # Newton step: [va, vb] -= J^{-1} @ [rE, rN]
+        delta_a = (dNdvb * rE - dEdvb * rN) / det
+        delta_b = (dEdva * rN - dNdva * rE) / det
         val_a -= delta_a
         val_b -= delta_b
 
@@ -303,6 +313,314 @@ def flex_specs_from_chain_rows(chain_rows):
         FlexSpec(n - 2, "distance"),
         FlexSpec(n - 1, "sweep"),
     ]
+
+
+# ---------------------------------------------------------------------------
+# Pivot-aware solver
+# ---------------------------------------------------------------------------
+
+def point_name_to_seq(chain, point_name):
+    """Find the seq index of the segment whose end_name matches point_name.
+
+    Returns the seq index, or None if not found.
+    The anchor/pivot seq is the index *after* this point: i.e., seq+1
+    (wrapping) is where that section's sub-chain starts.
+    """
+    for i, seg in enumerate(chain):
+        if seg.end_name == point_name:
+            return i
+    return None
+
+
+def identify_section(seq, anchor_start, pivot_start, n):
+    """Determine which section a seq index belongs to.
+
+    anchor_start: first seq of section A (seg after anchor point)
+    pivot_start:  first seq of section B (seg after pivot point)
+    n: total chain length
+
+    Returns 'A' or 'B'.
+    """
+    # Build section A seq set: anchor_start forward (wrapping) to pivot_start-1
+    a_seqs = set()
+    i = anchor_start
+    while i != pivot_start:
+        a_seqs.add(i)
+        i = (i + 1) % n
+    return "A" if seq in a_seqs else "B"
+
+
+def section_seqs(anchor_start, pivot_start, n):
+    """Return (section_a_seqs, section_b_seqs) as lists in chain-walk order."""
+    a = []
+    i = anchor_start
+    while i != pivot_start:
+        a.append(i)
+        i = (i + 1) % n
+    b = []
+    i = pivot_start
+    while i != anchor_start:
+        b.append(i)
+        i = (i + 1) % n
+    return a, b
+
+
+def validate_pivot_placement(chain, anchor_start, pivot_start):
+    """Check that both sections have enough segments for 3 flex vars each.
+
+    Each section needs >= 3 segments, >= 1 arc, >= 2 adjustable params.
+    Returns (valid, error_message).
+    """
+    n = len(chain)
+    a_seqs, b_seqs = section_seqs(anchor_start, pivot_start, n)
+
+    for label, seqs in [("A", a_seqs), ("B", b_seqs)]:
+        if len(seqs) < 3:
+            return False, f"Section {label} has only {len(seqs)} segments (need >= 3)"
+        arcs = [s for s in seqs if chain[s].seg_type != "L"]
+        if len(arcs) < 1:
+            return False, f"Section {label} has no arcs (need >= 1 for sweep flex)"
+        # Need 2 segments with adjustable positional params (distance or radius)
+        pos_count = 0
+        for s in seqs:
+            if chain[s].seg_type == "L":
+                pos_count += 1  # can flex distance
+            else:
+                pos_count += 1  # can flex radius
+        if pos_count < 2:
+            return False, f"Section {label} needs >= 2 adjustable segments"
+    return True, ""
+
+
+def auto_assign_section_flex(chain, seqs):
+    """Auto-pick 3 flex vars for a section: 1 sweep + 2 positional.
+
+    Strategy: sweep → middle arc; positional → first and last segments.
+    Returns [FlexSpec, FlexSpec, FlexSpec].
+    """
+    arcs = [s for s in seqs if chain[s].seg_type != "L"]
+    lines = [s for s in seqs if chain[s].seg_type == "L"]
+
+    # Pick sweep: middle arc
+    sweep_seq = arcs[len(arcs) // 2]
+
+    # Pick 2 positional: prefer first and last lines, fall back to arcs
+    pos_candidates = [s for s in seqs if s != sweep_seq]
+    pos_specs = []
+
+    # Try lines first (prefer first and last in section order)
+    line_candidates = [s for s in pos_candidates if chain[s].seg_type == "L"]
+    arc_candidates = [s for s in pos_candidates if chain[s].seg_type != "L"]
+
+    if len(line_candidates) >= 2:
+        pos_specs.append(FlexSpec(line_candidates[0], "distance"))
+        pos_specs.append(FlexSpec(line_candidates[-1], "distance"))
+    elif len(line_candidates) == 1:
+        pos_specs.append(FlexSpec(line_candidates[0], "distance"))
+        # Need 1 more from arcs
+        pos_specs.append(FlexSpec(arc_candidates[0], "radius"))
+    else:
+        # All arcs
+        pos_specs.append(FlexSpec(arc_candidates[0], "radius"))
+        pos_specs.append(FlexSpec(arc_candidates[-1], "radius"))
+
+    return [FlexSpec(sweep_seq, "sweep")] + pos_specs
+
+
+def solve_subchain(subchain, flex_specs, target_dE, target_dN,
+                   target_brg_change):
+    """Solve a sub-chain to hit a specific endpoint and bearing change.
+
+    Like solve_closure_general but targets (target_dE, target_dN) instead
+    of (0, 0), and target_brg_change instead of 2π.
+
+    subchain: list of ChainEntry (re-indexed starting from 0)
+    flex_specs: 3 FlexSpec with seq indices relative to subchain (0-based)
+    target_dE, target_dN: required displacement from sub-chain start
+    target_brg_change: required total bearing change across the sub-chain
+
+    Returns SolverResult with seq indices relative to subchain.
+    """
+    # Separate sweep flex from positional flex
+    sweep_flex = [f for f in flex_specs if f.param == "sweep"]
+    pos_flex = [f for f in flex_specs if f.param != "sweep"]
+
+    if len(sweep_flex) != 1 or len(pos_flex) != 2:
+        return SolverResult(valid=False, solved_values={},
+                            closure_error=float("inf"), exit_bearing=0.0)
+
+    sf = sweep_flex[0]
+    pf_a, pf_b = pos_flex[0], pos_flex[1]
+
+    # --- Step 1: Angular closure ---
+    # Total bearing change must equal target_brg_change
+    total_sweep = 0.0
+    for i, seg in enumerate(subchain):
+        if seg.seg_type != "L" and i != sf.seq:
+            if seg.seg_type == "CW":
+                total_sweep += seg.sweep
+            else:
+                total_sweep -= seg.sweep
+
+    flex_seg = subchain[sf.seq]
+    if flex_seg.seg_type == "CW":
+        solved_sweep = target_brg_change - total_sweep
+    else:  # CCW
+        solved_sweep = -(target_brg_change - total_sweep)
+
+    # Normalise to positive
+    TWO_PI = 2.0 * math.pi
+    if solved_sweep < 0:
+        solved_sweep = solved_sweep % TWO_PI
+    if solved_sweep < 1e-6:
+        solved_sweep = TWO_PI
+
+    # Inject solved sweep
+    ch = _inject_value(subchain, sf.seq, "sweep", solved_sweep)
+
+    # --- Step 2: Positional — solve to hit target endpoint ---
+    both_linear = (pf_a.param == "distance" and pf_b.param == "distance")
+    target = (target_dE, target_dN)
+
+    if both_linear:
+        result = _solve_positional_linear(ch, pf_a, pf_b, target=target)
+    else:
+        result = _solve_positional_newton(ch, pf_a, pf_b, target=target)
+
+    if result is None:
+        return SolverResult(valid=False,
+                            solved_values={sf.seq: ("sweep", solved_sweep)},
+                            closure_error=float("inf"), exit_bearing=0.0)
+
+    val_a, val_b = result
+    solved = {
+        sf.seq: ("sweep", solved_sweep),
+        pf_a.seq: (pf_a.param, val_a),
+        pf_b.seq: (pf_b.param, val_b),
+    }
+
+    # Validate: distances and radii must be positive
+    for seq, (param, val) in solved.items():
+        if val <= 0:
+            return SolverResult(valid=False, solved_values=solved,
+                                closure_error=abs(val), exit_bearing=0.0)
+
+    # Verify endpoint
+    ch_final = ch
+    ch_final = _inject_value(ch_final, pf_a.seq, pf_a.param, val_a)
+    ch_final = _inject_value(ch_final, pf_b.seq, pf_b.param, val_b)
+    dE, dN, brg = chain_offset(ch_final)
+    err = math.hypot(dE - target_dE, dN - target_dN)
+    if err > 1e-6:
+        return SolverResult(valid=False, solved_values=solved,
+                            closure_error=err, exit_bearing=brg)
+
+    return SolverResult(valid=True, solved_values=solved,
+                        closure_error=err, exit_bearing=brg)
+
+
+def solve_with_pivot(chain, anchor_start, pivot_start,
+                     section_a_flex, section_b_flex,
+                     edited_seq, start_E, start_N, start_brg=0.0):
+    """Solve the section containing the edited segment, keeping the other fixed.
+
+    anchor_start: seq index where section A begins (seg after anchor point)
+    pivot_start: seq index where section B begins (seg after pivot point)
+    section_a_flex: 3 FlexSpec with original (full-chain) seq indices
+    section_b_flex: 3 FlexSpec with original (full-chain) seq indices
+    edited_seq: which segment was edited (original seq index)
+
+    Returns SolverResult with solved_values keyed by original seq indices.
+    """
+    n = len(chain)
+    a_seqs, b_seqs = section_seqs(anchor_start, pivot_start, n)
+
+    # Walk full chain to get positions and bearings at anchor and pivot
+    wr = walk_chain(chain, start_E, start_N, start_brg)
+
+    # Find anchor and pivot point names
+    anchor_point_seq = (anchor_start - 1) % n
+    pivot_point_seq = (pivot_start - 1) % n
+    anchor_name = chain[anchor_point_seq].end_name
+    pivot_name = chain[pivot_point_seq].end_name
+
+    anchor_pos = wr.points.get(anchor_name)
+    pivot_pos = wr.points.get(pivot_name)
+    if anchor_pos is None or pivot_pos is None:
+        return SolverResult(valid=False, solved_values={},
+                            closure_error=float("inf"), exit_bearing=0.0)
+
+    # Compute bearings at anchor and pivot by walking
+    brg_at_anchor = start_brg
+    for i in range(anchor_start):
+        seg = chain[i]
+        if seg.seg_type == "CW":
+            brg_at_anchor += seg.sweep
+        elif seg.seg_type == "CCW":
+            brg_at_anchor -= seg.sweep
+
+    # Actually, we need the bearing at the start of each section.
+    # Bearing at anchor_start = bearing after walking segs 0..anchor_start-1
+    # Bearing at pivot_start = bearing after walking segs 0..pivot_start-1
+    # But we need cumulative bearing from the chain start (seq 0).
+
+    # Compute bearing at every seq boundary
+    bearings = [start_brg]  # bearing at start of seq 0
+    brg = start_brg
+    for seg in chain:
+        if seg.seg_type == "CW":
+            brg += seg.sweep
+        elif seg.seg_type == "CCW":
+            brg -= seg.sweep
+        bearings.append(brg)
+    # bearings[i] = bearing at start of seq i
+    # bearings[n] = exit bearing (should == start_brg + 2π for closure)
+
+    brg_at_anchor_start = bearings[anchor_start]
+    brg_at_pivot_start = bearings[pivot_start]
+
+    # Determine which section the edit is in
+    side = identify_section(edited_seq, anchor_start, pivot_start, n)
+
+    if side == "A":
+        sub_seqs = a_seqs
+        flex_specs = section_a_flex
+        # Sub-chain goes from anchor to pivot
+        sub_start_pos = anchor_pos
+        sub_start_brg = brg_at_anchor_start
+        target_pos = pivot_pos
+        target_brg = brg_at_pivot_start
+    else:
+        sub_seqs = b_seqs
+        flex_specs = section_b_flex
+        # Sub-chain goes from pivot to anchor
+        sub_start_pos = pivot_pos
+        sub_start_brg = brg_at_pivot_start
+        target_pos = anchor_pos
+        target_brg = brg_at_anchor_start + 2.0 * math.pi  # wrap
+
+    # Target displacement relative to sub-chain start
+    target_dE = target_pos[0] - sub_start_pos[0]
+    target_dN = target_pos[1] - sub_start_pos[1]
+    target_brg_change = target_brg - sub_start_brg
+
+    # Extract sub-chain and remap flex specs to 0-based indices
+    subchain = [chain[s] for s in sub_seqs]
+    seq_map = {orig: local for local, orig in enumerate(sub_seqs)}
+    local_flex = [FlexSpec(seq_map[f.seq], f.param) for f in flex_specs]
+
+    result = solve_subchain(subchain, local_flex,
+                            target_dE, target_dN, target_brg_change)
+
+    # Remap solved values back to original seq indices
+    remapped = {}
+    for local_seq, (param, value) in result.solved_values.items():
+        orig_seq = sub_seqs[local_seq]
+        remapped[orig_seq] = (param, value)
+
+    return SolverResult(valid=result.valid, solved_values=remapped,
+                        closure_error=result.closure_error,
+                        exit_bearing=result.exit_bearing)
 
 
 # ---------------------------------------------------------------------------

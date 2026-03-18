@@ -1647,6 +1647,39 @@ def get_all_config(db_path=None):
         return {r["key"]: r["value"] for r in rows}
 
 
+def get_outline_anchor_pivot(db_path=None):
+    """Return (anchor_name, pivot_name) from config, or (None, None)."""
+    anchor = get_config("outline_anchor", db_path)
+    pivot = get_config("outline_pivot", db_path)
+    return anchor, pivot
+
+
+def set_outline_anchor_pivot(anchor, pivot, db_path=None):
+    """Store anchor and pivot point names in config."""
+    set_config("outline_anchor", anchor, db_path)
+    set_config("outline_pivot", pivot, db_path)
+
+
+def clear_outline_pivot(db_path=None):
+    """Remove anchor/pivot config and revert flex to 3-var defaults."""
+    db_path = db_path or DB_PATH
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM config WHERE key IN "
+                     "('outline_anchor', 'outline_pivot')")
+        # Reset flex to legacy 3-var defaults
+        conn.execute("UPDATE outline_chain SET flex = NULL")
+        n = conn.execute("SELECT MAX(seq) FROM outline_chain").fetchone()[0]
+        if n is not None:
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'distance' WHERE seq = 0")
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'distance' WHERE seq = ?",
+                (n - 1,))
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'sweep' WHERE seq = ?",
+                (n,))
+
+
 def get_shapes(db_path=None):
     """Return all shape definitions as a list of dicts."""
     with get_db(db_path) as conn:
@@ -2791,6 +2824,16 @@ def export_project(db_path=None):
         for r in conn.execute("SELECT key, value FROM survey_config").fetchall():
             survey_config[r["key"]] = json.loads(r["value"])
 
+        outline_anchor = None
+        outline_pivot = None
+        for r in conn.execute(
+                "SELECT key, value FROM config "
+                "WHERE key IN ('outline_anchor', 'outline_pivot')").fetchall():
+            if r["key"] == "outline_anchor":
+                outline_anchor = r["value"]
+            elif r["key"] == "outline_pivot":
+                outline_pivot = r["value"]
+
     plumbing = get_plumbing_elements(db_path)
 
     with get_db(db_path) as conn:
@@ -2814,6 +2857,8 @@ def export_project(db_path=None):
         "survey_config": survey_config,
         "inner_wall_overrides": inner_wall_overrides,
         "plumbing_elements": plumbing,
+        "outline_anchor": outline_anchor,
+        "outline_pivot": outline_pivot,
     }
 
 
@@ -3032,6 +3077,18 @@ def import_project(data, db_path=None):
                 (p["type"], p["name"], path, props, p.get("fixture"),
                  p.get("sort_order", 0)),
             )
+
+        # Import outline anchor/pivot config
+        conn.execute("DELETE FROM config WHERE key IN "
+                     "('outline_anchor', 'outline_pivot')")
+        if data.get("outline_anchor"):
+            conn.execute(
+                "INSERT INTO config (key, value) VALUES (?, ?)",
+                ("outline_anchor", data["outline_anchor"]))
+        if data.get("outline_pivot"):
+            conn.execute(
+                "INSERT INTO config (key, value) VALUES (?, ?)",
+                ("outline_pivot", data["outline_pivot"]))
 
 
 # ---------------------------------------------------------------------------

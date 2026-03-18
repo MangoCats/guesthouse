@@ -36,6 +36,11 @@ const App = {
     svgView: { pan: { x: 0, y: 0 }, zoom: 1 },
     outlineChain: [],
     outlineSelectedSeq: null,
+    pivotAnchor: null,
+    pivotPoint: null,
+    pivotSectionA: [],
+    pivotSectionB: [],
+    pivotSetMode: null,  // null, "anchor", "pivot" (2-click flow)
     innerWallOverrides: {},
     plumbingElements: [],
     variants: [],
@@ -64,6 +69,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadPlumbingElements();
   await loadVariants();  // populate variant dropdown before geometry
   updateDeleteVariantBtn();
+  loadPivotState();
   loadGeometry();
   loadShapes();
   loadBuildLabel();
@@ -86,7 +92,8 @@ function cacheElements() {
     "selection-info", "measure-info",
     "view-tabs", "const-category-filter", "const-search",
     "constants-table", "outline-table", "outline-closure-indicator",
-    "outline-add-btn", "outline-remove-btn", "openings-table",
+    "outline-add-btn", "outline-remove-btn", "outline-pivot-btn",
+    "pivot-banner", "openings-table",
     "rough-openings-table", "interior-walls-table", "furniture-table",
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-user-dims", "show-grid",
@@ -153,6 +160,7 @@ function connectSSE() {
 
   App.sse.addEventListener("outline_changed", () => {
     markConfigDirty();
+    loadPivotState();
     loadOutlineTable();
   });
 
@@ -1267,14 +1275,30 @@ function renderPoints(g) {
     const isCSeries = name.startsWith("C") && name !== "CTR";
     if (!isFSeries && !isWSeries && !isCSeries) continue;
 
-    const r = isFSeries ? 0.12 : 0.08;
-    const cls = isWSeries ? "point-marker inner" : "point-marker";
-    const circle = svgEl("circle", {
-      cx: pt[0], cy: -pt[1], r: r, class: cls,
-      "data-type": "point", "data-name": name,
-    });
-    circle.addEventListener("click", (e) => selectElement("point", name, { pos: pt }, e));
-    pointLayer.appendChild(circle);
+    const isAnchor = isFSeries && App.state.pivotAnchor === name;
+    const isPivot = isFSeries && App.state.pivotPoint === name;
+    const r = (isAnchor || isPivot) ? 0.18 : (isFSeries ? 0.12 : 0.08);
+    const cls = isAnchor ? "anchor-marker"
+      : isPivot ? "pivot-marker"
+      : isWSeries ? "point-marker inner" : "point-marker";
+    if (isPivot) {
+      // Diamond marker for pivot
+      const sz = 0.2;
+      const d = `M${pt[0]},${-pt[1]-sz} L${pt[0]+sz},${-pt[1]} L${pt[0]},${-pt[1]+sz} L${pt[0]-sz},${-pt[1]} Z`;
+      const diamond = svgEl("path", {
+        d: d, class: cls,
+        "data-type": "point", "data-name": name,
+      });
+      diamond.addEventListener("click", (e) => selectElement("point", name, { pos: pt }, e));
+      pointLayer.appendChild(diamond);
+    } else {
+      const circle = svgEl("circle", {
+        cx: pt[0], cy: -pt[1], r: r, class: cls,
+        "data-type": "point", "data-name": name,
+      });
+      circle.addEventListener("click", (e) => selectElement("point", name, { pos: pt }, e));
+      pointLayer.appendChild(circle);
+    }
 
     if (App.state.showLabels) {
       let labelClass = "point-label";
@@ -3457,7 +3481,13 @@ async function loadOutlineTable() {
     if (seg.seq === App.state.outlineSelectedSeq) {
       tr.classList.add("outline-selected");
     }
-    tr.addEventListener("click", () => selectOutlineRow(seg.seq));
+    tr.addEventListener("click", () => {
+      if (App.state.pivotSetMode) {
+        handlePivotClick(seg.end_name);
+        return;
+      }
+      selectOutlineRow(seg.seq);
+    });
 
     // Seq column
     const tdSeq = document.createElement("td");
@@ -3574,8 +3604,20 @@ async function loadOutlineTable() {
     }
     tr.appendChild(tdOv);
 
+    // Section coloring when pivot is active
+    const sA = App.state.pivotSectionA;
+    const sB = App.state.pivotSectionB;
+    if (sA.length > 0 && sA.includes(seg.seq)) {
+      tr.classList.add("section-a");
+    } else if (sB.length > 0 && sB.includes(seg.seq)) {
+      tr.classList.add("section-b");
+    }
+
     tbody.appendChild(tr);
   }
+
+  // Update pivot banner
+  updatePivotBanner();
 }
 
 /**
@@ -4171,9 +4213,19 @@ function showFlexSwapDialog(currentSeq, currentParam, chain) {
   const candidates = [];
   const isSweepFlex = currentParam === "sweep";
 
+  // When pivot is active, constrain to same section
+  let allowedSeqs = null;
+  const sA = App.state.pivotSectionA;
+  const sB = App.state.pivotSectionB;
+  if (sA.length > 0 && sB.length > 0) {
+    if (sA.includes(currentSeq)) allowedSeqs = new Set(sA);
+    else if (sB.includes(currentSeq)) allowedSeqs = new Set(sB);
+  }
+
   for (const seg of chain) {
     if (seg.seq === currentSeq) continue;
     if (seg.flex) continue; // already flex for something else
+    if (allowedSeqs && !allowedSeqs.has(seg.seq)) continue;
 
     if (isSweepFlex) {
       // Can only swap sweep flex to another arc
@@ -4384,6 +4436,141 @@ function setupOutlineToolbar() {
         showToast(`Error: ${e.message}`, "error");
       }
     });
+  }
+
+  // Pivot button
+  const pivotBtn = App.els["outline-pivot-btn"];
+  if (pivotBtn) {
+    pivotBtn.addEventListener("click", () => {
+      if (App.state.pivotAnchor) {
+        // Already have pivot — clear it
+        clearPivot();
+      } else {
+        // Start 2-click flow
+        startPivotSetMode();
+      }
+    });
+  }
+}
+
+async function loadPivotState() {
+  try {
+    const resp = await apiFetch("/api/outline/pivot");
+    const data = await resp.json();
+    App.state.pivotAnchor = data.anchor || null;
+    App.state.pivotPoint = data.pivot || null;
+    App.state.pivotSectionA = data.section_a_seqs || [];
+    App.state.pivotSectionB = data.section_b_seqs || [];
+  } catch {
+    App.state.pivotAnchor = null;
+    App.state.pivotPoint = null;
+    App.state.pivotSectionA = [];
+    App.state.pivotSectionB = [];
+  }
+  updatePivotBanner();
+  updatePivotButton();
+}
+
+function updatePivotBanner() {
+  const banner = App.els["pivot-banner"];
+  if (!banner) return;
+  if (App.state.pivotAnchor && App.state.pivotPoint) {
+    banner.innerHTML = `<span class="anchor-tag">\u25C6 ${App.state.pivotAnchor}</span>` +
+      ` <span style="color:var(--text-dim)">\u2014</span> ` +
+      `<span class="pivot-tag">\u25C7 ${App.state.pivotPoint}</span>`;
+    banner.classList.add("visible");
+  } else if (App.state.pivotSetMode) {
+    const msg = App.state.pivotSetMode === "anchor"
+      ? "Click an F-point row for anchor..."
+      : "Click an F-point row for pivot...";
+    banner.textContent = msg;
+    banner.classList.add("visible");
+  } else {
+    banner.classList.remove("visible");
+    banner.innerHTML = "";
+  }
+}
+
+function updatePivotButton() {
+  const btn = App.els["outline-pivot-btn"];
+  if (!btn) return;
+  btn.classList.toggle("pivot-active", !!App.state.pivotAnchor);
+  btn.title = App.state.pivotAnchor
+    ? "Clear anchor/pivot"
+    : "Set anchor/pivot (2-click)";
+}
+
+function startPivotSetMode() {
+  App.state.pivotSetMode = "anchor";
+  updatePivotBanner();
+  showToast("Click a row to set anchor point", "info");
+}
+
+function handlePivotClick(endName) {
+  if (App.state.pivotSetMode === "anchor") {
+    App.state._pivotAnchorPending = endName;
+    App.state.pivotSetMode = "pivot";
+    updatePivotBanner();
+    showToast(`Anchor: ${endName}. Now click pivot point`, "info");
+  } else if (App.state.pivotSetMode === "pivot") {
+    const anchor = App.state._pivotAnchorPending;
+    App.state.pivotSetMode = null;
+    delete App.state._pivotAnchorPending;
+    if (anchor === endName) {
+      showToast("Anchor and pivot must differ", "warning");
+      updatePivotBanner();
+      return;
+    }
+    setPivot(anchor, endName);
+  }
+}
+
+async function setPivot(anchor, pivot) {
+  try {
+    const resp = await apiFetch("/api/outline/pivot", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anchor, pivot }),
+    });
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(data.error || "Pivot set failed", "error");
+      return;
+    }
+    const data = await resp.json();
+    App.state.pivotAnchor = data.anchor;
+    App.state.pivotPoint = data.pivot;
+    App.state.pivotSectionA = data.section_a_seqs || [];
+    App.state.pivotSectionB = data.section_b_seqs || [];
+    showToast(`Pivot set: ${anchor} / ${pivot}`, "success");
+    updatePivotBanner();
+    updatePivotButton();
+    await loadOutlineTable();
+    await loadGeometry();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  }
+}
+
+async function clearPivot() {
+  try {
+    const resp = await apiFetch("/api/outline/pivot", { method: "DELETE" });
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(data.error || "Clear pivot failed", "error");
+      return;
+    }
+    App.state.pivotAnchor = null;
+    App.state.pivotPoint = null;
+    App.state.pivotSectionA = [];
+    App.state.pivotSectionB = [];
+    showToast("Pivot cleared", "success");
+    updatePivotBanner();
+    updatePivotButton();
+    await loadOutlineTable();
+    await loadGeometry();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
   }
 }
 

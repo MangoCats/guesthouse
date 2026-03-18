@@ -46,6 +46,8 @@ from app.database import (
     reset_inner_wall_overrides, check_override_overlap,
     get_all_catalog_items, get_catalog_item,
     create_catalog_item, delete_catalog_item, ensure_catalog_item,
+    get_outline_anchor_pivot, set_outline_anchor_pivot,
+    clear_outline_pivot,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -62,7 +64,11 @@ from app.plumbing import (
 )
 from app.outline_solver import (db_rows_to_chain, solve_closure,
                                 solve_closure_general, validate_chain,
-                                flex_specs_from_chain_rows, FlexSpec)
+                                flex_specs_from_chain_rows, FlexSpec,
+                                solve_with_pivot, point_name_to_seq,
+                                identify_section, section_seqs,
+                                validate_pivot_placement,
+                                auto_assign_section_flex)
 from app.undo import UndoManager
 import floorplan.constants as fc
 
@@ -190,14 +196,67 @@ def create_app(db_path=None):
             return None
         return ev.elements.get(elem_name)
 
-    def _solve_and_update_closure():
+    def _solve_and_update_closure(edited_seq=None):
         """Re-solve closure and update solved values in DB.
+
+        If a pivot is active and edited_seq is provided, only solves the
+        section containing edited_seq.  Otherwise, full-chain closure.
 
         Returns (solver, chain_rows) on success.
         Returns (solver, None) if closure is invalid.
         """
         chain_rows = get_outline_chain(db)
         chain = db_rows_to_chain(chain_rows)
+
+        anchor_name, pivot_name = get_outline_anchor_pivot(db)
+        if pivot_name and edited_seq is not None:
+            # Pivot-aware solve: only solve the edited section
+            anchor_pt_seq = point_name_to_seq(chain, anchor_name)
+            pivot_pt_seq = point_name_to_seq(chain, pivot_name)
+            if anchor_pt_seq is None or pivot_pt_seq is None:
+                # Pivot points not found — fall through to whole-chain
+                pass
+            else:
+                n = len(chain)
+                a_start = (anchor_pt_seq + 1) % n
+                p_start = (pivot_pt_seq + 1) % n
+                a_seqs, b_seqs = section_seqs(a_start, p_start, n)
+
+                # Gather flex specs per section from DB
+                flex_map = {r["seq"]: r.get("flex") for r in chain_rows
+                            if r.get("flex")}
+                a_flex = [FlexSpec(s, flex_map[s]) for s in a_seqs
+                          if s in flex_map]
+                b_flex = [FlexSpec(s, flex_map[s]) for s in b_seqs
+                          if s in flex_map]
+
+                if len(a_flex) == 3 and len(b_flex) == 3:
+                    constants = get_constants_dict(db)
+                    R_a1 = constants.get("CORNER_SW_R", fc.CORNER_SW_R)
+                    F2_E = constants.get("F2_EASTING", -18.5)
+                    F2_N = constants.get("F2_NORTHING", -13.5) + R_a1
+
+                    # First do a whole-chain solve to get current positions
+                    pre_flex = flex_specs_from_chain_rows(chain_rows)
+                    pre_solve = solve_closure_general(chain, pre_flex)
+                    if pre_solve.valid:
+                        pre_chain = list(chain)
+                        for sq, (p, v) in pre_solve.solved_values.items():
+                            pre_chain[sq] = pre_chain[sq]._replace(**{p: v})
+                    else:
+                        pre_chain = chain
+
+                    solver = solve_with_pivot(
+                        chain, a_start, p_start,
+                        a_flex, b_flex, edited_seq,
+                        F2_E, F2_N)
+                    if not solver.valid:
+                        return solver, None
+                    for seq, (param, value) in solver.solved_values.items():
+                        update_outline_segment(seq, {param: value}, db)
+                    return solver, chain_rows
+
+        # Standard whole-chain closure
         flex_specs = flex_specs_from_chain_rows(chain_rows)
         solver = solve_closure_general(chain, flex_specs)
         if not solver.valid:
@@ -1247,7 +1306,7 @@ def create_app(db_path=None):
         update_outline_segment(seq, updates, db)
 
         # Re-solve closure
-        solver, _ = _solve_and_update_closure()
+        solver, _ = _solve_and_update_closure(edited_seq=seq)
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({
@@ -1309,16 +1368,28 @@ def create_app(db_path=None):
         """Set which segments are flex (solver-controlled)."""
         body = request.get_json(force=True)
         specs = body.get("flex", [])
-        if len(specs) != 3:
-            return jsonify({"error": "Exactly 3 flex specs required"}), 400
+
+        _, pivot_name = get_outline_anchor_pivot(db)
+        expected = 6 if pivot_name else 3
+        if len(specs) != expected:
+            return jsonify({
+                "error": f"Exactly {expected} flex specs required"
+            }), 400
 
         sweep_count = sum(1 for s in specs if s.get("param") == "sweep")
         pos_count = sum(1 for s in specs
                         if s.get("param") in ("distance", "radius"))
-        if sweep_count != 1 or pos_count != 2:
-            return jsonify({
-                "error": "Need exactly 1 sweep + 2 distance/radius"
-            }), 400
+        if pivot_name:
+            # 6-spec mode: 2 sweeps + 4 distance/radius
+            if sweep_count != 2 or pos_count != 4:
+                return jsonify({
+                    "error": "Need 2 sweep + 4 distance/radius (pivot mode)"
+                }), 400
+        else:
+            if sweep_count != 1 or pos_count != 2:
+                return jsonify({
+                    "error": "Need exactly 1 sweep + 2 distance/radius"
+                }), 400
 
         chain_rows = get_outline_chain(db)
         n = len(chain_rows)
@@ -1362,6 +1433,135 @@ def create_app(db_path=None):
         after_chain = get_outline_chain(db)
         undo_mgr.record("outline_update", before_chain, after_chain,
                         "Change flex segments")
+        _invalidate()
+        _broadcast("outline_changed")
+
+        solved = {str(k): {"param": v[0], "value": v[1]}
+                  for k, v in solver.solved_values.items()}
+        return jsonify({"ok": True, "solved_values": solved})
+
+    @app.route("/api/outline/pivot", methods=["GET"])
+    def api_get_pivot():
+        """Return current anchor/pivot state."""
+        anchor, pivot = get_outline_anchor_pivot(db)
+        result = {"anchor": anchor, "pivot": pivot}
+        if anchor and pivot:
+            chain_rows = get_outline_chain(db)
+            chain = db_rows_to_chain(chain_rows)
+            n = len(chain)
+            a_pt = point_name_to_seq(chain, anchor)
+            p_pt = point_name_to_seq(chain, pivot)
+            if a_pt is not None and p_pt is not None:
+                a_start = (a_pt + 1) % n
+                p_start = (p_pt + 1) % n
+                a_s, b_s = section_seqs(a_start, p_start, n)
+                result["section_a_seqs"] = a_s
+                result["section_b_seqs"] = b_s
+        return jsonify(result)
+
+    @app.route("/api/outline/pivot", methods=["PUT"])
+    def api_set_pivot():
+        """Set anchor and pivot points, auto-assign 6 flex vars."""
+        body = request.get_json(force=True)
+        anchor_name = body.get("anchor")
+        pivot_name = body.get("pivot")
+        if not anchor_name or not pivot_name:
+            return jsonify({"error": "anchor and pivot required"}), 400
+        if anchor_name == pivot_name:
+            return jsonify({"error": "anchor and pivot must differ"}), 400
+
+        chain_rows = get_outline_chain(db)
+        chain = db_rows_to_chain(chain_rows)
+        n = len(chain)
+
+        a_pt = point_name_to_seq(chain, anchor_name)
+        p_pt = point_name_to_seq(chain, pivot_name)
+        if a_pt is None:
+            return jsonify({"error": f"anchor point {anchor_name} not found"}), 400
+        if p_pt is None:
+            return jsonify({"error": f"pivot point {pivot_name} not found"}), 400
+
+        a_start = (a_pt + 1) % n
+        p_start = (p_pt + 1) % n
+
+        valid, err = validate_pivot_placement(chain, a_start, p_start)
+        if not valid:
+            return jsonify({"error": err}), 400
+
+        old_anchor, old_pivot = get_outline_anchor_pivot(db)
+        before_chain = get_outline_chain(db)
+
+        # Auto-assign flex per section
+        a_seqs_list, b_seqs_list = section_seqs(a_start, p_start, n)
+        a_flex = auto_assign_section_flex(chain, a_seqs_list)
+        b_flex = auto_assign_section_flex(chain, b_seqs_list)
+
+        # Clear all flex, set new 6
+        with get_db(db) as conn:
+            conn.execute("UPDATE outline_chain SET flex = NULL")
+            for fs in a_flex + b_flex:
+                conn.execute(
+                    "UPDATE outline_chain SET flex = ? WHERE seq = ?",
+                    (fs.param, fs.seq))
+
+        # Store anchor/pivot in config
+        set_outline_anchor_pivot(anchor_name, pivot_name, db)
+
+        # Re-solve whole-chain closure (to ensure chain is consistent)
+        solver, _ = _solve_and_update_closure()
+        if not solver.valid:
+            restore_outline_chain(before_chain, db)
+            clear_outline_pivot(db)
+            return jsonify({
+                "error": "Closure failed with pivot placement",
+                "closure_error": solver.closure_error,
+            }), 400
+
+        after_chain = get_outline_chain(db)
+        undo_mgr.record("outline_pivot",
+                        {"chain": before_chain, "anchor": old_anchor,
+                         "pivot": old_pivot},
+                        {"chain": after_chain, "anchor": anchor_name,
+                         "pivot": pivot_name},
+                        f"Set pivot: anchor={anchor_name}, pivot={pivot_name}")
+        _invalidate()
+        _broadcast("outline_changed")
+
+        solved = {str(k): {"param": v[0], "value": v[1]}
+                  for k, v in solver.solved_values.items()}
+        return jsonify({
+            "ok": True,
+            "anchor": anchor_name,
+            "pivot": pivot_name,
+            "section_a_seqs": a_seqs_list,
+            "section_b_seqs": b_seqs_list,
+            "flex": [{"seq": f.seq, "param": f.param}
+                     for f in a_flex + b_flex],
+            "solved_values": solved,
+        })
+
+    @app.route("/api/outline/pivot", methods=["DELETE"])
+    def api_clear_pivot():
+        """Clear pivot, revert to 3-flex whole-chain mode."""
+        old_anchor, old_pivot = get_outline_anchor_pivot(db)
+        before_chain = get_outline_chain(db)
+        clear_outline_pivot(db)
+
+        solver, _ = _solve_and_update_closure()
+        if not solver.valid:
+            restore_outline_chain(before_chain, db)
+            return jsonify({
+                "error": "Closure failed after clearing pivot",
+                "closure_error": solver.closure_error,
+            }), 400
+
+        after_chain = get_outline_chain(db)
+        undo_mgr.record("outline_pivot",
+                        {"chain": before_chain, "anchor": old_anchor,
+                         "pivot": old_pivot},
+                        {"chain": after_chain, "anchor": None,
+                         "pivot": None},
+                        "Clear pivot")
         _invalidate()
         _broadcast("outline_changed")
 
