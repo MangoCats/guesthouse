@@ -677,6 +677,30 @@ def create_app(db_path=None):
         if isinstance(props, str):
             props = json.loads(props)
 
+        # Case 2a: Drawn wall — shift start/end/poly directly
+        if props.get("source") == "drawn" and props.get("start") and props.get("end"):
+            old_props = dict(props)
+            new_start = [props["start"][0] + dx, props["start"][1] + dy]
+            new_end = [props["end"][0] + dx, props["end"][1] + dy]
+            new_poly = [[p[0] + dx, p[1] + dy] for p in props["poly"]] if props.get("poly") else None
+            new_props = dict(props, start=new_start, end=new_end)
+            if new_poly is not None:
+                new_props["poly"] = new_poly
+            update_element(element_id, {"properties": new_props}, db)
+            undo_mgr.record(
+                "element_move",
+                {"move_type": "position", "id": element_id, "properties": old_props},
+                {"move_type": "position", "id": element_id, "properties": new_props},
+                f"Move {name}",
+            )
+            _broadcast("element_changed")
+            _invalidate()
+            return jsonify({
+                "ok": True,
+                "can_undo": undo_mgr.can_undo,
+                "can_redo": undo_mgr.can_redo,
+            })
+
         # Unified item move: copy formula, update only the position field.
         # Preserves formula type, rotation, shape, dimensions — everything
         # except the position point, which becomes absolute coordinates.
