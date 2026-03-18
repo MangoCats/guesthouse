@@ -357,7 +357,8 @@ def _build_outline_segs_from_chain(chain):
     Returns list of LineSeg/ArcSeg in outline convention (F1->F2 first).
     """
     point_names = [seg.end_name for seg in chain]
-    start_names = ["F2"] + point_names[:-1]
+    chain_start = chain[-1].end_name   # closure arc returns to chain start
+    start_names = [chain_start] + point_names[:-1]
 
     segs = []
     for entry, start, end in zip(chain, start_names, point_names):
@@ -587,9 +588,12 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
         chain[-2] = chain[-2]._replace(distance=solver_result.d_F18_F1)
         chain[-1] = chain[-1]._replace(sweep=solver_result.sweep_closure)
 
-        F2_E = constants_dict.get("F2_EASTING", -18.5)
-        F2_N = constants_dict.get("F2_NORTHING", -13.5) + R_a1
-        walk_result = walk_chain(chain, F2_E, F2_N)
+        chain_start = chain[-1].end_name
+        start_E = constants_dict.get(f"{chain_start}_EASTING",
+                                     constants_dict.get("F2_EASTING", -18.5))
+        start_N = constants_dict.get(f"{chain_start}_NORTHING",
+                                     constants_dict.get("F2_NORTHING", -13.5)) + R_a1
+        walk_result = walk_chain(chain, start_E, start_N)
 
         fp_pts = walk_result.points
         radii = walk_result.radii
