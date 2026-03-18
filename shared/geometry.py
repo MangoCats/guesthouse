@@ -354,25 +354,17 @@ def compute_inner_walls(
         w_name = "W" + outline_segs[i].end[1:]
         pts[w_name] = _inner_point(outline_segs[i], outline_segs[(i+1)%n_segs])
 
-    R = radii
-    inner_segs = [
-        ArcSeg("W1","W2","C1",R["R_a1"]-wall_t,"CW",20),
-        LineSeg("W2","W5"),
-        ArcSeg("W5","W6","C5",R["R_a5"]-wall_t,"CW",20),
-        LineSeg("W6","W7"),
-        ArcSeg("W7","W8","C7",R["R_a7"]-wall_t,"CW",20),
-        ArcSeg("W8","W9","C8",R["R_a8"]+wall_t,"CCW",20),
-        LineSeg("W9","W10"),
-        ArcSeg("W10","W11","C10",R["R_a10"]+wall_t,"CCW",20),
-        ArcSeg("W11","W11a","C11a",R["R_a11"]-wall_t,"CW",30),
-        LineSeg("W11a","W11b"),
-        ArcSeg("W11b","W12","C11",R["R_a11"]-wall_t,"CW",30),
-        LineSeg("W12","W13"),
-        ArcSeg("W13","W14","C13",R["R_a13"]-wall_t,"CW",60),
-        LineSeg("W14","W15"),
-        ArcSeg("W15","W16","C15",R["R_a15"]-wall_t,"CW",20),
-        LineSeg("W16","W17"),
-        ArcSeg("W17","W18","C17",R["R_a17"]-wall_t,"CW",20),
-        LineSeg("W18","W1"),
-    ]
+    inner_segs = []
+    for seg in outline_segs:
+        w_start = "W" + seg.start[1:]
+        w_end = "W" + seg.end[1:]
+        if isinstance(seg, LineSeg):
+            inner_segs.append(LineSeg(w_start, w_end))
+        else:
+            if seg.direction == "CW":
+                r_inner = seg.radius - wall_t
+            else:
+                r_inner = seg.radius + wall_t
+            inner_segs.append(ArcSeg(w_start, w_end, seg.center,
+                                     r_inner, seg.direction, seg.n_pts))
     return inner_segs
