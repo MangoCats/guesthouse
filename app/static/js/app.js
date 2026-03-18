@@ -1943,39 +1943,57 @@ function showProperties(type, name, data) {
     const elemRec = (App.state.elements || []).find(e => e.name === name);
     const props = elemRec ? parseProps(elemRec) : null;
     if (props && props.source === "drawn") {
-      // TL-16: Drawn wall — show editable thickness
+      // TL-16: Drawn wall — show editable properties
       addPropRow(tbody, "Source", "drawn");
       if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
       if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
-      // Editable thickness
-      const thickTr = document.createElement("tr");
-      const thickTd1 = document.createElement("td");
-      thickTd1.textContent = "Thickness";
-      thickTr.appendChild(thickTd1);
-      const thickTd2 = document.createElement("td");
-      const thickInp = document.createElement("input");
-      thickInp.type = "text";
-      thickInp.className = "prop-edit-input";
-      thickInp.value = fmtFtIn(props.thickness || 4.0 / 12.0);
-      thickInp.addEventListener("change", async () => {
-        const newThick = parseDimension(thickInp.value);
-        if (newThick === null || newThick <= 0) {
-          showToast("Invalid thickness", "error");
-          return;
-        }
-        const newPoly = wallPoly(props.start, props.end, newThick);
-        if (!newPoly) return;
-        const newProps = { ...props, thickness: newThick, poly: newPoly };
+
+      // Helper: update wall properties and reload
+      const updateWall = async (newProps) => {
+        newProps.poly = wallPoly(newProps.start, newProps.end, newProps.thickness);
+        if (!newProps.poly) return;
         await fetch(`/api/elements/${elemRec.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ properties: newProps }),
         });
         await reloadAfterChange();
+      };
+
+      // Editable thickness
+      makeDimRow(tbody, "Thickness", fmtFtIn(props.thickness || 4.0 / 12.0), (v) => {
+        updateWall({ ...props, thickness: v });
       });
-      thickTd2.appendChild(thickInp);
-      thickTr.appendChild(thickTd2);
-      tbody.appendChild(thickTr);
+
+      // Editable length
+      const curLen = Math.hypot(props.end[0] - props.start[0], props.end[1] - props.start[1]);
+      makeDimRow(tbody, "Length", fmtFtIn(curLen), (newLen) => {
+        const mx = (props.start[0] + props.end[0]) / 2;
+        const my = (props.start[1] + props.end[1]) / 2;
+        const dx = props.end[0] - props.start[0];
+        const dy = props.end[1] - props.start[1];
+        const len = Math.hypot(dx, dy) || 1e-9;
+        const ux = dx / len, uy = dy / len;
+        const half = newLen / 2;
+        updateWall({ ...props,
+          start: [mx - half * ux, my - half * uy],
+          end:   [mx + half * ux, my + half * uy],
+        });
+      });
+
+      // Editable orientation (degrees, 0=east, 90=north)
+      const curAngle = Math.atan2(props.end[1] - props.start[1], props.end[0] - props.start[0]) * 180 / Math.PI;
+      makeAngleRow(tbody, "Orientation", String(Math.round(curAngle * 100) / 100), (deg) => {
+        const mx = (props.start[0] + props.end[0]) / 2;
+        const my = (props.start[1] + props.end[1]) / 2;
+        const half = curLen / 2;
+        const rad = deg * Math.PI / 180;
+        updateWall({ ...props,
+          start: [mx - half * Math.cos(rad), my - half * Math.sin(rad)],
+          end:   [mx + half * Math.cos(rad), my + half * Math.sin(rad)],
+        });
+      });
+
       // TL-17: render endpoint drag handles
       renderWallHandles(elemRec.id, props);
     } else {
@@ -2765,6 +2783,26 @@ function addWallActions(tbody, wallName, elemRec) {
   vTr.appendChild(vTd2);
   tbody.appendChild(vTr);
 
+  // Snap-to-face button (drawn walls only)
+  if (elemRec) {
+    const eProps = typeof elemRec.properties === "string"
+      ? JSON.parse(elemRec.properties) : elemRec.properties;
+    if (eProps && eProps.source === "drawn") {
+      const snapTr = document.createElement("tr");
+      const snapTd = document.createElement("td");
+      snapTd.colSpan = 2;
+      const snapBtn = document.createElement("button");
+      snapBtn.className = "dialog-btn-primary";
+      snapBtn.style.width = "100%";
+      snapBtn.style.marginTop = "4px";
+      snapBtn.textContent = "Move to face\u2026";
+      snapBtn.onclick = () => showSnapToFaceDialog(elemRec, eProps);
+      snapTd.appendChild(snapBtn);
+      snapTr.appendChild(snapTd);
+      tbody.appendChild(snapTr);
+    }
+  }
+
   // Delete button (uses shared helper with dependents check)
   if (elemRec) {
     addFormulaDeleteButton(tbody, wallName);
@@ -2960,6 +2998,56 @@ async function addFormulaSection(tbody, elemName) {
   } catch (e) {
     // Formula fetch failed — not critical, skip silently
   }
+}
+
+/** Create an editable dimension row. Returns the input element. */
+function makeDimRow(tbody, label, value, onChange) {
+  const tr = document.createElement("tr");
+  const td1 = document.createElement("td");
+  td1.textContent = label;
+  tr.appendChild(td1);
+  const td2 = document.createElement("td");
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "prop-edit-input";
+  inp.value = value;
+  inp.addEventListener("change", () => {
+    const v = parseDimension(inp.value);
+    if (v === null || isNaN(v) || v <= 0) {
+      showToast(`Invalid ${label.toLowerCase()}`, "error");
+      return;
+    }
+    onChange(v);
+  });
+  td2.appendChild(inp);
+  tr.appendChild(td2);
+  tbody.appendChild(tr);
+  return inp;
+}
+
+/** Create an editable angle row (degrees). Returns the input element. */
+function makeAngleRow(tbody, label, value, onChange) {
+  const tr = document.createElement("tr");
+  const td1 = document.createElement("td");
+  td1.textContent = label;
+  tr.appendChild(td1);
+  const td2 = document.createElement("td");
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "prop-edit-input";
+  inp.value = value;
+  inp.addEventListener("change", () => {
+    const v = parseFloat(inp.value);
+    if (isNaN(v)) {
+      showToast("Invalid angle", "error");
+      return;
+    }
+    onChange(v);
+  });
+  td2.appendChild(inp);
+  tr.appendChild(td2);
+  tbody.appendChild(tr);
+  return inp;
 }
 
 function addPropRow(tbody, label, value, editable = false, constName = null) {
@@ -5417,6 +5505,154 @@ function openingToolMouseDown(e) {
   });
 }
 
+/** Snap a drawn wall to a reference face (one-shot repositioning). */
+function showSnapToFaceDialog(elemRec, props) {
+  const g = App.state.geometry;
+  if (!g) { showToast("No geometry loaded", "error"); return; }
+
+  // Build reference options: named points pairs (outline segments) + interior walls
+  // The user types a reference like "W4-W5" or "CW2"
+  Dialog.show({
+    title: `Move ${elemRec.name} to face`,
+    fields: [
+      { label: "Reference (e.g. W4-W5, CW2)", name: "ref", value: "" },
+      { label: "Face (south/east/north/west)", name: "face", value: "south" },
+      { label: "Offset (0 = tangent)", name: "offset", value: "0" },
+      { label: "Align (start/mid/end)", name: "align", value: "mid" },
+    ],
+    async onSubmit(values) {
+      const ref = values.ref.trim();
+      const face = values.face.trim().toLowerCase();
+      const offsetDist = parseDimension(values.offset) || 0;
+      const align = values.align.trim().toLowerCase();
+
+      if (!ref) { showToast("Enter a reference", "error"); return; }
+      if (!["south", "east", "north", "west"].includes(face)) {
+        showToast("Face must be south/east/north/west", "error"); return;
+      }
+
+      // Resolve reference face: either a segment "A-B" or an element name
+      let facePts = null; // [p1, p2] defining the face edge
+      if (ref.includes("-")) {
+        // Outline segment like "W4-W5" or "F4-F5"
+        const [nameA, nameB] = ref.split("-").map(s => s.trim());
+        const ptA = _lookupPoint(g, nameA);
+        const ptB = _lookupPoint(g, nameB);
+        if (!ptA || !ptB) { showToast(`Point ${!ptA ? nameA : nameB} not found`, "error"); return; }
+        facePts = [ptA, ptB];
+      } else {
+        // Element name — look up poly
+        const poly = _lookupElementPoly(g, ref);
+        if (!poly || poly.length < 3) { showToast(`Element ${ref} not found`, "error"); return; }
+        facePts = _faceEdge(poly, face);
+      }
+
+      if (!facePts) { showToast("Could not resolve face", "error"); return; }
+
+      // Face midpoint and outward normal
+      const [fp1, fp2] = facePts;
+      const fmx = (fp1[0] + fp2[0]) / 2, fmy = (fp1[1] + fp2[1]) / 2;
+      const fdx = fp2[0] - fp1[0], fdy = fp2[1] - fp1[1];
+      const flen = Math.hypot(fdx, fdy) || 1e-9;
+      // Normal pointing outward from the face
+      const normals = { south: [0, -1], north: [0, 1], east: [1, 0], west: [-1, 0] };
+      const norm = normals[face];
+
+      // Current wall properties
+      const s = props.start, e = props.end;
+      const wmx = (s[0] + e[0]) / 2, wmy = (s[1] + e[1]) / 2;
+      const wlen = Math.hypot(e[0] - s[0], e[1] - s[1]);
+      const wdx = (e[0] - s[0]) / (wlen || 1e-9), wdy = (e[1] - s[1]) / (wlen || 1e-9);
+      const thick = props.thickness || 4.0 / 12;
+
+      // Position: place the align-point on the face + offset along normal
+      // The wall's near face (half-thickness) should be tangent
+      const targetX = fmx + (offsetDist + thick / 2) * norm[0];
+      const targetY = fmy + (offsetDist + thick / 2) * norm[1];
+
+      let newStart, newEnd;
+      const half = wlen / 2;
+      if (align === "start") {
+        newStart = [targetX, targetY];
+        newEnd = [targetX + wlen * wdx, targetY + wlen * wdy];
+      } else if (align === "end") {
+        newEnd = [targetX, targetY];
+        newStart = [targetX - wlen * wdx, targetY - wlen * wdy];
+      } else {
+        // mid (default)
+        newStart = [targetX - half * wdx, targetY - half * wdy];
+        newEnd = [targetX + half * wdx, targetY + half * wdy];
+      }
+
+      const newPoly = wallPoly(newStart, newEnd, thick);
+      if (!newPoly) return;
+      const newProps = { ...props, start: newStart, end: newEnd, poly: newPoly };
+      await fetch(`/api/elements/${elemRec.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: newProps }),
+      });
+      await reloadAfterChange();
+      showToast(`Moved ${elemRec.name} to ${ref} ${face}`, "success");
+    },
+  });
+}
+
+/** Look up a named point from geometry. */
+function _lookupPoint(g, name) {
+  const pts = g.points || {};
+  if (pts[name]) return pts[name];
+  return null;
+}
+
+/** Look up an element polygon from geometry. */
+function _lookupElementPoly(g, name) {
+  const iw = g.interior_walls || {};
+  if (iw[name] && iw[name].poly) return iw[name].poly;
+  const vi = g.variant_items || {};
+  if (vi[name] && vi[name].poly) return vi[name].poly;
+  const furn = g.furniture || {};
+  if (furn[name] && furn[name].poly) return furn[name].poly;
+  const appl = g.appliances || {};
+  if (appl[name] && appl[name].poly) return appl[name].poly;
+  // Check drawn walls in elements
+  for (const elem of (App.state.elements || [])) {
+    if (elem.name === name) {
+      const p = typeof elem.properties === "string" ? JSON.parse(elem.properties) : elem.properties;
+      if (p && p.poly) return p.poly;
+    }
+  }
+  return null;
+}
+
+/** Extract a face edge [p1, p2] from a 4-point polygon. */
+function _faceEdge(poly, face) {
+  if (poly.length < 4) return null;
+  // Find bounding box to identify faces
+  const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  // For each edge, classify by which bbox side it's closest to
+  const edges = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+    edges.push({ a, b, mx, my });
+  }
+  // Pick the edge whose midpoint best matches the requested face
+  let best = null, bestScore = Infinity;
+  for (const e of edges) {
+    let score;
+    if (face === "south") score = e.my - minY;
+    else if (face === "north") score = maxY - e.my;
+    else if (face === "west") score = e.mx - minX;
+    else if (face === "east") score = maxX - e.mx;
+    else score = Infinity;
+    if (score < bestScore) { bestScore = score; best = e; }
+  }
+  return best ? [best.a, best.b] : null;
+}
+
 /** Show rotation dialog for selected element (TL-24, unified). */
 function showRotationDialog() {
   const sel = App.state.selection;
@@ -5444,7 +5680,12 @@ function showRotationDialog() {
   const geom = App.state.geometry;
   const vi = geom ? (geom.variant_items || {}) : {};
   const itemGeom = vi[sel.name] || {};
-  const currentAngle = itemGeom.rotation || (props && props.rotation) || 0;
+  let currentAngle;
+  if (props && props.source === "drawn" && props.start && props.end) {
+    currentAngle = Math.atan2(props.end[1] - props.start[1], props.end[0] - props.start[0]) * 180 / Math.PI;
+  } else {
+    currentAngle = itemGeom.rotation || (props && props.rotation) || 0;
+  }
 
   Dialog.show({
     title: `Rotate ${sel.name}`,
@@ -5466,9 +5707,17 @@ function showRotationDialog() {
         showToast("Invalid angle", "error");
         return;
       }
-      // For drawn walls, use legacy property update
-      if (props && props.source === "drawn") {
-        const newProps = { ...props, rotation: angle };
+      // For drawn walls, rotate around midpoint by modifying start/end
+      if (props && props.source === "drawn" && props.start && props.end) {
+        const mx = (props.start[0] + props.end[0]) / 2;
+        const my = (props.start[1] + props.end[1]) / 2;
+        const half = Math.hypot(props.end[0] - props.start[0], props.end[1] - props.start[1]) / 2;
+        const rad = angle * Math.PI / 180;
+        const newStart = [mx - half * Math.cos(rad), my - half * Math.sin(rad)];
+        const newEnd = [mx + half * Math.cos(rad), my + half * Math.sin(rad)];
+        const newPoly = wallPoly(newStart, newEnd, props.thickness || 4.0 / 12);
+        if (!newPoly) return;
+        const newProps = { ...props, start: newStart, end: newEnd, poly: newPoly };
         await fetch(`/api/elements/${elemRec.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
