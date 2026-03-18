@@ -621,7 +621,14 @@ def _seed_inner_wall_overrides(conn):
 
     Computes parametric values from the default geometry: two straight
     segments flanking a 90° CCW arc at the concave F8-F9 corner.
+
+    Only seeds if no overrides exist yet — avoids clobbering databases
+    where the override lives at a different seg_index (e.g. Mark2).
     """
+    count = conn.execute(
+        "SELECT COUNT(*) FROM inner_wall_overrides").fetchone()[0]
+    if count > 0:
+        return
     import math
     from floorplan.geometry import compute_outline_geometry
     from floorplan.constants import (
@@ -2178,6 +2185,10 @@ def delete_element(element_id, db_path=None):
                     )
                 conn.execute("DELETE FROM elements WHERE id = ?", (h["id"],))
                 deleted.append(h["id"])
+        # Clean up door record if deleting an opening
+        if row["type"] == "opening":
+            conn.execute("DELETE FROM doors WHERE opening_name = ?",
+                         (row["name"],))
         # Clean up formulas and deps for the deleted element
         conn.execute("DELETE FROM element_formulas WHERE element_name = ?",
                      (row["name"],))

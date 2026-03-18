@@ -2048,6 +2048,8 @@ function showProperties(type, name, data) {
         addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
+    // Delete button for openings
+    addOpeningDeleteButton(tbody, data.name);
   } else if (type === "appliance" || type === "furniture" || type === "fixture") {
     // SEL-8: Enhanced furniture/appliance properties
     const b = data.bbox;
@@ -2925,6 +2927,34 @@ async function addFormulaDeleteButton(tbody, elemName, elemType) {
       : `Deleted ${elemName}`;
     if (action === "delete_catalog") toast += " and removed from ADD menu";
     showToast(toast, "success");
+  });
+  td.appendChild(btn);
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+/** Add delete button for outer/rough openings. */
+function addOpeningDeleteButton(tbody, openingName) {
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = 2;
+  const btn = document.createElement("button");
+  btn.textContent = "Delete";
+  btn.className = "prop-delete-btn";
+  btn.addEventListener("click", async () => {
+    if (!confirm(`Delete opening ${openingName}?`)) return;
+    const resp = await fetch(
+      `/api/openings/${encodeURIComponent(openingName)}`,
+      { method: "DELETE" }
+    );
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      showToast(data.error || "Delete failed", "error");
+      return;
+    }
+    clearSelection();
+    await reloadAfterChange();
+    showToast(`Deleted opening ${openingName}`, "success");
   });
   td.appendChild(btn);
   tr.appendChild(td);
