@@ -3469,14 +3469,20 @@ async function loadOutlineTable() {
     tdType.textContent = seg.seg_type;
     tr.appendChild(tdType);
 
-    // Dist/R column — editable for non-solved segments
+    // Dist/R column — editable unless this segment's dist/radius is flex
     const tdDist = document.createElement("td");
-    const isSolvedDist = seg.seq === 0 || seg.seq === n - 2;
+    const isSolvedDist = seg.flex === "distance";
+    const isSolvedRadius = seg.flex === "radius";
     const distVal = seg.seg_type === "L" ? (seg.distance || 0) : (seg.radius || 0);
-    if (isSolvedDist && seg.seg_type === "L") {
+    if (isSolvedDist || isSolvedRadius) {
       tdDist.textContent = fmtFtIn(distVal);
       tdDist.classList.add("solved");
-      tdDist.title = "Solved by closure";
+      tdDist.title = `Solved by closure (click to change)`;
+      tdDist.style.cursor = "pointer";
+      tdDist.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showFlexSwapDialog(seg.seq, seg.flex, chain);
+      });
     } else {
       const inp = document.createElement("input");
       inp.type = "text";
@@ -3490,15 +3496,20 @@ async function loadOutlineTable() {
     }
     tr.appendChild(tdDist);
 
-    // Sweep column — editable for arcs, except closure arc (last seg)
+    // Sweep column — editable unless this segment's sweep is flex
     const tdSweep = document.createElement("td");
-    const isSolvedSweep = seg.seq === n - 1;
+    const isSolvedSweep = seg.flex === "sweep";
     if (seg.seg_type !== "L") {
       const sweepDeg = (seg.sweep || 0) * 180 / Math.PI;
       if (isSolvedSweep) {
         tdSweep.textContent = fmtDeg(sweepDeg);
         tdSweep.classList.add("solved");
-        tdSweep.title = "Solved by closure";
+        tdSweep.title = "Solved by closure (click to change)";
+        tdSweep.style.cursor = "pointer";
+        tdSweep.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showFlexSwapDialog(seg.seq, "sweep", chain);
+        });
       } else {
         const inp = document.createElement("input");
         inp.type = "text";
@@ -4147,6 +4158,109 @@ function startClickDefineMode(segIndex, endName, existingChain, spanEnd) {
   vp.addEventListener("click", onClick, true);
   vp.addEventListener("dblclick", onDblClick, true);
   document.addEventListener("keydown", onKeyDown, true);
+}
+
+/**
+ * Show dialog to swap a flex designation from one segment to another.
+ * @param {number} currentSeq - the currently-flex segment's seq
+ * @param {string} currentParam - "distance", "radius", or "sweep"
+ * @param {Array} chain - full outline chain from API
+ */
+function showFlexSwapDialog(currentSeq, currentParam, chain) {
+  // Build list of eligible swap candidates
+  const candidates = [];
+  const isSweepFlex = currentParam === "sweep";
+
+  for (const seg of chain) {
+    if (seg.seq === currentSeq) continue;
+    if (seg.flex) continue; // already flex for something else
+
+    if (isSweepFlex) {
+      // Can only swap sweep flex to another arc
+      if (seg.seg_type !== "L") {
+        candidates.push({ seq: seg.seq, label: `Seg ${seg.seq} (${seg.seg_type} → ${seg.end_name})`, param: "sweep" });
+      }
+    } else {
+      // Positional flex: can swap to any line's distance or any arc's radius
+      if (seg.seg_type === "L") {
+        candidates.push({ seq: seg.seq, label: `Seg ${seg.seq} distance (L → ${seg.end_name})`, param: "distance" });
+      } else {
+        candidates.push({ seq: seg.seq, label: `Seg ${seg.seq} radius (${seg.seg_type} → ${seg.end_name})`, param: "radius" });
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    showToast("No eligible segments to swap flex to", "warning");
+    return;
+  }
+
+  // Build custom content: radio list of candidates
+  const container = document.createElement("div");
+  container.style.maxHeight = "200px";
+  container.style.overflowY = "auto";
+  container.style.margin = "8px 0";
+
+  for (const c of candidates) {
+    const div = document.createElement("div");
+    div.style.padding = "4px 0";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "flex-swap";
+    radio.value = JSON.stringify({ seq: c.seq, param: c.param });
+    radio.id = `flex-swap-${c.seq}`;
+    const lbl = document.createElement("label");
+    lbl.htmlFor = radio.id;
+    lbl.textContent = " " + c.label;
+    lbl.style.cursor = "pointer";
+    div.appendChild(radio);
+    div.appendChild(lbl);
+    container.appendChild(div);
+  }
+
+  Dialog.show({
+    title: `Move flex from seg ${currentSeq} ${currentParam}`,
+    customContent: container,
+    fields: [],
+    onSubmit: async () => {
+      const checked = container.querySelector('input[name="flex-swap"]:checked');
+      if (!checked) {
+        showToast("Select a segment to swap to", "warning");
+        return;
+      }
+      const target = JSON.parse(checked.value);
+
+      // Build the new 3-element flex spec
+      const newFlex = [];
+      for (const seg of chain) {
+        if (!seg.flex) continue;
+        if (seg.seq === currentSeq) {
+          // Replace this one with the target
+          newFlex.push({ seq: target.seq, param: target.param });
+        } else {
+          newFlex.push({ seq: seg.seq, param: seg.flex });
+        }
+      }
+
+      try {
+        const resp = await apiFetch("/api/outline/flex", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ flex: newFlex }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json();
+          showToast(data.error || "Flex change failed", "error");
+          return;
+        }
+        showToast(`Flex moved to seg ${target.seq} ${target.param}`, "success");
+        await loadOutlineTable();
+        await loadGeometry();
+      } catch (e) {
+        showToast(`Error: ${e.message}`, "error");
+      }
+    },
+  });
 }
 
 function selectOutlineRow(seq) {

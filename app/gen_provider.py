@@ -574,19 +574,21 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
 
     # 2. F-series outline
     if chain_rows is not None:
-        from app.outline_solver import db_rows_to_chain, solve_closure, walk_chain
+        from app.outline_solver import (db_rows_to_chain,
+                                        solve_closure_general, walk_chain,
+                                        flex_specs_from_chain_rows)
         chain = db_rows_to_chain(chain_rows)
         R_a1 = _derive_constant(constants_dict, "CORNER_SW_R")
+        flex_specs = flex_specs_from_chain_rows(chain_rows)
 
-        solver_result = solve_closure(chain, R_a1)
+        solver_result = solve_closure_general(chain, flex_specs)
         if not solver_result.valid:
             raise ValueError(
                 f"Outline chain does not close: error={solver_result.closure_error:.6f}")
 
         chain = list(chain)
-        chain[0] = chain[0]._replace(distance=solver_result.d_F2_F5)
-        chain[-2] = chain[-2]._replace(distance=solver_result.d_F18_F1)
-        chain[-1] = chain[-1]._replace(sweep=solver_result.sweep_closure)
+        for seq, (param, value) in solver_result.solved_values.items():
+            chain[seq] = chain[seq]._replace(**{param: value})
 
         chain_start = chain[-1].end_name
         start_E = constants_dict.get(f"{chain_start}_EASTING",

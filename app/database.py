@@ -64,7 +64,8 @@ CREATE TABLE IF NOT EXISTS outline_chain (
     sweep       REAL,               -- sweep in radians
     center_name TEXT,               -- arc center point name
     n_pts       INTEGER DEFAULT 60, -- arc discretisation
-    end_name    TEXT NOT NULL        -- produced point name
+    end_name    TEXT NOT NULL,       -- produced point name
+    flex        TEXT DEFAULT NULL    -- solved param: 'distance','radius','sweep', or NULL
 );
 
 CREATE TABLE IF NOT EXISTS views (
@@ -298,6 +299,27 @@ def init_db(db_path=None):
             if "sort_order" not in pe_cols:
                 conn.execute("ALTER TABLE plumbing_elements "
                              "ADD COLUMN sort_order INTEGER DEFAULT 0")
+            # Add flex column to outline_chain if missing
+            oc_cols = {r[1] for r in conn.execute(
+                "PRAGMA table_info(outline_chain)").fetchall()}
+            if "flex" not in oc_cols:
+                conn.execute("ALTER TABLE outline_chain "
+                             "ADD COLUMN flex TEXT DEFAULT NULL")
+                # Set defaults: first line, second-to-last line, last arc
+                rows = conn.execute(
+                    "SELECT seq FROM outline_chain ORDER BY seq"
+                ).fetchall()
+                if rows:
+                    n = len(rows)
+                    conn.execute(
+                        "UPDATE outline_chain SET flex = 'distance' "
+                        "WHERE seq = 0")
+                    conn.execute(
+                        "UPDATE outline_chain SET flex = 'distance' "
+                        "WHERE seq = ?", (n - 2,))
+                    conn.execute(
+                        "UPDATE outline_chain SET flex = 'sweep' "
+                        "WHERE seq = ?", (n - 1,))
             # Migrate element_formulas/formula_deps to COLLATE NOCASE
             _migrate_nocase_formulas(conn)
             # Migrate existing placed items: create formulas if missing
@@ -751,6 +773,14 @@ def _seed_outline_chain(conn):
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (seq, direction, radius, s_name, sweep, center_name, n_pts, end_name),
             )
+
+    # Set default flex segments: first line, second-to-last line, closure arc
+    n = len(OUTLINE_CHAIN)
+    conn.execute("UPDATE outline_chain SET flex = 'distance' WHERE seq = 0")
+    conn.execute("UPDATE outline_chain SET flex = 'distance' WHERE seq = ?",
+                 (n - 2,))
+    conn.execute("UPDATE outline_chain SET flex = 'sweep' WHERE seq = ?",
+                 (n - 1,))
 
 
 # ---------------------------------------------------------------------------
@@ -1522,12 +1552,13 @@ def insert_outline_segment(seq, row_data, db_path=None):
         conn.execute(
             "INSERT INTO outline_chain "
             "(seq, seg_type, distance, radius, sweep_name, sweep, "
-            "center_name, n_pts, end_name) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "center_name, n_pts, end_name, flex) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (seq, row_data["seg_type"], row_data.get("distance"),
              row_data.get("radius"), row_data.get("sweep_name"),
              row_data.get("sweep"), row_data.get("center_name"),
-             row_data.get("n_pts", 60), row_data["end_name"]),
+             row_data.get("n_pts", 60), row_data["end_name"],
+             row_data.get("flex")),
         )
     return get_outline_chain_row(seq, db_path)
 
@@ -1571,12 +1602,13 @@ def restore_outline_chain(snapshot, db_path=None):
             conn.execute(
                 "INSERT INTO outline_chain "
                 "(seq, seg_type, distance, radius, sweep_name, sweep, "
-                "center_name, n_pts, end_name) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "center_name, n_pts, end_name, flex) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (row["seq"], row["seg_type"], row.get("distance"),
                  row.get("radius"), row.get("sweep_name"),
                  row.get("sweep"), row.get("center_name"),
-                 row.get("n_pts", 60), row["end_name"]),
+                 row.get("n_pts", 60), row["end_name"],
+                 row.get("flex")),
             )
 
 
@@ -2716,7 +2748,7 @@ def export_project(db_path=None):
 
         outline_chain = [dict(r) for r in conn.execute(
             "SELECT seq, seg_type, distance, radius, sweep_name, sweep, "
-            "center_name, n_pts, end_name FROM outline_chain ORDER BY seq"
+            "center_name, n_pts, end_name, flex FROM outline_chain ORDER BY seq"
         ).fetchall()]
 
         elements = [dict(r) for r in conn.execute(
@@ -2866,11 +2898,25 @@ def import_project(data, db_path=None):
             conn.execute(
                 "INSERT INTO outline_chain "
                 "(seq, seg_type, distance, radius, sweep_name, sweep, "
-                "center_name, n_pts, end_name) VALUES (?,?,?,?,?,?,?,?,?)",
+                "center_name, n_pts, end_name, flex) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (row["seq"], row["seg_type"], row.get("distance"),
                  row.get("radius"), row.get("sweep_name"), row.get("sweep"),
-                 row.get("center_name"), row.get("n_pts", 60), row["end_name"]),
+                 row.get("center_name"), row.get("n_pts", 60), row["end_name"],
+                 row.get("flex")),
             )
+        # If imported data has no flex designations, set defaults
+        has_flex = any(r.get("flex") for r in data["outline_chain"])
+        if not has_flex and data["outline_chain"]:
+            n = len(data["outline_chain"])
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'distance' WHERE seq = 0")
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'distance' WHERE seq = ?",
+                (n - 2,))
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'sweep' WHERE seq = ?",
+                (n - 1,))
 
         # Import elements
         for e in data["elements"]:

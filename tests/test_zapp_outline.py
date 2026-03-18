@@ -12,8 +12,9 @@ from app.database import (
 )
 from app.outline_solver import (
     ChainEntry, SolverResult, WalkResult,
-    chain_offset, solve_closure, db_rows_to_chain, walk_chain,
-    validate_chain, solve_for_constraint,
+    chain_offset, solve_closure, solve_closure_general,
+    db_rows_to_chain, walk_chain,
+    validate_chain, solve_for_constraint, flex_specs_from_chain_rows,
 )
 
 from tests.test_zapp_conftest import fresh_db, app_client  # noqa: F401
@@ -88,13 +89,16 @@ class TestSolverCrossValidation:
         # OUTLINE_CHAIN[16] = ("L", d_F18_F1)
         fp_d_F18_F1 = OUTLINE_CHAIN[16][1]
 
-        assert abs(result.d_F2_F5 - fp_d_F2_F5) < 1e-9, \
-            f"d_F2_F5: app={result.d_F2_F5} vs fp={fp_d_F2_F5}"
-        assert abs(result.d_F18_F1 - fp_d_F18_F1) < 1e-9, \
-            f"d_F18_F1: app={result.d_F18_F1} vs fp={fp_d_F18_F1}"
+        d_F2_F5 = result.solved_values[0][1]
+        d_F18_F1 = result.solved_values[len(chain) - 2][1]
+        sweep_closure = result.solved_values[len(chain) - 1][1]
+        assert abs(d_F2_F5 - fp_d_F2_F5) < 1e-9, \
+            f"d_F2_F5: app={d_F2_F5} vs fp={fp_d_F2_F5}"
+        assert abs(d_F18_F1 - fp_d_F18_F1) < 1e-9, \
+            f"d_F18_F1: app={d_F18_F1} vs fp={fp_d_F18_F1}"
         # Default closure arc sweep should be π/2 (90°)
-        assert abs(result.sweep_closure - math.pi / 2) < 1e-9, \
-            f"sweep_closure: app={result.sweep_closure} vs expected={math.pi / 2}"
+        assert abs(sweep_closure - math.pi / 2) < 1e-9, \
+            f"sweep_closure: app={sweep_closure} vs expected={math.pi / 2}"
 
     def test_sweep_closure_adjusts_for_modified_sweep(self, fresh_db):
         """Changing an arc sweep changes the closure arc sweep to compensate."""
@@ -116,23 +120,26 @@ class TestSolverCrossValidation:
         result1 = solve_closure(chain, R_a1)
         assert result1.valid, "Modified sweep should still close"
         # Closure sweep should increase by the same 10°
-        assert abs(result1.sweep_closure - (result0.sweep_closure + delta)) < 1e-9, \
+        n = len(chain)
+        sweep0 = result0.solved_values[n - 1][1]
+        sweep1 = result1.solved_values[n - 1][1]
+        assert abs(sweep1 - (sweep0 + delta)) < 1e-9, \
             f"sweep_closure should increase by {delta:.4f}: " \
-            f"got {result1.sweep_closure:.6f}, expected {result0.sweep_closure + delta:.6f}"
+            f"got {sweep1:.6f}, expected {sweep0 + delta:.6f}"
 
     def test_d_F2_F5_positive(self, fresh_db):
         """Solved d_F2_F5 must be positive."""
         chain = db_rows_to_chain(get_outline_chain(fresh_db))
         import floorplan.constants as fc
         result = solve_closure(chain, fc.CORNER_SW_R)
-        assert result.d_F2_F5 > 0
+        assert result.solved_values[0][1] > 0
 
     def test_d_F18_F1_positive(self, fresh_db):
         """Solved d_F18_F1 must be positive."""
         chain = db_rows_to_chain(get_outline_chain(fresh_db))
         import floorplan.constants as fc
         result = solve_closure(chain, fc.CORNER_SW_R)
-        assert result.d_F18_F1 > 0
+        assert result.solved_values[len(chain) - 2][1] > 0
 
     def test_walk_chain_matches_floorplan_points(self, fresh_db):
         """All F-series points from app solver match floorplan/geometry.py."""
@@ -148,9 +155,8 @@ class TestSolverCrossValidation:
         R_a1 = fc.CORNER_SW_R
         sr = solve_closure(chain, R_a1)
         chain = list(chain)
-        chain[0] = chain[0]._replace(distance=sr.d_F2_F5)
-        chain[-2] = chain[-2]._replace(distance=sr.d_F18_F1)
-        chain[-1] = chain[-1]._replace(sweep=sr.sweep_closure)
+        for seq, (param, value) in sr.solved_values.items():
+            chain[seq] = chain[seq]._replace(**{param: value})
 
         F2_E = -18.5
         F2_N = -13.5 + R_a1
@@ -180,8 +186,8 @@ class TestSolverCrossValidation:
         import floorplan.constants as fc
         result = solve_closure(chain, fc.CORNER_SW_R)
         assert result.valid, "Modified radius should still close"
-        assert result.d_F2_F5 > 0
-        assert result.d_F18_F1 > 0
+        assert result.solved_values[0][1] > 0
+        assert result.solved_values[len(chain) - 2][1] > 0
 
     def test_solve_closure_impossible_params(self):
         """Impossible parameters produce valid=False."""
@@ -194,7 +200,8 @@ class TestSolverCrossValidation:
         ]
         result = solve_closure(chain, 0.001)
         # Either invalid or the distances are negative
-        assert not result.valid or result.d_F2_F5 < 0 or result.d_F18_F1 < 0
+        if result.valid:
+            assert result.solved_values[0][1] < 0 or result.solved_values[2][1] < 0
 
 
 # ── Engine Integration Tests ──────────────────────────────────────────
@@ -278,8 +285,8 @@ class TestAPI16UpdateOutline:
         data = resp.get_json()
         assert data["ok"] is True
         assert data["closure_valid"] is True
-        assert data["d_F2_F5"] > 0
-        assert data["d_F18_F1"] > 0
+        assert float(data["solved_values"]["0"]["value"]) > 0
+        assert float(data["solved_values"]["16"]["value"]) > 0
 
     def test_update_line_distance(self, app_client):
         """Change a line distance, verify closure valid."""
@@ -300,7 +307,8 @@ class TestAPI16UpdateOutline:
         data = resp.get_json()
         assert data["ok"] is True
         # Closure sweep should have decreased by 0.01 (from default π/2)
-        assert abs(data["sweep_closure"] - (math.pi / 2 - 0.01)) < 1e-9
+        sweep_val = float(data["solved_values"]["17"]["value"])
+        assert abs(sweep_val - (math.pi / 2 - 0.01)) < 1e-9
 
     def test_reject_solved_distance_seq0(self, app_client):
         """Cannot directly edit solved distance at seq 0."""
@@ -327,7 +335,7 @@ class TestAPI16UpdateOutline:
         resp = app_client.put(f"/api/outline/{closure_seq}",
                               json={"sweep": math.pi / 3})
         assert resp.status_code == 400
-        assert "closure" in resp.get_json()["error"].lower()
+        assert "solved" in resp.get_json()["error"].lower()
 
     def test_sweep_change_updates_closure_arc(self, app_client):
         """Modifying one arc sweep adjusts the closure arc sweep in DB."""
@@ -386,7 +394,7 @@ class TestAPI17ValidateOutline:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["valid"] is True
-        assert data["closure_error"] == 0.0
+        assert data["closure_error"] < 1e-9
 
     def test_validate_with_change(self, app_client):
         """Validate with a reasonable change returns valid."""

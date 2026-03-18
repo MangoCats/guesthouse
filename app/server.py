@@ -60,7 +60,9 @@ from app.plumbing import (
     update_plumbing_element, delete_plumbing_element,
     seed_reference_plumbing,
 )
-from app.outline_solver import db_rows_to_chain, solve_closure, validate_chain
+from app.outline_solver import (db_rows_to_chain, solve_closure,
+                                solve_closure_general, validate_chain,
+                                flex_specs_from_chain_rows, FlexSpec)
 from app.undo import UndoManager
 import floorplan.constants as fc
 
@@ -196,16 +198,12 @@ def create_app(db_path=None):
         """
         chain_rows = get_outline_chain(db)
         chain = db_rows_to_chain(chain_rows)
-        patch_constants(get_constants_dict(db))
-        R_a1 = fc.CORNER_SW_R
-        solver = solve_closure(chain, R_a1)
+        flex_specs = flex_specs_from_chain_rows(chain_rows)
+        solver = solve_closure_general(chain, flex_specs)
         if not solver.valid:
             return solver, None
-        update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
-        f18_seq = len(chain_rows) - 2
-        update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
-        closure_seq = len(chain_rows) - 1
-        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
+        for seq, (param, value) in solver.solved_values.items():
+            update_outline_segment(seq, {param: value}, db)
         return solver, chain_rows
 
     # ------------------------------------------------------------------
@@ -1235,12 +1233,12 @@ def create_app(db_path=None):
 
         # Protect solved segments
         chain_rows = get_outline_chain(db)
-        n = len(chain_rows)
-        solved_seqs_dist = {0, n - 2}  # F2→F5 and F18→F1
-        if seq in solved_seqs_dist and "distance" in updates:
-            return jsonify({"error": "Cannot directly edit solved distance"}), 400
-        if seq == n - 1 and "sweep" in updates:
-            return jsonify({"error": "Cannot directly edit closure arc sweep"}), 400
+        # Protect flex (solver-controlled) parameters
+        flex_map = {r["seq"]: r["flex"] for r in chain_rows if r.get("flex")}
+        if seq in flex_map and flex_map[seq] in updates:
+            return jsonify({
+                "error": f"Cannot directly edit solved {flex_map[seq]}"
+            }), 400
 
         # Snapshot before state
         before_chain = get_outline_chain(db)
@@ -1268,13 +1266,13 @@ def create_app(db_path=None):
         _broadcast("outline_changed")
 
         updated = get_outline_chain_row(seq, db)
+        solved = {str(k): {"param": v[0], "value": v[1]}
+                  for k, v in solver.solved_values.items()}
         return jsonify({
             "ok": True,
             "segment": updated,
             "closure_valid": True,
-            "d_F2_F5": solver.d_F2_F5,
-            "d_F18_F1": solver.d_F18_F1,
-            "sweep_closure": solver.sweep_closure,
+            "solved_values": solved,
         })
 
     @app.route("/api/outline/validate", methods=["POST"])
@@ -1301,12 +1299,75 @@ def create_app(db_path=None):
                             row[k] = float(v)
 
         chain = db_rows_to_chain(chain_rows)
-
-        patch_constants(get_constants_dict(db))
-        R_a1 = fc.CORNER_SW_R
-        result = validate_chain(chain, R_a1)
+        flex_specs = flex_specs_from_chain_rows(chain_rows)
+        result = validate_chain(chain, flex_specs)
 
         return jsonify(result)
+
+    @app.route("/api/outline/flex", methods=["PUT"])
+    def api_set_flex():
+        """Set which segments are flex (solver-controlled)."""
+        body = request.get_json(force=True)
+        specs = body.get("flex", [])
+        if len(specs) != 3:
+            return jsonify({"error": "Exactly 3 flex specs required"}), 400
+
+        sweep_count = sum(1 for s in specs if s.get("param") == "sweep")
+        pos_count = sum(1 for s in specs
+                        if s.get("param") in ("distance", "radius"))
+        if sweep_count != 1 or pos_count != 2:
+            return jsonify({
+                "error": "Need exactly 1 sweep + 2 distance/radius"
+            }), 400
+
+        chain_rows = get_outline_chain(db)
+        n = len(chain_rows)
+        seq_set = {r["seq"] for r in chain_rows}
+        for s in specs:
+            if s.get("seq") not in seq_set:
+                return jsonify({
+                    "error": f"Invalid seq {s.get('seq')}"
+                }), 400
+            seg = next(r for r in chain_rows if r["seq"] == s["seq"])
+            param = s["param"]
+            if param == "distance" and seg["seg_type"] != "L":
+                return jsonify({
+                    "error": f"Seq {s['seq']} is an arc, cannot flex distance"
+                }), 400
+            if param in ("radius", "sweep") and seg["seg_type"] == "L":
+                return jsonify({
+                    "error": f"Seq {s['seq']} is a line, cannot flex {param}"
+                }), 400
+
+        # Snapshot for undo
+        before_chain = get_outline_chain(db)
+
+        # Clear all flex, set new ones
+        with get_db(db) as conn:
+            conn.execute("UPDATE outline_chain SET flex = NULL")
+            for s in specs:
+                conn.execute(
+                    "UPDATE outline_chain SET flex = ? WHERE seq = ?",
+                    (s["param"], s["seq"]))
+
+        # Re-solve with new flex
+        solver, _ = _solve_and_update_closure()
+        if not solver.valid:
+            restore_outline_chain(before_chain, db)
+            return jsonify({
+                "error": "Closure failed with new flex designation",
+                "closure_error": solver.closure_error,
+            }), 400
+
+        after_chain = get_outline_chain(db)
+        undo_mgr.record("outline_update", before_chain, after_chain,
+                        "Change flex segments")
+        _invalidate()
+        _broadcast("outline_changed")
+
+        solved = {str(k): {"param": v[0], "value": v[1]}
+                  for k, v in solver.solved_values.items()}
+        return jsonify({"ok": True, "solved_values": solved})
 
     @app.route("/api/outline/add-point", methods=["POST"])
     def api_add_outline_point():

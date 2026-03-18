@@ -19,14 +19,18 @@ class ChainEntry(NamedTuple):
     end_name: str
 
 
+class FlexSpec(NamedTuple):
+    """One flex (solver-controlled) segment parameter."""
+    seq: int
+    param: str   # "distance", "radius", or "sweep"
+
+
 class SolverResult(NamedTuple):
     """Result of the closure solver."""
     valid: bool
-    d_F2_F5: float              # solved distance for first line segment
-    d_F18_F1: float             # solved distance for second-to-last line segment
-    sweep_closure: float        # solved sweep for closure arc (radians)
+    solved_values: dict         # {seq: (param, value)}
     closure_error: float        # residual (should be ~0 for valid)
-    exit_bearing: float         # bearing at exit of inner chain
+    exit_bearing: float         # bearing at exit of chain
 
 
 class WalkResult(NamedTuple):
@@ -74,70 +78,231 @@ def chain_offset(chain, start_brg=0.0):
 # Closure solver
 # ---------------------------------------------------------------------------
 
-def solve_closure(chain, R_a1):
-    """Solve for d_F2_F5, d_F18_F1, and sweep_closure.
+def _inject_value(chain, seq, param, value):
+    """Return a new chain list with chain[seq].param replaced by value."""
+    ch = list(chain)
+    ch[seq] = ch[seq]._replace(**{param: value})
+    return ch
 
-    Three solved variables for full positional + angular closure:
-    - d_F2_F5: distance of first line segment (F2→F5, due north)
-    - d_F18_F1: distance of second-to-last line segment (at exit bearing)
-    - sweep_closure: sweep of the closure arc (F1→F2, CW, radius R_a1)
 
-    The closure arc sweep is derived from bearing closure: for a CW outline
-    the total bearing change must equal 2π.  Lines don't change bearing, so
-    sweep_closure = 2π − (sum of all other arc sweeps).
+def _walk_residual(chain, start_brg=0.0):
+    """Walk the full chain and return (dE, dN, exit_brg) closure residual."""
+    return chain_offset(chain, start_brg)
 
-    The inner chain is everything between the first and second-to-last
-    segments (seq 1 through N-3 inclusive).
+
+def solve_closure_general(chain, flex_specs):
+    """Solve for closure given user-designated flex segments.
+
+    flex_specs: list of 3 FlexSpec — exactly 1 with param='sweep',
+                exactly 2 with param in ('distance', 'radius').
+
+    Algorithm:
+    1. Angular closure: flex-sweep = 2π − Σ(other signed sweeps)
+    2. Positional closure: solve for the 2 positional flex values so
+       that the chain's total (dE, dN) = (0, 0).
+       - Two line distances → 2×2 linear system (closed-form)
+       - Any arc radius involved → Newton iteration with finite differences
     """
+    TWO_PI = 2.0 * math.pi
+
+    # Separate sweep flex from positional flex
+    sweep_flex = [f for f in flex_specs if f.param == "sweep"]
+    pos_flex = [f for f in flex_specs if f.param != "sweep"]
+
+    if len(sweep_flex) != 1 or len(pos_flex) != 2:
+        return SolverResult(valid=False, solved_values={},
+                            closure_error=float("inf"), exit_bearing=0.0)
+
+    sf = sweep_flex[0]
+    pf_a, pf_b = pos_flex[0], pos_flex[1]
+
+    # --- Step 1: Angular closure ---
+    # Total bearing change for CW outline must be 2π.
+    # Bearing change = sum of CW sweeps - sum of CCW sweeps.
+    # The flex-sweep arc absorbs the remainder.
+    total_sweep = 0.0
+    for i, seg in enumerate(chain):
+        if seg.seg_type != "L" and i != sf.seq:
+            if seg.seg_type == "CW":
+                total_sweep += seg.sweep
+            else:  # CCW
+                total_sweep -= seg.sweep
+
+    flex_seg = chain[sf.seq]
+    if flex_seg.seg_type == "CW":
+        solved_sweep = (TWO_PI - total_sweep) % TWO_PI
+    else:  # CCW
+        solved_sweep = (total_sweep - TWO_PI) % TWO_PI
+    if solved_sweep < 1e-6:
+        solved_sweep = TWO_PI
+
+    # Inject solved sweep
+    ch = _inject_value(chain, sf.seq, "sweep", solved_sweep)
+
+    # --- Step 2: Positional closure ---
+    # Both positional flex are line distances → linear solve
+    both_linear = (pf_a.param == "distance" and pf_b.param == "distance")
+
+    if both_linear:
+        result = _solve_positional_linear(ch, pf_a, pf_b)
+    else:
+        result = _solve_positional_newton(ch, pf_a, pf_b)
+
+    if result is None:
+        return SolverResult(valid=False,
+                            solved_values={sf.seq: ("sweep", solved_sweep)},
+                            closure_error=float("inf"), exit_bearing=0.0)
+
+    val_a, val_b = result
+    solved = {
+        sf.seq: ("sweep", solved_sweep),
+        pf_a.seq: (pf_a.param, val_a),
+        pf_b.seq: (pf_b.param, val_b),
+    }
+
+    # Validate: distances and radii must be positive
+    for seq, (param, val) in solved.items():
+        if val <= 0:
+            return SolverResult(valid=False, solved_values=solved,
+                                closure_error=abs(val),
+                                exit_bearing=0.0)
+
+    # Verify closure
+    ch_final = ch
+    ch_final = _inject_value(ch_final, pf_a.seq, pf_a.param, val_a)
+    ch_final = _inject_value(ch_final, pf_b.seq, pf_b.param, val_b)
+    dE, dN, brg = _walk_residual(ch_final)
+    err = math.hypot(dE, dN)
+    if err > 1e-6:
+        return SolverResult(valid=False, solved_values=solved,
+                            closure_error=err, exit_bearing=brg)
+
+    return SolverResult(valid=True, solved_values=solved,
+                        closure_error=err, exit_bearing=brg)
+
+
+def _solve_positional_linear(chain, pf_a, pf_b):
+    """Solve for two flex line distances using a 2×2 linear system.
+
+    Walk the chain in pieces to determine the bearing at each flex line,
+    then solve: [sin(brg_a) sin(brg_b)] [d_a]   [-E_rest]
+                [cos(brg_a) cos(brg_b)] [d_b] = [-N_rest]
+    """
+    # Walk chain with both flex distances set to 0
+    ch = _inject_value(chain, pf_a.seq, "distance", 0.0)
+    ch = _inject_value(ch, pf_b.seq, "distance", 0.0)
+    E_rest, N_rest, _ = chain_offset(ch)
+
+    # Find bearing at each flex line by walking up to that point
+    brg_a = _bearing_at_seq(chain, pf_a.seq)
+    brg_b = _bearing_at_seq(chain, pf_b.seq)
+
+    # 2×2 linear system
+    sa, ca = math.sin(brg_a), math.cos(brg_a)
+    sb, cb = math.sin(brg_b), math.cos(brg_b)
+    det = sa * cb - sb * ca
+    if abs(det) < 1e-15:
+        return None  # parallel flex lines — singular
+
+    d_a = (-E_rest * cb + sb * N_rest) / det
+    d_b = (E_rest * ca - sa * N_rest) / det
+    return (d_a, d_b)
+
+
+def _solve_positional_newton(chain, pf_a, pf_b, max_iter=30, tol=1e-10):
+    """Solve for two positional flex values using Newton iteration.
+
+    Used when at least one flex is an arc radius (nonlinear in position).
+    """
+    # Initial guesses from current chain values
+    val_a = _get_flex_value(chain, pf_a)
+    val_b = _get_flex_value(chain, pf_b)
+    if val_a is None or val_b is None:
+        return None
+
+    eps = 1e-8  # finite difference step
+
+    for _ in range(max_iter):
+        ch = _inject_value(chain, pf_a.seq, pf_a.param, val_a)
+        ch = _inject_value(ch, pf_b.seq, pf_b.param, val_b)
+        dE, dN, _ = chain_offset(ch)
+
+        if math.hypot(dE, dN) < tol:
+            return (val_a, val_b)
+
+        # Jacobian by finite differences
+        ch_a = _inject_value(ch, pf_a.seq, pf_a.param, val_a + eps)
+        dEa, dNa, _ = chain_offset(ch_a)
+        dEdva = (dEa - dE) / eps
+        dNdva = (dNa - dN) / eps
+
+        ch_b = _inject_value(ch, pf_b.seq, pf_b.param, val_b + eps)
+        dEb, dNb, _ = chain_offset(ch_b)
+        dEdvb = (dEb - dE) / eps
+        dNdvb = (dNb - dN) / eps
+
+        det = dEdva * dNdvb - dEdvb * dNdva
+        if abs(det) < 1e-30:
+            return None  # singular Jacobian
+
+        # Newton step: [va, vb] -= J^{-1} @ [dE, dN]
+        delta_a = (dNdvb * dE - dEdvb * dN) / det
+        delta_b = (dEdva * dN - dNdva * dE) / det
+        val_a -= delta_a
+        val_b -= delta_b
+
+    return None  # did not converge
+
+
+def _bearing_at_seq(chain, seq):
+    """Compute the bearing at the start of chain[seq]."""
+    brg = 0.0
+    for i in range(seq):
+        seg = chain[i]
+        if seg.seg_type == "CW":
+            brg += seg.sweep
+        elif seg.seg_type == "CCW":
+            brg -= seg.sweep
+        # Lines don't change bearing
+    return brg
+
+
+def _get_flex_value(chain, fs):
+    """Get current value of a flex parameter from the chain."""
+    seg = chain[fs.seq]
+    return getattr(seg, fs.param)
+
+
+def solve_closure(chain, R_a1):
+    """Legacy wrapper: solve with default flex (seq 0, n-2, n-1)."""
     n = len(chain)
-    # Inner chain: skip first (F2→F5) and last two (F18→F1, F1→F2)
-    inner_chain = chain[1:n - 2]
+    flex_specs = [
+        FlexSpec(0, "distance"),
+        FlexSpec(n - 2, "distance"),
+        FlexSpec(n - 1, "sweep"),
+    ]
+    return solve_closure_general(chain, flex_specs)
 
-    dE_18, dN_18, brg_18 = chain_offset(inner_chain, start_brg=0.0)
 
-    # Angular closure: closure arc sweep absorbs remaining bearing
-    sweep_closure = (2.0 * math.pi - brg_18) % (2.0 * math.pi)
-    if sweep_closure < 1e-6:
-        sweep_closure = 2.0 * math.pi  # full circle edge case
+def flex_specs_from_chain_rows(chain_rows):
+    """Extract FlexSpec list from DB outline_chain rows.
 
-    # Compute displacement of the closure arc with solved sweep
-    closure_seg = ChainEntry(
-        seg_type="CW", distance=None, radius=R_a1,
-        sweep=sweep_closure, center_name=chain[-1].center_name,
-        n_pts=chain[-1].n_pts, end_name=chain[-1].end_name,
-    )
-    dE_arc, dN_arc, _ = chain_offset([closure_seg], start_brg=brg_18)
-
-    # Positional closure: F18→F1 line + closure arc must cancel inner offset
-    # F2→F5 is due north (brg=0), so contributes only to northing
-    # Total easting: 0 + dE_18 + d_F18_F1*sin(brg_18) + dE_arc = 0
-    # Total northing: d_F2_F5 + dN_18 + d_F18_F1*cos(brg_18) + dN_arc = 0
-    sin_brg = math.sin(brg_18)
-    if abs(sin_brg) < 1e-15:
-        return SolverResult(
-            valid=False, d_F2_F5=0.0, d_F18_F1=0.0,
-            sweep_closure=sweep_closure,
-            closure_error=abs(dE_18 + dE_arc), exit_bearing=brg_18)
-
-    d_F18_F1 = -(dE_18 + dE_arc) / sin_brg
-    d_F2_F5 = -(dN_18 + d_F18_F1 * math.cos(brg_18) + dN_arc)
-
-    # Validate: both distances should be positive
-    if d_F2_F5 <= 0 or d_F18_F1 <= 0:
-        error = max(0, -d_F2_F5) + max(0, -d_F18_F1)
-        return SolverResult(
-            valid=False, d_F2_F5=d_F2_F5, d_F18_F1=d_F18_F1,
-            sweep_closure=sweep_closure,
-            closure_error=error, exit_bearing=brg_18)
-
-    return SolverResult(
-        valid=True,
-        d_F2_F5=d_F2_F5,
-        d_F18_F1=d_F18_F1,
-        sweep_closure=sweep_closure,
-        closure_error=0.0,
-        exit_bearing=brg_18,
-    )
+    Falls back to legacy defaults (seq 0, n-2, n-1) if no flex column.
+    """
+    specs = []
+    for row in chain_rows:
+        flex = row.get("flex")
+        if flex:
+            specs.append(FlexSpec(row["seq"], flex))
+    if len(specs) == 3:
+        return specs
+    # Fallback to defaults
+    n = len(chain_rows)
+    return [
+        FlexSpec(0, "distance"),
+        FlexSpec(n - 2, "distance"),
+        FlexSpec(n - 1, "sweep"),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -210,15 +375,18 @@ def walk_chain(chain, F2_E, F2_N, F2_BRG=0.0):
 # Validation (dry-run for API-17)
 # ---------------------------------------------------------------------------
 
-def validate_chain(chain, R_a1):
+def validate_chain(chain, flex_specs=None):
     """Validate a chain without committing.  Returns status dict."""
-    result = solve_closure(chain, R_a1)
+    if flex_specs is None:
+        n = len(chain)
+        flex_specs = [FlexSpec(0, "distance"), FlexSpec(n - 2, "distance"),
+                      FlexSpec(n - 1, "sweep")]
+    result = solve_closure_general(chain, flex_specs)
     return {
         "valid": result.valid,
         "closure_error": result.closure_error,
-        "d_F2_F5": result.d_F2_F5,
-        "d_F18_F1": result.d_F18_F1,
-        "sweep_closure": result.sweep_closure,
+        "solved_values": {str(k): {"param": v[0], "value": v[1]}
+                          for k, v in result.solved_values.items()},
     }
 
 
@@ -229,6 +397,7 @@ def validate_chain(chain, R_a1):
 def solve_for_constraint(chain, R_a1, F2_E, F2_N,
                          from_point, to_point,
                          target_distance, adjust_seq, adjust_param,
+                         flex_specs=None,
                          max_iter=50, tol=1e-10):
     """Adjust one chain parameter to achieve a target distance between points.
 
@@ -238,16 +407,20 @@ def solve_for_constraint(chain, R_a1, F2_E, F2_N,
 
     Returns (modified_chain, solver_result) or None if unsolvable.
     """
+    if flex_specs is None:
+        n = len(chain)
+        flex_specs = [FlexSpec(0, "distance"), FlexSpec(n - 2, "distance"),
+                      FlexSpec(n - 1, "sweep")]
+
     def _measure(ch):
         """Solve closure, walk chain, measure distance between points."""
-        sr = solve_closure(ch, R_a1)
+        sr = solve_closure_general(ch, flex_specs)
         if not sr.valid:
             return None
         # Inject solved values
         ch2 = list(ch)
-        ch2[0] = ch2[0]._replace(distance=sr.d_F2_F5)
-        ch2[-2] = ch2[-2]._replace(distance=sr.d_F18_F1)
-        ch2[-1] = ch2[-1]._replace(sweep=sr.sweep_closure)
+        for seq, (param, value) in sr.solved_values.items():
+            ch2[seq] = ch2[seq]._replace(**{param: value})
         wr = walk_chain(ch2, F2_E, F2_N)
         p1 = wr.points.get(from_point)
         p2 = wr.points.get(to_point)
@@ -289,7 +462,7 @@ def solve_for_constraint(chain, R_a1, F2_E, F2_N,
 
     f0 = d0 - target_distance
     if abs(f0) < tol:
-        return (chain, solve_closure(chain, R_a1))
+        return (chain, solve_closure_general(chain, flex_specs))
 
     # Second guess: small perturbation
     delta = max(abs(x0) * 0.01, 0.001)
@@ -307,7 +480,7 @@ def solve_for_constraint(chain, R_a1, F2_E, F2_N,
     for _ in range(max_iter):
         if abs(f1) < tol:
             final_chain = _set_param(chain, x1)
-            sr = solve_closure(final_chain, R_a1)
+            sr = solve_closure_general(final_chain, flex_specs)
             if sr.valid:
                 return (final_chain, sr)
             return None
