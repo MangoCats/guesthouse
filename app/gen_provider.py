@@ -345,6 +345,8 @@ def _derive_constant(constants_dict, name):
     if name == "WALL_EXTRA":
         return wall_outer - 8.0 / 12.0
     if name == "CORNER_SW_R":
+        if "CORNER_SW_R" in constants_dict:
+            return constants_dict["CORNER_SW_R"]
         return 10.0 / 12.0 + (wall_outer - 8.0 / 12.0)
     return constants_dict.get(name)
 
