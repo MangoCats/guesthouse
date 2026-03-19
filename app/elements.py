@@ -95,12 +95,21 @@ for _iw, _cname in IW_CONSTANT_MAP.items():
         CONSTANT_TO_IW.setdefault(_cname, []).append(_iw)
 del _iw, _cname
 
-# Maps IW wall name → constant_name that controls its span dimension
-# (the dimension perpendicular to the position-controlling axis).
-# Only populated for walls where that span is independently controllable.
-IW_WIDTH_CONST = {
+# Span-dimension constants: IW wall name → constant controlling its secondary
+# (span) dimension, only for walls where that span is independently controllable.
+_IW_SPAN_CONST = {
     "IW12": "IW4_GAP_IW11",  # IW12 E-W span = gap from IW11 east face to IW4 west face
 }
+
+# Combined property map: IW wall name → {property_label: constant_name}.
+# Stored in elements.properties["prop_constants"] so the UI is DB-driven.
+IW_PROP_CONSTANTS = {}
+for _iw, _cname in IW_CONSTANT_MAP.items():
+    if _cname:
+        IW_PROP_CONSTANTS.setdefault(_iw, {})["position"] = _cname
+for _iw, _cname in _IW_SPAN_CONST.items():
+    IW_PROP_CONSTANTS.setdefault(_iw, {})["width"] = _cname
+del _iw, _cname
 
 
 def get_elements_for_variant(variant=None, db_path=None):

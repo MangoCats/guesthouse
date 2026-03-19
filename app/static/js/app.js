@@ -2022,21 +2022,28 @@ function showProperties(type, name, data) {
       renderWallHandles(elemRec.id, props);
     } else {
       const b = data.bbox;
-      const widthConstName = IW_WIDTH_CONST[name];
-      const widthConstObj = widthConstName && (App.state.constants || []).find(c => c.name === widthConstName);
-      if (widthConstObj) {
-        addPropRow(tbody, "Width", formatConstValue(widthConstObj), true, widthConstName);
-      } else {
-        addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
+      const propConsts = (props && props.prop_constants) || {};
+      const shownConstNames = new Set(Object.values(propConsts));
+      // Editable rows for each mapped property (DB-driven)
+      for (const [propKey, constName] of Object.entries(propConsts)) {
+        const cObj = (App.state.constants || []).find(c => c.name === constName);
+        if (cObj) {
+          const label = propKey.charAt(0).toUpperCase() + propKey.slice(1);
+          addPropRow(tbody, label, formatConstValue(cObj), true, constName);
+        }
       }
-      addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
-      addPropRow(tbody, "West", fmtFtIn(b.w));
+      // Static bbox context (skip dimensions already editable above)
+      if (!propConsts.width)  addPropRow(tbody, "Width",  fmtFtIn(b.e - b.w));
+      if (!propConsts.height) addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
+      addPropRow(tbody, "West",  fmtFtIn(b.w));
       addPropRow(tbody, "South", fmtFtIn(b.s));
-      addPropRow(tbody, "East", fmtFtIn(b.e));
+      addPropRow(tbody, "East",  fmtFtIn(b.e));
       addPropRow(tbody, "North", fmtFtIn(b.n));
     }
-    // Show related constants
-    const related = findRelatedConstants(name);
+    // Show related constants not already shown via prop_constants
+    const propConsts = (props && props.prop_constants) || {};
+    const shownConstNames = new Set(Object.values(propConsts));
+    const related = findRelatedConstants(name).filter(c => !shownConstNames.has(c.name));
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
       for (const c of related) {
@@ -3154,11 +3161,6 @@ function findWidthConstant(openingName) {
 }
 
 /* ========== SEL-15: Constant Dependency Highlighting ========== */
-
-/** IW wall name → constant controlling its span dimension (width/height). */
-const IW_WIDTH_CONST = {
-  IW12: "IW4_GAP_IW11",  // E-W span = gap from IW11 east face to IW4 west face
-};
 
 /** Reverse map: constant name → IW wall names that depend on it. */
 const CONSTANT_TO_IW = {};

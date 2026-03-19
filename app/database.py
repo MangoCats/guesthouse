@@ -324,6 +324,8 @@ def init_db(db_path=None):
             _migrate_nocase_formulas(conn)
             # Migrate existing placed items: create formulas if missing
             _migrate_placed_item_formulas(conn)
+            # Add prop_constants to IW wall records if missing
+            _migrate_iw_prop_constants(conn)
     # Seed catalog items after DB is committed (needs geometry computation)
     _seed_catalog_items_post(db_path)
 
@@ -525,6 +527,27 @@ def _migrate_placed_item_formulas(conn):
             "VALUES (?, 'position', ?, NULL)",
             (name, json.dumps(formula)),
         )
+
+
+def _migrate_iw_prop_constants(conn):
+    """Add prop_constants to IW wall element records if missing (upgrade migration)."""
+    from app.elements import IW_PROP_CONSTANTS
+    rows = conn.execute(
+        "SELECT id, name, properties FROM elements "
+        "WHERE type='wall' AND name GLOB 'IW*'"
+    ).fetchall()
+    for row in rows:
+        name = row["name"]
+        try:
+            props = json.loads(row["properties"]) if row["properties"] else {}
+        except Exception:
+            props = {}
+        if "prop_constants" not in props:
+            props["prop_constants"] = IW_PROP_CONSTANTS.get(name, {})
+            conn.execute(
+                "UPDATE elements SET properties=? WHERE id=?",
+                (json.dumps(props), row["id"]),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1332,10 +1355,12 @@ def _seed_elements(conn):
     """Seed the elements table with interior walls, openings, and variant items."""
 
     # --- Interior walls (13) ---
+    from app.elements import IW_PROP_CONSTANTS
     for name, thickness_const, orientation in _IW_SEED:
         props = json.dumps({
             "thickness_constant": thickness_const,
             "orientation": orientation,
+            "prop_constants": IW_PROP_CONSTANTS.get(name, {}),
         })
         conn.execute(
             "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
