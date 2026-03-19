@@ -225,39 +225,45 @@ def create_app(db_path=None):
                 p_start = (pivot_pt_seq + 1) % n
                 a_seqs, b_seqs = section_seqs(a_start, p_start, n)
 
-                # Gather flex specs per section from DB
-                flex_map = {r["seq"]: r.get("flex") for r in chain_rows
-                            if r.get("flex")}
-                a_flex = [FlexSpec(s, flex_map[s]) for s in a_seqs
-                          if s in flex_map]
-                b_flex = [FlexSpec(s, flex_map[s]) for s in b_seqs
-                          if s in flex_map]
+                # Compute flex specs dynamically — sweep placement is
+                # informed by which segment was edited and which lines
+                # have bearing_flex=1, so that only opted-in lines
+                # change bearing.  Positional flex falls back to first/last
+                # lines in each section as usual.
+                a_flex = auto_assign_section_flex(
+                    chain, a_seqs, edited_seq=edited_seq)
+                b_flex = auto_assign_section_flex(
+                    chain, b_seqs, edited_seq=edited_seq)
 
-                if len(a_flex) == 3 and len(b_flex) == 3:
-                    constants = get_constants_dict(db)
-                    R_a1 = constants.get("CORNER_SW_R", fc.CORNER_SW_R)
-                    F2_E = constants.get("F2_EASTING", -18.5)
-                    F2_N = constants.get("F2_NORTHING", -13.5) + R_a1
+                constants = get_constants_dict(db)
+                R_a1 = constants.get("CORNER_SW_R", fc.CORNER_SW_R)
+                F2_E = constants.get("F2_EASTING", -18.5)
+                F2_N = constants.get("F2_NORTHING", -13.5) + R_a1
 
-                    # Use pre-edit chain for target positions (the
-                    # fully-solved state before the user's edit).
-                    # Walking the post-edit chain gives wrong positions
-                    # because flex values haven't been updated yet.
-                    if pre_edit_rows is not None:
-                        ref_chain = db_rows_to_chain(pre_edit_rows)
-                    else:
-                        ref_chain = chain
+                # Use pre-edit chain for target positions (the
+                # fully-solved state before the user's edit).
+                # Walking the post-edit chain gives wrong positions
+                # because flex values haven't been updated yet.
+                if pre_edit_rows is not None:
+                    ref_chain = db_rows_to_chain(pre_edit_rows)
+                else:
+                    ref_chain = chain
 
-                    solver = solve_with_pivot(
-                        chain, a_start, p_start,
-                        a_flex, b_flex, edited_seq,
-                        F2_E, F2_N,
-                        ref_chain=ref_chain)
-                    if not solver.valid:
-                        return solver, None
-                    for seq, (param, value) in solver.solved_values.items():
-                        update_outline_segment(seq, {param: value}, db)
-                    return solver, chain_rows
+                solver = solve_with_pivot(
+                    chain, a_start, p_start,
+                    a_flex, b_flex, edited_seq,
+                    F2_E, F2_N,
+                    ref_chain=ref_chain)
+                if not solver.valid:
+                    return solver, None
+                for seq, (param, value) in solver.solved_values.items():
+                    update_outline_segment(seq, {param: value}, db)
+
+                # Sync the dynamic flex assignment back to DB so the UI
+                # shows which segments were actually used as flex this edit.
+                _sync_pivot_flex_to_db(a_flex, b_flex)
+
+                return solver, chain_rows
 
         # Standard whole-chain closure
         flex_specs = flex_specs_from_chain_rows(chain_rows)
@@ -267,6 +273,24 @@ def create_app(db_path=None):
         for seq, (param, value) in solver.solved_values.items():
             update_outline_segment(seq, {param: value}, db)
         return solver, chain_rows
+
+    def _sync_pivot_flex_to_db(a_flex, b_flex):
+        """Write dynamically computed pivot flex specs to the flex column.
+
+        This keeps the UI flex indicators in sync with what was actually
+        used for the most recent solve.  'bearing' markers are preserved.
+        """
+        with get_db(db) as conn:
+            # Clear only distance/radius/sweep flex; leave bearing_flex col alone
+            conn.execute(
+                "UPDATE outline_chain SET flex = NULL "
+                "WHERE flex IN ('distance', 'radius', 'sweep')"
+            )
+            for spec in a_flex + b_flex:
+                conn.execute(
+                    "UPDATE outline_chain SET flex = ? WHERE seq = ?",
+                    (spec.param, spec.seq)
+                )
 
     # ------------------------------------------------------------------
     # Prevent browser caching of API JSON responses

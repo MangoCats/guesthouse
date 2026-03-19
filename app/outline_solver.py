@@ -396,39 +396,67 @@ def validate_pivot_placement(chain, anchor_start, pivot_start):
     return True, ""
 
 
-def auto_assign_section_flex(chain, seqs):
+def auto_assign_section_flex(chain, seqs, edited_seq=None):
     """Auto-pick 3 flex vars for a section: 1 sweep + 2 positional.
 
-    Sweep placement respects bearing_flex on line segments: the chosen
-    sweep arc must not have any fixed-bearing line (bearing_flex == 0)
-    downstream of it in the section walk, because changing a sweep arc's
-    value rotates all downstream segments.  Falls back to the middle arc
-    if no bearing-safe candidate exists (e.g. no lines in the section).
+    Sweep placement logic (bearing_flex aware):
+
+    When edited_seq is an arc in this section, we know the user's edit
+    will rotate everything downstream of that arc by some Δ.  The sweep
+    flex arc (at position m) compensates with −Δ, so lines *after* m
+    have net-zero bearing change.  Lines *between* edited_seq and m
+    absorb the full Δ — so those must be bearing_flex=1 (opt-in).
+
+    Algorithm: starting from the position after edited_seq, scan forward
+    until a run of bearing_flex=1 lines ends at an arc.  Place the sweep
+    flex at that arc, so only the bearing_flex=1 lines between the edit
+    and the sweep arc change bearing.
+
+    When edited_seq is not an arc, or not in this section, fall back to:
+    placing the sweep flex after the last fixed-bearing (bearing_flex=0)
+    line in the section (section-wide safe placement).
+
+    Last resort: last arc in the section (minimises downstream exposure).
 
     Strategy: positional → first and last lines, fall back to arcs.
     Returns [FlexSpec, FlexSpec, FlexSpec].
     """
     arcs = [s for s in seqs if chain[s].seg_type != "L"]
-
-    # --- Sweep flex: find last arc with no fixed-bearing lines downstream ---
-    # A fixed-bearing line is one with bearing_flex == 0 (the default).
-    # Index each seq by its position in the section walk.
     seq_pos = {s: i for i, s in enumerate(seqs)}
-    fixed_bearing_positions = [
-        seq_pos[s] for s in seqs
-        if chain[s].seg_type == "L" and not chain[s].bearing_flex
-    ]
-    last_fixed_pos = max(fixed_bearing_positions) if fixed_bearing_positions else -1
 
-    # Valid sweep arcs: arcs whose position in the section walk is after
-    # all fixed-bearing lines (so no fixed-bearing line is downstream).
-    valid_sweep = [s for s in arcs if seq_pos[s] > last_fixed_pos]
-    if valid_sweep:
-        # Prefer the first valid arc (earliest after all fixed-bearing lines)
-        sweep_seq = valid_sweep[0]
-    else:
-        # Fallback: no bearing-safe arc — use middle arc (bearings will shift)
-        sweep_seq = arcs[len(arcs) // 2]
+    # --- Sweep flex ---
+    sweep_seq = None
+
+    # Dynamic placement: only when the edited segment is an arc in this section.
+    if (edited_seq is not None
+            and edited_seq in seq_pos
+            and chain[edited_seq].seg_type != "L"):
+        k = seq_pos[edited_seq]
+        # Scan forward from k+1; find first arc m such that every line
+        # between k+1 and m-1 (exclusive) has bearing_flex=1.
+        for i in range(k + 1, len(seqs)):
+            s = seqs[i]
+            if chain[s].seg_type != "L":
+                # All lines between k+1 and i are bearing_flex=1?
+                lines_between = [
+                    seqs[j] for j in range(k + 1, i)
+                    if chain[seqs[j]].seg_type == "L"
+                ]
+                if all(chain[l].bearing_flex for l in lines_between):
+                    sweep_seq = s
+                    break
+        # If nothing found forward, try arcs before the edit (wrap-around
+        # rarely needed, but handle gracefully by falling through to below).
+
+    # Section-wide fallback: sweep arc after all fixed-bearing lines.
+    if sweep_seq is None:
+        fixed_bearing_positions = [
+            seq_pos[s] for s in seqs
+            if chain[s].seg_type == "L" and not chain[s].bearing_flex
+        ]
+        last_fixed_pos = max(fixed_bearing_positions) if fixed_bearing_positions else -1
+        valid_sweep = [s for s in arcs if seq_pos[s] > last_fixed_pos]
+        sweep_seq = valid_sweep[0] if valid_sweep else arcs[-1]
 
     # --- Positional flex: prefer first and last lines, fall back to arcs ---
     pos_candidates = [s for s in seqs if s != sweep_seq]
