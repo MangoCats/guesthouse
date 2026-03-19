@@ -1025,6 +1025,14 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
         props = meta.get("props", {})
         item_name = elem_name
         elem_type = meta.get("type", "")
+        # Infer type for formula-only elements (no elements table row)
+        if not elem_type:
+            if elem_name.startswith("IW") or elem_name.startswith("CW"):
+                elem_type = "wall"
+            elif elem_name.startswith("RO"):
+                elem_type = "opening"
+            elif elem_name.startswith("O") and not elem_name.startswith("O_"):
+                elem_type = "opening"
 
         # Interior walls (IW* uppercase names)
         if elem_type == "wall":
