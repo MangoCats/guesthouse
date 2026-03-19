@@ -332,6 +332,52 @@ def _seed_catalog_items_post(db_path):
     """Seed catalog_items after DB is committed (separate connection)."""
     with get_db(db_path) as conn:
         _seed_catalog_items(conn, db_path)
+        # Fix placed items with 0x0 dimensions from catalog
+        _fix_zero_dim_placed_items(conn)
+
+
+def _fix_zero_dim_placed_items(conn):
+    """Fix placed items that have width=0/depth=0 by looking up catalog dims."""
+    rows = conn.execute(
+        "SELECT e.id, e.name, e.properties, ef.formula_json "
+        "FROM elements e "
+        "LEFT JOIN element_formulas ef "
+        "  ON ef.element_name = e.name AND ef.param_name = 'position' "
+        "WHERE e.type IN ('appliance', 'furniture', 'fixture')"
+    ).fetchall()
+    for r in rows:
+        props = json.loads(r["properties"]) if isinstance(
+            r["properties"], str) else (r["properties"] or {})
+        cat_key = props.get("catalog_key")
+        if not cat_key:
+            continue
+        pw = props.get("width", 0) or 0
+        pd = props.get("depth", 0) or 0
+        if pw > 0 and pd > 0:
+            continue
+        # Look up catalog dimensions
+        cat = conn.execute(
+            "SELECT width, depth FROM catalog_items WHERE key = ?",
+            (cat_key,)).fetchone()
+        if not cat or not cat["width"] or not cat["depth"]:
+            continue
+        cw, cd = cat["width"], cat["depth"]
+        # Fix element properties
+        props["width"] = cw
+        props["depth"] = cd
+        conn.execute("UPDATE elements SET properties = ? WHERE id = ?",
+                     (json.dumps(props), r["id"]))
+        # Fix formula
+        if r["formula_json"]:
+            fj = json.loads(r["formula_json"]) if isinstance(
+                r["formula_json"], str) else r["formula_json"]
+            if fj and fj.get("type") == "item_rect":
+                fj["width"] = cw
+                fj["depth"] = cd
+                conn.execute(
+                    "UPDATE element_formulas SET formula_json = ? "
+                    "WHERE element_name = ? AND param_name = 'position'",
+                    (json.dumps(fj), r["name"]))
 
 
 def _migrate_nocase_formulas(conn):
@@ -1359,10 +1405,14 @@ def _seed_catalog_items(conn, db_path=None):
     """
     # Compute dimensions from geometry for all variants
     dims = {}  # key -> {width, depth} or {radius}
+    constants = {}
     try:
-        from app.engine import compute_geometry
         constants = {r[0]: r[1] for r in conn.execute(
             "SELECT name, value FROM constants").fetchall()}
+    except Exception:
+        pass
+    try:
+        from app.engine import compute_geometry
         for v in ("standard", "minik", "daybed"):
             from app.engine import compute_geometry
             geom = compute_geometry(constants, variant=v, db_path=db_path)
@@ -1381,6 +1431,134 @@ def _seed_catalog_items(conn, db_path=None):
                     }
     except Exception:
         pass  # Dimensions will be NULL if geometry computation fails
+
+    # Resolve dimensions from element formulas' constant references
+    # for any items not already in dims (geometry may miss catalog templates)
+    def _eval_expr(expr):
+        """Evaluate a simple constant expression (const, mul, add, sub)."""
+        if isinstance(expr, (int, float)):
+            return expr
+        if isinstance(expr, dict):
+            if "const" in expr:
+                return constants.get(expr["const"])
+            if "mul" in expr:
+                result = 1.0
+                for operand in expr["mul"]:
+                    v = _eval_expr(operand)
+                    if v is None:
+                        return None
+                    result *= v
+                return result
+            if "add" in expr:
+                result = 0.0
+                for operand in expr["add"]:
+                    v = _eval_expr(operand)
+                    if v is None:
+                        return None
+                    result += v
+                return result
+            if "sub" in expr:
+                parts = expr["sub"]
+                if len(parts) >= 2:
+                    a = _eval_expr(parts[0])
+                    b = _eval_expr(parts[1])
+                    if a is not None and b is not None:
+                        return a - b
+        return None
+
+    try:
+        rows = conn.execute(
+            "SELECT element_name, formula_json FROM element_formulas "
+            "WHERE param_name = 'position'"
+        ).fetchall()
+        for r in rows:
+            name = r[0].lower()
+            if name in dims:
+                continue
+            fj = json.loads(r[1]) if isinstance(r[1], str) else r[1]
+            if not fj:
+                continue
+            ftype = fj.get("type", "")
+
+            # item_rect: width/depth as const refs or literals
+            if ftype == "item_rect":
+                w_ref = fj.get("width")
+                d_ref = fj.get("depth")
+                w_val = _eval_expr(w_ref)
+                d_val = _eval_expr(d_ref)
+                if w_val and d_val:
+                    dims[name] = {"width": round(w_val, 6),
+                                  "depth": round(d_val, 6)}
+
+            # item_circle: radius as const ref or expression
+            elif ftype == "item_circle":
+                r_val = _eval_expr(fj.get("radius"))
+                if r_val and r_val > 0:
+                    dims[name] = {"radius": round(r_val, 6)}
+
+            # dining_chair: chair_width/chair_depth
+            elif ftype == "dining_chair":
+                w_val = _eval_expr(fj.get("chair_width"))
+                d_val = _eval_expr(fj.get("chair_depth"))
+                if w_val and d_val:
+                    dims[name] = {"width": round(w_val, 6),
+                                  "depth": round(d_val, 6)}
+
+            # dining_triangle: base_width/height
+            elif ftype == "dining_triangle":
+                w_val = _eval_expr(fj.get("base_width") or
+                                   fj.get("base_side"))
+                d_val = _eval_expr(fj.get("height"))
+                if w_val and d_val:
+                    dims[name] = {"width": round(w_val, 6),
+                                  "depth": round(d_val, 6)}
+
+            # toilet_shape: use TOILET_WIDTH / (TOILET_WIDTH + TOILET_TANK_DEPTH)
+            elif ftype == "toilet_shape":
+                tw = constants.get("TOILET_WIDTH")
+                td = constants.get("TOILET_TANK_DEPTH")
+                if tw and td:
+                    dims[name] = {"width": round(tw, 6),
+                                  "depth": round(tw + td, 6)}
+
+            # ellipse_rect: rx/ry → width=2*rx, depth=2*ry
+            elif ftype == "ellipse_rect":
+                rx = _eval_expr(fj.get("rx"))
+                ry = _eval_expr(fj.get("ry"))
+                if rx and ry:
+                    dims[name] = {"width": round(rx * 2, 6),
+                                  "depth": round(ry * 2, 6)}
+
+            # bath_sink_shape: BATH_SINK_LENGTH / BATH_SINK_DEPTH
+            elif ftype == "bath_sink_shape":
+                bl = constants.get("BATH_SINK_LENGTH")
+                bd = _eval_expr(fj.get("depth")) or constants.get(
+                    "BATH_SINK_DEPTH")
+                if bl and bd:
+                    dims[name] = {"width": round(bl, 6),
+                                  "depth": round(bd, 6)}
+
+            # four_corner: look up known dimension constants by item name
+            elif ftype == "four_corner":
+                _fc_dims = {
+                    "counter": ("COUNTER_LENGTH", "COUNTER_DEPTH"),
+                    "chair": ("CHAIR_WIDTH", "CHAIR_DEPTH"),
+                    "ottoman": ("OTTOMAN_SIZE", "OTTOMAN_SIZE"),
+                    "loveseat": ("LOVESEAT_LENGTH", "LOVESEAT_WIDTH"),
+                    "sofa": ("SOFA_WIDTH", "SOFA_DEPTH"),
+                    "rocker": ("ROCKER_WIDTH", "ROCKER_DEPTH"),
+                    "daybed": ("DAYBED_W", "DAYBED_D"),
+                }
+                pair = _fc_dims.get(name)
+                if pair:
+                    w_val = constants.get(pair[0])
+                    d_val = constants.get(pair[1])
+                    if w_val and d_val:
+                        dims[name] = {"width": round(w_val, 6),
+                                      "depth": round(d_val, 6)}
+
+    except Exception:
+        pass
 
     for name, elem_type, props, _variant in _VARIANT_ITEMS:
         d = dims.get(name, {})
@@ -1403,6 +1581,20 @@ def _seed_catalog_items(conn, db_path=None):
              1 if props.get("stacked") else 0,
              1 if props.get("clip_to_inner") else 0),
         )
+
+    # Backfill: update existing entries that have NULL dimensions
+    for name in dims:
+        d = dims[name]
+        if "radius" in d:
+            conn.execute(
+                "UPDATE catalog_items SET radius = ? "
+                "WHERE key = ? AND radius IS NULL",
+                (d["radius"], name))
+        elif "width" in d and "depth" in d:
+            conn.execute(
+                "UPDATE catalog_items SET width = ?, depth = ? "
+                "WHERE key = ? AND (width IS NULL OR depth IS NULL)",
+                (d["width"], d["depth"], name))
 
 
 # ---------------------------------------------------------------------------
