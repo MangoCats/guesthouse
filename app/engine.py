@@ -1025,16 +1025,8 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
         props = meta.get("props", {})
         item_name = elem_name
         elem_type = meta.get("type", "")
-        # Infer type for formula-only elements (no elements table row)
-        if not elem_type:
-            if elem_name.startswith("IW") or elem_name.startswith("CW"):
-                elem_type = "wall"
-            elif elem_name.startswith("RO"):
-                elem_type = "opening"
-            elif elem_name.startswith("O") and not elem_name.startswith("O_"):
-                elem_type = "opening"
 
-        # Interior walls (IW* uppercase names)
+        # Interior walls
         if elem_type == "wall":
             if elem_name in excluded_walls:
                 continue
@@ -1194,6 +1186,19 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     # 6. Build element result dicts from formula output + DB metadata
     (iw, oo, ro, vi, furn, appl) = _build_elements_from_formulas(
         ev, variant, exclusions, db_path)
+
+    # 6a. Include placed walls from elements table (no formulas, geometry
+    #     stored directly in properties.poly — e.g., user-drawn CW walls)
+    excluded_walls = exclusions.get("wall", set())
+    all_elems = get_all_elements(db_path)
+    for e in all_elems:
+        if e["type"] != "wall" or e["name"] in iw or e["name"] in excluded_walls:
+            continue
+        props = json.loads(e["properties"]) if isinstance(e["properties"], str) else (e["properties"] or {})
+        poly = props.get("poly")
+        if poly and len(poly) >= 3:
+            bbox = bbox_from_poly([[p[0], p[1]] for p in poly])
+            iw[e["name"]] = {"poly": poly, "bbox": bbox}
 
     # 6b. Site path (survey outer boundary as dense polyline)
     site_path = _compute_site_path(pts)
