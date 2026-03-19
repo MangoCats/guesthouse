@@ -1043,11 +1043,42 @@ tr.outline-selected td { background: var(--selection); }
 /* ========== REBASE MODAL ========== */
 .rebase-modal {
   background: var(--surface0); border: 1px solid var(--border);
-  border-radius: 8px; padding: 16px; min-width: 480px; max-width: 680px;
-  max-height: 80vh; overflow-y: auto; color: var(--text);
+  border-radius: 8px; padding: 16px; min-width: 480px; max-width: 700px;
+  max-height: 82vh; overflow-y: auto; color: var(--text);
 }
 .rebase-modal h3 { margin: 0 0 8px; font-size: 14px; }
 .rebase-desc { font-size: 11px; color: var(--text-dim); margin: 0 0 8px; }
+/* ── Dependency table ── */
+.rebase-deps-section { margin-bottom: 10px; }
+.rebase-dep-none {
+  font-size: 11px; color: var(--text-dim); font-style: italic;
+  background: var(--surface1); border-radius: 4px; padding: 6px 8px;
+}
+.rebase-dep-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  margin-bottom: 6px;
+}
+.rebase-dep-table th {
+  text-align: left; font-size: 10px; color: var(--text-dim);
+  padding: 2px 6px 4px; border-bottom: 1px solid var(--border);
+}
+.rebase-dep-table td { padding: 4px 6px; vertical-align: middle; }
+.rebase-dep-table tr:hover td { background: var(--surface1); }
+.rebase-dep-select {
+  background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); font-size: 11px; padding: 2px 4px;
+  border-radius: 3px; cursor: pointer;
+}
+.rebase-dep-select:focus { border-color: var(--accent); outline: none; }
+.rebase-dep-points {
+  font-size: 11px; color: var(--text-dim);
+  padding: 3px 0;
+}
+/* ── Advanced JSON editor toggle ── */
+.rebase-adv-toggle {
+  font-size: 11px; margin: 4px 0; color: var(--text-dim);
+}
+.rebase-adv-wrap { margin-top: 4px; }
 .rebase-formula-editor {
   width: 100%; min-height: 120px; box-sizing: border-box;
   background: var(--surface1); border: 1px solid var(--border);
@@ -1055,14 +1086,16 @@ tr.outline-selected td { background: var(--selection); }
   padding: 6px; border-radius: 4px; resize: vertical;
 }
 .rebase-formula-editor:focus { border-color: var(--accent); outline: none; }
-.rebase-results { margin: 8px 0; }
+/* ── Results area ── */
+.rebase-results { margin: 8px 0; border-top: 1px solid var(--border); padding-top: 8px; }
 .rebase-ok { color: var(--green); font-size: 12px; margin: 4px 0; }
 .rebase-cycle-warning {
   color: var(--yellow); font-size: 12px; margin: 4px 0; font-weight: 600;
 }
-.rebase-res-title { font-size: 11px; color: var(--text-dim); margin: 8px 0 4px; }
-.rebase-res-row { margin: 6px 0; }
-.rebase-res-label { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+.rebase-res-row { margin: 8px 0; }
+.rebase-res-label {
+  font-size: 11px; font-weight: 600; margin-bottom: 2px; color: var(--text);
+}
 .rebase-res-editor {
   width: 100%; min-height: 80px; box-sizing: border-box;
   background: var(--surface1); border: 1px solid var(--border);

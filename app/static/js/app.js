@@ -3185,78 +3185,241 @@ async function addFormulaSection(tbody, elemName) {
   }
 }
 
+// ── Formula dependency introspection helpers ─────────────────────────────────
+
+/** Recursively extract all {"element": X, "corner": Y} refs from a formula.
+ *  Returns {elementName: Set<corner>}. */
+function _formulaElemRefs(node, out = {}) {
+  if (!node || typeof node !== "object") return out;
+  if (Array.isArray(node)) { node.forEach(n => _formulaElemRefs(n, out)); return out; }
+  if (typeof node.element === "string" && node.corner) {
+    if (!out[node.element]) out[node.element] = new Set();
+    out[node.element].add(node.corner);
+  }
+  for (const v of Object.values(node)) _formulaElemRefs(v, out);
+  return out;
+}
+
+/** Extract wall-point strings (W\d+[ab]?) from a formula. */
+function _formulaPointRefs(node, out = new Set()) {
+  if (typeof node === "string" && /^[WF]\d+[ab]?$/.test(node)) { out.add(node); return out; }
+  if (!node || typeof node !== "object") return out;
+  if (Array.isArray(node)) { node.forEach(n => _formulaPointRefs(n, out)); return out; }
+  for (const v of Object.values(node)) _formulaPointRefs(v, out);
+  return out;
+}
+
+/** Deep-substitute all {"element": oldName} occurrences with newName. */
+function _substituteElemRef(node, oldName, newName) {
+  if (!node || typeof node !== "object") return node;
+  if (Array.isArray(node))
+    return node.map(n => _substituteElemRef(n, oldName, newName));
+  const out = {};
+  for (const [k, v] of Object.entries(node))
+    out[k] = (k === "element" && v === oldName)
+      ? newName
+      : _substituteElemRef(v, oldName, newName);
+  return out;
+}
+
 /** Open a rebase dialog for changing formula dependencies with cycle detection.
  *
- * Stage 1: User edits the formula JSON freely.
- * Stage 2: "Check for Cycles" calls /api/formula-rebase-preview.
+ * Stage 1 (Dependencies view): Shows each element this formula currently
+ *   references with a dropdown to swap it to another element.  Wall-point
+ *   anchors (W-series) are listed separately for context.  A collapsible
+ *   "Edit JSON directly" section is available for advanced edits.
+ * Stage 2 (Cycle check): "Check for Cycles" calls /api/formula-rebase-preview.
  *   - No cycle → "Apply" commits immediately.
- *   - Cycle detected → Shows affected elements with proposed literal
- *     four_corner resolutions (editable). "Apply All Changes" commits
- *     the primary change plus all resolutions atomically.
+ *   - Cycle detected → shows cycle path and proposed literal four_corner
+ *     resolutions for each cyclic element (editable).
+ * Stage 3 (Commit): "Apply All Changes" calls /api/formulas-batch atomically.
  */
 function showRebaseDialog(elemName, paramName, currentFormula, variant) {
+  // Working copy of the formula — kept in sync with all edits
+  let workingFormula = JSON.parse(JSON.stringify(currentFormula));
+
+  // Collect all candidate element names for dropdowns
+  const candidateNames = [
+    ...new Set([
+      ...Object.keys(App.state.geometry?.interior_walls || {}),
+      ...(App.state.elements || []).map(e => e.name),
+    ])
+  ].sort();
+
+  // ── Build overlay ──────────────────────────────────────────────────────────
   const overlay = document.createElement("div");
   overlay.className = "config-modal-overlay";
-
   const modal = document.createElement("div");
   modal.className = "rebase-modal";
+  overlay.appendChild(modal);
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
 
   const h3 = document.createElement("h3");
   h3.textContent = `Rebase \u2014 ${elemName}.${paramName}`;
   modal.appendChild(h3);
 
-  const desc = document.createElement("p");
-  desc.className = "rebase-desc";
-  desc.textContent =
-    "Edit the formula JSON to change which elements it depends on, then check for dependency cycles.";
-  modal.appendChild(desc);
-
-  const textarea = document.createElement("textarea");
-  textarea.className = "rebase-formula-editor";
-  textarea.spellcheck = false;
-  textarea.value = JSON.stringify(currentFormula, null, 2);
-  modal.appendChild(textarea);
+  // ── Dependency view (Stage 1) ──────────────────────────────────────────────
+  const depsSection = document.createElement("div");
+  depsSection.className = "rebase-deps-section";
+  modal.appendChild(depsSection);
 
   const errDiv = document.createElement("div");
   errDiv.className = "formula-editor-error";
   modal.appendChild(errDiv);
 
+  // ── Advanced JSON editor (collapsible) ────────────────────────────────────
+  const advToggle = document.createElement("button");
+  advToggle.className = "prop-btn rebase-adv-toggle";
+  advToggle.textContent = "Edit JSON directly \u25bc";
+  modal.appendChild(advToggle);
+
+  const advWrap = document.createElement("div");
+  advWrap.className = "rebase-adv-wrap";
+  advWrap.style.display = "none";
+  modal.appendChild(advWrap);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "rebase-formula-editor";
+  textarea.spellcheck = false;
+  textarea.value = JSON.stringify(workingFormula, null, 2);
+  advWrap.appendChild(textarea);
+
+  const syncFromJsonBtn = document.createElement("button");
+  syncFromJsonBtn.className = "prop-btn";
+  syncFromJsonBtn.textContent = "Reload dependency view from JSON";
+  syncFromJsonBtn.style.marginTop = "4px";
+  advWrap.appendChild(syncFromJsonBtn);
+
+  advToggle.addEventListener("click", () => {
+    const open = advWrap.style.display !== "none";
+    advWrap.style.display = open ? "none" : "";
+    advToggle.textContent = open
+      ? "Edit JSON directly \u25bc"
+      : "Edit JSON directly \u25b2";
+    if (!open) textarea.focus();
+  });
+
+  // ── Results area (Stage 2) ─────────────────────────────────────────────────
   const resultsDiv = document.createElement("div");
   resultsDiv.className = "rebase-results";
   resultsDiv.style.display = "none";
   modal.appendChild(resultsDiv);
 
+  // ── Button bar ─────────────────────────────────────────────────────────────
   const btnBar = document.createElement("div");
   btnBar.className = "rebase-btnbar";
+  modal.appendChild(btnBar);
 
   const checkBtn = document.createElement("button");
   checkBtn.className = "dialog-btn-primary";
   checkBtn.textContent = "Check for Cycles";
+  btnBar.appendChild(checkBtn);
 
   const applyBtn = document.createElement("button");
   applyBtn.className = "dialog-btn-primary";
   applyBtn.textContent = "Apply";
   applyBtn.style.display = "none";
+  btnBar.appendChild(applyBtn);
 
   const cancelBtn = document.createElement("button");
   cancelBtn.className = "dialog-btn-cancel";
   cancelBtn.textContent = "Cancel";
   cancelBtn.addEventListener("click", () => overlay.remove());
-
-  btnBar.appendChild(checkBtn);
-  btnBar.appendChild(applyBtn);
   btnBar.appendChild(cancelBtn);
-  modal.appendChild(btnBar);
-  overlay.appendChild(modal);
-  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-  textarea.focus();
 
-  // Holds pending state between Check and Apply
-  let pendingChanges = null;        // [{element_name, param_name, formula, variant}]
-  let pendingResolutions = null;    // resolution textarea values keyed by elem name
-  let pendingResolutionDefs = null; // original resolution defs from server
+  // ── Render the dependency view from workingFormula ─────────────────────────
+  function renderDepsSection() {
+    depsSection.innerHTML = "";
 
+    const elemRefs = _formulaElemRefs(workingFormula);
+    const pointRefs = [..._formulaPointRefs(workingFormula)].sort();
+
+    // Element references table
+    const elemEntries = Object.entries(elemRefs);
+    if (elemEntries.length === 0) {
+      const noElem = document.createElement("div");
+      noElem.className = "rebase-dep-none";
+      noElem.textContent =
+        "This formula has no element dependencies — it is anchored directly to wall outline points.";
+      depsSection.appendChild(noElem);
+    } else {
+      const tbl = document.createElement("table");
+      tbl.className = "rebase-dep-table";
+      const thead = tbl.createTHead();
+      const hrow = thead.insertRow();
+      ["References element", "At corner(s)", "Change to"].forEach(t => {
+        const th = document.createElement("th");
+        th.textContent = t;
+        hrow.appendChild(th);
+      });
+      const tbody = tbl.createTBody();
+      for (const [refName, corners] of elemEntries.sort()) {
+        const row = tbody.insertRow();
+        row.insertCell().textContent = refName;
+        row.insertCell().textContent = [...corners].sort().join(", ");
+        const swapTd = row.insertCell();
+        const sel = document.createElement("select");
+        sel.className = "rebase-dep-select";
+        // blank option = keep current
+        const keepOpt = document.createElement("option");
+        keepOpt.value = "";
+        keepOpt.textContent = `\u2014 keep ${refName} \u2014`;
+        sel.appendChild(keepOpt);
+        for (const n of candidateNames) {
+          if (n === refName) continue;
+          const opt = document.createElement("option");
+          opt.value = n;
+          opt.textContent = n;
+          sel.appendChild(opt);
+        }
+        sel.addEventListener("change", () => {
+          const newName = sel.value;
+          if (!newName) return;
+          workingFormula = _substituteElemRef(workingFormula, refName, newName);
+          textarea.value = JSON.stringify(workingFormula, null, 2);
+          // Reset cycle results — formula changed
+          resultsDiv.style.display = "none";
+          resultsDiv.innerHTML = "";
+          applyBtn.style.display = "none";
+          pendingChanges = null;
+          pendingResolutions = null;
+          pendingResolutionDefs = null;
+          renderDepsSection();
+        });
+        swapTd.appendChild(sel);
+      }
+      depsSection.appendChild(tbl);
+    }
+
+    // Wall / outline point references
+    if (pointRefs.length > 0) {
+      const ptRow = document.createElement("div");
+      ptRow.className = "rebase-dep-points";
+      ptRow.textContent = `Anchored to outline points: ${pointRefs.join(", ")}`;
+      depsSection.appendChild(ptRow);
+    }
+  }
+
+  renderDepsSection();
+
+  // Sync JSON → workingFormula → re-render deps
+  syncFromJsonBtn.addEventListener("click", () => {
+    try {
+      workingFormula = JSON.parse(textarea.value);
+      renderDepsSection();
+      errDiv.textContent = "";
+    } catch (e) {
+      errDiv.textContent = `JSON syntax error: ${e.message}`;
+    }
+  });
+
+  // ── Pending state between Check and Apply ──────────────────────────────────
+  let pendingChanges = null;
+  let pendingResolutions = null;
+  let pendingResolutionDefs = null;
+
+  // ── Check for Cycles ───────────────────────────────────────────────────────
   checkBtn.addEventListener("click", async () => {
     errDiv.textContent = "";
     resultsDiv.style.display = "none";
@@ -3266,12 +3429,17 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
     pendingResolutions = null;
     pendingResolutionDefs = null;
 
-    let newFormula;
-    try {
-      newFormula = JSON.parse(textarea.value);
-    } catch (e) {
-      errDiv.textContent = `JSON syntax error: ${e.message}`;
-      return;
+    // Prefer textarea content if the advanced editor is open & was edited
+    let newFormula = workingFormula;
+    if (advWrap.style.display !== "none") {
+      try {
+        newFormula = JSON.parse(textarea.value);
+        workingFormula = newFormula;
+        renderDepsSection();
+      } catch (e) {
+        errDiv.textContent = `JSON syntax error: ${e.message}`;
+        return;
+      }
     }
 
     checkBtn.disabled = true;
@@ -3281,24 +3449,19 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          element_name: elemName,
-          param_name: paramName,
-          formula: newFormula,
-          variant,
+          element_name: elemName, param_name: paramName,
+          formula: newFormula, variant,
         }),
       });
       const result = await resp.json();
-      if (!resp.ok) {
-        errDiv.textContent = result.error || "Preview failed";
-        return;
-      }
+      if (!resp.ok) { errDiv.textContent = result.error || "Preview failed"; return; }
 
       resultsDiv.style.display = "";
 
       if (!result.cycle) {
         const okMsg = document.createElement("div");
         okMsg.className = "rebase-ok";
-        okMsg.textContent = "\u2713 No cycles detected.";
+        okMsg.textContent = "\u2713 No dependency cycles. Ready to apply.";
         resultsDiv.appendChild(okMsg);
         pendingChanges = [{ element_name: elemName, param_name: paramName,
                             formula: newFormula, variant }];
@@ -3306,12 +3469,21 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
         applyBtn.textContent = "Apply";
 
       } else {
-        // Cycle detected
         const cycleMsg = document.createElement("div");
         cycleMsg.className = "rebase-cycle-warning";
+        const cycleElems = [...new Set(result.cycle_path.map(s => s.split("/")[0]))];
         cycleMsg.textContent =
-          `\u26A0 Cycle: ${result.cycle_path.join(", ")}`;
+          `\u26A0 Dependency cycle: ${cycleElems.join(" \u2192 ")} \u2192 \u2026`;
         resultsDiv.appendChild(cycleMsg);
+
+        const explain = document.createElement("div");
+        explain.className = "rebase-desc";
+        explain.style.marginTop = "4px";
+        explain.textContent =
+          "The elements below currently depend on this formula and would create a loop. " +
+          "The proposed fix anchors each one to its current computed position (literal " +
+          "coordinates). You can edit the proposed formula before applying.";
+        resultsDiv.appendChild(explain);
 
         const solvable = result.resolutions.filter(r => r.new_formula);
         const unsolvable = result.resolutions.filter(r => !r.new_formula);
@@ -3319,47 +3491,37 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
         if (unsolvable.length > 0) {
           const uMsg = document.createElement("div");
           uMsg.className = "rebase-error";
-          uMsg.textContent = "Cannot auto-resolve: " +
+          uMsg.textContent = "Cannot auto-resolve " +
             unsolvable.map(r => r.element_name).join(", ") +
-            ". Edit their formulas manually first.";
+            " — edit their formulas manually first.";
           resultsDiv.appendChild(uMsg);
         }
 
         if (solvable.length > 0) {
-          const resTitle = document.createElement("div");
-          resTitle.className = "rebase-res-title";
-          resTitle.textContent =
-            "Proposed resolutions (edit if needed, applied atomically):";
-          resultsDiv.appendChild(resTitle);
-
           pendingResolutions = {};
           pendingResolutionDefs = solvable;
 
           for (const res of solvable) {
-            const resRow = document.createElement("div");
-            resRow.className = "rebase-res-row";
+            const resBlock = document.createElement("div");
+            resBlock.className = "rebase-res-row";
 
             const resLabel = document.createElement("div");
             resLabel.className = "rebase-res-label";
-            resLabel.textContent = `${res.element_name}.${res.param_name}: ${res.description}`;
-            resRow.appendChild(resLabel);
+            resLabel.textContent =
+              `${res.element_name} \u2014 will be re-anchored to literal position:`;
+            resBlock.appendChild(resLabel);
 
             const resEditor = document.createElement("textarea");
             resEditor.className = "rebase-res-editor";
             resEditor.spellcheck = false;
             resEditor.value = JSON.stringify(res.new_formula, null, 2);
             pendingResolutions[res.element_name] = res.new_formula;
-
             resEditor.addEventListener("input", () => {
-              try {
-                pendingResolutions[res.element_name] =
-                  JSON.parse(resEditor.value);
-              } catch (_) {
-                pendingResolutions[res.element_name] = null;
-              }
+              try { pendingResolutions[res.element_name] = JSON.parse(resEditor.value); }
+              catch (_) { pendingResolutions[res.element_name] = null; }
             });
-            resRow.appendChild(resEditor);
-            resultsDiv.appendChild(resRow);
+            resBlock.appendChild(resEditor);
+            resultsDiv.appendChild(resBlock);
           }
 
           if (unsolvable.length === 0) {
@@ -3376,23 +3538,19 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
     }
   });
 
+  // ── Apply / Apply All Changes ──────────────────────────────────────────────
   applyBtn.addEventListener("click", async () => {
     errDiv.textContent = "";
-
     let changes;
+
     if (pendingChanges) {
-      // No-cycle path
       changes = pendingChanges;
     } else {
-      // Cycle resolution path
-      let newFormula;
-      try {
-        newFormula = JSON.parse(textarea.value);
-      } catch (e) {
-        errDiv.textContent = `JSON syntax error: ${e.message}`;
-        return;
+      let newFormula = workingFormula;
+      if (advWrap.style.display !== "none") {
+        try { newFormula = JSON.parse(textarea.value); }
+        catch (e) { errDiv.textContent = `JSON syntax error: ${e.message}`; return; }
       }
-      // Validate all resolution formulas
       for (const [name, f] of Object.entries(pendingResolutions || {})) {
         if (f === null) {
           errDiv.textContent = `Invalid JSON in resolution for ${name}`;
@@ -3400,15 +3558,12 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
         }
       }
       changes = [
-        { element_name: elemName, param_name: paramName,
-          formula: newFormula, variant },
+        { element_name: elemName, param_name: paramName, formula: newFormula, variant },
         ...(pendingResolutionDefs || [])
           .filter(r => (pendingResolutions || {})[r.element_name] != null)
           .map(r => ({
-            element_name: r.element_name,
-            param_name: r.param_name,
-            formula: pendingResolutions[r.element_name],
-            variant,
+            element_name: r.element_name, param_name: r.param_name,
+            formula: pendingResolutions[r.element_name], variant,
           })),
       ];
     }
@@ -3422,15 +3577,11 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
         body: JSON.stringify({ changes }),
       });
       const result = await resp.json();
-      if (!resp.ok) {
-        errDiv.textContent = result.error || "Apply failed";
-        return;
-      }
+      if (!resp.ok) { errDiv.textContent = result.error || "Apply failed"; return; }
       overlay.remove();
       await loadGeometry();
       if (App.state.selection && App.state.selection.name === elemName)
-        showProperties(App.state.selection.type, elemName,
-                       App.state.selection.data);
+        showProperties(App.state.selection.type, elemName, App.state.selection.data);
       showToast(`Rebased: ${result.applied.join(", ")}`, "success");
     } catch (e) {
       errDiv.textContent = `Error: ${e.message}`;
