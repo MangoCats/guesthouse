@@ -553,12 +553,17 @@ class GeneratorData:
         self.g_f8f9_poly = f8f9_corner_polyline(
             self.pts, shell_t + air_gap, opening_r)
 
-        # Layout — try hardcoded, fallback to None for DB-driven chains
+        # Layout — hardcoded seed values; used only on the standalone
+        # subprocess path.  DB-driven callers should use gd.iw_polys instead.
         try:
             from floorplan.layout import compute_interior_layout
             self.layout = compute_interior_layout(self.pts, self.inner_poly)
         except Exception:
             self.layout = None
+
+        # DB-driven IW polygons — populated by build_generator_data() when
+        # db_path is available.  Span generators prefer these over layout.
+        self.iw_polys = None
 
         # Openings (parametric on outline segments) for wall section enumeration
         if db_openings is not None:
@@ -678,6 +683,11 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
     geometry from the database and returns a GeneratorData with native
     Python objects ready for rendering.
 
+    When db_path is provided, calls compute_geometry() once (with chain_rows
+    so F-series points are DB-driven) to populate:
+      - db_openings: DB-driven outer opening positions for wall sections
+      - gd.iw_polys: DB-driven interior wall polygons for span generators
+
     overrides — dict {seg_index: [sub-segment dicts]} of inner wall
                 overrides.  If None and db_path is set, loads from DB.
     """
@@ -689,26 +699,25 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
         from app.database import get_inner_wall_overrides
         overrides = get_inner_wall_overrides(db_path)
 
-    # Load DB-driven outer openings when db_path is available
+    # Compute DB-driven geometry once for outer openings + IW polys
     db_openings = None
+    iw_polys = None
     if db_path is not None:
-        db_openings = _load_db_outer_openings(constants_dict, db_path)
+        try:
+            from app.engine import compute_geometry
+            geom = compute_geometry(constants_dict, variant="standard",
+                                    chain_rows=chain_rows, db_path=db_path)
+            db_openings = geom.get("outer_openings", [])
+            iw_polys = {
+                name: data["poly"]
+                for name, data in geom.get("interior_walls", {}).items()
+                if "poly" in data
+            }
+        except Exception:
+            pass
 
-    return GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict,
-                         overrides=overrides, db_openings=db_openings)
-
-
-def _load_db_outer_openings(constants_dict, db_path):
-    """Load outer opening geometry from DB via formula evaluator.
-
-    Returns list of dicts with name, seg_start, seg_end, poly — or None
-    if loading fails.
-    """
-    try:
-        from app.engine import compute_geometry
-        from app.database import get_constants_dict
-        geom = compute_geometry(constants_dict, variant="standard",
-                                db_path=db_path)
-        return geom.get("outer_openings", [])
-    except Exception:
-        return None
+    gd = GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict,
+                       overrides=overrides, db_openings=db_openings)
+    if iw_polys:
+        gd.iw_polys = iw_polys
+    return gd

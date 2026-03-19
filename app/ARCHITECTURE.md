@@ -8,6 +8,28 @@ the parametric building design.  All element geometry (walls, openings,
 furniture, appliances) is computed by the FormulaEvaluator from
 database-stored JSON formulas (Phase 12h: procedural baselines eliminated).
 
+### DB Authority
+
+**The SQLite database (`app/adu.db`) is the sole source of truth for all
+building geometry and dimensions.**
+
+The `floorplan/` Python modules (`constants.py`, `geometry.py`, `layout.py`,
+`openings.py`) are **seed/reference sources only**.  They are used in exactly
+one context: populating a fresh database via File → Reset Database.  They are
+never consulted during normal operation, SVG generation, or the `gen_all.py`
+regeneration workflow.
+
+Implications:
+- `gen_all.py` builds `GeneratorData` from the DB and uses in-process
+  generation for all supported scripts.  Scripts without in-process handlers
+  (survey, SCAD) fall back to subprocess — acceptable because those derive
+  geometry from survey traversal / 3D model parameters, not DB formulas.
+- `compute_geometry()` must always receive `chain_rows` from the DB so that
+  F-series/W-series points reflect the live outline, not hardcoded constants.
+- `GeneratorData.iw_polys` provides DB-driven interior wall polygons for span
+  generators; `gd.layout` (from `compute_interior_layout()`) is a legacy
+  fallback retained only for the non-DB standalone path.
+
 ```
 Browser (HTML/CSS/JS)
     │  REST API (/api/*)
@@ -187,8 +209,8 @@ Also implements the inner wall override engine (Phase 15½).
 | Function / Class | Purpose |
 |------------------|---------|
 | `compute_native_geometry(constants, chain_rows, db_path)` | Shared steps 1-3: survey traverse, outline, inner walls.  Returns `(pts, outline_segs, inner_segs, radii)` as native objects.  Used by both `compute_geometry()` and `GeneratorData`. |
-| `build_generator_data(constants, chain_rows, db_path)` | Main entry point — builds `GeneratorData` from DB state |
-| `GeneratorData` | Contains `pts`, `outline_segs`, `inner_segs`, `radii`, `outline_poly`, `inner_poly`, `s_segs`, `g_segs`, `w_f8f9_poly`, `g_f8f9_poly`, `openings`, `wall_sections`, `roof`, `roof_poly`, `layout`, `constants`, `wall_t`, `outer_area`, `inner_area` |
+| `build_generator_data(constants, chain_rows, db_path)` | Main entry point — builds `GeneratorData` from DB state.  When `db_path` is provided, calls `compute_geometry()` once with `chain_rows` to populate both `openings` (DB-driven outer openings) and `iw_polys` (DB-driven interior wall polygons for span generators). |
+| `GeneratorData` | Contains `pts`, `outline_segs`, `inner_segs`, `radii`, `outline_poly`, `inner_poly`, `s_segs`, `g_segs`, `w_f8f9_poly`, `g_f8f9_poly`, `openings`, `wall_sections`, `roof`, `roof_poly`, `layout`, `iw_polys`, `constants`, `wall_t`, `outer_area`, `inner_area`.  **`iw_polys`** is a `{name: poly}` dict of formula-evaluated interior wall polygons (DB-driven); span generators prefer this over `layout.iwN.poly`.  **`layout`** is from `compute_interior_layout()` (hardcoded seed values) and is retained for the standalone subprocess path only. |
 | `walk_override_chain(chain, start_pt, start_bearing)` | Parametric chain walk: line (bearing+distance) and arc (radius+sweep CW/CCW) segments. Returns polyline. |
 | `compute_default_override(seg_index, inner_segs, pts, constants)` | Computes default parametric chain for a single inner wall segment. |
 | `compute_default_span_override(seg_index, span_end, ...)` | Computes default chain for a multi-segment span. |
