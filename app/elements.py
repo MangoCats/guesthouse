@@ -95,6 +95,13 @@ for _iw, _cname in IW_CONSTANT_MAP.items():
         CONSTANT_TO_IW.setdefault(_cname, []).append(_iw)
 del _iw, _cname
 
+# Maps IW wall name → constant_name that controls its span dimension
+# (the dimension perpendicular to the position-controlling axis).
+# Only populated for walls where that span is independently controllable.
+IW_WIDTH_CONST = {
+    "IW12": "IW4_GAP_IW11",  # IW12 E-W span = gap from IW11 east face to IW4 west face
+}
+
 
 def get_elements_for_variant(variant=None, db_path=None):
     """Return elements visible to a variant (variant=NULL or matching)."""

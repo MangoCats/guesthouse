@@ -2022,7 +2022,13 @@ function showProperties(type, name, data) {
       renderWallHandles(elemRec.id, props);
     } else {
       const b = data.bbox;
-      addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
+      const widthConstName = IW_WIDTH_CONST[name];
+      const widthConstObj = widthConstName && (App.state.constants || []).find(c => c.name === widthConstName);
+      if (widthConstObj) {
+        addPropRow(tbody, "Width", formatConstValue(widthConstObj), true, widthConstName);
+      } else {
+        addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
+      }
       addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
       addPropRow(tbody, "West", fmtFtIn(b.w));
       addPropRow(tbody, "South", fmtFtIn(b.s));
@@ -3148,6 +3154,11 @@ function findWidthConstant(openingName) {
 }
 
 /* ========== SEL-15: Constant Dependency Highlighting ========== */
+
+/** IW wall name → constant controlling its span dimension (width/height). */
+const IW_WIDTH_CONST = {
+  IW12: "IW4_GAP_IW11",  // E-W span = gap from IW11 east face to IW4 west face
+};
 
 /** Reverse map: constant name → IW wall names that depend on it. */
 const CONSTANT_TO_IW = {};
