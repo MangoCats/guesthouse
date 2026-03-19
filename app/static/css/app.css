@@ -1040,6 +1040,38 @@ tr.outline-selected td { background: var(--selection); }
 .status-sep { color: var(--text-dim); opacity: 0.4; }
 .dropdown .shortcut { float: right; color: var(--text-dim); font-size: 11px; margin-left: 16px; }
 
+/* ========== REBASE MODAL ========== */
+.rebase-modal {
+  background: var(--surface0); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; min-width: 480px; max-width: 680px;
+  max-height: 80vh; overflow-y: auto; color: var(--text);
+}
+.rebase-modal h3 { margin: 0 0 8px; font-size: 14px; }
+.rebase-desc { font-size: 11px; color: var(--text-dim); margin: 0 0 8px; }
+.rebase-formula-editor {
+  width: 100%; min-height: 120px; box-sizing: border-box;
+  background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); font-family: monospace; font-size: 11px;
+  padding: 6px; border-radius: 4px; resize: vertical;
+}
+.rebase-formula-editor:focus { border-color: var(--accent); outline: none; }
+.rebase-results { margin: 8px 0; }
+.rebase-ok { color: var(--green); font-size: 12px; margin: 4px 0; }
+.rebase-cycle-warning {
+  color: var(--yellow); font-size: 12px; margin: 4px 0; font-weight: 600;
+}
+.rebase-res-title { font-size: 11px; color: var(--text-dim); margin: 8px 0 4px; }
+.rebase-res-row { margin: 6px 0; }
+.rebase-res-label { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+.rebase-res-editor {
+  width: 100%; min-height: 80px; box-sizing: border-box;
+  background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); font-family: monospace; font-size: 10px;
+  padding: 4px; border-radius: 4px; resize: vertical;
+}
+.rebase-error { color: var(--red); font-size: 12px; margin: 4px 0; }
+.rebase-btnbar { display: flex; gap: 8px; margin-top: 10px; }
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1000px) {
   :root { --palette-w: 50px; --panel-w: 240px; }

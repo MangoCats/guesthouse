@@ -2595,6 +2595,147 @@ def create_app(db_path=None):
         rows = db_get_dependents(element_name, dep_type=dep_type, db_path=db)
         return jsonify([dict(r) for r in rows])
 
+    @app.route("/api/formula-rebase-preview", methods=["POST"])
+    def api_formula_rebase_preview():
+        """Preview cycle impact of a proposed formula change without committing.
+
+        Returns cycle detection result and proposed literal four_corner
+        resolutions for each element that would form a cycle.
+        """
+        body = request.get_json(force=True)
+        element_name = body.get("element_name")
+        param_name = body.get("param_name", "position")
+        formula_json = body.get("formula")
+        variant = body.get("variant")
+
+        if not element_name or formula_json is None:
+            return jsonify({"error": "missing element_name or formula"}), 400
+
+        if isinstance(formula_json, str):
+            try:
+                formula_json = json.loads(formula_json)
+            except Exception as exc:
+                return jsonify({"error": f"Invalid JSON: {exc}"}), 400
+
+        from app.evaluator import FormulaEvaluator, CycleError, extract_deps
+        ev = FormulaEvaluator({}, {}, [], {})
+        all_formulas = get_all_formulas(variant=variant, db_path=db)
+        for row in all_formulas:
+            if (row["element_name"].upper() == element_name.upper()
+                    and row["param_name"] == param_name):
+                continue
+            ev.add_formula(row["element_name"], row["param_name"],
+                           row["formula_json"])
+        ev.add_formula(element_name, param_name, formula_json)
+
+        try:
+            ev.topo_sort()
+            return jsonify({"ok": True, "cycle": False,
+                            "cycle_path": [], "resolutions": []})
+        except CycleError as ce:
+            cycle_nodes = ce.args[0] if ce.args else set()
+            cycle_path = sorted(f"{e}/{p}" for e, p in cycle_nodes)
+            resolutions = []
+            for cyclic_elem in sorted({e for e, p in cycle_nodes}):
+                if cyclic_elem.upper() == element_name.upper():
+                    continue
+                elem_data = _evaluate_element(cyclic_elem, variant or "standard")
+                poly = elem_data.get("poly", []) if elem_data else []
+                curr_formulas = get_element_formulas(cyclic_elem,
+                                                     variant=variant,
+                                                     db_path=db)
+                old_formula = None
+                for f in curr_formulas:
+                    if f["param_name"] == "position":
+                        fj = f["formula_json"]
+                        old_formula = (json.loads(fj)
+                                       if isinstance(fj, str) else fj)
+                        break
+                if len(poly) >= 4:
+                    proposed = {
+                        "type": "four_corner",
+                        "sw": [round(poly[0][0], 6), round(poly[0][1], 6)],
+                        "se": [round(poly[1][0], 6), round(poly[1][1], 6)],
+                        "ne": [round(poly[2][0], 6), round(poly[2][1], 6)],
+                        "nw": [round(poly[3][0], 6), round(poly[3][1], 6)],
+                    }
+                    resolutions.append({
+                        "element_name": cyclic_elem,
+                        "param_name": "position",
+                        "old_formula": old_formula,
+                        "new_formula": proposed,
+                        "description": (f"Anchor {cyclic_elem} to its current"
+                                        f" computed position (literal)"),
+                    })
+                else:
+                    resolutions.append({
+                        "element_name": cyclic_elem,
+                        "param_name": "position",
+                        "old_formula": old_formula,
+                        "new_formula": None,
+                        "description": (f"Cannot compute position for "
+                                        f"{cyclic_elem} — edit manually"),
+                    })
+            return jsonify({"ok": True, "cycle": True,
+                            "cycle_path": cycle_path,
+                            "resolutions": resolutions})
+
+    @app.route("/api/formulas-batch", methods=["POST"])
+    def api_formulas_batch():
+        """Atomically apply multiple formula changes (used by cycle wizard)."""
+        body = request.get_json(force=True)
+        changes = body.get("changes", [])
+        if not changes:
+            return jsonify({"error": "no changes provided"}), 400
+
+        from app.evaluator import FormulaEvaluator, CycleError, extract_deps
+        # Normalise formula values
+        normalised = []
+        for c in changes:
+            formula = c.get("formula")
+            if isinstance(formula, str):
+                try:
+                    formula = json.loads(formula)
+                except Exception as exc:
+                    return jsonify({"error": f"Invalid JSON for "
+                                   f"{c.get('element_name')}: {exc}"}), 400
+            normalised.append({**c, "formula": formula})
+
+        # Final cycle check with all proposed changes applied
+        variant = normalised[0].get("variant") if normalised else None
+        all_formulas = get_all_formulas(variant=variant, db_path=db)
+        change_keys = {(c["element_name"].upper(), c["param_name"])
+                       for c in normalised}
+        ev = FormulaEvaluator({}, {}, [], {})
+        for row in all_formulas:
+            if (row["element_name"].upper(), row["param_name"]) not in change_keys:
+                ev.add_formula(row["element_name"], row["param_name"],
+                               row["formula_json"])
+        for c in normalised:
+            ev.add_formula(c["element_name"], c["param_name"], c["formula"])
+        try:
+            ev.topo_sort()
+        except CycleError as ce:
+            nodes = sorted(f"{e}/{p}"
+                           for e, p in (ce.args[0] if ce.args else set()))
+            return jsonify({"error": f"Cycle still present: "
+                           f"{', '.join(nodes)}"}), 400
+
+        applied = []
+        for c in normalised:
+            elem_name = c["element_name"]
+            param_name = c["param_name"]
+            c_variant = c.get("variant")
+            upsert_formula(elem_name, param_name, c["formula"],
+                           variant=c_variant, db_path=db)
+            deps = extract_deps(c["formula"])
+            rebuild_formula_deps(elem_name, param_name, list(deps), db_path=db)
+            applied.append(f"{elem_name}/{param_name}")
+
+        _broadcast("element_changed")
+        _invalidate()
+        return jsonify({"ok": True, "applied": applied})
+
     @app.route("/api/deps/graph")
     def api_deps_graph():
         """Return the full formula dependency DAG as nodes and edges."""
