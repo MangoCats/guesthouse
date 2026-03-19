@@ -1408,6 +1408,12 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         constants_dict = gd.constants
         doors_data = get_all_doors(db_path) if db_path else []
 
+        # Load chain_rows from DB so compute_geometry uses DB-driven outline
+        # geometry (F-series points) rather than hardcoded floorplan/constants.py.
+        # Without this, dimension anchor resolution uses stale F-series positions.
+        from app.database import get_outline_chain
+        chain_rows = get_outline_chain(db_path) if db_path else None
+
         # Fetch fixture connections once for plumbing variant
         fc_elems = [e for e in get_plumbing_elements(db_path)
                     if e["type"] == "fixture_connection"]
@@ -1415,6 +1421,7 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         for suffix, variant, room_title in _VARIANTS:
             geom = compute_geometry(
                 constants_dict, variant=variant,
+                chain_rows=chain_rows,
                 doors_data=doors_data, db_path=db_path)
             bdy = boundary if variant == "plumbing" else None
             if variant == "plumbing":
