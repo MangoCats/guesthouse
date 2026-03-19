@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS outline_chain (
     center_name TEXT,               -- arc center point name
     n_pts       INTEGER DEFAULT 60, -- arc discretisation
     end_name    TEXT NOT NULL,       -- produced point name
-    flex        TEXT DEFAULT NULL    -- solved param: 'distance','radius','sweep', or NULL
+    flex        TEXT DEFAULT NULL,   -- solved param: 'distance','radius','sweep', or NULL
+    bearing_flex INTEGER DEFAULT 0   -- 1 = line bearing may rotate (opt-in); 0 = fixed (default)
 );
 
 CREATE TABLE IF NOT EXISTS views (
@@ -320,6 +321,9 @@ def init_db(db_path=None):
                     conn.execute(
                         "UPDATE outline_chain SET flex = 'sweep' "
                         "WHERE seq = ?", (n - 1,))
+            if "bearing_flex" not in oc_cols:
+                conn.execute("ALTER TABLE outline_chain "
+                             "ADD COLUMN bearing_flex INTEGER DEFAULT 0")
             # Migrate element_formulas/formula_deps to COLLATE NOCASE
             _migrate_nocase_formulas(conn)
             # Migrate existing placed items: create formulas if missing
@@ -1737,7 +1741,7 @@ def get_outline_chain_row(seq, db_path=None):
 def update_outline_segment(seq, updates, db_path=None):
     """Update outline chain segment fields.  Returns updated row or None."""
     allowed = {"distance", "radius", "sweep", "sweep_name", "seg_type",
-               "center_name", "n_pts", "end_name"}
+               "center_name", "n_pts", "end_name", "bearing_flex"}
     sets = []
     vals = []
     for k, v in updates.items():
@@ -1771,13 +1775,13 @@ def insert_outline_segment(seq, row_data, db_path=None):
         conn.execute(
             "INSERT INTO outline_chain "
             "(seq, seg_type, distance, radius, sweep_name, sweep, "
-            "center_name, n_pts, end_name, flex) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "center_name, n_pts, end_name, flex, bearing_flex) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (seq, row_data["seg_type"], row_data.get("distance"),
              row_data.get("radius"), row_data.get("sweep_name"),
              row_data.get("sweep"), row_data.get("center_name"),
              row_data.get("n_pts", 60), row_data["end_name"],
-             row_data.get("flex")),
+             row_data.get("flex"), row_data.get("bearing_flex", 0)),
         )
     return get_outline_chain_row(seq, db_path)
 
@@ -1821,13 +1825,13 @@ def restore_outline_chain(snapshot, db_path=None):
             conn.execute(
                 "INSERT INTO outline_chain "
                 "(seq, seg_type, distance, radius, sweep_name, sweep, "
-                "center_name, n_pts, end_name, flex) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "center_name, n_pts, end_name, flex, bearing_flex) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (row["seq"], row["seg_type"], row.get("distance"),
                  row.get("radius"), row.get("sweep_name"),
                  row.get("sweep"), row.get("center_name"),
                  row.get("n_pts", 60), row["end_name"],
-                 row.get("flex")),
+                 row.get("flex"), row.get("bearing_flex", 0)),
             )
 
 

@@ -984,6 +984,15 @@ tr.outline-selected td { background: var(--selection); }
   width: 30px;
 }
 
+/* ========== BEARING FLEX ========== */
+.td-bearing-flex { text-align: center; padding: 0 2px; }
+.bearing-flex-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; color: var(--text-dim); padding: 0 2px;
+}
+.bearing-flex-btn.active { color: var(--yellow, #e5c890); }
+.bearing-flex-btn:hover { color: var(--text); }
+
 /* ========== INNER WALL OVERRIDES ========== */
 .td-override { text-align: center; padding: 0 2px; }
 .override-btn {

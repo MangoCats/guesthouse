@@ -4101,6 +4101,39 @@ async function loadOutlineTable() {
     tdEnd.textContent = seg.end_name;
     tr.appendChild(tdEnd);
 
+    // Bearing flex column — toggle for line segments only
+    const tdBrg = document.createElement("td");
+    tdBrg.className = "td-bearing-flex";
+    if (seg.seg_type === "L") {
+      const btn = document.createElement("button");
+      btn.className = "bearing-flex-btn" + (seg.bearing_flex ? " active" : "");
+      btn.textContent = seg.bearing_flex ? "\u21C4" : "\u2014";
+      btn.title = seg.bearing_flex
+        ? "Bearing is flexible — click to fix"
+        : "Bearing is fixed — click to allow flex";
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const newVal = seg.bearing_flex ? 0 : 1;
+        try {
+          const resp = await apiFetch(`/api/outline/segment/${seg.seq}/bearing-flex`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bearing_flex: newVal }),
+          });
+          if (!resp.ok) {
+            const data = await resp.json();
+            showToast(data.error || "Failed to update bearing flex", "error");
+            return;
+          }
+          await loadOutlineTable();
+        } catch (err) {
+          showToast(`Error: ${err.message}`, "error");
+        }
+      });
+      tdBrg.appendChild(btn);
+    }
+    tr.appendChild(tdBrg);
+
     // W Override column — shows button if override exists or to add one
     const tdOv = document.createElement("td");
     tdOv.className = "td-override";
@@ -4762,15 +4795,30 @@ function showFlexSwapDialog(currentSeq, currentParam, chain) {
     else if (sB.includes(currentSeq)) allowedSeqs = new Set(sB);
   }
 
+  // For sweep flex candidates: find which arcs have no fixed-bearing lines
+  // downstream (within the allowed section).
+  // A fixed-bearing line is a line with bearing_flex == 0.
+  const sectionChain = allowedSeqs
+    ? chain.filter(s => allowedSeqs.has(s.seq))
+    : chain;
+  const lastFixedBearingIdx = sectionChain.reduce((last, seg, i) =>
+    (seg.seg_type === "L" && !seg.bearing_flex) ? i : last, -1);
+  const validSweepSeqs = new Set(
+    sectionChain
+      .filter((seg, i) => seg.seg_type !== "L" && i > lastFixedBearingIdx)
+      .map(seg => seg.seq)
+  );
+
   for (const seg of chain) {
     if (seg.seq === currentSeq) continue;
     if (seg.flex) continue; // already flex for something else
     if (allowedSeqs && !allowedSeqs.has(seg.seq)) continue;
 
     if (isSweepFlex) {
-      // Can only swap sweep flex to another arc
-      if (seg.seg_type !== "L") {
-        candidates.push({ seq: seg.seq, label: `Seg ${seg.seq} (${seg.seg_type} → ${seg.end_name})`, param: "sweep" });
+      // Can only swap sweep flex to another arc that respects fixed bearings
+      if (seg.seg_type !== "L" && validSweepSeqs.has(seg.seq)) {
+        const warn = validSweepSeqs.has(seg.seq) ? "" : " ⚠ shifts bearings";
+        candidates.push({ seq: seg.seq, label: `Seg ${seg.seq} (${seg.seg_type} → ${seg.end_name})${warn}`, param: "sweep" });
       }
     } else {
       // Positional flex: can swap to any line's distance or any arc's radius

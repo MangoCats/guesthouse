@@ -1444,6 +1444,28 @@ def create_app(db_path=None):
                   for k, v in solver.solved_values.items()}
         return jsonify({"ok": True, "solved_values": solved})
 
+    @app.route("/api/outline/segment/<int:seq>/bearing-flex", methods=["PUT"])
+    def api_set_bearing_flex(seq):
+        """Toggle bearing_flex on a line segment (opt-in flexible bearing)."""
+        body = request.get_json(force=True)
+        value = 1 if body.get("bearing_flex") else 0
+
+        chain_rows = get_outline_chain(db)
+        seg = next((r for r in chain_rows if r["seq"] == seq), None)
+        if seg is None:
+            return jsonify({"error": f"Segment {seq} not found"}), 404
+        if seg["seg_type"] != "L":
+            return jsonify({"error": "bearing_flex only applies to line segments"}), 400
+
+        before_chain = chain_rows
+        update_outline_segment(seq, {"bearing_flex": value}, db)
+        after_chain = get_outline_chain(db)
+        undo_mgr.record("outline_update", before_chain, after_chain,
+                        f"Set bearing_flex={value} on seg {seq}")
+        _invalidate()
+        _broadcast("outline_changed")
+        return jsonify({"ok": True, "seq": seq, "bearing_flex": value})
+
     @app.route("/api/outline/pivot", methods=["GET"])
     def api_get_pivot():
         """Return current anchor/pivot state."""
