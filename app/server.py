@@ -196,11 +196,14 @@ def create_app(db_path=None):
             return None
         return ev.elements.get(elem_name)
 
-    def _solve_and_update_closure(edited_seq=None):
+    def _solve_and_update_closure(edited_seq=None, pre_edit_rows=None):
         """Re-solve closure and update solved values in DB.
 
         If a pivot is active and edited_seq is provided, only solves the
         section containing edited_seq.  Otherwise, full-chain closure.
+
+        pre_edit_rows: chain rows from BEFORE the edit was applied, used to
+        compute correct anchor/pivot target positions for pivot-aware solve.
 
         Returns (solver, chain_rows) on success.
         Returns (solver, None) if closure is invalid.
@@ -236,20 +239,20 @@ def create_app(db_path=None):
                     F2_E = constants.get("F2_EASTING", -18.5)
                     F2_N = constants.get("F2_NORTHING", -13.5) + R_a1
 
-                    # First do a whole-chain solve to get current positions
-                    pre_flex = flex_specs_from_chain_rows(chain_rows)
-                    pre_solve = solve_closure_general(chain, pre_flex)
-                    if pre_solve.valid:
-                        pre_chain = list(chain)
-                        for sq, (p, v) in pre_solve.solved_values.items():
-                            pre_chain[sq] = pre_chain[sq]._replace(**{p: v})
+                    # Use pre-edit chain for target positions (the
+                    # fully-solved state before the user's edit).
+                    # Walking the post-edit chain gives wrong positions
+                    # because flex values haven't been updated yet.
+                    if pre_edit_rows is not None:
+                        ref_chain = db_rows_to_chain(pre_edit_rows)
                     else:
-                        pre_chain = chain
+                        ref_chain = chain
 
                     solver = solve_with_pivot(
                         chain, a_start, p_start,
                         a_flex, b_flex, edited_seq,
-                        F2_E, F2_N)
+                        F2_E, F2_N,
+                        ref_chain=ref_chain)
                     if not solver.valid:
                         return solver, None
                     for seq, (param, value) in solver.solved_values.items():
@@ -1306,7 +1309,8 @@ def create_app(db_path=None):
         update_outline_segment(seq, updates, db)
 
         # Re-solve closure
-        solver, _ = _solve_and_update_closure(edited_seq=seq)
+        solver, _ = _solve_and_update_closure(
+            edited_seq=seq, pre_edit_rows=before_chain)
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({

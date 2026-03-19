@@ -521,7 +521,8 @@ def solve_subchain(subchain, flex_specs, target_dE, target_dN,
 
 def solve_with_pivot(chain, anchor_start, pivot_start,
                      section_a_flex, section_b_flex,
-                     edited_seq, start_E, start_N, start_brg=0.0):
+                     edited_seq, start_E, start_N, start_brg=0.0,
+                     ref_chain=None):
     """Solve the section containing the edited segment, keeping the other fixed.
 
     anchor_start: seq index where section A begins (seg after anchor point)
@@ -529,14 +530,17 @@ def solve_with_pivot(chain, anchor_start, pivot_start,
     section_a_flex: 3 FlexSpec with original (full-chain) seq indices
     section_b_flex: 3 FlexSpec with original (full-chain) seq indices
     edited_seq: which segment was edited (original seq index)
+    ref_chain: pre-edit chain used to compute target positions (if None, uses chain)
 
     Returns SolverResult with solved_values keyed by original seq indices.
     """
     n = len(chain)
     a_seqs, b_seqs = section_seqs(anchor_start, pivot_start, n)
 
-    # Walk full chain to get positions and bearings at anchor and pivot
-    wr = walk_chain(chain, start_E, start_N, start_brg)
+    # Walk the REFERENCE chain (pre-edit, fully solved) to get correct
+    # target positions for anchor and pivot points.
+    walk_src = ref_chain if ref_chain is not None else chain
+    wr = walk_chain(walk_src, start_E, start_N, start_brg)
 
     # Find anchor and pivot point names
     anchor_point_seq = (anchor_start - 1) % n
@@ -564,10 +568,10 @@ def solve_with_pivot(chain, anchor_start, pivot_start,
     # Bearing at pivot_start = bearing after walking segs 0..pivot_start-1
     # But we need cumulative bearing from the chain start (seq 0).
 
-    # Compute bearing at every seq boundary
+    # Compute bearing at every seq boundary using the reference chain
     bearings = [start_brg]  # bearing at start of seq 0
     brg = start_brg
-    for seg in chain:
+    for seg in walk_src:
         if seg.seg_type == "CW":
             brg += seg.sweep
         elif seg.seg_type == "CCW":
