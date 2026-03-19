@@ -2160,10 +2160,11 @@ function showProperties(type, name, data) {
       addProductUrlField(tbody, _elemRec, _props);
       addElementActions(tbody, _elemRec);
     } else {
-      // No DB record — show product URL (if any) + formula-aware delete
+      // No DB record — show product URL (if any) + formula section + delete
       if (data && data.product_url) {
         addProductUrlField(tbody, null, { product_url: data.product_url });
       }
+      addFormulaSection(tbody, name);
       addFormulaDeleteButton(tbody, name);
     }
   } else if (type === "dimension") {

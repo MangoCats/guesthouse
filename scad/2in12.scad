@@ -461,10 +461,10 @@ color(window_blue_grey) {
   translate([0, 0, lower_height])
     linear_extrude(height = middle_height)
       polygon(points = [[-7.83333367, 11.04166667], [-2.16666700, 11.04166667], [-2.16666700, 10.95833333], [-7.83333367, 10.95833333]]);
-  // O9
+  // O11
   translate([0, 0, lower_height])
     linear_extrude(height = middle_height)
-      polygon(points = [[5.33333367, -13.20833333], [3.25000033, -13.20833333], [3.25000033, -13.12500000], [5.33333367, -13.12500000]]);
+      polygon(points = [[-11.66666633, -13.20833333], [-13.24999967, -13.20833333], [-13.24999967, -13.12500000], [-11.66666633, -13.12500000]]);
   // O10
   translate([0, 0, lower_height])
     linear_extrude(height = middle_height)
@@ -473,10 +473,10 @@ color(window_blue_grey) {
   translate([0, 0, lower_height])
     linear_extrude(height = middle_height)
       polygon(points = [[10.91666700, -13.20833333], [9.33333367, -13.20833333], [9.33333367, -13.12500000], [10.91666700, -13.12500000]]);
-  // O11
+  // O9
   translate([0, 0, lower_height])
     linear_extrude(height = middle_height)
-      polygon(points = [[-11.66666633, -13.20833333], [-13.24999967, -13.20833333], [-13.24999967, -13.12500000], [-11.66666633, -13.12500000]]);
+      polygon(points = [[5.33333367, -13.20833333], [3.25000033, -13.20833333], [3.25000033, -13.12500000], [5.33333367, -13.12500000]]);
   // O8
   translate([0, 0, lower_height])
     linear_extrude(height = middle_height)
