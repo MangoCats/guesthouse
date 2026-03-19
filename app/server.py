@@ -1954,6 +1954,8 @@ def create_app(db_path=None):
             p = db + ext
             if os.path.exists(p):
                 os.remove(p)
+        # Run migrations on the loaded DB (adds any missing columns/tables)
+        init_db(db)
         # Set config name in the loaded DB
         set_config("config_name", name, db)
         _invalidate()
