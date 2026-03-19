@@ -2324,13 +2324,39 @@ def create_app(db_path=None):
         if not formula_json:
             return jsonify({"error": "missing formula"}), 400
         variant = body.get("variant")
+
+        # Normalise: accept JSON string or pre-parsed dict
+        if isinstance(formula_json, str):
+            try:
+                import json as _json
+                formula_json = _json.loads(formula_json)
+            except Exception as exc:
+                return jsonify({"error": f"Invalid JSON: {exc}"}), 400
+
+        # Cycle-detection: build a temporary evaluator substituting the new formula
+        from app.evaluator import FormulaEvaluator, CycleError, extract_deps
+        try:
+            ev = FormulaEvaluator({}, {}, [], {})
+            for row in get_all_formulas(variant=variant, db_path=db):
+                if (row["element_name"].upper() == element_name.upper()
+                        and row["param_name"] == param_name):
+                    continue  # will be replaced
+                ev.add_formula(row["element_name"], row["param_name"],
+                               row["formula_json"])
+            ev.add_formula(element_name, param_name, formula_json)
+            ev.topo_sort()
+        except CycleError as ce:
+            nodes = sorted(f"{e}/{p}" for e, p in (ce.args[0] if ce.args else set()))
+            return jsonify({"error": f"Cycle detected involving: {', '.join(nodes)}"}), 400
+        except Exception:
+            pass  # evaluator init errors are non-fatal at this stage
+
         try:
             result = upsert_formula(element_name, param_name, formula_json,
                                     variant=variant, db_path=db)
         except Exception as exc:
             return jsonify({"error": str(exc)}), 400
         # Rebuild dependency cache
-        from app.evaluator import extract_deps
         deps = extract_deps(formula_json)
         rebuild_formula_deps(element_name, param_name, deps, db_path=db)
         _broadcast("element_changed")

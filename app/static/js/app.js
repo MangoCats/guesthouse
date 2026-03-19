@@ -2998,7 +2998,7 @@ function addOpeningDeleteButton(tbody, openingName) {
   tbody.appendChild(tr);
 }
 
-/** Phase 12b: Show formula section in properties panel for elements with formulas. */
+/** General-purpose formula editor section for any element with a formula. */
 async function addFormulaSection(tbody, elemName) {
   try {
     const resp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}`);
@@ -3009,11 +3009,12 @@ async function addFormulaSection(tbody, elemName) {
     addPropRow(tbody, "\u2014", "Formula");
 
     for (const f of formulas) {
-      const fj = typeof f.formula_json === "string" ? JSON.parse(f.formula_json) : f.formula_json;
+      const fj = typeof f.formula_json === "string"
+        ? JSON.parse(f.formula_json) : f.formula_json;
       addPropRow(tbody, "Type", fj.type || "unknown");
       addPropRow(tbody, "Param", f.param_name);
 
-      // Lock toggle
+      // ── Lock toggle ──────────────────────────────────────────────────────
       const lockTr = document.createElement("tr");
       const lockTd1 = document.createElement("td");
       lockTd1.textContent = f.locked ? "\u{1F512} Locked" : "\u{1F513} Unlocked";
@@ -3026,24 +3027,126 @@ async function addFormulaSection(tbody, elemName) {
         ? "Unlock: allow upstream changes to propagate"
         : "Lock: freeze at current computed value";
       lockBtn.addEventListener("click", async () => {
-        const newLocked = !f.locked;
-        await fetch(`/api/formulas/${encodeURIComponent(elemName)}/${f.param_name}/lock`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ locked: newLocked, locked_value: null }),
-        });
+        await fetch(
+          `/api/formulas/${encodeURIComponent(elemName)}/${f.param_name}/lock`,
+          { method: "POST", headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ locked: !f.locked, locked_value: null }) }
+        );
         await loadGeometry();
-        // Re-show properties to refresh lock state
-        if (App.state.selection && App.state.selection.name === elemName) {
+        if (App.state.selection && App.state.selection.name === elemName)
           showProperties(App.state.selection.type, elemName, App.state.selection.data);
-        }
       });
       lockTd2.appendChild(lockBtn);
       lockTr.appendChild(lockTd2);
       tbody.appendChild(lockTr);
+
+      // ── Edit Formula button ───────────────────────────────────────────────
+      const editTr = document.createElement("tr");
+      const editTd = document.createElement("td");
+      editTd.colSpan = 2;
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "prop-btn formula-edit-toggle";
+      editBtn.textContent = "Edit Formula…";
+
+      // ── Formula editor (hidden until Edit is clicked) ─────────────────────
+      const editorWrap = document.createElement("div");
+      editorWrap.className = "formula-editor-wrap";
+      editorWrap.style.display = "none";
+
+      const textarea = document.createElement("textarea");
+      textarea.className = "formula-editor-textarea";
+      textarea.spellcheck = false;
+      textarea.value = JSON.stringify(fj, null, 2);
+
+      const errDiv = document.createElement("div");
+      errDiv.className = "formula-editor-error";
+
+      const btnBar = document.createElement("div");
+      btnBar.className = "formula-editor-btnbar";
+
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "prop-btn formula-save-btn";
+      saveBtn.textContent = "Save";
+
+      const resetBtn = document.createElement("button");
+      resetBtn.className = "prop-btn";
+      resetBtn.textContent = "Reset";
+      resetBtn.title = "Restore editor to current saved formula";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "prop-btn";
+      cancelBtn.textContent = "Cancel";
+
+      btnBar.appendChild(saveBtn);
+      btnBar.appendChild(resetBtn);
+      btnBar.appendChild(cancelBtn);
+      editorWrap.appendChild(textarea);
+      editorWrap.appendChild(errDiv);
+      editorWrap.appendChild(btnBar);
+
+      editBtn.addEventListener("click", () => {
+        const visible = editorWrap.style.display !== "none";
+        editorWrap.style.display = visible ? "none" : "";
+        editBtn.textContent = visible ? "Edit Formula\u2026" : "Hide Editor";
+        if (!visible) textarea.focus();
+      });
+
+      resetBtn.addEventListener("click", () => {
+        textarea.value = JSON.stringify(fj, null, 2);
+        errDiv.textContent = "";
+      });
+
+      cancelBtn.addEventListener("click", () => {
+        editorWrap.style.display = "none";
+        editBtn.textContent = "Edit Formula\u2026";
+        errDiv.textContent = "";
+      });
+
+      saveBtn.addEventListener("click", async () => {
+        errDiv.textContent = "";
+        let newFormula;
+        try {
+          newFormula = JSON.parse(textarea.value);
+        } catch (e) {
+          errDiv.textContent = `JSON syntax error: ${e.message}`;
+          return;
+        }
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving\u2026";
+        try {
+          const putResp = await fetch(
+            `/api/formulas/${encodeURIComponent(elemName)}/${encodeURIComponent(f.param_name)}`,
+            { method: "PUT",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({ formula: newFormula, variant: f.variant ?? null }) }
+          );
+          const result = await putResp.json();
+          if (!putResp.ok) {
+            errDiv.textContent = result.error || "Save failed";
+          } else {
+            editorWrap.style.display = "none";
+            editBtn.textContent = "Edit Formula\u2026";
+            await loadGeometry();
+            if (App.state.selection && App.state.selection.name === elemName)
+              showProperties(App.state.selection.type, elemName, App.state.selection.data);
+            showToast(`Formula saved for ${elemName}`, "success");
+          }
+        } catch (e) {
+          errDiv.textContent = `Error: ${e.message}`;
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      });
+
+      editTd.appendChild(editBtn);
+      editTd.appendChild(editorWrap);
+      editTr.appendChild(editTd);
+      tbody.appendChild(editTr);
     }
 
-    // Dependencies
+    // ── Dependencies ─────────────────────────────────────────────────────────
     const depsResp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}/deps`);
     if (depsResp.ok) {
       const deps = await depsResp.json();
@@ -3053,7 +3156,7 @@ async function addFormulaSection(tbody, elemName) {
       }
     }
 
-    // Dependents
+    // ── Dependents ───────────────────────────────────────────────────────────
     const deptsResp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}/dependents`);
     if (deptsResp.ok) {
       const depts = await deptsResp.json();
