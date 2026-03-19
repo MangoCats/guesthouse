@@ -95,21 +95,30 @@ for _iw, _cname in IW_CONSTANT_MAP.items():
         CONSTANT_TO_IW.setdefault(_cname, []).append(_iw)
 del _iw, _cname
 
-# Span-dimension constants: IW wall name → constant controlling its secondary
-# (span) dimension, only for walls where that span is independently controllable.
+# Span-dimension constants: IW wall name → (property_label, constant_name).
+# Only for walls where the span is controlled by a single constant.
+# "width"  = the bbox E-W extent (horizontal span)
+# "height" = the bbox N-S extent (vertical span)
+# Note: some span constants are shared with another wall's "position" constant
+# (e.g. IW3_OFFSET_IW9 positions IW9 and sets IW7's width; IW4_GAP_IW11
+#  positions IW4 and sets IW12's width). That coupling is by design.
 _IW_SPAN_CONST = {
-    "IW12": "IW4_GAP_IW11",  # IW12 E-W span = gap from IW11 east face to IW4 west face
+    "IW2":  ("height", "IW2_LENGTH"),      # N-S span (V wall)
+    "IW2S": ("height", "IW2S_LENGTH"),     # N-S span (V wall)
+    "IW7":  ("width",  "IW3_OFFSET_IW9"), # E-W span = gap IW3.SE→IW9.SW
+    "IW12": ("width",  "IW4_GAP_IW11"),   # E-W span = gap IW11.SE→IW4.SW
 }
 
 # Combined property map: IW wall name → {property_label: constant_name}.
 # Stored in elements.properties["prop_constants"] so the UI is DB-driven.
+# Seeding source only — the live value lives in the DB.
 IW_PROP_CONSTANTS = {}
 for _iw, _cname in IW_CONSTANT_MAP.items():
     if _cname:
         IW_PROP_CONSTANTS.setdefault(_iw, {})["position"] = _cname
-for _iw, _cname in _IW_SPAN_CONST.items():
-    IW_PROP_CONSTANTS.setdefault(_iw, {})["width"] = _cname
-del _iw, _cname
+for _iw, (_prop, _cname) in _IW_SPAN_CONST.items():
+    IW_PROP_CONSTANTS.setdefault(_iw, {})[_prop] = _cname
+del _iw, _cname, _prop
 
 
 def get_elements_for_variant(variant=None, db_path=None):

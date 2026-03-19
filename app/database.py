@@ -530,7 +530,8 @@ def _migrate_placed_item_formulas(conn):
 
 
 def _migrate_iw_prop_constants(conn):
-    """Add prop_constants to IW wall element records if missing (upgrade migration)."""
+    """Sync prop_constants for all IW wall records to the canonical IW_PROP_CONSTANTS
+    mapping (upgrade migration — runs on every startup for existing DBs)."""
     from app.elements import IW_PROP_CONSTANTS
     rows = conn.execute(
         "SELECT id, name, properties FROM elements "
@@ -542,8 +543,9 @@ def _migrate_iw_prop_constants(conn):
             props = json.loads(row["properties"]) if row["properties"] else {}
         except Exception:
             props = {}
-        if "prop_constants" not in props:
-            props["prop_constants"] = IW_PROP_CONSTANTS.get(name, {})
+        expected = IW_PROP_CONSTANTS.get(name, {})
+        if props.get("prop_constants") != expected:
+            props["prop_constants"] = expected
             conn.execute(
                 "UPDATE elements SET properties=? WHERE id=?",
                 (json.dumps(props), row["id"]),
