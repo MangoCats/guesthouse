@@ -416,6 +416,43 @@ def _compute_traverse_from_db(db_path=None):
     return pts
 
 
+def _db_openings_to_wall_openings(db_openings, outline_segs, pts):
+    """Convert DB-driven outer opening dicts to WallOpening objects.
+
+    Each db_opening has name, seg_start, seg_end, poly.  We find the
+    matching outline segment by (seg_start, seg_end) and compute
+    parametric positions from the first two polygon vertices.
+    """
+    from floorplan.openings import WallOpening
+
+    seg_map = {(seg.start, seg.end): i for i, seg in enumerate(outline_segs)}
+    result = []
+    for o in db_openings:
+        key = (o["seg_start"], o["seg_end"])
+        idx = seg_map.get(key)
+        if idx is None:
+            continue  # skip openings on segments not in current chain
+        seg = outline_segs[idx]
+        poly = o.get("poly", [])
+        if len(poly) < 2:
+            continue
+        # Compute parametric position along the segment
+        A = pts[seg.start]
+        B = pts[seg.end]
+        dx = B[0] - A[0]
+        dy = B[1] - A[1]
+        if abs(dx) < 1e-12 and abs(dy) < 1e-12:
+            continue
+        if abs(dx) > abs(dy):
+            t1 = (poly[0][0] - A[0]) / dx
+            t2 = (poly[1][0] - A[0]) / dx
+        else:
+            t1 = (poly[0][1] - A[1]) / dy
+            t2 = (poly[1][1] - A[1]) / dy
+        result.append(WallOpening(o["name"], idx, min(t1, t2), max(t1, t2)))
+    return result
+
+
 # ---------------------------------------------------------------------------
 # GeneratorData
 # ---------------------------------------------------------------------------
@@ -452,7 +489,7 @@ class GeneratorData:
     """
 
     def __init__(self, pts, outline_segs, inner_segs, radii, constants_dict,
-                 overrides=None):
+                 overrides=None, db_openings=None):
         self.pts = pts
         self.outline_segs = outline_segs
         self.inner_segs = inner_segs
@@ -465,7 +502,8 @@ class GeneratorData:
         self.outer_area = poly_area(self.outline_poly)
 
         # Shell geometry — modifies inner_poly with override splices
-        self._compute_shell_geometry(constants_dict, overrides=overrides)
+        self._compute_shell_geometry(constants_dict, overrides=overrides,
+                                     db_openings=db_openings)
 
         # Inner area computed after F8-F9 replacement (matches build_floorplan_data)
         self.inner_area = poly_area(self.inner_poly)
@@ -473,11 +511,15 @@ class GeneratorData:
         # Roof geometry (Phase 15-C)
         self._compute_roof_geometry()
 
-    def _compute_shell_geometry(self, constants_dict, overrides=None):
+    def _compute_shell_geometry(self, constants_dict, overrides=None,
+                                db_openings=None):
         """Compute S/G-series shell paths, F8-F9 polylines, and wall sections.
 
-        overrides — dict {seg_index: [sub-segment dicts]} from DB, or None
-                    to use the hardcoded f8f9_corner_polyline fallback.
+        overrides   — dict {seg_index: [sub-segment dicts]} from DB, or None
+                      to use the hardcoded f8f9_corner_polyline fallback.
+        db_openings — list of DB-driven outer opening dicts with keys
+                      name, seg_start, seg_end, poly.  When provided, these
+                      are used instead of hardcoded compute_outer_openings.
         """
         shell_t = constants_dict.get("SHELL_THICKNESS", 2.0 / 12.0)
         air_gap = constants_dict.get("AIR_GAP",
@@ -511,12 +553,23 @@ class GeneratorData:
         self.g_f8f9_poly = f8f9_corner_polyline(
             self.pts, shell_t + air_gap, opening_r)
 
+        # Layout — try hardcoded, fallback to None for DB-driven chains
+        try:
+            from floorplan.layout import compute_interior_layout
+            self.layout = compute_interior_layout(self.pts, self.inner_poly)
+        except Exception:
+            self.layout = None
+
         # Openings (parametric on outline segments) for wall section enumeration
-        from floorplan.layout import compute_interior_layout
-        self.layout = compute_interior_layout(self.pts, self.inner_poly)
-        outer_openings = compute_outer_openings(self.pts, self.layout)
-        self.openings = outer_to_wall_openings(
-            outer_openings, self.outline_segs, self.pts)
+        if db_openings is not None:
+            # DB-driven: convert DB opening dicts to WallOpening objects
+            self.openings = _db_openings_to_wall_openings(
+                db_openings, self.outline_segs, self.pts)
+        else:
+            # Legacy fallback: hardcoded openings (requires layout)
+            outer_openings = compute_outer_openings(self.pts, self.layout)
+            self.openings = outer_to_wall_openings(
+                outer_openings, self.outline_segs, self.pts)
 
         # Wall sections
         self.wall_sections = enumerate_wall_sections(
@@ -636,5 +689,26 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
         from app.database import get_inner_wall_overrides
         overrides = get_inner_wall_overrides(db_path)
 
+    # Load DB-driven outer openings when db_path is available
+    db_openings = None
+    if db_path is not None:
+        db_openings = _load_db_outer_openings(constants_dict, db_path)
+
     return GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict,
-                         overrides=overrides)
+                         overrides=overrides, db_openings=db_openings)
+
+
+def _load_db_outer_openings(constants_dict, db_path):
+    """Load outer opening geometry from DB via formula evaluator.
+
+    Returns list of dicts with name, seg_start, seg_end, poly — or None
+    if loading fails.
+    """
+    try:
+        from app.engine import compute_geometry
+        from app.database import get_constants_dict
+        geom = compute_geometry(constants_dict, variant="standard",
+                                db_path=db_path)
+        return geom.get("outer_openings", [])
+    except Exception:
+        return None
