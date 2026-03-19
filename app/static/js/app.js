@@ -3002,7 +3002,8 @@ function addOpeningDeleteButton(tbody, openingName) {
 /** General-purpose formula editor section for any element with a formula. */
 async function addFormulaSection(tbody, elemName) {
   try {
-    const resp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}`);
+    const variant = App.state.variant || "standard";
+    const resp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}?variant=${encodeURIComponent(variant)}`);
     if (!resp.ok) return;
     const formulas = await resp.json();
     if (!formulas || formulas.length === 0) return;
