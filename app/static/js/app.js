@@ -1950,7 +1950,7 @@ function switchToPanel(panelName) {
   if (panel) panel.classList.add("active");
 }
 
-function showProperties(type, name, data) {
+async function showProperties(type, name, data) {
   switchToPanel("properties");
   App.els["props-empty"].style.display = "none";
   App.els["props-detail"].style.display = "block";
@@ -2051,7 +2051,7 @@ function showProperties(type, name, data) {
       }
     }
     // Phase 12b: formula section
-    addFormulaSection(tbody, name);
+    await addFormulaSection(tbody, name);
     // Layout checkboxes + delete (like furniture addElementActions)
     addWallActions(tbody, name, elemRec);
   } else if (type === "opening" || type === "rough_opening") {
@@ -2148,7 +2148,7 @@ function showProperties(type, name, data) {
       }
     }
     // Phase 12b: formula section
-    addFormulaSection(tbody, name);
+    await addFormulaSection(tbody, name);
     // Style controls and product URL
     const _elemRec = elemRec || (App.state.elements || []).find(e => e.name === name);
     if (_elemRec) {
@@ -2164,7 +2164,7 @@ function showProperties(type, name, data) {
       if (data && data.product_url) {
         addProductUrlField(tbody, null, { product_url: data.product_url });
       }
-      addFormulaSection(tbody, name);
+      await addFormulaSection(tbody, name);
       addFormulaDeleteButton(tbody, name);
     }
   } else if (type === "dimension") {
