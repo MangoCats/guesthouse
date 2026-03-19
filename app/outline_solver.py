@@ -181,7 +181,8 @@ def solve_closure_general(chain, flex_specs):
                         closure_error=err, exit_bearing=brg)
 
 
-def _solve_positional_linear(chain, pf_a, pf_b, target=(0.0, 0.0)):
+def _solve_positional_linear(chain, pf_a, pf_b, target=(0.0, 0.0),
+                              start_brg=0.0):
     """Solve for two flex line distances using a 2×2 linear system.
 
     Walk the chain in pieces to determine the bearing at each flex line,
@@ -190,16 +191,17 @@ def _solve_positional_linear(chain, pf_a, pf_b, target=(0.0, 0.0)):
 
     target: (tE, tN) endpoint to hit — (0,0) for closure, or a specific point
             for sub-chain solving with a pivot.
+    start_brg: bearing at the start of the chain (0.0 for full-chain).
     """
     tE, tN = target
     # Walk chain with both flex distances set to 0
     ch = _inject_value(chain, pf_a.seq, "distance", 0.0)
     ch = _inject_value(ch, pf_b.seq, "distance", 0.0)
-    E_rest, N_rest, _ = chain_offset(ch)
+    E_rest, N_rest, _ = chain_offset(ch, start_brg)
 
     # Find bearing at each flex line by walking up to that point
-    brg_a = _bearing_at_seq(chain, pf_a.seq)
-    brg_b = _bearing_at_seq(chain, pf_b.seq)
+    brg_a = _bearing_at_seq(chain, pf_a.seq, start_brg)
+    brg_b = _bearing_at_seq(chain, pf_b.seq, start_brg)
 
     # 2×2 linear system
     sa, ca = math.sin(brg_a), math.cos(brg_a)
@@ -216,11 +218,12 @@ def _solve_positional_linear(chain, pf_a, pf_b, target=(0.0, 0.0)):
 
 
 def _solve_positional_newton(chain, pf_a, pf_b, target=(0.0, 0.0),
-                             max_iter=30, tol=1e-10):
+                             max_iter=30, tol=1e-10, start_brg=0.0):
     """Solve for two positional flex values using Newton iteration.
 
     Used when at least one flex is an arc radius (nonlinear in position).
     target: (tE, tN) endpoint to hit — (0,0) for closure.
+    start_brg: bearing at the start of the chain (0.0 for full-chain).
     """
     tE, tN = target
     # Initial guesses from current chain values
@@ -234,7 +237,7 @@ def _solve_positional_newton(chain, pf_a, pf_b, target=(0.0, 0.0),
     for _ in range(max_iter):
         ch = _inject_value(chain, pf_a.seq, pf_a.param, val_a)
         ch = _inject_value(ch, pf_b.seq, pf_b.param, val_b)
-        dE, dN, _ = chain_offset(ch)
+        dE, dN, _ = chain_offset(ch, start_brg)
         rE, rN = dE - tE, dN - tN
 
         if math.hypot(rE, rN) < tol:
@@ -242,12 +245,12 @@ def _solve_positional_newton(chain, pf_a, pf_b, target=(0.0, 0.0),
 
         # Jacobian by finite differences
         ch_a = _inject_value(ch, pf_a.seq, pf_a.param, val_a + eps)
-        dEa, dNa, _ = chain_offset(ch_a)
+        dEa, dNa, _ = chain_offset(ch_a, start_brg)
         dEdva = (dEa - dE) / eps
         dNdva = (dNa - dN) / eps
 
         ch_b = _inject_value(ch, pf_b.seq, pf_b.param, val_b + eps)
-        dEb, dNb, _ = chain_offset(ch_b)
+        dEb, dNb, _ = chain_offset(ch_b, start_brg)
         dEdvb = (dEb - dE) / eps
         dNdvb = (dNb - dN) / eps
 
@@ -264,9 +267,9 @@ def _solve_positional_newton(chain, pf_a, pf_b, target=(0.0, 0.0),
     return None  # did not converge
 
 
-def _bearing_at_seq(chain, seq):
+def _bearing_at_seq(chain, seq, start_brg=0.0):
     """Compute the bearing at the start of chain[seq]."""
-    brg = 0.0
+    brg = start_brg
     for i in range(seq):
         seg = chain[i]
         if seg.seg_type == "CW":
@@ -428,7 +431,7 @@ def auto_assign_section_flex(chain, seqs):
 
 
 def solve_subchain(subchain, flex_specs, target_dE, target_dN,
-                   target_brg_change):
+                   target_brg_change, start_brg=0.0):
     """Solve a sub-chain to hit a specific endpoint and bearing change.
 
     Like solve_closure_general but targets (target_dE, target_dN) instead
@@ -438,6 +441,7 @@ def solve_subchain(subchain, flex_specs, target_dE, target_dN,
     flex_specs: 3 FlexSpec with seq indices relative to subchain (0-based)
     target_dE, target_dN: required displacement from sub-chain start
     target_brg_change: required total bearing change across the sub-chain
+    start_brg: bearing at the start of the sub-chain
 
     Returns SolverResult with seq indices relative to subchain.
     """
@@ -483,9 +487,11 @@ def solve_subchain(subchain, flex_specs, target_dE, target_dN,
     target = (target_dE, target_dN)
 
     if both_linear:
-        result = _solve_positional_linear(ch, pf_a, pf_b, target=target)
+        result = _solve_positional_linear(ch, pf_a, pf_b, target=target,
+                                          start_brg=start_brg)
     else:
-        result = _solve_positional_newton(ch, pf_a, pf_b, target=target)
+        result = _solve_positional_newton(ch, pf_a, pf_b, target=target,
+                                          start_brg=start_brg)
 
     if result is None:
         return SolverResult(valid=False,
@@ -509,7 +515,7 @@ def solve_subchain(subchain, flex_specs, target_dE, target_dN,
     ch_final = ch
     ch_final = _inject_value(ch_final, pf_a.seq, pf_a.param, val_a)
     ch_final = _inject_value(ch_final, pf_b.seq, pf_b.param, val_b)
-    dE, dN, brg = chain_offset(ch_final)
+    dE, dN, brg = chain_offset(ch_final, start_brg)
     err = math.hypot(dE - target_dE, dN - target_dN)
     if err > 1e-6:
         return SolverResult(valid=False, solved_values=solved,
@@ -614,7 +620,8 @@ def solve_with_pivot(chain, anchor_start, pivot_start,
     local_flex = [FlexSpec(seq_map[f.seq], f.param) for f in flex_specs]
 
     result = solve_subchain(subchain, local_flex,
-                            target_dE, target_dN, target_brg_change)
+                            target_dE, target_dN, target_brg_change,
+                            start_brg=sub_start_brg)
 
     # Remap solved values back to original seq indices
     remapped = {}
