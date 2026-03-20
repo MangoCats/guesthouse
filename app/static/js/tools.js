@@ -1,38 +1,12 @@
 /* ========== Tool Utilities ========== */
 "use strict";
 
-/**
- * Client-side hosted-openings map (mirrors app/elements.py IW_HOSTED_OPENINGS).
- * Used for cascade warnings when deleting walls.
+/* ========== Move Tool ==========
+ * IW_MOVE_AXIS and IW_HOSTED_OPENINGS are no longer hardcoded here.
+ * They are fetched from /api/iw-config at startup and stored in
+ * App.state.iwConfig.  Use App.state.iwConfig.iw_move_axis[name] and
+ * App.state.iwConfig.iw_hosted_openings[name] everywhere below.
  */
-const IW_HOSTED_OPENINGS = {
-  IW1: ["RO1"], IW2: [], IW2O: ["RO4"], IW2S: [], IW3: [], IW4: [],
-  IW5: [], IW6: ["RO5"], IW7: [], IW8: [], IW9: ["RO3", "RO7"],
-  IW11: ["RO2", "RO6"], IW12: [],
-};
-
-/* ========== Move Tool ========== */
-
-/**
- * Client-side IW move axis mapping (mirrors app/elements.py IW_MOVE_AXIS).
- * axis: "x" or "y" — the world-coordinate axis the constant affects.
- * sign: +1 or -1 — delta_constant = drag_delta_on_axis * sign.
- */
-const IW_MOVE_AXIS = {
-  IW1:  { axis: "y", sign: -1 },
-  IW2:  { axis: "x", sign: +1 },
-  IW2O: null,  // not movable
-  IW2S: { axis: "x", sign: +1 },
-  IW3:  { axis: "x", sign: +1 },
-  IW4:  { axis: "x", sign: +1 },
-  IW5:  { axis: "y", sign: -1 },
-  IW6:  { axis: "y", sign: -1 },
-  IW7:  { axis: "y", sign: +1 },
-  IW8:  null,  // not movable
-  IW9:  { axis: "x", sign: +1 },
-  IW11: { axis: "x", sign: +1 },
-  IW12: { axis: "y", sign: +1 },
-};
 
 /** Minimum screen-pixel drag distance before a drag actually starts. */
 const DRAG_THRESHOLD = 4;
@@ -126,9 +100,9 @@ function applyMoveConstraints(dx, dy, shiftKey) {
   // For single IW walls, constrain to move axis
   if (MoveTool.targets.length === 1) {
     const t = MoveTool.targets[0];
-    if (t.type === "wall" && IW_MOVE_AXIS[t.name]) {
-      const axis = IW_MOVE_AXIS[t.name].axis;
-      if (axis === "x") dy = 0;
+    const axisInfo = App.state.iwConfig.iw_move_axis[t.name];
+    if (t.type === "wall" && axisInfo) {
+      if (axisInfo.axis === "x") dy = 0;
       else dx = 0;
     }
   }

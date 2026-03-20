@@ -1176,6 +1176,41 @@ def create_app(db_path=None):
                                 "Use File \u203a Reset Database to recreate it.")
             return jsonify(resp), 500
 
+    @app.route("/api/iw-config")
+    def api_iw_config():
+        """Serve IW wall metadata from elements.py (move axes, hosted openings,
+        controlling constants).  Single source of truth — no duplication in JS."""
+        from app.elements import IW_MOVE_AXIS, IW_HOSTED_OPENINGS, IW_CONSTANT_MAP
+        move_axis = {
+            k: {"axis": v[0], "sign": v[1]} if v is not None else None
+            for k, v in IW_MOVE_AXIS.items()
+        }
+        return jsonify({
+            "iw_move_axis": move_axis,
+            "iw_hosted_openings": IW_HOSTED_OPENINGS,
+            "iw_constant_map": IW_CONSTANT_MAP,
+        })
+
+    @app.route("/api/dep-summary")
+    def api_dep_summary():
+        """Return constant↔element dependency maps built from formula_deps.
+        const_to_elems: {const_name: [elem_name, ...]}
+        elem_to_consts: {elem_name: [const_name, ...]}
+        """
+        all_deps = get_all_formula_deps(db_path=db)
+        const_to_elems: dict = {}
+        elem_to_consts: dict = {}
+        for row in all_deps:
+            if row["dep_type"] != "constant":
+                continue
+            elem  = row["element_name"]
+            cname = row["dep_name"]
+            if elem not in (const_to_elems.setdefault(cname, [])):
+                const_to_elems[cname].append(elem)
+            if cname not in (elem_to_consts.setdefault(elem, [])):
+                elem_to_consts[elem].append(cname)
+        return jsonify({"const_to_elems": const_to_elems, "elem_to_consts": elem_to_consts})
+
     @app.route("/api/variants")
     def api_variants():
         return jsonify(get_variants(db))

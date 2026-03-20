@@ -1137,6 +1137,27 @@ tr.outline-selected td { background: var(--selection); }
 .rebase-error { color: var(--red); font-size: 12px; margin: 4px 0; }
 .rebase-btnbar { display: flex; gap: 8px; margin-top: 10px; }
 
+/* ========== PLACEMENT WIZARD ========== */
+.wizard-section {
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 8px 10px; margin-bottom: 8px;
+}
+.wizard-section-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;
+}
+.wizard-row {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+}
+.wizard-text { font-size: 12px; color: var(--text); }
+.wizard-hint { font-size: 10px; color: var(--text-dim); font-style: italic; margin-top: 4px; }
+.wizard-dist-input {
+  width: 64px; background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); font-size: 12px; padding: 2px 5px;
+  border-radius: 3px; text-align: right;
+}
+.wizard-dist-input:focus { border-color: var(--accent); outline: none; }
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1000px) {
   :root { --palette-w: 50px; --panel-w: 240px; }

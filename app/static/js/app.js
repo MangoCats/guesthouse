@@ -46,6 +46,8 @@ const App = {
     variants: [],
     configName: null,
     configDirty: false,
+    iwConfig: { iw_move_axis: {}, iw_hosted_openings: {}, iw_constant_map: {} },
+    depSummary: { const_to_elems: {}, elem_to_consts: {} },
   },
   els: {},
   sse: null,
@@ -71,6 +73,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   updateDeleteVariantBtn();
   loadPivotState();
   loadGeometry();
+  loadMeta();
   loadShapes();
   loadBuildLabel();
   loadRoofStyle();
@@ -288,6 +291,20 @@ async function loadGeometry() {
   } catch (e) {
     console.error("Geometry load failed:", e);
     showToast("Geometry computation error: " + e.message, "error");
+  }
+}
+
+/** Fetch server-side IW config and formula-dep summary; store in App.state. */
+async function loadMeta() {
+  try {
+    const [iwResp, depResp] = await Promise.all([
+      fetch("/api/iw-config"),
+      fetch("/api/dep-summary"),
+    ]);
+    if (iwResp.ok)  App.state.iwConfig    = await iwResp.json();
+    if (depResp.ok) App.state.depSummary  = await depResp.json();
+  } catch (e) {
+    console.warn("loadMeta failed:", e);
   }
 }
 
@@ -3045,9 +3062,7 @@ async function addFormulaSection(tbody, elemName) {
       tbody.appendChild(lockTr);
 
       // ── Edit Formula button ───────────────────────────────────────────────
-      const editTr = document.createElement("tr");
       const editTd = document.createElement("td");
-      editTd.colSpan = 2;
 
       const editBtn = document.createElement("button");
       editBtn.className = "prop-btn formula-edit-toggle";
@@ -3145,24 +3160,33 @@ async function addFormulaSection(tbody, elemName) {
       });
 
       editTd.appendChild(editBtn);
-      editTd.appendChild(editorWrap);
-      editTr.appendChild(editTd);
-      tbody.appendChild(editTr);
 
-      // ── Rebase button ───────────────────────────────────────────────────────
+      // ── Rebase + Edit Formula row ─────────────────────────────────────────
       const rebaseTr = document.createElement("tr");
       const rebaseTd = document.createElement("td");
-      rebaseTd.colSpan = 2;
       const rebaseBtn = document.createElement("button");
       rebaseBtn.className = "prop-btn";
       rebaseBtn.textContent = "Rebase\u2026";
       rebaseBtn.title = "Change which elements this formula depends on, with cycle detection and resolution";
       rebaseBtn.addEventListener("click", () => {
-        showRebaseDialog(elemName, f.param_name, fj, f.variant ?? null);
+        if (fj.type === "item_rect") {
+          showPlacementWizard(elemName, f.param_name, fj, f.variant ?? null);
+        } else {
+          showRebaseDialog(elemName, f.param_name, fj, f.variant ?? null);
+        }
       });
       rebaseTd.appendChild(rebaseBtn);
       rebaseTr.appendChild(rebaseTd);
+      rebaseTr.appendChild(editTd);
       tbody.appendChild(rebaseTr);
+
+      // ── Formula editor row (hidden until Edit Formula is clicked) ─────────
+      const editorTr = document.createElement("tr");
+      const editorContainerTd = document.createElement("td");
+      editorContainerTd.colSpan = 2;
+      editorContainerTd.appendChild(editorWrap);
+      editorTr.appendChild(editorContainerTd);
+      tbody.appendChild(editorTr);
     }
 
     // ── Dependencies ─────────────────────────────────────────────────────────
@@ -3224,6 +3248,351 @@ function _substituteElemRef(node, oldName, newName) {
       ? newName
       : _substituteElemRef(v, oldName, newName);
   return out;
+}
+
+/** Encode a wizard dropdown value into a formula point spec. */
+function _encodePointRef(val) {
+  if (val.startsWith("centroid:")) return { element_centroid: val.slice(9) };
+  return val;
+}
+
+/** Build the point option list for wizard dropdowns: all named geometry points
+ *  (W-series, F-series, and any others present in the current geometry) plus
+ *  element centroids.  Reads live from App.state.geometry.points so new points
+ *  (e.g. W21–W24) appear automatically. */
+function _makePointOptions(excludeElem) {
+  const allPts = Object.keys(App.state.geometry?.points ?? {}).sort((a, b) => {
+    // Sort W-series before F-series, then numerically within each prefix
+    const prefA = a[0], prefB = b[0];
+    if (prefA !== prefB) return prefA < prefB ? -1 : 1;
+    const numA = parseFloat(a.slice(1)) || 0, numB = parseFloat(b.slice(1)) || 0;
+    if (numA !== numB) return numA - numB;
+    return a.localeCompare(b);
+  });
+  const wallOpts = allPts.map(p => ({ value: p, label: p }));
+  const elemOpts = (App.state.elements || [])
+    .filter(e => e.name !== excludeElem)
+    .map(e => ({ value: `centroid:${e.name}`, label: `\u229A ${e.name}` }));
+  return [...wallOpts, ...elemOpts];
+}
+
+/**
+ * Placement wizard for item_rect formulas.
+ *
+ * The item is positioned by specifying:
+ *   1. Reference line A→B (two named points or element centroids)
+ *   2. Which item dimension (Width W or Depth D) runs parallel to A→B
+ *   3. Perpendicular offset: which item feature (center / right edge / left edge)
+ *      is how far from the A→B line (signed; + = right of A→B = 90° CW)
+ *   4. Along-line offset: item center displacement from midpoint of A→B
+ *      (signed; + = toward B)
+ *
+ * The item always rotates about its center; the formula uses center-point
+ * arithmetic and produces anchor_corner = "sw".
+ */
+function showPlacementWizard(elemName, paramName, currentFormula, variant) {
+  const widthSpec = currentFormula.width  ?? { const: "BED_WIDTH"  };
+  const depthSpec = currentFormula.depth  ?? { const: "BED_LENGTH" };
+  const widthHalf = { div: [widthSpec, 2] };
+  const depthHalf = { div: [depthSpec, 2] };
+
+  const ptOptions = _makePointOptions(elemName);
+
+  // ── Overlay / modal ────────────────────────────────────────────────────────
+  const overlay = document.createElement("div");
+  overlay.className = "config-modal-overlay";
+  const modal = document.createElement("div");
+  modal.className = "rebase-modal";
+  overlay.appendChild(modal);
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+
+  const h3 = document.createElement("h3");
+  h3.textContent = `Place \u2014 ${elemName}`;
+  modal.appendChild(h3);
+
+  const desc = document.createElement("div");
+  desc.className = "rebase-desc";
+  desc.textContent =
+    `Position ${elemName} relative to a reference line A\u2192B. ` +
+    "The item rotates about its center. W/D refer to the formula\u2019s " +
+    "width/depth parameters.";
+  modal.appendChild(desc);
+
+  // ── Local DOM helpers ──────────────────────────────────────────────────────
+  function makeSection(label) {
+    const sec = document.createElement("div");
+    sec.className = "wizard-section";
+    const lbl = document.createElement("div");
+    lbl.className = "wizard-section-label";
+    lbl.textContent = label;
+    sec.appendChild(lbl);
+    return sec;
+  }
+
+  function makeSelect(opts, selected) {
+    const sel = document.createElement("select");
+    sel.className = "rebase-dep-select";
+    for (const { value: v, label: l } of opts) {
+      const opt = document.createElement("option");
+      opt.value = v; opt.textContent = l;
+      if (v === selected) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    return sel;
+  }
+
+  function txt(s) {
+    const sp = document.createElement("span");
+    sp.className = "wizard-text"; sp.textContent = s; return sp;
+  }
+
+  function wizRow(...children) {
+    const r = document.createElement("div"); r.className = "wizard-row";
+    for (const c of children) r.appendChild(typeof c === "string" ? txt(c) : c);
+    return r;
+  }
+
+  function hint(s) {
+    const d = document.createElement("div"); d.className = "wizard-hint"; d.textContent = s;
+    return d;
+  }
+
+  function numInput(dflt, step, title) {
+    const inp = document.createElement("input");
+    inp.type = "number"; inp.className = "wizard-dist-input";
+    inp.value = String(dflt); inp.step = String(step); inp.title = title;
+    return inp;
+  }
+
+  // ── §1  Reference Line ─────────────────────────────────────────────────────
+  const refSec = makeSection("Reference Line  A \u2192 B");
+  const selA = makeSelect(ptOptions, ptOptions[0]?.value ?? "");
+  const selB = makeSelect(ptOptions, ptOptions[1]?.value ?? "");
+  refSec.appendChild(wizRow(selA, " \u2192 ", selB));
+  modal.appendChild(refSec);
+
+  // ── §2  Orientation ────────────────────────────────────────────────────────
+  const oriSec = makeSection("Orientation");
+  const selDim = makeSelect([
+    { value: "width", label: "Width (W) side" },
+    { value: "depth", label: "Depth (D) side" },
+  ], "width");
+  oriSec.appendChild(wizRow("Align ", selDim, " parallel to A\u2192B"));
+  modal.appendChild(oriSec);
+
+  // ── §3  Perpendicular to A→B ───────────────────────────────────────────────
+  const perpSec = makeSection("Perpendicular to A\u2192B");
+  const selPerpFeature = makeSelect([
+    { value: "right_edge", label: "Right edge" },
+    { value: "left_edge",  label: "Left edge"  },
+    { value: "center",     label: "Center"     },
+  ], "right_edge");
+  const inpPerpDist = numInput(0, 0.125,
+    "Inches from A\u2192B line (+ = right of A\u2192B = 90\u00b0 CW from A\u2192B direction)");
+  perpSec.appendChild(wizRow(selPerpFeature, " is ", inpPerpDist, "\u2033 from A\u2192B  (+ = right)"));
+  perpSec.appendChild(hint(
+    '"Right" = 90\u00b0 clockwise from A\u2192B direction. Negative values = left side. ' +
+    '"Right/Left edge" = the item edge in the \u00b1perp direction from the item center.'));
+  modal.appendChild(perpSec);
+
+  // ── §4  Along A→B ──────────────────────────────────────────────────────────
+  const alongSec = makeSection("Along A\u2192B  (from midpoint of A\u2192B)");
+  const inpAlongDist = numInput(0, 0.125,
+    "Inches from midpoint of A\u2192B to item center (+ = toward B, \u2212 = toward A)");
+  alongSec.appendChild(wizRow("Center is ", inpAlongDist, "\u2033 from midpoint  (+ = toward B)"));
+  modal.appendChild(alongSec);
+
+  // ── §5  Preview JSON ───────────────────────────────────────────────────────
+  const prevToggle = document.createElement("button");
+  prevToggle.className = "prop-btn rebase-adv-toggle";
+  prevToggle.textContent = "Preview formula JSON \u25bc";
+  modal.appendChild(prevToggle);
+
+  const prevWrap = document.createElement("div");
+  prevWrap.className = "rebase-adv-wrap"; prevWrap.style.display = "none";
+  modal.appendChild(prevWrap);
+
+  const prevTA = document.createElement("textarea");
+  prevTA.className = "rebase-formula-editor"; prevTA.readOnly = true;
+  prevWrap.appendChild(prevTA);
+
+  prevToggle.addEventListener("click", () => {
+    const open = prevWrap.style.display !== "none";
+    prevWrap.style.display = open ? "none" : "";
+    prevToggle.textContent = open
+      ? "Preview formula JSON \u25bc"
+      : "Preview formula JSON \u25b2";
+    if (!open) updatePreview();
+  });
+
+  // ── Error + button bar ─────────────────────────────────────────────────────
+  const errDiv = document.createElement("div");
+  errDiv.className = "formula-editor-error";
+  modal.appendChild(errDiv);
+
+  const btnBar = document.createElement("div");
+  btnBar.className = "rebase-btnbar";
+  modal.appendChild(btnBar);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "dialog-btn-cancel"; cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => overlay.remove());
+  btnBar.appendChild(cancelBtn);
+
+  const advBtn = document.createElement("button");
+  advBtn.className = "prop-btn"; advBtn.textContent = "Advanced\u2026";
+  advBtn.title = "Open the full JSON-based rebase dialog for manual formula editing";
+  advBtn.addEventListener("click", () => {
+    overlay.remove();
+    showRebaseDialog(elemName, paramName, currentFormula, variant);
+  });
+  btnBar.appendChild(advBtn);
+
+  const applyBtn = document.createElement("button");
+  applyBtn.className = "dialog-btn-primary"; applyBtn.textContent = "Apply";
+  btnBar.appendChild(applyBtn);
+
+  // ── Formula builder ────────────────────────────────────────────────────────
+  function buildFormula() {
+    if (selA.value === selB.value)
+      throw new Error("Point A and Point B must be different.");
+    const pA = _encodePointRef(selA.value);
+    const pB = _encodePointRef(selB.value);
+
+    const refDir  = { segment: [pA, pB] };
+    const refPerp = { perp: { segment: [pA, pB] } };
+
+    const dimParallel = selDim.value;          // "width" | "depth"
+    const perpFeature = selPerpFeature.value;  // "right_edge" | "left_edge" | "center"
+    const perpDistFt  = (parseFloat(inpPerpDist.value)  || 0) / 12;
+    const alongDistFt = (parseFloat(inpAlongDist.value) || 0) / 12;
+
+    // Item orientation (which dimension aligns to which formula direction)
+    // "width parallel": along = A→B, across = perp(A→B)
+    // "depth parallel": along = perp(A→B), across = A→B  [depth runs along A→B]
+    let along_dir, across_dir, neg_along, neg_across, perp_half, along_half, across_half;
+    if (dimParallel === "width") {
+      along_dir  = refDir;          across_dir = refPerp;
+      neg_along  = { neg: refDir }; neg_across = { neg: refPerp };
+      along_half = widthHalf;   // item half-extent along A→B
+      across_half = depthHalf;  // item half-extent in perp(A→B) direction
+      perp_half  = depthHalf;   // which half-extent straddles the perp axis
+    } else {
+      // depth parallel to A→B: along = perp(A→B), across = A→B
+      along_dir  = refPerp;          across_dir = refDir;
+      neg_along  = { neg: refPerp }; neg_across = { neg: refDir };
+      along_half = widthHalf;   // width in perp(A→B) direction
+      across_half = depthHalf;  // depth along A→B
+      perp_half  = widthHalf;   // item half-extent in perp(A→B) direction
+    }
+
+    // Center's perp offset from A→B line
+    //   right_edge = center + perp_half  →  center = edge − perp_half
+    //   left_edge  = center − perp_half  →  center = edge + perp_half
+    let center_perp;
+    if (perpFeature === "center") {
+      center_perp = perpDistFt;
+    } else if (perpFeature === "right_edge") {
+      center_perp = perpDistFt === 0
+        ? { neg: perp_half }
+        : { sub: [perpDistFt, perp_half] };
+    } else { // left_edge
+      center_perp = perpDistFt === 0
+        ? perp_half
+        : { add: [perpDistFt, perp_half] };
+    }
+
+    // Center point: midpoint(A,B) + along_dist*refDir + center_perp*refPerp
+    let center = { midpoint: [pA, pB] };
+    if (alongDistFt !== 0)
+      center = { offset: { base: center, dir: refDir,  dist: alongDistFt } };
+    if (!(perpFeature === "center" && perpDistFt === 0))
+      center = { offset: { base: center, dir: refPerp, dist: center_perp } };
+
+    // anchor_sw = center − along*(W/2) − across*(D/2)
+    const anchor = {
+      offset: {
+        base: { offset: { base: center, dir: neg_along, dist: along_half } },
+        dir: neg_across,
+        dist: across_half,
+      },
+    };
+
+    return { type: "item_rect", anchor, along: along_dir, across: across_dir,
+             width: widthSpec, depth: depthSpec, anchor_corner: "sw" };
+  }
+
+  function updatePreview() {
+    if (prevWrap.style.display === "none") return;
+    try {
+      prevTA.value = JSON.stringify(buildFormula(), null, 2);
+      errDiv.textContent = "";
+    } catch (e) {
+      prevTA.value = `// ${e.message}`;
+    }
+  }
+
+  [selA, selB, selDim, selPerpFeature, inpPerpDist, inpAlongDist].forEach(el => {
+    el.addEventListener("change", updatePreview);
+    el.addEventListener("input",  updatePreview);
+  });
+
+  // ── Apply (cycle-check → batch-commit) ────────────────────────────────────
+  applyBtn.addEventListener("click", async () => {
+    errDiv.textContent = "";
+    let formula;
+    try { formula = buildFormula(); } catch (e) { errDiv.textContent = e.message; return; }
+
+    applyBtn.disabled = true; applyBtn.textContent = "Checking\u2026";
+    try {
+      const pvResp = await fetch("/api/formula-rebase-preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ element_name: elemName, param_name: paramName, formula, variant }),
+      });
+      const pv = await pvResp.json();
+      if (!pvResp.ok) { errDiv.textContent = pv.error || "Preview failed"; return; }
+
+      let changes = [{ element_name: elemName, param_name: paramName, formula, variant }];
+
+      if (pv.cycle) {
+        const cycleElems = [...new Set(pv.cycle_path.map(s => s.split("/")[0]))];
+        const solvable   = pv.resolutions.filter(r =>  r.new_formula);
+        const unsolvable = pv.resolutions.filter(r => !r.new_formula);
+        let msg = `Dependency cycle detected:\n  ${cycleElems.join(" \u2192 ")}\n\n`;
+        if (unsolvable.length)
+          msg += `Cannot auto-resolve: ${unsolvable.map(r => r.element_name).join(", ")}\n` +
+                 `Edit those formulas manually (Advanced\u2026) first.\n\n`;
+        if (solvable.length)
+          msg += `${solvable.length} element(s) will be re-anchored to their current literal ` +
+                 `positions:\n  ${solvable.map(r => r.element_name).join(", ")}\n\n`;
+        msg += "Apply anyway?";
+        if (!confirm(msg)) return;
+        if (unsolvable.length) return;
+        changes = [...changes, ...solvable.map(r => ({
+          element_name: r.element_name, param_name: r.param_name,
+          formula: r.new_formula, variant,
+        }))];
+      }
+
+      applyBtn.textContent = "Applying\u2026";
+      const bResp = await fetch("/api/formulas-batch", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      const bResult = await bResp.json();
+      if (!bResp.ok) { errDiv.textContent = bResult.error || "Apply failed"; return; }
+      overlay.remove();
+      await loadGeometry();
+      if (App.state.selection && App.state.selection.name === elemName)
+        showProperties(App.state.selection.type, elemName, App.state.selection.data);
+      showToast(`Placed: ${bResult.applied.join(", ")}`, "success");
+    } catch (e) {
+      errDiv.textContent = `Error: ${e.message}`;
+    } finally {
+      applyBtn.disabled = false; applyBtn.textContent = "Apply";
+    }
+  });
 }
 
 /** Open a rebase dialog for changing formula dependencies with cycle detection.
@@ -3670,19 +4039,15 @@ function addPropRow(tbody, label, value, editable = false, constName = null) {
   tbody.appendChild(tr);
 }
 
-/** Return the width-controlling constant name for an opening, or null. */
+/** Return the width-controlling constant name for an opening, or null.
+ *  Prefers formula-dep data (dep-summary) so new openings work automatically. */
 function findWidthConstant(openingName) {
-  // Outer openings: O1-O6 use {name}_WIDTH; O4,O7-O11 use {name}_HALF_WIDTH
-  // Rough openings: RO1→IW1_RO_WIDTH, RO2→IW2_RO_WIDTH, RO3→RO3_WIDTH,
-  //   RO4→IW2_RO_WIDTH, RO5→IW4_RO_WIDTH, RO6→IW11_RO_WIDTH, RO7→IW9_RO_WIDTH
-  const RO_MAP = {
-    RO1: "IW1_RO_WIDTH", RO2: "IW2_RO_WIDTH", RO3: "RO3_WIDTH",
-    RO4: "IW2_RO_WIDTH", RO5: "IW4_RO_WIDTH", RO6: "IW11_RO_WIDTH",
-    RO7: "IW9_RO_WIDTH",
-  };
   const n = openingName.toUpperCase();
-  if (RO_MAP[n]) return RO_MAP[n];
-  // Try direct WIDTH, then HALF_WIDTH
+  // Look for a WIDTH constant in the element's formula deps
+  const consts = App.state.depSummary.elem_to_consts[n] || [];
+  const fromDeps = consts.find(c => c.toUpperCase().includes("WIDTH"));
+  if (fromDeps) return fromDeps;
+  // Fallback: try direct suffix patterns (handles outer openings)
   for (const suffix of ["_WIDTH", "_HALF_WIDTH"]) {
     if (App.state.constants.find(c => c.name === n + suffix)) return n + suffix;
   }
@@ -3691,67 +4056,31 @@ function findWidthConstant(openingName) {
 
 /* ========== SEL-15: Constant Dependency Highlighting ========== */
 
-/** Reverse map: constant name → IW wall names that depend on it. */
-const CONSTANT_TO_IW = {};
-(function() {
-  const map = {
-    IW1: "IW1_OFFSET_FROM_W9", IW2: "IW2_DIST_W2W5",
-    IW2S: "IW2S_W2REF_OFFSET", IW3: "IW3_DIST_W2W5",
-    IW4: "IW4_GAP_IW11", IW5: "IW5_S_OFFSET_FROM_IW1",
-    IW6: "IW6_OFFSET_FROM_W6", IW7: "IW7_OFFSET_FROM_W18W1",
-    IW9: "IW3_OFFSET_IW9", IW11: "IW9_IW11_GAP",
-    IW12: "IW12_S_OFFSET_W18W1",
-  };
-  for (const [iw, cname] of Object.entries(map)) {
-    if (!CONSTANT_TO_IW[cname]) CONSTANT_TO_IW[cname] = [];
-    CONSTANT_TO_IW[cname].push(iw);
-  }
-})();
-
-/** Constant prefix → furniture/appliance item names. */
-const CONSTANT_PREFIX_TO_ITEMS = {
-  BED_: ["bed"], DRESSER_: ["dresser"], SHELVES_: ["shelves"],
-  LOVESEAT_: ["loveseat"], DESK_: ["desk"], CHAIR_: ["chair"],
-  SOFA_: ["sofa"], ROCKER_: ["rocker"],
-  APPLIANCE_: ["washer", "dryer"], COUNTER_: ["counter"],
-  STOVE_: ["stove"], FRIDGE_: ["fridge"], DW_: ["dishwasher"],
-  MINIK_: ["minik_counter"], ICE_: ["ice_maker"],
-  TOILET_: ["toilet"], SINK_: ["bath_sink"],
-  WH_: ["water_heater"],
-};
-
 function highlightConstantDeps(constName) {
   clearConstantHighlights();
   const firstOrder = new Set();
   const secondOrder = new Set();
-  // 1. Reverse IW map
-  const iws = CONSTANT_TO_IW[constName] || [];
-  for (const iw of iws) {
-    firstOrder.add(iw);
-    // Hosted openings are second-order
-    if (typeof IW_HOSTED_OPENINGS !== "undefined") {
-      for (const ro of (IW_HOSTED_OPENINGS[iw] || [])) secondOrder.add(ro);
-    }
+
+  // All elements that directly depend on this constant (from formula_deps)
+  for (const elem of (App.state.depSummary.const_to_elems[constName] || [])) {
+    firstOrder.add(elem);
+    // IW walls: their hosted rough openings are second-order
+    for (const ro of (App.state.iwConfig.iw_hosted_openings[elem] || []))
+      secondOrder.add(ro);
   }
-  // 2. Prefix-based furniture/appliance mapping
-  for (const [prefix, items] of Object.entries(CONSTANT_PREFIX_TO_ITEMS)) {
-    if (constName.startsWith(prefix)) {
-      for (const item of items) firstOrder.add(item);
-    }
-  }
-  // 3. Opening width constants (O1_WIDTH → O1, RO3_WIDTH → RO3, etc.)
+
+  // Opening-specific constants: O1_WIDTH → highlight O1, RO3_WIDTH → RO3, etc.
   const m = constName.match(/^((?:RO?\d+|O\d+))_/i);
   if (m) firstOrder.add(m[1].toUpperCase());
-  // 4. Apply CSS classes
+
   document.querySelectorAll("[data-name]").forEach(el => {
     const name = el.getAttribute("data-name");
     if (!name) return;
     const upper = name.toUpperCase();
-    if (firstOrder.has(name) || firstOrder.has(upper)) {
+    if (firstOrder.has(name) || firstOrder.has(upper))
       el.classList.add("const-dep-first");
-    } else if (secondOrder.has(name) || secondOrder.has(upper)) {
+    else if (secondOrder.has(name) || secondOrder.has(upper))
       el.classList.add("const-dep-second");
-    }
   });
 }
 
@@ -3761,28 +4090,14 @@ function clearConstantHighlights() {
   });
 }
 
+/** Return constants related to an element, driven by formula_deps. */
 function findRelatedConstants(elementName) {
-  const name = elementName.toUpperCase().replace(/^IW/, "IW");
-  return App.state.constants.filter(c => {
-    const cn = c.name.toUpperCase();
-    if (name.startsWith("O") && name.length <= 3) {
-      return cn.startsWith(name + "_") || cn.includes("_" + name + "_") || cn === name + "_WIDTH";
-    }
-    if (name.startsWith("IW")) {
-      return cn.includes(name) || cn.startsWith(name + "_");
-    }
-    if (name.startsWith("RO")) {
-      return cn.includes(name) || cn.startsWith(name + "_");
-    }
-    // furniture/appliance: match by keyword
-    const keywords = {
-      bed: "BED_", dresser: "DRESSER_", shelves: "SHELVES_",
-      washer: "APPLIANCE_", dryer: "APPLIANCE_", counter: "COUNTER_",
-    };
-    const prefix = keywords[name.toLowerCase()];
-    if (prefix) return cn.startsWith(prefix);
-    return false;
-  });
+  const key = elementName.toUpperCase();
+  const names = new Set([
+    ...(App.state.depSummary.elem_to_consts[elementName] || []),
+    ...(App.state.depSummary.elem_to_consts[key] || []),
+  ]);
+  return App.state.constants.filter(c => names.has(c.name));
 }
 
 
@@ -6216,7 +6531,7 @@ async function deleteSelectedElements() {
   const lines = toDelete.map(el => {
     let line = el.name;
     if (el.type === "wall") {
-      const hosted = IW_HOSTED_OPENINGS[el.name] || [];
+      const hosted = App.state.iwConfig.iw_hosted_openings[el.name] || [];
       if (hosted.length > 0) {
         line += ` (will also delete ${hosted.join(", ")})`;
       }
