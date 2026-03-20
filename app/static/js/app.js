@@ -93,7 +93,9 @@ function cacheElements() {
     "view-tabs", "const-category-filter", "const-search",
     "constants-table", "outline-table", "outline-closure-indicator",
     "outline-add-btn", "outline-remove-btn", "outline-pivot-btn",
-    "pivot-banner", "openings-table",
+    "pivot-banner", "anchor-pos-editor",
+    "anchor-pos-E", "anchor-pos-N", "anchor-pos-brg",
+    "openings-table",
     "rough-openings-table", "interior-walls-table", "furniture-table",
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-user-dims", "show-grid",
@@ -5039,6 +5041,20 @@ function setupOutlineToolbar() {
       }
     });
   }
+
+  // Anchor position editor — commit on Enter or blur
+  for (const id of ["anchor-pos-E", "anchor-pos-N", "anchor-pos-brg"]) {
+    const el = App.els[id];
+    if (!el) continue;
+    el.addEventListener("input", () => el.classList.add("dirty"));
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commitAnchorPos(); }
+      if (e.key === "Escape") { e.preventDefault(); loadPivotState(); }
+    });
+    el.addEventListener("blur", () => {
+      if (el.classList.contains("dirty")) commitAnchorPos();
+    });
+  }
 }
 
 async function loadPivotState() {
@@ -5051,6 +5067,10 @@ async function loadPivotState() {
     App.state.pivotPoint = active ? data.pivot : null;
     App.state.pivotSectionA = data.section_a_seqs || [];
     App.state.pivotSectionB = data.section_b_seqs || [];
+    // Populate anchor position editor (always shown when anchor_pos is available)
+    if (data.anchor_E !== undefined) {
+      _setAnchorPosFields(data.anchor_E, data.anchor_N, data.anchor_brg_deg);
+    }
   } catch {
     App.state.pivotAnchor = null;
     App.state.pivotPoint = null;
@@ -5058,7 +5078,61 @@ async function loadPivotState() {
     App.state.pivotSectionB = [];
   }
   updatePivotBanner();
+  updateAnchorPosEditor();
   updatePivotButton();
+}
+
+function _setAnchorPosFields(E, N, brg_deg) {
+  const fmt = (v) => parseFloat(v.toFixed(6));
+  const eEl = App.els["anchor-pos-E"];
+  const nEl = App.els["anchor-pos-N"];
+  const bEl = App.els["anchor-pos-brg"];
+  if (eEl) { eEl.value = fmt(E); eEl.classList.remove("dirty"); }
+  if (nEl) { nEl.value = fmt(N); nEl.classList.remove("dirty"); }
+  if (bEl) { bEl.value = fmt(brg_deg); bEl.classList.remove("dirty"); }
+}
+
+function updateAnchorPosEditor() {
+  const editor = App.els["anchor-pos-editor"];
+  if (!editor) return;
+  // Show whenever anchor_pos is available (always — seeded at DB init)
+  const eEl = App.els["anchor-pos-E"];
+  if (eEl && eEl.value !== "") {
+    editor.classList.add("visible");
+  } else {
+    editor.classList.remove("visible");
+  }
+}
+
+async function commitAnchorPos() {
+  const eEl = App.els["anchor-pos-E"];
+  const nEl = App.els["anchor-pos-N"];
+  const bEl = App.els["anchor-pos-brg"];
+  const E = parseFloat(eEl.value);
+  const N = parseFloat(nEl.value);
+  const brg_deg = parseFloat(bEl.value);
+  if (isNaN(E) || isNaN(N) || isNaN(brg_deg)) {
+    showToast("Invalid anchor position values", "error");
+    return;
+  }
+  try {
+    const resp = await apiFetch("/api/outline/anchor-pos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ E, N, brg_deg }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      showToast(data.error || "Anchor pos update failed", "error");
+      return;
+    }
+    _setAnchorPosFields(data.E, data.N, data.brg_deg);
+    showToast("Anchor position updated", "success");
+    await loadOutlineTable();
+    await loadGeometry();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  }
 }
 
 function updatePivotBanner() {

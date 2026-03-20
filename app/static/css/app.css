@@ -948,6 +948,29 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 #pivot-banner.visible { display: flex; align-items: center; gap: 6px; }
 #pivot-banner .anchor-tag { color: var(--teal); font-weight: 600; }
 #pivot-banner .pivot-tag { color: var(--peach); font-weight: 600; }
+#anchor-pos-editor {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+#anchor-pos-editor.visible { display: flex; }
+.anchor-pos-label { color: var(--teal); font-weight: 600; white-space: nowrap; }
+#anchor-pos-editor label { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+#anchor-pos-editor input[type="number"] {
+  width: 72px;
+  background: var(--surface0);
+  border: 1px solid var(--overlay0);
+  color: var(--text);
+  font-size: 0.72rem;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+#anchor-pos-editor input[type="number"]:focus { border-color: var(--teal); outline: none; }
+#anchor-pos-editor input[type="number"].dirty { border-color: var(--peach); }
 tr.section-a td:first-child { border-left: 3px solid var(--teal); }
 tr.section-b td:first-child { border-left: 3px solid var(--peach); }
 .pivot-marker { fill: var(--peach); stroke: none; }

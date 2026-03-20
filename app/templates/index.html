@@ -289,6 +289,12 @@
           <button id="outline-pivot-btn" title="Set anchor/pivot (2-click)">&#x25C7;</button>
         </div>
         <div id="pivot-banner"></div>
+        <div id="anchor-pos-editor">
+          <span class="anchor-pos-label">Anchor pos:</span>
+          <label>E<input id="anchor-pos-E" type="number" step="0.001" title="Anchor Easting (ft)"></label>
+          <label>N<input id="anchor-pos-N" type="number" step="0.001" title="Anchor Northing (ft)"></label>
+          <label>Brg°<input id="anchor-pos-brg" type="number" step="0.001" title="Anchor bearing (degrees from north, clockwise)"></label>
+        </div>
         <table id="outline-table">
           <thead>
             <tr><th>#</th><th>Type</th><th>Dist/R</th><th>Sweep</th><th>End</th><th title="Bearing flex: allow this line's bearing to rotate">Brg</th><th>W</th></tr>

@@ -1485,9 +1485,15 @@ def create_app(db_path=None):
     @app.route("/api/outline/pivot", methods=["GET"])
     def api_get_pivot():
         """Return current anchor/pivot state."""
+        import math as _math
         anchor, pivot = get_outline_anchor_pivot(db)
         result = {"anchor": anchor, "pivot": pivot,
                   "user_set": get_outline_pivot_user_set(db)}
+        pos = get_outline_anchor_pos(db)
+        if pos is not None:
+            result["anchor_E"] = pos[0]
+            result["anchor_N"] = pos[1]
+            result["anchor_brg_deg"] = _math.degrees(pos[2])
         if anchor and pivot:
             chain_rows = get_outline_chain(db)
             chain = db_rows_to_chain(chain_rows)
@@ -1501,6 +1507,37 @@ def create_app(db_path=None):
                 result["section_a_seqs"] = a_s
                 result["section_b_seqs"] = b_s
         return jsonify(result)
+
+    @app.route("/api/outline/anchor-pos", methods=["PATCH"])
+    def api_set_anchor_pos():
+        """Update stored anchor position (E, N, brg_deg) without changing anchor/pivot names."""
+        import math as _math
+        body = request.get_json(force=True)
+        try:
+            new_E = float(body["E"])
+            new_N = float(body["N"])
+            new_brg = _math.radians(float(body["brg_deg"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            return jsonify({"error": f"E, N, brg_deg required: {exc}"}), 400
+
+        anchor, pivot = get_outline_anchor_pivot(db)
+        if not anchor or not pivot:
+            return jsonify({"error": "no anchor/pivot set"}), 400
+
+        set_outline_anchor_pivot(anchor, pivot, new_E, new_N, new_brg, db,
+                                 user_set=get_outline_pivot_user_set(db))
+
+        solver, _ = _solve_and_update_closure()
+        if not solver.valid:
+            return jsonify({
+                "error": "Closure failed after anchor position update",
+                "closure_error": solver.closure_error,
+            }), 400
+
+        _invalidate()
+        _broadcast("outline_changed")
+        return jsonify({"ok": True, "E": new_E, "N": new_N,
+                        "brg_deg": _math.degrees(new_brg)})
 
     @app.route("/api/outline/pivot", methods=["PUT"])
     def api_set_pivot():
