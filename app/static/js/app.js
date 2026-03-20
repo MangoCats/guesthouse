@@ -5159,7 +5159,13 @@ function showFlexSwapDialog(currentSeq, currentParam, chain) {
   }
 
   if (candidates.length === 0) {
-    showToast("No eligible segments to swap flex to", "warning");
+    showToast(
+      isSweepFlex
+        ? "No eligible segments to swap flex to — the sweep arc must be placed after all fixed-bearing lines in the chain."
+        : "No eligible segments to swap flex to.",
+      "warning",
+      6000
+    );
     return;
   }
 
@@ -6841,68 +6847,208 @@ function openingToolMouseDown(e) {
   });
 }
 
-/** Snap a drawn wall to a reference face (one-shot repositioning). */
+/** Define a drawn wall geometry: snap to face or run between two named points. */
 function showSnapToFaceDialog(elemRec, props) {
   const g = App.state.geometry;
   if (!g) { showToast("No geometry loaded", "error"); return; }
+  Dialog.close();
 
-  // Build reference options: named points pairs (outline segments) + interior walls
-  // The user types a reference like "W4-W5" or "CW2"
-  Dialog.show({
-    title: `Move ${elemRec.name} to face`,
-    fields: [
-      { label: "Reference (e.g. W4-W5, CW2)", name: "ref", value: "" },
-      { label: "Face (south/east/north/west)", name: "face", value: "south" },
-      { label: "Offset (0 = tangent)", name: "offset", value: "0" },
-      { label: "Align (start/mid/end)", name: "align", value: "mid" },
-    ],
-    async onSubmit(values) {
-      const ref = values.ref.trim();
-      const face = values.face.trim().toLowerCase();
-      const offsetDist = parseDimension(values.offset) || 0;
-      const align = values.align.trim().toLowerCase();
+  const overlay = document.createElement("div");
+  overlay.className = "dialog-overlay";
+  const dlg = document.createElement("div");
+  dlg.className = "dialog";
+  dlg.style.minWidth = "380px";
 
+  function mkField(labelText) {
+    const d = document.createElement("div"); d.className = "dialog-field";
+    const lbl = document.createElement("label"); lbl.textContent = labelText;
+    d.appendChild(lbl);
+    return d;
+  }
+  function mkInput(value = "", placeholder = "") {
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.value = value; inp.placeholder = placeholder;
+    return inp;
+  }
+  function mkSelect(options, selected) {
+    const sel = document.createElement("select");
+    for (const o of options) {
+      const opt = document.createElement("option");
+      opt.value = typeof o === "object" ? o.value : o;
+      opt.textContent = typeof o === "object" ? o.label : o;
+      if (opt.value === selected) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    return sel;
+  }
+
+  const titleEl = document.createElement("h3");
+  titleEl.textContent = `Define ${elemRec.name} geometry`;
+  dlg.appendChild(titleEl);
+
+  // --- Mode ---
+  const modeField = mkField("Mode");
+  const radioWrap = document.createElement("div");
+  radioWrap.style.cssText = "display:flex;gap:1.2rem;margin-top:0.3rem;";
+  function mkRadio(name, value, label, checked) {
+    const lbl = document.createElement("label");
+    lbl.style.cssText = "display:flex;align-items:center;gap:0.35rem;cursor:pointer;";
+    const inp = document.createElement("input");
+    inp.type = "radio"; inp.name = name; inp.value = value; inp.checked = checked;
+    lbl.appendChild(inp); lbl.appendChild(document.createTextNode(label));
+    return { lbl, inp };
+  }
+  const { lbl: snapLbl, inp: snapRadio } = mkRadio("dlg_mode", "snap", "Snap to face", true);
+  const { lbl: runLbl,  inp: runRadio  } = mkRadio("dlg_mode", "run",  "Run between points", false);
+  radioWrap.appendChild(snapLbl); radioWrap.appendChild(runLbl);
+  modeField.appendChild(radioWrap);
+  dlg.appendChild(modeField);
+
+  // --- Snap section ---
+  const snapSec = document.createElement("div");
+
+  const refField = mkField("Reference (e.g. W4-W5, IW1, CW2)");
+  const refInput = mkInput("", "point pair or element name");
+  refField.appendChild(refInput); snapSec.appendChild(refField);
+
+  const faceField = mkField("Face of reference");
+  const faceSelect = mkSelect(
+    ["south","east","north","west","northeast","northwest","southeast","southwest"], "south");
+  faceField.appendChild(faceSelect); snapSec.appendChild(faceField);
+
+  const alignField = mkField("Align wall (start / mid / end)");
+  const alignSelect = mkSelect(["start","mid","end"], "mid");
+  alignField.appendChild(alignSelect); snapSec.appendChild(alignField);
+
+  dlg.appendChild(snapSec);
+
+  // --- Run between points section ---
+  const runSec = document.createElement("div");
+  runSec.style.display = "none";
+
+  const hintEl = document.createElement("div");
+  hintEl.style.cssText = "font-size:0.8rem;color:var(--subtext0,#aaa);margin-bottom:0.4rem;";
+  hintEl.textContent = "Wall runs from → to; the named face of the wall is placed at that line.";
+  runSec.appendChild(hintEl);
+
+  const fromField = mkField("From point");
+  const fromInput = mkInput("", "e.g. W3");
+  fromField.appendChild(fromInput); runSec.appendChild(fromField);
+
+  const toField = mkField("To point");
+  const toInput = mkInput("", "e.g. W19a");
+  toField.appendChild(toInput); runSec.appendChild(toField);
+
+  const wfaceField = mkField("Wall face at reference line");
+  const wfaceSelect = mkSelect(
+    ["north","northeast","east","southeast","south","southwest","west","northwest"], "northeast");
+  wfaceField.appendChild(wfaceSelect); runSec.appendChild(wfaceField);
+
+  dlg.appendChild(runSec);
+
+  // --- Common: offset ---
+  const offField = mkField("Offset (0 = face tangent to reference)");
+  const offInput = mkInput("0", "e.g. 0, 6in, 0.5ft");
+  offField.appendChild(offInput);
+  dlg.appendChild(offField);
+
+  // Mode toggle
+  function updateMode() {
+    const isRun = runRadio.checked;
+    snapSec.style.display = isRun ? "none" : "";
+    runSec.style.display  = isRun ? "" : "none";
+  }
+  snapRadio.addEventListener("change", updateMode);
+  runRadio.addEventListener("change", updateMode);
+
+  // Buttons
+  const btnDiv = document.createElement("div");
+  btnDiv.className = "dialog-buttons";
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "dialog-btn-cancel"; cancelBtn.textContent = "Cancel";
+  cancelBtn.onclick = () => Dialog.close();
+  const okBtn = document.createElement("button");
+  okBtn.className = "dialog-btn-primary"; okBtn.textContent = "OK";
+  btnDiv.appendChild(cancelBtn); btnDiv.appendChild(okBtn);
+  dlg.appendChild(btnDiv);
+
+  overlay.appendChild(dlg);
+  document.body.appendChild(overlay);
+  Dialog._overlay = overlay;
+
+  overlay.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); okBtn.click(); }
+    else if (e.key === "Escape") { e.preventDefault(); cancelBtn.click(); }
+  });
+  overlay.addEventListener("click", e => { if (e.target === overlay) cancelBtn.click(); });
+  refInput.focus();
+
+  okBtn.onclick = async () => {
+    Dialog.close();
+    const thick = props.thickness || 4.0 / 12;
+    const offsetDist = parseDimension(offInput.value) || 0;
+
+    if (runRadio.checked) {
+      // --- Run between points ---
+      const fromName = fromInput.value.trim();
+      const toName   = toInput.value.trim();
+      const wallFaceName = wfaceSelect.value;
+      if (!fromName || !toName) { showToast("Enter From and To points", "error"); return; }
+      const fromPt = _lookupPoint(g, fromName);
+      const toPt   = _lookupPoint(g, toName);
+      if (!fromPt) { showToast(`Point "${fromName}" not found`, "error"); return; }
+      if (!toPt)   { showToast(`Point "${toName}" not found`, "error"); return; }
+
+      const faceNormal = _wallFaceNormal(fromPt, toPt, wallFaceName);
+      if (!faceNormal) { showToast(`Unknown face direction "${wallFaceName}"`, "error"); return; }
+
+      // Center = from→to line shifted by (offsetDist - thick/2) along faceNormal
+      // so that the specified face lands on the reference line + offsetDist * faceNormal
+      const shift = offsetDist - thick / 2;
+      const newStart = [fromPt[0] + shift * faceNormal[0], fromPt[1] + shift * faceNormal[1]];
+      const newEnd   = [toPt[0]   + shift * faceNormal[0], toPt[1]   + shift * faceNormal[1]];
+
+      const newPoly = wallPoly(newStart, newEnd, thick);
+      if (!newPoly) return;
+      const newProps = { ...props, start: newStart, end: newEnd, poly: newPoly };
+      await fetch(`/api/elements/${elemRec.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: newProps }),
+      });
+      await reloadAfterChange();
+      showToast(`Set ${elemRec.name}: ${fromName} → ${toName} (${wallFaceName} face)`, "success");
+
+    } else {
+      // --- Snap to face ---
+      const ref = refInput.value.trim();
+      const face = faceSelect.value;
+      const align = alignSelect.value;
       if (!ref) { showToast("Enter a reference", "error"); return; }
-      if (!["south", "east", "north", "west"].includes(face)) {
-        showToast("Face must be south/east/north/west", "error"); return;
-      }
 
-      // Resolve reference face: either a segment "A-B" or an element name
-      let facePts = null; // [p1, p2] defining the face edge
+      const norm = _compassNormal(face);
+      if (!norm) { showToast(`Unknown face direction "${face}"`, "error"); return; }
+
+      let facePts = null;
       if (ref.includes("-")) {
-        // Outline segment like "W4-W5" or "F4-F5"
         const [nameA, nameB] = ref.split("-").map(s => s.trim());
         const ptA = _lookupPoint(g, nameA);
         const ptB = _lookupPoint(g, nameB);
         if (!ptA || !ptB) { showToast(`Point ${!ptA ? nameA : nameB} not found`, "error"); return; }
         facePts = [ptA, ptB];
       } else {
-        // Element name — look up poly
         const poly = _lookupElementPoly(g, ref);
-        if (!poly || poly.length < 3) { showToast(`Element ${ref} not found`, "error"); return; }
+        if (!poly || poly.length < 3) { showToast(`Element "${ref}" not found`, "error"); return; }
         facePts = _faceEdge(poly, face);
       }
-
       if (!facePts) { showToast("Could not resolve face", "error"); return; }
 
-      // Face midpoint and outward normal
       const [fp1, fp2] = facePts;
       const fmx = (fp1[0] + fp2[0]) / 2, fmy = (fp1[1] + fp2[1]) / 2;
-      const fdx = fp2[0] - fp1[0], fdy = fp2[1] - fp1[1];
-      const flen = Math.hypot(fdx, fdy) || 1e-9;
-      // Normal pointing outward from the face
-      const normals = { south: [0, -1], north: [0, 1], east: [1, 0], west: [-1, 0] };
-      const norm = normals[face];
 
-      // Current wall properties
       const s = props.start, e = props.end;
-      const wmx = (s[0] + e[0]) / 2, wmy = (s[1] + e[1]) / 2;
       const wlen = Math.hypot(e[0] - s[0], e[1] - s[1]);
       const wdx = (e[0] - s[0]) / (wlen || 1e-9), wdy = (e[1] - s[1]) / (wlen || 1e-9);
-      const thick = props.thickness || 4.0 / 12;
-
-      // Position: place the align-point on the face + offset along normal
-      // The wall's near face (half-thickness) should be tangent
       const targetX = fmx + (offsetDist + thick / 2) * norm[0];
       const targetY = fmy + (offsetDist + thick / 2) * norm[1];
 
@@ -6910,14 +7056,13 @@ function showSnapToFaceDialog(elemRec, props) {
       const half = wlen / 2;
       if (align === "start") {
         newStart = [targetX, targetY];
-        newEnd = [targetX + wlen * wdx, targetY + wlen * wdy];
+        newEnd   = [targetX + wlen * wdx, targetY + wlen * wdy];
       } else if (align === "end") {
-        newEnd = [targetX, targetY];
+        newEnd   = [targetX, targetY];
         newStart = [targetX - wlen * wdx, targetY - wlen * wdy];
       } else {
-        // mid (default)
         newStart = [targetX - half * wdx, targetY - half * wdy];
-        newEnd = [targetX + half * wdx, targetY + half * wdy];
+        newEnd   = [targetX + half * wdx, targetY + half * wdy];
       }
 
       const newPoly = wallPoly(newStart, newEnd, thick);
@@ -6930,8 +7075,8 @@ function showSnapToFaceDialog(elemRec, props) {
       });
       await reloadAfterChange();
       showToast(`Moved ${elemRec.name} to ${ref} ${face}`, "success");
-    },
-  });
+    }
+  };
 }
 
 /** Look up a named point from geometry. */
@@ -6961,30 +7106,56 @@ function _lookupElementPoly(g, name) {
   return null;
 }
 
-/** Extract a face edge [p1, p2] from a 4-point polygon. */
+/** Return unit compass-direction vector, supporting 8 directions (n/s/e/w/ne/nw/se/sw). */
+function _compassNormal(face) {
+  const s = Math.SQRT1_2; // 1/√2
+  const map = {
+    north: [0, 1],      n: [0, 1],
+    south: [0, -1],     s: [0, -1],
+    east:  [1, 0],      e: [1, 0],
+    west:  [-1, 0],     w: [-1, 0],
+    northeast: [s, s],  ne: [s, s],
+    northwest: [-s, s], nw: [-s, s],
+    southeast: [s, -s], se: [s, -s],
+    southwest: [-s, -s],sw: [-s, -s],
+  };
+  return map[face.toLowerCase()] || null;
+}
+
+/**
+ * Return the wall-perpendicular unit normal that best matches a compass direction.
+ * The wall runs from→to; the returned normal points toward the named compass direction.
+ */
+function _wallFaceNormal(fromPt, toPt, faceName) {
+  const dx = toPt[0] - fromPt[0], dy = toPt[1] - fromPt[1];
+  const len = Math.hypot(dx, dy) || 1e-9;
+  const lx = -dy / len, ly =  dx / len;   // left perpendicular
+  const rx =  dy / len, ry = -dx / len;   // right perpendicular
+  const compass = _compassNormal(faceName);
+  if (!compass) return null;
+  const ldot = lx * compass[0] + ly * compass[1];
+  const rdot = rx * compass[0] + ry * compass[1];
+  return ldot >= rdot ? [lx, ly] : [rx, ry];
+}
+
+/**
+ * Extract a face edge [p1, p2] from a polygon. Supports all 8 compass directions:
+ * picks the edge whose midpoint is furthest in the requested compass direction
+ * from the polygon centroid.
+ */
 function _faceEdge(poly, face) {
-  if (poly.length < 4) return null;
-  // Find bounding box to identify faces
-  const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
-  const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
-  // For each edge, classify by which bbox side it's closest to
-  const edges = [];
+  if (poly.length < 3) return null;
+  const compass = _compassNormal(face);
+  if (!compass) return null;
+  const cx = poly.reduce((a, p) => a + p[0], 0) / poly.length;
+  const cy = poly.reduce((a, p) => a + p[1], 0) / poly.length;
+  let best = null, bestScore = -Infinity;
   for (let i = 0; i < poly.length; i++) {
     const a = poly[i], b = poly[(i + 1) % poly.length];
-    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-    edges.push({ a, b, mx, my });
-  }
-  // Pick the edge whose midpoint best matches the requested face
-  let best = null, bestScore = Infinity;
-  for (const e of edges) {
-    let score;
-    if (face === "south") score = e.my - minY;
-    else if (face === "north") score = maxY - e.my;
-    else if (face === "west") score = e.mx - minX;
-    else if (face === "east") score = maxX - e.mx;
-    else score = Infinity;
-    if (score < bestScore) { bestScore = score; best = e; }
+    const mx = (a[0] + b[0]) / 2 - cx, my = (a[1] + b[1]) / 2 - cy;
+    const mlen = Math.hypot(mx, my) || 1e-9;
+    const score = (mx / mlen) * compass[0] + (my / mlen) * compass[1];
+    if (score > bestScore) { bestScore = score; best = { a, b }; }
   }
   return best ? [best.a, best.b] : null;
 }
@@ -7452,7 +7623,7 @@ async function handleMenuAction(action) {
 
 /* ========== TOAST ========== */
 
-function showToast(msg, type = "") {
+function showToast(msg, type = "", duration = 3000) {
   const existing = document.querySelector(".toast");
   if (existing) existing.remove();
 
@@ -7460,7 +7631,7 @@ function showToast(msg, type = "") {
   toast.className = `toast ${type}`;
   toast.textContent = msg;
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  setTimeout(() => toast.remove(), duration);
 }
 
 

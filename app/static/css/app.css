@@ -858,7 +858,8 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   color: var(--text-dim);
   margin-bottom: 4px;
 }
-.dialog-field input {
+.dialog-field input,
+.dialog-field select {
   width: 100%;
   padding: 6px 8px;
   background: var(--bg);
@@ -869,7 +870,8 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   font-family: 'Cascadia Code', 'Fira Code', monospace;
   outline: none;
 }
-.dialog-field input:focus { border-color: var(--accent); }
+.dialog-field input:focus,
+.dialog-field select:focus { border-color: var(--accent); }
 .dialog-buttons {
   display: flex;
   gap: 8px;
