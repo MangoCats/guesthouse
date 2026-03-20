@@ -558,6 +558,30 @@ def create_app(db_path=None):
         if catalog_key == "dining_table":
             return _build_dining_triangle_formula(cx, cy, rotation_deg)
 
+        # Toilet → toilet_shape formula
+        if shape == "toilet":
+            rad = rotation_deg * math.pi / 180
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            return {
+                "type": "toilet_shape",
+                "center": [cx, cy],
+                "facing_dir": [-sin_r, cos_r],   # default north, rotated CCW
+                "width_dir": [cos_r, sin_r],      # default east, rotated CCW
+            }
+
+        # Bath sink → bath_sink_shape formula
+        if shape == "bath_sink":
+            rad = rotation_deg * math.pi / 180
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            return {
+                "type": "bath_sink_shape",
+                "anchor": [cx, cy],
+                "along": [cos_r, sin_r],          # default east, rotated CCW
+                "outward": [-sin_r, cos_r],        # default north, rotated CCW
+                "length": {"const": "BATH_SINK_LENGTH"},
+                "depth": {"const": "BATH_SINK_DEPTH"},
+            }
+
         # Circle items — get radius from seeded formula or width
         if shape == "circle":
             radius = width / 2
@@ -936,12 +960,23 @@ def create_app(db_path=None):
             new_formula["depth"] = body["depth"]
             changed = True
         if "rotation_deg" in body:
-            if new_formula.get("type") == "dining_triangle":
+            ftype = new_formula.get("type")
+            if ftype == "dining_triangle":
                 # Rebuild direction vectors from rotation
                 rad = body["rotation_deg"] * math.pi / 180
                 cos_r, sin_r = math.cos(rad), math.sin(rad)
                 new_formula["toward_apex"] = [sin_r, -cos_r]
                 new_formula["along_base"] = [cos_r, sin_r]
+            elif ftype == "toilet_shape":
+                rad = body["rotation_deg"] * math.pi / 180
+                cos_r, sin_r = math.cos(rad), math.sin(rad)
+                new_formula["facing_dir"] = [-sin_r, cos_r]
+                new_formula["width_dir"] = [cos_r, sin_r]
+            elif ftype == "bath_sink_shape":
+                rad = body["rotation_deg"] * math.pi / 180
+                cos_r, sin_r = math.cos(rad), math.sin(rad)
+                new_formula["along"] = [cos_r, sin_r]
+                new_formula["outward"] = [-sin_r, cos_r]
             else:
                 new_formula["rotation_deg"] = body["rotation_deg"]
             changed = True

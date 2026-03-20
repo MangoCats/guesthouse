@@ -506,6 +506,28 @@ def _migrate_placed_item_formulas(conn):
                 "apex_radius": 1.0,
                 "fillet_radius": 0.5,
             }
+        elif shape == "toilet":
+            import math as _math
+            rad = rotation * _math.pi / 180
+            cos_r, sin_r = _math.cos(rad), _math.sin(rad)
+            formula = {
+                "type": "toilet_shape",
+                "center": center,
+                "facing_dir": [-sin_r, cos_r],
+                "width_dir": [cos_r, sin_r],
+            }
+        elif shape == "bath_sink":
+            import math as _math
+            rad = rotation * _math.pi / 180
+            cos_r, sin_r = _math.cos(rad), _math.sin(rad)
+            formula = {
+                "type": "bath_sink_shape",
+                "anchor": center,
+                "along": [cos_r, sin_r],
+                "outward": [-sin_r, cos_r],
+                "length": {"const": "BATH_SINK_LENGTH"},
+                "depth": {"const": "BATH_SINK_DEPTH"},
+            }
         elif shape == "circle":
             radius = props.get("radius") or props.get("width", 1) / 2
             formula = {"type": "item_circle", "center": center,
