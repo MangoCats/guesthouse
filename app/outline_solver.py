@@ -301,7 +301,10 @@ def solve_closure(chain, R_a1):
 def flex_specs_from_chain_rows(chain_rows):
     """Extract FlexSpec list from DB outline_chain rows.
 
-    Falls back to legacy defaults (seq 0, n-2, n-1) if no flex column.
+    Returns the 3-spec list for whole-chain solvers (solve_closure_general).
+    Falls back to legacy defaults (seq 0, n-2, n-1) if no flex column or
+    if the DB has more than 3 (pivot mode — caller should use
+    all_flex_specs_from_chain_rows instead).
     """
     specs = []
     for row in chain_rows:
@@ -310,7 +313,29 @@ def flex_specs_from_chain_rows(chain_rows):
             specs.append(FlexSpec(row["seq"], flex))
     if len(specs) == 3:
         return specs
-    # Fallback to defaults
+    # Fallback to defaults (covers 0 specs and pivot-mode 6-spec DB)
+    n = len(chain_rows)
+    return [
+        FlexSpec(0, "distance"),
+        FlexSpec(n - 2, "distance"),
+        FlexSpec(n - 1, "sweep"),
+    ]
+
+
+def all_flex_specs_from_chain_rows(chain_rows):
+    """Extract all FlexSpec entries from DB rows without count gating.
+
+    Used by pivot-aware code that needs the full 6-spec set or whatever
+    was explicitly written to the DB.  Falls back to defaults only when
+    no specs exist at all.
+    """
+    specs = []
+    for row in chain_rows:
+        flex = row.get("flex")
+        if flex:
+            specs.append(FlexSpec(row["seq"], flex))
+    if specs:
+        return specs
     n = len(chain_rows)
     return [
         FlexSpec(0, "distance"),

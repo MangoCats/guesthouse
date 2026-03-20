@@ -66,7 +66,8 @@ from app.plumbing import (
 )
 from app.outline_solver import (db_rows_to_chain, solve_closure,
                                 solve_closure_general, validate_chain,
-                                flex_specs_from_chain_rows, FlexSpec,
+                                flex_specs_from_chain_rows,
+                                all_flex_specs_from_chain_rows, FlexSpec,
                                 solve_with_pivot, point_name_to_seq,
                                 identify_section, section_seqs,
                                 validate_pivot_placement,
@@ -198,7 +199,8 @@ def create_app(db_path=None):
             return None
         return ev.elements.get(elem_name)
 
-    def _solve_and_update_closure(edited_seq=None, pre_edit_rows=None):
+    def _solve_and_update_closure(edited_seq=None, pre_edit_rows=None,
+                                  use_db_flex=False):
         """Re-solve closure using the pivot-aware solver.
 
         The pivot (anchor + pivot point) is always active — seeded at DB
@@ -209,6 +211,9 @@ def create_app(db_path=None):
             re-solve after structural changes like add/remove segment).
         pre_edit_rows: chain rows from BEFORE the edit — used to compute
             anchor/pivot target positions on the reference (solved) chain.
+        use_db_flex: when True, read flex specs from the DB (respecting
+            explicit user assignments) instead of auto-assigning.  Also
+            skips _sync_pivot_flex_to_db so the user's choice is preserved.
 
         Returns (solver, chain_rows) on success.
         Returns (solver, None) if closure is invalid.
@@ -238,11 +243,19 @@ def create_app(db_path=None):
         p_start = (pivot_pt_seq  + 1) % n
         a_seqs, b_seqs = section_seqs(a_start, p_start, n)
 
-        # Compute flex specs dynamically: sweep placement informed by
-        # edited_seq and bearing_flex flags; positional flex goes to
-        # first/last lines in each section.
-        a_flex = auto_assign_section_flex(chain, a_seqs, edited_seq=edited_seq)
-        b_flex = auto_assign_section_flex(chain, b_seqs, edited_seq=edited_seq)
+        if use_db_flex:
+            # Respect explicit DB flex assignments (e.g. user moved flex via UI)
+            db_specs = all_flex_specs_from_chain_rows(chain_rows)
+            a_seqs_set = set(a_seqs)
+            b_seqs_set = set(b_seqs)
+            a_flex = [s for s in db_specs if s.seq in a_seqs_set]
+            b_flex = [s for s in db_specs if s.seq in b_seqs_set]
+        else:
+            # Compute flex specs dynamically: sweep placement informed by
+            # edited_seq and bearing_flex flags; positional flex goes to
+            # first/last lines in each section.
+            a_flex = auto_assign_section_flex(chain, a_seqs, edited_seq=edited_seq)
+            b_flex = auto_assign_section_flex(chain, b_seqs, edited_seq=edited_seq)
 
         anchor_E, anchor_N, anchor_brg = anchor_pos
 
@@ -261,9 +274,10 @@ def create_app(db_path=None):
         for seq, (param, value) in solver.solved_values.items():
             update_outline_segment(seq, {param: value}, db)
 
-        # Sync the dynamic flex assignment to DB so the UI shows which
-        # segments were used as flex for this solve.
-        _sync_pivot_flex_to_db(a_flex, b_flex)
+        if not use_db_flex:
+            # Sync the dynamic flex assignment to DB so the UI shows which
+            # segments were used as flex for this solve.
+            _sync_pivot_flex_to_db(a_flex, b_flex)
         return solver, chain_rows
 
     def _sync_pivot_flex_to_db(a_flex, b_flex):
@@ -1390,7 +1404,8 @@ def create_app(db_path=None):
         specs = body.get("flex", [])
 
         _, pivot_name = get_outline_anchor_pivot(db)
-        expected = 6 if pivot_name else 3
+        pivot_user_set = get_outline_pivot_user_set(db)
+        expected = 6 if pivot_user_set else 3
         if len(specs) != expected:
             return jsonify({
                 "error": f"Exactly {expected} flex specs required"
@@ -1399,7 +1414,7 @@ def create_app(db_path=None):
         sweep_count = sum(1 for s in specs if s.get("param") == "sweep")
         pos_count = sum(1 for s in specs
                         if s.get("param") in ("distance", "radius"))
-        if pivot_name:
+        if pivot_user_set:
             # 6-spec mode: 2 sweeps + 4 distance/radius
             if sweep_count != 2 or pos_count != 4:
                 return jsonify({
@@ -1441,8 +1456,8 @@ def create_app(db_path=None):
                     "UPDATE outline_chain SET flex = ? WHERE seq = ?",
                     (s["param"], s["seq"]))
 
-        # Re-solve with new flex
-        solver, _ = _solve_and_update_closure()
+        # Re-solve with new flex — use DB flex to respect the user's assignment
+        solver, _ = _solve_and_update_closure(use_db_flex=True)
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({
