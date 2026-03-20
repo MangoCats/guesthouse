@@ -49,6 +49,7 @@ from app.database import (
     create_catalog_item, delete_catalog_item, ensure_catalog_item,
     get_outline_anchor_pivot, set_outline_anchor_pivot,
     get_outline_anchor_pos, get_outline_pivot_user_set,
+    get_outline_flex_user_set, set_outline_flex_user_set,
     clear_outline_pivot, _seed_default_anchor_pivot,
 )
 from app.doors import validate_door
@@ -1373,9 +1374,11 @@ def create_app(db_path=None):
         # Apply update to DB
         update_outline_segment(seq, updates, db)
 
-        # Re-solve closure
+        # Re-solve closure — respect explicit user flex assignments if present.
+        use_db_flex = get_outline_flex_user_set(db)
         solver, _ = _solve_and_update_closure(
-            edited_seq=seq, pre_edit_rows=before_chain)
+            edited_seq=seq, pre_edit_rows=before_chain,
+            use_db_flex=use_db_flex)
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({
@@ -1499,6 +1502,10 @@ def create_app(db_path=None):
                 "error": "Closure failed with new flex designation",
                 "closure_error": solver.closure_error,
             }), 400
+
+        # Mark that the user has explicitly chosen flex segments so subsequent
+        # segment edits preserve this assignment (use_db_flex=True).
+        set_outline_flex_user_set(True, db)
 
         after_chain = get_outline_chain(db)
         undo_mgr.record("outline_update", before_chain, after_chain,

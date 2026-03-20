@@ -1938,6 +1938,17 @@ def get_outline_pivot_user_set(db_path=None):
     return v == "1"
 
 
+def get_outline_flex_user_set(db_path=None):
+    """Return True if flex segments were explicitly assigned by the user."""
+    v = get_config("outline_flex_user_set", db_path)
+    return v == "1"
+
+
+def set_outline_flex_user_set(value, db_path=None):
+    """Record whether the user has explicitly assigned flex segments."""
+    set_config("outline_flex_user_set", "1" if value else "0", db_path)
+
+
 def _seed_default_anchor_pivot(db_path):
     """Seed anchor/pivot defaults from constants table.
 
@@ -1972,7 +1983,8 @@ def clear_outline_pivot(db_path=None):
         conn.execute("DELETE FROM config WHERE key IN "
                      "('outline_anchor', 'outline_pivot', "
                      "'outline_anchor_E', 'outline_anchor_N', "
-                     "'outline_anchor_brg', 'outline_pivot_user_set')")
+                     "'outline_anchor_brg', 'outline_pivot_user_set', "
+                     "'outline_flex_user_set')")
         conn.execute("UPDATE outline_chain SET flex = NULL")
     _seed_default_anchor_pivot(db_path)
 
