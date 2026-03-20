@@ -3262,12 +3262,10 @@ function _encodePointRef(val) {
  *  (e.g. W21–W24) appear automatically. */
 function _makePointOptions(excludeElem) {
   const allPts = Object.keys(App.state.geometry?.points ?? {}).sort((a, b) => {
-    // Sort W-series before F-series, then numerically within each prefix
-    const prefA = a[0], prefB = b[0];
-    if (prefA !== prefB) return prefA < prefB ? -1 : 1;
-    const numA = parseFloat(a.slice(1)) || 0, numB = parseFloat(b.slice(1)) || 0;
-    if (numA !== numB) return numA - numB;
-    return a.localeCompare(b);
+    const re = /^([A-Za-z]+)(\d*)(.*)/;
+    const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
+    const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
+    return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
   });
   const wallOpts = allPts.map(p => ({ value: p, label: p }));
   const elemOpts = (App.state.elements || [])
@@ -3504,19 +3502,18 @@ function showPlacementWizard(elemName, paramName, currentFormula, variant) {
     }
 
     // Center point: midpoint(A,B) + along_dist*refDir + center_perp*refPerp
+    // Offset spec format: {offset: <base_point>, dir: <dir>, dist: <length>}
     let center = { midpoint: [pA, pB] };
     if (alongDistFt !== 0)
-      center = { offset: { base: center, dir: refDir,  dist: alongDistFt } };
+      center = { offset: center, dir: refDir,  dist: alongDistFt };
     if (!(perpFeature === "center" && perpDistFt === 0))
-      center = { offset: { base: center, dir: refPerp, dist: center_perp } };
+      center = { offset: center, dir: refPerp, dist: center_perp };
 
     // anchor_sw = center − along*(W/2) − across*(D/2)
     const anchor = {
-      offset: {
-        base: { offset: { base: center, dir: neg_along, dist: along_half } },
-        dir: neg_across,
-        dist: across_half,
-      },
+      offset: { offset: center, dir: neg_along, dist: along_half },
+      dir: neg_across,
+      dist: across_half,
     };
 
     return { type: "item_rect", anchor, along: along_dir, across: across_dir,
@@ -4351,9 +4348,23 @@ async function loadOutlineTable() {
     tdSeq.textContent = seg.seq;
     tr.appendChild(tdSeq);
 
-    // Type column
+    // Type column — dropdown to change segment type
     const tdType = document.createElement("td");
-    tdType.textContent = seg.seg_type;
+    const typeSel = document.createElement("select");
+    typeSel.className = "seg-type-sel";
+    for (const t of ["L", "CW", "CCW"]) {
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t;
+      if (t === seg.seg_type) opt.selected = true;
+      typeSel.appendChild(opt);
+    }
+    typeSel.addEventListener("click", (e) => e.stopPropagation());
+    typeSel.addEventListener("change", (e) => {
+      e.stopPropagation();
+      handleOutlineTypeChange(seg.seq, typeSel.value);
+    });
+    tdType.appendChild(typeSel);
     tr.appendChild(tdType);
 
     // Dist/R column — editable unless this segment's dist/radius is flex
@@ -5267,6 +5278,21 @@ async function handleOutlineEdit(seq, field, rawValue) {
       body: JSON.stringify(body),
     });
     showToast(`Seg ${seq}: ${fmtFtIn(value)}`, "success");
+    await loadOutlineTable();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+    await loadOutlineTable();
+  }
+}
+
+async function handleOutlineTypeChange(seq, newType) {
+  try {
+    await apiFetch(`/api/outline/${seq}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seg_type: newType }),
+    });
+    showToast(`Seg ${seq}: type → ${newType}`, "success");
     await loadOutlineTable();
   } catch (e) {
     showToast(`Error: ${e.message}`, "error");

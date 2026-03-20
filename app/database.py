@@ -1770,7 +1770,7 @@ def get_outline_chain_row(seq, db_path=None):
 def update_outline_segment(seq, updates, db_path=None):
     """Update outline chain segment fields.  Returns updated row or None."""
     allowed = {"distance", "radius", "sweep", "sweep_name", "seg_type",
-               "center_name", "n_pts", "end_name", "bearing_flex"}
+               "center_name", "n_pts", "end_name", "bearing_flex", "flex"}
     sets = []
     vals = []
     for k, v in updates.items():

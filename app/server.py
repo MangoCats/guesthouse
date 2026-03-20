@@ -1375,10 +1375,47 @@ def create_app(db_path=None):
         body = request.get_json(force=True)
         updates = {}
 
-        # Map dist_or_radius to distance or radius based on seg_type
+        # Handle seg_type change — must come before dist_or_radius mapping
+        changing_type = False
+        if "seg_type" in body:
+            new_type = body["seg_type"]
+            if new_type not in ("L", "CW", "CCW"):
+                return jsonify({"error": "seg_type must be L, CW, or CCW"}), 400
+            updates["seg_type"] = new_type
+            old_type = old_row["seg_type"]
+            if new_type != old_type:
+                changing_type = True
+                if old_type == "L" and new_type in ("CW", "CCW"):
+                    # Line → Arc: derive arc from chord (chord = dist, sweep = 90°)
+                    dist = old_row["distance"] or 1.0
+                    default_sweep = math.pi / 2
+                    default_radius = dist / math.sqrt(2)  # chord = 2R sin(45°) = R√2
+                    updates.setdefault("radius", default_radius)
+                    updates.setdefault("sweep", default_sweep)
+                    updates["sweep_name"] = None
+                    updates["center_name"] = None
+                    updates["distance"] = None
+                    if old_row.get("flex") == "distance":
+                        updates["flex"] = "radius"
+                elif old_type in ("CW", "CCW") and new_type == "L":
+                    # Arc → Line: chord length from arc geometry
+                    r = old_row["radius"] or 1.0
+                    s = old_row["sweep"] or (math.pi / 2)
+                    chord = 2 * r * math.sin(s / 2)
+                    updates.setdefault("distance", chord)
+                    updates["radius"] = None
+                    updates["sweep"] = None
+                    updates["sweep_name"] = None
+                    updates["center_name"] = None
+                    if old_row.get("flex") in ("radius", "sweep"):
+                        updates["flex"] = "distance"
+                # CW ↔ CCW: just the type flag, no geometric changes needed
+
+        # Map dist_or_radius to distance or radius based on (new) seg_type
+        effective_type = updates.get("seg_type", old_row["seg_type"])
         if "dist_or_radius" in body:
             val = float(body["dist_or_radius"])
-            if old_row["seg_type"] == "L":
+            if effective_type == "L":
                 updates["distance"] = val
             else:
                 updates["radius"] = val
@@ -1389,14 +1426,14 @@ def create_app(db_path=None):
         if not updates:
             return jsonify({"error": "no valid fields to update"}), 400
 
-        # Protect solved segments
+        # Protect solved segments (skip when changing type — flex reassignment is intentional)
         chain_rows = get_outline_chain(db)
-        # Protect flex (solver-controlled) parameters
-        flex_map = {r["seq"]: r["flex"] for r in chain_rows if r.get("flex")}
-        if seq in flex_map and flex_map[seq] in updates:
-            return jsonify({
-                "error": f"Cannot directly edit solved {flex_map[seq]}"
-            }), 400
+        if not changing_type:
+            flex_map = {r["seq"]: r["flex"] for r in chain_rows if r.get("flex")}
+            if seq in flex_map and flex_map[seq] in updates:
+                return jsonify({
+                    "error": f"Cannot directly edit solved {flex_map[seq]}"
+                }), 400
 
         # Snapshot before state
         before_chain = get_outline_chain(db)
