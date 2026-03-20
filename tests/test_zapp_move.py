@@ -10,40 +10,55 @@ from app.database import (
     get_db, get_constant_value, get_element, get_element_by_name,
     create_element, update_element,
 )
-from app.elements import (
-    IW_CONSTANT_MAP, IW_MOVE_AXIS, compute_constant_delta,
-)
+from app.evaluator import get_iw_formulas
 
 from tests.test_zapp_conftest import fresh_db, app_client  # noqa: F401
+
+
+def _constant_delta(formula, dx, dy):
+    """Compute (const_name, delta) from formula metadata, or None."""
+    pos_const = formula.get("position_constant")
+    pos_axis = formula.get("position_axis")
+    pos_sign = formula.get("position_sign", 1)
+    if not pos_const or not pos_axis:
+        return None
+    drag = dx if pos_axis == "x" else dy
+    delta = drag * pos_sign
+    if delta == 0:
+        return None
+    return (pos_const, delta)
 
 
 # ── IW Axis Mapping Unit Tests ──────────────────────────────────────
 
 class TestMoveAxisMapping:
-    """Verify IW_MOVE_AXIS and compute_constant_delta."""
+    """Verify IW formula position metadata (replaces old IW_CONSTANT_MAP / IW_MOVE_AXIS)."""
 
     def test_iw9_constant_fixed(self):
         """IW9 should map to IW3_OFFSET_IW9 (not the old IW9_OFFSET_O10)."""
-        assert IW_CONSTANT_MAP["IW9"] == "IW3_OFFSET_IW9"
+        formulas = get_iw_formulas()
+        assert formulas["IW9"].get("position_constant") == "IW3_OFFSET_IW9"
 
     def test_all_moveable_walls_have_axis(self):
-        """Every IW with a non-None constant must have a non-None axis entry."""
-        for name, const in IW_CONSTANT_MAP.items():
+        """Every IW formula with a position_constant must also have position_axis."""
+        for name, formula in get_iw_formulas().items():
+            const = formula.get("position_constant")
             if const is not None:
-                axis_info = IW_MOVE_AXIS.get(name)
-                assert axis_info is not None, f"{name} has constant but no axis"
-                axis, sign = axis_info
+                axis = formula.get("position_axis")
+                sign = formula.get("position_sign", 1)
                 assert axis in ("x", "y"), f"{name} axis must be x or y"
                 assert sign in (+1, -1), f"{name} sign must be +1 or -1"
 
-    def test_nonmovable_walls_have_none_axis(self):
-        """IW2O and IW8 should have None axis (not directly movable)."""
-        assert IW_MOVE_AXIS["IW2O"] is None
-        assert IW_MOVE_AXIS["IW8"] is None
+    def test_nonmovable_walls_have_none_constant(self):
+        """IW2O and IW8 should have no position_constant (not directly movable)."""
+        formulas = get_iw_formulas()
+        assert formulas["IW2O"].get("position_constant") is None
+        assert formulas["IW8"].get("position_constant") is None
 
     def test_compute_constant_delta_iw1_dy(self):
         """IW1 moves on y-axis with sign -1: dy=-0.5 → delta=+0.5."""
-        result = compute_constant_delta("IW1", 0, -0.5)
+        formulas = get_iw_formulas()
+        result = _constant_delta(formulas["IW1"], 0, -0.5)
         assert result is not None
         const_name, delta = result
         assert const_name == "IW1_OFFSET_FROM_W9"
@@ -51,7 +66,8 @@ class TestMoveAxisMapping:
 
     def test_compute_constant_delta_iw2_dx(self):
         """IW2 moves on x-axis with sign +1: dx=1.0 → delta=+1.0."""
-        result = compute_constant_delta("IW2", 1.0, 0)
+        formulas = get_iw_formulas()
+        result = _constant_delta(formulas["IW2"], 1.0, 0)
         assert result is not None
         const_name, delta = result
         assert const_name == "IW2_DIST_W2W5"
@@ -59,17 +75,19 @@ class TestMoveAxisMapping:
 
     def test_compute_constant_delta_nonmovable(self):
         """IW2O and IW8 should return None (not movable)."""
-        assert compute_constant_delta("IW2O", 1.0, 1.0) is None
-        assert compute_constant_delta("IW8", 1.0, 1.0) is None
+        formulas = get_iw_formulas()
+        assert _constant_delta(formulas["IW2O"], 1.0, 1.0) is None
+        assert _constant_delta(formulas["IW8"], 1.0, 1.0) is None
 
     def test_compute_constant_delta_zero_move(self):
         """Zero movement on the relevant axis should return None."""
-        # IW1 moves on y-axis; dx-only should give zero on y → None
-        assert compute_constant_delta("IW1", 1.0, 0) is None
+        # IW1 moves on y-axis; dx-only gives zero on y → None
+        formulas = get_iw_formulas()
+        assert _constant_delta(formulas["IW1"], 1.0, 0) is None
 
     def test_compute_constant_delta_unknown_wall(self):
-        """Unknown wall name should return None."""
-        assert compute_constant_delta("FAKE_WALL", 1.0, 1.0) is None
+        """An empty/unknown formula dict should return None."""
+        assert _constant_delta({}, 1.0, 1.0) is None
 
 
 # ── API-23: POST /api/elements/<id>/move ─────────────────────────────

@@ -11,9 +11,9 @@ from app.database import (
     create_element, update_element, delete_element,
 )
 from app.elements import (
-    get_elements_for_variant, get_controlling_constant, get_hosted_openings,
-    IW_CONSTANT_MAP,
+    get_elements_for_variant, get_hosted_openings,
 )
+from app.evaluator import get_iw_formulas
 from app.undo import UndoManager
 
 # Re-use fixtures from test_zapp_conftest.py
@@ -129,8 +129,9 @@ class TestElementBusinessLogic:
         assert not any(e["name"] == "VARIANT_ITEM" for e in elems2)
 
     def test_controlling_constant(self):
-        assert get_controlling_constant("IW1") == "IW1_OFFSET_FROM_W9"
-        assert get_controlling_constant("IW2O") is None
+        formulas = get_iw_formulas()
+        assert formulas["IW1"].get("position_constant") == "IW1_OFFSET_FROM_W9"
+        assert formulas["IW2O"].get("position_constant") is None
 
     def test_hosted_openings(self):
         assert "RO1" in get_hosted_openings("IW1")

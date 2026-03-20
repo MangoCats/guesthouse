@@ -328,8 +328,10 @@ def init_db(db_path=None):
             _migrate_nocase_formulas(conn)
             # Migrate existing placed items: create formulas if missing
             _migrate_placed_item_formulas(conn)
-            # Add prop_constants to IW wall records if missing
+            # Sync prop_constants on IW walls from formula metadata
             _migrate_iw_prop_constants(conn)
+            # Remove drawn CW walls (superseded by formula-based IW system)
+            _migrate_remove_drawn_walls(conn)
     # Seed anchor/pivot defaults after DB is committed (needs constants table)
     if fresh:
         _seed_default_anchor_pivot(db_path)
@@ -563,9 +565,13 @@ def _migrate_placed_item_formulas(conn):
 
 
 def _migrate_iw_prop_constants(conn):
-    """Sync prop_constants for all IW wall records to the canonical IW_PROP_CONSTANTS
-    mapping (upgrade migration — runs on every startup for existing DBs)."""
-    from app.elements import IW_PROP_CONSTANTS
+    """Sync prop_constants for all IW wall records from formula metadata.
+
+    Derives prop_constants from position_constant / span_constants fields
+    embedded in each wall's formula (upgrade migration — runs on every startup).
+    """
+    from app.evaluator import get_iw_formulas, _prop_constants_from_formula
+    formulas = get_iw_formulas()
     rows = conn.execute(
         "SELECT id, name, properties FROM elements "
         "WHERE type='wall' AND name GLOB 'IW*'"
@@ -576,13 +582,35 @@ def _migrate_iw_prop_constants(conn):
             props = json.loads(row["properties"]) if row["properties"] else {}
         except Exception:
             props = {}
-        expected = IW_PROP_CONSTANTS.get(name, {})
+        formula = formulas.get(name, {})
+        expected = _prop_constants_from_formula(formula)
         if props.get("prop_constants") != expected:
             props["prop_constants"] = expected
             conn.execute(
                 "UPDATE elements SET properties=? WHERE id=?",
                 (json.dumps(props), row["id"]),
             )
+
+
+def _migrate_remove_drawn_walls(conn):
+    """Delete all drawn CW walls from the elements table.
+
+    Drawn walls (source='drawn') are superseded by the formula-based IW system.
+    They will be redrawn as formula-based walls after this migration.
+    """
+    rows = conn.execute(
+        "SELECT id, name, properties FROM elements WHERE type='wall'"
+    ).fetchall()
+    ids_to_delete = []
+    for row in rows:
+        try:
+            props = json.loads(row["properties"]) if row["properties"] else {}
+        except Exception:
+            props = {}
+        if props.get("source") == "drawn":
+            ids_to_delete.append(row["id"])
+    for eid in ids_to_delete:
+        conn.execute("DELETE FROM elements WHERE id=?", (eid,))
 
 
 # ---------------------------------------------------------------------------
@@ -1390,12 +1418,13 @@ def _seed_elements(conn):
     """Seed the elements table with interior walls, openings, and variant items."""
 
     # --- Interior walls (13) ---
-    from app.elements import IW_PROP_CONSTANTS
+    from app.evaluator import get_iw_formulas, _prop_constants_from_formula
+    iw_formulas = get_iw_formulas()
     for name, thickness_const, orientation in _IW_SEED:
         props = json.dumps({
             "thickness_constant": thickness_const,
             "orientation": orientation,
-            "prop_constants": IW_PROP_CONSTANTS.get(name, {}),
+            "prop_constants": _prop_constants_from_formula(iw_formulas.get(name, {})),
         })
         conn.execute(
             "INSERT OR REPLACE INTO elements (type, name, properties, variant) "

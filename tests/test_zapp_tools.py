@@ -799,19 +799,28 @@ class TestSEL15ConstantDeps:
     """SEL-15: Reverse constant → element dependency mapping."""
 
     def test_reverse_iw_map_completeness(self):
-        """Every non-None IW_CONSTANT_MAP entry has a reverse mapping."""
-        from app.elements import IW_CONSTANT_MAP, CONSTANT_TO_IW
-        for iw, cname in IW_CONSTANT_MAP.items():
+        """Every IW formula with a position_constant has a derivable reverse mapping."""
+        from app.evaluator import get_iw_formulas
+        formulas = get_iw_formulas()
+        # Build reverse map from formulas
+        constant_to_iw = {}
+        for iw, formula in formulas.items():
+            cname = formula.get("position_constant")
+            if cname:
+                constant_to_iw.setdefault(cname, []).append(iw)
+        # Every position_constant must appear in the reverse map
+        for iw, formula in formulas.items():
+            cname = formula.get("position_constant")
             if cname is None:
                 continue
-            assert cname in CONSTANT_TO_IW, f"{cname} missing from CONSTANT_TO_IW"
-            assert iw in CONSTANT_TO_IW[cname], f"{iw} missing from CONSTANT_TO_IW[{cname}]"
+            assert cname in constant_to_iw, f"{cname} missing from reverse map"
+            assert iw in constant_to_iw[cname], f"{iw} missing from reverse map[{cname}]"
 
     def test_specific_constant_mapping(self):
-        """IW1_OFFSET_FROM_W9 maps back to IW1."""
-        from app.elements import CONSTANT_TO_IW
-        assert "IW1_OFFSET_FROM_W9" in CONSTANT_TO_IW
-        assert "IW1" in CONSTANT_TO_IW["IW1_OFFSET_FROM_W9"]
+        """IW1_OFFSET_FROM_W9 maps to IW1 in formula metadata."""
+        from app.evaluator import get_iw_formulas
+        formulas = get_iw_formulas()
+        assert formulas["IW1"].get("position_constant") == "IW1_OFFSET_FROM_W9"
 
     def test_hosted_openings_second_order(self):
         """IW9 hosts RO3 and RO7 (second-order deps)."""

@@ -53,7 +53,7 @@ from app.database import (
     clear_outline_pivot, _seed_default_anchor_pivot,
 )
 from app.doors import validate_door
-from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
+from app.elements import IW_HOSTED_OPENINGS
 from app.engine import (
     compute_geometry, generate_svg, generate_svg_db,
     build_generator_data_from_db, get_svg_content, patch_constants,
@@ -757,59 +757,53 @@ def create_app(db_path=None):
 
         name = el["name"]
 
-        # Case 1: IW wall — update controlling constant
-        if el["type"] == "wall" and name in IW_CONSTANT_MAP:
-            result = compute_constant_delta(name, dx, dy)
-            if result is None:
-                return jsonify({"error": f"wall {name} is not movable"}), 400
-            const_name, delta = result
-            old_val = get_constant_value(const_name, db)
-            if old_val is None:
-                return jsonify({"error": f"constant {const_name} not found"}), 500
-            new_val = old_val + delta
-            update_constant(const_name, new_val, db)
-            undo_mgr.record(
-                "element_move",
-                {"move_type": "constant", "constant": const_name, "value": old_val},
-                {"move_type": "constant", "constant": const_name, "value": new_val},
-                f"Move {name}",
-            )
-            _invalidate()
-            return jsonify({
-                "ok": True, "constant": const_name,
-                "old_value": old_val, "new_value": new_val,
-                "can_undo": undo_mgr.can_undo,
-                "can_redo": undo_mgr.can_redo,
-            })
+        # Case 1: wall with formula-defined position constant — update that constant
+        if el["type"] == "wall":
+            # Look up the wall's position formula for position_constant metadata
+            from app.evaluator import get_iw_formulas
+            formula_json = None
+            # Check element_formulas table first (user-created or overridden formulas)
+            for r in get_element_formulas(name, variant=None, db_path=db):
+                if r["param_name"] == "position":
+                    fj = r["formula_json"]
+                    formula_json = json.loads(fj) if isinstance(fj, str) else fj
+                    break
+            # Fall back to seeded IW formulas
+            if formula_json is None:
+                formula_json = get_iw_formulas().get(name)
+            if formula_json:
+                pos_const = formula_json.get("position_constant")
+                pos_axis = formula_json.get("position_axis")
+                pos_sign = formula_json.get("position_sign", 1)
+                if pos_const and pos_axis:
+                    drag = dx if pos_axis == "x" else dy
+                    delta = drag * pos_sign
+                    if delta == 0:
+                        return jsonify({"error": f"wall {name}: no movement along controlled axis"}), 400
+                    old_val = get_constant_value(pos_const, db)
+                    if old_val is None:
+                        return jsonify({"error": f"constant {pos_const} not found"}), 500
+                    new_val = old_val + delta
+                    update_constant(pos_const, new_val, db)
+                    undo_mgr.record(
+                        "element_move",
+                        {"move_type": "constant", "constant": pos_const, "value": old_val},
+                        {"move_type": "constant", "constant": pos_const, "value": new_val},
+                        f"Move {name}",
+                    )
+                    _invalidate()
+                    return jsonify({
+                        "ok": True, "constant": pos_const,
+                        "old_value": old_val, "new_value": new_val,
+                        "can_undo": undo_mgr.can_undo,
+                        "can_redo": undo_mgr.can_redo,
+                    })
+            return jsonify({"error": f"wall {name} is not movable"}), 400
 
-        # Case 2: Custom/override element with offset properties
+        # Parse element properties for remaining move paths (formula / offset)
         props = el.get("properties") or {}
         if isinstance(props, str):
             props = json.loads(props)
-
-        # Case 2a: Drawn wall — shift start/end/poly directly
-        if props.get("source") == "drawn" and props.get("start") and props.get("end"):
-            old_props = dict(props)
-            new_start = [props["start"][0] + dx, props["start"][1] + dy]
-            new_end = [props["end"][0] + dx, props["end"][1] + dy]
-            new_poly = [[p[0] + dx, p[1] + dy] for p in props["poly"]] if props.get("poly") else None
-            new_props = dict(props, start=new_start, end=new_end)
-            if new_poly is not None:
-                new_props["poly"] = new_poly
-            update_element(element_id, {"properties": new_props}, db)
-            undo_mgr.record(
-                "element_move",
-                {"move_type": "position", "id": element_id, "properties": old_props},
-                {"move_type": "position", "id": element_id, "properties": new_props},
-                f"Move {name}",
-            )
-            _broadcast("element_changed")
-            _invalidate()
-            return jsonify({
-                "ok": True,
-                "can_undo": undo_mgr.can_undo,
-                "can_redo": undo_mgr.can_redo,
-            })
 
         # Unified item move: copy formula, update only the position field.
         # Preserves formula type, rotation, shape, dimensions — everything
@@ -1178,17 +1172,26 @@ def create_app(db_path=None):
 
     @app.route("/api/iw-config")
     def api_iw_config():
-        """Serve IW wall metadata from elements.py (move axes, hosted openings,
-        controlling constants).  Single source of truth — no duplication in JS."""
-        from app.elements import IW_MOVE_AXIS, IW_HOSTED_OPENINGS, IW_CONSTANT_MAP
-        move_axis = {
-            k: {"axis": v[0], "sign": v[1]} if v is not None else None
-            for k, v in IW_MOVE_AXIS.items()
-        }
+        """Serve IW wall metadata derived from formula position fields.
+        Single source of truth — no duplication in JS."""
+        from app.evaluator import get_iw_formulas
+        formulas = get_iw_formulas()
+        move_axis = {}
+        iw_constant_map = {}
+        for iw_name, formula in formulas.items():
+            pos_const = formula.get("position_constant")
+            pos_axis = formula.get("position_axis")
+            pos_sign = formula.get("position_sign", 1)
+            if pos_const and pos_axis:
+                move_axis[iw_name] = {"axis": pos_axis, "sign": pos_sign}
+                iw_constant_map[iw_name] = pos_const
+            else:
+                move_axis[iw_name] = None
+                iw_constant_map[iw_name] = None
         return jsonify({
             "iw_move_axis": move_axis,
             "iw_hosted_openings": IW_HOSTED_OPENINGS,
-            "iw_constant_map": IW_CONSTANT_MAP,
+            "iw_constant_map": iw_constant_map,
         })
 
     @app.route("/api/dep-summary")
