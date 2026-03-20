@@ -634,26 +634,39 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
     if chain_rows is not None:
         from app.outline_solver import (db_rows_to_chain,
                                         solve_closure_general, walk_chain,
-                                        flex_specs_from_chain_rows)
+                                        flex_specs_from_chain_rows,
+                                        point_name_to_seq)
+        from app.database import get_outline_anchor_pos, get_outline_anchor_pivot
+
         chain = db_rows_to_chain(chain_rows)
-        R_a1 = _derive_constant(constants_dict, "CORNER_SW_R")
-        flex_specs = flex_specs_from_chain_rows(chain_rows)
+        n = len(chain)
 
-        solver_result = solve_closure_general(chain, flex_specs)
-        if not solver_result.valid:
-            raise ValueError(
-                f"Outline chain does not close: error={solver_result.closure_error:.6f}")
-
-        chain = list(chain)
-        for seq, (param, value) in solver_result.solved_values.items():
-            chain[seq] = chain[seq]._replace(**{param: value})
-
-        chain_start = chain[-1].end_name
-        start_E = constants_dict.get(f"{chain_start}_EASTING",
-                                     constants_dict.get("F2_EASTING", -18.5))
-        start_N = constants_dict.get(f"{chain_start}_NORTHING",
-                                     constants_dict.get("F2_NORTHING", -13.5)) + R_a1
-        walk_result = walk_chain(chain, start_E, start_N)
+        anchor_pos = get_outline_anchor_pos(db_path) if db_path else None
+        if anchor_pos is not None:
+            # Anchor-relative rotated walk — DB values already solved by pivot-aware solver
+            anchor_name, _pivot_name = get_outline_anchor_pivot(db_path)
+            anchor_pt_seq = point_name_to_seq(chain, anchor_name)
+            a_start = (anchor_pt_seq + 1) % n
+            start_E, start_N, start_brg = anchor_pos
+            rotated = [chain[(a_start + i) % n] for i in range(n)]
+            walk_result = walk_chain(rotated, start_E, start_N, start_brg)
+        else:
+            # Fallback: standard DB-order walk (default anchor = chain wrap point, brg=0)
+            R_a1 = _derive_constant(constants_dict, "CORNER_SW_R")
+            flex_specs = flex_specs_from_chain_rows(chain_rows)
+            solver_result = solve_closure_general(chain, flex_specs)
+            if not solver_result.valid:
+                raise ValueError(
+                    f"Outline chain does not close: error={solver_result.closure_error:.6f}")
+            chain = list(chain)
+            for seq, (param, value) in solver_result.solved_values.items():
+                chain[seq] = chain[seq]._replace(**{param: value})
+            chain_start = chain[-1].end_name
+            start_E = constants_dict.get(f"{chain_start}_EASTING",
+                                         constants_dict.get("F2_EASTING", -18.5))
+            start_N = constants_dict.get(f"{chain_start}_NORTHING",
+                                         constants_dict.get("F2_NORTHING", -13.5)) + R_a1
+            walk_result = walk_chain(chain, start_E, start_N)
 
         fp_pts = walk_result.points
         radii = walk_result.radii
