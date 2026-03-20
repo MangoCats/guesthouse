@@ -366,7 +366,7 @@ Pure-math reimplementation of the outline closure solver from
 | `solve_closure(chain, R_a1)` | Solve d_F2_F5, d_F18_F1, and sweep_closure for chain closure |
 | `db_rows_to_chain(rows)` | Convert DB row dicts to ChainEntry NamedTuples |
 | `walk_chain(chain, F2_E, F2_N)` | Full point generation → WalkResult(points, radii) |
-| `validate_chain(chain, R_a1)` | Dry-run validation → {valid, closure_error, ...} |
+| `check_closure(chain, flex_specs)` | Non-mutating closure check → {valid, closure_error, ...} |
 | `solve_for_constraint(...)` | Secant method for target distance constraints |
 
 Cross-validation tests verify bit-identical results with `floorplan/geometry.py`

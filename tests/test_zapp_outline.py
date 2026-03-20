@@ -12,9 +12,9 @@ from app.database import (
 )
 from app.outline_solver import (
     ChainEntry, SolverResult, WalkResult,
-    chain_offset, solve_closure, solve_closure_general,
+    chain_offset, solve_closure,
     db_rows_to_chain, walk_chain,
-    validate_chain, solve_for_constraint, flex_specs_from_chain_rows,
+    solve_for_constraint, flex_specs_from_chain_rows,
 )
 
 from tests.test_zapp_conftest import fresh_db, app_client  # noqa: F401

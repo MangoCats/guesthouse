@@ -65,8 +65,8 @@ from app.plumbing import (
     update_plumbing_element, delete_plumbing_element,
     seed_reference_plumbing,
 )
-from app.outline_solver import (db_rows_to_chain, solve_closure,
-                                solve_closure_general, validate_chain,
+from app.outline_solver import (db_rows_to_chain,
+                                check_closure,
                                 flex_specs_from_chain_rows,
                                 all_flex_specs_from_chain_rows, FlexSpec,
                                 solve_with_pivot, point_name_to_seq,
@@ -230,15 +230,10 @@ def create_app(db_path=None):
         pivot_pt_seq  = point_name_to_seq(chain, pivot_name)
 
         if anchor_pt_seq is None or pivot_pt_seq is None or anchor_pos is None:
-            # Fallback: anchor/pivot not yet seeded (should not happen in
-            # normal operation — DB seeding guarantees they are set).
-            flex_specs = flex_specs_from_chain_rows(chain_rows)
-            solver = solve_closure_general(chain, flex_specs)
-            if not solver.valid:
-                return solver, None
-            for seq, (param, value) in solver.solved_values.items():
-                update_outline_segment(seq, {param: value}, db)
-            return solver, chain_rows
+            raise RuntimeError(
+                f"Anchor/pivot not found in chain — DB seeding failure "
+                f"(anchor={anchor_name!r} seq={anchor_pt_seq}, "
+                f"pivot={pivot_name!r} seq={pivot_pt_seq}, pos={anchor_pos})")
 
         a_start = (anchor_pt_seq + 1) % n
         p_start = (pivot_pt_seq  + 1) % n
@@ -1431,7 +1426,7 @@ def create_app(db_path=None):
 
         chain = db_rows_to_chain(chain_rows)
         flex_specs = flex_specs_from_chain_rows(chain_rows)
-        result = validate_chain(chain, flex_specs)
+        result = check_closure(chain, flex_specs)
 
         return jsonify(result)
 

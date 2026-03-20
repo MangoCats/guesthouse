@@ -777,8 +777,8 @@ def walk_chain(chain, start_E, start_N, start_brg=0.0):
 # Validation (dry-run for API-17)
 # ---------------------------------------------------------------------------
 
-def validate_chain(chain, flex_specs=None):
-    """Validate a chain without committing.  Returns status dict."""
+def check_closure(chain, flex_specs=None):
+    """Non-mutating closure check.  Returns status dict without writing to DB."""
     if flex_specs is None:
         n = len(chain)
         flex_specs = [FlexSpec(0, "distance"), FlexSpec(n - 2, "distance"),
