@@ -330,6 +330,13 @@ def init_db(db_path=None):
             _migrate_placed_item_formulas(conn)
             # Add prop_constants to IW wall records if missing
             _migrate_iw_prop_constants(conn)
+    # Seed anchor/pivot defaults after DB is committed (needs constants table)
+    if fresh:
+        _seed_default_anchor_pivot(db_path)
+    else:
+        # Migrate: seed anchor coords if missing (new in this phase)
+        if get_outline_anchor_pos(db_path) is None:
+            _seed_default_anchor_pivot(db_path)
     # Seed catalog items after DB is committed (needs geometry computation)
     _seed_catalog_items_post(db_path)
 
@@ -1877,30 +1884,63 @@ def get_outline_anchor_pivot(db_path=None):
     return anchor, pivot
 
 
-def set_outline_anchor_pivot(anchor, pivot, db_path=None):
-    """Store anchor and pivot point names in config."""
+def get_outline_anchor_pos(db_path=None):
+    """Return (E, N, brg) of stored anchor start position, or None."""
+    E = get_config("outline_anchor_E", db_path)
+    N = get_config("outline_anchor_N", db_path)
+    brg = get_config("outline_anchor_brg", db_path)
+    if E is None or N is None or brg is None:
+        return None
+    return (float(E), float(N), float(brg))
+
+
+def set_outline_anchor_pivot(anchor, pivot, anchor_E, anchor_N, anchor_brg,
+                             db_path=None):
+    """Store anchor/pivot names and anchor absolute position in config."""
     set_config("outline_anchor", anchor, db_path)
     set_config("outline_pivot", pivot, db_path)
+    set_config("outline_anchor_E", str(anchor_E), db_path)
+    set_config("outline_anchor_N", str(anchor_N), db_path)
+    set_config("outline_anchor_brg", str(anchor_brg), db_path)
+
+
+def _seed_default_anchor_pivot(db_path):
+    """Seed anchor/pivot defaults from constants table.
+
+    Anchor = end_name of last chain segment (chain wrap point).
+    Pivot  = end_name of middle chain segment.
+    Anchor coords = (F2_EASTING, F2_NORTHING + CORNER_SW_R, 0.0).
+    """
+    import floorplan.constants as fc
+    chain_rows = get_outline_chain(db_path)
+    if not chain_rows:
+        return
+    n = len(chain_rows)
+    anchor_name = chain_rows[-1]["end_name"]
+    pivot_name = chain_rows[n // 2]["end_name"]
+    R_a1 = get_constant_value("CORNER_SW_R", db_path) or fc.CORNER_SW_R
+    anchor_E = get_constant_value("F2_EASTING", db_path) or -18.5
+    anchor_N = get_constant_value("F2_NORTHING", db_path) or -13.5
+    # F2_NORTHING is stored before the R_a1 offset (same convention as before)
+    anchor_N = float(anchor_N) + float(R_a1)
+    set_outline_anchor_pivot(anchor_name, pivot_name,
+                             float(anchor_E), anchor_N, 0.0, db_path)
 
 
 def clear_outline_pivot(db_path=None):
-    """Remove anchor/pivot config and revert flex to 3-var defaults."""
+    """Reset anchor/pivot to chain-default positions.
+
+    Pivot is always active; 'clearing' means restoring defaults, not removing.
+    Flex columns are also reset to auto-assign defaults.
+    """
     db_path = db_path or DB_PATH
     with get_db(db_path) as conn:
         conn.execute("DELETE FROM config WHERE key IN "
-                     "('outline_anchor', 'outline_pivot')")
-        # Reset flex to legacy 3-var defaults
+                     "('outline_anchor', 'outline_pivot', "
+                     "'outline_anchor_E', 'outline_anchor_N', "
+                     "'outline_anchor_brg')")
         conn.execute("UPDATE outline_chain SET flex = NULL")
-        n = conn.execute("SELECT MAX(seq) FROM outline_chain").fetchone()[0]
-        if n is not None:
-            conn.execute(
-                "UPDATE outline_chain SET flex = 'distance' WHERE seq = 0")
-            conn.execute(
-                "UPDATE outline_chain SET flex = 'distance' WHERE seq = ?",
-                (n - 1,))
-            conn.execute(
-                "UPDATE outline_chain SET flex = 'sweep' WHERE seq = ?",
-                (n,))
+    _seed_default_anchor_pivot(db_path)
 
 
 def get_shapes(db_path=None):

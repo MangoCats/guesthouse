@@ -158,9 +158,9 @@ class TestSolverCrossValidation:
         for seq, (param, value) in sr.solved_values.items():
             chain[seq] = chain[seq]._replace(**{param: value})
 
-        F2_E = -18.5
-        F2_N = -13.5 + R_a1
-        wr = walk_chain(chain, F2_E, F2_N)
+        start_E = -18.5
+        start_N = -13.5 + R_a1
+        wr = walk_chain(chain, start_E, start_N)
 
         # Compare all F-series points
         for name in ["F1", "F2", "F5", "F6", "F7", "F8", "F9", "F10",
@@ -285,8 +285,14 @@ class TestAPI16UpdateOutline:
         data = resp.get_json()
         assert data["ok"] is True
         assert data["closure_valid"] is True
-        assert float(data["solved_values"]["0"]["value"]) > 0
-        assert float(data["solved_values"]["16"]["value"]) > 0
+        # Pivot-aware solver assigns flex to the section containing the edit;
+        # verify at least one solved value exists with a positive distance.
+        solved = data["solved_values"]
+        assert solved, "Expected at least one solved flex value"
+        dist_values = [v["value"] for v in solved.values()
+                       if v["param"] == "distance"]
+        assert any(d > 0 for d in dist_values), \
+            "At least one solved distance flex should be positive"
 
     def test_update_line_distance(self, app_client):
         """Change a line distance, verify closure valid."""
@@ -299,16 +305,20 @@ class TestAPI16UpdateOutline:
         assert data["closure_valid"] is True
 
     def test_update_arc_sweep(self, app_client):
-        """Change an arc sweep angle, verify closure arc sweep adjusts."""
-        # Seq 1 is F5->F6 arc (90° CW)
+        """Change an arc sweep angle, verify closure is valid and a sweep flex adjusts."""
+        # Seq 1 is F5->F6 arc (CW)
         resp = app_client.put("/api/outline/1",
                               json={"sweep": math.pi / 2 + 0.01})
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
-        # Closure sweep should have decreased by 0.01 (from default π/2)
-        sweep_val = float(data["solved_values"]["17"]["value"])
-        assert abs(sweep_val - (math.pi / 2 - 0.01)) < 1e-9
+        assert data["closure_valid"] is True
+        # Pivot-aware solver assigns sweep flex to the section containing seq 1;
+        # verify at least one sweep-flex value was solved.
+        solved = data["solved_values"]
+        assert solved, "Expected at least one solved flex value"
+        sweep_values = [v for v in solved.values() if v["param"] == "sweep"]
+        assert sweep_values, "Expected at least one solved sweep flex"
 
     def test_reject_solved_distance_seq0(self, app_client):
         """Cannot directly edit solved distance at seq 0."""
@@ -338,22 +348,25 @@ class TestAPI16UpdateOutline:
         assert "solved" in resp.get_json()["error"].lower()
 
     def test_sweep_change_updates_closure_arc(self, app_client):
-        """Modifying one arc sweep adjusts the closure arc sweep in DB."""
-        # Get initial closure arc sweep
+        """Modifying one arc sweep adjusts the section sweep-flex arc in DB."""
+        # Get initial chain
         chain0 = app_client.get("/api/outline").get_json()
-        closure0 = chain0[-1]
-        sweep0 = closure0["sweep"]
 
         # Change F5->F6 arc (seq 1) sweep by -0.01 rad
         resp = app_client.put("/api/outline/1",
                               json={"sweep": chain0[1]["sweep"] - 0.01})
         assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["ok"] is True
+        assert data["closure_valid"] is True
 
-        # Re-fetch: closure arc sweep should have increased by ~0.01
+        # Pivot-aware solver assigns sweep flex to Section A (seq 9 by default).
+        # Seq 9 sweep should have increased by ~0.01 to compensate.
         chain1 = app_client.get("/api/outline").get_json()
-        sweep1 = chain1[-1]["sweep"]
-        assert abs(sweep1 - (sweep0 + 0.01)) < 1e-9, \
-            f"Closure sweep: {sweep1} vs expected {sweep0 + 0.01}"
+        sweep9_before = chain0[9]["sweep"]
+        sweep9_after = chain1[9]["sweep"]
+        assert abs(sweep9_after - (sweep9_before + 0.01)) < 1e-9, \
+            f"Section A sweep flex (seq 9): {sweep9_after} vs expected {sweep9_before + 0.01}"
 
     def test_not_found(self, app_client):
         """Non-existent seq returns 404."""

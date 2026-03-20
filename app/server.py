@@ -7,6 +7,7 @@ import datetime
 import json
 import math
 import os
+import sys as _sys
 import queue
 import re
 import shutil
@@ -47,7 +48,8 @@ from app.database import (
     get_all_catalog_items, get_catalog_item,
     create_catalog_item, delete_catalog_item, ensure_catalog_item,
     get_outline_anchor_pivot, set_outline_anchor_pivot,
-    clear_outline_pivot,
+    get_outline_anchor_pos, clear_outline_pivot,
+    _seed_default_anchor_pivot,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -68,7 +70,7 @@ from app.outline_solver import (db_rows_to_chain, solve_closure,
                                 solve_with_pivot, point_name_to_seq,
                                 identify_section, section_seqs,
                                 validate_pivot_placement,
-                                auto_assign_section_flex)
+                                auto_assign_section_flex, walk_chain)
 from app.undo import UndoManager
 import floorplan.constants as fc
 
@@ -197,81 +199,71 @@ def create_app(db_path=None):
         return ev.elements.get(elem_name)
 
     def _solve_and_update_closure(edited_seq=None, pre_edit_rows=None):
-        """Re-solve closure and update solved values in DB.
+        """Re-solve closure using the pivot-aware solver.
 
-        If a pivot is active and edited_seq is provided, only solves the
-        section containing edited_seq.  Otherwise, full-chain closure.
+        The pivot (anchor + pivot point) is always active — seeded at DB
+        creation and stored in config.  The anchor is the chain walk origin;
+        its absolute position is stored in config as outline_anchor_E/N/brg.
 
-        pre_edit_rows: chain rows from BEFORE the edit was applied, used to
-        compute correct anchor/pivot target positions for pivot-aware solve.
+        edited_seq: which segment the user just edited (or None for full
+            re-solve after structural changes like add/remove segment).
+        pre_edit_rows: chain rows from BEFORE the edit — used to compute
+            anchor/pivot target positions on the reference (solved) chain.
 
         Returns (solver, chain_rows) on success.
         Returns (solver, None) if closure is invalid.
         """
         chain_rows = get_outline_chain(db)
         chain = db_rows_to_chain(chain_rows)
+        n = len(chain)
 
         anchor_name, pivot_name = get_outline_anchor_pivot(db)
-        if pivot_name and edited_seq is not None:
-            # Pivot-aware solve: only solve the edited section
-            anchor_pt_seq = point_name_to_seq(chain, anchor_name)
-            pivot_pt_seq = point_name_to_seq(chain, pivot_name)
-            if anchor_pt_seq is None or pivot_pt_seq is None:
-                # Pivot points not found — fall through to whole-chain
-                pass
-            else:
-                n = len(chain)
-                a_start = (anchor_pt_seq + 1) % n
-                p_start = (pivot_pt_seq + 1) % n
-                a_seqs, b_seqs = section_seqs(a_start, p_start, n)
+        anchor_pos = get_outline_anchor_pos(db)
 
-                # Compute flex specs dynamically — sweep placement is
-                # informed by which segment was edited and which lines
-                # have bearing_flex=1, so that only opted-in lines
-                # change bearing.  Positional flex falls back to first/last
-                # lines in each section as usual.
-                a_flex = auto_assign_section_flex(
-                    chain, a_seqs, edited_seq=edited_seq)
-                b_flex = auto_assign_section_flex(
-                    chain, b_seqs, edited_seq=edited_seq)
+        anchor_pt_seq = point_name_to_seq(chain, anchor_name)
+        pivot_pt_seq  = point_name_to_seq(chain, pivot_name)
 
-                constants = get_constants_dict(db)
-                R_a1 = constants.get("CORNER_SW_R", fc.CORNER_SW_R)
-                F2_E = constants.get("F2_EASTING", -18.5)
-                F2_N = constants.get("F2_NORTHING", -13.5) + R_a1
+        if anchor_pt_seq is None or pivot_pt_seq is None or anchor_pos is None:
+            # Fallback: anchor/pivot not yet seeded (should not happen in
+            # normal operation — DB seeding guarantees they are set).
+            flex_specs = flex_specs_from_chain_rows(chain_rows)
+            solver = solve_closure_general(chain, flex_specs)
+            if not solver.valid:
+                return solver, None
+            for seq, (param, value) in solver.solved_values.items():
+                update_outline_segment(seq, {param: value}, db)
+            return solver, chain_rows
 
-                # Use pre-edit chain for target positions (the
-                # fully-solved state before the user's edit).
-                # Walking the post-edit chain gives wrong positions
-                # because flex values haven't been updated yet.
-                if pre_edit_rows is not None:
-                    ref_chain = db_rows_to_chain(pre_edit_rows)
-                else:
-                    ref_chain = chain
+        a_start = (anchor_pt_seq + 1) % n
+        p_start = (pivot_pt_seq  + 1) % n
+        a_seqs, b_seqs = section_seqs(a_start, p_start, n)
 
-                solver = solve_with_pivot(
-                    chain, a_start, p_start,
-                    a_flex, b_flex, edited_seq,
-                    F2_E, F2_N,
-                    ref_chain=ref_chain)
-                if not solver.valid:
-                    return solver, None
-                for seq, (param, value) in solver.solved_values.items():
-                    update_outline_segment(seq, {param: value}, db)
+        # Compute flex specs dynamically: sweep placement informed by
+        # edited_seq and bearing_flex flags; positional flex goes to
+        # first/last lines in each section.
+        a_flex = auto_assign_section_flex(chain, a_seqs, edited_seq=edited_seq)
+        b_flex = auto_assign_section_flex(chain, b_seqs, edited_seq=edited_seq)
 
-                # Sync the dynamic flex assignment back to DB so the UI
-                # shows which segments were actually used as flex this edit.
-                _sync_pivot_flex_to_db(a_flex, b_flex)
+        anchor_E, anchor_N, anchor_brg = anchor_pos
 
-                return solver, chain_rows
+        # Use pre-edit chain for reference target positions.  Walking the
+        # post-edit chain gives wrong positions because flex values haven't
+        # been updated yet.
+        ref_chain = db_rows_to_chain(pre_edit_rows) if pre_edit_rows else chain
 
-        # Standard whole-chain closure
-        flex_specs = flex_specs_from_chain_rows(chain_rows)
-        solver = solve_closure_general(chain, flex_specs)
+        solver = solve_with_pivot(
+            chain, a_start, p_start,
+            a_flex, b_flex, edited_seq,
+            anchor_E, anchor_N, anchor_brg,
+            ref_chain=ref_chain)
         if not solver.valid:
             return solver, None
         for seq, (param, value) in solver.solved_values.items():
             update_outline_segment(seq, {param: value}, db)
+
+        # Sync the dynamic flex assignment to DB so the UI shows which
+        # segments were used as flex for this solve.
+        _sync_pivot_flex_to_db(a_flex, b_flex)
         return solver, chain_rows
 
     def _sync_pivot_flex_to_db(a_flex, b_flex):
@@ -1554,8 +1546,40 @@ def create_app(db_path=None):
                     "UPDATE outline_chain SET flex = ? WHERE seq = ?",
                     (fs.param, fs.seq))
 
-        # Store anchor/pivot in config
-        set_outline_anchor_pivot(anchor_name, pivot_name, db)
+        # Walk chain from current anchor to find the new anchor's position and
+        # entry bearing, then store with the new anchor/pivot names.
+        current_pos = get_outline_anchor_pos(db)
+        if current_pos is not None:
+            cur_anchor, _ = get_outline_anchor_pivot(db)
+            cur_anchor_pt_seq = point_name_to_seq(chain, cur_anchor)
+            cur_a_start = (cur_anchor_pt_seq + 1) % n if cur_anchor_pt_seq is not None else 0
+            cur_start_E, cur_start_N, cur_start_brg = current_pos
+        else:
+            cur_a_start = 0
+            cur_start_E = float(get_constant_value("F2_EASTING", db) or -18.5)
+            cur_start_N = float(get_constant_value("F2_NORTHING", db) or -13.5)
+            cur_start_N += float(get_constant_value("CORNER_SW_R", db) or fc.CORNER_SW_R)
+            cur_start_brg = 0.0
+
+        rotated_chain = [chain[(cur_a_start + i) % n] for i in range(n)]
+        walk_res = walk_chain(rotated_chain, cur_start_E, cur_start_N, cur_start_brg)
+        new_anchor_E, new_anchor_N = walk_res.points.get(anchor_name,
+                                                          (cur_start_E, cur_start_N))
+        # Compute bearing entering new a_start in the rotated walk
+        brg = cur_start_brg
+        new_a_rotated_idx = (a_start - cur_a_start) % n
+        for i, seg in enumerate(rotated_chain):
+            if i == new_a_rotated_idx:
+                break
+            if seg.seg_type == "CW":
+                brg += seg.sweep
+            elif seg.seg_type == "CCW":
+                brg -= seg.sweep
+        new_anchor_brg = brg
+
+        # Store anchor/pivot with absolute position
+        set_outline_anchor_pivot(anchor_name, pivot_name,
+                                 new_anchor_E, new_anchor_N, new_anchor_brg, db)
 
         # Re-solve whole-chain closure (to ensure chain is consistent)
         solver, _ = _solve_and_update_closure()

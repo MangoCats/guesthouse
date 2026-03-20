@@ -590,10 +590,21 @@ def solve_with_pivot(chain, anchor_start, pivot_start,
     n = len(chain)
     a_seqs, b_seqs = section_seqs(anchor_start, pivot_start, n)
 
-    # Walk the REFERENCE chain (pre-edit, fully solved) to get correct
-    # target positions for anchor and pivot points.
+    # Walk the REFERENCE chain rotated to start at anchor_start.
+    #
+    # The rotation ensures that the global walk and the sub-chain B walk
+    # share identical entry bearings at every section-boundary segment.
+    # Without rotation, the bearing at seg 0 in the global walk (= start_brg)
+    # differs from the bearing at seg 0 in the sub-chain B walk (accumulated
+    # through the pivot arc and subsequent arcs), causing solved flex distances
+    # to be geometrically inconsistent with the renderer — manifesting as all
+    # chain points drifting after a Section B edit.
+    #
+    # start_E, start_N: absolute position of the anchor point.
+    # start_brg: bearing entering chain[anchor_start] (first Section A seg).
     walk_src = ref_chain if ref_chain is not None else chain
-    wr = walk_chain(walk_src, start_E, start_N, start_brg)
+    rotated_src = [walk_src[(anchor_start + i) % n] for i in range(n)]
+    wr = walk_chain(rotated_src, start_E, start_N, start_brg)
 
     # Find anchor and pivot point names
     anchor_point_seq = (anchor_start - 1) % n
@@ -607,34 +618,22 @@ def solve_with_pivot(chain, anchor_start, pivot_start,
         return SolverResult(valid=False, solved_values={},
                             closure_error=float("inf"), exit_bearing=0.0)
 
-    # Compute bearings at anchor and pivot by walking
-    brg_at_anchor = start_brg
-    for i in range(anchor_start):
-        seg = chain[i]
-        if seg.seg_type == "CW":
-            brg_at_anchor += seg.sweep
-        elif seg.seg_type == "CCW":
-            brg_at_anchor -= seg.sweep
-
-    # Actually, we need the bearing at the start of each section.
-    # Bearing at anchor_start = bearing after walking segs 0..anchor_start-1
-    # Bearing at pivot_start = bearing after walking segs 0..pivot_start-1
-    # But we need cumulative bearing from the chain start (seq 0).
-
-    # Compute bearing at every seq boundary using the reference chain
-    bearings = [start_brg]  # bearing at start of seq 0
+    # Compute bearings in rotated order.
+    # bearings[i] = bearing entering rotated_src[i] = chain[(anchor_start+i)%n]
+    # bearings[0] = start_brg (= brg_at_anchor_start, since rotation starts here)
+    # bearings[n] = exit bearing (≈ start_brg + 2π for a closed chain)
+    bearings = [start_brg]
     brg = start_brg
-    for seg in walk_src:
+    for seg in rotated_src:
         if seg.seg_type == "CW":
             brg += seg.sweep
         elif seg.seg_type == "CCW":
             brg -= seg.sweep
         bearings.append(brg)
-    # bearings[i] = bearing at start of seq i
-    # bearings[n] = exit bearing (should == start_brg + 2π for closure)
 
-    brg_at_anchor_start = bearings[anchor_start]
-    brg_at_pivot_start = bearings[pivot_start]
+    brg_at_anchor_start = start_brg  # bearings[0]
+    pivot_rotated_idx = (pivot_start - anchor_start) % n
+    brg_at_pivot_start = bearings[pivot_rotated_idx]
 
     # Determine which section the edit is in
     side = identify_section(edited_seq, anchor_start, pivot_start, n)
@@ -706,14 +705,15 @@ def db_rows_to_chain(rows):
 # Full chain walk (produces all F/C/FC points)
 # ---------------------------------------------------------------------------
 
-def walk_chain(chain, F2_E, F2_N, F2_BRG=0.0):
-    """Walk the full outline chain from F2 and produce all points.
+def walk_chain(chain, start_E, start_N, start_brg=0.0):
+    """Walk the full outline chain from the anchor and produce all points.
 
-    Replicates floorplan/geometry.py::walk_outline_chain.
+    start_E, start_N: absolute position of the anchor (chain walk origin).
+    start_brg: bearing at the start of the first segment.
     Returns WalkResult with points and radii dicts.
     """
-    E, N = F2_E, F2_N
-    brg = F2_BRG
+    E, N = start_E, start_N
+    brg = start_brg
     pts = {"FC": (0.0, 0.0)}
     radii = {}
 
@@ -771,7 +771,7 @@ def validate_chain(chain, flex_specs=None):
 # Constraint solver (OE-3) — secant method
 # ---------------------------------------------------------------------------
 
-def solve_for_constraint(chain, R_a1, F2_E, F2_N,
+def solve_for_constraint(chain, R_a1, start_E, start_N,
                          from_point, to_point,
                          target_distance, adjust_seq, adjust_param,
                          flex_specs=None,
@@ -798,7 +798,7 @@ def solve_for_constraint(chain, R_a1, F2_E, F2_N,
         ch2 = list(ch)
         for seq, (param, value) in sr.solved_values.items():
             ch2[seq] = ch2[seq]._replace(**{param: value})
-        wr = walk_chain(ch2, F2_E, F2_N)
+        wr = walk_chain(ch2, start_E, start_N)
         p1 = wr.points.get(from_point)
         p2 = wr.points.get(to_point)
         if p1 is None or p2 is None:
