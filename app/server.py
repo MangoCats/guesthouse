@@ -1831,7 +1831,7 @@ def create_app(db_path=None):
                 return jsonify({"error": f"point name {end_name} already exists"}), 400
 
         if old_seg["seg_type"] == "L":
-            # Line split: halve distance
+            # Line split: halve distance into two equal L segments
             half_dist = (old_seg["distance"] or 0) / 2.0
             update_outline_segment(after_seq, {
                 "distance": half_dist, "end_name": end_name,
@@ -1843,19 +1843,15 @@ def create_app(db_path=None):
             }
             insert_outline_segment(after_seq + 1, new_row, db)
         else:
-            # Arc split: halve sweep, keep radius
-            half_sweep = (old_seg["sweep"] or 0) / 2.0
-            center_name = body.get("center_name", old_seg["center_name"])
-            update_outline_segment(after_seq, {
-                "sweep": half_sweep, "end_name": end_name,
-            }, db)
+            # Arc split: keep parent arc intact, insert new L with half-chord
+            # length so closure can always be solved (user adjusts type/size after).
+            r = old_seg["radius"] or 1.0
+            s = old_seg["sweep"] or (math.pi / 2)
+            half_chord = r * math.sin(s / 2)  # half of chord = R·sin(sweep/2)
+            update_outline_segment(after_seq, {"end_name": end_name}, db)
             new_row = {
-                "seg_type": old_seg["seg_type"],
-                "radius": old_seg["radius"],
-                "sweep": half_sweep,
-                "sweep_name": None,
-                "center_name": center_name,
-                "n_pts": old_seg["n_pts"],
+                "seg_type": "L",
+                "distance": half_chord,
                 "end_name": old_seg["end_name"],
             }
             insert_outline_segment(after_seq + 1, new_row, db)
