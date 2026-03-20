@@ -5045,8 +5045,10 @@ async function loadPivotState() {
   try {
     const resp = await apiFetch("/api/outline/pivot");
     const data = await resp.json();
-    App.state.pivotAnchor = data.anchor || null;
-    App.state.pivotPoint = data.pivot || null;
+    // Only treat as active if user explicitly set (not just seeded defaults)
+    const active = data.user_set && data.anchor && data.pivot;
+    App.state.pivotAnchor = active ? data.anchor : null;
+    App.state.pivotPoint = active ? data.pivot : null;
     App.state.pivotSectionA = data.section_a_seqs || [];
     App.state.pivotSectionB = data.section_b_seqs || [];
   } catch {

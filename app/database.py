@@ -1895,13 +1895,25 @@ def get_outline_anchor_pos(db_path=None):
 
 
 def set_outline_anchor_pivot(anchor, pivot, anchor_E, anchor_N, anchor_brg,
-                             db_path=None):
-    """Store anchor/pivot names and anchor absolute position in config."""
+                             db_path=None, user_set=False):
+    """Store anchor/pivot names and anchor absolute position in config.
+
+    user_set=True marks this as an explicit user choice (shown in UI as active).
+    Defaults seeded by _seed_default_anchor_pivot pass user_set=False so the
+    UI correctly shows the 'Set anchor/pivot' flow rather than 'Clear'.
+    """
     set_config("outline_anchor", anchor, db_path)
     set_config("outline_pivot", pivot, db_path)
     set_config("outline_anchor_E", str(anchor_E), db_path)
     set_config("outline_anchor_N", str(anchor_N), db_path)
     set_config("outline_anchor_brg", str(anchor_brg), db_path)
+    set_config("outline_pivot_user_set", "1" if user_set else "0", db_path)
+
+
+def get_outline_pivot_user_set(db_path=None):
+    """Return True if the anchor/pivot was explicitly set by the user."""
+    v = get_config("outline_pivot_user_set", db_path)
+    return v == "1"
 
 
 def _seed_default_anchor_pivot(db_path):
@@ -1938,7 +1950,7 @@ def clear_outline_pivot(db_path=None):
         conn.execute("DELETE FROM config WHERE key IN "
                      "('outline_anchor', 'outline_pivot', "
                      "'outline_anchor_E', 'outline_anchor_N', "
-                     "'outline_anchor_brg')")
+                     "'outline_anchor_brg', 'outline_pivot_user_set')")
         conn.execute("UPDATE outline_chain SET flex = NULL")
     _seed_default_anchor_pivot(db_path)
 

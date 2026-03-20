@@ -48,8 +48,8 @@ from app.database import (
     get_all_catalog_items, get_catalog_item,
     create_catalog_item, delete_catalog_item, ensure_catalog_item,
     get_outline_anchor_pivot, set_outline_anchor_pivot,
-    get_outline_anchor_pos, clear_outline_pivot,
-    _seed_default_anchor_pivot,
+    get_outline_anchor_pos, get_outline_pivot_user_set,
+    clear_outline_pivot, _seed_default_anchor_pivot,
 )
 from app.doors import validate_door
 from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
@@ -1486,7 +1486,8 @@ def create_app(db_path=None):
     def api_get_pivot():
         """Return current anchor/pivot state."""
         anchor, pivot = get_outline_anchor_pivot(db)
-        result = {"anchor": anchor, "pivot": pivot}
+        result = {"anchor": anchor, "pivot": pivot,
+                  "user_set": get_outline_pivot_user_set(db)}
         if anchor and pivot:
             chain_rows = get_outline_chain(db)
             chain = db_rows_to_chain(chain_rows)
@@ -1577,9 +1578,10 @@ def create_app(db_path=None):
                 brg -= seg.sweep
         new_anchor_brg = brg
 
-        # Store anchor/pivot with absolute position
+        # Store anchor/pivot with absolute position, marking as user-set
         set_outline_anchor_pivot(anchor_name, pivot_name,
-                                 new_anchor_E, new_anchor_N, new_anchor_brg, db)
+                                 new_anchor_E, new_anchor_N, new_anchor_brg,
+                                 db, user_set=True)
 
         # Re-solve whole-chain closure (to ensure chain is consistent)
         solver, _ = _solve_and_update_closure()
