@@ -459,17 +459,17 @@ const DrawWallTool = {
   defaultThickness: 4.0 / 12.0,
 };
 
-/** Auto-generate the next custom wall name (CW1, CW2, ...). */
-function nextCustomWallName() {
+/** Auto-generate the next IW wall name (IW13, IW14, ...). */
+function nextIWName() {
   const elements = App.state.elements || [];
-  let max = 0;
+  let max = 12; // seeded walls go up to IW12
   for (const e of elements) {
-    if (e.type === "wall" && e.name && e.name.startsWith("CW")) {
+    if (e.type === "wall" && e.name && /^IW(\d+)$/.test(e.name)) {
       const n = parseInt(e.name.slice(2), 10);
       if (n > max) max = n;
     }
   }
-  return `CW${max + 1}`;
+  return `IW${max + 1}`;
 }
 
 /** Compute a rectangle polygon from start/end/thickness. */
@@ -550,32 +550,50 @@ function cancelDrawWall() {
 
 async function createDrawnWall(start, end) {
   const thickness = DrawWallTool.defaultThickness;
-  const poly = wallPoly(start, end, thickness);
-  if (!poly) return;
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len < 1e-9) return;
 
-  const name = nextCustomWallName();
-  const resp = await fetch("/api/elements", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      type: "wall",
-      name: name,
-      properties: {
-        source: "drawn",
-        start: start,
-        end: end,
-        thickness: thickness,
-        poly: poly,
-      },
-    }),
-  });
-  if (resp.ok) {
+  const along = [dx / len, dy / len];
+  const thickDir = [-along[1], along[0]]; // left perp (inward)
+
+  const name = nextIWName();
+
+  try {
+    // 1. Create the element record
+    await apiFetch("/api/elements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "wall",
+        name: name,
+        properties: { orientation: "custom" },
+      }),
+    });
+
+    // 2. Create the wall_rect position formula with literal coordinates
+    await apiFetch(`/api/formulas/${name}/position`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        formula: {
+          type: "wall_rect",
+          anchor: start,
+          along: along,
+          thickness_dir: thickDir,
+          thickness: thickness,
+          length: len,
+          end_mode: "fixed",
+        },
+      }),
+    });
+
     showToast(`Created wall ${name}`, "success");
     await loadElements();
     await loadGeometry();
-  } else {
-    const data = await resp.json();
-    showToast(data.error || "Failed to create wall", "error");
+  } catch (err) {
+    showToast(err.message || "Failed to create wall", "error");
   }
 }
 
