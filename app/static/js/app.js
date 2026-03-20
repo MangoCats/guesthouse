@@ -3171,6 +3171,8 @@ async function addFormulaSection(tbody, elemName) {
       rebaseBtn.addEventListener("click", () => {
         if (fj.type === "item_rect") {
           showPlacementWizard(elemName, f.param_name, fj, f.variant ?? null);
+        } else if (fj.type === "wall_rect") {
+          showWallPlacementWizard(elemName, f.param_name, fj, f.variant ?? null);
         } else {
           showRebaseDialog(elemName, f.param_name, fj, f.variant ?? null);
         }
@@ -3584,6 +3586,338 @@ function showPlacementWizard(elemName, paramName, currentFormula, variant) {
       if (App.state.selection && App.state.selection.name === elemName)
         showProperties(App.state.selection.type, elemName, App.state.selection.data);
       showToast(`Placed: ${bResult.applied.join(", ")}`, "success");
+    } catch (e) {
+      errDiv.textContent = `Error: ${e.message}`;
+    } finally {
+      applyBtn.disabled = false; applyBtn.textContent = "Apply";
+    }
+  });
+}
+
+/**
+ * Placement wizard for wall_rect formulas.
+ *
+ * Lets the user specify:
+ *   §1  Anchor (near end / SW corner of wall): named point or element corner
+ *   §2  Direction (along): compass preset or named segment direction
+ *   §3  Far end: fixed length in inches, or extend to inner_poly
+ *   §4  Thickness: inches, and which side of "along" is the wall face
+ *
+ * Produces a wall_rect formula with symbolic references for cycle-safe rebasing.
+ */
+function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
+
+  // ── Read current formula values for pre-population ─────────────────────────
+  const curThickIn   = typeof currentFormula.thickness === "number"
+    ? Math.round(currentFormula.thickness * 12 * 100) / 100 : 4;
+  const curLenIn     = typeof currentFormula.length === "number"
+    ? Math.round(currentFormula.length * 12 * 100) / 100 : 24;
+  const isIntersect  = currentFormula.end_mode === "intersect";
+
+  // ── Point option list: named points + element corners + centroids ───────────
+  function makeAnchorOptions() {
+    const pts = Object.keys(App.state.geometry?.points ?? {}).sort((a, b) => {
+      const re = /^([A-Za-z]+)(\d*)(.*)/;
+      const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
+      const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
+      return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
+    });
+    const ptOpts = pts.map(p => ({ value: p, label: p }));
+    const cornerOpts = [];
+    const walls = (App.state.elements || [])
+      .filter(e => e.type === "wall" && e.name !== elemName);
+    for (const w of walls) {
+      for (const c of ["SW", "SE", "NE", "NW"]) {
+        cornerOpts.push({ value: `corner:${w.name}:${c}`, label: `${w.name}.${c}` });
+      }
+    }
+    const centOpts = (App.state.elements || [])
+      .filter(e => e.name !== elemName)
+      .map(e => ({ value: `centroid:${e.name}`, label: `\u229A ${e.name}` }));
+    return [...ptOpts, ...cornerOpts, ...centOpts];
+  }
+
+  function encodeAnchorRef(val) {
+    if (val.startsWith("corner:"))   { const [, e, c] = val.split(":"); return { element: e, corner: c }; }
+    if (val.startsWith("centroid:")) return { element_centroid: val.slice(9) };
+    return val; // bare named point
+  }
+
+  // ── Direction options ───────────────────────────────────────────────────────
+  const DIR_OPTIONS = [
+    { value: "north",        label: "North  [0, 1]" },
+    { value: "east",         label: "East  [1, 0]" },
+    { value: "south",        label: "South  [0, \u22121]" },
+    { value: "west",         label: "West  [\u22121, 0]" },
+    { value: "seg:W2:W5",   label: "Along W2\u2192W5  (\u2248 north)" },
+    { value: "seg:W18:W1",  label: "Along W18\u2192W1  (\u2248 west)" },
+    { value: "seg:W9:W10",  label: "Along W9\u2192W10  (\u2248 east)" },
+    { value: "seg:W6:W7",   label: "Along W6\u2192W7  (\u2248 east)" },
+    { value: "perp:W2:W5",  label: "Perp to W2\u2192W5  (inward \u2248 east)" },
+    { value: "perp:W18:W1", label: "Perp to W18\u2192W1  (inward \u2248 north)" },
+    { value: "perp:W9:W10", label: "Perp to W9\u2192W10  (inward \u2248 south)" },
+    { value: "perp:W6:W7",  label: "Perp to W6\u2192W7  (inward \u2248 south)" },
+  ];
+
+  function encodeDir(val) {
+    if (val === "north") return [0, 1];
+    if (val === "east")  return [1, 0];
+    if (val === "south") return [0, -1];
+    if (val === "west")  return [-1, 0];
+    if (val.startsWith("seg:"))  { const [, a, b] = val.split(":"); return { segment: [a, b] }; }
+    if (val.startsWith("perp:")) { const [, a, b] = val.split(":"); return { segment_perp: [a, b] }; }
+    return [1, 0];
+  }
+
+  // thickness_dir = left perp (CCW 90°) of along.
+  // Evaluator: {"perp": d} = right perp [dy,-dx], so left = {"neg": {"perp": d}}.
+  // For literal [dx,dy]: left = [-dy, dx].
+  function encodeThickDir(dirVal, side) {
+    const d = encodeDir(dirVal);
+    if (Array.isArray(d)) {
+      const left  = [-d[1],  d[0]];
+      const right = [ d[1], -d[0]];
+      return side === "left" ? left : right;
+    }
+    // formula spec
+    const leftSpec  = { neg: { perp: d } };
+    const rightSpec = { perp: d };
+    return side === "left" ? leftSpec : rightSpec;
+  }
+
+  // ── Modal scaffold ──────────────────────────────────────────────────────────
+  const overlay = document.createElement("div");
+  overlay.className = "config-modal-overlay";
+  const modal = document.createElement("div");
+  modal.className = "rebase-modal";
+  overlay.appendChild(modal);
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+
+  const h3 = document.createElement("h3");
+  h3.textContent = `Place Wall \u2014 ${elemName}`;
+  modal.appendChild(h3);
+
+  const desc = document.createElement("div");
+  desc.className = "rebase-desc";
+  desc.textContent =
+    "Anchor this wall to existing geometry. " +
+    "The anchor is the near-end corner of the wall. " +
+    "Offsets shift the anchor from the chosen reference point.";
+  modal.appendChild(desc);
+
+  // ── Local DOM helpers (mirrors showPlacementWizard style) ──────────────────
+  function makeSection(label) {
+    const sec = document.createElement("div"); sec.className = "wizard-section";
+    const lbl = document.createElement("div"); lbl.className = "wizard-section-label";
+    lbl.textContent = label; sec.appendChild(lbl); return sec;
+  }
+  function makeSelect(opts, selected) {
+    const sel = document.createElement("select"); sel.className = "rebase-dep-select";
+    for (const { value: v, label: l } of opts) {
+      const opt = document.createElement("option");
+      opt.value = v; opt.textContent = l;
+      if (v === selected) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    return sel;
+  }
+  function txt(s) { const sp = document.createElement("span"); sp.className = "wizard-text"; sp.textContent = s; return sp; }
+  function wizRow(...children) {
+    const r = document.createElement("div"); r.className = "wizard-row";
+    for (const c of children) r.appendChild(typeof c === "string" ? txt(c) : c);
+    return r;
+  }
+  function numInput(dflt, step, title) {
+    const inp = document.createElement("input");
+    inp.type = "number"; inp.className = "wizard-dist-input";
+    inp.value = String(dflt); inp.step = String(step ?? 0.125);
+    if (title) inp.title = title;
+    return inp;
+  }
+  function hint(s) {
+    const d = document.createElement("div"); d.className = "wizard-hint"; d.textContent = s; return d;
+  }
+
+  // ── §1  Anchor ─────────────────────────────────────────────────────────────
+  const anchorSec = makeSection("\u00a71  Anchor (Near End)");
+  const anchorOpts = makeAnchorOptions();
+  const selAnchor = makeSelect(anchorOpts, anchorOpts[0]?.value ?? "");
+  anchorSec.appendChild(wizRow("Point:", selAnchor));
+  const inpOffAlong = numInput(0, 0.125, "Offset along the wall direction from anchor point (inches, + = toward far end)");
+  const inpOffPerp  = numInput(0, 0.125, "Offset perpendicular (in the thickness direction) from anchor point (inches)");
+  anchorSec.appendChild(wizRow("Offset along:", inpOffAlong, "\u2033  Offset perp:", inpOffPerp, "\u2033"));
+  anchorSec.appendChild(hint("Offsets shift the anchor from the chosen reference point before placing the wall."));
+  modal.appendChild(anchorSec);
+
+  // ── §2  Direction ──────────────────────────────────────────────────────────
+  const dirSec = makeSection("\u00a72  Direction (Along)");
+  const selDir = makeSelect(DIR_OPTIONS, "north");
+  dirSec.appendChild(wizRow("Wall runs:", selDir));
+  modal.appendChild(dirSec);
+
+  // ── §3  Far End ────────────────────────────────────────────────────────────
+  const farSec = makeSection("\u00a73  Far End");
+  const radFixed = document.createElement("input");
+  radFixed.type = "radio"; radFixed.name = `wiz-far-${elemName}`; radFixed.value = "fixed";
+  radFixed.checked = !isIntersect;
+  const radIsect = document.createElement("input");
+  radIsect.type = "radio"; radIsect.name = `wiz-far-${elemName}`; radIsect.value = "intersect";
+  radIsect.checked = isIntersect;
+  const inpLen = numInput(curLenIn, 0.125, "Wall length in inches");
+  inpLen.disabled = isIntersect;
+
+  const fixedRow = wizRow(radFixed, " Fixed length:", inpLen, "\u2033");
+  const isectRow = wizRow(radIsect, " Extend to inner poly (outer wall face)");
+  farSec.appendChild(fixedRow);
+  farSec.appendChild(isectRow);
+  radFixed.addEventListener("change", () => { inpLen.disabled = !radFixed.checked; updatePreview(); });
+  radIsect.addEventListener("change", () => { inpLen.disabled = !radFixed.checked; updatePreview(); });
+  modal.appendChild(farSec);
+
+  // ── §4  Thickness ──────────────────────────────────────────────────────────
+  const thkSec = makeSection("\u00a74  Thickness");
+  const inpThick = numInput(curThickIn, 0.125, "Wall thickness in inches");
+  const selThickSide = makeSelect([
+    { value: "left",  label: "Left of along (default — inward for most walls)" },
+    { value: "right", label: "Right of along" },
+  ], "left");
+  thkSec.appendChild(wizRow("Thickness:", inpThick, "\u2033"));
+  thkSec.appendChild(wizRow("Wall extends:", selThickSide));
+  thkSec.appendChild(hint(
+    "\"Left\" = 90\u00b0 CCW from the along direction. " +
+    "Most walls grow inward (left), but the choice depends on orientation."
+  ));
+  modal.appendChild(thkSec);
+
+  // ── Preview JSON ───────────────────────────────────────────────────────────
+  const prevToggle = document.createElement("button");
+  prevToggle.className = "prop-btn rebase-adv-toggle";
+  prevToggle.textContent = "Preview formula JSON \u25bc";
+  modal.appendChild(prevToggle);
+
+  const prevWrap = document.createElement("div");
+  prevWrap.className = "rebase-adv-wrap"; prevWrap.style.display = "none";
+  modal.appendChild(prevWrap);
+
+  const prevTA = document.createElement("textarea");
+  prevTA.className = "rebase-formula-editor"; prevTA.readOnly = true;
+  prevWrap.appendChild(prevTA);
+
+  prevToggle.addEventListener("click", () => {
+    const open = prevWrap.style.display !== "none";
+    prevWrap.style.display = open ? "none" : "";
+    prevToggle.textContent = open ? "Preview formula JSON \u25bc" : "Preview formula JSON \u25b2";
+    if (!open) updatePreview();
+  });
+
+  // ── Error + button bar ─────────────────────────────────────────────────────
+  const errDiv = document.createElement("div"); errDiv.className = "formula-editor-error";
+  modal.appendChild(errDiv);
+
+  const btnBar = document.createElement("div"); btnBar.className = "rebase-btnbar";
+  modal.appendChild(btnBar);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "dialog-btn-cancel"; cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => overlay.remove());
+  btnBar.appendChild(cancelBtn);
+
+  const advBtn = document.createElement("button");
+  advBtn.className = "prop-btn"; advBtn.textContent = "Advanced\u2026";
+  advBtn.title = "Open the full JSON-based rebase dialog";
+  advBtn.addEventListener("click", () => { overlay.remove(); showRebaseDialog(elemName, paramName, currentFormula, variant); });
+  btnBar.appendChild(advBtn);
+
+  const applyBtn = document.createElement("button");
+  applyBtn.className = "dialog-btn-primary"; applyBtn.textContent = "Apply";
+  btnBar.appendChild(applyBtn);
+
+  // ── Formula builder ────────────────────────────────────────────────────────
+  function buildFormula() {
+    const dirVal   = selDir.value;
+    const along    = encodeDir(dirVal);
+    const thickDir = encodeThickDir(dirVal, selThickSide.value);
+    const thickFt  = (parseFloat(inpThick.value) || 4) / 12;
+
+    let anchor = encodeAnchorRef(selAnchor.value);
+    const offAlong = (parseFloat(inpOffAlong.value) || 0) / 12;
+    const offPerp  = (parseFloat(inpOffPerp.value)  || 0) / 12;
+    if (offAlong !== 0) anchor = { offset: anchor, dir: along,    dist: offAlong };
+    if (offPerp  !== 0) anchor = { offset: anchor, dir: thickDir, dist: offPerp  };
+
+    const formula = {
+      type: "wall_rect",
+      anchor,
+      along,
+      thickness_dir: thickDir,
+      thickness: thickFt,
+      end_mode: radFixed.checked ? "fixed" : "intersect",
+    };
+    if (radFixed.checked) {
+      formula.length = (parseFloat(inpLen.value) || 24) / 12;
+    }
+    return formula;
+  }
+
+  function updatePreview() {
+    if (prevWrap.style.display === "none") return;
+    try { prevTA.value = JSON.stringify(buildFormula(), null, 2); errDiv.textContent = ""; }
+    catch (e) { prevTA.value = `// ${e.message}`; }
+  }
+
+  [selAnchor, selDir, selThickSide, inpThick, inpLen, inpOffAlong, inpOffPerp]
+    .forEach(el => { el.addEventListener("change", updatePreview); el.addEventListener("input", updatePreview); });
+
+  // ── Apply (cycle-check → batch-commit) ────────────────────────────────────
+  applyBtn.addEventListener("click", async () => {
+    errDiv.textContent = "";
+    let formula;
+    try { formula = buildFormula(); } catch (e) { errDiv.textContent = e.message; return; }
+
+    applyBtn.disabled = true; applyBtn.textContent = "Checking\u2026";
+    try {
+      const pvResp = await fetch("/api/formula-rebase-preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ element_name: elemName, param_name: paramName, formula, variant }),
+      });
+      const pv = await pvResp.json();
+      if (!pvResp.ok) { errDiv.textContent = pv.error || "Preview failed"; return; }
+
+      let changes = [{ element_name: elemName, param_name: paramName, formula, variant }];
+
+      if (pv.cycle) {
+        const cycleElems = [...new Set(pv.cycle_path.map(s => s.split("/")[0]))];
+        const solvable   = pv.resolutions.filter(r =>  r.new_formula);
+        const unsolvable = pv.resolutions.filter(r => !r.new_formula);
+        let msg = `Dependency cycle:\n  ${cycleElems.join(" \u2192 ")}\n\n`;
+        if (unsolvable.length)
+          msg += `Cannot auto-resolve: ${unsolvable.map(r => r.element_name).join(", ")}\n` +
+                 `Edit those formulas manually (Advanced\u2026) first.\n\n`;
+        if (solvable.length)
+          msg += `${solvable.length} element(s) will be re-anchored to their current literal positions:\n` +
+                 `  ${solvable.map(r => r.element_name).join(", ")}\n\n`;
+        msg += "Apply anyway?";
+        if (!confirm(msg)) return;
+        if (unsolvable.length) return;
+        changes = [...changes, ...solvable.map(r => ({
+          element_name: r.element_name, param_name: r.param_name,
+          formula: r.new_formula, variant,
+        }))];
+      }
+
+      applyBtn.textContent = "Applying\u2026";
+      const bResp = await fetch("/api/formulas-batch", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      const bResult = await bResp.json();
+      if (!bResp.ok) { errDiv.textContent = bResult.error || "Apply failed"; return; }
+      overlay.remove();
+      await loadGeometry();
+      if (App.state.selection?.name === elemName)
+        showProperties(App.state.selection.type, elemName, App.state.selection.data);
+      showToast(`Wall placed: ${bResult.applied.join(", ")}`, "success");
     } catch (e) {
       errDiv.textContent = `Error: ${e.message}`;
     } finally {
