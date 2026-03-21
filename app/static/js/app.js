@@ -3538,12 +3538,12 @@ function showWallSetupWizard() {
   modal.innerHTML = `
     <h3>Add Interior Wall</h3>
     <table class="prop-table"><tbody>
-      <tr><th colspan="2" style="padding-top:6px">Anchor Point</th></tr>
+      <tr><th colspan="2" style="">Anchor Point</th></tr>
       <tr>
         <td>Point</td>
         <td><select id="wsw-anchor">${ptOpts}</select></td>
       </tr>
-      <tr><th colspan="2" style="padding-top:6px">Along Direction</th></tr>
+      <tr><th colspan="2" style="">Along Direction</th></tr>
       <tr>
         <td colspan="2">
           <label><input type="radio" name="wsw-along" value="segment" checked> Segment A→B</label>&nbsp;&nbsp;
@@ -3562,7 +3562,7 @@ function showWallSetupWizard() {
         <td>Degrees</td>
         <td><input id="wsw-bearing" type="number" value="0" style="width:72px"> ° (0=east, 90=north)</td>
       </tr>
-      <tr><th colspan="2" style="padding-top:6px">Thickness</th></tr>
+      <tr><th colspan="2" style="">Thickness</th></tr>
       <tr>
         <td colspan="2">
           <label><input type="radio" name="wsw-thick" value="const" checked> Constant</label>&nbsp;&nbsp;
@@ -3581,7 +3581,7 @@ function showWallSetupWizard() {
         <td>Inches</td>
         <td><input id="wsw-thick-in" type="number" value="4" min="1" max="24" style="width:72px"> in</td>
       </tr>
-      <tr><th colspan="2" style="padding-top:6px">Length</th></tr>
+      <tr><th colspan="2" style="">Length</th></tr>
       <tr>
         <td colspan="2">
           <label><input type="radio" name="wsw-len" value="fixed" checked> Fixed</label>&nbsp;&nbsp;

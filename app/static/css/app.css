@@ -1081,6 +1081,14 @@ tr.outline-selected td { background: var(--selection); }
   max-height: 82vh; overflow-y: auto; color: var(--text);
 }
 .rebase-modal h3 { margin: 0 0 8px; font-size: 14px; }
+/* Compact form table inside modals — override global td/th data-table styles */
+.prop-table { border-collapse: collapse; width: 100%; }
+.prop-table td, .prop-table th {
+  padding: 2px 6px; border-bottom: none; border-top: none;
+  background: none; position: static; font-size: 12px;
+  white-space: nowrap;
+}
+.prop-table th { font-weight: 600; color: var(--text-dim); padding-top: 8px; }
 .rebase-desc { font-size: 11px; color: var(--text-dim); margin: 0 0 8px; }
 /* ── Dependency table ── */
 .rebase-deps-section { margin-bottom: 10px; }
