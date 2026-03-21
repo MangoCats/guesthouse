@@ -3,6 +3,7 @@
 *.png
 .coverage
 __pycache__/
+.venv/
 adu.egg-info/
 .git_describe
 nul

@@ -12,16 +12,19 @@ pip install -e .
 
 This installs the `shared` and `floorplan` packages in editable mode so all scripts can import them.
 
-To also install test dependencies:
+Optional dependencies can be installed as needed:
 
 ```
-pip install -e ".[test]"
+pip install -e ".[test]"    # pytest
+pip install -e ".[adjust]"  # numpy, scipy (for survey/adjust_pentagon.py)
+pip install -e ".[gen]"     # PyMuPDF, Pillow, numpy, scipy (for PDF/image generation)
+pip install -e ".[app]"     # Flask (for the web editor)
 ```
 
-The `survey/adjust_pentagon.py` script requires numpy and scipy:
+Or install everything:
 
 ```
-pip install -e ".[adjust]"
+pip install -e ".[test,adjust,gen,app]"
 ```
 
 ## Usage
