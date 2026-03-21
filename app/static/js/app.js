@@ -4065,13 +4065,17 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     ptsDiv.style.display  = ef ? "none" : "";
     faceDiv.style.display = ef ? "" : "none";
     // Auto-select "perp to face" direction when switching to element-face mode
-    if (ef && rFacePerp) rFacePerp.inp.checked = true;
-    if (!ef && getDirType() === "face_perp") rAlong.inp.checked = true;
+    // (rFacePerp/rAlong are defined in §2 — safe after full init, not during it)
+    if (ef) rFacePerp.inp.checked = true;
+    else if (getDirType() === "face_perp") rAlong.inp.checked = true;
     updatePreview();
   }
   rAncPts.inp.addEventListener("change",  updateAnchorMode);
   rAncFace.inp.addEventListener("change", updateAnchorMode);
-  updateAnchorMode();
+  // Set initial visibility directly (cannot call updateAnchorMode here — rFacePerp
+  // and getDirType are defined later in §2 and would be in the TDZ at this point)
+  ptsDiv.style.display  = init.anchorMode === "element_face" ? "none" : "";
+  faceDiv.style.display = init.anchorMode === "element_face" ? "" : "none";
 
   // ── §2 Wall Direction ─────────────────────────────────────────────────────
   const dirName = `wpw-dir-${elemName}`;
