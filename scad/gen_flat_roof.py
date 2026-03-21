@@ -191,8 +191,10 @@ def generate(gd=None):
     pts.update(tw_pts)
 
     # F8-F9 override for TW-side only (straight-arc-straight at 7" inset)
-    tw_ov = {5: _f8f9_elems(pts, WALL_OUTER - shell_half,
-                             OPENING_INSIDE_RADIUS + shell_half)}
+    _f8f9_idx = next((i for i, s in enumerate(outline_segs)
+                      if s.start == "F8" and s.end == "F9"), None)
+    tw_ov = {_f8f9_idx: _f8f9_elems(pts, WALL_OUTER - shell_half,
+                             OPENING_INSIDE_RADIUS + shell_half)} if _f8f9_idx is not None else {}
 
     sections = enumerate_wall_sections(openings, outline_segs)
     sections = sections[-1:] + sections[:-1]

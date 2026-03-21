@@ -529,7 +529,7 @@ def _render_wall_segments(out, data):
             _svg_polygon(out, outer_shell, to_svg, WALL_FILL, stroke="none")
 
             # Inner shell: G-arc to W-arc
-            if seg_idx == 5:
+            if seg.start == "F8" and seg.end == "F9":
                 # F8-F9: straight-arc-straight path for inner shell
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
@@ -614,8 +614,10 @@ def _render_section_outlines(out, data):
     shell_t = SHELL_THICKNESS
     R_in = OPENING_INSIDE_RADIUS
 
-    g_overrides = {5: data.g_f8f9_poly}
-    w_overrides = {5: data.w_f8f9_poly}
+    _f8f9_idx = next((i for i, s in enumerate(data.outline_segs)
+                      if s.start == "F8" and s.end == "F9"), None)
+    g_overrides = {_f8f9_idx: data.g_f8f9_poly} if _f8f9_idx is not None else {}
+    w_overrides = {_f8f9_idx: data.w_f8f9_poly} if _f8f9_idx is not None else {}
     sections = enumerate_wall_sections(data.openings, data.outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(

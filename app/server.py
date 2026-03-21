@@ -7,6 +7,7 @@ import datetime
 import json
 import math
 import os
+import sys as _sys
 import queue
 import re
 import shutil
@@ -22,7 +23,7 @@ from app.database import (
     get_constant_value, update_constant, update_constants_batch,
     get_categories, get_outline_chain, get_views, reset_constants,
     get_all_elements, get_element, get_element_by_name,
-    create_element, update_element, delete_element,
+    create_element, update_element, delete_element, create_iw_element,
     get_all_doors, get_door, create_door, update_door, delete_door,
     get_outline_chain_row, update_outline_segment, insert_outline_segment,
     delete_outline_segment, restore_outline_chain, reset_outline_chain,
@@ -46,9 +47,13 @@ from app.database import (
     reset_inner_wall_overrides, check_override_overlap,
     get_all_catalog_items, get_catalog_item,
     create_catalog_item, delete_catalog_item, ensure_catalog_item,
+    get_outline_anchor_pivot, set_outline_anchor_pivot,
+    get_outline_anchor_pos, get_outline_pivot_user_set,
+    get_outline_flex_user_set, set_outline_flex_user_set,
+    clear_outline_pivot, _seed_default_anchor_pivot,
 )
 from app.doors import validate_door
-from app.elements import compute_constant_delta, IW_CONSTANT_MAP, IW_HOSTED_OPENINGS
+from app.elements import IW_HOSTED_OPENINGS
 from app.engine import (
     compute_geometry, generate_svg, generate_svg_db,
     build_generator_data_from_db, get_svg_content, patch_constants,
@@ -60,7 +65,14 @@ from app.plumbing import (
     update_plumbing_element, delete_plumbing_element,
     seed_reference_plumbing,
 )
-from app.outline_solver import db_rows_to_chain, solve_closure, validate_chain
+from app.outline_solver import (db_rows_to_chain,
+                                check_closure,
+                                flex_specs_from_chain_rows,
+                                all_flex_specs_from_chain_rows, FlexSpec,
+                                solve_with_pivot, point_name_to_seq,
+                                identify_section, section_seqs,
+                                validate_pivot_placement,
+                                auto_assign_section_flex, walk_chain)
 from app.undo import UndoManager
 import floorplan.constants as fc
 
@@ -188,25 +200,99 @@ def create_app(db_path=None):
             return None
         return ev.elements.get(elem_name)
 
-    def _solve_and_update_closure():
-        """Re-solve closure and update solved values in DB.
+    def _solve_and_update_closure(edited_seq=None, pre_edit_rows=None,
+                                  use_db_flex=False):
+        """Re-solve closure using the pivot-aware solver.
+
+        The pivot (anchor + pivot point) is always active — seeded at DB
+        creation and stored in config.  The anchor is the chain walk origin;
+        its absolute position is stored in config as outline_anchor_E/N/brg.
+
+        edited_seq: which segment the user just edited (or None for full
+            re-solve after structural changes like add/remove segment).
+        pre_edit_rows: chain rows from BEFORE the edit — used to compute
+            anchor/pivot target positions on the reference (solved) chain.
+        use_db_flex: when True, read flex specs from the DB (respecting
+            explicit user assignments) instead of auto-assigning.  Also
+            skips _sync_pivot_flex_to_db so the user's choice is preserved.
 
         Returns (solver, chain_rows) on success.
         Returns (solver, None) if closure is invalid.
         """
         chain_rows = get_outline_chain(db)
         chain = db_rows_to_chain(chain_rows)
-        patch_constants(get_constants_dict(db))
-        R_a1 = fc.CORNER_SW_R
-        solver = solve_closure(chain, R_a1)
+        n = len(chain)
+
+        anchor_name, pivot_name = get_outline_anchor_pivot(db)
+        anchor_pos = get_outline_anchor_pos(db)
+
+        anchor_pt_seq = point_name_to_seq(chain, anchor_name)
+        pivot_pt_seq  = point_name_to_seq(chain, pivot_name)
+
+        if anchor_pt_seq is None or pivot_pt_seq is None or anchor_pos is None:
+            raise RuntimeError(
+                f"Anchor/pivot not found in chain — DB seeding failure "
+                f"(anchor={anchor_name!r} seq={anchor_pt_seq}, "
+                f"pivot={pivot_name!r} seq={pivot_pt_seq}, pos={anchor_pos})")
+
+        a_start = (anchor_pt_seq + 1) % n
+        p_start = (pivot_pt_seq  + 1) % n
+        a_seqs, b_seqs = section_seqs(a_start, p_start, n)
+
+        if use_db_flex:
+            # Respect explicit DB flex assignments (e.g. user moved flex via UI)
+            db_specs = all_flex_specs_from_chain_rows(chain_rows)
+            a_seqs_set = set(a_seqs)
+            b_seqs_set = set(b_seqs)
+            a_flex = [s for s in db_specs if s.seq in a_seqs_set]
+            b_flex = [s for s in db_specs if s.seq in b_seqs_set]
+        else:
+            # Compute flex specs dynamically: sweep placement informed by
+            # edited_seq and bearing_flex flags; positional flex goes to
+            # first/last lines in each section.
+            a_flex = auto_assign_section_flex(chain, a_seqs, edited_seq=edited_seq)
+            b_flex = auto_assign_section_flex(chain, b_seqs, edited_seq=edited_seq)
+
+        anchor_E, anchor_N, anchor_brg = anchor_pos
+
+        # Use pre-edit chain for reference target positions.  Walking the
+        # post-edit chain gives wrong positions because flex values haven't
+        # been updated yet.
+        ref_chain = db_rows_to_chain(pre_edit_rows) if pre_edit_rows else chain
+
+        solver = solve_with_pivot(
+            chain, a_start, p_start,
+            a_flex, b_flex, edited_seq,
+            anchor_E, anchor_N, anchor_brg,
+            ref_chain=ref_chain)
         if not solver.valid:
             return solver, None
-        update_outline_segment(0, {"distance": solver.d_F2_F5}, db)
-        f18_seq = len(chain_rows) - 2
-        update_outline_segment(f18_seq, {"distance": solver.d_F18_F1}, db)
-        closure_seq = len(chain_rows) - 1
-        update_outline_segment(closure_seq, {"sweep": solver.sweep_closure}, db)
+        for seq, (param, value) in solver.solved_values.items():
+            update_outline_segment(seq, {param: value}, db)
+
+        if not use_db_flex:
+            # Sync the dynamic flex assignment to DB so the UI shows which
+            # segments were used as flex for this solve.
+            _sync_pivot_flex_to_db(a_flex, b_flex)
         return solver, chain_rows
+
+    def _sync_pivot_flex_to_db(a_flex, b_flex):
+        """Write dynamically computed pivot flex specs to the flex column.
+
+        This keeps the UI flex indicators in sync with what was actually
+        used for the most recent solve.  'bearing' markers are preserved.
+        """
+        with get_db(db) as conn:
+            # Clear only distance/radius/sweep flex; leave bearing_flex col alone
+            conn.execute(
+                "UPDATE outline_chain SET flex = NULL "
+                "WHERE flex IN ('distance', 'radius', 'sweep')"
+            )
+            for spec in a_flex + b_flex:
+                conn.execute(
+                    "UPDATE outline_chain SET flex = ? WHERE seq = ?",
+                    (spec.param, spec.seq)
+                )
 
     # ------------------------------------------------------------------
     # Prevent browser caching of API JSON responses
@@ -350,6 +436,35 @@ def create_app(db_path=None):
             return jsonify(get_elements_for_variant(variant, db))
         return jsonify(get_all_elements(db))
 
+    # -- Interior Wall creation --
+
+    @app.route("/api/interior-walls", methods=["POST"])
+    def api_create_interior_wall():
+        """Create a new user IW wall with a wall_rect formula.
+
+        Body: {"formula": <wall_rect JSON>}
+        Response 201: the new element record.
+        """
+        body = request.get_json(force=True)
+        formula = body.get("formula")
+        if not formula or formula.get("type") != "wall_rect":
+            return jsonify({"error": "formula must have type=wall_rect"}), 400
+        required = {"anchor", "along", "thickness_dir", "thickness", "end_mode"}
+        missing = required - set(formula)
+        if missing:
+            return jsonify({"error": f"formula missing keys: {sorted(missing)}"}), 400
+        with get_db(db) as conn:
+            name, rec = create_iw_element(conn, formula)
+        undo_mgr.record(
+            "element_create",
+            {"id": rec["id"]},
+            rec,
+            f"Create wall {name}",
+        )
+        _invalidate()
+        _broadcast("element_changed")
+        return jsonify(dict(rec)), 201
+
     # -- Wall-relative anchor utilities --
 
     # W-series inner wall segment pairs (CW traversal order).
@@ -467,6 +582,30 @@ def create_app(db_path=None):
         # Dining table → dining_triangle formula
         if catalog_key == "dining_table":
             return _build_dining_triangle_formula(cx, cy, rotation_deg)
+
+        # Toilet → toilet_shape formula
+        if shape == "toilet":
+            rad = rotation_deg * math.pi / 180
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            return {
+                "type": "toilet_shape",
+                "center": [cx, cy],
+                "facing_dir": [-sin_r, cos_r],   # default north, rotated CCW
+                "width_dir": [cos_r, sin_r],      # default east, rotated CCW
+            }
+
+        # Bath sink → bath_sink_shape formula
+        if shape == "bath_sink":
+            rad = rotation_deg * math.pi / 180
+            cos_r, sin_r = math.cos(rad), math.sin(rad)
+            return {
+                "type": "bath_sink_shape",
+                "anchor": [cx, cy],
+                "along": [cos_r, sin_r],          # default east, rotated CCW
+                "outward": [-sin_r, cos_r],        # default north, rotated CCW
+                "length": {"const": "BATH_SINK_LENGTH"},
+                "depth": {"const": "BATH_SINK_DEPTH"},
+            }
 
         # Circle items — get radius from seeded formula or width
         if shape == "circle":
@@ -647,32 +786,76 @@ def create_app(db_path=None):
 
         name = el["name"]
 
-        # Case 1: IW wall — update controlling constant
-        if el["type"] == "wall" and name in IW_CONSTANT_MAP:
-            result = compute_constant_delta(name, dx, dy)
-            if result is None:
-                return jsonify({"error": f"wall {name} is not movable"}), 400
-            const_name, delta = result
-            old_val = get_constant_value(const_name, db)
-            if old_val is None:
-                return jsonify({"error": f"constant {const_name} not found"}), 500
-            new_val = old_val + delta
-            update_constant(const_name, new_val, db)
-            undo_mgr.record(
-                "element_move",
-                {"move_type": "constant", "constant": const_name, "value": old_val},
-                {"move_type": "constant", "constant": const_name, "value": new_val},
-                f"Move {name}",
-            )
-            _invalidate()
-            return jsonify({
-                "ok": True, "constant": const_name,
-                "old_value": old_val, "new_value": new_val,
-                "can_undo": undo_mgr.can_undo,
-                "can_redo": undo_mgr.can_redo,
-            })
+        # Case 1: wall with formula-defined position constant — update that constant
+        if el["type"] == "wall":
+            # Look up the wall's position formula for position_constant metadata
+            from app.evaluator import get_iw_formulas
+            formula_json = None
+            # Check element_formulas table first (user-created or overridden formulas)
+            for r in get_element_formulas(name, variant=None, db_path=db):
+                if r["param_name"] == "position":
+                    fj = r["formula_json"]
+                    formula_json = json.loads(fj) if isinstance(fj, str) else fj
+                    break
+            # Fall back to seeded IW formulas
+            if formula_json is None:
+                formula_json = get_iw_formulas().get(name)
+            if formula_json:
+                pos_const = formula_json.get("position_constant")
+                pos_axis = formula_json.get("position_axis")
+                pos_sign = formula_json.get("position_sign", 1)
+                if pos_const and pos_axis:
+                    drag = dx if pos_axis == "x" else dy
+                    delta = drag * pos_sign
+                    if delta == 0:
+                        return jsonify({"error": f"wall {name}: no movement along controlled axis"}), 400
+                    old_val = get_constant_value(pos_const, db)
+                    if old_val is None:
+                        return jsonify({"error": f"constant {pos_const} not found"}), 500
+                    new_val = old_val + delta
+                    update_constant(pos_const, new_val, db)
+                    undo_mgr.record(
+                        "element_move",
+                        {"move_type": "constant", "constant": pos_const, "value": old_val},
+                        {"move_type": "constant", "constant": pos_const, "value": new_val},
+                        f"Move {name}",
+                    )
+                    _invalidate()
+                    return jsonify({
+                        "ok": True, "constant": pos_const,
+                        "old_value": old_val, "new_value": new_val,
+                        "can_undo": undo_mgr.can_undo,
+                        "can_redo": undo_mgr.can_redo,
+                    })
+            # No position_constant — try formula anchor-translation (user-created wall_rect)
+            anchor = formula_json.get("anchor") if formula_json else None
+            if isinstance(anchor, list) and len(anchor) == 2:
+                new_formula = dict(formula_json)
+                new_formula["anchor"] = [anchor[0] + dx, anchor[1] + dy]
+                from app.evaluator import extract_deps
+                upsert_formula(name, "position", new_formula, variant=None, db_path=db)
+                rebuild_formula_deps(
+                    name, "position", list(extract_deps(new_formula)), db_path=db
+                )
+                undo_mgr.record(
+                    "element_move",
+                    {"move_type": "formula", "name": name, "formula": formula_json},
+                    {"move_type": "formula", "name": name, "formula": new_formula},
+                    f"Move {name}",
+                )
+                _invalidate()
+                return jsonify({"ok": True, "can_undo": undo_mgr.can_undo,
+                                "can_redo": undo_mgr.can_redo})
+            if formula_json and anchor is not None:
+                return jsonify({
+                    "error": (
+                        f"Wall {name} has a named-point anchor; "
+                        "use Wall Setup Wizard or Rebase to reanchor"
+                    )
+                }), 400
+            return jsonify({"error": f"wall {name} is not movable"}), 400
 
-        # Case 2: Custom/override element with offset properties
+        # Parse element properties for remaining move paths (formula / offset)
         props = el.get("properties") or {}
         if isinstance(props, str):
             props = json.loads(props)
@@ -822,12 +1005,23 @@ def create_app(db_path=None):
             new_formula["depth"] = body["depth"]
             changed = True
         if "rotation_deg" in body:
-            if new_formula.get("type") == "dining_triangle":
+            ftype = new_formula.get("type")
+            if ftype == "dining_triangle":
                 # Rebuild direction vectors from rotation
                 rad = body["rotation_deg"] * math.pi / 180
                 cos_r, sin_r = math.cos(rad), math.sin(rad)
                 new_formula["toward_apex"] = [sin_r, -cos_r]
                 new_formula["along_base"] = [cos_r, sin_r]
+            elif ftype == "toilet_shape":
+                rad = body["rotation_deg"] * math.pi / 180
+                cos_r, sin_r = math.cos(rad), math.sin(rad)
+                new_formula["facing_dir"] = [-sin_r, cos_r]
+                new_formula["width_dir"] = [cos_r, sin_r]
+            elif ftype == "bath_sink_shape":
+                rad = body["rotation_deg"] * math.pi / 180
+                cos_r, sin_r = math.cos(rad), math.sin(rad)
+                new_formula["along"] = [cos_r, sin_r]
+                new_formula["outward"] = [-sin_r, cos_r]
             else:
                 new_formula["rotation_deg"] = body["rotation_deg"]
             changed = True
@@ -1031,6 +1225,50 @@ def create_app(db_path=None):
                                 "Use File \u203a Reset Database to recreate it.")
             return jsonify(resp), 500
 
+    @app.route("/api/iw-config")
+    def api_iw_config():
+        """Serve IW wall metadata derived from formula position fields.
+        Single source of truth — no duplication in JS."""
+        from app.evaluator import get_iw_formulas
+        formulas = get_iw_formulas()
+        move_axis = {}
+        iw_constant_map = {}
+        for iw_name, formula in formulas.items():
+            pos_const = formula.get("position_constant")
+            pos_axis = formula.get("position_axis")
+            pos_sign = formula.get("position_sign", 1)
+            if pos_const and pos_axis:
+                move_axis[iw_name] = {"axis": pos_axis, "sign": pos_sign}
+                iw_constant_map[iw_name] = pos_const
+            else:
+                move_axis[iw_name] = None
+                iw_constant_map[iw_name] = None
+        return jsonify({
+            "iw_move_axis": move_axis,
+            "iw_hosted_openings": IW_HOSTED_OPENINGS,
+            "iw_constant_map": iw_constant_map,
+        })
+
+    @app.route("/api/dep-summary")
+    def api_dep_summary():
+        """Return constant↔element dependency maps built from formula_deps.
+        const_to_elems: {const_name: [elem_name, ...]}
+        elem_to_consts: {elem_name: [const_name, ...]}
+        """
+        all_deps = get_all_formula_deps(db_path=db)
+        const_to_elems: dict = {}
+        elem_to_consts: dict = {}
+        for row in all_deps:
+            if row["dep_type"] != "constant":
+                continue
+            elem  = row["element_name"]
+            cname = row["dep_name"]
+            if elem not in (const_to_elems.setdefault(cname, [])):
+                const_to_elems[cname].append(elem)
+            if cname not in (elem_to_consts.setdefault(elem, [])):
+                elem_to_consts[elem].append(cname)
+        return jsonify({"const_to_elems": const_to_elems, "elem_to_consts": elem_to_consts})
+
     @app.route("/api/variants")
     def api_variants():
         return jsonify(get_variants(db))
@@ -1195,10 +1433,47 @@ def create_app(db_path=None):
         body = request.get_json(force=True)
         updates = {}
 
-        # Map dist_or_radius to distance or radius based on seg_type
+        # Handle seg_type change — must come before dist_or_radius mapping
+        changing_type = False
+        if "seg_type" in body:
+            new_type = body["seg_type"]
+            if new_type not in ("L", "CW", "CCW"):
+                return jsonify({"error": "seg_type must be L, CW, or CCW"}), 400
+            updates["seg_type"] = new_type
+            old_type = old_row["seg_type"]
+            if new_type != old_type:
+                changing_type = True
+                if old_type == "L" and new_type in ("CW", "CCW"):
+                    # Line → Arc: derive arc from chord (chord = dist, sweep = 90°)
+                    dist = old_row["distance"] or 1.0
+                    default_sweep = math.pi / 2
+                    default_radius = dist / math.sqrt(2)  # chord = 2R sin(45°) = R√2
+                    updates.setdefault("radius", default_radius)
+                    updates.setdefault("sweep", default_sweep)
+                    updates["sweep_name"] = None
+                    updates["center_name"] = None
+                    updates["distance"] = None
+                    if old_row.get("flex") == "distance":
+                        updates["flex"] = "radius"
+                elif old_type in ("CW", "CCW") and new_type == "L":
+                    # Arc → Line: chord length from arc geometry
+                    r = old_row["radius"] or 1.0
+                    s = old_row["sweep"] or (math.pi / 2)
+                    chord = 2 * r * math.sin(s / 2)
+                    updates.setdefault("distance", chord)
+                    updates["radius"] = None
+                    updates["sweep"] = None
+                    updates["sweep_name"] = None
+                    updates["center_name"] = None
+                    if old_row.get("flex") in ("radius", "sweep"):
+                        updates["flex"] = "distance"
+                # CW ↔ CCW: just the type flag, no geometric changes needed
+
+        # Map dist_or_radius to distance or radius based on (new) seg_type
+        effective_type = updates.get("seg_type", old_row["seg_type"])
         if "dist_or_radius" in body:
             val = float(body["dist_or_radius"])
-            if old_row["seg_type"] == "L":
+            if effective_type == "L":
                 updates["distance"] = val
             else:
                 updates["radius"] = val
@@ -1209,14 +1484,14 @@ def create_app(db_path=None):
         if not updates:
             return jsonify({"error": "no valid fields to update"}), 400
 
-        # Protect solved segments
+        # Protect solved segments (skip when changing type — flex reassignment is intentional)
         chain_rows = get_outline_chain(db)
-        n = len(chain_rows)
-        solved_seqs_dist = {0, n - 2}  # F2→F5 and F18→F1
-        if seq in solved_seqs_dist and "distance" in updates:
-            return jsonify({"error": "Cannot directly edit solved distance"}), 400
-        if seq == n - 1 and "sweep" in updates:
-            return jsonify({"error": "Cannot directly edit closure arc sweep"}), 400
+        if not changing_type:
+            flex_map = {r["seq"]: r["flex"] for r in chain_rows if r.get("flex")}
+            if seq in flex_map and flex_map[seq] in updates:
+                return jsonify({
+                    "error": f"Cannot directly edit solved {flex_map[seq]}"
+                }), 400
 
         # Snapshot before state
         before_chain = get_outline_chain(db)
@@ -1224,8 +1499,11 @@ def create_app(db_path=None):
         # Apply update to DB
         update_outline_segment(seq, updates, db)
 
-        # Re-solve closure
-        solver, _ = _solve_and_update_closure()
+        # Re-solve closure — respect explicit user flex assignments if present.
+        use_db_flex = get_outline_flex_user_set(db)
+        solver, _ = _solve_and_update_closure(
+            edited_seq=seq, pre_edit_rows=before_chain,
+            use_db_flex=use_db_flex)
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({
@@ -1244,13 +1522,13 @@ def create_app(db_path=None):
         _broadcast("outline_changed")
 
         updated = get_outline_chain_row(seq, db)
+        solved = {str(k): {"param": v[0], "value": v[1]}
+                  for k, v in solver.solved_values.items()}
         return jsonify({
             "ok": True,
             "segment": updated,
             "closure_valid": True,
-            "d_F2_F5": solver.d_F2_F5,
-            "d_F18_F1": solver.d_F18_F1,
-            "sweep_closure": solver.sweep_closure,
+            "solved_values": solved,
         })
 
     @app.route("/api/outline/validate", methods=["POST"])
@@ -1277,12 +1555,314 @@ def create_app(db_path=None):
                             row[k] = float(v)
 
         chain = db_rows_to_chain(chain_rows)
-
-        patch_constants(get_constants_dict(db))
-        R_a1 = fc.CORNER_SW_R
-        result = validate_chain(chain, R_a1)
+        flex_specs = flex_specs_from_chain_rows(chain_rows)
+        result = check_closure(chain, flex_specs)
 
         return jsonify(result)
+
+    @app.route("/api/outline/flex", methods=["PUT"])
+    def api_set_flex():
+        """Set which segments are flex (solver-controlled)."""
+        body = request.get_json(force=True)
+        specs = body.get("flex", [])
+
+        _, pivot_name = get_outline_anchor_pivot(db)
+        pivot_user_set = get_outline_pivot_user_set(db)
+        expected = 6 if pivot_user_set else 3
+        if len(specs) != expected:
+            return jsonify({
+                "error": f"Exactly {expected} flex specs required"
+            }), 400
+
+        sweep_count = sum(1 for s in specs if s.get("param") == "sweep")
+        pos_count = sum(1 for s in specs
+                        if s.get("param") in ("distance", "radius"))
+        if pivot_user_set:
+            # 6-spec mode: 2 sweeps + 4 distance/radius
+            if sweep_count != 2 or pos_count != 4:
+                return jsonify({
+                    "error": "Need 2 sweep + 4 distance/radius (pivot mode)"
+                }), 400
+        else:
+            if sweep_count != 1 or pos_count != 2:
+                return jsonify({
+                    "error": "Need exactly 1 sweep + 2 distance/radius"
+                }), 400
+
+        chain_rows = get_outline_chain(db)
+        n = len(chain_rows)
+        seq_set = {r["seq"] for r in chain_rows}
+        for s in specs:
+            if s.get("seq") not in seq_set:
+                return jsonify({
+                    "error": f"Invalid seq {s.get('seq')}"
+                }), 400
+            seg = next(r for r in chain_rows if r["seq"] == s["seq"])
+            param = s["param"]
+            if param == "distance" and seg["seg_type"] != "L":
+                return jsonify({
+                    "error": f"Seq {s['seq']} is an arc, cannot flex distance"
+                }), 400
+            if param in ("radius", "sweep") and seg["seg_type"] == "L":
+                return jsonify({
+                    "error": f"Seq {s['seq']} is a line, cannot flex {param}"
+                }), 400
+
+        # Snapshot for undo
+        before_chain = get_outline_chain(db)
+
+        # Clear all flex, set new ones
+        with get_db(db) as conn:
+            conn.execute("UPDATE outline_chain SET flex = NULL")
+            for s in specs:
+                conn.execute(
+                    "UPDATE outline_chain SET flex = ? WHERE seq = ?",
+                    (s["param"], s["seq"]))
+
+        # Re-solve with new flex — use DB flex to respect the user's assignment
+        solver, _ = _solve_and_update_closure(use_db_flex=True)
+        if not solver.valid:
+            restore_outline_chain(before_chain, db)
+            return jsonify({
+                "error": "Closure failed with new flex designation",
+                "closure_error": solver.closure_error,
+            }), 400
+
+        # Mark that the user has explicitly chosen flex segments so subsequent
+        # segment edits preserve this assignment (use_db_flex=True).
+        set_outline_flex_user_set(True, db)
+
+        after_chain = get_outline_chain(db)
+        undo_mgr.record("outline_update", before_chain, after_chain,
+                        "Change flex segments")
+        _invalidate()
+        _broadcast("outline_changed")
+
+        solved = {str(k): {"param": v[0], "value": v[1]}
+                  for k, v in solver.solved_values.items()}
+        return jsonify({"ok": True, "solved_values": solved})
+
+    @app.route("/api/outline/segment/<int:seq>/bearing-flex", methods=["PUT"])
+    def api_set_bearing_flex(seq):
+        """Toggle bearing_flex on a line segment (opt-in flexible bearing)."""
+        body = request.get_json(force=True)
+        value = 1 if body.get("bearing_flex") else 0
+
+        chain_rows = get_outline_chain(db)
+        seg = next((r for r in chain_rows if r["seq"] == seq), None)
+        if seg is None:
+            return jsonify({"error": f"Segment {seq} not found"}), 404
+        if seg["seg_type"] != "L":
+            return jsonify({"error": "bearing_flex only applies to line segments"}), 400
+
+        before_chain = chain_rows
+        update_outline_segment(seq, {"bearing_flex": value}, db)
+        after_chain = get_outline_chain(db)
+        undo_mgr.record("outline_update", before_chain, after_chain,
+                        f"Set bearing_flex={value} on seg {seq}")
+        _invalidate()
+        _broadcast("outline_changed")
+        return jsonify({"ok": True, "seq": seq, "bearing_flex": value})
+
+    @app.route("/api/outline/pivot", methods=["GET"])
+    def api_get_pivot():
+        """Return current anchor/pivot state."""
+        import math as _math
+        anchor, pivot = get_outline_anchor_pivot(db)
+        result = {"anchor": anchor, "pivot": pivot,
+                  "user_set": get_outline_pivot_user_set(db)}
+        pos = get_outline_anchor_pos(db)
+        if pos is not None:
+            result["anchor_E"] = pos[0]
+            result["anchor_N"] = pos[1]
+            result["anchor_brg_deg"] = _math.degrees(pos[2])
+        if anchor and pivot:
+            chain_rows = get_outline_chain(db)
+            chain = db_rows_to_chain(chain_rows)
+            n = len(chain)
+            a_pt = point_name_to_seq(chain, anchor)
+            p_pt = point_name_to_seq(chain, pivot)
+            if a_pt is not None and p_pt is not None:
+                a_start = (a_pt + 1) % n
+                p_start = (p_pt + 1) % n
+                a_s, b_s = section_seqs(a_start, p_start, n)
+                result["section_a_seqs"] = a_s
+                result["section_b_seqs"] = b_s
+        return jsonify(result)
+
+    @app.route("/api/outline/anchor-pos", methods=["PATCH"])
+    def api_set_anchor_pos():
+        """Update stored anchor position (E, N, brg_deg) without changing anchor/pivot names."""
+        import math as _math
+        body = request.get_json(force=True)
+        try:
+            new_E = float(body["E"])
+            new_N = float(body["N"])
+            new_brg = _math.radians(float(body["brg_deg"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            return jsonify({"error": f"E, N, brg_deg required: {exc}"}), 400
+
+        anchor, pivot = get_outline_anchor_pivot(db)
+        if not anchor or not pivot:
+            return jsonify({"error": "no anchor/pivot set"}), 400
+
+        set_outline_anchor_pivot(anchor, pivot, new_E, new_N, new_brg, db,
+                                 user_set=get_outline_pivot_user_set(db))
+
+        solver, _ = _solve_and_update_closure()
+        if not solver.valid:
+            return jsonify({
+                "error": "Closure failed after anchor position update",
+                "closure_error": solver.closure_error,
+            }), 400
+
+        _invalidate()
+        _broadcast("outline_changed")
+        return jsonify({"ok": True, "E": new_E, "N": new_N,
+                        "brg_deg": _math.degrees(new_brg)})
+
+    @app.route("/api/outline/pivot", methods=["PUT"])
+    def api_set_pivot():
+        """Set anchor and pivot points, auto-assign 6 flex vars."""
+        body = request.get_json(force=True)
+        anchor_name = body.get("anchor")
+        pivot_name = body.get("pivot")
+        if not anchor_name or not pivot_name:
+            return jsonify({"error": "anchor and pivot required"}), 400
+        if anchor_name == pivot_name:
+            return jsonify({"error": "anchor and pivot must differ"}), 400
+
+        chain_rows = get_outline_chain(db)
+        chain = db_rows_to_chain(chain_rows)
+        n = len(chain)
+
+        a_pt = point_name_to_seq(chain, anchor_name)
+        p_pt = point_name_to_seq(chain, pivot_name)
+        if a_pt is None:
+            return jsonify({"error": f"anchor point {anchor_name} not found"}), 400
+        if p_pt is None:
+            return jsonify({"error": f"pivot point {pivot_name} not found"}), 400
+
+        a_start = (a_pt + 1) % n
+        p_start = (p_pt + 1) % n
+
+        valid, err = validate_pivot_placement(chain, a_start, p_start)
+        if not valid:
+            return jsonify({"error": err}), 400
+
+        old_anchor, old_pivot = get_outline_anchor_pivot(db)
+        before_chain = get_outline_chain(db)
+
+        # Auto-assign flex per section
+        a_seqs_list, b_seqs_list = section_seqs(a_start, p_start, n)
+        a_flex = auto_assign_section_flex(chain, a_seqs_list)
+        b_flex = auto_assign_section_flex(chain, b_seqs_list)
+
+        # Clear all flex, set new 6
+        with get_db(db) as conn:
+            conn.execute("UPDATE outline_chain SET flex = NULL")
+            for fs in a_flex + b_flex:
+                conn.execute(
+                    "UPDATE outline_chain SET flex = ? WHERE seq = ?",
+                    (fs.param, fs.seq))
+
+        # Walk chain from current anchor to find the new anchor's position and
+        # entry bearing, then store with the new anchor/pivot names.
+        current_pos = get_outline_anchor_pos(db)
+        if current_pos is not None:
+            cur_anchor, _ = get_outline_anchor_pivot(db)
+            cur_anchor_pt_seq = point_name_to_seq(chain, cur_anchor)
+            cur_a_start = (cur_anchor_pt_seq + 1) % n if cur_anchor_pt_seq is not None else 0
+            cur_start_E, cur_start_N, cur_start_brg = current_pos
+        else:
+            cur_a_start = 0
+            cur_start_E = float(get_constant_value("F2_EASTING", db) or -18.5)
+            cur_start_N = float(get_constant_value("F2_NORTHING", db) or -13.5)
+            cur_start_N += float(get_constant_value("CORNER_SW_R", db) or fc.CORNER_SW_R)
+            cur_start_brg = 0.0
+
+        rotated_chain = [chain[(cur_a_start + i) % n] for i in range(n)]
+        walk_res = walk_chain(rotated_chain, cur_start_E, cur_start_N, cur_start_brg)
+        new_anchor_E, new_anchor_N = walk_res.points.get(anchor_name,
+                                                          (cur_start_E, cur_start_N))
+        # Compute bearing entering new a_start in the rotated walk
+        brg = cur_start_brg
+        new_a_rotated_idx = (a_start - cur_a_start) % n
+        for i, seg in enumerate(rotated_chain):
+            if i == new_a_rotated_idx:
+                break
+            if seg.seg_type == "CW":
+                brg += seg.sweep
+            elif seg.seg_type == "CCW":
+                brg -= seg.sweep
+        new_anchor_brg = brg
+
+        # Store anchor/pivot with absolute position, marking as user-set
+        set_outline_anchor_pivot(anchor_name, pivot_name,
+                                 new_anchor_E, new_anchor_N, new_anchor_brg,
+                                 db, user_set=True)
+
+        # Re-solve whole-chain closure (to ensure chain is consistent)
+        solver, _ = _solve_and_update_closure()
+        if not solver.valid:
+            restore_outline_chain(before_chain, db)
+            clear_outline_pivot(db)
+            return jsonify({
+                "error": "Closure failed with pivot placement",
+                "closure_error": solver.closure_error,
+            }), 400
+
+        after_chain = get_outline_chain(db)
+        undo_mgr.record("outline_pivot",
+                        {"chain": before_chain, "anchor": old_anchor,
+                         "pivot": old_pivot},
+                        {"chain": after_chain, "anchor": anchor_name,
+                         "pivot": pivot_name},
+                        f"Set pivot: anchor={anchor_name}, pivot={pivot_name}")
+        _invalidate()
+        _broadcast("outline_changed")
+
+        solved = {str(k): {"param": v[0], "value": v[1]}
+                  for k, v in solver.solved_values.items()}
+        return jsonify({
+            "ok": True,
+            "anchor": anchor_name,
+            "pivot": pivot_name,
+            "section_a_seqs": a_seqs_list,
+            "section_b_seqs": b_seqs_list,
+            "flex": [{"seq": f.seq, "param": f.param}
+                     for f in a_flex + b_flex],
+            "solved_values": solved,
+        })
+
+    @app.route("/api/outline/pivot", methods=["DELETE"])
+    def api_clear_pivot():
+        """Clear pivot, revert to 3-flex whole-chain mode."""
+        old_anchor, old_pivot = get_outline_anchor_pivot(db)
+        before_chain = get_outline_chain(db)
+        clear_outline_pivot(db)
+
+        solver, _ = _solve_and_update_closure()
+        if not solver.valid:
+            restore_outline_chain(before_chain, db)
+            return jsonify({
+                "error": "Closure failed after clearing pivot",
+                "closure_error": solver.closure_error,
+            }), 400
+
+        after_chain = get_outline_chain(db)
+        undo_mgr.record("outline_pivot",
+                        {"chain": before_chain, "anchor": old_anchor,
+                         "pivot": old_pivot},
+                        {"chain": after_chain, "anchor": None,
+                         "pivot": None},
+                        "Clear pivot")
+        _invalidate()
+        _broadcast("outline_changed")
+
+        solved = {str(k): {"param": v[0], "value": v[1]}
+                  for k, v in solver.solved_values.items()}
+        return jsonify({"ok": True, "solved_values": solved})
 
     @app.route("/api/outline/add-point", methods=["POST"])
     def api_add_outline_point():
@@ -1309,7 +1889,7 @@ def create_app(db_path=None):
                 return jsonify({"error": f"point name {end_name} already exists"}), 400
 
         if old_seg["seg_type"] == "L":
-            # Line split: halve distance
+            # Line split: halve distance into two equal L segments
             half_dist = (old_seg["distance"] or 0) / 2.0
             update_outline_segment(after_seq, {
                 "distance": half_dist, "end_name": end_name,
@@ -1321,19 +1901,15 @@ def create_app(db_path=None):
             }
             insert_outline_segment(after_seq + 1, new_row, db)
         else:
-            # Arc split: halve sweep, keep radius
-            half_sweep = (old_seg["sweep"] or 0) / 2.0
-            center_name = body.get("center_name", old_seg["center_name"])
-            update_outline_segment(after_seq, {
-                "sweep": half_sweep, "end_name": end_name,
-            }, db)
+            # Arc split: keep parent arc intact, insert new L with half-chord
+            # length so closure can always be solved (user adjusts type/size after).
+            r = old_seg["radius"] or 1.0
+            s = old_seg["sweep"] or (math.pi / 2)
+            half_chord = r * math.sin(s / 2)  # half of chord = R·sin(sweep/2)
+            update_outline_segment(after_seq, {"end_name": end_name}, db)
             new_row = {
-                "seg_type": old_seg["seg_type"],
-                "radius": old_seg["radius"],
-                "sweep": half_sweep,
-                "sweep_name": None,
-                "center_name": center_name,
-                "n_pts": old_seg["n_pts"],
+                "seg_type": "L",
+                "distance": half_chord,
                 "end_name": old_seg["end_name"],
             }
             insert_outline_segment(after_seq + 1, new_row, db)
@@ -1619,6 +2195,8 @@ def create_app(db_path=None):
             p = db + ext
             if os.path.exists(p):
                 os.remove(p)
+        # Run migrations on the loaded DB (adds any missing columns/tables)
+        init_db(db)
         # Set config name in the loaded DB
         set_config("config_name", name, db)
         _invalidate()
@@ -2035,13 +2613,39 @@ def create_app(db_path=None):
         if not formula_json:
             return jsonify({"error": "missing formula"}), 400
         variant = body.get("variant")
+
+        # Normalise: accept JSON string or pre-parsed dict
+        if isinstance(formula_json, str):
+            try:
+                import json as _json
+                formula_json = _json.loads(formula_json)
+            except Exception as exc:
+                return jsonify({"error": f"Invalid JSON: {exc}"}), 400
+
+        # Cycle-detection: build a temporary evaluator substituting the new formula
+        from app.evaluator import FormulaEvaluator, CycleError, extract_deps
+        try:
+            ev = FormulaEvaluator({}, {}, [], {})
+            for row in get_all_formulas(variant=variant, db_path=db):
+                if (row["element_name"].upper() == element_name.upper()
+                        and row["param_name"] == param_name):
+                    continue  # will be replaced
+                ev.add_formula(row["element_name"], row["param_name"],
+                               row["formula_json"])
+            ev.add_formula(element_name, param_name, formula_json)
+            ev.topo_sort()
+        except CycleError as ce:
+            nodes = sorted(f"{e}/{p}" for e, p in (ce.args[0] if ce.args else set()))
+            return jsonify({"error": f"Cycle detected involving: {', '.join(nodes)}"}), 400
+        except Exception:
+            pass  # evaluator init errors are non-fatal at this stage
+
         try:
             result = upsert_formula(element_name, param_name, formula_json,
                                     variant=variant, db_path=db)
         except Exception as exc:
             return jsonify({"error": str(exc)}), 400
         # Rebuild dependency cache
-        from app.evaluator import extract_deps
         deps = extract_deps(formula_json)
         rebuild_formula_deps(element_name, param_name, deps, db_path=db)
         _broadcast("element_changed")
@@ -2176,16 +2780,26 @@ def create_app(db_path=None):
             rebuild_formula_deps(f["element_name"], f["param_name"],
                                   [], db_path=db)
 
-        # 7. Also delete the elements DB record if one exists
-        #    Check both the requested name and case variants in case
-        #    of mismatched casing between formula and element records.
+        # 7. Delete the element record only if no formulas remain
+        #    (other variants may still have formulas for this element).
         deleted_elements = []
-        for candidate in {element_name, element_name.lower(),
-                          element_name.upper()}:
-            elem_rec = get_element_by_name(candidate, db)
+        with get_db(db) as conn:
+            remaining = conn.execute(
+                "SELECT 1 FROM element_formulas WHERE element_name = ? "
+                "LIMIT 1", (element_name,),
+            ).fetchone()
+        if not remaining:
+            elem_rec = get_element_by_name(element_name, db)
             if elem_rec:
                 deleted_elements.append(dict(elem_rec))
-                delete_element(elem_rec["id"], db)
+                # Delete element record without cascade (formulas
+                # already removed in step 6).
+                with get_db(db) as conn:
+                    conn.execute("DELETE FROM formula_deps "
+                                 "WHERE element_name = ?",
+                                 (elem_rec["name"],))
+                    conn.execute("DELETE FROM elements WHERE id = ?",
+                                 (elem_rec["id"],))
         if deleted_elements:
             before_state["deleted_element"] = deleted_elements[0]
             if len(deleted_elements) > 1:
@@ -2269,6 +2883,147 @@ def create_app(db_path=None):
         dep_type = request.args.get("type", "element")
         rows = db_get_dependents(element_name, dep_type=dep_type, db_path=db)
         return jsonify([dict(r) for r in rows])
+
+    @app.route("/api/formula-rebase-preview", methods=["POST"])
+    def api_formula_rebase_preview():
+        """Preview cycle impact of a proposed formula change without committing.
+
+        Returns cycle detection result and proposed literal four_corner
+        resolutions for each element that would form a cycle.
+        """
+        body = request.get_json(force=True)
+        element_name = body.get("element_name")
+        param_name = body.get("param_name", "position")
+        formula_json = body.get("formula")
+        variant = body.get("variant")
+
+        if not element_name or formula_json is None:
+            return jsonify({"error": "missing element_name or formula"}), 400
+
+        if isinstance(formula_json, str):
+            try:
+                formula_json = json.loads(formula_json)
+            except Exception as exc:
+                return jsonify({"error": f"Invalid JSON: {exc}"}), 400
+
+        from app.evaluator import FormulaEvaluator, CycleError, extract_deps
+        ev = FormulaEvaluator({}, {}, [], {})
+        all_formulas = get_all_formulas(variant=variant, db_path=db)
+        for row in all_formulas:
+            if (row["element_name"].upper() == element_name.upper()
+                    and row["param_name"] == param_name):
+                continue
+            ev.add_formula(row["element_name"], row["param_name"],
+                           row["formula_json"])
+        ev.add_formula(element_name, param_name, formula_json)
+
+        try:
+            ev.topo_sort()
+            return jsonify({"ok": True, "cycle": False,
+                            "cycle_path": [], "resolutions": []})
+        except CycleError as ce:
+            cycle_nodes = ce.args[0] if ce.args else set()
+            cycle_path = sorted(f"{e}/{p}" for e, p in cycle_nodes)
+            resolutions = []
+            for cyclic_elem in sorted({e for e, p in cycle_nodes}):
+                if cyclic_elem.upper() == element_name.upper():
+                    continue
+                elem_data = _evaluate_element(cyclic_elem, variant or "standard")
+                poly = elem_data.get("poly", []) if elem_data else []
+                curr_formulas = get_element_formulas(cyclic_elem,
+                                                     variant=variant,
+                                                     db_path=db)
+                old_formula = None
+                for f in curr_formulas:
+                    if f["param_name"] == "position":
+                        fj = f["formula_json"]
+                        old_formula = (json.loads(fj)
+                                       if isinstance(fj, str) else fj)
+                        break
+                if len(poly) >= 4:
+                    proposed = {
+                        "type": "four_corner",
+                        "sw": [round(poly[0][0], 6), round(poly[0][1], 6)],
+                        "se": [round(poly[1][0], 6), round(poly[1][1], 6)],
+                        "ne": [round(poly[2][0], 6), round(poly[2][1], 6)],
+                        "nw": [round(poly[3][0], 6), round(poly[3][1], 6)],
+                    }
+                    resolutions.append({
+                        "element_name": cyclic_elem,
+                        "param_name": "position",
+                        "old_formula": old_formula,
+                        "new_formula": proposed,
+                        "description": (f"Anchor {cyclic_elem} to its current"
+                                        f" computed position (literal)"),
+                    })
+                else:
+                    resolutions.append({
+                        "element_name": cyclic_elem,
+                        "param_name": "position",
+                        "old_formula": old_formula,
+                        "new_formula": None,
+                        "description": (f"Cannot compute position for "
+                                        f"{cyclic_elem} — edit manually"),
+                    })
+            return jsonify({"ok": True, "cycle": True,
+                            "cycle_path": cycle_path,
+                            "resolutions": resolutions})
+
+    @app.route("/api/formulas-batch", methods=["POST"])
+    def api_formulas_batch():
+        """Atomically apply multiple formula changes (used by cycle wizard)."""
+        body = request.get_json(force=True)
+        changes = body.get("changes", [])
+        if not changes:
+            return jsonify({"error": "no changes provided"}), 400
+
+        from app.evaluator import FormulaEvaluator, CycleError, extract_deps
+        # Normalise formula values
+        normalised = []
+        for c in changes:
+            formula = c.get("formula")
+            if isinstance(formula, str):
+                try:
+                    formula = json.loads(formula)
+                except Exception as exc:
+                    return jsonify({"error": f"Invalid JSON for "
+                                   f"{c.get('element_name')}: {exc}"}), 400
+            normalised.append({**c, "formula": formula})
+
+        # Final cycle check with all proposed changes applied
+        variant = normalised[0].get("variant") if normalised else None
+        all_formulas = get_all_formulas(variant=variant, db_path=db)
+        change_keys = {(c["element_name"].upper(), c["param_name"])
+                       for c in normalised}
+        ev = FormulaEvaluator({}, {}, [], {})
+        for row in all_formulas:
+            if (row["element_name"].upper(), row["param_name"]) not in change_keys:
+                ev.add_formula(row["element_name"], row["param_name"],
+                               row["formula_json"])
+        for c in normalised:
+            ev.add_formula(c["element_name"], c["param_name"], c["formula"])
+        try:
+            ev.topo_sort()
+        except CycleError as ce:
+            nodes = sorted(f"{e}/{p}"
+                           for e, p in (ce.args[0] if ce.args else set()))
+            return jsonify({"error": f"Cycle still present: "
+                           f"{', '.join(nodes)}"}), 400
+
+        applied = []
+        for c in normalised:
+            elem_name = c["element_name"]
+            param_name = c["param_name"]
+            c_variant = c.get("variant")
+            upsert_formula(elem_name, param_name, c["formula"],
+                           variant=c_variant, db_path=db)
+            deps = extract_deps(c["formula"])
+            rebuild_formula_deps(elem_name, param_name, list(deps), db_path=db)
+            applied.append(f"{elem_name}/{param_name}")
+
+        _broadcast("element_changed")
+        _invalidate()
+        return jsonify({"ok": True, "applied": applied})
 
     @app.route("/api/deps/graph")
     def api_deps_graph():

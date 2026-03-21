@@ -880,7 +880,7 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
             outer_shell = arc_strip_poly(seg, pts, "F", s_seg)
             _svg_wall_poly(out, outer_shell, to_svg)
 
-            if seg_idx == 5:
+            if seg.start == "F8" and seg.end == "F9":
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
             else:
@@ -959,8 +959,10 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                         out.append(_poly_el)
 
     # --- Continuous section outlines ---
-    g_overrides = {5: data.g_f8f9_poly}
-    w_overrides = {5: data.w_f8f9_poly}
+    _f8f9_idx = next((i for i, s in enumerate(outline_segs)
+                      if s.start == "F8" and s.end == "F9"), None)
+    g_overrides = {_f8f9_idx: data.g_f8f9_poly} if _f8f9_idx is not None else {}
+    w_overrides = {_f8f9_idx: data.w_f8f9_poly} if _f8f9_idx is not None else {}
     sections = enumerate_wall_sections(openings, outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(

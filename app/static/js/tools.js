@@ -1,38 +1,12 @@
 /* ========== Tool Utilities ========== */
 "use strict";
 
-/**
- * Client-side hosted-openings map (mirrors app/elements.py IW_HOSTED_OPENINGS).
- * Used for cascade warnings when deleting walls.
+/* ========== Move Tool ==========
+ * IW_MOVE_AXIS and IW_HOSTED_OPENINGS are no longer hardcoded here.
+ * They are fetched from /api/iw-config at startup and stored in
+ * App.state.iwConfig.  Use App.state.iwConfig.iw_move_axis[name] and
+ * App.state.iwConfig.iw_hosted_openings[name] everywhere below.
  */
-const IW_HOSTED_OPENINGS = {
-  IW1: ["RO1"], IW2: [], IW2O: ["RO4"], IW2S: [], IW3: [], IW4: [],
-  IW5: [], IW6: ["RO5"], IW7: [], IW8: [], IW9: ["RO3", "RO7"],
-  IW11: ["RO2", "RO6"], IW12: [],
-};
-
-/* ========== Move Tool ========== */
-
-/**
- * Client-side IW move axis mapping (mirrors app/elements.py IW_MOVE_AXIS).
- * axis: "x" or "y" — the world-coordinate axis the constant affects.
- * sign: +1 or -1 — delta_constant = drag_delta_on_axis * sign.
- */
-const IW_MOVE_AXIS = {
-  IW1:  { axis: "y", sign: -1 },
-  IW2:  { axis: "x", sign: +1 },
-  IW2O: null,  // not movable
-  IW2S: { axis: "x", sign: +1 },
-  IW3:  { axis: "x", sign: +1 },
-  IW4:  { axis: "x", sign: +1 },
-  IW5:  { axis: "y", sign: -1 },
-  IW6:  { axis: "y", sign: -1 },
-  IW7:  { axis: "y", sign: +1 },
-  IW8:  null,  // not movable
-  IW9:  { axis: "x", sign: +1 },
-  IW11: { axis: "x", sign: +1 },
-  IW12: { axis: "y", sign: +1 },
-};
 
 /** Minimum screen-pixel drag distance before a drag actually starts. */
 const DRAG_THRESHOLD = 4;
@@ -126,9 +100,9 @@ function applyMoveConstraints(dx, dy, shiftKey) {
   // For single IW walls, constrain to move axis
   if (MoveTool.targets.length === 1) {
     const t = MoveTool.targets[0];
-    if (t.type === "wall" && IW_MOVE_AXIS[t.name]) {
-      const axis = IW_MOVE_AXIS[t.name].axis;
-      if (axis === "x") dy = 0;
+    const axisInfo = App.state.iwConfig.iw_move_axis[t.name];
+    if (t.type === "wall" && axisInfo) {
+      if (axisInfo.axis === "x") dy = 0;
       else dx = 0;
     }
   }
@@ -474,136 +448,8 @@ async function commitMove(targets, dx, dy) {
 }
 
 
-/* ========== Draw Wall Tool (TL-15, TL-16, TL-17) ========== */
+/* ========== (DrawWallTool removed — use Add > Wall wizard instead) ========== */
 
-const DrawWallTool = {
-  /** First click position [wx, wy], or null if not started. */
-  start: null,
-  /** Preview SVG elements. */
-  previewLine: null,
-  /** Default wall thickness in feet (4 inches). */
-  defaultThickness: 4.0 / 12.0,
-};
-
-/** Auto-generate the next custom wall name (CW1, CW2, ...). */
-function nextCustomWallName() {
-  const elements = App.state.elements || [];
-  let max = 0;
-  for (const e of elements) {
-    if (e.type === "wall" && e.name && e.name.startsWith("CW")) {
-      const n = parseInt(e.name.slice(2), 10);
-      if (n > max) max = n;
-    }
-  }
-  return `CW${max + 1}`;
-}
-
-/** Compute a rectangle polygon from start/end/thickness. */
-function wallPoly(start, end, thickness) {
-  const dx = end[0] - start[0];
-  const dy = end[1] - start[1];
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len < 1e-9) return null;
-  // Perpendicular unit vector
-  const px = -dy / len * (thickness / 2);
-  const py = dx / len * (thickness / 2);
-  return [
-    [start[0] + px, start[1] + py],
-    [end[0] + px, end[1] + py],
-    [end[0] - px, end[1] - py],
-    [start[0] - px, start[1] - py],
-  ];
-}
-
-function drawWallMouseDown(e) {
-  if (e.button !== 0) return;
-  const rect = App.els["viewport"].getBoundingClientRect();
-  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-
-  // Grid snap
-  if (App.state.showGrid) {
-    const snap = 1.0 / 12.0;
-    wx = Math.round(wx / snap) * snap;
-    wy = Math.round(wy / snap) * snap;
-  }
-
-  if (!DrawWallTool.start) {
-    // First click — set start point
-    DrawWallTool.start = [wx, wy];
-  } else {
-    // Second click — create the wall
-    createDrawnWall(DrawWallTool.start, [wx, wy]);
-    // Clear preview
-    if (DrawWallTool.previewLine && DrawWallTool.previewLine.parentNode) {
-      DrawWallTool.previewLine.remove();
-    }
-    DrawWallTool.previewLine = null;
-    DrawWallTool.start = null;
-  }
-}
-
-function drawWallMouseMove(e) {
-  if (!DrawWallTool.start) return;
-  const rect = App.els["viewport"].getBoundingClientRect();
-  let [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-
-  if (App.state.showGrid) {
-    const snap = 1.0 / 12.0;
-    wx = Math.round(wx / snap) * snap;
-    wy = Math.round(wy / snap) * snap;
-  }
-
-  // Update preview line from start to cursor
-  const layer = document.getElementById("layer-measure");
-  if (!DrawWallTool.previewLine) {
-    DrawWallTool.previewLine = svgEl("line", { class: "draw-preview" });
-    layer.appendChild(DrawWallTool.previewLine);
-  }
-  const s = DrawWallTool.start;
-  DrawWallTool.previewLine.setAttribute("x1", s[0]);
-  DrawWallTool.previewLine.setAttribute("y1", -s[1]);
-  DrawWallTool.previewLine.setAttribute("x2", wx);
-  DrawWallTool.previewLine.setAttribute("y2", -wy);
-}
-
-function cancelDrawWall() {
-  DrawWallTool.start = null;
-  if (DrawWallTool.previewLine && DrawWallTool.previewLine.parentNode) {
-    DrawWallTool.previewLine.remove();
-  }
-  DrawWallTool.previewLine = null;
-}
-
-async function createDrawnWall(start, end) {
-  const thickness = DrawWallTool.defaultThickness;
-  const poly = wallPoly(start, end, thickness);
-  if (!poly) return;
-
-  const name = nextCustomWallName();
-  const resp = await fetch("/api/elements", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      type: "wall",
-      name: name,
-      properties: {
-        source: "drawn",
-        start: start,
-        end: end,
-        thickness: thickness,
-        poly: poly,
-      },
-    }),
-  });
-  if (resp.ok) {
-    showToast(`Created wall ${name}`, "success");
-    await loadElements();
-    await loadGeometry();
-  } else {
-    const data = await resp.json();
-    showToast(data.error || "Failed to create wall", "error");
-  }
-}
 
 
 /**

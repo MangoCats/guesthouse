@@ -325,6 +325,48 @@ class TestWallRect:
         assert poly[0][0] == pytest.approx(0)  # near (west wall)
         assert poly[1][0] == pytest.approx(10)  # far (east wall)
 
+    def test_to_line_mode(self):
+        ev = _make_evaluator()  # inner_poly = [0,0], [10,0], [10,10], [0,10]
+        # Wall going north from anchor [2, 2], far end at horizontal line y=8
+        formula = {
+            "type": "wall_rect",
+            "anchor": [2, 2],
+            "along": "north",
+            "thickness_dir": "east",
+            "thickness": 0.5,
+            "end_mode": "to_line",
+            "end_line_point": [0, 8],
+            "end_line_dir": "east",
+        }
+        result = ev._evaluate_formula("test_wall", formula)
+        assert result is not None
+        poly = result["poly"]
+        assert poly[0] == pytest.approx([2, 2])    # SW = anchor
+        assert poly[1] == pytest.approx([2, 8])    # SE = intersection with y=8
+        assert poly[2] == pytest.approx([2.5, 8])  # NE
+        assert poly[3] == pytest.approx([2.5, 2])  # NW
+
+    def test_to_line_mode_named_points(self):
+        ev = _make_evaluator()  # W10=[10,5]
+        # Wall going east from [0, 2]; far end at vertical line through W10 (x=10)
+        formula = {
+            "type": "wall_rect",
+            "anchor": [0, 2],
+            "along": "east",
+            "thickness_dir": "north",
+            "thickness": 0.5,
+            "end_mode": "to_line",
+            "end_line_point": "W10",
+            "end_line_dir": "north",
+        }
+        result = ev._evaluate_formula("test_wall", formula)
+        assert result is not None
+        poly = result["poly"]
+        assert poly[0] == pytest.approx([0, 2])    # SW = anchor
+        assert poly[1] == pytest.approx([10, 2])   # SE = intersection at x=10
+        assert poly[2] == pytest.approx([10, 2.5])
+        assert poly[3] == pytest.approx([0, 2.5])
+
 
 # ---------------------------------------------------------------------------
 # Item rect evaluation tests

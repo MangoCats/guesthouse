@@ -14,6 +14,8 @@
   --red: #f38ba8;
   --yellow: #f9e2af;
   --orange: #fab387;
+  --teal: #94e2d5;
+  --peach: #fab387;
   --border: #45475a;
   --border-light: #585880;
   --selection: rgba(137, 180, 250, 0.25);
@@ -440,6 +442,34 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 }
 .prop-delete-btn:hover { background: #e78284; color: var(--base); }
 
+/* Formula editor */
+.formula-edit-toggle { margin-top: 2px; }
+.formula-editor-wrap {
+  margin-top: 4px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.formula-editor-textarea {
+  width: 100%; min-height: 200px; max-height: 60vh;
+  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-size: 11px; line-height: 1.45;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 6px 8px; resize: vertical; box-sizing: border-box;
+  tab-size: 2; white-space: pre;
+}
+.formula-editor-textarea:focus { border-color: var(--accent); outline: none; }
+.formula-editor-error {
+  color: var(--red); font-size: 11px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.formula-editor-btnbar { display: flex; gap: 6px; }
+.formula-save-btn {
+  background: var(--green); color: var(--bg);
+  border-color: var(--green); font-weight: 600;
+}
+.formula-save-btn:hover { background: #8fd49a; border-color: #8fd49a; }
+.formula-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Style controls */
 .prop-color-input {
   width: 28px; height: 22px; padding: 0 1px; border: 1px solid var(--border);
@@ -485,6 +515,7 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 }
 
 /* ========== SVG CANVAS STYLES ========== */
+.site-stroke { fill: none; stroke: #7a6a3a; stroke-width: 0.04; stroke-dasharray: 0.2 0.1; }
 .outline-fill { fill: #1a2030; stroke: none; }
 .outline-stroke { fill: none; stroke: var(--text); stroke-width: 0.05; }
 .inner-stroke { fill: none; stroke: var(--accent-dim); stroke-width: 0.04; stroke-dasharray: 0.15 0.08; }
@@ -827,7 +858,8 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   color: var(--text-dim);
   margin-bottom: 4px;
 }
-.dialog-field input {
+.dialog-field input,
+.dialog-field select {
   width: 100%;
   padding: 6px 8px;
   background: var(--bg);
@@ -838,7 +870,8 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   font-family: 'Cascadia Code', 'Fira Code', monospace;
   outline: none;
 }
-.dialog-field input:focus { border-color: var(--accent); }
+.dialog-field input:focus,
+.dialog-field select:focus { border-color: var(--accent); }
 .dialog-buttons {
   display: flex;
   gap: 8px;
@@ -907,6 +940,43 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   justify-content: center;
 }
 #outline-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+#outline-toolbar button.pivot-active { border-color: var(--teal); color: var(--teal); }
+#pivot-banner {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  display: none;
+}
+#pivot-banner.visible { display: flex; align-items: center; gap: 6px; }
+#pivot-banner .anchor-tag { color: var(--teal); font-weight: 600; }
+#pivot-banner .pivot-tag { color: var(--peach); font-weight: 600; }
+#anchor-pos-editor {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+#anchor-pos-editor.visible { display: flex; }
+.anchor-pos-label { color: var(--teal); font-weight: 600; white-space: nowrap; }
+#anchor-pos-editor label { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+#anchor-pos-editor input[type="number"] {
+  width: 72px;
+  background: var(--surface0);
+  border: 1px solid var(--overlay0);
+  color: var(--text);
+  font-size: 0.72rem;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+#anchor-pos-editor input[type="number"]:focus { border-color: var(--teal); outline: none; }
+#anchor-pos-editor input[type="number"].dirty { border-color: var(--peach); }
+tr.section-a td:first-child { border-left: 3px solid var(--teal); }
+tr.section-b td:first-child { border-left: 3px solid var(--peach); }
+.pivot-marker { fill: var(--peach); stroke: none; }
+.anchor-marker { fill: var(--teal); stroke: none; }
 td.solved {
   color: var(--text-dim);
   font-style: italic;
@@ -938,6 +1008,15 @@ tr.outline-selected td { background: var(--selection); }
   text-align: center;
   width: 30px;
 }
+
+/* ========== BEARING FLEX ========== */
+.td-bearing-flex { text-align: center; padding: 0 2px; }
+.bearing-flex-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; color: var(--text-dim); padding: 0 2px;
+}
+.bearing-flex-btn.active { color: var(--yellow, #e5c890); }
+.bearing-flex-btn:hover { color: var(--text); }
 
 /* ========== INNER WALL OVERRIDES ========== */
 .td-override { text-align: center; padding: 0 2px; }
@@ -994,6 +1073,100 @@ tr.outline-selected td { background: var(--selection); }
 #config-name { font-weight: 600; color: var(--blue); }
 .status-sep { color: var(--text-dim); opacity: 0.4; }
 .dropdown .shortcut { float: right; color: var(--text-dim); font-size: 11px; margin-left: 16px; }
+
+/* ========== REBASE MODAL ========== */
+.rebase-modal {
+  background: var(--surface0); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; min-width: 480px; max-width: 700px;
+  max-height: 82vh; overflow-y: auto; color: var(--text);
+}
+.rebase-modal h3 { margin: 0 0 8px; font-size: 14px; }
+/* Compact form table inside modals — override global td/th data-table styles */
+.prop-table { border-collapse: collapse; width: 100%; }
+.prop-table td, .prop-table th {
+  padding: 2px 6px; border-bottom: none; border-top: none;
+  background: none; position: static; font-size: 12px;
+  white-space: nowrap;
+}
+.prop-table th { font-weight: 600; color: var(--text-dim); padding-top: 8px; }
+.rebase-desc { font-size: 11px; color: var(--text-dim); margin: 0 0 8px; }
+/* ── Dependency table ── */
+.rebase-deps-section { margin-bottom: 10px; }
+.rebase-dep-none {
+  font-size: 11px; color: var(--text-dim); font-style: italic;
+  background: var(--surface1); border-radius: 4px; padding: 6px 8px;
+}
+.rebase-dep-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  margin-bottom: 6px;
+}
+.rebase-dep-table th {
+  text-align: left; font-size: 10px; color: var(--text-dim);
+  padding: 2px 6px 4px; border-bottom: 1px solid var(--border);
+}
+.rebase-dep-table td { padding: 4px 6px; vertical-align: middle; }
+.rebase-dep-table tr:hover td { background: var(--surface1); }
+.rebase-dep-select {
+  background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); font-size: 11px; padding: 2px 4px;
+  border-radius: 3px; cursor: pointer;
+}
+.rebase-dep-select:focus { border-color: var(--accent); outline: none; }
+.rebase-dep-points {
+  font-size: 11px; color: var(--text-dim);
+  padding: 3px 0;
+}
+/* ── Advanced JSON editor toggle ── */
+.rebase-adv-toggle {
+  font-size: 11px; margin: 4px 0; color: var(--text-dim);
+}
+.rebase-adv-wrap { margin-top: 4px; }
+.rebase-formula-editor {
+  width: 100%; min-height: 120px; box-sizing: border-box;
+  background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); font-family: monospace; font-size: 11px;
+  padding: 6px; border-radius: 4px; resize: vertical;
+}
+.rebase-formula-editor:focus { border-color: var(--accent); outline: none; }
+/* ── Results area ── */
+.rebase-results { margin: 8px 0; border-top: 1px solid var(--border); padding-top: 8px; }
+.rebase-ok { color: var(--green); font-size: 12px; margin: 4px 0; }
+.rebase-cycle-warning {
+  color: var(--yellow); font-size: 12px; margin: 4px 0; font-weight: 600;
+}
+.rebase-res-row { margin: 8px 0; }
+.rebase-res-label {
+  font-size: 11px; font-weight: 600; margin-bottom: 2px; color: var(--text);
+}
+.rebase-res-editor {
+  width: 100%; min-height: 80px; box-sizing: border-box;
+  background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); font-family: monospace; font-size: 10px;
+  padding: 4px; border-radius: 4px; resize: vertical;
+}
+.rebase-error { color: var(--red); font-size: 12px; margin: 4px 0; }
+.rebase-btnbar { display: flex; gap: 8px; margin-top: 10px; }
+
+/* ========== PLACEMENT WIZARD ========== */
+.wizard-section {
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 8px 10px; margin-bottom: 8px;
+}
+.wizard-section-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;
+}
+.wizard-row {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+}
+.wizard-text { font-size: 12px; color: var(--text); }
+.wizard-hint { font-size: 10px; color: var(--text-dim); font-style: italic; margin-top: 4px; }
+.wizard-dist-input {
+  width: 64px; background: var(--surface1); border: 1px solid var(--border);
+  color: var(--text); font-size: 12px; padding: 2px 5px;
+  border-radius: 3px; text-align: right;
+}
+.wizard-dist-input:focus { border-color: var(--accent); outline: none; }
 
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1000px) {

@@ -1026,7 +1026,7 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
         item_name = elem_name
         elem_type = meta.get("type", "")
 
-        # Interior walls (IW* uppercase names)
+        # Interior walls
         if elem_type == "wall":
             if elem_name in excluded_walls:
                 continue
@@ -1187,6 +1187,22 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     (iw, oo, ro, vi, furn, appl) = _build_elements_from_formulas(
         ev, variant, exclusions, db_path)
 
+    # 6a. Include placed walls from elements table (no formulas, geometry
+    #     stored directly in properties.poly — e.g., user-drawn CW walls)
+    excluded_walls = exclusions.get("wall", set())
+    all_elems = get_all_elements(db_path)
+    for e in all_elems:
+        if e["type"] != "wall" or e["name"] in iw or e["name"] in excluded_walls:
+            continue
+        props = json.loads(e["properties"]) if isinstance(e["properties"], str) else (e["properties"] or {})
+        poly = props.get("poly")
+        if poly and len(poly) >= 3:
+            bbox = bbox_from_poly([[p[0], p[1]] for p in poly])
+            iw[e["name"]] = {"poly": poly, "bbox": bbox}
+
+    # 6b. Site path (survey outer boundary as dense polyline)
+    site_path = _compute_site_path(pts)
+
     # 7. Build result
     outline_poly_pts = path_polygon(outline_segs, pts)
     result = {
@@ -1204,6 +1220,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         "variant": variant,
         "locked_elements": locked,
         "radii": dict(radii),
+        "site_path": site_path,
     }
 
     # Bounding box
@@ -1275,6 +1292,35 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     result["label_elements"] = label_elems
 
     return result
+
+
+def _compute_site_path(pts: dict) -> list[list[float]]:
+    """Compute site boundary (survey outer path) as a dense polyline.
+
+    Uses the P-series traverse points already present in pts (aligned to
+    F-series coordinates) to build the outer boundary segments, then
+    returns a polygon approximation as [[E, N], ...].
+    """
+    from shared.types import LineSeg, ArcSeg
+    from shared.geometry import path_polygon
+    from shared.survey import compute_traverse, compute_three_arc
+    from floorplan.geometry import align_pts_to_f_series
+
+    trav_pts = compute_traverse()
+    three_arc = compute_three_arc(trav_pts)
+    R1, R2, R3 = three_arc["R1"], three_arc["R2"], three_arc["R3"]
+    align_pts_to_f_series(trav_pts)
+
+    outer_segs = [
+        LineSeg("POB", "P2"), LineSeg("P2", "P3"), LineSeg("P3", "T3"),
+        ArcSeg("T3", "PX", "TC3", R3, "CW", 60),
+        LineSeg("PX", "P4"), LineSeg("P4", "P5"), LineSeg("P5", "T1"),
+        ArcSeg("T1", "PA", "TC1", R1, "CW", 60),
+        ArcSeg("PA", "T2", "TC2", R2, "CW", 60),
+        LineSeg("T2", "POB"),
+    ]
+    poly = path_polygon(outer_segs, trav_pts)
+    return [point_to_list(p) for p in poly]
 
 
 def compute_survey_points(constants_dict: dict) -> dict:
@@ -1362,6 +1408,12 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         constants_dict = gd.constants
         doors_data = get_all_doors(db_path) if db_path else []
 
+        # Load chain_rows from DB so compute_geometry uses DB-driven outline
+        # geometry (F-series points) rather than hardcoded floorplan/constants.py.
+        # Without this, dimension anchor resolution uses stale F-series positions.
+        from app.database import get_outline_chain
+        chain_rows = get_outline_chain(db_path) if db_path else None
+
         # Fetch fixture connections once for plumbing variant
         fc_elems = [e for e in get_plumbing_elements(db_path)
                     if e["type"] == "fixture_connection"]
@@ -1369,6 +1421,7 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         for suffix, variant, room_title in _VARIANTS:
             geom = compute_geometry(
                 constants_dict, variant=variant,
+                chain_rows=chain_rows,
                 doors_data=doors_data, db_path=db_path)
             bdy = boundary if variant == "plumbing" else None
             if variant == "plumbing":

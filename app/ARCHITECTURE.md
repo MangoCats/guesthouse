@@ -8,6 +8,28 @@ the parametric building design.  All element geometry (walls, openings,
 furniture, appliances) is computed by the FormulaEvaluator from
 database-stored JSON formulas (Phase 12h: procedural baselines eliminated).
 
+### DB Authority
+
+**The SQLite database (`app/adu.db`) is the sole source of truth for all
+building geometry and dimensions.**
+
+The `floorplan/` Python modules (`constants.py`, `geometry.py`, `layout.py`,
+`openings.py`) are **seed/reference sources only**.  They are used in exactly
+one context: populating a fresh database via File → Reset Database.  They are
+never consulted during normal operation, SVG generation, or the `gen_all.py`
+regeneration workflow.
+
+Implications:
+- `gen_all.py` builds `GeneratorData` from the DB and uses in-process
+  generation for all supported scripts.  Scripts without in-process handlers
+  (survey, SCAD) fall back to subprocess — acceptable because those derive
+  geometry from survey traversal / 3D model parameters, not DB formulas.
+- `compute_geometry()` must always receive `chain_rows` from the DB so that
+  F-series/W-series points reflect the live outline, not hardcoded constants.
+- `GeneratorData.iw_polys` provides DB-driven interior wall polygons for span
+  generators; `gd.layout` (from `compute_interior_layout()`) is a legacy
+  fallback retained only for the non-DB standalone path.
+
 ```
 Browser (HTML/CSS/JS)
     │  REST API (/api/*)
@@ -187,8 +209,8 @@ Also implements the inner wall override engine (Phase 15½).
 | Function / Class | Purpose |
 |------------------|---------|
 | `compute_native_geometry(constants, chain_rows, db_path)` | Shared steps 1-3: survey traverse, outline, inner walls.  Returns `(pts, outline_segs, inner_segs, radii)` as native objects.  Used by both `compute_geometry()` and `GeneratorData`. |
-| `build_generator_data(constants, chain_rows, db_path)` | Main entry point — builds `GeneratorData` from DB state |
-| `GeneratorData` | Contains `pts`, `outline_segs`, `inner_segs`, `radii`, `outline_poly`, `inner_poly`, `s_segs`, `g_segs`, `w_f8f9_poly`, `g_f8f9_poly`, `openings`, `wall_sections`, `roof`, `roof_poly`, `layout`, `constants`, `wall_t`, `outer_area`, `inner_area` |
+| `build_generator_data(constants, chain_rows, db_path)` | Main entry point — builds `GeneratorData` from DB state.  When `db_path` is provided, calls `compute_geometry()` once with `chain_rows` to populate both `openings` (DB-driven outer openings) and `iw_polys` (DB-driven interior wall polygons for span generators). |
+| `GeneratorData` | Contains `pts`, `outline_segs`, `inner_segs`, `radii`, `outline_poly`, `inner_poly`, `s_segs`, `g_segs`, `w_f8f9_poly`, `g_f8f9_poly`, `openings`, `wall_sections`, `roof`, `roof_poly`, `layout`, `iw_polys`, `constants`, `wall_t`, `outer_area`, `inner_area`.  **`iw_polys`** is a `{name: poly}` dict of formula-evaluated interior wall polygons (DB-driven); span generators prefer this over `layout.iwN.poly`.  **`layout`** is from `compute_interior_layout()` (hardcoded seed values) and is retained for the standalone subprocess path only. |
 | `walk_override_chain(chain, start_pt, start_bearing)` | Parametric chain walk: line (bearing+distance) and arc (radius+sweep CW/CCW) segments. Returns polyline. |
 | `compute_default_override(seg_index, inner_segs, pts, constants)` | Computes default parametric chain for a single inner wall segment. |
 | `compute_default_span_override(seg_index, span_end, ...)` | Computes default chain for a multi-segment span. |
@@ -344,7 +366,7 @@ Pure-math reimplementation of the outline closure solver from
 | `solve_closure(chain, R_a1)` | Solve d_F2_F5, d_F18_F1, and sweep_closure for chain closure |
 | `db_rows_to_chain(rows)` | Convert DB row dicts to ChainEntry NamedTuples |
 | `walk_chain(chain, F2_E, F2_N)` | Full point generation → WalkResult(points, radii) |
-| `validate_chain(chain, R_a1)` | Dry-run validation → {valid, closure_error, ...} |
+| `check_closure(chain, flex_specs)` | Non-mutating closure check → {valid, closure_error, ...} |
 | `solve_for_constraint(...)` | Secant method for target distance constraints |
 
 Cross-validation tests verify bit-identical results with `floorplan/geometry.py`
@@ -432,7 +454,8 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | POST | `/api/elements` | Create element (API-20) |
 | PUT | `/api/elements/<id>` | Update element (API-21) |
 | DELETE | `/api/elements/<id>` | Delete element + cascade (API-22) |
-| POST | `/api/elements/<id>/move` | Move element: constant-based (IW) or offset (API-23) |
+| POST | `/api/elements/<id>/move` | Move element: constant-based (seeded IW), anchor-translation (user IW), or offset (API-23) |
+| POST | `/api/interior-walls` | Create user IW wall with `wall_rect` formula; auto-names IW13, IW14… |
 | GET | `/api/version` | Server git describe + start time |
 | POST | `/api/openings` | Create opening (API-24) |
 | PUT | `/api/openings/<name>` | Update opening (API-25) |
@@ -600,9 +623,9 @@ Generic modal dialog system.
 | `Dialog.close()` | Remove overlay |
 | `parseOffsetString(str)` | Parse "6in east" → `{dx, dy}` in feet |
 
-### app/static/js/tools.js — Move & Draw Tools
+### app/static/js/tools.js — Move Tools
 
-Client-side move tool, draw wall tool, and shared utilities.
+Client-side move tool and shared utilities.
 
 | Object/Function | Purpose |
 |-----------------|---------|
@@ -613,11 +636,6 @@ Client-side move tool, draw wall tool, and shared utilities.
 | `commitMove(targets, dx, dy)` | POST move for each target; auto-create override for furniture |
 | `showOffsetDialog()` | Show offset dialog (Enter key trigger) |
 | `findElementRecord(type, name)` | Look up DB record from App.state.elements |
-| `DrawWallTool` | State machine: start point, preview line, default thickness |
-| `drawWallMouseDown/Move` | Two-click wall drawing handlers |
-| `createDrawnWall(start, end)` | POST drawn wall element with computed polygon |
-| `wallPoly(start, end, thickness)` | Compute rectangle polygon from centerline |
-| `cancelDrawWall()` | Reset draw tool state |
 
 ### app/static/js/catalog.js — Catalog & Placement Tool
 

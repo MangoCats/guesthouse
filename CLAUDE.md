@@ -18,12 +18,12 @@ shared/              — Common types, geometry, survey computation, SVG utiliti
   survey.py          — compute_traverse, compute_three_arc, compute_inset
   svg.py             — make_svg_transform, W/H page constants
 
-floorplan/           — Building design: single source of truth for geometry and layout
-  constants.py       — Named physical dimension constants (wall thicknesses, room sizes,
+floorplan/           — Reference geometry and seed source (NOT the live source of truth — see DB Authority)
+  constants.py       — Seed values for DB constants table (wall thicknesses, room sizes,
                        shell thickness, air gap, opening corner radius, etc.)
-  geometry.py        — compute_outline_geometry → F-series points, segments, radii
-  layout.py          — compute_interior_layout → InteriorLayout (rooms, appliances, furniture)
-  openings.py        — compute_outer_openings, compute_rough_openings (single source for O1-O11, RO1-RO7)
+  geometry.py        — compute_outline_geometry → F-series points, segments, radii (seed for outline_chain)
+  layout.py          — compute_interior_layout → InteriorLayout (seed/reference only; app uses DB formulas)
+  openings.py        — compute_outer_openings, compute_rough_openings (seed/reference only; app uses DB formulas)
   gen_floorplan.py   — Detailed floorplan SVG renderer. Outputs floorplan/floorplan.svg
 
 walls/               — Outer wall construction detail drawing
@@ -94,7 +94,7 @@ No circular dependencies. floorplan/ never imports from survey/, walls/, span/, 
 - `outline_segs`: list of 20 `LineSeg`/`ArcSeg` defining the closed outline path (CW traversal: F1→F2→F5→...→F11→F11a→F11b→F12→...→F20→F1)
 - All radii in `OutlineGeometry.radii` dict; passed to `compute_inner_walls`
 - Arc tangency: `|center1 - center2| = R1 + R2` (external)
-- Physical constants defined once in `floorplan/constants.py` — no magic numbers in geometry/layout code
+- Physical constants defined in `floorplan/constants.py` (seed/reference) and in the DB `constants` table (live/authoritative)
 
 ## F-Series Geometry Principle
 
@@ -106,11 +106,27 @@ The F-series outline is defined purely by:
 
 **That's it.** No other runtime constraints exist in the geometry code. When a change request specifies additional constraints (e.g., "keep F9-F20 fixed", "maintain clear span"), those constraints are used to DERIVE new segment parameter values. Once the values are verified to satisfy the change request plus tangency and closure, the derived values are hardcoded as segment definitions and the change-request constraints are discarded. The solver in `geometry.py` must never accumulate constraints from past change requests.
 
+## DB Authority
+
+**The database is the sole source of truth for all building geometry.**
+`floorplan/constants.py`, `floorplan/geometry.py`, `floorplan/layout.py`, and
+`floorplan/openings.py` are **seed/reference sources only** — used exclusively
+to populate a fresh DB via File → Reset Database.  They are never consulted
+during normal app operation or SVG generation.
+
+The only legitimate use of these hardcoded modules outside of seeding is:
+- `floorplan/geometry.py`: outline geometry for standalone reference scripts
+  (`gen_all.py` now uses the DB for all scripts with in-process handlers;
+  only survey/SCAD scripts without handlers still use the procedural path)
+- `floorplan/gen_floorplan.py` and other generators: still used as the rendering
+  engine, but always fed DB-sourced data via `GeneratorData` / `compute_geometry()`
+
 ## Workflow
 - After each successful (as determined by passing of all tests) completed request, always: `git commit -a -m "<summary>"` then `python gen_all.py` to regenerate all SVGs.  summary shall be 25 words or less, and shall not include "Co-Authored-By: Claude".
-- Outline geometry lives in `floorplan/geometry.py`; dimension constants in `floorplan/constants.py`
-- Interior layout (rooms, furniture) lives in `floorplan/layout.py` (reference for gen scripts; app uses DB formulas)
-- Opening positions (O1-O11, RO1-RO7) live in `floorplan/openings.py` (reference for gen scripts; app uses DB formulas)
+- `gen_all.py` reads the DB (`app/adu.db`) and uses in-process generation for all supported scripts; survey and SCAD scripts without in-process handlers fall back to subprocess (uses `floorplan/constants.py` as reference — acceptable since those scripts derive geometry from survey traversal / 3D model parameters, not DB formulas).
+- Outline geometry lives in `floorplan/geometry.py` (seed/reference); live outline in the DB `outline_chain` table
+- Interior layout (rooms, furniture) lives in `floorplan/layout.py` (seed/reference only; app uses DB formulas)
+- Opening positions (O1-O11, RO1-RO7) live in `floorplan/openings.py` (seed/reference only; app uses DB formulas)
 - Wall construction constants (shell thickness, air gap, opening radius) defined in `floorplan/constants.py`, re-exported by `walls/constants.py`
 - Shell geometry utilities (inset paths, U-turn polygons, wall sections) live in `shared/wall_shells.py`
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
@@ -136,10 +152,12 @@ app/                 — Flask web editor: interactive canvas + constants editin
 ### NF-4: Lifted (Phase 12g Cutover Complete)
 NF-4 has been lifted.  The app's FormulaEvaluator is the sole source of element
 geometry — `compute_geometry()` no longer patches `floorplan.constants` or
-reloads modules.  The procedural `floorplan/` modules are read-only data sources
-for outline geometry and variant item metadata (labels, URLs, door/clearance
-configs).  Modifications to `shared/` and `floorplan/` are now permitted when
-needed, though the generator scripts remain the reference for SVG output.
+reloads modules.  The `floorplan/` modules are seed/reference sources only.
+Modifications to `shared/` and `floorplan/` are permitted when needed.
+
+The generator scripts (`gen_floorplan.py`, `gen_walls.py`, etc.) remain the
+rendering engines but are always invoked with DB-sourced data via
+`GeneratorData` / `compute_geometry()`.  They never drive geometry themselves.
 
 ### Phase Completion Protocol
 After each roadmap phase is complete (user acknowledges all goals met, no

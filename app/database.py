@@ -64,7 +64,9 @@ CREATE TABLE IF NOT EXISTS outline_chain (
     sweep       REAL,               -- sweep in radians
     center_name TEXT,               -- arc center point name
     n_pts       INTEGER DEFAULT 60, -- arc discretisation
-    end_name    TEXT NOT NULL        -- produced point name
+    end_name    TEXT NOT NULL,       -- produced point name
+    flex        TEXT DEFAULT NULL,   -- solved param: 'distance','radius','sweep', or NULL
+    bearing_flex INTEGER DEFAULT 0   -- 1 = line bearing may rotate (opt-in); 0 = fixed (default)
 );
 
 CREATE TABLE IF NOT EXISTS views (
@@ -298,10 +300,45 @@ def init_db(db_path=None):
             if "sort_order" not in pe_cols:
                 conn.execute("ALTER TABLE plumbing_elements "
                              "ADD COLUMN sort_order INTEGER DEFAULT 0")
+            # Add flex column to outline_chain if missing
+            oc_cols = {r[1] for r in conn.execute(
+                "PRAGMA table_info(outline_chain)").fetchall()}
+            if "flex" not in oc_cols:
+                conn.execute("ALTER TABLE outline_chain "
+                             "ADD COLUMN flex TEXT DEFAULT NULL")
+                # Set defaults: first line, second-to-last line, last arc
+                rows = conn.execute(
+                    "SELECT seq FROM outline_chain ORDER BY seq"
+                ).fetchall()
+                if rows:
+                    n = len(rows)
+                    conn.execute(
+                        "UPDATE outline_chain SET flex = 'distance' "
+                        "WHERE seq = 0")
+                    conn.execute(
+                        "UPDATE outline_chain SET flex = 'distance' "
+                        "WHERE seq = ?", (n - 2,))
+                    conn.execute(
+                        "UPDATE outline_chain SET flex = 'sweep' "
+                        "WHERE seq = ?", (n - 1,))
+            if "bearing_flex" not in oc_cols:
+                conn.execute("ALTER TABLE outline_chain "
+                             "ADD COLUMN bearing_flex INTEGER DEFAULT 0")
             # Migrate element_formulas/formula_deps to COLLATE NOCASE
             _migrate_nocase_formulas(conn)
             # Migrate existing placed items: create formulas if missing
             _migrate_placed_item_formulas(conn)
+            # Sync prop_constants on IW walls from formula metadata
+            _migrate_iw_prop_constants(conn)
+            # Remove drawn CW walls (superseded by formula-based IW system)
+            _migrate_remove_drawn_walls(conn)
+    # Seed anchor/pivot defaults after DB is committed (needs constants table)
+    if fresh:
+        _seed_default_anchor_pivot(db_path)
+    else:
+        # Migrate: seed anchor coords if missing (new in this phase)
+        if get_outline_anchor_pos(db_path) is None:
+            _seed_default_anchor_pivot(db_path)
     # Seed catalog items after DB is committed (needs geometry computation)
     _seed_catalog_items_post(db_path)
 
@@ -310,6 +347,52 @@ def _seed_catalog_items_post(db_path):
     """Seed catalog_items after DB is committed (separate connection)."""
     with get_db(db_path) as conn:
         _seed_catalog_items(conn, db_path)
+        # Fix placed items with 0x0 dimensions from catalog
+        _fix_zero_dim_placed_items(conn)
+
+
+def _fix_zero_dim_placed_items(conn):
+    """Fix placed items that have width=0/depth=0 by looking up catalog dims."""
+    rows = conn.execute(
+        "SELECT e.id, e.name, e.properties, ef.formula_json "
+        "FROM elements e "
+        "LEFT JOIN element_formulas ef "
+        "  ON ef.element_name = e.name AND ef.param_name = 'position' "
+        "WHERE e.type IN ('appliance', 'furniture', 'fixture')"
+    ).fetchall()
+    for r in rows:
+        props = json.loads(r["properties"]) if isinstance(
+            r["properties"], str) else (r["properties"] or {})
+        cat_key = props.get("catalog_key")
+        if not cat_key:
+            continue
+        pw = props.get("width", 0) or 0
+        pd = props.get("depth", 0) or 0
+        if pw > 0 and pd > 0:
+            continue
+        # Look up catalog dimensions
+        cat = conn.execute(
+            "SELECT width, depth FROM catalog_items WHERE key = ?",
+            (cat_key,)).fetchone()
+        if not cat or not cat["width"] or not cat["depth"]:
+            continue
+        cw, cd = cat["width"], cat["depth"]
+        # Fix element properties
+        props["width"] = cw
+        props["depth"] = cd
+        conn.execute("UPDATE elements SET properties = ? WHERE id = ?",
+                     (json.dumps(props), r["id"]))
+        # Fix formula
+        if r["formula_json"]:
+            fj = json.loads(r["formula_json"]) if isinstance(
+                r["formula_json"], str) else r["formula_json"]
+            if fj and fj.get("type") == "item_rect":
+                fj["width"] = cw
+                fj["depth"] = cd
+                conn.execute(
+                    "UPDATE element_formulas SET formula_json = ? "
+                    "WHERE element_name = ? AND param_name = 'position'",
+                    (json.dumps(fj), r["name"]))
 
 
 def _migrate_nocase_formulas(conn):
@@ -425,6 +508,28 @@ def _migrate_placed_item_formulas(conn):
                 "apex_radius": 1.0,
                 "fillet_radius": 0.5,
             }
+        elif shape == "toilet":
+            import math as _math
+            rad = rotation * _math.pi / 180
+            cos_r, sin_r = _math.cos(rad), _math.sin(rad)
+            formula = {
+                "type": "toilet_shape",
+                "center": center,
+                "facing_dir": [-sin_r, cos_r],
+                "width_dir": [cos_r, sin_r],
+            }
+        elif shape == "bath_sink":
+            import math as _math
+            rad = rotation * _math.pi / 180
+            cos_r, sin_r = _math.cos(rad), _math.sin(rad)
+            formula = {
+                "type": "bath_sink_shape",
+                "anchor": center,
+                "along": [cos_r, sin_r],
+                "outward": [-sin_r, cos_r],
+                "length": {"const": "BATH_SINK_LENGTH"},
+                "depth": {"const": "BATH_SINK_DEPTH"},
+            }
         elif shape == "circle":
             radius = props.get("radius") or props.get("width", 1) / 2
             formula = {"type": "item_circle", "center": center,
@@ -457,6 +562,102 @@ def _migrate_placed_item_formulas(conn):
             "VALUES (?, 'position', ?, NULL)",
             (name, json.dumps(formula)),
         )
+
+
+def _migrate_iw_prop_constants(conn):
+    """Sync prop_constants for all IW wall records from formula metadata.
+
+    Derives prop_constants from position_constant / span_constants fields
+    embedded in each wall's formula (upgrade migration — runs on every startup).
+    """
+    from app.evaluator import get_iw_formulas, _prop_constants_from_formula
+    formulas = get_iw_formulas()
+    rows = conn.execute(
+        "SELECT id, name, properties FROM elements "
+        "WHERE type='wall' AND name GLOB 'IW*'"
+    ).fetchall()
+    for row in rows:
+        name = row["name"]
+        try:
+            props = json.loads(row["properties"]) if row["properties"] else {}
+        except Exception:
+            props = {}
+        formula = formulas.get(name, {})
+        expected = _prop_constants_from_formula(formula)
+        if props.get("prop_constants") != expected:
+            props["prop_constants"] = expected
+            conn.execute(
+                "UPDATE elements SET properties=? WHERE id=?",
+                (json.dumps(props), row["id"]),
+            )
+
+
+def _migrate_remove_drawn_walls(conn):
+    """Delete all drawn CW walls from the elements table.
+
+    Drawn walls (source='drawn') are superseded by the formula-based IW system.
+    They will be redrawn as formula-based walls after this migration.
+    """
+    rows = conn.execute(
+        "SELECT id, name, properties FROM elements WHERE type='wall'"
+    ).fetchall()
+    ids_to_delete = []
+    for row in rows:
+        try:
+            props = json.loads(row["properties"]) if row["properties"] else {}
+        except Exception:
+            props = {}
+        if props.get("source") == "drawn":
+            ids_to_delete.append(row["id"])
+    for eid in ids_to_delete:
+        conn.execute("DELETE FROM elements WHERE id=?", (eid,))
+
+
+def _next_iw_name(conn):
+    """Return the next unused IW{N} name (pure numeric suffix, guaranteed ≥ IW13)."""
+    rows = conn.execute(
+        "SELECT name FROM elements WHERE type='wall' AND name GLOB 'IW[0-9]*'"
+    ).fetchall()
+    nums = []
+    for r in rows:
+        m = re.match(r"^IW(\d+)$", r["name"])
+        if m:
+            nums.append(int(m.group(1)))
+    return f"IW{max(nums, default=12) + 1}"
+
+
+def create_iw_element(conn, formula, variant=None):
+    """Create a new user IW wall element with formula and deps in one transaction.
+
+    Returns (name, row_dict).
+    """
+    from app.evaluator import extract_deps
+    name = _next_iw_name(conn)
+    along = formula.get("along", [1, 0])
+    if isinstance(along, list) and len(along) == 2:
+        dx, dy = along[0], along[1]
+    else:
+        dx, dy = 1.0, 0.0  # safe default for spec-based along
+    orientation = "H" if abs(dx) >= abs(dy) else "V"
+    props = json.dumps({"orientation": orientation, "prop_constants": {}})
+    conn.execute(
+        "INSERT INTO elements (type, name, properties, variant) VALUES ('wall', ?, ?, ?)",
+        (name, props, variant),
+    )
+    fj = json.dumps(formula)
+    conn.execute(
+        "INSERT INTO element_formulas (element_name, param_name, formula_json, variant) "
+        "VALUES (?, 'position', ?, NULL)",
+        (name, fj),
+    )
+    for dep_type, dep_name in extract_deps(formula):
+        conn.execute(
+            "INSERT OR IGNORE INTO formula_deps "
+            "(element_name, param_name, dep_type, dep_name) VALUES (?, 'position', ?, ?)",
+            (name, dep_type, dep_name),
+        )
+    row = conn.execute("SELECT * FROM elements WHERE name=?", (name,)).fetchone()
+    return name, dict(row)
 
 
 # ---------------------------------------------------------------------------
@@ -621,7 +822,14 @@ def _seed_inner_wall_overrides(conn):
 
     Computes parametric values from the default geometry: two straight
     segments flanking a 90° CCW arc at the concave F8-F9 corner.
+
+    Only seeds if no overrides exist yet — avoids clobbering databases
+    where the override lives at a different seg_index (e.g. Mark2).
     """
+    count = conn.execute(
+        "SELECT COUNT(*) FROM inner_wall_overrides").fetchone()[0]
+    if count > 0:
+        return
     import math
     from floorplan.geometry import compute_outline_geometry
     from floorplan.constants import (
@@ -744,6 +952,14 @@ def _seed_outline_chain(conn):
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (seq, direction, radius, s_name, sweep, center_name, n_pts, end_name),
             )
+
+    # Set default flex segments: first line, second-to-last line, closure arc
+    n = len(OUTLINE_CHAIN)
+    conn.execute("UPDATE outline_chain SET flex = 'distance' WHERE seq = 0")
+    conn.execute("UPDATE outline_chain SET flex = 'distance' WHERE seq = ?",
+                 (n - 2,))
+    conn.execute("UPDATE outline_chain SET flex = 'sweep' WHERE seq = ?",
+                 (n - 1,))
 
 
 # ---------------------------------------------------------------------------
@@ -1047,7 +1263,7 @@ _VARIANT_ITEMS = [
     ("counter", "appliance", {
         "label": "COUNTER", "item_type": "appliance", "shape": "rect",
         "clip_to_inner": True,
-        "variants": _VI_STD_DB,
+        "variants": _VI_ALL,
     }, None),
     # --- Toilets & sinks ---
     ("toilet_s", "fixture", {
@@ -1249,10 +1465,13 @@ def _seed_elements(conn):
     """Seed the elements table with interior walls, openings, and variant items."""
 
     # --- Interior walls (13) ---
+    from app.evaluator import get_iw_formulas, _prop_constants_from_formula
+    iw_formulas = get_iw_formulas()
     for name, thickness_const, orientation in _IW_SEED:
         props = json.dumps({
             "thickness_constant": thickness_const,
             "orientation": orientation,
+            "prop_constants": _prop_constants_from_formula(iw_formulas.get(name, {})),
         })
         conn.execute(
             "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
@@ -1322,10 +1541,14 @@ def _seed_catalog_items(conn, db_path=None):
     """
     # Compute dimensions from geometry for all variants
     dims = {}  # key -> {width, depth} or {radius}
+    constants = {}
     try:
-        from app.engine import compute_geometry
         constants = {r[0]: r[1] for r in conn.execute(
             "SELECT name, value FROM constants").fetchall()}
+    except Exception:
+        pass
+    try:
+        from app.engine import compute_geometry
         for v in ("standard", "minik", "daybed"):
             from app.engine import compute_geometry
             geom = compute_geometry(constants, variant=v, db_path=db_path)
@@ -1344,6 +1567,134 @@ def _seed_catalog_items(conn, db_path=None):
                     }
     except Exception:
         pass  # Dimensions will be NULL if geometry computation fails
+
+    # Resolve dimensions from element formulas' constant references
+    # for any items not already in dims (geometry may miss catalog templates)
+    def _eval_expr(expr):
+        """Evaluate a simple constant expression (const, mul, add, sub)."""
+        if isinstance(expr, (int, float)):
+            return expr
+        if isinstance(expr, dict):
+            if "const" in expr:
+                return constants.get(expr["const"])
+            if "mul" in expr:
+                result = 1.0
+                for operand in expr["mul"]:
+                    v = _eval_expr(operand)
+                    if v is None:
+                        return None
+                    result *= v
+                return result
+            if "add" in expr:
+                result = 0.0
+                for operand in expr["add"]:
+                    v = _eval_expr(operand)
+                    if v is None:
+                        return None
+                    result += v
+                return result
+            if "sub" in expr:
+                parts = expr["sub"]
+                if len(parts) >= 2:
+                    a = _eval_expr(parts[0])
+                    b = _eval_expr(parts[1])
+                    if a is not None and b is not None:
+                        return a - b
+        return None
+
+    try:
+        rows = conn.execute(
+            "SELECT element_name, formula_json FROM element_formulas "
+            "WHERE param_name = 'position'"
+        ).fetchall()
+        for r in rows:
+            name = r[0].lower()
+            if name in dims:
+                continue
+            fj = json.loads(r[1]) if isinstance(r[1], str) else r[1]
+            if not fj:
+                continue
+            ftype = fj.get("type", "")
+
+            # item_rect: width/depth as const refs or literals
+            if ftype == "item_rect":
+                w_ref = fj.get("width")
+                d_ref = fj.get("depth")
+                w_val = _eval_expr(w_ref)
+                d_val = _eval_expr(d_ref)
+                if w_val and d_val:
+                    dims[name] = {"width": round(w_val, 6),
+                                  "depth": round(d_val, 6)}
+
+            # item_circle: radius as const ref or expression
+            elif ftype == "item_circle":
+                r_val = _eval_expr(fj.get("radius"))
+                if r_val and r_val > 0:
+                    dims[name] = {"radius": round(r_val, 6)}
+
+            # dining_chair: chair_width/chair_depth
+            elif ftype == "dining_chair":
+                w_val = _eval_expr(fj.get("chair_width"))
+                d_val = _eval_expr(fj.get("chair_depth"))
+                if w_val and d_val:
+                    dims[name] = {"width": round(w_val, 6),
+                                  "depth": round(d_val, 6)}
+
+            # dining_triangle: base_width/height
+            elif ftype == "dining_triangle":
+                w_val = _eval_expr(fj.get("base_width") or
+                                   fj.get("base_side"))
+                d_val = _eval_expr(fj.get("height"))
+                if w_val and d_val:
+                    dims[name] = {"width": round(w_val, 6),
+                                  "depth": round(d_val, 6)}
+
+            # toilet_shape: use TOILET_WIDTH / (TOILET_WIDTH + TOILET_TANK_DEPTH)
+            elif ftype == "toilet_shape":
+                tw = constants.get("TOILET_WIDTH")
+                td = constants.get("TOILET_TANK_DEPTH")
+                if tw and td:
+                    dims[name] = {"width": round(tw, 6),
+                                  "depth": round(tw + td, 6)}
+
+            # ellipse_rect: rx/ry → width=2*rx, depth=2*ry
+            elif ftype == "ellipse_rect":
+                rx = _eval_expr(fj.get("rx"))
+                ry = _eval_expr(fj.get("ry"))
+                if rx and ry:
+                    dims[name] = {"width": round(rx * 2, 6),
+                                  "depth": round(ry * 2, 6)}
+
+            # bath_sink_shape: BATH_SINK_LENGTH / BATH_SINK_DEPTH
+            elif ftype == "bath_sink_shape":
+                bl = constants.get("BATH_SINK_LENGTH")
+                bd = _eval_expr(fj.get("depth")) or constants.get(
+                    "BATH_SINK_DEPTH")
+                if bl and bd:
+                    dims[name] = {"width": round(bl, 6),
+                                  "depth": round(bd, 6)}
+
+            # four_corner: look up known dimension constants by item name
+            elif ftype == "four_corner":
+                _fc_dims = {
+                    "counter": ("COUNTER_LENGTH", "COUNTER_DEPTH"),
+                    "chair": ("CHAIR_WIDTH", "CHAIR_DEPTH"),
+                    "ottoman": ("OTTOMAN_SIZE", "OTTOMAN_SIZE"),
+                    "loveseat": ("LOVESEAT_LENGTH", "LOVESEAT_WIDTH"),
+                    "sofa": ("SOFA_WIDTH", "SOFA_DEPTH"),
+                    "rocker": ("ROCKER_WIDTH", "ROCKER_DEPTH"),
+                    "daybed": ("DAYBED_W", "DAYBED_D"),
+                }
+                pair = _fc_dims.get(name)
+                if pair:
+                    w_val = constants.get(pair[0])
+                    d_val = constants.get(pair[1])
+                    if w_val and d_val:
+                        dims[name] = {"width": round(w_val, 6),
+                                      "depth": round(d_val, 6)}
+
+    except Exception:
+        pass
 
     for name, elem_type, props, _variant in _VARIANT_ITEMS:
         d = dims.get(name, {})
@@ -1366,6 +1717,20 @@ def _seed_catalog_items(conn, db_path=None):
              1 if props.get("stacked") else 0,
              1 if props.get("clip_to_inner") else 0),
         )
+
+    # Backfill: update existing entries that have NULL dimensions
+    for name in dims:
+        d = dims[name]
+        if "radius" in d:
+            conn.execute(
+                "UPDATE catalog_items SET radius = ? "
+                "WHERE key = ? AND radius IS NULL",
+                (d["radius"], name))
+        elif "width" in d and "depth" in d:
+            conn.execute(
+                "UPDATE catalog_items SET width = ?, depth = ? "
+                "WHERE key = ? AND (width IS NULL OR depth IS NULL)",
+                (d["width"], d["depth"], name))
 
 
 # ---------------------------------------------------------------------------
@@ -1481,7 +1846,7 @@ def get_outline_chain_row(seq, db_path=None):
 def update_outline_segment(seq, updates, db_path=None):
     """Update outline chain segment fields.  Returns updated row or None."""
     allowed = {"distance", "radius", "sweep", "sweep_name", "seg_type",
-               "center_name", "n_pts", "end_name"}
+               "center_name", "n_pts", "end_name", "bearing_flex", "flex"}
     sets = []
     vals = []
     for k, v in updates.items():
@@ -1515,12 +1880,13 @@ def insert_outline_segment(seq, row_data, db_path=None):
         conn.execute(
             "INSERT INTO outline_chain "
             "(seq, seg_type, distance, radius, sweep_name, sweep, "
-            "center_name, n_pts, end_name) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "center_name, n_pts, end_name, flex, bearing_flex) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (seq, row_data["seg_type"], row_data.get("distance"),
              row_data.get("radius"), row_data.get("sweep_name"),
              row_data.get("sweep"), row_data.get("center_name"),
-             row_data.get("n_pts", 60), row_data["end_name"]),
+             row_data.get("n_pts", 60), row_data["end_name"],
+             row_data.get("flex"), row_data.get("bearing_flex", 0)),
         )
     return get_outline_chain_row(seq, db_path)
 
@@ -1564,12 +1930,13 @@ def restore_outline_chain(snapshot, db_path=None):
             conn.execute(
                 "INSERT INTO outline_chain "
                 "(seq, seg_type, distance, radius, sweep_name, sweep, "
-                "center_name, n_pts, end_name) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "center_name, n_pts, end_name, flex, bearing_flex) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (row["seq"], row["seg_type"], row.get("distance"),
                  row.get("radius"), row.get("sweep_name"),
                  row.get("sweep"), row.get("center_name"),
-                 row.get("n_pts", 60), row["end_name"]),
+                 row.get("n_pts", 60), row["end_name"],
+                 row.get("flex"), row.get("bearing_flex", 0)),
             )
 
 
@@ -1606,6 +1973,96 @@ def get_all_config(db_path=None):
     with get_db(db_path) as conn:
         rows = conn.execute("SELECT key, value FROM config ORDER BY key").fetchall()
         return {r["key"]: r["value"] for r in rows}
+
+
+def get_outline_anchor_pivot(db_path=None):
+    """Return (anchor_name, pivot_name) from config, or (None, None)."""
+    anchor = get_config("outline_anchor", db_path)
+    pivot = get_config("outline_pivot", db_path)
+    return anchor, pivot
+
+
+def get_outline_anchor_pos(db_path=None):
+    """Return (E, N, brg) of stored anchor start position, or None."""
+    E = get_config("outline_anchor_E", db_path)
+    N = get_config("outline_anchor_N", db_path)
+    brg = get_config("outline_anchor_brg", db_path)
+    if E is None or N is None or brg is None:
+        return None
+    return (float(E), float(N), float(brg))
+
+
+def set_outline_anchor_pivot(anchor, pivot, anchor_E, anchor_N, anchor_brg,
+                             db_path=None, user_set=False):
+    """Store anchor/pivot names and anchor absolute position in config.
+
+    user_set=True marks this as an explicit user choice (shown in UI as active).
+    Defaults seeded by _seed_default_anchor_pivot pass user_set=False so the
+    UI correctly shows the 'Set anchor/pivot' flow rather than 'Clear'.
+    """
+    set_config("outline_anchor", anchor, db_path)
+    set_config("outline_pivot", pivot, db_path)
+    set_config("outline_anchor_E", str(anchor_E), db_path)
+    set_config("outline_anchor_N", str(anchor_N), db_path)
+    set_config("outline_anchor_brg", str(anchor_brg), db_path)
+    set_config("outline_pivot_user_set", "1" if user_set else "0", db_path)
+
+
+def get_outline_pivot_user_set(db_path=None):
+    """Return True if the anchor/pivot was explicitly set by the user."""
+    v = get_config("outline_pivot_user_set", db_path)
+    return v == "1"
+
+
+def get_outline_flex_user_set(db_path=None):
+    """Return True if flex segments were explicitly assigned by the user."""
+    v = get_config("outline_flex_user_set", db_path)
+    return v == "1"
+
+
+def set_outline_flex_user_set(value, db_path=None):
+    """Record whether the user has explicitly assigned flex segments."""
+    set_config("outline_flex_user_set", "1" if value else "0", db_path)
+
+
+def _seed_default_anchor_pivot(db_path):
+    """Seed anchor/pivot defaults from constants table.
+
+    Anchor = end_name of last chain segment (chain wrap point).
+    Pivot  = end_name of middle chain segment.
+    Anchor coords = (F2_EASTING, F2_NORTHING + CORNER_SW_R, 0.0).
+    """
+    import floorplan.constants as fc
+    chain_rows = get_outline_chain(db_path)
+    if not chain_rows:
+        return
+    n = len(chain_rows)
+    anchor_name = chain_rows[-1]["end_name"]
+    pivot_name = chain_rows[n // 2]["end_name"]
+    R_a1 = get_constant_value("CORNER_SW_R", db_path) or fc.CORNER_SW_R
+    anchor_E = get_constant_value("F2_EASTING", db_path) or -18.5
+    anchor_N = get_constant_value("F2_NORTHING", db_path) or -13.5
+    # F2_NORTHING is stored before the R_a1 offset (same convention as before)
+    anchor_N = float(anchor_N) + float(R_a1)
+    set_outline_anchor_pivot(anchor_name, pivot_name,
+                             float(anchor_E), anchor_N, 0.0, db_path)
+
+
+def clear_outline_pivot(db_path=None):
+    """Reset anchor/pivot to chain-default positions.
+
+    Pivot is always active; 'clearing' means restoring defaults, not removing.
+    Flex columns are also reset to auto-assign defaults.
+    """
+    db_path = db_path or DB_PATH
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM config WHERE key IN "
+                     "('outline_anchor', 'outline_pivot', "
+                     "'outline_anchor_E', 'outline_anchor_N', "
+                     "'outline_anchor_brg', 'outline_pivot_user_set', "
+                     "'outline_flex_user_set')")
+        conn.execute("UPDATE outline_chain SET flex = NULL")
+    _seed_default_anchor_pivot(db_path)
 
 
 def get_shapes(db_path=None):
@@ -2178,6 +2635,10 @@ def delete_element(element_id, db_path=None):
                     )
                 conn.execute("DELETE FROM elements WHERE id = ?", (h["id"],))
                 deleted.append(h["id"])
+        # Clean up door record if deleting an opening
+        if row["type"] == "opening":
+            conn.execute("DELETE FROM doors WHERE opening_name = ?",
+                         (row["name"],))
         # Clean up formulas and deps for the deleted element
         conn.execute("DELETE FROM element_formulas WHERE element_name = ?",
                      (row["name"],))
@@ -2705,7 +3166,7 @@ def export_project(db_path=None):
 
         outline_chain = [dict(r) for r in conn.execute(
             "SELECT seq, seg_type, distance, radius, sweep_name, sweep, "
-            "center_name, n_pts, end_name FROM outline_chain ORDER BY seq"
+            "center_name, n_pts, end_name, flex FROM outline_chain ORDER BY seq"
         ).fetchall()]
 
         elements = [dict(r) for r in conn.execute(
@@ -2748,6 +3209,16 @@ def export_project(db_path=None):
         for r in conn.execute("SELECT key, value FROM survey_config").fetchall():
             survey_config[r["key"]] = json.loads(r["value"])
 
+        outline_anchor = None
+        outline_pivot = None
+        for r in conn.execute(
+                "SELECT key, value FROM config "
+                "WHERE key IN ('outline_anchor', 'outline_pivot')").fetchall():
+            if r["key"] == "outline_anchor":
+                outline_anchor = r["value"]
+            elif r["key"] == "outline_pivot":
+                outline_pivot = r["value"]
+
     plumbing = get_plumbing_elements(db_path)
 
     with get_db(db_path) as conn:
@@ -2771,6 +3242,8 @@ def export_project(db_path=None):
         "survey_config": survey_config,
         "inner_wall_overrides": inner_wall_overrides,
         "plumbing_elements": plumbing,
+        "outline_anchor": outline_anchor,
+        "outline_pivot": outline_pivot,
     }
 
 
@@ -2855,11 +3328,25 @@ def import_project(data, db_path=None):
             conn.execute(
                 "INSERT INTO outline_chain "
                 "(seq, seg_type, distance, radius, sweep_name, sweep, "
-                "center_name, n_pts, end_name) VALUES (?,?,?,?,?,?,?,?,?)",
+                "center_name, n_pts, end_name, flex) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (row["seq"], row["seg_type"], row.get("distance"),
                  row.get("radius"), row.get("sweep_name"), row.get("sweep"),
-                 row.get("center_name"), row.get("n_pts", 60), row["end_name"]),
+                 row.get("center_name"), row.get("n_pts", 60), row["end_name"],
+                 row.get("flex")),
             )
+        # If imported data has no flex designations, set defaults
+        has_flex = any(r.get("flex") for r in data["outline_chain"])
+        if not has_flex and data["outline_chain"]:
+            n = len(data["outline_chain"])
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'distance' WHERE seq = 0")
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'distance' WHERE seq = ?",
+                (n - 2,))
+            conn.execute(
+                "UPDATE outline_chain SET flex = 'sweep' WHERE seq = ?",
+                (n - 1,))
 
         # Import elements
         for e in data["elements"]:
@@ -2975,6 +3462,18 @@ def import_project(data, db_path=None):
                 (p["type"], p["name"], path, props, p.get("fixture"),
                  p.get("sort_order", 0)),
             )
+
+        # Import outline anchor/pivot config
+        conn.execute("DELETE FROM config WHERE key IN "
+                     "('outline_anchor', 'outline_pivot')")
+        if data.get("outline_anchor"):
+            conn.execute(
+                "INSERT INTO config (key, value) VALUES (?, ?)",
+                ("outline_anchor", data["outline_anchor"]))
+        if data.get("outline_pivot"):
+            conn.execute(
+                "INSERT INTO config (key, value) VALUES (?, ?)",
+                ("outline_pivot", data["outline_pivot"]))
 
 
 # ---------------------------------------------------------------------------

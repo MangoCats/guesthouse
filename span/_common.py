@@ -4,13 +4,47 @@ import math
 from shared.geometry import vert_isects, GEOM_EPS
 
 
+# ── IW layout proxy (DB-driven) ────────────────────────────────
+
+class _IWWallProxy:
+    """Minimal proxy for a single interior wall with .poly and bbox attrs."""
+    __slots__ = ("poly", "w", "e", "s", "n")
+
+    def __init__(self, poly):
+        self.poly = poly
+        xs = [p[0] for p in poly]
+        ys = [p[1] for p in poly]
+        self.w = min(xs)
+        self.e = max(xs)
+        self.s = min(ys)
+        self.n = max(ys)
+
+
+class _IWLayoutProxy:
+    """Minimal layout proxy backed by DB formula-evaluated IW polys.
+
+    Provides the same .iwN.poly / .iwN.s / .iwN.n / .iwN.w / .iwN.e
+    interface that span generators expect from InteriorLayout, but sourced
+    from the formula evaluator instead of compute_interior_layout().
+    """
+
+    def __init__(self, iw_polys):
+        for iw_name, poly in iw_polys.items():
+            setattr(self, iw_name.lower(), _IWWallProxy(poly))
+
+
 # ── geometry bootstrap ─────────────────────────────────────────
 
 def build_geometry(gd=None):
     """Return (pts, outline_segs, outer_poly, inner_poly, layout, roof_poly).
 
     If gd (GeneratorData) is provided, uses it as the geometry source.
-    Otherwise constructs one from the hardcoded procedural modules.
+    When gd.iw_polys is populated (DB-driven path), returns an
+    _IWLayoutProxy so span generators use formula-evaluated IW positions
+    instead of the hardcoded compute_interior_layout() values.
+
+    Otherwise constructs geometry from the hardcoded procedural modules
+    (standalone subprocess path only).
     """
     if gd is None:
         from floorplan.gen_floorplan import _default_constants_dict
@@ -20,8 +54,13 @@ def build_geometry(gd=None):
             constants_dict)
         gd = GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict)
 
+    layout = (
+        _IWLayoutProxy(gd.iw_polys)
+        if getattr(gd, "iw_polys", None)
+        else gd.layout
+    )
     return (gd.pts, gd.outline_segs, gd.outline_poly, gd.inner_poly,
-            gd.layout, gd.roof_poly)
+            layout, gd.roof_poly)
 
 
 # ── IW centerlines ─────────────────────────────────────────────

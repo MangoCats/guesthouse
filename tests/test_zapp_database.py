@@ -313,9 +313,10 @@ class TestF2OriginConstants:
         assert abs(f2[1]) < 50  # sanity check
 
     def test_f2_geometry_changes_with_edited_values(self, fresh_db):
-        """Editing F2 constants changes geometry output."""
+        """Editing the stored anchor position changes geometry output."""
         from app.engine import compute_geometry
-        from app.database import get_outline_chain
+        from app.database import (get_outline_chain, set_outline_anchor_pivot,
+                                   get_outline_anchor_pivot, get_outline_anchor_pos)
         cd = get_constants_dict(fresh_db)
         chain_rows = get_outline_chain(fresh_db)
 
@@ -323,10 +324,12 @@ class TestF2OriginConstants:
         geo_base = compute_geometry(cd, chain_rows=chain_rows, db_path=fresh_db)
         f2_base = geo_base["points"]["F2"]
 
-        # Shift F2 easting by 1 ft
-        cd_modified = dict(cd)
-        cd_modified["F2_EASTING"] = -17.5
-        geo_mod = compute_geometry(cd_modified, chain_rows=chain_rows, db_path=fresh_db)
+        # Shift anchor easting by 1 ft — entire chain translates east by 1 ft
+        anchor, pivot = get_outline_anchor_pivot(fresh_db)
+        E, N, brg = get_outline_anchor_pos(fresh_db)
+        set_outline_anchor_pivot(anchor, pivot, E + 1.0, N, brg, fresh_db)
+
+        geo_mod = compute_geometry(cd, chain_rows=chain_rows, db_path=fresh_db)
         f2_mod = geo_mod["points"]["F2"]
 
         assert abs(f2_mod[0] - f2_base[0] - 1.0) < 1e-6

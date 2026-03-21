@@ -24,6 +24,7 @@ const App = {
     showClearance: false,
     openLinks: true,
     showAreas: false,
+    showSite: false,
     variant: "standard",
     measureStart: null,
     rubberBand: null,
@@ -35,11 +36,18 @@ const App = {
     svgView: { pan: { x: 0, y: 0 }, zoom: 1 },
     outlineChain: [],
     outlineSelectedSeq: null,
+    pivotAnchor: null,
+    pivotPoint: null,
+    pivotSectionA: [],
+    pivotSectionB: [],
+    pivotSetMode: null,  // null, "anchor", "pivot" (2-click flow)
     innerWallOverrides: {},
     plumbingElements: [],
     variants: [],
     configName: null,
     configDirty: false,
+    iwConfig: { iw_move_axis: {}, iw_hosted_openings: {}, iw_constant_map: {} },
+    depSummary: { const_to_elems: {}, elem_to_consts: {} },
   },
   els: {},
   sse: null,
@@ -63,7 +71,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadPlumbingElements();
   await loadVariants();  // populate variant dropdown before geometry
   updateDeleteVariantBtn();
+  loadPivotState();
   loadGeometry();
+  loadMeta();
   loadShapes();
   loadBuildLabel();
   loadRoofStyle();
@@ -74,7 +84,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 function cacheElements() {
   const ids = [
     "canvas", "canvas-transform", "viewport",
-    "layer-outline", "layer-inner", "layer-walls",
+    "layer-site", "layer-outline", "layer-inner", "layer-walls",
     "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
     "layer-rooms", "layer-points",
     "layer-labels", "layer-dims",
@@ -85,12 +95,16 @@ function cacheElements() {
     "selection-info", "measure-info",
     "view-tabs", "const-category-filter", "const-search",
     "constants-table", "outline-table", "outline-closure-indicator",
-    "outline-add-btn", "outline-remove-btn", "openings-table",
+    "outline-add-btn", "outline-remove-btn", "outline-pivot-btn",
+    "pivot-banner", "anchor-pos-editor",
+    "anchor-pos-E", "anchor-pos-N", "anchor-pos-brg",
+    "openings-table",
     "rough-openings-table", "interior-walls-table", "furniture-table",
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-user-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
-    "show-doors", "show-clearance", "open-links", "show-areas", "roof-style",
+    "show-doors", "show-clearance", "open-links", "show-areas", "show-site",
+    "roof-style",
     "plumbing-tools", "plumbing-fixtures-table", "plumbing-pipes-table",
     "variant-select", "variant-selector",
     "error-banner", "error-banner-text", "error-banner-action", "error-banner-dismiss",
@@ -151,6 +165,7 @@ function connectSSE() {
 
   App.sse.addEventListener("outline_changed", () => {
     markConfigDirty();
+    loadPivotState();
     loadOutlineTable();
   });
 
@@ -279,8 +294,24 @@ async function loadGeometry() {
   }
 }
 
+/** Fetch server-side IW config and formula-dep summary; store in App.state. */
+async function loadMeta() {
+  try {
+    const [iwResp, depResp] = await Promise.all([
+      fetch("/api/iw-config"),
+      fetch("/api/dep-summary"),
+    ]);
+    if (iwResp.ok)  App.state.iwConfig    = await iwResp.json();
+    if (depResp.ok) App.state.depSummary  = await depResp.json();
+  } catch (e) {
+    console.warn("loadMeta failed:", e);
+  }
+}
+
 async function reloadAfterChange() {
-  await reloadAfterChange();
+  markConfigDirty();
+  await loadElements();
+  await loadGeometry();
 }
 
 async function loadViews() {
@@ -770,6 +801,7 @@ function renderCanvas() {
 
   clearLayers();
   const overrides = itemOverrides();
+  renderSitePath(g);
   renderOutline(g);
   renderInnerWalls(g);
   renderInteriorWalls(g);
@@ -791,7 +823,7 @@ function renderCanvas() {
 }
 
 function clearLayers() {
-  const layers = ["layer-outline", "layer-inner", "layer-walls",
+  const layers = ["layer-site", "layer-outline", "layer-inner", "layer-walls",
     "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
     "layer-rooms", "layer-points",
     "layer-labels", "layer-dims",
@@ -858,6 +890,18 @@ function fmtDeg(deg) {
   return `${s}°`;
 }
 
+function renderSitePath(g) {
+  if (!App.state.showSite) return;
+  const layer = App.els["layer-site"];
+  if (g.site_path && g.site_path.length > 0) {
+    const el = svgEl("polygon", {
+      points: polyToStr(g.site_path),
+      class: "site-stroke",
+    });
+    layer.appendChild(el);
+  }
+}
+
 function renderOutline(g) {
   const layer = App.els["layer-outline"];
   if (g.outline_poly && g.outline_poly.length > 0) {
@@ -898,21 +942,6 @@ function renderInteriorWalls(g) {
     });
     el.addEventListener("click", (e) => selectElement("wall", name, wall, e));
     layer.appendChild(el);
-  }
-  // Render custom drawn walls from elements
-  for (const elem of (App.state.elements || [])) {
-    const props = typeof elem.properties === "string"
-      ? JSON.parse(elem.properties) : elem.properties;
-    if (elem.type === "wall" && props && props.source === "drawn" && props.poly) {
-      const el = svgEl("polygon", {
-        points: polyToStr(props.poly),
-        class: "wall-fill selectable",
-        "data-type": "wall",
-        "data-name": elem.name,
-      });
-      el.addEventListener("click", (e) => selectElement("wall", elem.name, { poly: props.poly, ...props }, e));
-      layer.appendChild(el);
-    }
   }
 }
 
@@ -1252,14 +1281,30 @@ function renderPoints(g) {
     const isCSeries = name.startsWith("C") && name !== "CTR";
     if (!isFSeries && !isWSeries && !isCSeries) continue;
 
-    const r = isFSeries ? 0.12 : 0.08;
-    const cls = isWSeries ? "point-marker inner" : "point-marker";
-    const circle = svgEl("circle", {
-      cx: pt[0], cy: -pt[1], r: r, class: cls,
-      "data-type": "point", "data-name": name,
-    });
-    circle.addEventListener("click", (e) => selectElement("point", name, { pos: pt }, e));
-    pointLayer.appendChild(circle);
+    const isAnchor = isFSeries && App.state.pivotAnchor === name;
+    const isPivot = isFSeries && App.state.pivotPoint === name;
+    const r = (isAnchor || isPivot) ? 0.18 : (isFSeries ? 0.12 : 0.08);
+    const cls = isAnchor ? "anchor-marker"
+      : isPivot ? "pivot-marker"
+      : isWSeries ? "point-marker inner" : "point-marker";
+    if (isPivot) {
+      // Diamond marker for pivot
+      const sz = 0.2;
+      const d = `M${pt[0]},${-pt[1]-sz} L${pt[0]+sz},${-pt[1]} L${pt[0]},${-pt[1]+sz} L${pt[0]-sz},${-pt[1]} Z`;
+      const diamond = svgEl("path", {
+        d: d, class: cls,
+        "data-type": "point", "data-name": name,
+      });
+      diamond.addEventListener("click", (e) => selectElement("point", name, { pos: pt }, e));
+      pointLayer.appendChild(diamond);
+    } else {
+      const circle = svgEl("circle", {
+        cx: pt[0], cy: -pt[1], r: r, class: cls,
+        "data-type": "point", "data-name": name,
+      });
+      circle.addEventListener("click", (e) => selectElement("point", name, { pos: pt }, e));
+      pointLayer.appendChild(circle);
+    }
 
     if (App.state.showLabels) {
       let labelClass = "point-label";
@@ -1911,7 +1956,7 @@ function switchToPanel(panelName) {
   if (panel) panel.classList.add("active");
 }
 
-function showProperties(type, name, data) {
+async function showProperties(type, name, data) {
   switchToPanel("properties");
   App.els["props-empty"].style.display = "none";
   App.els["props-detail"].style.display = "block";
@@ -1924,56 +1969,33 @@ function showProperties(type, name, data) {
     addPropRow(tbody, "Easting", fmtFtIn(data.pos[0]));
     addPropRow(tbody, "Northing", fmtFtIn(data.pos[1]));
   } else if (type === "wall") {
-    // Check if this is a drawn wall
+    // All IW walls use the formula-based properties panel
     const elemRec = (App.state.elements || []).find(e => e.name === name);
     const props = elemRec ? parseProps(elemRec) : null;
-    if (props && props.source === "drawn") {
-      // TL-16: Drawn wall — show editable thickness
-      addPropRow(tbody, "Source", "drawn");
-      if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
-      if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
-      // Editable thickness
-      const thickTr = document.createElement("tr");
-      const thickTd1 = document.createElement("td");
-      thickTd1.textContent = "Thickness";
-      thickTr.appendChild(thickTd1);
-      const thickTd2 = document.createElement("td");
-      const thickInp = document.createElement("input");
-      thickInp.type = "text";
-      thickInp.className = "prop-edit-input";
-      thickInp.value = fmtFtIn(props.thickness || 4.0 / 12.0);
-      thickInp.addEventListener("change", async () => {
-        const newThick = parseDimension(thickInp.value);
-        if (newThick === null || newThick <= 0) {
-          showToast("Invalid thickness", "error");
-          return;
-        }
-        const newPoly = wallPoly(props.start, props.end, newThick);
-        if (!newPoly) return;
-        const newProps = { ...props, thickness: newThick, poly: newPoly };
-        await fetch(`/api/elements/${elemRec.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ properties: newProps }),
-        });
-        await reloadAfterChange();
-      });
-      thickTd2.appendChild(thickInp);
-      thickTr.appendChild(thickTd2);
-      tbody.appendChild(thickTr);
-      // TL-17: render endpoint drag handles
-      renderWallHandles(elemRec.id, props);
-    } else {
+    {
       const b = data.bbox;
-      addPropRow(tbody, "Width", fmtFtIn(b.e - b.w));
-      addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
-      addPropRow(tbody, "West", fmtFtIn(b.w));
+      const propConsts = (props && props.prop_constants) || {};
+      const shownConstNames = new Set(Object.values(propConsts));
+      // Editable rows for each mapped property (DB-driven)
+      for (const [propKey, constName] of Object.entries(propConsts)) {
+        const cObj = (App.state.constants || []).find(c => c.name === constName);
+        if (cObj) {
+          const label = propKey.charAt(0).toUpperCase() + propKey.slice(1);
+          addPropRow(tbody, label, formatConstValue(cObj), true, constName);
+        }
+      }
+      // Static bbox context (skip dimensions already editable above)
+      if (!propConsts.width)  addPropRow(tbody, "Width",  fmtFtIn(b.e - b.w));
+      if (!propConsts.height) addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
+      addPropRow(tbody, "West",  fmtFtIn(b.w));
       addPropRow(tbody, "South", fmtFtIn(b.s));
-      addPropRow(tbody, "East", fmtFtIn(b.e));
+      addPropRow(tbody, "East",  fmtFtIn(b.e));
       addPropRow(tbody, "North", fmtFtIn(b.n));
     }
-    // Show related constants
-    const related = findRelatedConstants(name);
+    // Show related constants not already shown via prop_constants
+    const propConsts = (props && props.prop_constants) || {};
+    const shownConstNames = new Set(Object.values(propConsts));
+    const related = findRelatedConstants(name).filter(c => !shownConstNames.has(c.name));
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
       for (const c of related) {
@@ -1981,7 +2003,7 @@ function showProperties(type, name, data) {
       }
     }
     // Phase 12b: formula section
-    addFormulaSection(tbody, name);
+    await addFormulaSection(tbody, name);
     // Layout checkboxes + delete (like furniture addElementActions)
     addWallActions(tbody, name, elemRec);
   } else if (type === "opening" || type === "rough_opening") {
@@ -2015,6 +2037,8 @@ function showProperties(type, name, data) {
         addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
+    // Delete button for openings
+    addOpeningDeleteButton(tbody, data.name);
   } else if (type === "appliance" || type === "furniture" || type === "fixture") {
     // SEL-8: Enhanced furniture/appliance properties
     const b = data.bbox;
@@ -2076,7 +2100,7 @@ function showProperties(type, name, data) {
       }
     }
     // Phase 12b: formula section
-    addFormulaSection(tbody, name);
+    await addFormulaSection(tbody, name);
     // Style controls and product URL
     const _elemRec = elemRec || (App.state.elements || []).find(e => e.name === name);
     if (_elemRec) {
@@ -2088,10 +2112,11 @@ function showProperties(type, name, data) {
       addProductUrlField(tbody, _elemRec, _props);
       addElementActions(tbody, _elemRec);
     } else {
-      // No DB record — show product URL (if any) + formula-aware delete
+      // No DB record — show product URL (if any) + formula section + delete
       if (data && data.product_url) {
         addProductUrlField(tbody, null, { product_url: data.product_url });
       }
+      await addFormulaSection(tbody, name);
       addFormulaDeleteButton(tbody, name);
     }
   } else if (type === "dimension") {
@@ -2750,6 +2775,7 @@ function addWallActions(tbody, wallName, elemRec) {
   vTr.appendChild(vTd2);
   tbody.appendChild(vTr);
 
+
   // Delete button (uses shared helper with dependents check)
   if (elemRec) {
     addFormulaDeleteButton(tbody, wallName);
@@ -2878,10 +2904,39 @@ async function addFormulaDeleteButton(tbody, elemName, elemType) {
   tbody.appendChild(tr);
 }
 
-/** Phase 12b: Show formula section in properties panel for elements with formulas. */
+/** Add delete button for outer/rough openings. */
+function addOpeningDeleteButton(tbody, openingName) {
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = 2;
+  const btn = document.createElement("button");
+  btn.textContent = "Delete";
+  btn.className = "prop-delete-btn";
+  btn.addEventListener("click", async () => {
+    if (!confirm(`Delete opening ${openingName}?`)) return;
+    const resp = await fetch(
+      `/api/openings/${encodeURIComponent(openingName)}`,
+      { method: "DELETE" }
+    );
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      showToast(data.error || "Delete failed", "error");
+      return;
+    }
+    clearSelection();
+    await reloadAfterChange();
+    showToast(`Deleted opening ${openingName}`, "success");
+  });
+  td.appendChild(btn);
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+/** General-purpose formula editor section for any element with a formula. */
 async function addFormulaSection(tbody, elemName) {
   try {
-    const resp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}`);
+    const variant = App.state.variant || "standard";
+    const resp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}?variant=${encodeURIComponent(variant)}`);
     if (!resp.ok) return;
     const formulas = await resp.json();
     if (!formulas || formulas.length === 0) return;
@@ -2889,11 +2944,12 @@ async function addFormulaSection(tbody, elemName) {
     addPropRow(tbody, "\u2014", "Formula");
 
     for (const f of formulas) {
-      const fj = typeof f.formula_json === "string" ? JSON.parse(f.formula_json) : f.formula_json;
+      const fj = typeof f.formula_json === "string"
+        ? JSON.parse(f.formula_json) : f.formula_json;
       addPropRow(tbody, "Type", fj.type || "unknown");
       addPropRow(tbody, "Param", f.param_name);
 
-      // Lock toggle
+      // ── Lock toggle ──────────────────────────────────────────────────────
       const lockTr = document.createElement("tr");
       const lockTd1 = document.createElement("td");
       lockTd1.textContent = f.locked ? "\u{1F512} Locked" : "\u{1F513} Unlocked";
@@ -2906,24 +2962,150 @@ async function addFormulaSection(tbody, elemName) {
         ? "Unlock: allow upstream changes to propagate"
         : "Lock: freeze at current computed value";
       lockBtn.addEventListener("click", async () => {
-        const newLocked = !f.locked;
-        await fetch(`/api/formulas/${encodeURIComponent(elemName)}/${f.param_name}/lock`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ locked: newLocked, locked_value: null }),
-        });
+        await fetch(
+          `/api/formulas/${encodeURIComponent(elemName)}/${f.param_name}/lock`,
+          { method: "POST", headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({ locked: !f.locked, locked_value: null }) }
+        );
         await loadGeometry();
-        // Re-show properties to refresh lock state
-        if (App.state.selection && App.state.selection.name === elemName) {
+        if (App.state.selection && App.state.selection.name === elemName)
           showProperties(App.state.selection.type, elemName, App.state.selection.data);
-        }
       });
       lockTd2.appendChild(lockBtn);
       lockTr.appendChild(lockTd2);
       tbody.appendChild(lockTr);
+
+      // ── Edit Formula button ───────────────────────────────────────────────
+      const editTd = document.createElement("td");
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "prop-btn formula-edit-toggle";
+      editBtn.textContent = "Edit Formula…";
+
+      // ── Formula editor (hidden until Edit is clicked) ─────────────────────
+      const editorWrap = document.createElement("div");
+      editorWrap.className = "formula-editor-wrap";
+      editorWrap.style.display = "none";
+
+      const textarea = document.createElement("textarea");
+      textarea.className = "formula-editor-textarea";
+      textarea.spellcheck = false;
+      textarea.value = JSON.stringify(fj, null, 2);
+
+      const errDiv = document.createElement("div");
+      errDiv.className = "formula-editor-error";
+
+      const btnBar = document.createElement("div");
+      btnBar.className = "formula-editor-btnbar";
+
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "prop-btn formula-save-btn";
+      saveBtn.textContent = "Save";
+
+      const resetBtn = document.createElement("button");
+      resetBtn.className = "prop-btn";
+      resetBtn.textContent = "Reset";
+      resetBtn.title = "Restore editor to current saved formula";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "prop-btn";
+      cancelBtn.textContent = "Cancel";
+
+      btnBar.appendChild(saveBtn);
+      btnBar.appendChild(resetBtn);
+      btnBar.appendChild(cancelBtn);
+      editorWrap.appendChild(textarea);
+      editorWrap.appendChild(errDiv);
+      editorWrap.appendChild(btnBar);
+
+      editBtn.addEventListener("click", () => {
+        const visible = editorWrap.style.display !== "none";
+        editorWrap.style.display = visible ? "none" : "";
+        editBtn.textContent = visible ? "Edit Formula\u2026" : "Hide Editor";
+        if (!visible) textarea.focus();
+      });
+
+      resetBtn.addEventListener("click", () => {
+        textarea.value = JSON.stringify(fj, null, 2);
+        errDiv.textContent = "";
+      });
+
+      cancelBtn.addEventListener("click", () => {
+        editorWrap.style.display = "none";
+        editBtn.textContent = "Edit Formula\u2026";
+        errDiv.textContent = "";
+      });
+
+      saveBtn.addEventListener("click", async () => {
+        errDiv.textContent = "";
+        let newFormula;
+        try {
+          newFormula = JSON.parse(textarea.value);
+        } catch (e) {
+          errDiv.textContent = `JSON syntax error: ${e.message}`;
+          return;
+        }
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving\u2026";
+        try {
+          const putResp = await fetch(
+            `/api/formulas/${encodeURIComponent(elemName)}/${encodeURIComponent(f.param_name)}`,
+            { method: "PUT",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify({ formula: newFormula, variant: f.variant ?? null }) }
+          );
+          const result = await putResp.json();
+          if (!putResp.ok) {
+            errDiv.textContent = result.error || "Save failed";
+          } else {
+            editorWrap.style.display = "none";
+            editBtn.textContent = "Edit Formula\u2026";
+            await loadGeometry();
+            if (App.state.selection && App.state.selection.name === elemName)
+              showProperties(App.state.selection.type, elemName, App.state.selection.data);
+            showToast(`Formula saved for ${elemName}`, "success");
+          }
+        } catch (e) {
+          errDiv.textContent = `Error: ${e.message}`;
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save";
+        }
+      });
+
+      editTd.appendChild(editBtn);
+
+      // ── Rebase + Edit Formula row ─────────────────────────────────────────
+      const rebaseTr = document.createElement("tr");
+      const rebaseTd = document.createElement("td");
+      const rebaseBtn = document.createElement("button");
+      rebaseBtn.className = "prop-btn";
+      rebaseBtn.textContent = "Rebase\u2026";
+      rebaseBtn.title = "Change which elements this formula depends on, with cycle detection and resolution";
+      rebaseBtn.addEventListener("click", () => {
+        if (fj.type === "item_rect") {
+          showPlacementWizard(elemName, f.param_name, fj, f.variant ?? null);
+        } else if (fj.type === "wall_rect") {
+          showWallPlacementWizard(elemName, f.param_name, fj, f.variant ?? null);
+        } else {
+          showRebaseDialog(elemName, f.param_name, fj, f.variant ?? null);
+        }
+      });
+      rebaseTd.appendChild(rebaseBtn);
+      rebaseTr.appendChild(rebaseTd);
+      rebaseTr.appendChild(editTd);
+      tbody.appendChild(rebaseTr);
+
+      // ── Formula editor row (hidden until Edit Formula is clicked) ─────────
+      const editorTr = document.createElement("tr");
+      const editorContainerTd = document.createElement("td");
+      editorContainerTd.colSpan = 2;
+      editorContainerTd.appendChild(editorWrap);
+      editorTr.appendChild(editorContainerTd);
+      tbody.appendChild(editorTr);
     }
 
-    // Dependencies
+    // ── Dependencies ─────────────────────────────────────────────────────────
     const depsResp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}/deps`);
     if (depsResp.ok) {
       const deps = await depsResp.json();
@@ -2933,7 +3115,7 @@ async function addFormulaSection(tbody, elemName) {
       }
     }
 
-    // Dependents
+    // ── Dependents ───────────────────────────────────────────────────────────
     const deptsResp = await fetch(`/api/formulas/${encodeURIComponent(elemName)}/dependents`);
     if (deptsResp.ok) {
       const depts = await deptsResp.json();
@@ -2945,6 +3127,1400 @@ async function addFormulaSection(tbody, elemName) {
   } catch (e) {
     // Formula fetch failed — not critical, skip silently
   }
+}
+
+// ── Formula dependency introspection helpers ─────────────────────────────────
+
+/** Recursively extract all {"element": X, "corner": Y} refs from a formula.
+ *  Returns {elementName: Set<corner>}. */
+function _formulaElemRefs(node, out = {}) {
+  if (!node || typeof node !== "object") return out;
+  if (Array.isArray(node)) { node.forEach(n => _formulaElemRefs(n, out)); return out; }
+  if (typeof node.element === "string" && node.corner) {
+    if (!out[node.element]) out[node.element] = new Set();
+    out[node.element].add(node.corner);
+  }
+  for (const v of Object.values(node)) _formulaElemRefs(v, out);
+  return out;
+}
+
+/** Extract wall-point strings (W\d+[ab]?) from a formula. */
+function _formulaPointRefs(node, out = new Set()) {
+  if (typeof node === "string" && /^[WF]\d+[ab]?$/.test(node)) { out.add(node); return out; }
+  if (!node || typeof node !== "object") return out;
+  if (Array.isArray(node)) { node.forEach(n => _formulaPointRefs(n, out)); return out; }
+  for (const v of Object.values(node)) _formulaPointRefs(v, out);
+  return out;
+}
+
+/** Deep-substitute all {"element": oldName} occurrences with newName. */
+function _substituteElemRef(node, oldName, newName) {
+  if (!node || typeof node !== "object") return node;
+  if (Array.isArray(node))
+    return node.map(n => _substituteElemRef(n, oldName, newName));
+  const out = {};
+  for (const [k, v] of Object.entries(node))
+    out[k] = (k === "element" && v === oldName)
+      ? newName
+      : _substituteElemRef(v, oldName, newName);
+  return out;
+}
+
+/** Encode a wizard dropdown value into a formula point spec. */
+function _encodePointRef(val) {
+  if (val.startsWith("centroid:")) return { element_centroid: val.slice(9) };
+  return val;
+}
+
+/** Build the point option list for wizard dropdowns: all named geometry points
+ *  (W-series, F-series, and any others present in the current geometry) plus
+ *  element centroids.  Reads live from App.state.geometry.points so new points
+ *  (e.g. W21–W24) appear automatically. */
+function _makePointOptions(excludeElem) {
+  const allPts = Object.keys(App.state.geometry?.points ?? {}).sort((a, b) => {
+    const re = /^([A-Za-z]+)(\d*)(.*)/;
+    const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
+    const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
+    return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
+  });
+  const wallOpts = allPts.map(p => ({ value: p, label: p }));
+  const elemOpts = (App.state.elements || [])
+    .filter(e => e.name !== excludeElem)
+    .map(e => ({ value: `centroid:${e.name}`, label: `\u229A ${e.name}` }));
+  return [...wallOpts, ...elemOpts];
+}
+
+/**
+ * Placement wizard for item_rect formulas.
+ *
+ * The item is positioned by specifying:
+ *   1. Reference line A→B (two named points or element centroids)
+ *   2. Which item dimension (Width W or Depth D) runs parallel to A→B
+ *   3. Perpendicular offset: which item feature (center / right edge / left edge)
+ *      is how far from the A→B line (signed; + = right of A→B = 90° CW)
+ *   4. Along-line offset: item center displacement from midpoint of A→B
+ *      (signed; + = toward B)
+ *
+ * The item always rotates about its center; the formula uses center-point
+ * arithmetic and produces anchor_corner = "sw".
+ */
+function showPlacementWizard(elemName, paramName, currentFormula, variant) {
+  const widthSpec = currentFormula.width  ?? { const: "BED_WIDTH"  };
+  const depthSpec = currentFormula.depth  ?? { const: "BED_LENGTH" };
+  const widthHalf = { div: [widthSpec, 2] };
+  const depthHalf = { div: [depthSpec, 2] };
+
+  const ptOptions = _makePointOptions(elemName);
+
+  // ── Overlay / modal ────────────────────────────────────────────────────────
+  const overlay = document.createElement("div");
+  overlay.className = "config-modal-overlay";
+  const modal = document.createElement("div");
+  modal.className = "rebase-modal";
+  overlay.appendChild(modal);
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+
+  const h3 = document.createElement("h3");
+  h3.textContent = `Place \u2014 ${elemName}`;
+  modal.appendChild(h3);
+
+  const desc = document.createElement("div");
+  desc.className = "rebase-desc";
+  desc.textContent =
+    `Position ${elemName} relative to a reference line A\u2192B. ` +
+    "The item rotates about its center. W/D refer to the formula\u2019s " +
+    "width/depth parameters.";
+  modal.appendChild(desc);
+
+  // ── Local DOM helpers ──────────────────────────────────────────────────────
+  function makeSection(label) {
+    const sec = document.createElement("div");
+    sec.className = "wizard-section";
+    const lbl = document.createElement("div");
+    lbl.className = "wizard-section-label";
+    lbl.textContent = label;
+    sec.appendChild(lbl);
+    return sec;
+  }
+
+  function makeSelect(opts, selected) {
+    const sel = document.createElement("select");
+    sel.className = "rebase-dep-select";
+    for (const { value: v, label: l } of opts) {
+      const opt = document.createElement("option");
+      opt.value = v; opt.textContent = l;
+      if (v === selected) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    return sel;
+  }
+
+  function txt(s) {
+    const sp = document.createElement("span");
+    sp.className = "wizard-text"; sp.textContent = s; return sp;
+  }
+
+  function wizRow(...children) {
+    const r = document.createElement("div"); r.className = "wizard-row";
+    for (const c of children) r.appendChild(typeof c === "string" ? txt(c) : c);
+    return r;
+  }
+
+  function hint(s) {
+    const d = document.createElement("div"); d.className = "wizard-hint"; d.textContent = s;
+    return d;
+  }
+
+  function numInput(dflt, step, title) {
+    const inp = document.createElement("input");
+    inp.type = "number"; inp.className = "wizard-dist-input";
+    inp.value = String(dflt); inp.step = String(step); inp.title = title;
+    return inp;
+  }
+
+  // ── §1  Reference Line ─────────────────────────────────────────────────────
+  const refSec = makeSection("Reference Line  A \u2192 B");
+  const selA = makeSelect(ptOptions, ptOptions[0]?.value ?? "");
+  const selB = makeSelect(ptOptions, ptOptions[1]?.value ?? "");
+  refSec.appendChild(wizRow(selA, " \u2192 ", selB));
+  modal.appendChild(refSec);
+
+  // ── §2  Orientation ────────────────────────────────────────────────────────
+  const oriSec = makeSection("Orientation");
+  const selDim = makeSelect([
+    { value: "width", label: "Width (W) side" },
+    { value: "depth", label: "Depth (D) side" },
+  ], "width");
+  oriSec.appendChild(wizRow("Align ", selDim, " parallel to A\u2192B"));
+  modal.appendChild(oriSec);
+
+  // ── §3  Perpendicular to A→B ───────────────────────────────────────────────
+  const perpSec = makeSection("Perpendicular to A\u2192B");
+  const selPerpFeature = makeSelect([
+    { value: "right_edge", label: "Right edge" },
+    { value: "left_edge",  label: "Left edge"  },
+    { value: "center",     label: "Center"     },
+  ], "right_edge");
+  const inpPerpDist = numInput(0, 0.125,
+    "Inches from A\u2192B line (+ = right of A\u2192B = 90\u00b0 CW from A\u2192B direction)");
+  perpSec.appendChild(wizRow(selPerpFeature, " is ", inpPerpDist, "\u2033 from A\u2192B  (+ = right)"));
+  perpSec.appendChild(hint(
+    '"Right" = 90\u00b0 clockwise from A\u2192B direction. Negative values = left side. ' +
+    '"Right/Left edge" = the item edge in the \u00b1perp direction from the item center.'));
+  modal.appendChild(perpSec);
+
+  // ── §4  Along A→B ──────────────────────────────────────────────────────────
+  const alongSec = makeSection("Along A\u2192B  (from midpoint of A\u2192B)");
+  const inpAlongDist = numInput(0, 0.125,
+    "Inches from midpoint of A\u2192B to item center (+ = toward B, \u2212 = toward A)");
+  alongSec.appendChild(wizRow("Center is ", inpAlongDist, "\u2033 from midpoint  (+ = toward B)"));
+  modal.appendChild(alongSec);
+
+  // ── §5  Preview JSON ───────────────────────────────────────────────────────
+  const prevToggle = document.createElement("button");
+  prevToggle.className = "prop-btn rebase-adv-toggle";
+  prevToggle.textContent = "Preview formula JSON \u25bc";
+  modal.appendChild(prevToggle);
+
+  const prevWrap = document.createElement("div");
+  prevWrap.className = "rebase-adv-wrap"; prevWrap.style.display = "none";
+  modal.appendChild(prevWrap);
+
+  const prevTA = document.createElement("textarea");
+  prevTA.className = "rebase-formula-editor"; prevTA.readOnly = true;
+  prevWrap.appendChild(prevTA);
+
+  prevToggle.addEventListener("click", () => {
+    const open = prevWrap.style.display !== "none";
+    prevWrap.style.display = open ? "none" : "";
+    prevToggle.textContent = open
+      ? "Preview formula JSON \u25bc"
+      : "Preview formula JSON \u25b2";
+    if (!open) updatePreview();
+  });
+
+  // ── Error + button bar ─────────────────────────────────────────────────────
+  const errDiv = document.createElement("div");
+  errDiv.className = "formula-editor-error";
+  modal.appendChild(errDiv);
+
+  const btnBar = document.createElement("div");
+  btnBar.className = "rebase-btnbar";
+  modal.appendChild(btnBar);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "dialog-btn-cancel"; cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => overlay.remove());
+  btnBar.appendChild(cancelBtn);
+
+  const advBtn = document.createElement("button");
+  advBtn.className = "prop-btn"; advBtn.textContent = "Advanced\u2026";
+  advBtn.title = "Open the full JSON-based rebase dialog for manual formula editing";
+  advBtn.addEventListener("click", () => {
+    overlay.remove();
+    showRebaseDialog(elemName, paramName, currentFormula, variant);
+  });
+  btnBar.appendChild(advBtn);
+
+  const applyBtn = document.createElement("button");
+  applyBtn.className = "dialog-btn-primary"; applyBtn.textContent = "Apply";
+  btnBar.appendChild(applyBtn);
+
+  // ── Formula builder ────────────────────────────────────────────────────────
+  function buildFormula() {
+    if (selA.value === selB.value)
+      throw new Error("Point A and Point B must be different.");
+    const pA = _encodePointRef(selA.value);
+    const pB = _encodePointRef(selB.value);
+
+    const refDir  = { segment: [pA, pB] };
+    const refPerp = { perp: { segment: [pA, pB] } };
+
+    const dimParallel = selDim.value;          // "width" | "depth"
+    const perpFeature = selPerpFeature.value;  // "right_edge" | "left_edge" | "center"
+    const perpDistFt  = (parseFloat(inpPerpDist.value)  || 0) / 12;
+    const alongDistFt = (parseFloat(inpAlongDist.value) || 0) / 12;
+
+    // Item orientation (which dimension aligns to which formula direction)
+    // "width parallel": along = A→B, across = perp(A→B)
+    // "depth parallel": along = perp(A→B), across = A→B  [depth runs along A→B]
+    let along_dir, across_dir, neg_along, neg_across, perp_half, along_half, across_half;
+    if (dimParallel === "width") {
+      along_dir  = refDir;          across_dir = refPerp;
+      neg_along  = { neg: refDir }; neg_across = { neg: refPerp };
+      along_half = widthHalf;   // item half-extent along A→B
+      across_half = depthHalf;  // item half-extent in perp(A→B) direction
+      perp_half  = depthHalf;   // which half-extent straddles the perp axis
+    } else {
+      // depth parallel to A→B: along = perp(A→B), across = A→B
+      along_dir  = refPerp;          across_dir = refDir;
+      neg_along  = { neg: refPerp }; neg_across = { neg: refDir };
+      along_half = widthHalf;   // width in perp(A→B) direction
+      across_half = depthHalf;  // depth along A→B
+      perp_half  = widthHalf;   // item half-extent in perp(A→B) direction
+    }
+
+    // Center's perp offset from A→B line
+    //   right_edge = center + perp_half  →  center = edge − perp_half
+    //   left_edge  = center − perp_half  →  center = edge + perp_half
+    let center_perp;
+    if (perpFeature === "center") {
+      center_perp = perpDistFt;
+    } else if (perpFeature === "right_edge") {
+      center_perp = perpDistFt === 0
+        ? { neg: perp_half }
+        : { sub: [perpDistFt, perp_half] };
+    } else { // left_edge
+      center_perp = perpDistFt === 0
+        ? perp_half
+        : { add: [perpDistFt, perp_half] };
+    }
+
+    // Center point: midpoint(A,B) + along_dist*refDir + center_perp*refPerp
+    // Offset spec format: {offset: <base_point>, dir: <dir>, dist: <length>}
+    let center = { midpoint: [pA, pB] };
+    if (alongDistFt !== 0)
+      center = { offset: center, dir: refDir,  dist: alongDistFt };
+    if (!(perpFeature === "center" && perpDistFt === 0))
+      center = { offset: center, dir: refPerp, dist: center_perp };
+
+    // anchor_sw = center − along*(W/2) − across*(D/2)
+    const anchor = {
+      offset: { offset: center, dir: neg_along, dist: along_half },
+      dir: neg_across,
+      dist: across_half,
+    };
+
+    return { type: "item_rect", anchor, along: along_dir, across: across_dir,
+             width: widthSpec, depth: depthSpec, anchor_corner: "sw" };
+  }
+
+  function updatePreview() {
+    if (prevWrap.style.display === "none") return;
+    try {
+      prevTA.value = JSON.stringify(buildFormula(), null, 2);
+      errDiv.textContent = "";
+    } catch (e) {
+      prevTA.value = `// ${e.message}`;
+    }
+  }
+
+  [selA, selB, selDim, selPerpFeature, inpPerpDist, inpAlongDist].forEach(el => {
+    el.addEventListener("change", updatePreview);
+    el.addEventListener("input",  updatePreview);
+  });
+
+  // ── Apply (cycle-check → batch-commit) ────────────────────────────────────
+  applyBtn.addEventListener("click", async () => {
+    errDiv.textContent = "";
+    let formula;
+    try { formula = buildFormula(); } catch (e) { errDiv.textContent = e.message; return; }
+
+    applyBtn.disabled = true; applyBtn.textContent = "Checking\u2026";
+    try {
+      const pvResp = await fetch("/api/formula-rebase-preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ element_name: elemName, param_name: paramName, formula, variant }),
+      });
+      const pv = await pvResp.json();
+      if (!pvResp.ok) { errDiv.textContent = pv.error || "Preview failed"; return; }
+
+      let changes = [{ element_name: elemName, param_name: paramName, formula, variant }];
+
+      if (pv.cycle) {
+        const cycleElems = [...new Set(pv.cycle_path.map(s => s.split("/")[0]))];
+        const solvable   = pv.resolutions.filter(r =>  r.new_formula);
+        const unsolvable = pv.resolutions.filter(r => !r.new_formula);
+        let msg = `Dependency cycle detected:\n  ${cycleElems.join(" \u2192 ")}\n\n`;
+        if (unsolvable.length)
+          msg += `Cannot auto-resolve: ${unsolvable.map(r => r.element_name).join(", ")}\n` +
+                 `Edit those formulas manually (Advanced\u2026) first.\n\n`;
+        if (solvable.length)
+          msg += `${solvable.length} element(s) will be re-anchored to their current literal ` +
+                 `positions:\n  ${solvable.map(r => r.element_name).join(", ")}\n\n`;
+        msg += "Apply anyway?";
+        if (!confirm(msg)) return;
+        if (unsolvable.length) return;
+        changes = [...changes, ...solvable.map(r => ({
+          element_name: r.element_name, param_name: r.param_name,
+          formula: r.new_formula, variant,
+        }))];
+      }
+
+      applyBtn.textContent = "Applying\u2026";
+      const bResp = await fetch("/api/formulas-batch", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      const bResult = await bResp.json();
+      if (!bResp.ok) { errDiv.textContent = bResult.error || "Apply failed"; return; }
+      overlay.remove();
+      await loadGeometry();
+      if (App.state.selection && App.state.selection.name === elemName)
+        showProperties(App.state.selection.type, elemName, App.state.selection.data);
+      showToast(`Placed: ${bResult.applied.join(", ")}`, "success");
+    } catch (e) {
+      errDiv.textContent = `Error: ${e.message}`;
+    } finally {
+      applyBtn.disabled = false; applyBtn.textContent = "Apply";
+    }
+  });
+}
+
+/**
+ * Wall Setup Wizard — creates a new user IW wall via POST /api/interior-walls.
+ *
+ * Collects: anchor point, along direction, thickness, length.
+ * Builds a wall_rect formula and POSTs it to the server.
+ */
+function showWallSetupWizard() {
+  // Collect named points from geometry for dropdowns
+  const namedPoints = [];
+  const geom = App.state.geometry;
+  if (geom && geom.points) {
+    const re = /^([A-Za-z]+)(\d*)(.*)/;
+    const sorted = Object.keys(geom.points).filter(n => /^(W|F)\d/.test(n)).sort((a, b) => {
+      const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
+      const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
+      return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
+    });
+    namedPoints.push(...sorted);
+  }
+  if (!namedPoints.length) {
+    namedPoints.push("W1", "W2", "W5", "W6", "W7", "W9", "W11", "W12", "W18");
+  }
+  const ptOpts = namedPoints.map(p => `<option value="${p}">${p}</option>`).join("");
+
+  const overlay = document.createElement("div");
+  overlay.className = "config-modal-overlay";
+  const modal = document.createElement("div");
+  modal.className = "rebase-modal";
+  modal.style.maxWidth = "480px";
+  modal.innerHTML = `
+    <h3>Add Interior Wall</h3>
+    <table class="prop-table"><tbody>
+      <tr><th colspan="2" style="">Anchor Point</th></tr>
+      <tr>
+        <td>Point</td>
+        <td><select id="wsw-anchor">${ptOpts}</select></td>
+      </tr>
+      <tr><th colspan="2" style="">Along Direction</th></tr>
+      <tr>
+        <td colspan="2">
+          <label><input type="radio" name="wsw-along" value="segment" checked> Segment A→B</label>&nbsp;&nbsp;
+          <label><input type="radio" name="wsw-along" value="perp"> Perp to segment</label>&nbsp;&nbsp;
+          <label><input type="radio" name="wsw-along" value="bearing"> Bearing</label>
+        </td>
+      </tr>
+      <tr id="wsw-seg-row">
+        <td>From → To</td>
+        <td>
+          <select id="wsw-seg-a">${ptOpts}</select> →
+          <select id="wsw-seg-b">${ptOpts}</select>
+        </td>
+      </tr>
+      <tr id="wsw-bearing-row" style="display:none">
+        <td>Degrees</td>
+        <td><input id="wsw-bearing" type="number" value="0" style="width:72px"> ° (0=east, 90=north)</td>
+      </tr>
+      <tr><th colspan="2" style="">Thickness</th></tr>
+      <tr>
+        <td colspan="2">
+          <label><input type="radio" name="wsw-thick" value="const" checked> Constant</label>&nbsp;&nbsp;
+          <label><input type="radio" name="wsw-thick" value="custom"> Custom inches</label>
+        </td>
+      </tr>
+      <tr id="wsw-thick-const-row">
+        <td>Constant</td>
+        <td><select id="wsw-thick-const">
+          <option value="WALL_4IN">WALL_4IN (4″)</option>
+          <option value="WALL_6IN">WALL_6IN (6″)</option>
+          <option value="WALL_8IN">WALL_8IN (8″)</option>
+        </select></td>
+      </tr>
+      <tr id="wsw-thick-custom-row" style="display:none">
+        <td>Inches</td>
+        <td><input id="wsw-thick-in" type="number" value="4" min="1" max="24" style="width:72px"> in</td>
+      </tr>
+      <tr><th colspan="2" style="">Length</th></tr>
+      <tr>
+        <td colspan="2">
+          <label><input type="radio" name="wsw-len" value="fixed" checked> Fixed</label>&nbsp;&nbsp;
+          <label><input type="radio" name="wsw-len" value="intersect"> Extend to inner boundary</label>
+        </td>
+      </tr>
+      <tr id="wsw-len-fixed-row">
+        <td>Feet</td>
+        <td><input id="wsw-len-ft" type="number" value="8" min="0.1" step="0.1" style="width:72px"> ft</td>
+      </tr>
+    </tbody></table>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button id="wsw-cancel" class="dialog-btn">Cancel</button>
+      <button id="wsw-advanced" class="dialog-btn">Advanced…</button>
+      <button id="wsw-apply" class="dialog-btn dialog-btn-primary">Add Wall</button>
+    </div>`;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Set sensible defaults
+  const segA = modal.querySelector("#wsw-seg-a");
+  const segB = modal.querySelector("#wsw-seg-b");
+  if (namedPoints.includes("W1")) segA.value = "W1";
+  if (namedPoints.includes("W18")) segB.value = "W18";
+
+  // Show/hide rows based on radio selections
+  const segRow = modal.querySelector("#wsw-seg-row");
+  const bearingRow = modal.querySelector("#wsw-bearing-row");
+  modal.querySelectorAll('[name="wsw-along"]').forEach(r => {
+    r.addEventListener("change", () => {
+      const v = modal.querySelector('[name="wsw-along"]:checked').value;
+      segRow.style.display = (v === "segment" || v === "perp") ? "" : "none";
+      bearingRow.style.display = v === "bearing" ? "" : "none";
+    });
+  });
+
+  const thickConstRow = modal.querySelector("#wsw-thick-const-row");
+  const thickCustomRow = modal.querySelector("#wsw-thick-custom-row");
+  modal.querySelectorAll('[name="wsw-thick"]').forEach(r => {
+    r.addEventListener("change", () => {
+      const v = modal.querySelector('[name="wsw-thick"]:checked').value;
+      thickConstRow.style.display = v === "const" ? "" : "none";
+      thickCustomRow.style.display = v === "custom" ? "" : "none";
+    });
+  });
+
+  const lenFixedRow = modal.querySelector("#wsw-len-fixed-row");
+  modal.querySelectorAll('[name="wsw-len"]').forEach(r => {
+    r.addEventListener("change", () => {
+      const v = modal.querySelector('[name="wsw-len"]:checked').value;
+      lenFixedRow.style.display = v === "fixed" ? "" : "none";
+    });
+  });
+
+  function buildFormula() {
+    const anchor = modal.querySelector("#wsw-anchor").value;
+    const alongType = modal.querySelector('[name="wsw-along"]:checked').value;
+    let along, thickDir;
+    if (alongType === "segment") {
+      const a = segA.value, b = segB.value;
+      along = { segment: [a, b] };
+      thickDir = { perp: { segment: [a, b] } };
+    } else if (alongType === "perp") {
+      const a = segA.value, b = segB.value;
+      along = { perp: { segment: [a, b] } };
+      thickDir = { segment: [a, b] };
+    } else {
+      const deg = parseFloat(modal.querySelector("#wsw-bearing").value) || 0;
+      const rad = deg * Math.PI / 180;
+      along = [Math.cos(rad), Math.sin(rad)];
+      thickDir = [-Math.sin(rad), Math.cos(rad)];
+    }
+    const thickType = modal.querySelector('[name="wsw-thick"]:checked').value;
+    const thickness = thickType === "const"
+      ? { const: modal.querySelector("#wsw-thick-const").value }
+      : parseFloat(modal.querySelector("#wsw-thick-in").value) / 12.0;
+    const lenType = modal.querySelector('[name="wsw-len"]:checked').value;
+    const formula = { type: "wall_rect", anchor, along, thickness_dir: thickDir, thickness, end_mode: lenType };
+    if (lenType === "fixed") {
+      formula.length = parseFloat(modal.querySelector("#wsw-len-ft").value) || 8.0;
+    } else {
+      formula.end_target = "inner_poly";
+      formula.select = "nearest";
+    }
+    return formula;
+  }
+
+  modal.querySelector("#wsw-cancel").addEventListener("click", () => overlay.remove());
+
+  modal.querySelector("#wsw-advanced").addEventListener("click", async () => {
+    const formula = buildFormula();
+    overlay.remove();
+    try {
+      const data = await apiFetch("/api/interior-walls", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formula }),
+      });
+      await reloadAfterChange();
+      showToast(`Created ${data.name}`, "success");
+      showRebaseDialog(data.name, "position", formula, null);
+    } catch (err) { showToast(err.message || "Failed to create wall", "error"); }
+  });
+
+  modal.querySelector("#wsw-apply").addEventListener("click", async () => {
+    const formula = buildFormula();
+    try {
+      const data = await apiFetch("/api/interior-walls", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formula }),
+      });
+      overlay.remove();
+      showToast(`Created ${data.name}`, "success");
+      await reloadAfterChange();
+      if (data.name) selectElement("wall", data.name, {});
+    } catch (err) { showToast(err.message || "Failed to create wall", "error"); }
+  });
+}
+
+/**
+ * Placement wizard for wall_rect formulas.
+ *
+ * Lets the user specify:
+ *   §1  Anchor (near end / SW corner of wall): named point or element corner
+ *   §2  Direction (along): compass preset or named segment direction
+ *   §3  Far end: fixed length in inches, or extend to inner_poly
+ *   §4  Thickness: inches, and which side of "along" is the wall face
+ *
+ * Produces a wall_rect formula with symbolic references for cycle-safe rebasing.
+ */
+function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
+
+  // ── Named points sorted naturally ─────────────────────────────────────────
+  const namedPoints = Object.keys(App.state.geometry?.points ?? {}).sort((a, b) => {
+    const re = /^([A-Za-z]+)(\d*)(.*)/;
+    const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
+    const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
+    return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
+  });
+  if (!namedPoints.length) namedPoints.push("W1", "W2", "W5");
+  function pickPt(i) { return namedPoints[i] || namedPoints[0] || "W1"; }
+
+  // ── Decode current formula → initial dialog state ─────────────────────────
+  function splitFtIn(ft) {
+    const totalIn = (ft || 0) * 12;
+    const feet  = Math.floor(totalIn / 12);
+    const inches = Math.round((totalIn - feet * 12) * 1000) / 1000;
+    return { feet, inches };
+  }
+
+  function decodeFormula(f) {
+    let anchorA = pickPt(0), anchorB = pickPt(1), distFt = 0;
+    let dirType = "along", dirAngleDeg = 0, compassDeg = 90;
+    let thickSide = "left", thickIn = 4;
+    let farType = "fixed", farFt = 8, farC = pickPt(0), farD = pickPt(1);
+    if (!f) return { anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
+                     thickSide, thickIn, farType, farFt, farC, farD };
+
+    // --- Anchor ---
+    const anc = f.anchor;
+    if (typeof anc === "string") {
+      anchorA = anc;
+    } else if (anc && typeof anc === "object" && "offset" in anc) {
+      if (typeof anc.offset === "string") anchorA = anc.offset;
+      const seg = anc.dir?.segment;
+      if (Array.isArray(seg) && seg.length === 2) { anchorA = seg[0]; anchorB = seg[1]; }
+      if (typeof anc.dist === "number") distFt = anc.dist;
+    }
+
+    // --- Along direction (also extracts anchor line B when readable) ---
+    const al = f.along;
+    if (al && typeof al === "object" && !Array.isArray(al)) {
+      const seg = al.segment || al.perp?.segment || al.segment_perp
+                || al.neg?.perp?.segment || al.rotated?.segment;
+      if (Array.isArray(seg) && seg.length === 2) anchorB = seg[1] || anchorB;
+      if ("segment" in al) {
+        dirType = "along";
+      } else if ("neg" in al && al.neg?.perp) {
+        dirType = "perp_left";
+      } else if ("perp" in al || "segment_perp" in al) {
+        dirType = "perp_right";
+      } else if ("rotated" in al) {
+        dirType = "angle";
+        dirAngleDeg = typeof al.angle === "number"
+          ? Math.round(al.angle * 180 / Math.PI * 100) / 100 : 0;
+      }
+    } else if (Array.isArray(al)) {
+      dirType = "compass";
+      compassDeg = Math.round(Math.atan2(al[1], al[0]) * 180 / Math.PI * 10) / 10;
+    }
+
+    // --- Thickness ---
+    if (typeof f.thickness === "number") thickIn = Math.round(f.thickness * 12 * 1000) / 1000;
+    const td = f.thickness_dir;
+    if (td && typeof td === "object" && !Array.isArray(td)) {
+      thickSide = "neg" in td ? "left" : "right";
+    } else if (Array.isArray(td) && Array.isArray(al)) {
+      const leftMatch = Math.abs(td[0] - (-al[1])) < 1e-6 && Math.abs(td[1] - al[0]) < 1e-6;
+      thickSide = leftMatch ? "left" : "right";
+    }
+
+    // --- Far end ---
+    if (f.end_mode === "intersect") {
+      farType = "inner_poly";
+    } else if (f.end_mode === "to_line") {
+      farType = "to_line";
+      if (typeof f.end_line_point === "string") farC = f.end_line_point;
+      const seg = f.end_line_dir?.segment;
+      if (Array.isArray(seg) && seg.length === 2) { farC = seg[0]; farD = seg[1]; }
+    } else if (typeof f.length === "number") {
+      farType = "fixed";
+      farFt = f.length;
+    }
+
+    return { anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
+             thickSide, thickIn, farType, farFt, farC, farD };
+  }
+
+  const init = decodeFormula(currentFormula);
+
+  // ── DOM setup ─────────────────────────────────────────────────────────────
+  const overlay = document.createElement("div");
+  overlay.className = "config-modal-overlay";
+  const modal = document.createElement("div");
+  modal.className = "rebase-modal";
+  overlay.appendChild(modal);
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+
+  // ── DOM helpers ───────────────────────────────────────────────────────────
+  function ptSel(selected) {
+    const s = document.createElement("select"); s.className = "rebase-dep-select";
+    for (const p of namedPoints) {
+      const o = document.createElement("option"); o.value = p; o.textContent = p;
+      if (p === selected) o.selected = true;
+      s.appendChild(o);
+    }
+    return s;
+  }
+  function numInp(val, step, title, width) {
+    const i = document.createElement("input");
+    i.type = "number"; i.value = String(val ?? 0); i.step = String(step ?? 1);
+    i.className = "wizard-dist-input";
+    if (width) i.style.width = width;
+    if (title) i.title = title;
+    return i;
+  }
+  function sp(t) { const s = document.createElement("span"); s.className = "wizard-text"; s.textContent = t; return s; }
+  function row(...children) {
+    const r = document.createElement("div"); r.className = "wizard-row";
+    for (const c of children) r.appendChild(typeof c === "string" ? sp(c) : c);
+    return r;
+  }
+  function sec(label) {
+    const d = document.createElement("div"); d.className = "wizard-section";
+    const l = document.createElement("div"); l.className = "wizard-section-label";
+    l.textContent = label; d.appendChild(l); return d;
+  }
+  function hint(t) {
+    const d = document.createElement("div"); d.className = "wizard-hint"; d.textContent = t; return d;
+  }
+  function makeRadio(name, val, label, checked) {
+    const wrap = document.createElement("label"); wrap.style.marginRight = "10px";
+    const inp = document.createElement("input"); inp.type = "radio"; inp.name = name; inp.value = val;
+    inp.checked = !!checked;
+    wrap.appendChild(inp); wrap.appendChild(document.createTextNode(" " + label));
+    return { wrap, inp };
+  }
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  const h3 = document.createElement("h3");
+  h3.textContent = `Rebase Wall \u2014 ${elemName}`;
+  modal.appendChild(h3);
+
+  // ── §1 Anchor Line ────────────────────────────────────────────────────────
+  const ancSec = sec("\u00a71  Anchor Line");
+  const selA = ptSel(init.anchorA);
+  const selB = ptSel(init.anchorB);
+  ancSec.appendChild(row("Line: ", selA, " \u2192 ", selB));
+  const { feet: dFt0, inches: dIn0 } = splitFtIn(init.distFt);
+  const inpDistFt = numInp(dFt0, 1,     "Whole feet from A along A\u2192B", "60px");
+  const inpDistIn = numInp(dIn0, 0.125, "Additional inches from A along A\u2192B", "72px");
+  ancSec.appendChild(row("Distance from A: ", inpDistFt, " ft  ", inpDistIn, " in"));
+  ancSec.appendChild(hint("Anchor = point A offset by this distance along A\u2192B. Distance 0 places anchor at A."));
+  modal.appendChild(ancSec);
+
+  // ── §2 Wall Direction ─────────────────────────────────────────────────────
+  const dirName = `wpw-dir-${elemName}`;
+  const dirSec = sec("\u00a72  Wall Direction");
+  const rAlong     = makeRadio(dirName, "along",      "Along A\u2192B",            init.dirType === "along");
+  const rPerpLeft  = makeRadio(dirName, "perp_left",  "Perp left (CCW 90\u00b0)",  init.dirType === "perp_left");
+  const rPerpRight = makeRadio(dirName, "perp_right", "Perp right (CW 90\u00b0)",  init.dirType === "perp_right");
+  const rAngle     = makeRadio(dirName, "angle",      "Angle from A\u2192B:",      init.dirType === "angle");
+  const rCompass   = makeRadio(dirName, "compass",    "Compass:",                  init.dirType === "compass");
+  const inpDirAngle = numInp(init.dirAngleDeg, 1,
+    "Degrees CCW from A\u2192B (0 = along A\u2192B, 90 = perp left)", "62px");
+  const inpCompass  = numInp(init.compassDeg,  1,
+    "Degrees (0 = East, 90 = North)", "62px");
+  const dirRow1 = row(rAlong.wrap, rPerpLeft.wrap, rPerpRight.wrap);
+  const dirRow2 = row(rAngle.wrap, inpDirAngle, " \u00b0 (CCW from A\u2192B)    ",
+                      rCompass.wrap, inpCompass, " \u00b0 (0=E, 90=N)");
+  dirSec.appendChild(dirRow1);
+  dirSec.appendChild(dirRow2);
+  dirSec.appendChild(hint("Direction the wall runs from the anchor. Left/right is relative to A\u2192B."));
+  modal.appendChild(dirSec);
+
+  function getDirType() {
+    for (const r of [rAlong, rPerpLeft, rPerpRight, rAngle, rCompass]) if (r.inp.checked) return r.inp.value;
+    return "along";
+  }
+
+  // ── §3 Far End ────────────────────────────────────────────────────────────
+  const farName = `wpw-far-${elemName}`;
+  const farSec = sec("\u00a73  Far End");
+  const rFixed  = makeRadio(farName, "fixed",      "Fixed length:",              init.farType === "fixed");
+  const rInner  = makeRadio(farName, "inner_poly", "Extend to inner boundary",   init.farType === "inner_poly");
+  const rToLine = makeRadio(farName, "to_line",    "Extend to line:",            init.farType === "to_line");
+  const { feet: lFt0, inches: lIn0 } = splitFtIn(init.farFt);
+  const inpLenFt = numInp(lFt0, 1,     "Whole feet of wall length", "60px");
+  const inpLenIn = numInp(lIn0, 0.125, "Additional inches of wall length", "72px");
+  const selFarC  = ptSel(init.farC);
+  const selFarD  = ptSel(init.farD);
+  farSec.appendChild(row(rFixed.wrap, inpLenFt, " ft  ", inpLenIn, " in"));
+  farSec.appendChild(row(rInner.wrap));
+  farSec.appendChild(row(rToLine.wrap, selFarC, " \u2192 ", selFarD));
+  farSec.appendChild(hint("\"Extend to line\" finds where the wall ray intersects the line through C and D."));
+  modal.appendChild(farSec);
+
+  function getFarType() {
+    for (const r of [rFixed, rInner, rToLine]) if (r.inp.checked) return r.inp.value;
+    return "fixed";
+  }
+  function updateFarInputs() {
+    const ft = getFarType();
+    inpLenFt.disabled = ft !== "fixed"; inpLenIn.disabled = ft !== "fixed";
+    selFarC.disabled = ft !== "to_line"; selFarD.disabled = ft !== "to_line";
+  }
+  for (const r of [rFixed, rInner, rToLine])
+    r.inp.addEventListener("change", () => { updateFarInputs(); updatePreview(); });
+  updateFarInputs();
+
+  // ── §4 Thickness ──────────────────────────────────────────────────────────
+  const thkName = `wpw-thk-${elemName}`;
+  const thkSec = sec("\u00a74  Thickness");
+  const rThkLeft  = makeRadio(thkName, "left",  "Left (CCW) of wall direction", init.thickSide !== "right");
+  const rThkRight = makeRadio(thkName, "right", "Right (CW)",                   init.thickSide === "right");
+  const inpThickIn = numInp(init.thickIn, 0.125, "Wall thickness in inches", "72px");
+  thkSec.appendChild(row(rThkLeft.wrap, rThkRight.wrap));
+  thkSec.appendChild(row("Thickness: ", inpThickIn, " in"));
+  thkSec.appendChild(hint("\"Left\" = 90\u00b0 CCW from the wall direction. Most interior walls grow inward (left)."));
+  modal.appendChild(thkSec);
+
+  function getThickSide() { return rThkRight.inp.checked ? "right" : "left"; }
+
+  // ── Preview JSON ──────────────────────────────────────────────────────────
+  const prevToggle = document.createElement("button");
+  prevToggle.className = "prop-btn rebase-adv-toggle";
+  prevToggle.textContent = "Preview formula JSON \u25bc";
+  modal.appendChild(prevToggle);
+  const prevWrap = document.createElement("div");
+  prevWrap.className = "rebase-adv-wrap"; prevWrap.style.display = "none";
+  const prevTA = document.createElement("textarea");
+  prevTA.className = "rebase-formula-editor"; prevTA.readOnly = true;
+  prevWrap.appendChild(prevTA);
+  modal.appendChild(prevWrap);
+  prevToggle.addEventListener("click", () => {
+    const open = prevWrap.style.display !== "none";
+    prevWrap.style.display = open ? "none" : "";
+    prevToggle.textContent = open ? "Preview formula JSON \u25bc" : "Preview formula JSON \u25b2";
+    if (!open) updatePreview();
+  });
+
+  // ── Error + button bar ────────────────────────────────────────────────────
+  const errDiv = document.createElement("div"); errDiv.className = "formula-editor-error";
+  modal.appendChild(errDiv);
+  const btnBar = document.createElement("div"); btnBar.className = "rebase-btnbar";
+  modal.appendChild(btnBar);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "dialog-btn-cancel"; cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => overlay.remove());
+  btnBar.appendChild(cancelBtn);
+
+  const advBtn = document.createElement("button");
+  advBtn.className = "prop-btn"; advBtn.textContent = "Advanced\u2026";
+  advBtn.title = "Open the full JSON-based rebase dialog";
+  advBtn.addEventListener("click", () => { overlay.remove(); showRebaseDialog(elemName, paramName, currentFormula, variant); });
+  btnBar.appendChild(advBtn);
+
+  const applyBtn = document.createElement("button");
+  applyBtn.className = "dialog-btn-primary"; applyBtn.textContent = "Apply";
+  btnBar.appendChild(applyBtn);
+
+  // ── Formula builder ───────────────────────────────────────────────────────
+  function buildFormula() {
+    const A = selA.value, B = selB.value;
+    const distFt = (parseFloat(inpDistFt.value) || 0) + (parseFloat(inpDistIn.value) || 0) / 12;
+
+    // Anchor: bare point A when distance=0, else offset spec along A→B
+    const anchor = Math.abs(distFt) < 1e-9
+      ? A
+      : { offset: A, dir: { segment: [A, B] }, dist: distFt };
+
+    // Along direction
+    const dt = getDirType();
+    let along;
+    switch (dt) {
+      case "along":      along = { segment: [A, B] }; break;
+      case "perp_left":  along = { neg: { perp: { segment: [A, B] } } }; break;
+      case "perp_right": along = { perp: { segment: [A, B] } }; break;
+      case "angle": {
+        const rad = (parseFloat(inpDirAngle.value) || 0) * Math.PI / 180;
+        along = { rotated: { segment: [A, B] }, angle: rad };
+        break;
+      }
+      default: { // compass
+        const rad = (parseFloat(inpCompass.value) || 0) * Math.PI / 180;
+        along = [Math.cos(rad), Math.sin(rad)];
+      }
+    }
+
+    // Thickness direction: perpendicular of along; left=CCW, right=CW
+    const side = getThickSide();
+    let thickDir;
+    if (Array.isArray(along)) {
+      thickDir = side === "left" ? [-along[1], along[0]] : [along[1], -along[0]];
+    } else {
+      thickDir = side === "left" ? { neg: { perp: along } } : { perp: along };
+    }
+
+    const thickness = (parseFloat(inpThickIn.value) || 4) / 12;
+
+    // Far end
+    const ft = getFarType();
+    const formula = { type: "wall_rect", anchor, along, thickness_dir: thickDir, thickness };
+    if (ft === "fixed") {
+      formula.end_mode = "fixed";
+      formula.length = (parseFloat(inpLenFt.value) || 0) + (parseFloat(inpLenIn.value) || 0) / 12;
+    } else if (ft === "inner_poly") {
+      formula.end_mode = "intersect";
+      formula.end_target = "inner_poly";
+      formula.select = "nearest";
+    } else { // to_line
+      const C = selFarC.value, D = selFarD.value;
+      formula.end_mode = "to_line";
+      formula.end_line_point = C;
+      formula.end_line_dir = { segment: [C, D] };
+    }
+    return formula;
+  }
+
+  function updatePreview() {
+    if (prevWrap.style.display === "none") return;
+    try { prevTA.value = JSON.stringify(buildFormula(), null, 2); errDiv.textContent = ""; }
+    catch (e) { prevTA.value = `// ${e.message}`; }
+  }
+
+  // Live preview wiring
+  [selA, selB, inpDistFt, inpDistIn, inpDirAngle, inpCompass, inpThickIn, inpLenFt, inpLenIn, selFarC, selFarD]
+    .forEach(el => { el.addEventListener("change", updatePreview); el.addEventListener("input", updatePreview); });
+  for (const r of [rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rThkLeft, rThkRight])
+    r.inp.addEventListener("change", updatePreview);
+
+  // ── Apply (cycle-check → batch commit) ───────────────────────────────────
+  applyBtn.addEventListener("click", async () => {
+    errDiv.textContent = "";
+    let formula;
+    try { formula = buildFormula(); } catch (e) { errDiv.textContent = e.message; return; }
+    applyBtn.disabled = true; applyBtn.textContent = "Checking\u2026";
+    try {
+      const pvResp = await fetch("/api/formula-rebase-preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ element_name: elemName, param_name: paramName, formula, variant }),
+      });
+      const pv = await pvResp.json();
+      if (!pvResp.ok) { errDiv.textContent = pv.error || "Preview failed"; return; }
+
+      let changes = [{ element_name: elemName, param_name: paramName, formula, variant }];
+
+      if (pv.cycle) {
+        const cycleElems = [...new Set(pv.cycle_path.map(s => s.split("/")[0]))];
+        const solvable   = pv.resolutions.filter(r =>  r.new_formula);
+        const unsolvable = pv.resolutions.filter(r => !r.new_formula);
+        let msg = `Dependency cycle:\n  ${cycleElems.join(" \u2192 ")}\n\n`;
+        if (unsolvable.length)
+          msg += `Cannot auto-resolve: ${unsolvable.map(r => r.element_name).join(", ")}\n` +
+                 `Edit those formulas manually (Advanced\u2026) first.\n\n`;
+        if (solvable.length)
+          msg += `${solvable.length} element(s) will be re-anchored to their current literal positions:\n` +
+                 `  ${solvable.map(r => r.element_name).join(", ")}\n\n`;
+        msg += "Apply anyway?";
+        if (!confirm(msg)) return;
+        if (unsolvable.length) return;
+        changes = [...changes, ...solvable.map(r => ({
+          element_name: r.element_name, param_name: r.param_name,
+          formula: r.new_formula, variant,
+        }))];
+      }
+
+      applyBtn.textContent = "Applying\u2026";
+      const bResp = await fetch("/api/formulas-batch", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      const bResult = await bResp.json();
+      if (!bResp.ok) { errDiv.textContent = bResult.error || "Apply failed"; return; }
+      overlay.remove();
+      await loadGeometry();
+      if (App.state.selection?.name === elemName)
+        showProperties(App.state.selection.type, elemName, App.state.selection.data);
+      showToast(`Wall placed: ${bResult.applied.join(", ")}`, "success");
+    } catch (e) {
+      errDiv.textContent = `Error: ${e.message}`;
+    } finally {
+      applyBtn.disabled = false; applyBtn.textContent = "Apply";
+    }
+  });
+}
+
+/** Open a rebase dialog for changing formula dependencies with cycle detection.
+ *
+ * Stage 1 (Dependencies view): Shows each element this formula currently
+ *   references with a dropdown to swap it to another element.  Wall-point
+ *   anchors (W-series) are listed separately for context.  A collapsible
+ *   "Edit JSON directly" section is available for advanced edits.
+ * Stage 2 (Cycle check): "Check for Cycles" calls /api/formula-rebase-preview.
+ *   - No cycle → "Apply" commits immediately.
+ *   - Cycle detected → shows cycle path and proposed literal four_corner
+ *     resolutions for each cyclic element (editable).
+ * Stage 3 (Commit): "Apply All Changes" calls /api/formulas-batch atomically.
+ */
+function showRebaseDialog(elemName, paramName, currentFormula, variant) {
+  // Working copy of the formula — kept in sync with all edits
+  let workingFormula = JSON.parse(JSON.stringify(currentFormula));
+
+  // Collect all candidate element names for dropdowns
+  const candidateNames = [
+    ...new Set([
+      ...Object.keys(App.state.geometry?.interior_walls || {}),
+      ...(App.state.elements || []).map(e => e.name),
+    ])
+  ].sort();
+
+  // ── Build overlay ──────────────────────────────────────────────────────────
+  const overlay = document.createElement("div");
+  overlay.className = "config-modal-overlay";
+  const modal = document.createElement("div");
+  modal.className = "rebase-modal";
+  overlay.appendChild(modal);
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+
+  const h3 = document.createElement("h3");
+  h3.textContent = `Rebase \u2014 ${elemName}.${paramName}`;
+  modal.appendChild(h3);
+
+  // ── Dependency view (Stage 1) ──────────────────────────────────────────────
+  const depsSection = document.createElement("div");
+  depsSection.className = "rebase-deps-section";
+  modal.appendChild(depsSection);
+
+  const errDiv = document.createElement("div");
+  errDiv.className = "formula-editor-error";
+  modal.appendChild(errDiv);
+
+  // ── Advanced JSON editor (collapsible) ────────────────────────────────────
+  const advToggle = document.createElement("button");
+  advToggle.className = "prop-btn rebase-adv-toggle";
+  advToggle.textContent = "Edit JSON directly \u25bc";
+  modal.appendChild(advToggle);
+
+  const advWrap = document.createElement("div");
+  advWrap.className = "rebase-adv-wrap";
+  advWrap.style.display = "none";
+  modal.appendChild(advWrap);
+
+  const textarea = document.createElement("textarea");
+  textarea.className = "rebase-formula-editor";
+  textarea.spellcheck = false;
+  textarea.value = JSON.stringify(workingFormula, null, 2);
+  advWrap.appendChild(textarea);
+
+  const syncFromJsonBtn = document.createElement("button");
+  syncFromJsonBtn.className = "prop-btn";
+  syncFromJsonBtn.textContent = "Reload dependency view from JSON";
+  syncFromJsonBtn.style.marginTop = "4px";
+  advWrap.appendChild(syncFromJsonBtn);
+
+  advToggle.addEventListener("click", () => {
+    const open = advWrap.style.display !== "none";
+    advWrap.style.display = open ? "none" : "";
+    advToggle.textContent = open
+      ? "Edit JSON directly \u25bc"
+      : "Edit JSON directly \u25b2";
+    if (!open) textarea.focus();
+  });
+
+  // ── Results area (Stage 2) ─────────────────────────────────────────────────
+  const resultsDiv = document.createElement("div");
+  resultsDiv.className = "rebase-results";
+  resultsDiv.style.display = "none";
+  modal.appendChild(resultsDiv);
+
+  // ── Button bar ─────────────────────────────────────────────────────────────
+  const btnBar = document.createElement("div");
+  btnBar.className = "rebase-btnbar";
+  modal.appendChild(btnBar);
+
+  const checkBtn = document.createElement("button");
+  checkBtn.className = "dialog-btn-primary";
+  checkBtn.textContent = "Check for Cycles";
+  btnBar.appendChild(checkBtn);
+
+  const applyBtn = document.createElement("button");
+  applyBtn.className = "dialog-btn-primary";
+  applyBtn.textContent = "Apply";
+  applyBtn.style.display = "none";
+  btnBar.appendChild(applyBtn);
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "dialog-btn-cancel";
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => overlay.remove());
+  btnBar.appendChild(cancelBtn);
+
+  // ── Render the dependency view from workingFormula ─────────────────────────
+  function renderDepsSection() {
+    depsSection.innerHTML = "";
+
+    const elemRefs = _formulaElemRefs(workingFormula);
+    const pointRefs = [..._formulaPointRefs(workingFormula)].sort();
+
+    // Element references table
+    const elemEntries = Object.entries(elemRefs);
+    if (elemEntries.length === 0) {
+      const noElem = document.createElement("div");
+      noElem.className = "rebase-dep-none";
+      noElem.textContent =
+        "This formula has no element dependencies — it is anchored directly to wall outline points.";
+      depsSection.appendChild(noElem);
+    } else {
+      const tbl = document.createElement("table");
+      tbl.className = "rebase-dep-table";
+      const thead = tbl.createTHead();
+      const hrow = thead.insertRow();
+      ["References element", "At corner(s)", "Change to"].forEach(t => {
+        const th = document.createElement("th");
+        th.textContent = t;
+        hrow.appendChild(th);
+      });
+      const tbody = tbl.createTBody();
+      for (const [refName, corners] of elemEntries.sort()) {
+        const row = tbody.insertRow();
+        row.insertCell().textContent = refName;
+        row.insertCell().textContent = [...corners].sort().join(", ");
+        const swapTd = row.insertCell();
+        const sel = document.createElement("select");
+        sel.className = "rebase-dep-select";
+        // blank option = keep current
+        const keepOpt = document.createElement("option");
+        keepOpt.value = "";
+        keepOpt.textContent = `\u2014 keep ${refName} \u2014`;
+        sel.appendChild(keepOpt);
+        for (const n of candidateNames) {
+          if (n === refName) continue;
+          const opt = document.createElement("option");
+          opt.value = n;
+          opt.textContent = n;
+          sel.appendChild(opt);
+        }
+        sel.addEventListener("change", () => {
+          const newName = sel.value;
+          if (!newName) return;
+          workingFormula = _substituteElemRef(workingFormula, refName, newName);
+          textarea.value = JSON.stringify(workingFormula, null, 2);
+          // Reset cycle results — formula changed
+          resultsDiv.style.display = "none";
+          resultsDiv.innerHTML = "";
+          applyBtn.style.display = "none";
+          pendingChanges = null;
+          pendingResolutions = null;
+          pendingResolutionDefs = null;
+          renderDepsSection();
+        });
+        swapTd.appendChild(sel);
+      }
+      depsSection.appendChild(tbl);
+    }
+
+    // Wall / outline point references
+    if (pointRefs.length > 0) {
+      const ptRow = document.createElement("div");
+      ptRow.className = "rebase-dep-points";
+      ptRow.textContent = `Anchored to outline points: ${pointRefs.join(", ")}`;
+      depsSection.appendChild(ptRow);
+    }
+  }
+
+  renderDepsSection();
+
+  // Sync JSON → workingFormula → re-render deps
+  syncFromJsonBtn.addEventListener("click", () => {
+    try {
+      workingFormula = JSON.parse(textarea.value);
+      renderDepsSection();
+      errDiv.textContent = "";
+    } catch (e) {
+      errDiv.textContent = `JSON syntax error: ${e.message}`;
+    }
+  });
+
+  // ── Pending state between Check and Apply ──────────────────────────────────
+  let pendingChanges = null;
+  let pendingResolutions = null;
+  let pendingResolutionDefs = null;
+
+  // ── Check for Cycles ───────────────────────────────────────────────────────
+  checkBtn.addEventListener("click", async () => {
+    errDiv.textContent = "";
+    resultsDiv.style.display = "none";
+    resultsDiv.innerHTML = "";
+    applyBtn.style.display = "none";
+    pendingChanges = null;
+    pendingResolutions = null;
+    pendingResolutionDefs = null;
+
+    // Prefer textarea content if the advanced editor is open & was edited
+    let newFormula = workingFormula;
+    if (advWrap.style.display !== "none") {
+      try {
+        newFormula = JSON.parse(textarea.value);
+        workingFormula = newFormula;
+        renderDepsSection();
+      } catch (e) {
+        errDiv.textContent = `JSON syntax error: ${e.message}`;
+        return;
+      }
+    }
+
+    checkBtn.disabled = true;
+    checkBtn.textContent = "Checking\u2026";
+    try {
+      const resp = await fetch("/api/formula-rebase-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          element_name: elemName, param_name: paramName,
+          formula: newFormula, variant,
+        }),
+      });
+      const result = await resp.json();
+      if (!resp.ok) { errDiv.textContent = result.error || "Preview failed"; return; }
+
+      resultsDiv.style.display = "";
+
+      if (!result.cycle) {
+        const okMsg = document.createElement("div");
+        okMsg.className = "rebase-ok";
+        okMsg.textContent = "\u2713 No dependency cycles. Ready to apply.";
+        resultsDiv.appendChild(okMsg);
+        pendingChanges = [{ element_name: elemName, param_name: paramName,
+                            formula: newFormula, variant }];
+        applyBtn.style.display = "";
+        applyBtn.textContent = "Apply";
+
+      } else {
+        const cycleMsg = document.createElement("div");
+        cycleMsg.className = "rebase-cycle-warning";
+        const cycleElems = [...new Set(result.cycle_path.map(s => s.split("/")[0]))];
+        cycleMsg.textContent =
+          `\u26A0 Dependency cycle: ${cycleElems.join(" \u2192 ")} \u2192 \u2026`;
+        resultsDiv.appendChild(cycleMsg);
+
+        const explain = document.createElement("div");
+        explain.className = "rebase-desc";
+        explain.style.marginTop = "4px";
+        explain.textContent =
+          "The elements below currently depend on this formula and would create a loop. " +
+          "The proposed fix anchors each one to its current computed position (literal " +
+          "coordinates). You can edit the proposed formula before applying.";
+        resultsDiv.appendChild(explain);
+
+        const solvable = result.resolutions.filter(r => r.new_formula);
+        const unsolvable = result.resolutions.filter(r => !r.new_formula);
+
+        if (unsolvable.length > 0) {
+          const uMsg = document.createElement("div");
+          uMsg.className = "rebase-error";
+          uMsg.textContent = "Cannot auto-resolve " +
+            unsolvable.map(r => r.element_name).join(", ") +
+            " — edit their formulas manually first.";
+          resultsDiv.appendChild(uMsg);
+        }
+
+        if (solvable.length > 0) {
+          pendingResolutions = {};
+          pendingResolutionDefs = solvable;
+
+          for (const res of solvable) {
+            const resBlock = document.createElement("div");
+            resBlock.className = "rebase-res-row";
+
+            const resLabel = document.createElement("div");
+            resLabel.className = "rebase-res-label";
+            resLabel.textContent =
+              `${res.element_name} \u2014 will be re-anchored to literal position:`;
+            resBlock.appendChild(resLabel);
+
+            const resEditor = document.createElement("textarea");
+            resEditor.className = "rebase-res-editor";
+            resEditor.spellcheck = false;
+            resEditor.value = JSON.stringify(res.new_formula, null, 2);
+            pendingResolutions[res.element_name] = res.new_formula;
+            resEditor.addEventListener("input", () => {
+              try { pendingResolutions[res.element_name] = JSON.parse(resEditor.value); }
+              catch (_) { pendingResolutions[res.element_name] = null; }
+            });
+            resBlock.appendChild(resEditor);
+            resultsDiv.appendChild(resBlock);
+          }
+
+          if (unsolvable.length === 0) {
+            applyBtn.style.display = "";
+            applyBtn.textContent = "Apply All Changes";
+          }
+        }
+      }
+    } catch (e) {
+      errDiv.textContent = `Error: ${e.message}`;
+    } finally {
+      checkBtn.disabled = false;
+      checkBtn.textContent = "Check for Cycles";
+    }
+  });
+
+  // ── Apply / Apply All Changes ──────────────────────────────────────────────
+  applyBtn.addEventListener("click", async () => {
+    errDiv.textContent = "";
+    let changes;
+
+    if (pendingChanges) {
+      changes = pendingChanges;
+    } else {
+      let newFormula = workingFormula;
+      if (advWrap.style.display !== "none") {
+        try { newFormula = JSON.parse(textarea.value); }
+        catch (e) { errDiv.textContent = `JSON syntax error: ${e.message}`; return; }
+      }
+      for (const [name, f] of Object.entries(pendingResolutions || {})) {
+        if (f === null) {
+          errDiv.textContent = `Invalid JSON in resolution for ${name}`;
+          return;
+        }
+      }
+      changes = [
+        { element_name: elemName, param_name: paramName, formula: newFormula, variant },
+        ...(pendingResolutionDefs || [])
+          .filter(r => (pendingResolutions || {})[r.element_name] != null)
+          .map(r => ({
+            element_name: r.element_name, param_name: r.param_name,
+            formula: pendingResolutions[r.element_name], variant,
+          })),
+      ];
+    }
+
+    applyBtn.disabled = true;
+    applyBtn.textContent = "Applying\u2026";
+    try {
+      const resp = await fetch("/api/formulas-batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      const result = await resp.json();
+      if (!resp.ok) { errDiv.textContent = result.error || "Apply failed"; return; }
+      overlay.remove();
+      await loadGeometry();
+      if (App.state.selection && App.state.selection.name === elemName)
+        showProperties(App.state.selection.type, elemName, App.state.selection.data);
+      showToast(`Rebased: ${result.applied.join(", ")}`, "success");
+    } catch (e) {
+      errDiv.textContent = `Error: ${e.message}`;
+    } finally {
+      applyBtn.disabled = false;
+      applyBtn.textContent = pendingChanges ? "Apply" : "Apply All Changes";
+    }
+  });
+}
+
+/** Create an editable dimension row. Returns the input element. */
+function makeDimRow(tbody, label, value, onChange) {
+  const tr = document.createElement("tr");
+  const td1 = document.createElement("td");
+  td1.textContent = label;
+  tr.appendChild(td1);
+  const td2 = document.createElement("td");
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "prop-edit-input";
+  inp.value = value;
+  inp.addEventListener("change", () => {
+    const v = parseDimension(inp.value);
+    if (v === null || isNaN(v) || v <= 0) {
+      showToast(`Invalid ${label.toLowerCase()}`, "error");
+      return;
+    }
+    onChange(v);
+  });
+  td2.appendChild(inp);
+  tr.appendChild(td2);
+  tbody.appendChild(tr);
+  return inp;
+}
+
+/** Create an editable angle row (degrees). Returns the input element. */
+function makeAngleRow(tbody, label, value, onChange) {
+  const tr = document.createElement("tr");
+  const td1 = document.createElement("td");
+  td1.textContent = label;
+  tr.appendChild(td1);
+  const td2 = document.createElement("td");
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "prop-edit-input";
+  inp.value = value;
+  inp.addEventListener("change", () => {
+    const v = parseFloat(inp.value);
+    if (isNaN(v)) {
+      showToast("Invalid angle", "error");
+      return;
+    }
+    onChange(v);
+  });
+  td2.appendChild(inp);
+  tr.appendChild(td2);
+  tbody.appendChild(tr);
+  return inp;
 }
 
 function addPropRow(tbody, label, value, editable = false, constName = null) {
@@ -2971,19 +4547,15 @@ function addPropRow(tbody, label, value, editable = false, constName = null) {
   tbody.appendChild(tr);
 }
 
-/** Return the width-controlling constant name for an opening, or null. */
+/** Return the width-controlling constant name for an opening, or null.
+ *  Prefers formula-dep data (dep-summary) so new openings work automatically. */
 function findWidthConstant(openingName) {
-  // Outer openings: O1-O6 use {name}_WIDTH; O4,O7-O11 use {name}_HALF_WIDTH
-  // Rough openings: RO1→IW1_RO_WIDTH, RO2→IW2_RO_WIDTH, RO3→RO3_WIDTH,
-  //   RO4→IW2_RO_WIDTH, RO5→IW4_RO_WIDTH, RO6→IW11_RO_WIDTH, RO7→IW9_RO_WIDTH
-  const RO_MAP = {
-    RO1: "IW1_RO_WIDTH", RO2: "IW2_RO_WIDTH", RO3: "RO3_WIDTH",
-    RO4: "IW2_RO_WIDTH", RO5: "IW4_RO_WIDTH", RO6: "IW11_RO_WIDTH",
-    RO7: "IW9_RO_WIDTH",
-  };
   const n = openingName.toUpperCase();
-  if (RO_MAP[n]) return RO_MAP[n];
-  // Try direct WIDTH, then HALF_WIDTH
+  // Look for a WIDTH constant in the element's formula deps
+  const consts = App.state.depSummary.elem_to_consts[n] || [];
+  const fromDeps = consts.find(c => c.toUpperCase().includes("WIDTH"));
+  if (fromDeps) return fromDeps;
+  // Fallback: try direct suffix patterns (handles outer openings)
   for (const suffix of ["_WIDTH", "_HALF_WIDTH"]) {
     if (App.state.constants.find(c => c.name === n + suffix)) return n + suffix;
   }
@@ -2992,67 +4564,31 @@ function findWidthConstant(openingName) {
 
 /* ========== SEL-15: Constant Dependency Highlighting ========== */
 
-/** Reverse map: constant name → IW wall names that depend on it. */
-const CONSTANT_TO_IW = {};
-(function() {
-  const map = {
-    IW1: "IW1_OFFSET_FROM_W9", IW2: "IW2_DIST_W2W5",
-    IW2S: "IW2S_W2REF_OFFSET", IW3: "IW3_DIST_W2W5",
-    IW4: "IW4_GAP_IW11", IW5: "IW5_S_OFFSET_FROM_IW1",
-    IW6: "IW6_OFFSET_FROM_W6", IW7: "IW7_OFFSET_FROM_W18W1",
-    IW9: "IW3_OFFSET_IW9", IW11: "IW9_IW11_GAP",
-    IW12: "IW12_S_OFFSET_W18W1",
-  };
-  for (const [iw, cname] of Object.entries(map)) {
-    if (!CONSTANT_TO_IW[cname]) CONSTANT_TO_IW[cname] = [];
-    CONSTANT_TO_IW[cname].push(iw);
-  }
-})();
-
-/** Constant prefix → furniture/appliance item names. */
-const CONSTANT_PREFIX_TO_ITEMS = {
-  BED_: ["bed"], DRESSER_: ["dresser"], SHELVES_: ["shelves"],
-  LOVESEAT_: ["loveseat"], DESK_: ["desk"], CHAIR_: ["chair"],
-  SOFA_: ["sofa"], ROCKER_: ["rocker"],
-  APPLIANCE_: ["washer", "dryer"], COUNTER_: ["counter"],
-  STOVE_: ["stove"], FRIDGE_: ["fridge"], DW_: ["dishwasher"],
-  MINIK_: ["minik_counter"], ICE_: ["ice_maker"],
-  TOILET_: ["toilet"], SINK_: ["bath_sink"],
-  WH_: ["water_heater"],
-};
-
 function highlightConstantDeps(constName) {
   clearConstantHighlights();
   const firstOrder = new Set();
   const secondOrder = new Set();
-  // 1. Reverse IW map
-  const iws = CONSTANT_TO_IW[constName] || [];
-  for (const iw of iws) {
-    firstOrder.add(iw);
-    // Hosted openings are second-order
-    if (typeof IW_HOSTED_OPENINGS !== "undefined") {
-      for (const ro of (IW_HOSTED_OPENINGS[iw] || [])) secondOrder.add(ro);
-    }
+
+  // All elements that directly depend on this constant (from formula_deps)
+  for (const elem of (App.state.depSummary.const_to_elems[constName] || [])) {
+    firstOrder.add(elem);
+    // IW walls: their hosted rough openings are second-order
+    for (const ro of (App.state.iwConfig.iw_hosted_openings[elem] || []))
+      secondOrder.add(ro);
   }
-  // 2. Prefix-based furniture/appliance mapping
-  for (const [prefix, items] of Object.entries(CONSTANT_PREFIX_TO_ITEMS)) {
-    if (constName.startsWith(prefix)) {
-      for (const item of items) firstOrder.add(item);
-    }
-  }
-  // 3. Opening width constants (O1_WIDTH → O1, RO3_WIDTH → RO3, etc.)
+
+  // Opening-specific constants: O1_WIDTH → highlight O1, RO3_WIDTH → RO3, etc.
   const m = constName.match(/^((?:RO?\d+|O\d+))_/i);
   if (m) firstOrder.add(m[1].toUpperCase());
-  // 4. Apply CSS classes
+
   document.querySelectorAll("[data-name]").forEach(el => {
     const name = el.getAttribute("data-name");
     if (!name) return;
     const upper = name.toUpperCase();
-    if (firstOrder.has(name) || firstOrder.has(upper)) {
+    if (firstOrder.has(name) || firstOrder.has(upper))
       el.classList.add("const-dep-first");
-    } else if (secondOrder.has(name) || secondOrder.has(upper)) {
+    else if (secondOrder.has(name) || secondOrder.has(upper))
       el.classList.add("const-dep-second");
-    }
   });
 }
 
@@ -3062,28 +4598,14 @@ function clearConstantHighlights() {
   });
 }
 
+/** Return constants related to an element, driven by formula_deps. */
 function findRelatedConstants(elementName) {
-  const name = elementName.toUpperCase().replace(/^IW/, "IW");
-  return App.state.constants.filter(c => {
-    const cn = c.name.toUpperCase();
-    if (name.startsWith("O") && name.length <= 3) {
-      return cn.startsWith(name + "_") || cn.includes("_" + name + "_") || cn === name + "_WIDTH";
-    }
-    if (name.startsWith("IW")) {
-      return cn.includes(name) || cn.startsWith(name + "_");
-    }
-    if (name.startsWith("RO")) {
-      return cn.includes(name) || cn.startsWith(name + "_");
-    }
-    // furniture/appliance: match by keyword
-    const keywords = {
-      bed: "BED_", dresser: "DRESSER_", shelves: "SHELVES_",
-      washer: "APPLIANCE_", dryer: "APPLIANCE_", counter: "COUNTER_",
-    };
-    const prefix = keywords[name.toLowerCase()];
-    if (prefix) return cn.startsWith(prefix);
-    return false;
-  });
+  const key = elementName.toUpperCase();
+  const names = new Set([
+    ...(App.state.depSummary.elem_to_consts[elementName] || []),
+    ...(App.state.depSummary.elem_to_consts[key] || []),
+  ]);
+  return App.state.constants.filter(c => names.has(c.name));
 }
 
 
@@ -3324,26 +4846,52 @@ async function loadOutlineTable() {
     if (seg.seq === App.state.outlineSelectedSeq) {
       tr.classList.add("outline-selected");
     }
-    tr.addEventListener("click", () => selectOutlineRow(seg.seq));
+    tr.addEventListener("click", () => {
+      if (App.state.pivotSetMode) {
+        handlePivotClick(seg.end_name);
+        return;
+      }
+      selectOutlineRow(seg.seq);
+    });
 
     // Seq column
     const tdSeq = document.createElement("td");
     tdSeq.textContent = seg.seq;
     tr.appendChild(tdSeq);
 
-    // Type column
+    // Type column — dropdown to change segment type
     const tdType = document.createElement("td");
-    tdType.textContent = seg.seg_type;
+    const typeSel = document.createElement("select");
+    typeSel.className = "seg-type-sel";
+    for (const t of ["L", "CW", "CCW"]) {
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t;
+      if (t === seg.seg_type) opt.selected = true;
+      typeSel.appendChild(opt);
+    }
+    typeSel.addEventListener("click", (e) => e.stopPropagation());
+    typeSel.addEventListener("change", (e) => {
+      e.stopPropagation();
+      handleOutlineTypeChange(seg.seq, typeSel.value);
+    });
+    tdType.appendChild(typeSel);
     tr.appendChild(tdType);
 
-    // Dist/R column — editable for non-solved segments
+    // Dist/R column — editable unless this segment's dist/radius is flex
     const tdDist = document.createElement("td");
-    const isSolvedDist = seg.seq === 0 || seg.seq === n - 2;
+    const isSolvedDist = seg.flex === "distance";
+    const isSolvedRadius = seg.flex === "radius";
     const distVal = seg.seg_type === "L" ? (seg.distance || 0) : (seg.radius || 0);
-    if (isSolvedDist && seg.seg_type === "L") {
+    if (isSolvedDist || isSolvedRadius) {
       tdDist.textContent = fmtFtIn(distVal);
       tdDist.classList.add("solved");
-      tdDist.title = "Solved by closure";
+      tdDist.title = `Solved by closure (click to change)`;
+      tdDist.style.cursor = "pointer";
+      tdDist.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showFlexSwapDialog(seg.seq, seg.flex, chain);
+      });
     } else {
       const inp = document.createElement("input");
       inp.type = "text";
@@ -3357,15 +4905,20 @@ async function loadOutlineTable() {
     }
     tr.appendChild(tdDist);
 
-    // Sweep column — editable for arcs, except closure arc (last seg)
+    // Sweep column — editable unless this segment's sweep is flex
     const tdSweep = document.createElement("td");
-    const isSolvedSweep = seg.seq === n - 1;
+    const isSolvedSweep = seg.flex === "sweep";
     if (seg.seg_type !== "L") {
       const sweepDeg = (seg.sweep || 0) * 180 / Math.PI;
       if (isSolvedSweep) {
         tdSweep.textContent = fmtDeg(sweepDeg);
         tdSweep.classList.add("solved");
-        tdSweep.title = "Solved by closure";
+        tdSweep.title = "Solved by closure (click to change)";
+        tdSweep.style.cursor = "pointer";
+        tdSweep.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showFlexSwapDialog(seg.seq, "sweep", chain);
+        });
       } else {
         const inp = document.createElement("input");
         inp.type = "text";
@@ -3386,6 +4939,39 @@ async function loadOutlineTable() {
     const tdEnd = document.createElement("td");
     tdEnd.textContent = seg.end_name;
     tr.appendChild(tdEnd);
+
+    // Bearing flex column — toggle for line segments only
+    const tdBrg = document.createElement("td");
+    tdBrg.className = "td-bearing-flex";
+    if (seg.seg_type === "L") {
+      const btn = document.createElement("button");
+      btn.className = "bearing-flex-btn" + (seg.bearing_flex ? " active" : "");
+      btn.textContent = seg.bearing_flex ? "\u21C4" : "\u2014";
+      btn.title = seg.bearing_flex
+        ? "Bearing is flexible — click to fix"
+        : "Bearing is fixed — click to allow flex";
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const newVal = seg.bearing_flex ? 0 : 1;
+        try {
+          const resp = await apiFetch(`/api/outline/segment/${seg.seq}/bearing-flex`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bearing_flex: newVal }),
+          });
+          if (!resp.ok) {
+            const data = await resp.json();
+            showToast(data.error || "Failed to update bearing flex", "error");
+            return;
+          }
+          await loadOutlineTable();
+        } catch (err) {
+          showToast(`Error: ${err.message}`, "error");
+        }
+      });
+      tdBrg.appendChild(btn);
+    }
+    tr.appendChild(tdBrg);
 
     // W Override column — shows button if override exists or to add one
     const tdOv = document.createElement("td");
@@ -3430,8 +5016,20 @@ async function loadOutlineTable() {
     }
     tr.appendChild(tdOv);
 
+    // Section coloring when pivot is active
+    const sA = App.state.pivotSectionA;
+    const sB = App.state.pivotSectionB;
+    if (sA.length > 0 && sA.includes(seg.seq)) {
+      tr.classList.add("section-a");
+    } else if (sB.length > 0 && sB.includes(seg.seq)) {
+      tr.classList.add("section-b");
+    }
+
     tbody.appendChild(tr);
   }
+
+  // Update pivot banner
+  updatePivotBanner();
 }
 
 /**
@@ -4016,6 +5614,140 @@ function startClickDefineMode(segIndex, endName, existingChain, spanEnd) {
   document.addEventListener("keydown", onKeyDown, true);
 }
 
+/**
+ * Show dialog to swap a flex designation from one segment to another.
+ * @param {number} currentSeq - the currently-flex segment's seq
+ * @param {string} currentParam - "distance", "radius", or "sweep"
+ * @param {Array} chain - full outline chain from API
+ */
+function showFlexSwapDialog(currentSeq, currentParam, chain) {
+  // Build list of eligible swap candidates
+  const candidates = [];
+  const isSweepFlex = currentParam === "sweep";
+
+  // When pivot is active, constrain to same section
+  let allowedSeqs = null;
+  const sA = App.state.pivotSectionA;
+  const sB = App.state.pivotSectionB;
+  if (sA.length > 0 && sB.length > 0) {
+    if (sA.includes(currentSeq)) allowedSeqs = new Set(sA);
+    else if (sB.includes(currentSeq)) allowedSeqs = new Set(sB);
+  }
+
+  // For sweep flex candidates: find which arcs have no fixed-bearing lines
+  // downstream (within the allowed section).
+  // A fixed-bearing line is a line with bearing_flex == 0.
+  const sectionChain = allowedSeqs
+    ? chain.filter(s => allowedSeqs.has(s.seq))
+    : chain;
+  const lastFixedBearingIdx = sectionChain.reduce((last, seg, i) =>
+    (seg.seg_type === "L" && !seg.bearing_flex) ? i : last, -1);
+  const validSweepSeqs = new Set(
+    sectionChain
+      .filter((seg, i) => seg.seg_type !== "L" && i > lastFixedBearingIdx)
+      .map(seg => seg.seq)
+  );
+
+  for (const seg of chain) {
+    if (seg.seq === currentSeq) continue;
+    if (seg.flex) continue; // already flex for something else
+    if (allowedSeqs && !allowedSeqs.has(seg.seq)) continue;
+
+    if (isSweepFlex) {
+      // Can only swap sweep flex to another arc that respects fixed bearings
+      if (seg.seg_type !== "L" && validSweepSeqs.has(seg.seq)) {
+        const warn = validSweepSeqs.has(seg.seq) ? "" : " ⚠ shifts bearings";
+        candidates.push({ seq: seg.seq, label: `Seg ${seg.seq} (${seg.seg_type} → ${seg.end_name})${warn}`, param: "sweep" });
+      }
+    } else {
+      // Positional flex: can swap to any line's distance or any arc's radius
+      if (seg.seg_type === "L") {
+        candidates.push({ seq: seg.seq, label: `Seg ${seg.seq} distance (L → ${seg.end_name})`, param: "distance" });
+      } else {
+        candidates.push({ seq: seg.seq, label: `Seg ${seg.seq} radius (${seg.seg_type} → ${seg.end_name})`, param: "radius" });
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    showToast(
+      isSweepFlex
+        ? "No eligible segments to swap flex to — the sweep arc must be placed after all fixed-bearing lines in the chain."
+        : "No eligible segments to swap flex to.",
+      "warning",
+      6000
+    );
+    return;
+  }
+
+  // Build custom content: radio list of candidates
+  const container = document.createElement("div");
+  container.style.maxHeight = "200px";
+  container.style.overflowY = "auto";
+  container.style.margin = "8px 0";
+
+  for (const c of candidates) {
+    const div = document.createElement("div");
+    div.style.padding = "4px 0";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "flex-swap";
+    radio.value = JSON.stringify({ seq: c.seq, param: c.param });
+    radio.id = `flex-swap-${c.seq}`;
+    const lbl = document.createElement("label");
+    lbl.htmlFor = radio.id;
+    lbl.textContent = " " + c.label;
+    lbl.style.cursor = "pointer";
+    div.appendChild(radio);
+    div.appendChild(lbl);
+    container.appendChild(div);
+  }
+
+  Dialog.show({
+    title: `Move flex from seg ${currentSeq} ${currentParam}`,
+    customContent: container,
+    fields: [],
+    onSubmit: async () => {
+      const checked = container.querySelector('input[name="flex-swap"]:checked');
+      if (!checked) {
+        showToast("Select a segment to swap to", "warning");
+        return;
+      }
+      const target = JSON.parse(checked.value);
+
+      // Build the new 3-element flex spec
+      const newFlex = [];
+      for (const seg of chain) {
+        if (!seg.flex) continue;
+        if (seg.seq === currentSeq) {
+          // Replace this one with the target
+          newFlex.push({ seq: target.seq, param: target.param });
+        } else {
+          newFlex.push({ seq: seg.seq, param: seg.flex });
+        }
+      }
+
+      try {
+        const resp = await apiFetch("/api/outline/flex", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ flex: newFlex }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json();
+          showToast(data.error || "Flex change failed", "error");
+          return;
+        }
+        showToast(`Flex moved to seg ${target.seq} ${target.param}`, "success");
+        await loadOutlineTable();
+        await loadGeometry();
+      } catch (e) {
+        showToast(`Error: ${e.message}`, "error");
+      }
+    },
+  });
+}
+
 function selectOutlineRow(seq) {
   App.state.outlineSelectedSeq = seq;
   const tbody = App.els["outline-table"].querySelector("tbody");
@@ -4063,6 +5795,21 @@ async function handleOutlineEdit(seq, field, rawValue) {
       body: JSON.stringify(body),
     });
     showToast(`Seg ${seq}: ${fmtFtIn(value)}`, "success");
+    await loadOutlineTable();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+    await loadOutlineTable();
+  }
+}
+
+async function handleOutlineTypeChange(seq, newType) {
+  try {
+    await apiFetch(`/api/outline/${seq}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seg_type: newType }),
+    });
+    showToast(`Seg ${seq}: type → ${newType}`, "success");
     await loadOutlineTable();
   } catch (e) {
     showToast(`Error: ${e.message}`, "error");
@@ -4137,6 +5884,215 @@ function setupOutlineToolbar() {
         showToast(`Error: ${e.message}`, "error");
       }
     });
+  }
+
+  // Pivot button
+  const pivotBtn = App.els["outline-pivot-btn"];
+  if (pivotBtn) {
+    pivotBtn.addEventListener("click", () => {
+      if (App.state.pivotAnchor) {
+        // Already have pivot — clear it
+        clearPivot();
+      } else {
+        // Start 2-click flow
+        startPivotSetMode();
+      }
+    });
+  }
+
+  // Anchor position editor — commit on Enter or blur
+  for (const id of ["anchor-pos-E", "anchor-pos-N", "anchor-pos-brg"]) {
+    const el = App.els[id];
+    if (!el) continue;
+    el.addEventListener("input", () => el.classList.add("dirty"));
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commitAnchorPos(); }
+      if (e.key === "Escape") { e.preventDefault(); loadPivotState(); }
+    });
+    el.addEventListener("blur", () => {
+      if (el.classList.contains("dirty")) commitAnchorPos();
+    });
+  }
+}
+
+async function loadPivotState() {
+  try {
+    const resp = await apiFetch("/api/outline/pivot");
+    const data = await resp.json();
+    // Only treat as active if user explicitly set (not just seeded defaults)
+    const active = data.user_set && data.anchor && data.pivot;
+    App.state.pivotAnchor = active ? data.anchor : null;
+    App.state.pivotPoint = active ? data.pivot : null;
+    App.state.pivotSectionA = data.section_a_seqs || [];
+    App.state.pivotSectionB = data.section_b_seqs || [];
+    // Populate anchor position editor (always shown when anchor_pos is available)
+    if (data.anchor_E !== undefined) {
+      _setAnchorPosFields(data.anchor_E, data.anchor_N, data.anchor_brg_deg);
+    }
+  } catch {
+    App.state.pivotAnchor = null;
+    App.state.pivotPoint = null;
+    App.state.pivotSectionA = [];
+    App.state.pivotSectionB = [];
+  }
+  updatePivotBanner();
+  updateAnchorPosEditor();
+  updatePivotButton();
+}
+
+function _setAnchorPosFields(E, N, brg_deg) {
+  const fmt = (v) => parseFloat(v.toFixed(6));
+  const eEl = App.els["anchor-pos-E"];
+  const nEl = App.els["anchor-pos-N"];
+  const bEl = App.els["anchor-pos-brg"];
+  if (eEl) { eEl.value = fmt(E); eEl.classList.remove("dirty"); }
+  if (nEl) { nEl.value = fmt(N); nEl.classList.remove("dirty"); }
+  if (bEl) { bEl.value = fmt(brg_deg); bEl.classList.remove("dirty"); }
+}
+
+function updateAnchorPosEditor() {
+  const editor = App.els["anchor-pos-editor"];
+  if (!editor) return;
+  // Show whenever anchor_pos is available (always — seeded at DB init)
+  const eEl = App.els["anchor-pos-E"];
+  if (eEl && eEl.value !== "") {
+    editor.classList.add("visible");
+  } else {
+    editor.classList.remove("visible");
+  }
+}
+
+async function commitAnchorPos() {
+  const eEl = App.els["anchor-pos-E"];
+  const nEl = App.els["anchor-pos-N"];
+  const bEl = App.els["anchor-pos-brg"];
+  const E = parseFloat(eEl.value);
+  const N = parseFloat(nEl.value);
+  const brg_deg = parseFloat(bEl.value);
+  if (isNaN(E) || isNaN(N) || isNaN(brg_deg)) {
+    showToast("Invalid anchor position values", "error");
+    return;
+  }
+  try {
+    const resp = await apiFetch("/api/outline/anchor-pos", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ E, N, brg_deg }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      showToast(data.error || "Anchor pos update failed", "error");
+      return;
+    }
+    _setAnchorPosFields(data.E, data.N, data.brg_deg);
+    showToast("Anchor position updated", "success");
+    await loadOutlineTable();
+    await loadGeometry();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  }
+}
+
+function updatePivotBanner() {
+  const banner = App.els["pivot-banner"];
+  if (!banner) return;
+  if (App.state.pivotAnchor && App.state.pivotPoint) {
+    banner.innerHTML = `<span class="anchor-tag">\u25C6 ${App.state.pivotAnchor}</span>` +
+      ` <span style="color:var(--text-dim)">\u2014</span> ` +
+      `<span class="pivot-tag">\u25C7 ${App.state.pivotPoint}</span>`;
+    banner.classList.add("visible");
+  } else if (App.state.pivotSetMode) {
+    const msg = App.state.pivotSetMode === "anchor"
+      ? "Click an F-point row for anchor..."
+      : "Click an F-point row for pivot...";
+    banner.textContent = msg;
+    banner.classList.add("visible");
+  } else {
+    banner.classList.remove("visible");
+    banner.innerHTML = "";
+  }
+}
+
+function updatePivotButton() {
+  const btn = App.els["outline-pivot-btn"];
+  if (!btn) return;
+  btn.classList.toggle("pivot-active", !!App.state.pivotAnchor);
+  btn.title = App.state.pivotAnchor
+    ? "Clear anchor/pivot"
+    : "Set anchor/pivot (2-click)";
+}
+
+function startPivotSetMode() {
+  App.state.pivotSetMode = "anchor";
+  updatePivotBanner();
+  showToast("Click a row to set anchor point", "info");
+}
+
+function handlePivotClick(endName) {
+  if (App.state.pivotSetMode === "anchor") {
+    App.state._pivotAnchorPending = endName;
+    App.state.pivotSetMode = "pivot";
+    updatePivotBanner();
+    showToast(`Anchor: ${endName}. Now click pivot point`, "info");
+  } else if (App.state.pivotSetMode === "pivot") {
+    const anchor = App.state._pivotAnchorPending;
+    App.state.pivotSetMode = null;
+    delete App.state._pivotAnchorPending;
+    if (anchor === endName) {
+      showToast("Anchor and pivot must differ", "warning");
+      updatePivotBanner();
+      return;
+    }
+    setPivot(anchor, endName);
+  }
+}
+
+async function setPivot(anchor, pivot) {
+  try {
+    const resp = await apiFetch("/api/outline/pivot", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anchor, pivot }),
+    });
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(data.error || "Pivot set failed", "error");
+      return;
+    }
+    const data = await resp.json();
+    App.state.pivotAnchor = data.anchor;
+    App.state.pivotPoint = data.pivot;
+    App.state.pivotSectionA = data.section_a_seqs || [];
+    App.state.pivotSectionB = data.section_b_seqs || [];
+    showToast(`Pivot set: ${anchor} / ${pivot}`, "success");
+    updatePivotBanner();
+    updatePivotButton();
+    await loadOutlineTable();
+    await loadGeometry();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
+  }
+}
+
+async function clearPivot() {
+  try {
+    const resp = await apiFetch("/api/outline/pivot", { method: "DELETE" });
+    if (!resp.ok) {
+      const data = await resp.json();
+      showToast(data.error || "Clear pivot failed", "error");
+      return;
+    }
+    App.state.pivotAnchor = null;
+    App.state.pivotPoint = null;
+    App.state.pivotSectionA = [];
+    App.state.pivotSectionB = [];
+    showToast("Pivot cleared", "success");
+    updatePivotBanner();
+    updatePivotButton();
+    await loadOutlineTable();
+    await loadGeometry();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, "error");
   }
 }
 
@@ -4480,7 +6436,7 @@ function setupEventListeners() {
     ["show-openings", "showOpenings"], ["show-furniture", "showFurniture"],
     ["show-rooms", "showRooms"], ["show-doors", "showDoors"],
     ["show-clearance", "showClearance"], ["open-links", "openLinks"],
-    ["show-areas", "showAreas"],
+    ["show-areas", "showAreas"], ["show-site", "showSite"],
   ];
   for (const [elId, stateKey] of toggleMap) {
     App.els[elId].addEventListener("change", (e) => {
@@ -4611,8 +6567,6 @@ function onMouseDown(e) {
     }
   } else if (e.button === 0 && App.state.activeTool === "move") {
     moveToolMouseDown(e);
-  } else if (e.button === 0 && App.state.activeTool === "draw-wall") {
-    drawWallMouseDown(e);
   } else if (e.button === 0 && isPlumbingDrawTool(App.state.activeTool)) {
     const [wx, wy] = mouseToWorld(e);
     // Initialise draw state if starting
@@ -4679,11 +6633,6 @@ function onMouseMove(e) {
   if (MoveTool.active || MoveTool.pending) {
     moveToolMouseMove(e);
     return;
-  }
-
-  // Draw wall preview
-  if (App.state.activeTool === "draw-wall" && DrawWallTool.start) {
-    drawWallMouseMove(e);
   }
 
   // Plumbing draw rubber-band
@@ -5036,7 +6985,7 @@ function onKeyDown(e) {
     case "h": case "H": setTool("pan"); break;
     case "m": case "M": setTool("measure"); break;
     case "g": case "G": setTool("move"); break;
-    case "w": case "W": setTool("draw-wall"); break;
+    case "w": case "W": showWallSetupWizard(); break;
     case "d": setTool("dimension"); break;
     case "l": setTool("label"); break;
     case "r": case "R": showRotationDialog(); break;
@@ -5066,10 +7015,6 @@ function onKeyDown(e) {
         }
         MoveTool.active = false;
         MoveTool.origTransforms = [];
-        break;
-      }
-      if (DrawWallTool.start) {
-        cancelDrawWall();
         break;
       }
       if (DimTool.start) {
@@ -5118,7 +7063,7 @@ async function deleteSelectedElements() {
   const lines = toDelete.map(el => {
     let line = el.name;
     if (el.type === "wall") {
-      const hosted = IW_HOSTED_OPENINGS[el.name] || [];
+      const hosted = App.state.iwConfig.iw_hosted_openings[el.name] || [];
       if (hosted.length > 0) {
         line += ` (will also delete ${hosted.join(", ")})`;
       }
@@ -5332,17 +7277,6 @@ function findNearestWall(wx, wy) {
       if (d < bestDist) { bestDist = d; bestWall = { name, type: "iw" }; }
     }
   }
-  // Drawn walls from elements
-  for (const elem of (App.state.elements || [])) {
-    const props = parseProps(elem);
-    if (elem.type === "wall" && props?.source === "drawn" && props.poly) {
-      for (let i = 0; i < props.poly.length; i++) {
-        const j = (i + 1) % props.poly.length;
-        const d = distToSeg(wx, wy, props.poly[i][0], props.poly[i][1], props.poly[j][0], props.poly[j][1]);
-        if (d < bestDist) { bestDist = d; bestWall = { name: elem.name, type: "drawn" }; }
-      }
-    }
-  }
   return bestDist < 0.5 ? bestWall : null;
 }
 
@@ -5402,8 +7336,321 @@ function openingToolMouseDown(e) {
   });
 }
 
+/** Define a drawn wall geometry: snap to face or run between two named points. */
+function showSnapToFaceDialog(elemRec, props) {
+  const g = App.state.geometry;
+  if (!g) { showToast("No geometry loaded", "error"); return; }
+  Dialog.close();
+
+  const overlay = document.createElement("div");
+  overlay.className = "dialog-overlay";
+  const dlg = document.createElement("div");
+  dlg.className = "dialog";
+  dlg.style.minWidth = "380px";
+
+  function mkField(labelText) {
+    const d = document.createElement("div"); d.className = "dialog-field";
+    const lbl = document.createElement("label"); lbl.textContent = labelText;
+    d.appendChild(lbl);
+    return d;
+  }
+  function mkInput(value = "", placeholder = "") {
+    const inp = document.createElement("input");
+    inp.type = "text"; inp.value = value; inp.placeholder = placeholder;
+    return inp;
+  }
+  function mkSelect(options, selected) {
+    const sel = document.createElement("select");
+    for (const o of options) {
+      const opt = document.createElement("option");
+      opt.value = typeof o === "object" ? o.value : o;
+      opt.textContent = typeof o === "object" ? o.label : o;
+      if (opt.value === selected) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    return sel;
+  }
+
+  const titleEl = document.createElement("h3");
+  titleEl.textContent = `Define ${elemRec.name} geometry`;
+  dlg.appendChild(titleEl);
+
+  // --- Mode ---
+  const modeField = mkField("Mode");
+  const radioWrap = document.createElement("div");
+  radioWrap.style.cssText = "display:flex;gap:1.2rem;margin-top:0.3rem;";
+  function mkRadio(name, value, label, checked) {
+    const lbl = document.createElement("label");
+    lbl.style.cssText = "display:flex;align-items:center;gap:0.35rem;cursor:pointer;";
+    const inp = document.createElement("input");
+    inp.type = "radio"; inp.name = name; inp.value = value; inp.checked = checked;
+    lbl.appendChild(inp); lbl.appendChild(document.createTextNode(label));
+    return { lbl, inp };
+  }
+  const { lbl: snapLbl, inp: snapRadio } = mkRadio("dlg_mode", "snap", "Snap to face", true);
+  const { lbl: runLbl,  inp: runRadio  } = mkRadio("dlg_mode", "run",  "Run between points", false);
+  radioWrap.appendChild(snapLbl); radioWrap.appendChild(runLbl);
+  modeField.appendChild(radioWrap);
+  dlg.appendChild(modeField);
+
+  // --- Snap section ---
+  const snapSec = document.createElement("div");
+
+  const refField = mkField("Reference (e.g. W4-W5, IW1, CW2)");
+  const refInput = mkInput("", "point pair or element name");
+  refField.appendChild(refInput); snapSec.appendChild(refField);
+
+  const faceField = mkField("Face of reference");
+  const faceSelect = mkSelect(
+    ["south","east","north","west","northeast","northwest","southeast","southwest"], "south");
+  faceField.appendChild(faceSelect); snapSec.appendChild(faceField);
+
+  const alignField = mkField("Align wall (start / mid / end)");
+  const alignSelect = mkSelect(["start","mid","end"], "mid");
+  alignField.appendChild(alignSelect); snapSec.appendChild(alignField);
+
+  dlg.appendChild(snapSec);
+
+  // --- Run between points section ---
+  const runSec = document.createElement("div");
+  runSec.style.display = "none";
+
+  const hintEl = document.createElement("div");
+  hintEl.style.cssText = "font-size:0.8rem;color:var(--subtext0,#aaa);margin-bottom:0.4rem;";
+  hintEl.textContent = "Wall runs from → to; the named face of the wall is placed at that line.";
+  runSec.appendChild(hintEl);
+
+  const fromField = mkField("From point");
+  const fromInput = mkInput("", "e.g. W3");
+  fromField.appendChild(fromInput); runSec.appendChild(fromField);
+
+  const toField = mkField("To point");
+  const toInput = mkInput("", "e.g. W19a");
+  toField.appendChild(toInput); runSec.appendChild(toField);
+
+  const wfaceField = mkField("Wall face at reference line");
+  const wfaceSelect = mkSelect(
+    ["north","northeast","east","southeast","south","southwest","west","northwest"], "northeast");
+  wfaceField.appendChild(wfaceSelect); runSec.appendChild(wfaceField);
+
+  dlg.appendChild(runSec);
+
+  // --- Common: offset ---
+  const offField = mkField("Offset (0 = face tangent to reference)");
+  const offInput = mkInput("0", "e.g. 0, 6in, 0.5ft");
+  offField.appendChild(offInput);
+  dlg.appendChild(offField);
+
+  // Mode toggle
+  function updateMode() {
+    const isRun = runRadio.checked;
+    snapSec.style.display = isRun ? "none" : "";
+    runSec.style.display  = isRun ? "" : "none";
+  }
+  snapRadio.addEventListener("change", updateMode);
+  runRadio.addEventListener("change", updateMode);
+
+  // Buttons
+  const btnDiv = document.createElement("div");
+  btnDiv.className = "dialog-buttons";
+  const cancelBtn = document.createElement("button");
+  cancelBtn.className = "dialog-btn-cancel"; cancelBtn.textContent = "Cancel";
+  cancelBtn.onclick = () => Dialog.close();
+  const okBtn = document.createElement("button");
+  okBtn.className = "dialog-btn-primary"; okBtn.textContent = "OK";
+  btnDiv.appendChild(cancelBtn); btnDiv.appendChild(okBtn);
+  dlg.appendChild(btnDiv);
+
+  overlay.appendChild(dlg);
+  document.body.appendChild(overlay);
+  Dialog._overlay = overlay;
+
+  overlay.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); okBtn.click(); }
+    else if (e.key === "Escape") { e.preventDefault(); cancelBtn.click(); }
+  });
+  overlay.addEventListener("click", e => { if (e.target === overlay) cancelBtn.click(); });
+  refInput.focus();
+
+  okBtn.onclick = async () => {
+    Dialog.close();
+    const thick = props.thickness || 4.0 / 12;
+    const offsetDist = parseDimension(offInput.value) || 0;
+
+    if (runRadio.checked) {
+      // --- Run between points ---
+      const fromName = fromInput.value.trim();
+      const toName   = toInput.value.trim();
+      const wallFaceName = wfaceSelect.value;
+      if (!fromName || !toName) { showToast("Enter From and To points", "error"); return; }
+      const fromPt = _lookupPoint(g, fromName);
+      const toPt   = _lookupPoint(g, toName);
+      if (!fromPt) { showToast(`Point "${fromName}" not found`, "error"); return; }
+      if (!toPt)   { showToast(`Point "${toName}" not found`, "error"); return; }
+
+      const faceNormal = _wallFaceNormal(fromPt, toPt, wallFaceName);
+      if (!faceNormal) { showToast(`Unknown face direction "${wallFaceName}"`, "error"); return; }
+
+      // Center = from→to line shifted by (offsetDist - thick/2) along faceNormal
+      // so that the specified face lands on the reference line + offsetDist * faceNormal
+      const shift = offsetDist - thick / 2;
+      const newStart = [fromPt[0] + shift * faceNormal[0], fromPt[1] + shift * faceNormal[1]];
+      const newEnd   = [toPt[0]   + shift * faceNormal[0], toPt[1]   + shift * faceNormal[1]];
+
+      const newPoly = wallPoly(newStart, newEnd, thick);
+      if (!newPoly) return;
+      const newProps = { ...props, start: newStart, end: newEnd, poly: newPoly };
+      await fetch(`/api/elements/${elemRec.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: newProps }),
+      });
+      await reloadAfterChange();
+      showToast(`Set ${elemRec.name}: ${fromName} → ${toName} (${wallFaceName} face)`, "success");
+
+    } else {
+      // --- Snap to face ---
+      const ref = refInput.value.trim();
+      const face = faceSelect.value;
+      const align = alignSelect.value;
+      if (!ref) { showToast("Enter a reference", "error"); return; }
+
+      const norm = _compassNormal(face);
+      if (!norm) { showToast(`Unknown face direction "${face}"`, "error"); return; }
+
+      let facePts = null;
+      if (ref.includes("-")) {
+        const [nameA, nameB] = ref.split("-").map(s => s.trim());
+        const ptA = _lookupPoint(g, nameA);
+        const ptB = _lookupPoint(g, nameB);
+        if (!ptA || !ptB) { showToast(`Point ${!ptA ? nameA : nameB} not found`, "error"); return; }
+        facePts = [ptA, ptB];
+      } else {
+        const poly = _lookupElementPoly(g, ref);
+        if (!poly || poly.length < 3) { showToast(`Element "${ref}" not found`, "error"); return; }
+        facePts = _faceEdge(poly, face);
+      }
+      if (!facePts) { showToast("Could not resolve face", "error"); return; }
+
+      const [fp1, fp2] = facePts;
+      const fmx = (fp1[0] + fp2[0]) / 2, fmy = (fp1[1] + fp2[1]) / 2;
+
+      const s = props.start, e = props.end;
+      const wlen = Math.hypot(e[0] - s[0], e[1] - s[1]);
+      const wdx = (e[0] - s[0]) / (wlen || 1e-9), wdy = (e[1] - s[1]) / (wlen || 1e-9);
+      const targetX = fmx + (offsetDist + thick / 2) * norm[0];
+      const targetY = fmy + (offsetDist + thick / 2) * norm[1];
+
+      let newStart, newEnd;
+      const half = wlen / 2;
+      if (align === "start") {
+        newStart = [targetX, targetY];
+        newEnd   = [targetX + wlen * wdx, targetY + wlen * wdy];
+      } else if (align === "end") {
+        newEnd   = [targetX, targetY];
+        newStart = [targetX - wlen * wdx, targetY - wlen * wdy];
+      } else {
+        newStart = [targetX - half * wdx, targetY - half * wdy];
+        newEnd   = [targetX + half * wdx, targetY + half * wdy];
+      }
+
+      const newPoly = wallPoly(newStart, newEnd, thick);
+      if (!newPoly) return;
+      const newProps = { ...props, start: newStart, end: newEnd, poly: newPoly };
+      await fetch(`/api/elements/${elemRec.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ properties: newProps }),
+      });
+      await reloadAfterChange();
+      showToast(`Moved ${elemRec.name} to ${ref} ${face}`, "success");
+    }
+  };
+}
+
+/** Look up a named point from geometry. */
+function _lookupPoint(g, name) {
+  const pts = g.points || {};
+  if (pts[name]) return pts[name];
+  return null;
+}
+
+/** Look up an element polygon from geometry. */
+function _lookupElementPoly(g, name) {
+  const iw = g.interior_walls || {};
+  if (iw[name] && iw[name].poly) return iw[name].poly;
+  const vi = g.variant_items || {};
+  if (vi[name] && vi[name].poly) return vi[name].poly;
+  const furn = g.furniture || {};
+  if (furn[name] && furn[name].poly) return furn[name].poly;
+  const appl = g.appliances || {};
+  if (appl[name] && appl[name].poly) return appl[name].poly;
+  // Check drawn walls in elements
+  for (const elem of (App.state.elements || [])) {
+    if (elem.name === name) {
+      const p = typeof elem.properties === "string" ? JSON.parse(elem.properties) : elem.properties;
+      if (p && p.poly) return p.poly;
+    }
+  }
+  return null;
+}
+
+/** Return unit compass-direction vector, supporting 8 directions (n/s/e/w/ne/nw/se/sw). */
+function _compassNormal(face) {
+  const s = Math.SQRT1_2; // 1/√2
+  const map = {
+    north: [0, 1],      n: [0, 1],
+    south: [0, -1],     s: [0, -1],
+    east:  [1, 0],      e: [1, 0],
+    west:  [-1, 0],     w: [-1, 0],
+    northeast: [s, s],  ne: [s, s],
+    northwest: [-s, s], nw: [-s, s],
+    southeast: [s, -s], se: [s, -s],
+    southwest: [-s, -s],sw: [-s, -s],
+  };
+  return map[face.toLowerCase()] || null;
+}
+
+/**
+ * Return the wall-perpendicular unit normal that best matches a compass direction.
+ * The wall runs from→to; the returned normal points toward the named compass direction.
+ */
+function _wallFaceNormal(fromPt, toPt, faceName) {
+  const dx = toPt[0] - fromPt[0], dy = toPt[1] - fromPt[1];
+  const len = Math.hypot(dx, dy) || 1e-9;
+  const lx = -dy / len, ly =  dx / len;   // left perpendicular
+  const rx =  dy / len, ry = -dx / len;   // right perpendicular
+  const compass = _compassNormal(faceName);
+  if (!compass) return null;
+  const ldot = lx * compass[0] + ly * compass[1];
+  const rdot = rx * compass[0] + ry * compass[1];
+  return ldot >= rdot ? [lx, ly] : [rx, ry];
+}
+
+/**
+ * Extract a face edge [p1, p2] from a polygon. Supports all 8 compass directions:
+ * picks the edge whose midpoint is furthest in the requested compass direction
+ * from the polygon centroid.
+ */
+function _faceEdge(poly, face) {
+  if (poly.length < 3) return null;
+  const compass = _compassNormal(face);
+  if (!compass) return null;
+  const cx = poly.reduce((a, p) => a + p[0], 0) / poly.length;
+  const cy = poly.reduce((a, p) => a + p[1], 0) / poly.length;
+  let best = null, bestScore = -Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const mx = (a[0] + b[0]) / 2 - cx, my = (a[1] + b[1]) / 2 - cy;
+    const mlen = Math.hypot(mx, my) || 1e-9;
+    const score = (mx / mlen) * compass[0] + (my / mlen) * compass[1];
+    if (score > bestScore) { bestScore = score; best = { a, b }; }
+  }
+  return best ? [best.a, best.b] : null;
+}
+
 /** Show rotation dialog for selected element (TL-24, unified). */
-function showRotationDialog() {
+async function showRotationDialog() {
   const sel = App.state.selection;
   if (!sel) {
     showToast("Select an element first", "warning");
@@ -5418,10 +7665,62 @@ function showRotationDialog() {
   const props = typeof elemRec.properties === "string"
     ? JSON.parse(elemRec.properties) : elemRec.properties;
   const elemType = elemRec.type;
-  // Allow rotation for furniture, appliance, fixture, and drawn walls
-  if (!["furniture", "appliance", "fixture"].includes(elemType) &&
-      !(props && props.source === "drawn")) {
-    showToast("Rotation is available for furniture, appliances, and fixtures", "warning");
+
+  // Wall: fetch position formula, allow rotation only if along is a literal vector
+  if (elemType === "wall") {
+    let posFormula = null;
+    try {
+      const rows = await apiFetch(`/api/formulas/${encodeURIComponent(sel.name)}`);
+      const posRow = rows.find(r => r.param_name === "position");
+      if (posRow) {
+        posFormula = typeof posRow.formula_json === "string"
+          ? JSON.parse(posRow.formula_json) : posRow.formula_json;
+      }
+    } catch (_) {}
+    if (!posFormula || !Array.isArray(posFormula.along)) {
+      showToast("Use Wall Setup Wizard or Rebase to change wall direction", "info");
+      return;
+    }
+    const currentAngle = Math.atan2(posFormula.along[1], posFormula.along[0]) * 180 / Math.PI;
+    Dialog.show({
+      title: `Rotate ${sel.name}`,
+      fields: [
+        { label: "Angle (degrees)", name: "angle", value: String(Math.round(currentAngle * 10) / 10) },
+      ],
+      presetButtons: {
+        target: "angle",
+        values: [
+          { label: "0", value: "0" },
+          { label: "90", value: "90" },
+          { label: "180", value: "180" },
+          { label: "270", value: "270" },
+        ],
+      },
+      async onSubmit(values) {
+        const angle = parseFloat(values.angle);
+        if (isNaN(angle)) { showToast("Invalid angle", "error"); return; }
+        const rad = angle * Math.PI / 180;
+        const newFormula = {
+          ...posFormula,
+          along: [Math.cos(rad), Math.sin(rad)],
+          thickness_dir: [-Math.sin(rad), Math.cos(rad)],
+        };
+        try {
+          await apiFetch("/api/formulas-batch", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ updates: [{ element_name: sel.name, param_name: "position", formula: newFormula }] }),
+          });
+          await reloadAfterChange();
+          showToast(`Rotated ${sel.name} to ${angle}°`, "success");
+        } catch (err) { showToast(err.message || "Rotation failed", "error"); }
+      },
+    });
+    return;
+  }
+
+  // Allow rotation for furniture, appliance, fixture
+  if (!["furniture", "appliance", "fixture"].includes(elemType)) {
+    showToast("Rotation is available for furniture, appliances, fixtures, and walls with literal direction", "warning");
     return;
   }
 
@@ -5451,22 +7750,11 @@ function showRotationDialog() {
         showToast("Invalid angle", "error");
         return;
       }
-      // For drawn walls, use legacy property update
-      if (props && props.source === "drawn") {
-        const newProps = { ...props, rotation: angle };
-        await fetch(`/api/elements/${elemRec.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ properties: newProps }),
-        });
-      } else {
-        // Use formula update endpoint for all items
-        await fetch(`/api/elements/${elemRec.id}/update-formula`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rotation_deg: angle, world_rotation: angle }),
-        });
-      }
+      await fetch(`/api/elements/${elemRec.id}/update-formula`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rotation_deg: angle, world_rotation: angle }),
+      });
       await reloadAfterChange();
       showToast(`Rotated ${sel.name} to ${angle}°`, "success");
     },
@@ -5512,14 +7800,13 @@ function setTool(tool) {
   });
   const cursors = {
     select: "crosshair", pan: "grab", measure: "crosshair",
-    move: "move", "draw-wall": "crosshair", dimension: "crosshair", label: "crosshair",
+    move: "move", dimension: "crosshair", label: "crosshair",
     "supply-cold": "crosshair", "supply-hot": "crosshair", drain: "crosshair",
     "place-fitting": "crosshair", "place-fixture": "crosshair",
   };
   App.els["viewport"].style.cursor = cursors[tool] || "crosshair";
 
   if (tool !== "measure") clearMeasure();
-  if (tool !== "draw-wall") cancelDrawWall();
   if (tool !== "dimension" && typeof cancelDimTool === "function") cancelDimTool();
   if (!isPlumbingDrawTool(tool)) cancelPlumbingDraw();
   cancelOpeningPlacement();
@@ -5852,7 +8139,7 @@ async function handleMenuAction(action) {
 
 /* ========== TOAST ========== */
 
-function showToast(msg, type = "") {
+function showToast(msg, type = "", duration = 3000) {
   const existing = document.querySelector(".toast");
   if (existing) existing.remove();
 
@@ -5860,7 +8147,7 @@ function showToast(msg, type = "") {
   toast.className = `toast ${type}`;
   toast.textContent = msg;
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  setTimeout(() => toast.remove(), duration);
 }
 
 

@@ -321,8 +321,31 @@ class FormulaEvaluator:
             nw = [near_pt[0] + thickness * thick_dir[0],
                   near_pt[1] + thickness * thick_dir[1]]
             poly_out = [sw, se, ne, nw]
+
+        elif end_mode == "to_line":
+            # Far end = intersection of wall ray with a specified line
+            end_pt = self.resolve_point(formula.get("end_line_point"))
+            end_dir = self.resolve_dir(formula.get("end_line_dir"))
+            if end_pt is None or end_dir is None:
+                return None
+            # Solve: anchor + t*along = end_pt + s*end_dir
+            det = along[0] * end_dir[1] - along[1] * end_dir[0]
+            if abs(det) < 1e-12:
+                return None  # parallel lines
+            dx_e = end_pt[0] - anchor[0]
+            dy_e = end_pt[1] - anchor[1]
+            t = (dx_e * end_dir[1] - dy_e * end_dir[0]) / det
+            far_pt = [anchor[0] + t * along[0], anchor[1] + t * along[1]]
+            sw = anchor
+            se = far_pt
+            ne = [far_pt[0] + thickness * thick_dir[0],
+                  far_pt[1] + thickness * thick_dir[1]]
+            nw = [anchor[0] + thickness * thick_dir[0],
+                  anchor[1] + thickness * thick_dir[1]]
+            poly_out = [sw, se, ne, nw]
+
         else:
-            # Fixed length
+            # Fixed length (default)
             length = self.resolve_length(formula.get("length"))
             if length is None:
                 return None
@@ -1322,7 +1345,8 @@ def _extract_deps_recursive(spec, deps):
     # Recurse into known sub-specs
     for key in ("anchor", "along", "across", "thickness_dir", "dir", "dist",
                 "offset", "center", "reference", "line1_point", "line1_dir",
-                "line2_point", "line2_dir", "thickness", "length", "width",
+                "line2_point", "line2_dir", "end_line_point", "end_line_dir",
+                "thickness", "length", "width",
                 "depth", "radius", "origin", "neg", "perp", "rotated",
                 "sw", "se", "ne", "nw",
                 "outer_start", "outer_end", "inner_start", "inner_end",
@@ -1701,8 +1725,30 @@ _IW_IN = _W6W7_AL  # ≈ east
 _IW2S_W_ANCHOR = _off(_IW_W2_REF, {"const": "IW2S_W2REF_OFFSET"}, _IW_IN)
 
 
+def _prop_constants_from_formula(formula):
+    """Derive prop_constants dict from formula metadata.
+
+    Returns {property_label: constant_name} for use in elements.properties["prop_constants"].
+    Reads position_constant and span_constants from formula; falls back to empty dict.
+    """
+    result = {}
+    pc = formula.get("position_constant")
+    if pc:
+        result["position"] = pc
+    sc = formula.get("span_constants", {})
+    result.update(sc)
+    return result
+
+
 def get_iw_formulas():
-    """Return dict of {element_name: formula_json} for all 13 IW walls."""
+    """Return dict of {element_name: formula_json} for all 13 IW walls.
+
+    Each formula dict may include metadata fields (ignored by evaluators):
+      position_constant: str   — DB constant that controls this wall's position
+      position_axis:    "x"|"y" — which drag axis drives the constant
+      position_sign:    +1|-1  — delta_constant = drag * sign
+      span_constants:  dict   — {property_label: constant_name} for span properties
+    """
     return {
         # --- IW1: west end at IW2 west face, extends east to inner poly ---
         # NW = line_isect(offset(W9, IW1_OFFSET, w9w10_in), w9w10_al,
@@ -1712,6 +1758,9 @@ def get_iw_formulas():
         # SE = line_poly_isect from SW along w9w10_al, farthest
         "IW1": {
             "type": "four_corner",
+            "position_constant": "IW1_OFFSET_FROM_W9",
+            "position_axis": "y",
+            "position_sign": -1,
             "nw": _li(
                 _off("W9", {"const": "IW1_OFFSET_FROM_W9"}, _W9W10_IN),
                 _W9W10_AL,
@@ -1760,6 +1809,9 @@ def get_iw_formulas():
         # NW = offset(SW, height, w18w1_in)
         "IW3": {
             "type": "four_corner",
+            "position_constant": "IW3_DIST_W2W5",
+            "position_axis": "x",
+            "position_sign": 1,
             "sw": _off(_W2W5_REF, {"neg": {"const": "IW3_DIST_W2W5"}}, _W18W1_AL),
             "se": _off(
                 _off(_W2W5_REF, {"neg": {"const": "IW3_DIST_W2W5"}}, _W18W1_AL),
@@ -1789,6 +1841,9 @@ def get_iw_formulas():
         # NW = line_isect(SW, w18w1_in, IW1.SW, IW1_south_dir)
         "IW9": {
             "type": "four_corner",
+            "position_constant": "IW3_OFFSET_IW9",
+            "position_axis": "x",
+            "position_sign": 1,
             "sw": _off(
                 {"element": "IW3", "corner": "SE"},
                 {"neg": {"const": "IW3_OFFSET_IW9"}},
@@ -1836,6 +1891,10 @@ def get_iw_formulas():
         # NE = offset(SE, WALL_4IN, w18w1_in)
         "IW7": {
             "type": "four_corner",
+            "position_constant": "IW7_OFFSET_FROM_W18W1",
+            "position_axis": "y",
+            "position_sign": 1,
+            "span_constants": {"width": "IW3_OFFSET_IW9"},
             "sw": _off({"element": "IW3", "corner": "SE"},
                        {"const": "IW7_OFFSET_FROM_W18W1"}, _W18W1_IN),
             "se": _off({"element": "IW9", "corner": "SW"},
@@ -1862,6 +1921,9 @@ def get_iw_formulas():
         # iw11_nw = line_isect(iw11_sw, w18w1_in, iw1_sw, w9w10_al)
         "IW11": {
             "type": "four_corner",
+            "position_constant": "IW9_IW11_GAP",
+            "position_axis": "x",
+            "position_sign": 1,
             "sw": _off(
                 _off(_W2W5_REF,
                      {"neg": {"add": [{"const": "IW3_DIST_W2W5"},
@@ -1925,6 +1987,9 @@ def get_iw_formulas():
         # iw4_ne = line_isect(iw4_se, w18w1_in, IW12.NW, IW12_n_dir)
         "IW4": {
             "type": "four_corner",
+            "position_constant": "IW4_GAP_IW11",
+            "position_axis": "x",
+            "position_sign": 1,
             "sw": _off({"element": "IW11", "corner": "SE"},
                        {"neg": {"const": "IW4_GAP_IW11"}}, _W18W1_AL),
             "se": _off(
@@ -1956,6 +2021,10 @@ def get_iw_formulas():
         # IW4.SW = offset(IW11.SE, -IW4_GAP_IW11, w18w1_al)
         "IW12": {
             "type": "four_corner",
+            "position_constant": "IW12_S_OFFSET_W18W1",
+            "position_axis": "y",
+            "position_sign": 1,
+            "span_constants": {"width": "IW4_GAP_IW11"},
             "sw": _li(
                 _off("W18", {"const": "IW12_S_OFFSET_W18W1"}, _W18W1_IN),
                 {"neg": _W18W1_AL},
@@ -1998,6 +2067,10 @@ def get_iw_formulas():
         # iw2_ne = offset(iw2_se, IW2_LENGTH, w2w5_al)
         "IW2": {
             "type": "four_corner",
+            "position_constant": "IW2_DIST_W2W5",
+            "position_axis": "x",
+            "position_sign": 1,
+            "span_constants": {"height": "IW2_LENGTH"},
             "sw": _li(_IW2_W_ANCHOR, _W2W5_AL,
                       {"element": "IW1", "corner": "NW"}, _W9W10_AL),
             "se": _li(
@@ -2029,6 +2102,10 @@ def get_iw_formulas():
         # iw2s_se = offset(iw2s_ne, -IW2S_LENGTH, _iw_al)
         "IW2S": {
             "type": "four_corner",
+            "position_constant": "IW2S_W2REF_OFFSET",
+            "position_axis": "x",
+            "position_sign": 1,
+            "span_constants": {"height": "IW2S_LENGTH"},
             "nw": _li(_IW2S_W_ANCHOR, _IW_AL, "W6", _W6W7_AL),
             "ne": _li(
                 _off(_IW_W2_REF,
@@ -2052,6 +2129,7 @@ def get_iw_formulas():
         },
 
         # --- IW2O: oblique connector from IW2 north to IW2S south ---
+        # Not directly movable (position_constant omitted)
         # Midpoints of IW2 north face and IW2S south face
         # _iw2_n_mid = midpoint(IW2.NW, IW2.NE)
         # _iw2s_s_mid = midpoint(IW2S.SW, IW2S.SE)
@@ -2114,6 +2192,7 @@ def get_iw_formulas():
         },
 
         # --- IW8: perpendicular to W2-W5, centered between W18-W1 and W6-W7 ---
+        # Not directly movable (derived from building geometry, position_constant omitted)
         # _d = proj(W6, W1, w18w1_in)  → distance W1 to W6 along w18w1_in
         # _mid = d / 2
         # _iw8_s_anchor = offset(W18, _mid - WALL_6IN/2, w18w1_in)
@@ -2156,7 +2235,7 @@ def get_iw_formulas():
             ),
         },
 
-        # --- IW5: S face 30" south of IW1 S face ---
+        # --- IW5: S face IW5_S_OFFSET south of IW1 S face ---
         # _iw5_s_anchor = offset(IW1.SW, IW5_S_OFFSET, w9w10_in)
         # _iw5_n_anchor = offset(_s_anchor, -WALL_3IN, w9w10_in)
         # iw5_ne = offset(_n_anchor, proj(W15, _n_anchor, w9w10_al), w9w10_al)
@@ -2165,6 +2244,9 @@ def get_iw_formulas():
         # iw5_sw = line_isect(_s_anchor, w9w10_al, IW11.SE, w18w1_in)
         "IW5": {
             "type": "four_corner",
+            "position_constant": "IW5_S_OFFSET_FROM_IW1",
+            "position_axis": "y",
+            "position_sign": -1,
             "sw": _li(
                 _off({"element": "IW1", "corner": "SW"},
                      {"const": "IW5_S_OFFSET_FROM_IW1"}, _W9W10_IN),
@@ -2206,6 +2288,9 @@ def get_iw_formulas():
         # iw6_sw = line_poly_isect(_s_anchor, -w6w7_al, inner_poly)
         "IW6": {
             "type": "four_corner",
+            "position_constant": "IW6_OFFSET_FROM_W6",
+            "position_axis": "y",
+            "position_sign": -1,
             "ne": _li(
                 _off("W6", {"const": "IW6_OFFSET_FROM_W6"}, _W6W7_IN),
                 _W6W7_AL,
