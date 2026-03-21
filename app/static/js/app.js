@@ -2037,6 +2037,10 @@ async function showProperties(type, name, data) {
         addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
+    // Formula section for user-created (wall_opening formula) openings
+    if (type === "rough_opening" && data.name) {
+      await addFormulaSection(tbody, data.name);
+    }
     // Delete button for openings
     addOpeningDeleteButton(tbody, data.name);
   } else if (type === "appliance" || type === "furniture" || type === "fixture") {
@@ -3080,13 +3084,17 @@ async function addFormulaSection(tbody, elemName) {
       const rebaseTd = document.createElement("td");
       const rebaseBtn = document.createElement("button");
       rebaseBtn.className = "prop-btn";
-      rebaseBtn.textContent = "Rebase\u2026";
-      rebaseBtn.title = "Change which elements this formula depends on, with cycle detection and resolution";
+      rebaseBtn.textContent = fj.type === "wall_opening" ? "Edit Position\u2026" : "Rebase\u2026";
+      rebaseBtn.title = fj.type === "wall_opening"
+        ? "Edit opening gap, width, and end reference"
+        : "Change which elements this formula depends on, with cycle detection and resolution";
       rebaseBtn.addEventListener("click", () => {
         if (fj.type === "item_rect") {
           showPlacementWizard(elemName, f.param_name, fj, f.variant ?? null);
         } else if (fj.type === "wall_rect") {
           showWallPlacementWizard(elemName, f.param_name, fj, f.variant ?? null);
+        } else if (fj.type === "wall_opening") {
+          showOpeningPositionWizard(elemName, f.param_name, fj, f.variant ?? null);
         } else {
           showRebaseDialog(elemName, f.param_name, fj, f.variant ?? null);
         }
@@ -3700,6 +3708,102 @@ function showWallSetupWizard() {
       await reloadAfterChange();
       if (data.name) selectElement("wall", data.name, {});
     } catch (err) { showToast(err.message || "Failed to create wall", "error"); }
+  });
+}
+
+/**
+ * Position wizard for wall_opening formulas.
+ *
+ * Edits gap (distance from chosen end of host wall), width, and from_end.
+ * Preserves all other formula fields (outer_start/end, inner_start/end, poly_order).
+ */
+function showOpeningPositionWizard(elemName, paramName, currentFormula, variant) {
+  const hostWall = currentFormula.outer_start?.element ?? currentFormula.outer_end?.element ?? "?";
+
+  // Decode current values
+  function splitFtIn(ft) {
+    const feet = Math.floor(ft);
+    const inches = Math.round((ft - feet) * 12 * 100) / 100;
+    return { feet, inches };
+  }
+  const curGap = currentFormula.gap ?? 0;
+  const curWidth = currentFormula.width ?? (32 / 12);
+  const curFromEnd = currentFormula.from_end ?? false;
+
+  const gapFI = splitFtIn(curGap);
+  const widFI = splitFtIn(curWidth);
+
+  // Build modal
+  const overlay = document.createElement("div");
+  overlay.className = "rebase-modal-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:center;justify-content:center;";
+
+  const dlg = document.createElement("div");
+  dlg.className = "rebase-modal";
+  dlg.style.cssText = "background:var(--mantle,#1e1e2e);border:1px solid var(--surface2,#585b70);border-radius:6px;padding:1.2rem 1.5rem;min-width:320px;max-width:420px;";
+
+  dlg.innerHTML = `
+    <h3 style="margin:0 0 1rem;font-size:1rem;">Edit Opening Position — ${elemName}</h3>
+    <table class="prop-table" style="width:100%;">
+      <tr><td style="padding:2px 6px;">Host wall</td><td style="padding:2px 6px;"><strong>${hostWall}</strong></td></tr>
+      <tr><td style="padding:4px 6px 2px;">Measure from</td>
+          <td style="padding:4px 6px 2px;">
+            <label style="margin-right:1rem;cursor:pointer;"><input type="radio" name="opw-end" value="near" ${!curFromEnd ? "checked" : ""}> Near end</label>
+            <label style="cursor:pointer;"><input type="radio" name="opw-end" value="far" ${curFromEnd ? "checked" : ""}> Far end</label>
+          </td></tr>
+      <tr><td style="padding:2px 6px;">Gap</td>
+          <td style="padding:2px 6px;">
+            <input id="opw-gap-ft" type="number" min="0" value="${gapFI.feet}" style="width:3.5rem;"> ft
+            <input id="opw-gap-in" type="number" min="0" max="11.99" step="0.25" value="${gapFI.inches}" style="width:4rem;margin-left:4px;"> in
+          </td></tr>
+      <tr><td style="padding:2px 6px;">Width</td>
+          <td style="padding:2px 6px;">
+            <input id="opw-wid-ft" type="number" min="0" value="${widFI.feet}" style="width:3.5rem;"> ft
+            <input id="opw-wid-in" type="number" min="0" max="11.99" step="0.25" value="${widFI.inches}" style="width:4rem;margin-left:4px;"> in
+          </td></tr>
+    </table>
+    <div style="display:flex;gap:0.6rem;justify-content:flex-end;margin-top:1rem;">
+      <button id="opw-cancel" class="prop-btn">Cancel</button>
+      <button id="opw-apply" class="prop-btn" style="background:var(--blue,#89b4fa);color:#1e1e2e;">Apply</button>
+    </div>`;
+
+  overlay.appendChild(dlg);
+  document.body.appendChild(overlay);
+
+  dlg.querySelector("#opw-cancel").addEventListener("click", () => document.body.removeChild(overlay));
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) document.body.removeChild(overlay); });
+
+  dlg.querySelector("#opw-apply").addEventListener("click", async () => {
+    const fromEnd = dlg.querySelector("input[name='opw-end']:checked")?.value === "far";
+    const gapFt = parseFloat(dlg.querySelector("#opw-gap-ft").value) || 0;
+    const gapIn = parseFloat(dlg.querySelector("#opw-gap-in").value) || 0;
+    const widFt = parseFloat(dlg.querySelector("#opw-wid-ft").value) || 0;
+    const widIn = parseFloat(dlg.querySelector("#opw-wid-in").value) || 0;
+    const gap = gapFt + gapIn / 12;
+    const width = widFt + widIn / 12;
+    if (width <= 0) { showToast("Width must be positive", "error"); return; }
+
+    const newFormula = { ...currentFormula, gap, width, from_end: fromEnd };
+
+    try {
+      const resp = await apiFetch(
+        `/api/formulas/${encodeURIComponent(elemName)}/${encodeURIComponent(paramName)}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ formula: newFormula, variant }) },
+      );
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        showToast(err.error || "Failed to update formula", "error");
+        return;
+      }
+      document.body.removeChild(overlay);
+      showToast(`Updated ${elemName} position`, "success");
+      await reloadAfterChange();
+      if (App.state.selection?.name === elemName)
+        showProperties(App.state.selection.type, elemName, App.state.selection.data);
+    } catch (err) {
+      showToast(err.message || "Error", "error");
+    }
   });
 }
 
