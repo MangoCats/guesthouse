@@ -7280,18 +7280,6 @@ function findNearestWall(wx, wy) {
   return bestDist < 0.5 ? bestWall : null;
 }
 
-function nextOpeningName() {
-  const elements = App.state.elements || [];
-  let max = 0;
-  for (const e of elements) {
-    if (e.type === "opening" && e.name && e.name.startsWith("UO")) {
-      const n = parseInt(e.name.slice(2), 10);
-      if (n > max) max = n;
-    }
-  }
-  return `UO${max + 1}`;
-}
-
 function openingToolMouseDown(e) {
   const [wx, wy] = mouseToWorld(e);
   const wall = findNearestWall(wx, wy);
@@ -7299,33 +7287,39 @@ function openingToolMouseDown(e) {
     showToast("No wall found near click", "warning");
     return;
   }
-  const defName = nextOpeningName();
+  // Compute gap = distance from SW (poly[0]) along SW→SE to click point
+  let gap = 0;
+  const poly = App.state.geometry?.interior_walls?.[wall.name]?.poly;
+  if (poly && poly.length >= 2) {
+    const [sx, sy] = poly[0], [ex, ey] = poly[1];
+    const len = Math.sqrt((ex - sx) ** 2 + (ey - sy) ** 2);
+    if (len > 1e-9) {
+      const ux = (ex - sx) / len, uy = (ey - sy) / len;
+      gap = Math.max(0, Math.min(len - 0.01, (wx - sx) * ux + (wy - sy) * uy));
+    }
+  }
   const defWidth = fmtFtIn(OpeningTool.defaultWidth);
   Dialog.show({
-    title: "Add Opening",
+    title: `Add Opening on ${wall.name}`,
     fields: [
-      { label: "Name", name: "name", value: defName },
       { label: "Width", name: "width", value: defWidth },
     ],
     async onSubmit(values) {
       const width = parseDimension(values.width);
       if (!width || width <= 0) { showToast("Invalid width", "error"); return; }
-      const name = values.name.trim() || defName;
       try {
         const resp = await apiFetch("/api/openings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name,
-            segment: wall.name,
+            wall: wall.name,
+            gap,
             width,
-            offset: 0,
-            host_wall: wall.name,
             variant: App.state.variant,
           }),
         });
-        if (!resp.ok) throw new Error((await resp.json()).error);
-        showToast(`Created opening ${name} on ${wall.name}`, "success");
+        const result = await resp.json();
+        showToast(`Created ${result.name} on ${wall.name}`, "success");
         OpeningTool.active = false;
         App.els["viewport"].style.cursor = "crosshair";
         await reloadAfterChange();

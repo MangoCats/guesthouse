@@ -660,6 +660,63 @@ def create_iw_element(conn, formula, variant=None):
     return name, dict(row)
 
 
+def _next_ro_name(conn):
+    """Return the next unused RO{N} name (pure numeric suffix, guaranteed ≥ RO8)."""
+    rows = conn.execute(
+        "SELECT name FROM elements WHERE type='opening' AND name GLOB 'RO[0-9]*'"
+    ).fetchall()
+    nums = []
+    for r in rows:
+        m = re.match(r"^RO(\d+)$", r["name"])
+        if m:
+            nums.append(int(m.group(1)))
+    return f"RO{max(nums, default=7) + 1}"
+
+
+def create_ro_element(conn, wall_name, gap, width, orientation, variant=None):
+    """Create a new user RO opening element with wall_opening formula and deps.
+
+    The opening is positioned at *gap* feet from the SW end of *wall_name*,
+    spanning *width* feet along the wall.  Returns (name, row_dict).
+    """
+    from app.evaluator import extract_deps
+    name = _next_ro_name(conn)
+    props = json.dumps({
+        "wall_name": wall_name,
+        "orientation": orientation,
+        "host_wall": wall_name,       # required for cascade-delete
+    })
+    conn.execute(
+        "INSERT INTO elements (type, name, properties, variant) VALUES ('opening', ?, ?, ?)",
+        (name, props, variant),
+    )
+    formula = {
+        "type": "wall_opening",
+        "outer_start": {"element": wall_name, "corner": "SW"},
+        "outer_end":   {"element": wall_name, "corner": "SE"},
+        "inner_start": {"element": wall_name, "corner": "NW"},
+        "inner_end":   {"element": wall_name, "corner": "NE"},
+        "from_end": False,
+        "gap": gap,
+        "width": width,
+        "poly_order": "face_pair",
+    }
+    fj = json.dumps(formula)
+    conn.execute(
+        "INSERT INTO element_formulas (element_name, param_name, formula_json, variant) "
+        "VALUES (?, 'position', ?, NULL)",
+        (name, fj),
+    )
+    for dep_type, dep_name in extract_deps(formula):
+        conn.execute(
+            "INSERT OR IGNORE INTO formula_deps "
+            "(element_name, param_name, dep_type, dep_name) VALUES (?, 'position', ?, ?)",
+            (name, dep_type, dep_name),
+        )
+    row = conn.execute("SELECT * FROM elements WHERE name=?", (name,)).fetchone()
+    return name, dict(row)
+
+
 # ---------------------------------------------------------------------------
 # Seed: constants from floorplan/constants.py
 # ---------------------------------------------------------------------------

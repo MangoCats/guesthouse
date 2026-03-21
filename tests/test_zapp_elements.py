@@ -217,17 +217,26 @@ class TestAPI22DeleteElement:
 
 # ── API-24: POST /api/openings ────────────────────────────────────────
 
+def _make_test_iw(app_client, name="TWALL"):
+    """Create a minimal IW wall element for use in opening tests."""
+    resp = app_client.post("/api/elements", json={"type": "wall", "name": name})
+    assert resp.status_code == 201
+    return name
+
+
 class TestAPI24CreateOpening:
-    """API-24: POST /api/openings SHALL create a new opening."""
+    """API-24: POST /api/openings SHALL create a new opening on an IW wall."""
 
     def test_create_opening_201(self, app_client):
+        wall = _make_test_iw(app_client, "TW_24A")
         resp = app_client.post("/api/openings", json={
-            "name": "O_TEST", "segment": "F18-F1", "width": 19, "offset": 48,
+            "wall": wall, "width": 19, "gap": 0.5,
         })
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["type"] == "opening"
-        assert data["name"] == "O_TEST"
+        import re
+        assert re.match(r"^RO\d+$", data["name"])
 
     def test_create_opening_missing_segment_400(self, app_client):
         resp = app_client.post("/api/openings", json={"name": "X"})
@@ -240,10 +249,11 @@ class TestAPI25UpdateOpening:
     """API-25: PUT /api/openings/<name> SHALL update opening properties."""
 
     def test_update_opening_width(self, app_client):
-        app_client.post("/api/openings", json={
-            "name": "TEST_O", "segment": "F1-F2", "width": 20,
-        })
-        resp = app_client.put("/api/openings/TEST_O", json={"width": 25})
+        wall = _make_test_iw(app_client, "TW_25A")
+        cr = app_client.post("/api/openings", json={"wall": wall, "width": 20, "gap": 0.5})
+        assert cr.status_code == 201
+        oname = cr.get_json()["name"]
+        resp = app_client.put(f"/api/openings/{oname}", json={"width": 25})
         assert resp.status_code == 200
         props = json.loads(resp.get_json()["properties"])
         assert props["width"] == 25
@@ -255,26 +265,28 @@ class TestAPI26DeleteOpening:
     """API-26: DELETE /api/openings/<name> SHALL remove opening and door."""
 
     def test_delete_opening_200(self, app_client):
-        app_client.post("/api/openings", json={
-            "name": "DEL_O", "segment": "F1-F2", "width": 20,
-        })
-        resp = app_client.delete("/api/openings/DEL_O")
+        wall = _make_test_iw(app_client, "TW_26A")
+        cr = app_client.post("/api/openings", json={"wall": wall, "width": 20, "gap": 0.5})
+        assert cr.status_code == 201
+        oname = cr.get_json()["name"]
+        resp = app_client.delete(f"/api/openings/{oname}")
         assert resp.status_code == 200
 
     def test_delete_opening_removes_door(self, app_client):
-        app_client.post("/api/openings", json={
-            "name": "DOOR_O", "segment": "F1-F2", "width": 20,
-        })
+        wall = _make_test_iw(app_client, "TW_26B")
+        cr = app_client.post("/api/openings", json={"wall": wall, "width": 20, "gap": 0.5})
+        assert cr.status_code == 201
+        oname = cr.get_json()["name"]
         app_client.post("/api/doors", json={
-            "opening": "DOOR_O", "hinge_side": "east",
+            "opening": oname, "hinge_side": "east",
             "swing_direction": "south", "width": 36,
         })
-        resp = app_client.delete("/api/openings/DOOR_O")
+        resp = app_client.delete(f"/api/openings/{oname}")
         assert resp.status_code == 200
         # Door should be gone
         door_resp = app_client.get("/api/doors")
         doors = door_resp.get_json()
-        assert not any(d["opening_name"] == "DOOR_O" for d in doors)
+        assert not any(d["opening_name"] == oname for d in doors)
 
 
 # ── Undo integration (UNDO-4) ────────────────────────────────────────

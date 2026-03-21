@@ -24,6 +24,7 @@ from app.database import (
     get_categories, get_outline_chain, get_views, reset_constants,
     get_all_elements, get_element, get_element_by_name,
     create_element, update_element, delete_element, create_iw_element,
+    create_ro_element,
     get_all_doors, get_door, create_door, update_door, delete_door,
     get_outline_chain_row, update_outline_segment, insert_outline_segment,
     delete_outline_segment, restore_outline_chain, reset_outline_chain,
@@ -1069,28 +1070,35 @@ def create_app(db_path=None):
     @app.route("/api/openings", methods=["POST"])
     def api_create_opening():
         body = request.get_json(force=True)
-        name = body.get("name")
-        segment = body.get("segment")
-        if not name or not segment:
-            return jsonify({"error": "missing name or segment"}), 400
-        properties = {
-            "segment": segment,
-            "width": body.get("width", 0),
-            "offset": body.get("offset", 0),
-            "host_wall": body.get("host_wall"),
-        }
+        # Accept "wall" (preferred) or legacy "segment"/"host_wall"
+        wall_name = body.get("wall") or body.get("segment") or body.get("host_wall")
+        if not wall_name:
+            return jsonify({"error": "missing wall name (wall/segment/host_wall)"}), 400
+        width = body.get("width")
+        if not width or width <= 0:
+            return jsonify({"error": "missing or invalid width"}), 400
+        gap = body.get("gap") or body.get("offset") or 0
         variant = body.get("variant")
-        try:
-            record = create_element("opening", name, properties, variant, db)
-        except Exception as exc:
-            return jsonify({"error": str(exc)}), 400
+        # Derive orientation from the wall element's stored properties
+        with get_db(db) as conn:
+            wall_row = conn.execute(
+                "SELECT properties FROM elements WHERE name=? AND type='wall'",
+                (wall_name,),
+            ).fetchone()
+        if not wall_row:
+            return jsonify({"error": f"wall '{wall_name}' not found"}), 400
+        wprops = json.loads(wall_row["properties"]) if isinstance(wall_row["properties"], str) \
+                 else (wall_row["properties"] or {})
+        orientation = wprops.get("orientation", "H")
+        with get_db(db) as conn:
+            name, rec = create_ro_element(conn, wall_name, gap, width, orientation, variant)
         undo_mgr.record(
-            "opening_create", record, record,
+            "element_create", {"id": rec["id"]}, rec,
             f"Create opening {name}",
         )
-        _broadcast("element_changed")
         _invalidate()
-        return jsonify(record), 201
+        _broadcast("element_changed")
+        return jsonify(dict(rec)), 201
 
     @app.route("/api/openings/<name>", methods=["PUT"])
     def api_update_opening(name):

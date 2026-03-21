@@ -3,6 +3,7 @@
 Covers: DT-7, SEL-10, TL-22, TL-23, SEL-4, TL-15–27.
 """
 import json
+import re
 
 import pytest
 
@@ -666,55 +667,85 @@ class TestTL21AddOpening:
         assert resp.status_code == 201
         return resp.get_json()
 
-    def test_create_opening_on_wall(self, app_client):
-        """POST opening with host_wall creates opening element."""
-        wall = self._create_user_iw_wall(app_client)
-        host = wall["name"]
-        resp = app_client.post("/api/openings", json={
-            "name": "UO1",
-            "segment": host,
-            "width": 32.0 / 12,
-            "offset": 0,
-            "host_wall": host,
+    def _create_opening(self, client, wall_name, width=32.0/12, gap=0.5):
+        """Create a user RO opening on a wall via POST /api/openings."""
+        return client.post("/api/openings", json={
+            "wall": wall_name,
+            "gap": gap,
+            "width": width,
         })
+
+    def test_create_opening_on_wall(self, app_client):
+        """POST opening creates an RO-named formula-based opening element."""
+        wall = self._create_user_iw_wall(app_client)
+        resp = self._create_opening(app_client, wall["name"])
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["type"] == "opening"
-        assert data["name"] == "UO1"
+        assert re.match(r"^RO\d+$", data["name"]), f"expected RO{{N}}, got {data['name']}"
+
+    def test_opening_auto_names_sequentially(self, app_client):
+        """Two openings on the same wall get consecutive RO numbers."""
+        wall = self._create_user_iw_wall(app_client)
+        r1 = self._create_opening(app_client, wall["name"], gap=0.5).get_json()
+        r2 = self._create_opening(app_client, wall["name"], gap=2.0).get_json()
+        n1 = int(r1["name"][2:])
+        n2 = int(r2["name"][2:])
+        assert n2 == n1 + 1
 
     def test_opening_host_wall_reference(self, app_client):
-        """Created opening has correct host_wall in properties."""
+        """Created opening has host_wall in properties for cascade-delete."""
         wall = self._create_user_iw_wall(app_client)
         host = wall["name"]
-        resp = app_client.post("/api/openings", json={
-            "name": "UO2",
-            "segment": host,
-            "width": 24.0 / 12,
-            "host_wall": host,
-        })
-        data = resp.get_json()
+        data = self._create_opening(app_client, host).get_json()
         props = json.loads(data["properties"]) if isinstance(data["properties"], str) else data["properties"]
         assert props["host_wall"] == host
+        assert props["wall_name"] == host
+
+    def test_opening_has_formula(self, app_client):
+        """Created opening stores a wall_opening formula with correct element refs."""
+        wall = self._create_user_iw_wall(app_client)
+        host = wall["name"]
+        data = self._create_opening(app_client, host, width=2.667, gap=1.0).get_json()
+        name = data["name"]
+        resp = app_client.get(f"/api/formulas/{name}")
+        assert resp.status_code == 200
+        formulas = resp.get_json()
+        pos = next((f for f in formulas if f["param_name"] == "position"), None)
+        assert pos is not None
+        fj = pos["formula_json"]
+        if isinstance(fj, str):
+            import json as _json; fj = _json.loads(fj)
+        assert fj["type"] == "wall_opening"
+        assert fj["outer_start"]["element"] == host
+        assert abs(fj["gap"] - 1.0) < 1e-9
+        assert abs(fj["width"] - 2.667) < 1e-6
+
+    def test_opening_appears_in_geometry(self, app_client):
+        """Created RO opening appears in /api/geometry rough_openings list."""
+        wall = self._create_user_iw_wall(app_client)
+        host = wall["name"]
+        data = self._create_opening(app_client, host, width=2.0, gap=1.0).get_json()
+        name = data["name"]
+        geom = app_client.get("/api/geometry").get_json()
+        ro_names = [r["name"] for r in geom.get("rough_openings", [])]
+        assert name in ro_names, f"{name} not in rough_openings: {ro_names}"
 
     def test_delete_host_wall_cascades_opening(self, app_client):
         """Deleting wall cascades to hosted openings."""
         wall = self._create_user_iw_wall(app_client)
         host = wall["name"]
-        app_client.post("/api/openings", json={
-            "name": "UO3",
-            "segment": host,
-            "width": 24.0 / 12,
-            "host_wall": host,
-        })
+        opening = self._create_opening(app_client, host).get_json()
+        ro_name = opening["name"]
         # Verify opening exists
         elems = app_client.get("/api/elements").get_json()
-        assert any(e["name"] == "UO3" for e in elems)
+        assert any(e["name"] == ro_name for e in elems)
         # Delete the wall
         resp = app_client.delete(f"/api/elements/{wall['id']}")
         assert resp.status_code == 200
         # Opening should be gone too
         elems = app_client.get("/api/elements").get_json()
-        assert not any(e["name"] == "UO3" for e in elems)
+        assert not any(e["name"] == ro_name for e in elems)
 
 
 # =========================================================================
