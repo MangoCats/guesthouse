@@ -3517,9 +3517,13 @@ function showWallSetupWizard() {
   const namedPoints = [];
   const geom = App.state.geometry;
   if (geom && geom.points) {
-    for (const name of Object.keys(geom.points).sort()) {
-      if (/^(W|F)\d/.test(name)) namedPoints.push(name);
-    }
+    const re = /^([A-Za-z]+)(\d*)(.*)/;
+    const sorted = Object.keys(geom.points).filter(n => /^(W|F)\d/.test(n)).sort((a, b) => {
+      const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
+      const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
+      return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
+    });
+    namedPoints.push(...sorted);
   }
   if (!namedPoints.length) {
     namedPoints.push("W1", "W2", "W5", "W6", "W7", "W9", "W11", "W12", "W18");
