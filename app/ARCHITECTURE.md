@@ -454,7 +454,8 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | POST | `/api/elements` | Create element (API-20) |
 | PUT | `/api/elements/<id>` | Update element (API-21) |
 | DELETE | `/api/elements/<id>` | Delete element + cascade (API-22) |
-| POST | `/api/elements/<id>/move` | Move element: constant-based (IW) or offset (API-23) |
+| POST | `/api/elements/<id>/move` | Move element: constant-based (seeded IW), anchor-translation (user IW), or offset (API-23) |
+| POST | `/api/interior-walls` | Create user IW wall with `wall_rect` formula; auto-names IW13, IW14… |
 | GET | `/api/version` | Server git describe + start time |
 | POST | `/api/openings` | Create opening (API-24) |
 | PUT | `/api/openings/<name>` | Update opening (API-25) |
@@ -622,9 +623,9 @@ Generic modal dialog system.
 | `Dialog.close()` | Remove overlay |
 | `parseOffsetString(str)` | Parse "6in east" → `{dx, dy}` in feet |
 
-### app/static/js/tools.js — Move & Draw Tools
+### app/static/js/tools.js — Move Tools
 
-Client-side move tool, draw wall tool, and shared utilities.
+Client-side move tool and shared utilities.
 
 | Object/Function | Purpose |
 |-----------------|---------|
@@ -635,11 +636,6 @@ Client-side move tool, draw wall tool, and shared utilities.
 | `commitMove(targets, dx, dy)` | POST move for each target; auto-create override for furniture |
 | `showOffsetDialog()` | Show offset dialog (Enter key trigger) |
 | `findElementRecord(type, name)` | Look up DB record from App.state.elements |
-| `DrawWallTool` | State machine: start point, preview line, default thickness |
-| `drawWallMouseDown/Move` | Two-click wall drawing handlers |
-| `createDrawnWall(start, end)` | POST drawn wall element with computed polygon |
-| `wallPoly(start, end, thickness)` | Compute rectangle polygon from centerline |
-| `cancelDrawWall()` | Reset draw tool state |
 
 ### app/static/js/catalog.js — Catalog & Placement Tool
 

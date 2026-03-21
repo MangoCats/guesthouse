@@ -941,21 +941,6 @@ function renderInteriorWalls(g) {
     el.addEventListener("click", (e) => selectElement("wall", name, wall, e));
     layer.appendChild(el);
   }
-  // Render custom drawn walls from elements
-  for (const elem of (App.state.elements || [])) {
-    const props = typeof elem.properties === "string"
-      ? JSON.parse(elem.properties) : elem.properties;
-    if (elem.type === "wall" && props && props.source === "drawn" && props.poly) {
-      const el = svgEl("polygon", {
-        points: polyToStr(props.poly),
-        class: "wall-fill selectable",
-        "data-type": "wall",
-        "data-name": elem.name,
-      });
-      el.addEventListener("click", (e) => selectElement("wall", elem.name, { poly: props.poly, ...props }, e));
-      layer.appendChild(el);
-    }
-  }
 }
 
 function renderOpenings(g) {
@@ -1982,64 +1967,10 @@ async function showProperties(type, name, data) {
     addPropRow(tbody, "Easting", fmtFtIn(data.pos[0]));
     addPropRow(tbody, "Northing", fmtFtIn(data.pos[1]));
   } else if (type === "wall") {
-    // Check if this is a drawn wall
+    // All IW walls use the formula-based properties panel
     const elemRec = (App.state.elements || []).find(e => e.name === name);
     const props = elemRec ? parseProps(elemRec) : null;
-    if (props && props.source === "drawn") {
-      // TL-16: Drawn wall — show editable properties
-      addPropRow(tbody, "Source", "drawn");
-      if (props.start) addPropRow(tbody, "Start", `${fmtFtIn(props.start[0])}, ${fmtFtIn(props.start[1])}`);
-      if (props.end) addPropRow(tbody, "End", `${fmtFtIn(props.end[0])}, ${fmtFtIn(props.end[1])}`);
-
-      // Helper: update wall properties and reload
-      const updateWall = async (newProps) => {
-        newProps.poly = wallPoly(newProps.start, newProps.end, newProps.thickness);
-        if (!newProps.poly) return;
-        await fetch(`/api/elements/${elemRec.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ properties: newProps }),
-        });
-        await reloadAfterChange();
-      };
-
-      // Editable thickness
-      makeDimRow(tbody, "Thickness", fmtFtIn(props.thickness || 4.0 / 12.0), (v) => {
-        updateWall({ ...props, thickness: v });
-      });
-
-      // Editable length
-      const curLen = Math.hypot(props.end[0] - props.start[0], props.end[1] - props.start[1]);
-      makeDimRow(tbody, "Length", fmtFtIn(curLen), (newLen) => {
-        const mx = (props.start[0] + props.end[0]) / 2;
-        const my = (props.start[1] + props.end[1]) / 2;
-        const dx = props.end[0] - props.start[0];
-        const dy = props.end[1] - props.start[1];
-        const len = Math.hypot(dx, dy) || 1e-9;
-        const ux = dx / len, uy = dy / len;
-        const half = newLen / 2;
-        updateWall({ ...props,
-          start: [mx - half * ux, my - half * uy],
-          end:   [mx + half * ux, my + half * uy],
-        });
-      });
-
-      // Editable orientation (degrees, 0=east, 90=north)
-      const curAngle = Math.atan2(props.end[1] - props.start[1], props.end[0] - props.start[0]) * 180 / Math.PI;
-      makeAngleRow(tbody, "Orientation", String(Math.round(curAngle * 100) / 100), (deg) => {
-        const mx = (props.start[0] + props.end[0]) / 2;
-        const my = (props.start[1] + props.end[1]) / 2;
-        const half = curLen / 2;
-        const rad = deg * Math.PI / 180;
-        updateWall({ ...props,
-          start: [mx - half * Math.cos(rad), my - half * Math.sin(rad)],
-          end:   [mx + half * Math.cos(rad), my + half * Math.sin(rad)],
-        });
-      });
-
-      // TL-17: render endpoint drag handles
-      renderWallHandles(elemRec.id, props);
-    } else {
+    {
       const b = data.bbox;
       const propConsts = (props && props.prop_constants) || {};
       const shownConstNames = new Set(Object.values(propConsts));
@@ -2842,25 +2773,6 @@ function addWallActions(tbody, wallName, elemRec) {
   vTr.appendChild(vTd2);
   tbody.appendChild(vTr);
 
-  // Snap-to-face button (drawn walls only)
-  if (elemRec) {
-    const eProps = typeof elemRec.properties === "string"
-      ? JSON.parse(elemRec.properties) : elemRec.properties;
-    if (eProps && eProps.source === "drawn") {
-      const snapTr = document.createElement("tr");
-      const snapTd = document.createElement("td");
-      snapTd.colSpan = 2;
-      const snapBtn = document.createElement("button");
-      snapBtn.className = "dialog-btn-primary";
-      snapBtn.style.width = "100%";
-      snapBtn.style.marginTop = "4px";
-      snapBtn.textContent = "Move to face\u2026";
-      snapBtn.onclick = () => showSnapToFaceDialog(elemRec, eProps);
-      snapTd.appendChild(snapBtn);
-      snapTr.appendChild(snapTd);
-      tbody.appendChild(snapTr);
-    }
-  }
 
   // Delete button (uses shared helper with dependents check)
   if (elemRec) {
@@ -3591,6 +3503,197 @@ function showPlacementWizard(elemName, paramName, currentFormula, variant) {
     } finally {
       applyBtn.disabled = false; applyBtn.textContent = "Apply";
     }
+  });
+}
+
+/**
+ * Wall Setup Wizard — creates a new user IW wall via POST /api/interior-walls.
+ *
+ * Collects: anchor point, along direction, thickness, length.
+ * Builds a wall_rect formula and POSTs it to the server.
+ */
+function showWallSetupWizard() {
+  // Collect named points from geometry for dropdowns
+  const namedPoints = [];
+  const geom = App.state.geometry;
+  if (geom && geom.points) {
+    for (const name of Object.keys(geom.points).sort()) {
+      if (/^(W|F)\d/.test(name)) namedPoints.push(name);
+    }
+  }
+  if (!namedPoints.length) {
+    namedPoints.push("W1", "W2", "W5", "W6", "W7", "W9", "W11", "W12", "W18");
+  }
+  const ptOpts = namedPoints.map(p => `<option value="${p}">${p}</option>`).join("");
+
+  const overlay = document.createElement("div");
+  overlay.className = "config-modal-overlay";
+  const modal = document.createElement("div");
+  modal.className = "rebase-modal";
+  modal.style.maxWidth = "480px";
+  modal.innerHTML = `
+    <h3>Add Interior Wall</h3>
+    <table class="prop-table"><tbody>
+      <tr><th colspan="2" style="padding-top:6px">Anchor Point</th></tr>
+      <tr>
+        <td>Point</td>
+        <td><select id="wsw-anchor">${ptOpts}</select></td>
+      </tr>
+      <tr><th colspan="2" style="padding-top:6px">Along Direction</th></tr>
+      <tr>
+        <td colspan="2">
+          <label><input type="radio" name="wsw-along" value="segment" checked> Segment A→B</label>&nbsp;&nbsp;
+          <label><input type="radio" name="wsw-along" value="perp"> Perp to segment</label>&nbsp;&nbsp;
+          <label><input type="radio" name="wsw-along" value="bearing"> Bearing</label>
+        </td>
+      </tr>
+      <tr id="wsw-seg-row">
+        <td>From → To</td>
+        <td>
+          <select id="wsw-seg-a">${ptOpts}</select> →
+          <select id="wsw-seg-b">${ptOpts}</select>
+        </td>
+      </tr>
+      <tr id="wsw-bearing-row" style="display:none">
+        <td>Degrees</td>
+        <td><input id="wsw-bearing" type="number" value="0" style="width:72px"> ° (0=east, 90=north)</td>
+      </tr>
+      <tr><th colspan="2" style="padding-top:6px">Thickness</th></tr>
+      <tr>
+        <td colspan="2">
+          <label><input type="radio" name="wsw-thick" value="const" checked> Constant</label>&nbsp;&nbsp;
+          <label><input type="radio" name="wsw-thick" value="custom"> Custom inches</label>
+        </td>
+      </tr>
+      <tr id="wsw-thick-const-row">
+        <td>Constant</td>
+        <td><select id="wsw-thick-const">
+          <option value="WALL_4IN">WALL_4IN (4″)</option>
+          <option value="WALL_6IN">WALL_6IN (6″)</option>
+          <option value="WALL_8IN">WALL_8IN (8″)</option>
+        </select></td>
+      </tr>
+      <tr id="wsw-thick-custom-row" style="display:none">
+        <td>Inches</td>
+        <td><input id="wsw-thick-in" type="number" value="4" min="1" max="24" style="width:72px"> in</td>
+      </tr>
+      <tr><th colspan="2" style="padding-top:6px">Length</th></tr>
+      <tr>
+        <td colspan="2">
+          <label><input type="radio" name="wsw-len" value="fixed" checked> Fixed</label>&nbsp;&nbsp;
+          <label><input type="radio" name="wsw-len" value="intersect"> Extend to inner boundary</label>
+        </td>
+      </tr>
+      <tr id="wsw-len-fixed-row">
+        <td>Feet</td>
+        <td><input id="wsw-len-ft" type="number" value="8" min="0.1" step="0.1" style="width:72px"> ft</td>
+      </tr>
+    </tbody></table>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button id="wsw-cancel" class="dialog-btn">Cancel</button>
+      <button id="wsw-advanced" class="dialog-btn">Advanced…</button>
+      <button id="wsw-apply" class="dialog-btn dialog-btn-primary">Add Wall</button>
+    </div>`;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Set sensible defaults
+  const segA = modal.querySelector("#wsw-seg-a");
+  const segB = modal.querySelector("#wsw-seg-b");
+  if (namedPoints.includes("W1")) segA.value = "W1";
+  if (namedPoints.includes("W18")) segB.value = "W18";
+
+  // Show/hide rows based on radio selections
+  const segRow = modal.querySelector("#wsw-seg-row");
+  const bearingRow = modal.querySelector("#wsw-bearing-row");
+  modal.querySelectorAll('[name="wsw-along"]').forEach(r => {
+    r.addEventListener("change", () => {
+      const v = modal.querySelector('[name="wsw-along"]:checked').value;
+      segRow.style.display = (v === "segment" || v === "perp") ? "" : "none";
+      bearingRow.style.display = v === "bearing" ? "" : "none";
+    });
+  });
+
+  const thickConstRow = modal.querySelector("#wsw-thick-const-row");
+  const thickCustomRow = modal.querySelector("#wsw-thick-custom-row");
+  modal.querySelectorAll('[name="wsw-thick"]').forEach(r => {
+    r.addEventListener("change", () => {
+      const v = modal.querySelector('[name="wsw-thick"]:checked').value;
+      thickConstRow.style.display = v === "const" ? "" : "none";
+      thickCustomRow.style.display = v === "custom" ? "" : "none";
+    });
+  });
+
+  const lenFixedRow = modal.querySelector("#wsw-len-fixed-row");
+  modal.querySelectorAll('[name="wsw-len"]').forEach(r => {
+    r.addEventListener("change", () => {
+      const v = modal.querySelector('[name="wsw-len"]:checked').value;
+      lenFixedRow.style.display = v === "fixed" ? "" : "none";
+    });
+  });
+
+  function buildFormula() {
+    const anchor = modal.querySelector("#wsw-anchor").value;
+    const alongType = modal.querySelector('[name="wsw-along"]:checked').value;
+    let along, thickDir;
+    if (alongType === "segment") {
+      const a = segA.value, b = segB.value;
+      along = { segment: [a, b] };
+      thickDir = { perp: { segment: [a, b] } };
+    } else if (alongType === "perp") {
+      const a = segA.value, b = segB.value;
+      along = { perp: { segment: [a, b] } };
+      thickDir = { segment: [a, b] };
+    } else {
+      const deg = parseFloat(modal.querySelector("#wsw-bearing").value) || 0;
+      const rad = deg * Math.PI / 180;
+      along = [Math.cos(rad), Math.sin(rad)];
+      thickDir = [-Math.sin(rad), Math.cos(rad)];
+    }
+    const thickType = modal.querySelector('[name="wsw-thick"]:checked').value;
+    const thickness = thickType === "const"
+      ? { const: modal.querySelector("#wsw-thick-const").value }
+      : parseFloat(modal.querySelector("#wsw-thick-in").value) / 12.0;
+    const lenType = modal.querySelector('[name="wsw-len"]:checked').value;
+    const formula = { type: "wall_rect", anchor, along, thickness_dir: thickDir, thickness, end_mode: lenType };
+    if (lenType === "fixed") {
+      formula.length = parseFloat(modal.querySelector("#wsw-len-ft").value) || 8.0;
+    } else {
+      formula.end_target = "inner_poly";
+      formula.select = "nearest";
+    }
+    return formula;
+  }
+
+  modal.querySelector("#wsw-cancel").addEventListener("click", () => overlay.remove());
+
+  modal.querySelector("#wsw-advanced").addEventListener("click", async () => {
+    const formula = buildFormula();
+    overlay.remove();
+    try {
+      const data = await apiFetch("/api/interior-walls", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formula }),
+      });
+      await reloadAfterChange();
+      showToast(`Created ${data.name}`, "success");
+      showRebaseDialog(data.name, "position", formula, null);
+    } catch (err) { showToast(err.message || "Failed to create wall", "error"); }
+  });
+
+  modal.querySelector("#wsw-apply").addEventListener("click", async () => {
+    const formula = buildFormula();
+    try {
+      const data = await apiFetch("/api/interior-walls", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formula }),
+      });
+      overlay.remove();
+      showToast(`Created ${data.name}`, "success");
+      await reloadAfterChange();
+      if (data.name) selectElement("wall", data.name, {});
+    } catch (err) { showToast(err.message || "Failed to create wall", "error"); }
   });
 }
 
@@ -6390,8 +6493,6 @@ function onMouseDown(e) {
     }
   } else if (e.button === 0 && App.state.activeTool === "move") {
     moveToolMouseDown(e);
-  } else if (e.button === 0 && App.state.activeTool === "draw-wall") {
-    drawWallMouseDown(e);
   } else if (e.button === 0 && isPlumbingDrawTool(App.state.activeTool)) {
     const [wx, wy] = mouseToWorld(e);
     // Initialise draw state if starting
@@ -6458,11 +6559,6 @@ function onMouseMove(e) {
   if (MoveTool.active || MoveTool.pending) {
     moveToolMouseMove(e);
     return;
-  }
-
-  // Draw wall preview
-  if (App.state.activeTool === "draw-wall" && DrawWallTool.start) {
-    drawWallMouseMove(e);
   }
 
   // Plumbing draw rubber-band
@@ -6815,7 +6911,7 @@ function onKeyDown(e) {
     case "h": case "H": setTool("pan"); break;
     case "m": case "M": setTool("measure"); break;
     case "g": case "G": setTool("move"); break;
-    case "w": case "W": setTool("draw-wall"); break;
+    case "w": case "W": showWallSetupWizard(); break;
     case "d": setTool("dimension"); break;
     case "l": setTool("label"); break;
     case "r": case "R": showRotationDialog(); break;
@@ -6845,10 +6941,6 @@ function onKeyDown(e) {
         }
         MoveTool.active = false;
         MoveTool.origTransforms = [];
-        break;
-      }
-      if (DrawWallTool.start) {
-        cancelDrawWall();
         break;
       }
       if (DimTool.start) {
@@ -7109,17 +7201,6 @@ function findNearestWall(wx, wy) {
       const j = (i + 1) % poly.length;
       const d = distToSeg(wx, wy, poly[i][0], poly[i][1], poly[j][0], poly[j][1]);
       if (d < bestDist) { bestDist = d; bestWall = { name, type: "iw" }; }
-    }
-  }
-  // Drawn walls from elements
-  for (const elem of (App.state.elements || [])) {
-    const props = parseProps(elem);
-    if (elem.type === "wall" && props?.source === "drawn" && props.poly) {
-      for (let i = 0; i < props.poly.length; i++) {
-        const j = (i + 1) % props.poly.length;
-        const d = distToSeg(wx, wy, props.poly[i][0], props.poly[i][1], props.poly[j][0], props.poly[j][1]);
-        if (d < bestDist) { bestDist = d; bestWall = { name: elem.name, type: "drawn" }; }
-      }
     }
   }
   return bestDist < 0.5 ? bestWall : null;
@@ -7495,7 +7576,7 @@ function _faceEdge(poly, face) {
 }
 
 /** Show rotation dialog for selected element (TL-24, unified). */
-function showRotationDialog() {
+async function showRotationDialog() {
   const sel = App.state.selection;
   if (!sel) {
     showToast("Select an element first", "warning");
@@ -7510,10 +7591,62 @@ function showRotationDialog() {
   const props = typeof elemRec.properties === "string"
     ? JSON.parse(elemRec.properties) : elemRec.properties;
   const elemType = elemRec.type;
-  // Allow rotation for furniture, appliance, fixture, and drawn walls
-  if (!["furniture", "appliance", "fixture"].includes(elemType) &&
-      !(props && props.source === "drawn")) {
-    showToast("Rotation is available for furniture, appliances, and fixtures", "warning");
+
+  // Wall: fetch position formula, allow rotation only if along is a literal vector
+  if (elemType === "wall") {
+    let posFormula = null;
+    try {
+      const rows = await apiFetch(`/api/formulas/${encodeURIComponent(sel.name)}`);
+      const posRow = rows.find(r => r.param_name === "position");
+      if (posRow) {
+        posFormula = typeof posRow.formula_json === "string"
+          ? JSON.parse(posRow.formula_json) : posRow.formula_json;
+      }
+    } catch (_) {}
+    if (!posFormula || !Array.isArray(posFormula.along)) {
+      showToast("Use Wall Setup Wizard or Rebase to change wall direction", "info");
+      return;
+    }
+    const currentAngle = Math.atan2(posFormula.along[1], posFormula.along[0]) * 180 / Math.PI;
+    Dialog.show({
+      title: `Rotate ${sel.name}`,
+      fields: [
+        { label: "Angle (degrees)", name: "angle", value: String(Math.round(currentAngle * 10) / 10) },
+      ],
+      presetButtons: {
+        target: "angle",
+        values: [
+          { label: "0", value: "0" },
+          { label: "90", value: "90" },
+          { label: "180", value: "180" },
+          { label: "270", value: "270" },
+        ],
+      },
+      async onSubmit(values) {
+        const angle = parseFloat(values.angle);
+        if (isNaN(angle)) { showToast("Invalid angle", "error"); return; }
+        const rad = angle * Math.PI / 180;
+        const newFormula = {
+          ...posFormula,
+          along: [Math.cos(rad), Math.sin(rad)],
+          thickness_dir: [-Math.sin(rad), Math.cos(rad)],
+        };
+        try {
+          await apiFetch("/api/formulas-batch", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ updates: [{ element_name: sel.name, param_name: "position", formula: newFormula }] }),
+          });
+          await reloadAfterChange();
+          showToast(`Rotated ${sel.name} to ${angle}°`, "success");
+        } catch (err) { showToast(err.message || "Rotation failed", "error"); }
+      },
+    });
+    return;
+  }
+
+  // Allow rotation for furniture, appliance, fixture
+  if (!["furniture", "appliance", "fixture"].includes(elemType)) {
+    showToast("Rotation is available for furniture, appliances, fixtures, and walls with literal direction", "warning");
     return;
   }
 
@@ -7521,12 +7654,7 @@ function showRotationDialog() {
   const geom = App.state.geometry;
   const vi = geom ? (geom.variant_items || {}) : {};
   const itemGeom = vi[sel.name] || {};
-  let currentAngle;
-  if (props && props.source === "drawn" && props.start && props.end) {
-    currentAngle = Math.atan2(props.end[1] - props.start[1], props.end[0] - props.start[0]) * 180 / Math.PI;
-  } else {
-    currentAngle = itemGeom.rotation || (props && props.rotation) || 0;
-  }
+  const currentAngle = itemGeom.rotation || (props && props.rotation) || 0;
 
   Dialog.show({
     title: `Rotate ${sel.name}`,
@@ -7548,30 +7676,11 @@ function showRotationDialog() {
         showToast("Invalid angle", "error");
         return;
       }
-      // For drawn walls, rotate around midpoint by modifying start/end
-      if (props && props.source === "drawn" && props.start && props.end) {
-        const mx = (props.start[0] + props.end[0]) / 2;
-        const my = (props.start[1] + props.end[1]) / 2;
-        const half = Math.hypot(props.end[0] - props.start[0], props.end[1] - props.start[1]) / 2;
-        const rad = angle * Math.PI / 180;
-        const newStart = [mx - half * Math.cos(rad), my - half * Math.sin(rad)];
-        const newEnd = [mx + half * Math.cos(rad), my + half * Math.sin(rad)];
-        const newPoly = wallPoly(newStart, newEnd, props.thickness || 4.0 / 12);
-        if (!newPoly) return;
-        const newProps = { ...props, start: newStart, end: newEnd, poly: newPoly };
-        await fetch(`/api/elements/${elemRec.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ properties: newProps }),
-        });
-      } else {
-        // Use formula update endpoint for all items
-        await fetch(`/api/elements/${elemRec.id}/update-formula`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rotation_deg: angle, world_rotation: angle }),
-        });
-      }
+      await fetch(`/api/elements/${elemRec.id}/update-formula`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rotation_deg: angle, world_rotation: angle }),
+      });
       await reloadAfterChange();
       showToast(`Rotated ${sel.name} to ${angle}°`, "success");
     },
@@ -7617,14 +7726,13 @@ function setTool(tool) {
   });
   const cursors = {
     select: "crosshair", pan: "grab", measure: "crosshair",
-    move: "move", "draw-wall": "crosshair", dimension: "crosshair", label: "crosshair",
+    move: "move", dimension: "crosshair", label: "crosshair",
     "supply-cold": "crosshair", "supply-hot": "crosshair", drain: "crosshair",
     "place-fitting": "crosshair", "place-fixture": "crosshair",
   };
   App.els["viewport"].style.cursor = cursors[tool] || "crosshair";
 
   if (tool !== "measure") clearMeasure();
-  if (tool !== "draw-wall") cancelDrawWall();
   if (tool !== "dimension" && typeof cancelDimTool === "function") cancelDimTool();
   if (!isPlumbingDrawTool(tool)) cancelPlumbingDraw();
   cancelOpeningPlacement();

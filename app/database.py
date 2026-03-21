@@ -613,6 +613,53 @@ def _migrate_remove_drawn_walls(conn):
         conn.execute("DELETE FROM elements WHERE id=?", (eid,))
 
 
+def _next_iw_name(conn):
+    """Return the next unused IW{N} name (pure numeric suffix, guaranteed ≥ IW13)."""
+    rows = conn.execute(
+        "SELECT name FROM elements WHERE type='wall' AND name GLOB 'IW[0-9]*'"
+    ).fetchall()
+    nums = []
+    for r in rows:
+        m = re.match(r"^IW(\d+)$", r["name"])
+        if m:
+            nums.append(int(m.group(1)))
+    return f"IW{max(nums, default=12) + 1}"
+
+
+def create_iw_element(conn, formula, variant=None):
+    """Create a new user IW wall element with formula and deps in one transaction.
+
+    Returns (name, row_dict).
+    """
+    from app.evaluator import extract_deps
+    name = _next_iw_name(conn)
+    along = formula.get("along", [1, 0])
+    if isinstance(along, list) and len(along) == 2:
+        dx, dy = along[0], along[1]
+    else:
+        dx, dy = 1.0, 0.0  # safe default for spec-based along
+    orientation = "H" if abs(dx) >= abs(dy) else "V"
+    props = json.dumps({"orientation": orientation, "prop_constants": {}})
+    conn.execute(
+        "INSERT INTO elements (type, name, properties, variant) VALUES ('wall', ?, ?, ?)",
+        (name, props, variant),
+    )
+    fj = json.dumps(formula)
+    conn.execute(
+        "INSERT INTO element_formulas (element_name, param_name, formula_json, variant) "
+        "VALUES (?, 'position', ?, NULL)",
+        (name, fj),
+    )
+    for dep_type, dep_name in extract_deps(formula):
+        conn.execute(
+            "INSERT OR IGNORE INTO formula_deps "
+            "(element_name, param_name, dep_type, dep_name) VALUES (?, 'position', ?, ?)",
+            (name, dep_type, dep_name),
+        )
+    row = conn.execute("SELECT * FROM elements WHERE name=?", (name,)).fetchone()
+    return name, dict(row)
+
+
 # ---------------------------------------------------------------------------
 # Seed: constants from floorplan/constants.py
 # ---------------------------------------------------------------------------

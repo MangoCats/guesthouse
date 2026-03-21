@@ -211,129 +211,67 @@ class TestTL23CascadeDelete:
         assert "test_opening" not in names
 
 
-# ── TL-15–17: Draw Wall tool ────────────────────────────────────────
+# ── TL-15–17: Add Interior Wall ──────────────────────────────────────
 
-class TestTL15DrawWall:
-    """TL-15: Two-click wall drawing creates a custom wall element."""
+class TestTL15AddIWWall:
+    """TL-15: Add > Wall wizard creates IWN walls via POST /api/interior-walls."""
 
-    def test_create_drawn_wall(self, app_client):
-        """POST a drawn wall with start/end/thickness/poly."""
-        start = [0.0, 0.0]
-        end = [5.0, 0.0]
-        thickness = 4.0 / 12.0
-        # Rectangle from start/end/thickness
-        ht = thickness / 2
-        poly = [
-            [0.0, ht], [5.0, ht], [5.0, -ht], [0.0, -ht]
-        ]
-        resp = app_client.post(
-            "/api/elements",
-            data=json.dumps({
-                "type": "wall", "name": "CW1",
-                "properties": {
-                    "source": "drawn",
-                    "start": start, "end": end,
-                    "thickness": thickness,
-                    "poly": poly,
-                },
-            }),
-            content_type="application/json",
-        )
+    def _fixed_formula(self, anchor="W1"):
+        return {
+            "type": "wall_rect",
+            "anchor": anchor,
+            "along": {"segment": ["W1", "W18"]},
+            "thickness_dir": {"perp": {"segment": ["W1", "W18"]}},
+            "thickness": {"const": "WALL_4IN"},
+            "end_mode": "fixed",
+            "length": 8.0,
+        }
+
+    def test_create_iw_fixed_formula(self, app_client):
+        """POST /api/interior-walls with fixed formula returns 201 IW13."""
+        resp = app_client.post("/api/interior-walls", json={"formula": self._fixed_formula()})
         assert resp.status_code == 201
         data = resp.get_json()
-        assert data["name"] == "CW1"
+        assert data["name"] == "IW13"
         assert data["type"] == "wall"
 
-    def test_drawn_wall_properties(self, app_client):
-        """Created drawn wall has correct properties."""
-        start = [1.0, 2.0]
-        end = [4.0, 6.0]
-        resp = app_client.post(
-            "/api/elements",
-            data=json.dumps({
-                "type": "wall", "name": "CW_test",
-                "properties": {
-                    "source": "drawn",
-                    "start": start, "end": end,
-                    "thickness": 0.5,
-                    "poly": [[0, 0], [1, 0], [1, 1], [0, 1]],
-                },
-            }),
-            content_type="application/json",
-        )
+    def test_create_iw_intersect_formula(self, app_client):
+        """Intersect-mode formula is stored correctly."""
+        formula = {
+            "type": "wall_rect",
+            "anchor": "W2",
+            "along": {"segment": ["W2", "W5"]},
+            "thickness_dir": {"perp": {"segment": ["W2", "W5"]}},
+            "thickness": {"const": "WALL_4IN"},
+            "end_mode": "intersect",
+            "end_target": "inner_poly",
+            "select": "nearest",
+        }
+        resp = app_client.post("/api/interior-walls", json={"formula": formula})
         assert resp.status_code == 201
-        eid = resp.get_json()["id"]
+        name = resp.get_json()["name"]
+        rows = app_client.get(f"/api/formulas/{name}").get_json()
+        pos_row = next(r for r in rows if r["param_name"] == "position")
+        stored = json.loads(pos_row["formula_json"]) if isinstance(
+            pos_row["formula_json"], str) else pos_row["formula_json"]
+        assert stored["end_mode"] == "intersect"
 
-        # Fetch and verify properties
-        resp = app_client.get("/api/elements")
-        el = [e for e in resp.get_json() if e["id"] == eid][0]
-        props = json.loads(el["properties"]) if isinstance(el["properties"], str) else el["properties"]
-        assert props["source"] == "drawn"
-        assert props["start"] == start
-        assert props["end"] == end
-        assert abs(props["thickness"] - 0.5) < 1e-9
+    def test_iw_naming_sequence(self, app_client):
+        """Creating 3 walls produces IW13, IW14, IW15."""
+        names = []
+        for _ in range(3):
+            resp = app_client.post("/api/interior-walls", json={"formula": self._fixed_formula()})
+            assert resp.status_code == 201
+            names.append(resp.get_json()["name"])
+        assert names == ["IW13", "IW14", "IW15"]
 
-    def test_update_drawn_wall_thickness(self, app_client):
-        """TL-16: PUT updates thickness and poly."""
-        resp = app_client.post(
-            "/api/elements",
-            data=json.dumps({
-                "type": "wall", "name": "CW_thick",
-                "properties": {
-                    "source": "drawn",
-                    "start": [0, 0], "end": [3, 0],
-                    "thickness": 4.0 / 12.0,
-                    "poly": [[0, 0.167], [3, 0.167], [3, -0.167], [0, -0.167]],
-                },
-            }),
-            content_type="application/json",
-        )
-        eid = resp.get_json()["id"]
-
-        # Update thickness
-        new_thick = 6.0 / 12.0
-        new_poly = [[0, 0.25], [3, 0.25], [3, -0.25], [0, -0.25]]
-        resp = app_client.put(
-            f"/api/elements/{eid}",
-            data=json.dumps({
-                "properties": {
-                    "source": "drawn",
-                    "start": [0, 0], "end": [3, 0],
-                    "thickness": new_thick,
-                    "poly": new_poly,
-                },
-            }),
-            content_type="application/json",
-        )
-        assert resp.status_code == 200
-        props = resp.get_json()["properties"]
-        if isinstance(props, str):
-            props = json.loads(props)
-        assert abs(props["thickness"] - new_thick) < 1e-9
-
-    def test_drawn_wall_undo(self, app_client):
-        """Undo after creating drawn wall removes it."""
-        resp = app_client.post(
-            "/api/elements",
-            data=json.dumps({
-                "type": "wall", "name": "CW_undo",
-                "properties": {
-                    "source": "drawn", "start": [0, 0], "end": [1, 0],
-                    "thickness": 0.333, "poly": [[0, 0], [1, 0], [1, 0.333], [0, 0.333]],
-                },
-            }),
-            content_type="application/json",
-        )
-        assert resp.status_code == 201
-
-        # Undo
-        resp = app_client.post("/api/undo")
-        assert resp.status_code == 200
-
-        # Verify removed
-        resp = app_client.get("/api/elements")
-        names = [e["name"] for e in resp.get_json()]
-        assert "CW_undo" not in names
+    def test_iw_formula_deps(self, app_client):
+        """Named anchor W1 creates a formula_deps row for W1."""
+        resp = app_client.post("/api/interior-walls", json={"formula": self._fixed_formula("W1")})
+        name = resp.get_json()["name"]
+        deps = app_client.get(f"/api/formulas/{name}/deps").get_json()
+        dep_names = [d["dep_name"] for d in deps]
+        assert "W1" in dep_names
 
 
 # ── TL-18–21: Add Element / Opening tools ────────────────────────────
@@ -642,84 +580,68 @@ class TestDIS7UserDimsToggle:
 
 
 # =========================================================================
-# TL-17: Wall Endpoint Drag Handles
+# TL-17: Interior Wall Move
 # =========================================================================
 
-class TestTL17EndpointDrag:
-    """TL-17: Updating drawn wall endpoints via API."""
+class TestTL17IWWallMove:
+    """TL-17: Move tool works on user-created IW walls with literal anchor."""
 
-    def _create_drawn_wall(self, client):
-        """Helper: create a drawn wall and return its record."""
-        start = [-10, -5]
-        end = [-5, -5]
-        thickness = 4.0 / 12
-        dx = end[0] - start[0]
-        dy = end[1] - start[1]
-        length = (dx**2 + dy**2) ** 0.5
-        px = -dy / length * (thickness / 2)
-        py = dx / length * (thickness / 2)
-        poly = [
-            [start[0] + px, start[1] + py],
-            [end[0] + px, end[1] + py],
-            [end[0] - px, end[1] - py],
-            [start[0] - px, start[1] - py],
-        ]
-        resp = client.post("/api/elements", json={
-            "type": "wall", "name": "CW_test",
-            "properties": {
-                "source": "drawn", "start": start, "end": end,
-                "thickness": thickness, "poly": poly,
-            },
-        })
-        assert resp.status_code in (200, 201)
+    def _create_literal_wall(self, client):
+        """Create IW13 with a literal [x, y] anchor."""
+        formula = {
+            "type": "wall_rect",
+            "anchor": [-5.0, 0.0],
+            "along": [1.0, 0.0],
+            "thickness_dir": [0.0, 1.0],
+            "thickness": 4.0 / 12.0,
+            "end_mode": "fixed",
+            "length": 5.0,
+        }
+        resp = client.post("/api/interior-walls", json={"formula": formula})
+        assert resp.status_code == 201
         return resp.get_json()
 
-    def test_update_drawn_wall_endpoint(self, app_client):
-        """PUT new start/end updates coordinates."""
-        elem = self._create_drawn_wall(app_client)
-        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
-        props["end"] = [-3, -5]  # extend the wall
-        resp = app_client.put(f"/api/elements/{elem['id']}", json={
-            "properties": props,
-        })
+    def test_move_iw_literal_anchor(self, app_client):
+        """Move IW wall with literal anchor translates anchor by dx/dy."""
+        rec = self._create_literal_wall(app_client)
+        eid, name = rec["id"], rec["name"]
+        resp = app_client.post(f"/api/elements/{eid}/move", json={"dx": 1.0, "dy": 0.5})
         assert resp.status_code == 200
-        up = resp.get_json()
-        up_props = json.loads(up["properties"]) if isinstance(up["properties"], str) else up["properties"]
-        assert abs(up_props["end"][0] - (-3)) < 1e-9
-        assert abs(up_props["end"][1] - (-5)) < 1e-9
+        assert resp.get_json()["ok"] is True
+        rows = app_client.get(f"/api/formulas/{name}").get_json()
+        pos = next(r for r in rows if r["param_name"] == "position")
+        f = json.loads(pos["formula_json"]) if isinstance(pos["formula_json"], str) else pos["formula_json"]
+        assert abs(f["anchor"][0] - (-4.0)) < 1e-9
+        assert abs(f["anchor"][1] - 0.5) < 1e-9
 
-    def test_endpoint_update_preserves_thickness(self, app_client):
-        """Updating endpoint does not change thickness."""
-        elem = self._create_drawn_wall(app_client)
-        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
-        orig_thickness = props["thickness"]
-        props["start"] = [-12, -5]
-        resp = app_client.put(f"/api/elements/{elem['id']}", json={
-            "properties": props,
-        })
-        up = resp.get_json()
-        up_props = json.loads(up["properties"]) if isinstance(up["properties"], str) else up["properties"]
-        assert abs(up_props["thickness"] - orig_thickness) < 1e-9
-
-    def test_endpoint_update_undo(self, app_client):
-        """Undo after endpoint update restores original coordinates."""
-        elem = self._create_drawn_wall(app_client)
-        props = json.loads(elem["properties"]) if isinstance(elem["properties"], str) else elem["properties"]
-        orig_end = props["end"][:]
-        props["end"] = [-2, -3]
-        app_client.put(f"/api/elements/{elem['id']}", json={
-            "properties": props,
-        })
-        # Undo
+    def test_move_iw_literal_anchor_undo(self, app_client):
+        """Undo after moving IW wall with literal anchor restores anchor."""
+        rec = self._create_literal_wall(app_client)
+        eid, name = rec["id"], rec["name"]
+        app_client.post(f"/api/elements/{eid}/move", json={"dx": 2.0, "dy": 0.0})
         resp = app_client.post("/api/undo")
         assert resp.status_code == 200
-        # Verify restored
-        resp = app_client.get("/api/elements")
-        elems = resp.get_json()
-        restored = next(e for e in elems if e["name"] == "CW_test")
-        rp = json.loads(restored["properties"]) if isinstance(restored["properties"], str) else restored["properties"]
-        assert abs(rp["end"][0] - orig_end[0]) < 1e-9
-        assert abs(rp["end"][1] - orig_end[1]) < 1e-9
+        rows = app_client.get(f"/api/formulas/{name}").get_json()
+        pos = next(r for r in rows if r["param_name"] == "position")
+        f = json.loads(pos["formula_json"]) if isinstance(pos["formula_json"], str) else pos["formula_json"]
+        assert abs(f["anchor"][0] - (-5.0)) < 1e-9
+        assert abs(f["anchor"][1] - 0.0) < 1e-9
+
+    def test_move_iw_named_anchor_rejected(self, app_client):
+        """IW wall with named-point anchor → move → 400."""
+        formula = {
+            "type": "wall_rect",
+            "anchor": "W1",
+            "along": {"segment": ["W1", "W18"]},
+            "thickness_dir": {"perp": {"segment": ["W1", "W18"]}},
+            "thickness": {"const": "WALL_4IN"},
+            "end_mode": "fixed",
+            "length": 8.0,
+        }
+        resp = app_client.post("/api/interior-walls", json={"formula": formula})
+        eid = resp.get_json()["id"]
+        resp = app_client.post(f"/api/elements/{eid}/move", json={"dx": 1.0, "dy": 0.0})
+        assert resp.status_code == 400
 
 
 # =========================================================================
@@ -729,29 +651,31 @@ class TestTL17EndpointDrag:
 class TestTL21AddOpening:
     """TL-21: Creating openings on walls via API."""
 
-    def _create_drawn_wall(self, client, name="CW_host"):
-        """Create a drawn wall to host openings."""
-        resp = client.post("/api/elements", json={
-            "type": "wall", "name": name,
-            "properties": {
-                "source": "drawn",
-                "start": [-10, 0], "end": [-5, 0],
-                "thickness": 4.0 / 12,
-                "poly": [[-10, 1/6], [-5, 1/6], [-5, -1/6], [-10, -1/6]],
-            },
-        })
-        assert resp.status_code in (200, 201)
+    def _create_user_iw_wall(self, client):
+        """Create a user IW wall to host openings via POST /api/interior-walls."""
+        formula = {
+            "type": "wall_rect",
+            "anchor": [-10.0, 0.0],
+            "along": [1.0, 0.0],
+            "thickness_dir": [0.0, 1.0],
+            "thickness": 4.0 / 12,
+            "end_mode": "fixed",
+            "length": 5.0,
+        }
+        resp = client.post("/api/interior-walls", json={"formula": formula})
+        assert resp.status_code == 201
         return resp.get_json()
 
     def test_create_opening_on_wall(self, app_client):
         """POST opening with host_wall creates opening element."""
-        self._create_drawn_wall(app_client)
+        wall = self._create_user_iw_wall(app_client)
+        host = wall["name"]
         resp = app_client.post("/api/openings", json={
             "name": "UO1",
-            "segment": "CW_host",
+            "segment": host,
             "width": 32.0 / 12,
             "offset": 0,
-            "host_wall": "CW_host",
+            "host_wall": host,
         })
         assert resp.status_code == 201
         data = resp.get_json()
@@ -760,25 +684,27 @@ class TestTL21AddOpening:
 
     def test_opening_host_wall_reference(self, app_client):
         """Created opening has correct host_wall in properties."""
-        self._create_drawn_wall(app_client)
+        wall = self._create_user_iw_wall(app_client)
+        host = wall["name"]
         resp = app_client.post("/api/openings", json={
             "name": "UO2",
-            "segment": "CW_host",
+            "segment": host,
             "width": 24.0 / 12,
-            "host_wall": "CW_host",
+            "host_wall": host,
         })
         data = resp.get_json()
         props = json.loads(data["properties"]) if isinstance(data["properties"], str) else data["properties"]
-        assert props["host_wall"] == "CW_host"
+        assert props["host_wall"] == host
 
     def test_delete_host_wall_cascades_opening(self, app_client):
         """Deleting wall cascades to hosted openings."""
-        wall = self._create_drawn_wall(app_client)
+        wall = self._create_user_iw_wall(app_client)
+        host = wall["name"]
         app_client.post("/api/openings", json={
             "name": "UO3",
-            "segment": "CW_host",
+            "segment": host,
             "width": 24.0 / 12,
-            "host_wall": "CW_host",
+            "host_wall": host,
         })
         # Verify opening exists
         elems = app_client.get("/api/elements").get_json()

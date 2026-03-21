@@ -1523,34 +1523,39 @@ Selecting a dimension line and pressing Delete SHALL remove it.
 **Acceptance:** Select a dimension line. Press Delete. The dimension line
 is removed from the canvas.
 
-### 6.7  Draw Wall Tool
+### 6.7  Interior Wall Tool
 
-#### TL-15  Draw Interior Wall
-When the Draw Wall tool is active, clicking a start point and end point
-SHALL create a new interior wall with a default thickness (4 inches).
+#### TL-15  Add Interior Wall
+Add > Wall SHALL open the Wall Setup Wizard. Completing the wizard creates a
+new interior wall element (auto-named IW13, IW14… continuing the IW series)
+with a `wall_rect` formula stored in `element_formulas`. The created wall is
+indistinguishable from seeded IW walls in all code paths, properties panel,
+and move behavior.
 
-**Acceptance:** `W` key activates draw-wall tool. First click sets start,
-second click creates wall via `createDrawnWall()`. Element stored with
-`source: "drawn"`, `start/end/thickness/poly` properties. Auto-named CW1, CW2...
-**Tested:** test_zapp_tools.py::TestTL15DrawWall (4 tests).
+**Acceptance:** "Wall" button in Add palette opens `showWallSetupWizard()`.
+Wizard sections: Anchor Point, Along Direction, Thickness, Length. "Add Wall"
+calls `POST /api/interior-walls`. Wall appears in `geometry.interior_walls`.
+Named IW{N}. `W` key also opens the wizard.
+**Tested:** test_zapp_tools.py::TestTL15AddIWWall (4 tests).
 
-#### TL-16  Wall Thickness Input
-After placing a wall, the Properties panel SHALL show a thickness input
-that can be changed before or after placement.
+#### TL-16  Interior Wall Properties Panel
+All interior walls (seeded IW1–IW12 and user-created IWN) share the same
+properties panel: bbox dimensions, formula Rebase button, layout toggles.
+User-created walls have empty `prop_constants` (no controlling constant rows).
 
-**Acceptance:** Select drawn wall. Properties panel shows editable Thickness
-input. Changing value calls `wallPoly()` to recompute polygon, PUTs updated
-properties to API.
-**Tested:** test_zapp_tools.py::TestTL15DrawWall::test_update_drawn_wall_thickness.
+**Acceptance:** Select any IW wall. Panel shows Width/Height/West/South.
+Formula Rebase button present. No panel behavior differs by wall origin.
 
-#### TL-17  Wall Endpoint Editing
-Selecting an existing wall with the Select tool and dragging an endpoint
-handle SHALL extend or shorten the wall.
+#### TL-17  Interior Wall Move
+IW walls with a `position_constant` (seeded walls) move via constant-delta.
+IW walls without a `position_constant` (user-created IWN) move via formula
+anchor-translation when the anchor is a literal `[x, y]` coordinate; walls
+with a named-point anchor reject the drag with a 400 directing to the wizard.
 
-**Acceptance:** Selecting a drawn wall shows square drag handles at start/end.
-Dragging updates the endpoint, recomputes poly via `wallPoly()`, and saves
-via PUT API. Shift-constrains to horizontal/vertical.
-**Tested:** test_zapp_tools.py::TestTL17EndpointDrag (3 tests).
+**Acceptance:** Create user IW wall with literal anchor. `POST /api/elements/{id}/move`.
+Anchor translates by `(dx,dy)`. Named-point anchor → 400 with wizard message.
+Undo restores the anchor.
+**Tested:** test_zapp_tools.py::TestTL17IWWallMove (3 tests).
 
 ### 6.8  Add Element Tools
 

@@ -23,7 +23,7 @@ from app.database import (
     get_constant_value, update_constant, update_constants_batch,
     get_categories, get_outline_chain, get_views, reset_constants,
     get_all_elements, get_element, get_element_by_name,
-    create_element, update_element, delete_element,
+    create_element, update_element, delete_element, create_iw_element,
     get_all_doors, get_door, create_door, update_door, delete_door,
     get_outline_chain_row, update_outline_segment, insert_outline_segment,
     delete_outline_segment, restore_outline_chain, reset_outline_chain,
@@ -436,6 +436,35 @@ def create_app(db_path=None):
             return jsonify(get_elements_for_variant(variant, db))
         return jsonify(get_all_elements(db))
 
+    # -- Interior Wall creation --
+
+    @app.route("/api/interior-walls", methods=["POST"])
+    def api_create_interior_wall():
+        """Create a new user IW wall with a wall_rect formula.
+
+        Body: {"formula": <wall_rect JSON>}
+        Response 201: the new element record.
+        """
+        body = request.get_json(force=True)
+        formula = body.get("formula")
+        if not formula or formula.get("type") != "wall_rect":
+            return jsonify({"error": "formula must have type=wall_rect"}), 400
+        required = {"anchor", "along", "thickness_dir", "thickness", "end_mode"}
+        missing = required - set(formula)
+        if missing:
+            return jsonify({"error": f"formula missing keys: {sorted(missing)}"}), 400
+        with get_db(db) as conn:
+            name, rec = create_iw_element(conn, formula)
+        undo_mgr.record(
+            "element_create",
+            {"id": rec["id"]},
+            rec,
+            f"Create wall {name}",
+        )
+        _invalidate()
+        _broadcast("element_changed")
+        return jsonify(dict(rec)), 201
+
     # -- Wall-relative anchor utilities --
 
     # W-series inner wall segment pairs (CW traversal order).
@@ -798,6 +827,32 @@ def create_app(db_path=None):
                         "can_undo": undo_mgr.can_undo,
                         "can_redo": undo_mgr.can_redo,
                     })
+            # No position_constant — try formula anchor-translation (user-created wall_rect)
+            anchor = formula_json.get("anchor") if formula_json else None
+            if isinstance(anchor, list) and len(anchor) == 2:
+                new_formula = dict(formula_json)
+                new_formula["anchor"] = [anchor[0] + dx, anchor[1] + dy]
+                from app.evaluator import extract_deps
+                upsert_formula(name, "position", new_formula, variant=None, db_path=db)
+                rebuild_formula_deps(
+                    name, "position", list(extract_deps(new_formula)), db_path=db
+                )
+                undo_mgr.record(
+                    "element_move",
+                    {"move_type": "formula", "name": name, "formula": formula_json},
+                    {"move_type": "formula", "name": name, "formula": new_formula},
+                    f"Move {name}",
+                )
+                _invalidate()
+                return jsonify({"ok": True, "can_undo": undo_mgr.can_undo,
+                                "can_redo": undo_mgr.can_redo})
+            if formula_json and anchor is not None:
+                return jsonify({
+                    "error": (
+                        f"Wall {name} has a named-point anchor; "
+                        "use Wall Setup Wizard or Rebase to reanchor"
+                    )
+                }), 400
             return jsonify({"error": f"wall {name} is not movable"}), 400
 
         # Parse element properties for remaining move paths (formula / offset)
