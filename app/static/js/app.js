@@ -309,7 +309,9 @@ async function loadMeta() {
 }
 
 async function reloadAfterChange() {
-  await reloadAfterChange();
+  markConfigDirty();
+  await loadElements();
+  await loadGeometry();
 }
 
 async function loadViews() {
