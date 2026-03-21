@@ -3830,6 +3830,17 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   if (!namedPoints.length) namedPoints.push("W1", "W2", "W5");
   function pickPt(i) { return namedPoints[i] || namedPoints[0] || "W1"; }
 
+  // ── Wall elements (for element-face anchor mode) ───────────────────────────
+  const wallElems = (App.state.elements || [])
+    .filter(e => e.type === "wall")
+    .map(e => e.name)
+    .sort((a, b) => {
+      const re = /^([A-Za-z]+)(\d*)(.*)/;
+      const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
+      const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
+      return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
+    });
+
   // ── Decode current formula → initial dialog state ─────────────────────────
   function splitFtIn(ft) {
     const totalIn = (ft || 0) * 12;
@@ -3838,12 +3849,23 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     return { feet, inches };
   }
 
+  // Face corner map: face → { start corner, end corner }
+  const FACE_CORNERS = {
+    south: { start: "SW", end: "SE" },
+    east:  { start: "SE", end: "NE" },
+    north: { start: "NE", end: "NW" },
+    west:  { start: "NW", end: "SW" },
+  };
+
   function decodeFormula(f) {
+    let anchorMode = "points";
+    let anchorElem = "", anchorFace = "north", anchorFromEnd = false;
     let anchorA = pickPt(0), anchorB = pickPt(1), distFt = 0;
     let dirType = "along", dirAngleDeg = 0, compassDeg = 90;
     let thickSide = "left", thickIn = 4;
     let farType = "fixed", farFt = 8, farC = pickPt(0), farD = pickPt(1);
-    if (!f) return { anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
+    if (!f) return { anchorMode, anchorElem, anchorFace, anchorFromEnd,
+                     anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
                      thickSide, thickIn, farType, farFt, farC, farD };
 
     // --- Anchor ---
@@ -3851,28 +3873,50 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     if (typeof anc === "string") {
       anchorA = anc;
     } else if (anc && typeof anc === "object" && "offset" in anc) {
-      if (typeof anc.offset === "string") anchorA = anc.offset;
+      const off = anc.offset;
+      if (typeof off === "string") {
+        anchorA = off;
+      } else if (off && typeof off === "object" && "element" in off) {
+        // Element-face anchor mode
+        anchorMode = "element_face";
+        anchorElem = off.element;
+        const dir = anc.dir;
+        if (dir?.face_along) {
+          anchorFace = dir.face || "north";
+          anchorFromEnd = false;
+        } else if (dir?.neg?.face_along) {
+          anchorFace = dir.neg.face || "north";
+          anchorFromEnd = true;
+        }
+      }
       const seg = anc.dir?.segment;
-      if (Array.isArray(seg) && seg.length === 2) { anchorA = seg[0]; anchorB = seg[1]; }
+      if (anchorMode === "points" && Array.isArray(seg) && seg.length === 2) {
+        anchorA = seg[0]; anchorB = seg[1];
+      }
       if (typeof anc.dist === "number") distFt = anc.dist;
     }
 
-    // --- Along direction (also extracts anchor line B when readable) ---
+    // --- Along direction ---
     const al = f.along;
     if (al && typeof al === "object" && !Array.isArray(al)) {
-      const seg = al.segment || al.perp?.segment || al.segment_perp
-                || al.neg?.perp?.segment || al.rotated?.segment;
-      if (Array.isArray(seg) && seg.length === 2) anchorB = seg[1] || anchorB;
-      if ("segment" in al) {
-        dirType = "along";
-      } else if ("neg" in al && al.neg?.perp) {
-        dirType = "perp_left";
-      } else if ("perp" in al || "segment_perp" in al) {
-        dirType = "perp_right";
-      } else if ("rotated" in al) {
-        dirType = "angle";
-        dirAngleDeg = typeof al.angle === "number"
-          ? Math.round(al.angle * 180 / Math.PI * 100) / 100 : 0;
+      if ("face_perp" in al) {
+        dirType = "face_perp";
+      } else {
+        const seg = al.segment || al.perp?.segment || al.segment_perp
+                  || al.neg?.perp?.segment || al.rotated?.segment;
+        if (Array.isArray(seg) && seg.length === 2 && anchorMode === "points")
+          anchorB = seg[1] || anchorB;
+        if ("segment" in al) {
+          dirType = "along";
+        } else if ("neg" in al && al.neg?.perp) {
+          dirType = "perp_left";
+        } else if ("perp" in al || "segment_perp" in al) {
+          dirType = "perp_right";
+        } else if ("rotated" in al) {
+          dirType = "angle";
+          dirAngleDeg = typeof al.angle === "number"
+            ? Math.round(al.angle * 180 / Math.PI * 100) / 100 : 0;
+        }
       }
     } else if (Array.isArray(al)) {
       dirType = "compass";
@@ -3902,7 +3946,8 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
       farFt = f.length;
     }
 
-    return { anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
+    return { anchorMode, anchorElem, anchorFace, anchorFromEnd,
+             anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
              thickSide, thickIn, farType, farFt, farC, farD };
   }
 
@@ -3962,21 +4007,76 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   h3.textContent = `Rebase Wall \u2014 ${elemName}`;
   modal.appendChild(h3);
 
-  // ── §1 Anchor Line ────────────────────────────────────────────────────────
-  const ancSec = sec("\u00a71  Anchor Line");
+  // ── §1 Anchor ─────────────────────────────────────────────────────────────
+  const ancSec = sec("\u00a71  Anchor");
+  const ancModeName = `wpw-anc-${elemName}`;
+  const rAncPts  = makeRadio(ancModeName, "points",       "Named points", init.anchorMode !== "element_face");
+  const rAncFace = makeRadio(ancModeName, "element_face", "Element face", init.anchorMode === "element_face");
+  ancSec.appendChild(row(rAncPts.wrap, rAncFace.wrap));
+
+  // Named-points sub-panel
+  const ptsDiv = document.createElement("div");
   const selA = ptSel(init.anchorA);
   const selB = ptSel(init.anchorB);
-  ancSec.appendChild(row("Line: ", selA, " \u2192 ", selB));
+  ptsDiv.appendChild(row("Line: ", selA, " \u2192 ", selB));
+  ancSec.appendChild(ptsDiv);
+
+  // Element-face sub-panel
+  const faceDiv = document.createElement("div");
+  function elemSel(selected) {
+    const s = document.createElement("select"); s.className = "rebase-dep-select";
+    for (const e of wallElems) {
+      const o = document.createElement("option"); o.value = e; o.textContent = e;
+      if (e === selected) o.selected = true;
+      s.appendChild(o);
+    }
+    return s;
+  }
+  function faceSel(selected) {
+    const s = document.createElement("select"); s.className = "rebase-dep-select";
+    for (const [val, lbl] of [["south","South (outer)"],["east","East (far end)"],
+                               ["north","North (inner)"],["west","West (near end)"]]) {
+      const o = document.createElement("option"); o.value = val; o.textContent = lbl;
+      if (val === selected) o.selected = true;
+      s.appendChild(o);
+    }
+    return s;
+  }
+  const selAncElem = elemSel(init.anchorElem || wallElems[0] || "");
+  const selAncFace = faceSel(init.anchorFace || "north");
+  const fromName = `wpw-from-${elemName}`;
+  const rFromStart = makeRadio(fromName, "start", "Start", !init.anchorFromEnd);
+  const rFromEnd   = makeRadio(fromName, "end",   "End",    init.anchorFromEnd);
+  faceDiv.appendChild(row("Element: ", selAncElem, "  Face: ", selAncFace));
+  faceDiv.appendChild(row("From: ", rFromStart.wrap, rFromEnd.wrap, " of face"));
+  ancSec.appendChild(faceDiv);
+
+  // Shared distance inputs
   const { feet: dFt0, inches: dIn0 } = splitFtIn(init.distFt);
-  const inpDistFt = numInp(dFt0, 1,     "Whole feet from A along A\u2192B", "60px");
-  const inpDistIn = numInp(dIn0, 0.125, "Additional inches from A along A\u2192B", "72px");
-  ancSec.appendChild(row("Distance from A: ", inpDistFt, " ft  ", inpDistIn, " in"));
-  ancSec.appendChild(hint("Anchor = point A offset by this distance along A\u2192B. Distance 0 places anchor at A."));
+  const inpDistFt = numInp(dFt0, 1,     "Whole feet from anchor reference", "60px");
+  const inpDistIn = numInp(dIn0, 0.125, "Additional inches from anchor reference", "72px");
+  ancSec.appendChild(row("Distance: ", inpDistFt, " ft  ", inpDistIn, " in"));
+  ancSec.appendChild(hint("Named points: anchor on the A\u2192B line. Element face: anchor along a wall's face edge."));
   modal.appendChild(ancSec);
+
+  function getAnchorMode() { return rAncFace.inp.checked ? "element_face" : "points"; }
+  function updateAnchorMode() {
+    const ef = getAnchorMode() === "element_face";
+    ptsDiv.style.display  = ef ? "none" : "";
+    faceDiv.style.display = ef ? "" : "none";
+    // Auto-select "perp to face" direction when switching to element-face mode
+    if (ef && rFacePerp) rFacePerp.inp.checked = true;
+    if (!ef && getDirType() === "face_perp") rAlong.inp.checked = true;
+    updatePreview();
+  }
+  rAncPts.inp.addEventListener("change",  updateAnchorMode);
+  rAncFace.inp.addEventListener("change", updateAnchorMode);
+  updateAnchorMode();
 
   // ── §2 Wall Direction ─────────────────────────────────────────────────────
   const dirName = `wpw-dir-${elemName}`;
   const dirSec = sec("\u00a72  Wall Direction");
+  const rFacePerp  = makeRadio(dirName, "face_perp",  "Perp to anchor face",       init.dirType === "face_perp");
   const rAlong     = makeRadio(dirName, "along",      "Along A\u2192B",            init.dirType === "along");
   const rPerpLeft  = makeRadio(dirName, "perp_left",  "Perp left (CCW 90\u00b0)",  init.dirType === "perp_left");
   const rPerpRight = makeRadio(dirName, "perp_right", "Perp right (CW 90\u00b0)",  init.dirType === "perp_right");
@@ -3986,16 +4086,17 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     "Degrees CCW from A\u2192B (0 = along A\u2192B, 90 = perp left)", "62px");
   const inpCompass  = numInp(init.compassDeg,  1,
     "Degrees (0 = East, 90 = North)", "62px");
+  dirSec.appendChild(row(rFacePerp.wrap));
   const dirRow1 = row(rAlong.wrap, rPerpLeft.wrap, rPerpRight.wrap);
   const dirRow2 = row(rAngle.wrap, inpDirAngle, " \u00b0 (CCW from A\u2192B)    ",
                       rCompass.wrap, inpCompass, " \u00b0 (0=E, 90=N)");
   dirSec.appendChild(dirRow1);
   dirSec.appendChild(dirRow2);
-  dirSec.appendChild(hint("Direction the wall runs from the anchor. Left/right is relative to A\u2192B."));
+  dirSec.appendChild(hint("\"Perp to anchor face\" runs the wall straight out from the selected face. Left/right of A\u2192B also available."));
   modal.appendChild(dirSec);
 
   function getDirType() {
-    for (const r of [rAlong, rPerpLeft, rPerpRight, rAngle, rCompass]) if (r.inp.checked) return r.inp.value;
+    for (const r of [rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass]) if (r.inp.checked) return r.inp.value;
     return "along";
   }
 
@@ -4083,29 +4184,51 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
 
   // ── Formula builder ───────────────────────────────────────────────────────
   function buildFormula() {
-    const A = selA.value, B = selB.value;
     const distFt = (parseFloat(inpDistFt.value) || 0) + (parseFloat(inpDistIn.value) || 0) / 12;
-
-    // Anchor: bare point A when distance=0, else offset spec along A→B
-    const anchor = Math.abs(distFt) < 1e-9
-      ? A
-      : { offset: A, dir: { segment: [A, B] }, dist: distFt };
-
-    // Along direction
+    const ancMode = getAnchorMode();
     const dt = getDirType();
+
+    // ── Anchor ────────────────────────────────────────────────────────────
+    let anchor;
+    if (ancMode === "element_face") {
+      const E = selAncElem.value;
+      const F = selAncFace.value;
+      const fromEnd = rFromEnd.inp.checked;
+      const fc = FACE_CORNERS[F] || FACE_CORNERS.north;
+      const cornerName = fromEnd ? fc.end : fc.start;
+      const faceDir = fromEnd
+        ? { neg: { face_along: E, face: F } }
+        : { face_along: E, face: F };
+      anchor = Math.abs(distFt) < 1e-9
+        ? { element: E, corner: cornerName }
+        : { offset: { element: E, corner: cornerName }, dir: faceDir, dist: distFt };
+    } else {
+      const A = selA.value, B = selB.value;
+      anchor = Math.abs(distFt) < 1e-9
+        ? A
+        : { offset: A, dir: { segment: [A, B] }, dist: distFt };
+    }
+
+    // ── Along direction ───────────────────────────────────────────────────
+    const A = selA.value, B = selB.value;
     let along;
-    switch (dt) {
-      case "along":      along = { segment: [A, B] }; break;
-      case "perp_left":  along = { neg: { perp: { segment: [A, B] } } }; break;
-      case "perp_right": along = { perp: { segment: [A, B] } }; break;
-      case "angle": {
-        const rad = (parseFloat(inpDirAngle.value) || 0) * Math.PI / 180;
-        along = { rotated: { segment: [A, B] }, angle: rad };
-        break;
-      }
-      default: { // compass
-        const rad = (parseFloat(inpCompass.value) || 0) * Math.PI / 180;
-        along = [Math.cos(rad), Math.sin(rad)];
+    if (dt === "face_perp" && ancMode === "element_face") {
+      const E = selAncElem.value, F = selAncFace.value;
+      along = { face_perp: E, face: F };
+    } else {
+      switch (dt) {
+        case "along":      along = { segment: [A, B] }; break;
+        case "perp_left":  along = { neg: { perp: { segment: [A, B] } } }; break;
+        case "perp_right": along = { perp: { segment: [A, B] } }; break;
+        case "angle": {
+          const rad = (parseFloat(inpDirAngle.value) || 0) * Math.PI / 180;
+          along = { rotated: { segment: [A, B] }, angle: rad };
+          break;
+        }
+        default: { // compass
+          const rad = (parseFloat(inpCompass.value) || 0) * Math.PI / 180;
+          along = [Math.cos(rad), Math.sin(rad)];
+        }
       }
     }
 
@@ -4146,9 +4269,11 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   }
 
   // Live preview wiring
-  [selA, selB, inpDistFt, inpDistIn, inpDirAngle, inpCompass, inpThickIn, inpLenFt, inpLenIn, selFarC, selFarD]
+  [selA, selB, selAncElem, selAncFace, inpDistFt, inpDistIn,
+   inpDirAngle, inpCompass, inpThickIn, inpLenFt, inpLenIn, selFarC, selFarD]
     .forEach(el => { el.addEventListener("change", updatePreview); el.addEventListener("input", updatePreview); });
-  for (const r of [rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rThkLeft, rThkRight])
+  for (const r of [rAncPts, rAncFace, rFromStart, rFromEnd,
+                   rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rThkLeft, rThkRight])
     r.inp.addEventListener("change", updatePreview);
 
   // ── Apply (cycle-check → batch commit) ───────────────────────────────────
