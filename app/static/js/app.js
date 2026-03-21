@@ -3710,85 +3710,95 @@ function showWallSetupWizard() {
  */
 function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
 
-  // ── Read current formula values for pre-population ─────────────────────────
-  const curThickIn   = typeof currentFormula.thickness === "number"
-    ? Math.round(currentFormula.thickness * 12 * 100) / 100 : 4;
-  const curLenIn     = typeof currentFormula.length === "number"
-    ? Math.round(currentFormula.length * 12 * 100) / 100 : 24;
-  const isIntersect  = currentFormula.end_mode === "intersect";
+  // ── Named points sorted naturally ─────────────────────────────────────────
+  const namedPoints = Object.keys(App.state.geometry?.points ?? {}).sort((a, b) => {
+    const re = /^([A-Za-z]+)(\d*)(.*)/;
+    const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
+    const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
+    return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
+  });
+  if (!namedPoints.length) namedPoints.push("W1", "W2", "W5");
+  function pickPt(i) { return namedPoints[i] || namedPoints[0] || "W1"; }
 
-  // ── Point option list: named points + element corners + centroids ───────────
-  function makeAnchorOptions() {
-    const pts = Object.keys(App.state.geometry?.points ?? {}).sort((a, b) => {
-      const re = /^([A-Za-z]+)(\d*)(.*)/;
-      const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
-      const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
-      return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
-    });
-    const ptOpts = pts.map(p => ({ value: p, label: p }));
-    const cornerOpts = [];
-    const walls = (App.state.elements || [])
-      .filter(e => e.type === "wall" && e.name !== elemName);
-    for (const w of walls) {
-      for (const c of ["SW", "SE", "NE", "NW"]) {
-        cornerOpts.push({ value: `corner:${w.name}:${c}`, label: `${w.name}.${c}` });
+  // ── Decode current formula → initial dialog state ─────────────────────────
+  function splitFtIn(ft) {
+    const totalIn = (ft || 0) * 12;
+    const feet  = Math.floor(totalIn / 12);
+    const inches = Math.round((totalIn - feet * 12) * 1000) / 1000;
+    return { feet, inches };
+  }
+
+  function decodeFormula(f) {
+    let anchorA = pickPt(0), anchorB = pickPt(1), distFt = 0;
+    let dirType = "along", dirAngleDeg = 0, compassDeg = 90;
+    let thickSide = "left", thickIn = 4;
+    let farType = "fixed", farFt = 8, farC = pickPt(0), farD = pickPt(1);
+    if (!f) return { anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
+                     thickSide, thickIn, farType, farFt, farC, farD };
+
+    // --- Anchor ---
+    const anc = f.anchor;
+    if (typeof anc === "string") {
+      anchorA = anc;
+    } else if (anc && typeof anc === "object" && "offset" in anc) {
+      if (typeof anc.offset === "string") anchorA = anc.offset;
+      const seg = anc.dir?.segment;
+      if (Array.isArray(seg) && seg.length === 2) { anchorA = seg[0]; anchorB = seg[1]; }
+      if (typeof anc.dist === "number") distFt = anc.dist;
+    }
+
+    // --- Along direction (also extracts anchor line B when readable) ---
+    const al = f.along;
+    if (al && typeof al === "object" && !Array.isArray(al)) {
+      const seg = al.segment || al.perp?.segment || al.segment_perp
+                || al.neg?.perp?.segment || al.rotated?.segment;
+      if (Array.isArray(seg) && seg.length === 2) anchorB = seg[1] || anchorB;
+      if ("segment" in al) {
+        dirType = "along";
+      } else if ("neg" in al && al.neg?.perp) {
+        dirType = "perp_left";
+      } else if ("perp" in al || "segment_perp" in al) {
+        dirType = "perp_right";
+      } else if ("rotated" in al) {
+        dirType = "angle";
+        dirAngleDeg = typeof al.angle === "number"
+          ? Math.round(al.angle * 180 / Math.PI * 100) / 100 : 0;
       }
+    } else if (Array.isArray(al)) {
+      dirType = "compass";
+      compassDeg = Math.round(Math.atan2(al[1], al[0]) * 180 / Math.PI * 10) / 10;
     }
-    const centOpts = (App.state.elements || [])
-      .filter(e => e.name !== elemName)
-      .map(e => ({ value: `centroid:${e.name}`, label: `\u229A ${e.name}` }));
-    return [...ptOpts, ...cornerOpts, ...centOpts];
-  }
 
-  function encodeAnchorRef(val) {
-    if (val.startsWith("corner:"))   { const [, e, c] = val.split(":"); return { element: e, corner: c }; }
-    if (val.startsWith("centroid:")) return { element_centroid: val.slice(9) };
-    return val; // bare named point
-  }
-
-  // ── Direction options ───────────────────────────────────────────────────────
-  const DIR_OPTIONS = [
-    { value: "north",        label: "North  [0, 1]" },
-    { value: "east",         label: "East  [1, 0]" },
-    { value: "south",        label: "South  [0, \u22121]" },
-    { value: "west",         label: "West  [\u22121, 0]" },
-    { value: "seg:W2:W5",   label: "Along W2\u2192W5  (\u2248 north)" },
-    { value: "seg:W18:W1",  label: "Along W18\u2192W1  (\u2248 west)" },
-    { value: "seg:W9:W10",  label: "Along W9\u2192W10  (\u2248 east)" },
-    { value: "seg:W6:W7",   label: "Along W6\u2192W7  (\u2248 east)" },
-    { value: "perp:W2:W5",  label: "Perp to W2\u2192W5  (inward \u2248 east)" },
-    { value: "perp:W18:W1", label: "Perp to W18\u2192W1  (inward \u2248 north)" },
-    { value: "perp:W9:W10", label: "Perp to W9\u2192W10  (inward \u2248 south)" },
-    { value: "perp:W6:W7",  label: "Perp to W6\u2192W7  (inward \u2248 south)" },
-  ];
-
-  function encodeDir(val) {
-    if (val === "north") return [0, 1];
-    if (val === "east")  return [1, 0];
-    if (val === "south") return [0, -1];
-    if (val === "west")  return [-1, 0];
-    if (val.startsWith("seg:"))  { const [, a, b] = val.split(":"); return { segment: [a, b] }; }
-    if (val.startsWith("perp:")) { const [, a, b] = val.split(":"); return { segment_perp: [a, b] }; }
-    return [1, 0];
-  }
-
-  // thickness_dir = left perp (CCW 90°) of along.
-  // Evaluator: {"perp": d} = right perp [dy,-dx], so left = {"neg": {"perp": d}}.
-  // For literal [dx,dy]: left = [-dy, dx].
-  function encodeThickDir(dirVal, side) {
-    const d = encodeDir(dirVal);
-    if (Array.isArray(d)) {
-      const left  = [-d[1],  d[0]];
-      const right = [ d[1], -d[0]];
-      return side === "left" ? left : right;
+    // --- Thickness ---
+    if (typeof f.thickness === "number") thickIn = Math.round(f.thickness * 12 * 1000) / 1000;
+    const td = f.thickness_dir;
+    if (td && typeof td === "object" && !Array.isArray(td)) {
+      thickSide = "neg" in td ? "left" : "right";
+    } else if (Array.isArray(td) && Array.isArray(al)) {
+      const leftMatch = Math.abs(td[0] - (-al[1])) < 1e-6 && Math.abs(td[1] - al[0]) < 1e-6;
+      thickSide = leftMatch ? "left" : "right";
     }
-    // formula spec
-    const leftSpec  = { neg: { perp: d } };
-    const rightSpec = { perp: d };
-    return side === "left" ? leftSpec : rightSpec;
+
+    // --- Far end ---
+    if (f.end_mode === "intersect") {
+      farType = "inner_poly";
+    } else if (f.end_mode === "to_line") {
+      farType = "to_line";
+      if (typeof f.end_line_point === "string") farC = f.end_line_point;
+      const seg = f.end_line_dir?.segment;
+      if (Array.isArray(seg) && seg.length === 2) { farC = seg[0]; farD = seg[1]; }
+    } else if (typeof f.length === "number") {
+      farType = "fixed";
+      farFt = f.length;
+    }
+
+    return { anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
+             thickSide, thickIn, farType, farFt, farC, farD };
   }
 
-  // ── Modal scaffold ──────────────────────────────────────────────────────────
+  const init = decodeFormula(currentFormula);
+
+  // ── DOM setup ─────────────────────────────────────────────────────────────
   const overlay = document.createElement("div");
   overlay.className = "config-modal-overlay";
   const modal = document.createElement("div");
@@ -3797,116 +3807,142 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
 
-  const h3 = document.createElement("h3");
-  h3.textContent = `Place Wall \u2014 ${elemName}`;
-  modal.appendChild(h3);
-
-  const desc = document.createElement("div");
-  desc.className = "rebase-desc";
-  desc.textContent =
-    "Anchor this wall to existing geometry. " +
-    "The anchor is the near-end corner of the wall. " +
-    "Offsets shift the anchor from the chosen reference point.";
-  modal.appendChild(desc);
-
-  // ── Local DOM helpers (mirrors showPlacementWizard style) ──────────────────
-  function makeSection(label) {
-    const sec = document.createElement("div"); sec.className = "wizard-section";
-    const lbl = document.createElement("div"); lbl.className = "wizard-section-label";
-    lbl.textContent = label; sec.appendChild(lbl); return sec;
-  }
-  function makeSelect(opts, selected) {
-    const sel = document.createElement("select"); sel.className = "rebase-dep-select";
-    for (const { value: v, label: l } of opts) {
-      const opt = document.createElement("option");
-      opt.value = v; opt.textContent = l;
-      if (v === selected) opt.selected = true;
-      sel.appendChild(opt);
+  // ── DOM helpers ───────────────────────────────────────────────────────────
+  function ptSel(selected) {
+    const s = document.createElement("select"); s.className = "rebase-dep-select";
+    for (const p of namedPoints) {
+      const o = document.createElement("option"); o.value = p; o.textContent = p;
+      if (p === selected) o.selected = true;
+      s.appendChild(o);
     }
-    return sel;
+    return s;
   }
-  function txt(s) { const sp = document.createElement("span"); sp.className = "wizard-text"; sp.textContent = s; return sp; }
-  function wizRow(...children) {
+  function numInp(val, step, title, width) {
+    const i = document.createElement("input");
+    i.type = "number"; i.value = String(val ?? 0); i.step = String(step ?? 1);
+    i.className = "wizard-dist-input";
+    if (width) i.style.width = width;
+    if (title) i.title = title;
+    return i;
+  }
+  function sp(t) { const s = document.createElement("span"); s.className = "wizard-text"; s.textContent = t; return s; }
+  function row(...children) {
     const r = document.createElement("div"); r.className = "wizard-row";
-    for (const c of children) r.appendChild(typeof c === "string" ? txt(c) : c);
+    for (const c of children) r.appendChild(typeof c === "string" ? sp(c) : c);
     return r;
   }
-  function numInput(dflt, step, title) {
-    const inp = document.createElement("input");
-    inp.type = "number"; inp.className = "wizard-dist-input";
-    inp.value = String(dflt); inp.step = String(step ?? 0.125);
-    if (title) inp.title = title;
-    return inp;
+  function sec(label) {
+    const d = document.createElement("div"); d.className = "wizard-section";
+    const l = document.createElement("div"); l.className = "wizard-section-label";
+    l.textContent = label; d.appendChild(l); return d;
   }
-  function hint(s) {
-    const d = document.createElement("div"); d.className = "wizard-hint"; d.textContent = s; return d;
+  function hint(t) {
+    const d = document.createElement("div"); d.className = "wizard-hint"; d.textContent = t; return d;
+  }
+  function makeRadio(name, val, label, checked) {
+    const wrap = document.createElement("label"); wrap.style.marginRight = "10px";
+    const inp = document.createElement("input"); inp.type = "radio"; inp.name = name; inp.value = val;
+    inp.checked = !!checked;
+    wrap.appendChild(inp); wrap.appendChild(document.createTextNode(" " + label));
+    return { wrap, inp };
   }
 
-  // ── §1  Anchor ─────────────────────────────────────────────────────────────
-  const anchorSec = makeSection("\u00a71  Anchor (Near End)");
-  const anchorOpts = makeAnchorOptions();
-  const selAnchor = makeSelect(anchorOpts, anchorOpts[0]?.value ?? "");
-  anchorSec.appendChild(wizRow("Point:", selAnchor));
-  const inpOffAlong = numInput(0, 0.125, "Offset along the wall direction from anchor point (inches, + = toward far end)");
-  const inpOffPerp  = numInput(0, 0.125, "Offset perpendicular (in the thickness direction) from anchor point (inches)");
-  anchorSec.appendChild(wizRow("Offset along:", inpOffAlong, "\u2033  Offset perp:", inpOffPerp, "\u2033"));
-  anchorSec.appendChild(hint("Offsets shift the anchor from the chosen reference point before placing the wall."));
-  modal.appendChild(anchorSec);
+  // ── Header ────────────────────────────────────────────────────────────────
+  const h3 = document.createElement("h3");
+  h3.textContent = `Rebase Wall \u2014 ${elemName}`;
+  modal.appendChild(h3);
 
-  // ── §2  Direction ──────────────────────────────────────────────────────────
-  const dirSec = makeSection("\u00a72  Direction (Along)");
-  const selDir = makeSelect(DIR_OPTIONS, "north");
-  dirSec.appendChild(wizRow("Wall runs:", selDir));
+  // ── §1 Anchor Line ────────────────────────────────────────────────────────
+  const ancSec = sec("\u00a71  Anchor Line");
+  const selA = ptSel(init.anchorA);
+  const selB = ptSel(init.anchorB);
+  ancSec.appendChild(row("Line: ", selA, " \u2192 ", selB));
+  const { feet: dFt0, inches: dIn0 } = splitFtIn(init.distFt);
+  const inpDistFt = numInp(dFt0, 1,     "Whole feet from A along A\u2192B", "60px");
+  const inpDistIn = numInp(dIn0, 0.125, "Additional inches from A along A\u2192B", "72px");
+  ancSec.appendChild(row("Distance from A: ", inpDistFt, " ft  ", inpDistIn, " in"));
+  ancSec.appendChild(hint("Anchor = point A offset by this distance along A\u2192B. Distance 0 places anchor at A."));
+  modal.appendChild(ancSec);
+
+  // ── §2 Wall Direction ─────────────────────────────────────────────────────
+  const dirName = `wpw-dir-${elemName}`;
+  const dirSec = sec("\u00a72  Wall Direction");
+  const rAlong     = makeRadio(dirName, "along",      "Along A\u2192B",            init.dirType === "along");
+  const rPerpLeft  = makeRadio(dirName, "perp_left",  "Perp left (CCW 90\u00b0)",  init.dirType === "perp_left");
+  const rPerpRight = makeRadio(dirName, "perp_right", "Perp right (CW 90\u00b0)",  init.dirType === "perp_right");
+  const rAngle     = makeRadio(dirName, "angle",      "Angle from A\u2192B:",      init.dirType === "angle");
+  const rCompass   = makeRadio(dirName, "compass",    "Compass:",                  init.dirType === "compass");
+  const inpDirAngle = numInp(init.dirAngleDeg, 1,
+    "Degrees CCW from A\u2192B (0 = along A\u2192B, 90 = perp left)", "62px");
+  const inpCompass  = numInp(init.compassDeg,  1,
+    "Degrees (0 = East, 90 = North)", "62px");
+  const dirRow1 = row(rAlong.wrap, rPerpLeft.wrap, rPerpRight.wrap);
+  const dirRow2 = row(rAngle.wrap, inpDirAngle, " \u00b0 (CCW from A\u2192B)    ",
+                      rCompass.wrap, inpCompass, " \u00b0 (0=E, 90=N)");
+  dirSec.appendChild(dirRow1);
+  dirSec.appendChild(dirRow2);
+  dirSec.appendChild(hint("Direction the wall runs from the anchor. Left/right is relative to A\u2192B."));
   modal.appendChild(dirSec);
 
-  // ── §3  Far End ────────────────────────────────────────────────────────────
-  const farSec = makeSection("\u00a73  Far End");
-  const radFixed = document.createElement("input");
-  radFixed.type = "radio"; radFixed.name = `wiz-far-${elemName}`; radFixed.value = "fixed";
-  radFixed.checked = !isIntersect;
-  const radIsect = document.createElement("input");
-  radIsect.type = "radio"; radIsect.name = `wiz-far-${elemName}`; radIsect.value = "intersect";
-  radIsect.checked = isIntersect;
-  const inpLen = numInput(curLenIn, 0.125, "Wall length in inches");
-  inpLen.disabled = isIntersect;
+  function getDirType() {
+    for (const r of [rAlong, rPerpLeft, rPerpRight, rAngle, rCompass]) if (r.inp.checked) return r.inp.value;
+    return "along";
+  }
 
-  const fixedRow = wizRow(radFixed, " Fixed length:", inpLen, "\u2033");
-  const isectRow = wizRow(radIsect, " Extend to inner poly (outer wall face)");
-  farSec.appendChild(fixedRow);
-  farSec.appendChild(isectRow);
-  radFixed.addEventListener("change", () => { inpLen.disabled = !radFixed.checked; updatePreview(); });
-  radIsect.addEventListener("change", () => { inpLen.disabled = !radFixed.checked; updatePreview(); });
+  // ── §3 Far End ────────────────────────────────────────────────────────────
+  const farName = `wpw-far-${elemName}`;
+  const farSec = sec("\u00a73  Far End");
+  const rFixed  = makeRadio(farName, "fixed",      "Fixed length:",              init.farType === "fixed");
+  const rInner  = makeRadio(farName, "inner_poly", "Extend to inner boundary",   init.farType === "inner_poly");
+  const rToLine = makeRadio(farName, "to_line",    "Extend to line:",            init.farType === "to_line");
+  const { feet: lFt0, inches: lIn0 } = splitFtIn(init.farFt);
+  const inpLenFt = numInp(lFt0, 1,     "Whole feet of wall length", "60px");
+  const inpLenIn = numInp(lIn0, 0.125, "Additional inches of wall length", "72px");
+  const selFarC  = ptSel(init.farC);
+  const selFarD  = ptSel(init.farD);
+  farSec.appendChild(row(rFixed.wrap, inpLenFt, " ft  ", inpLenIn, " in"));
+  farSec.appendChild(row(rInner.wrap));
+  farSec.appendChild(row(rToLine.wrap, selFarC, " \u2192 ", selFarD));
+  farSec.appendChild(hint("\"Extend to line\" finds where the wall ray intersects the line through C and D."));
   modal.appendChild(farSec);
 
-  // ── §4  Thickness ──────────────────────────────────────────────────────────
-  const thkSec = makeSection("\u00a74  Thickness");
-  const inpThick = numInput(curThickIn, 0.125, "Wall thickness in inches");
-  const selThickSide = makeSelect([
-    { value: "left",  label: "Left of along (default — inward for most walls)" },
-    { value: "right", label: "Right of along" },
-  ], "left");
-  thkSec.appendChild(wizRow("Thickness:", inpThick, "\u2033"));
-  thkSec.appendChild(wizRow("Wall extends:", selThickSide));
-  thkSec.appendChild(hint(
-    "\"Left\" = 90\u00b0 CCW from the along direction. " +
-    "Most walls grow inward (left), but the choice depends on orientation."
-  ));
+  function getFarType() {
+    for (const r of [rFixed, rInner, rToLine]) if (r.inp.checked) return r.inp.value;
+    return "fixed";
+  }
+  function updateFarInputs() {
+    const ft = getFarType();
+    inpLenFt.disabled = ft !== "fixed"; inpLenIn.disabled = ft !== "fixed";
+    selFarC.disabled = ft !== "to_line"; selFarD.disabled = ft !== "to_line";
+  }
+  for (const r of [rFixed, rInner, rToLine])
+    r.inp.addEventListener("change", () => { updateFarInputs(); updatePreview(); });
+  updateFarInputs();
+
+  // ── §4 Thickness ──────────────────────────────────────────────────────────
+  const thkName = `wpw-thk-${elemName}`;
+  const thkSec = sec("\u00a74  Thickness");
+  const rThkLeft  = makeRadio(thkName, "left",  "Left (CCW) of wall direction", init.thickSide !== "right");
+  const rThkRight = makeRadio(thkName, "right", "Right (CW)",                   init.thickSide === "right");
+  const inpThickIn = numInp(init.thickIn, 0.125, "Wall thickness in inches", "72px");
+  thkSec.appendChild(row(rThkLeft.wrap, rThkRight.wrap));
+  thkSec.appendChild(row("Thickness: ", inpThickIn, " in"));
+  thkSec.appendChild(hint("\"Left\" = 90\u00b0 CCW from the wall direction. Most interior walls grow inward (left)."));
   modal.appendChild(thkSec);
 
-  // ── Preview JSON ───────────────────────────────────────────────────────────
+  function getThickSide() { return rThkRight.inp.checked ? "right" : "left"; }
+
+  // ── Preview JSON ──────────────────────────────────────────────────────────
   const prevToggle = document.createElement("button");
   prevToggle.className = "prop-btn rebase-adv-toggle";
   prevToggle.textContent = "Preview formula JSON \u25bc";
   modal.appendChild(prevToggle);
-
   const prevWrap = document.createElement("div");
   prevWrap.className = "rebase-adv-wrap"; prevWrap.style.display = "none";
-  modal.appendChild(prevWrap);
-
   const prevTA = document.createElement("textarea");
   prevTA.className = "rebase-formula-editor"; prevTA.readOnly = true;
   prevWrap.appendChild(prevTA);
-
+  modal.appendChild(prevWrap);
   prevToggle.addEventListener("click", () => {
     const open = prevWrap.style.display !== "none";
     prevWrap.style.display = open ? "none" : "";
@@ -3914,10 +3950,9 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     if (!open) updatePreview();
   });
 
-  // ── Error + button bar ─────────────────────────────────────────────────────
+  // ── Error + button bar ────────────────────────────────────────────────────
   const errDiv = document.createElement("div"); errDiv.className = "formula-editor-error";
   modal.appendChild(errDiv);
-
   const btnBar = document.createElement("div"); btnBar.className = "rebase-btnbar";
   modal.appendChild(btnBar);
 
@@ -3936,29 +3971,60 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   applyBtn.className = "dialog-btn-primary"; applyBtn.textContent = "Apply";
   btnBar.appendChild(applyBtn);
 
-  // ── Formula builder ────────────────────────────────────────────────────────
+  // ── Formula builder ───────────────────────────────────────────────────────
   function buildFormula() {
-    const dirVal   = selDir.value;
-    const along    = encodeDir(dirVal);
-    const thickDir = encodeThickDir(dirVal, selThickSide.value);
-    const thickFt  = (parseFloat(inpThick.value) || 4) / 12;
+    const A = selA.value, B = selB.value;
+    const distFt = (parseFloat(inpDistFt.value) || 0) + (parseFloat(inpDistIn.value) || 0) / 12;
 
-    let anchor = encodeAnchorRef(selAnchor.value);
-    const offAlong = (parseFloat(inpOffAlong.value) || 0) / 12;
-    const offPerp  = (parseFloat(inpOffPerp.value)  || 0) / 12;
-    if (offAlong !== 0) anchor = { offset: anchor, dir: along,    dist: offAlong };
-    if (offPerp  !== 0) anchor = { offset: anchor, dir: thickDir, dist: offPerp  };
+    // Anchor: bare point A when distance=0, else offset spec along A→B
+    const anchor = Math.abs(distFt) < 1e-9
+      ? A
+      : { offset: A, dir: { segment: [A, B] }, dist: distFt };
 
-    const formula = {
-      type: "wall_rect",
-      anchor,
-      along,
-      thickness_dir: thickDir,
-      thickness: thickFt,
-      end_mode: radFixed.checked ? "fixed" : "intersect",
-    };
-    if (radFixed.checked) {
-      formula.length = (parseFloat(inpLen.value) || 24) / 12;
+    // Along direction
+    const dt = getDirType();
+    let along;
+    switch (dt) {
+      case "along":      along = { segment: [A, B] }; break;
+      case "perp_left":  along = { neg: { perp: { segment: [A, B] } } }; break;
+      case "perp_right": along = { perp: { segment: [A, B] } }; break;
+      case "angle": {
+        const rad = (parseFloat(inpDirAngle.value) || 0) * Math.PI / 180;
+        along = { rotated: { segment: [A, B] }, angle: rad };
+        break;
+      }
+      default: { // compass
+        const rad = (parseFloat(inpCompass.value) || 0) * Math.PI / 180;
+        along = [Math.cos(rad), Math.sin(rad)];
+      }
+    }
+
+    // Thickness direction: perpendicular of along; left=CCW, right=CW
+    const side = getThickSide();
+    let thickDir;
+    if (Array.isArray(along)) {
+      thickDir = side === "left" ? [-along[1], along[0]] : [along[1], -along[0]];
+    } else {
+      thickDir = side === "left" ? { neg: { perp: along } } : { perp: along };
+    }
+
+    const thickness = (parseFloat(inpThickIn.value) || 4) / 12;
+
+    // Far end
+    const ft = getFarType();
+    const formula = { type: "wall_rect", anchor, along, thickness_dir: thickDir, thickness };
+    if (ft === "fixed") {
+      formula.end_mode = "fixed";
+      formula.length = (parseFloat(inpLenFt.value) || 0) + (parseFloat(inpLenIn.value) || 0) / 12;
+    } else if (ft === "inner_poly") {
+      formula.end_mode = "intersect";
+      formula.end_target = "inner_poly";
+      formula.select = "nearest";
+    } else { // to_line
+      const C = selFarC.value, D = selFarD.value;
+      formula.end_mode = "to_line";
+      formula.end_line_point = C;
+      formula.end_line_dir = { segment: [C, D] };
     }
     return formula;
   }
@@ -3969,15 +4035,17 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     catch (e) { prevTA.value = `// ${e.message}`; }
   }
 
-  [selAnchor, selDir, selThickSide, inpThick, inpLen, inpOffAlong, inpOffPerp]
+  // Live preview wiring
+  [selA, selB, inpDistFt, inpDistIn, inpDirAngle, inpCompass, inpThickIn, inpLenFt, inpLenIn, selFarC, selFarD]
     .forEach(el => { el.addEventListener("change", updatePreview); el.addEventListener("input", updatePreview); });
+  for (const r of [rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rThkLeft, rThkRight])
+    r.inp.addEventListener("change", updatePreview);
 
-  // ── Apply (cycle-check → batch-commit) ────────────────────────────────────
+  // ── Apply (cycle-check → batch commit) ───────────────────────────────────
   applyBtn.addEventListener("click", async () => {
     errDiv.textContent = "";
     let formula;
     try { formula = buildFormula(); } catch (e) { errDiv.textContent = e.message; return; }
-
     applyBtn.disabled = true; applyBtn.textContent = "Checking\u2026";
     try {
       const pvResp = await fetch("/api/formula-rebase-preview", {

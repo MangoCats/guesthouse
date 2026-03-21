@@ -321,8 +321,31 @@ class FormulaEvaluator:
             nw = [near_pt[0] + thickness * thick_dir[0],
                   near_pt[1] + thickness * thick_dir[1]]
             poly_out = [sw, se, ne, nw]
+
+        elif end_mode == "to_line":
+            # Far end = intersection of wall ray with a specified line
+            end_pt = self.resolve_point(formula.get("end_line_point"))
+            end_dir = self.resolve_dir(formula.get("end_line_dir"))
+            if end_pt is None or end_dir is None:
+                return None
+            # Solve: anchor + t*along = end_pt + s*end_dir
+            det = along[0] * end_dir[1] - along[1] * end_dir[0]
+            if abs(det) < 1e-12:
+                return None  # parallel lines
+            dx_e = end_pt[0] - anchor[0]
+            dy_e = end_pt[1] - anchor[1]
+            t = (dx_e * end_dir[1] - dy_e * end_dir[0]) / det
+            far_pt = [anchor[0] + t * along[0], anchor[1] + t * along[1]]
+            sw = anchor
+            se = far_pt
+            ne = [far_pt[0] + thickness * thick_dir[0],
+                  far_pt[1] + thickness * thick_dir[1]]
+            nw = [anchor[0] + thickness * thick_dir[0],
+                  anchor[1] + thickness * thick_dir[1]]
+            poly_out = [sw, se, ne, nw]
+
         else:
-            # Fixed length
+            # Fixed length (default)
             length = self.resolve_length(formula.get("length"))
             if length is None:
                 return None
@@ -1322,7 +1345,8 @@ def _extract_deps_recursive(spec, deps):
     # Recurse into known sub-specs
     for key in ("anchor", "along", "across", "thickness_dir", "dir", "dist",
                 "offset", "center", "reference", "line1_point", "line1_dir",
-                "line2_point", "line2_dir", "thickness", "length", "width",
+                "line2_point", "line2_dir", "end_line_point", "end_line_dir",
+                "thickness", "length", "width",
                 "depth", "radius", "origin", "neg", "perp", "rotated",
                 "sw", "se", "ne", "nw",
                 "outer_start", "outer_end", "inner_start", "inner_end",
