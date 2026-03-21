@@ -3899,7 +3899,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     // --- Along direction ---
     const al = f.along;
     if (al && typeof al === "object" && !Array.isArray(al)) {
-      if ("face_perp" in al) {
+      if ("face_perp" in al || ("neg" in al && al.neg && "face_perp" in al.neg)) {
         dirType = "face_perp";
       } else {
         const seg = al.segment || al.perp?.segment || al.segment_perp
@@ -4218,7 +4218,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     let along;
     if (dt === "face_perp" && ancMode === "element_face") {
       const E = selAncElem.value, F = selAncFace.value;
-      along = { face_perp: E, face: F };
+      along = { neg: { face_perp: E, face: F } };
     } else {
       switch (dt) {
         case "along":      along = { segment: [A, B] }; break;
