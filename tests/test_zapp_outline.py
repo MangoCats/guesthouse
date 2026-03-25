@@ -422,7 +422,7 @@ class TestAPI18AddPoint:
     """POST /api/outline/add-point tests."""
 
     def test_add_point_line_split(self, app_client):
-        """Splitting a line segment adds one row."""
+        """Splitting a line segment adds two rows (L + CW arc + L)."""
         chain_before = app_client.get("/api/outline").get_json()
         n_before = len(chain_before)
 
@@ -435,10 +435,15 @@ class TestAPI18AddPoint:
         data = resp.get_json()
         assert data["ok"] is True
         assert data["closure_valid"] is True
-        assert len(data["chain"]) == n_before + 1
+        assert len(data["chain"]) == n_before + 2
+        assert data["added"] == ["F9a", "F9ab"]
+        # Middle segment should be a CW arc with 4 ft radius
+        mid = next(r for r in data["chain"] if r["end_name"] == "F9ab")
+        assert mid["seg_type"] == "CW"
+        assert abs(mid["radius"] - 4.0) < 1e-6
 
     def test_add_point_arc_split(self, app_client):
-        """Splitting an arc segment adds one row."""
+        """Splitting an arc segment adds two rows (arc + L + arc)."""
         chain_before = app_client.get("/api/outline").get_json()
         n_before = len(chain_before)
 
@@ -451,7 +456,12 @@ class TestAPI18AddPoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["ok"] is True
-        assert len(data["chain"]) == n_before + 1
+        assert len(data["chain"]) == n_before + 2
+        assert data["added"] == ["F5a", "F5ab"]
+        # Middle segment should be a 1" line
+        mid = next(r for r in data["chain"] if r["end_name"] == "F5ab")
+        assert mid["seg_type"] == "L"
+        assert abs(mid["distance"] - 1.0 / 12.0) < 1e-6
 
     def test_add_point_duplicate_name_rejected(self, app_client):
         """Duplicate point name is rejected."""
@@ -531,16 +541,16 @@ class TestOutlineUndo:
                 assert abs((a["radius"] or 0) - (b["radius"] or 0)) < 1e-9
 
     def test_undo_outline_add_point(self, app_client):
-        """Add point then undo restores 18-row chain."""
+        """Add point then undo restores original chain."""
         chain_before = app_client.get("/api/outline").get_json()
         n_before = len(chain_before)
 
         app_client.post("/api/outline/add-point",
                         json={"after_seq": 5, "end_name": "F9a"})
 
-        # Verify chain grew
+        # Verify chain grew by 2 (two new points added)
         chain_mid = app_client.get("/api/outline").get_json()
-        assert len(chain_mid) == n_before + 1
+        assert len(chain_mid) == n_before + 2
 
         # Undo
         resp = app_client.post("/api/undo")

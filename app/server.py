@@ -1965,13 +1965,14 @@ def create_app(db_path=None):
 
     @app.route("/api/outline/add-point", methods=["POST"])
     def api_add_outline_point():
-        """API-18: Insert new F-point by splitting a segment."""
+        """API-18: Insert two new points by splitting a segment into three.
 
-
+        Line split: L → L(half) + CW arc(4', 2°) + L(half)
+        Arc split:  Arc → Arc(half sweep) + L(1") + Arc(half sweep)
+        """
         body = request.get_json(force=True)
         after_seq = body.get("after_seq")
         end_name = body.get("end_name")
-        seg_type = body.get("seg_type", "L")
 
         if after_seq is None or not end_name:
             return jsonify({"error": "missing after_seq or end_name"}), 400
@@ -1982,36 +1983,69 @@ def create_app(db_path=None):
         if not old_seg:
             return jsonify({"error": f"segment {after_seq} not found"}), 404
 
-        # Check for duplicate end_name
-        for row in before_chain:
-            if row["end_name"] == end_name:
-                return jsonify({"error": f"point name {end_name} already exists"}), 400
+        existing_names = {row["end_name"] for row in before_chain}
+        if end_name in existing_names:
+            return jsonify({"error": f"point name {end_name} already exists"}), 400
+
+        # Auto-generate second point name and center name (unique)
+        def _unique(base, taken):
+            for sfx in "bcdefghijklmnopqrstuvwxyz":
+                if base + sfx not in taken:
+                    return base + sfx
+            return base + "2"
+
+        taken = existing_names | {end_name}
+        end_name2 = _unique(end_name, taken)
+        taken.add(end_name2)
+        center_name = _unique(end_name + "c", taken)
 
         if old_seg["seg_type"] == "L":
-            # Line split: halve distance into two equal L segments
+            # Line split: halve distance, insert CW arc (4 ft, 2°) in middle
             half_dist = (old_seg["distance"] or 0) / 2.0
+            arc_sweep = 2.0 * math.pi / 180.0   # 2 degrees → radians
+            arc_radius = 4.0                     # feet
             update_outline_segment(after_seq, {
                 "distance": half_dist, "end_name": end_name,
             }, db)
-            new_row = {
+            insert_outline_segment(after_seq + 1, {
+                "seg_type": "CW",
+                "radius": arc_radius,
+                "sweep_name": f"{arc_sweep:.12f}",
+                "sweep": arc_sweep,
+                "center_name": center_name,
+                "n_pts": 12,
+                "end_name": end_name2,
+            }, db)
+            insert_outline_segment(after_seq + 2, {
                 "seg_type": "L",
                 "distance": half_dist,
                 "end_name": old_seg["end_name"],
-            }
-            insert_outline_segment(after_seq + 1, new_row, db)
+            }, db)
         else:
-            # Arc split: keep parent arc intact, insert new L with half-chord
-            # length so closure can always be solved (user adjusts type/size after).
+            # Arc split: halve sweep, insert 1" line in middle
             r = old_seg["radius"] or 1.0
             s = old_seg["sweep"] or (math.pi / 2)
-            half_chord = r * math.sin(s / 2)  # half of chord = R·sin(sweep/2)
-            update_outline_segment(after_seq, {"end_name": end_name}, db)
-            new_row = {
+            half_sweep = s / 2.0
+            arc_type = old_seg["seg_type"]       # preserve CW / CCW
+            update_outline_segment(after_seq, {
+                "sweep_name": f"{half_sweep:.12f}",
+                "sweep": half_sweep,
+                "end_name": end_name,
+            }, db)
+            insert_outline_segment(after_seq + 1, {
                 "seg_type": "L",
-                "distance": half_chord,
+                "distance": 1.0 / 12.0,         # 1 inch in feet
+                "end_name": end_name2,
+            }, db)
+            insert_outline_segment(after_seq + 2, {
+                "seg_type": arc_type,
+                "radius": r,
+                "sweep_name": f"{half_sweep:.12f}",
+                "sweep": half_sweep,
+                "center_name": center_name,
+                "n_pts": old_seg.get("n_pts", 60),
                 "end_name": old_seg["end_name"],
-            }
-            insert_outline_segment(after_seq + 1, new_row, db)
+            }, db)
 
         # Re-solve closure
         solver, _ = _solve_and_update_closure()
@@ -2025,7 +2059,7 @@ def create_app(db_path=None):
         after_chain = get_outline_chain(db)
         undo_mgr.record(
             "outline_add_point", before_chain, after_chain,
-            f"Add point {end_name}",
+            f"Add points {end_name}, {end_name2}",
         )
 
         _invalidate()
@@ -2035,6 +2069,7 @@ def create_app(db_path=None):
             "ok": True,
             "chain": get_outline_chain(db),
             "closure_valid": True,
+            "added": [end_name, end_name2],
         })
 
     @app.route("/api/outline/<int:seq>", methods=["DELETE"])

@@ -6173,15 +6173,16 @@ function setupOutlineToolbar() {
         showToast("Select a segment first", "error");
         return;
       }
-      const name = prompt("New point name (e.g., F9a):");
+      const name = prompt("First new point name (e.g., F9a) — a second point will be auto-named:");
       if (!name) return;
       try {
-        await apiFetch("/api/outline/add-point", {
+        const result = await apiFetch("/api/outline/add-point", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ after_seq: seq, end_name: name }),
         });
-        showToast(`Added point ${name}`, "success");
+        const added = result.added || [name];
+        showToast(`Added points ${added.join(", ")}`, "success");
         loadOutlineTable();
       } catch (e) {
         showToast(`Error: ${e.message}`, "error");
