@@ -8514,7 +8514,7 @@ async function loadConfigName() {
 
 async function saveConfig(name, overwrite = false) {
   try {
-    const resp = await apiFetch("/api/configs/save", {
+    const resp = await fetch("/api/configs/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, overwrite }),
@@ -8526,8 +8526,8 @@ async function saveConfig(name, overwrite = false) {
       return;
     }
     if (!resp.ok) {
-      const err = await resp.json();
-      showToast(`Save failed: ${err.error}`, "error");
+      const err = await resp.json().catch(() => ({}));
+      showToast(`Save failed: ${err.error || resp.statusText}`, "error");
       return;
     }
     App.state.configName = name;
