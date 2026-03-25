@@ -317,13 +317,21 @@ def apply_overrides_to_poly(inner_poly, inner_segs, pts, overrides):
         overrides   — dict {seg_index: [sub-segment dicts]}
     """
     for seg_idx in sorted(overrides.keys(), reverse=True):
+        if seg_idx >= len(inner_segs):
+            continue  # override references a segment that no longer exists
         chain = overrides[seg_idx]
         seg = inner_segs[seg_idx]
+        if seg.start not in pts or seg.end not in pts:
+            continue  # referenced points absent (e.g. non-F-series chain)
         start_pt = pts[seg.start]
         # Determine span end
         span_end = chain[0].get("span_end") if chain else None
         end_seg_idx = span_end if span_end is not None else seg_idx
+        if end_seg_idx >= len(inner_segs):
+            continue
         end_seg = inner_segs[end_seg_idx]
+        if end_seg.end not in pts:
+            continue
         end_pt = pts[end_seg.end]
         start_bearing = _seg_start_bearing(seg, pts)
         poly = walk_override_chain(chain, start_pt, start_bearing)
@@ -528,15 +536,16 @@ class GeneratorData:
         f8f9_inner_r = opening_r + shell_t
 
         # Apply inner wall overrides to inner_poly (W-series)
+        _has_f8f9 = "F8" in self.pts and "W8" in self.pts and "W9" in self.pts
         if overrides:
             self._apply_inner_wall_overrides(overrides)
-        else:
-            # Legacy fallback: hardcoded F8-F9 splice
+        elif _has_f8f9:
+            # Legacy fallback: hardcoded F8-F9 splice (F-series chain only)
             self._apply_f8f9_hardcoded(f8f9_inner_r)
 
         # W-series F8-F9 polyline (for shell geometry, always from hardcoded)
-        self.w_f8f9_poly = f8f9_corner_polyline(
-            self.pts, self.wall_t, f8f9_inner_r)
+        self.w_f8f9_poly = (f8f9_corner_polyline(
+            self.pts, self.wall_t, f8f9_inner_r) if _has_f8f9 else [])
 
         # S-series (inner face of outer shell)
         self.s_pts, self.s_segs = compute_inset_path(
@@ -550,8 +559,8 @@ class GeneratorData:
         self.pts.update(self.g_pts)
 
         # G-series F8-F9 polyline
-        self.g_f8f9_poly = f8f9_corner_polyline(
-            self.pts, shell_t + air_gap, opening_r)
+        self.g_f8f9_poly = (f8f9_corner_polyline(
+            self.pts, shell_t + air_gap, opening_r) if _has_f8f9 else [])
 
         # Layout — hardcoded seed values; used only on the standalone
         # subprocess path.  DB-driven callers should use gd.iw_polys instead.
@@ -591,7 +600,11 @@ class GeneratorData:
             self.inner_poly, self.inner_segs, self.pts, overrides)
 
     def _compute_roof_geometry(self):
-        """Compute R-series roof geometry."""
+        """Compute R-series roof geometry (F-series chain only)."""
+        if "R_a5" not in self.radii:
+            self.roof = None
+            self.roof_poly = []
+            return
         self.roof = compute_roof_geometry(self.pts, self.radii)
         self.roof_poly = roof_polyline(self.roof)
         # Merge roof points into main pts dict
