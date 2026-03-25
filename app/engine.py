@@ -1392,7 +1392,10 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         from app.plumbing import get_plumbing_elements
 
         data = build_floorplan_data(gd)
-        boundary = _compute_boundary_corners(data.pts)
+        try:
+            boundary = _compute_boundary_corners(data.pts)
+        except (KeyError, TypeError):
+            boundary = None  # F-series points absent (non-standard chain)
         base = os.path.join(_PROJECT, "floorplan")
 
         # Variant configs: (suffix, variant_name, room_title)

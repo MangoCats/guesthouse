@@ -364,16 +364,27 @@ class FloorplanData(NamedTuple):
     layout: Any             # InteriorLayout
 
 
-def compute_page_layout(pts, to_svg):
+def compute_page_layout(pts, to_svg, outline_poly=None):
     """Compute SVG page layout (viewbox, titleblock, north arrow) from geometry.
 
     Returns a dict with keys: vb_x, vb_y, vb_w, vb_h, title_x, title_y,
     tb_left, tb_right, tb_top, tb_bottom, tb_w, tb_h, tb_cx,
     na_x, na_text_y, na_tip_y, na_base_y, ft_per_inch.
+
+    outline_poly: optional list of (E, N) outline polygon points used as a
+    fallback bounding-box source when F-series pts are absent (non-F-series chains).
     """
     _margin_top = 36   # 0.5" top margin
     _f_names = [f"F{i}" for i in range(19) if i not in (0, 3, 4)]
-    _f_svg = [to_svg(*pts[k]) for k in _f_names]
+    _has_f_series = all(k in pts for k in _f_names)
+    if _has_f_series:
+        _f_svg = [to_svg(*pts[k]) for k in _f_names]
+    elif outline_poly:
+        _f_svg = [to_svg(*p) for p in outline_poly]
+    else:
+        # Last-resort: all pts except internal names
+        _f_svg = [to_svg(*v) for k, v in pts.items()
+                  if k not in ("FC", "CTR") and isinstance(v, (list, tuple))]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
     _bldg_ymin = min(p[1] for p in _f_svg)
@@ -395,8 +406,14 @@ def compute_page_layout(pts, to_svg):
     _na_tip_y = _na_text_y + 6
     _na_base_y = _na_tip_y + 36
 
-    _ext_w_x = to_svg(pts["F2"][0] - 2.7, 0)[0]
-    _ext_s_y = to_svg(0, pts["F18"][1] - 3.0)[1]
+    if "F2" in pts:
+        _ext_w_x = to_svg(pts["F2"][0] - 2.7, 0)[0]
+    else:
+        _ext_w_x = _bldg_xmin - 10
+    if "F18" in pts:
+        _ext_s_y = to_svg(0, pts["F18"][1] - 3.0)[1]
+    else:
+        _ext_s_y = _bldg_ymax + 10
     _cb_xmin = min(_bldg_xmin - 25, _ext_w_x - 10)
     _cb_xmax = _tb_right + 5
     _cb_ymin = _title_y - 14 - 5
@@ -447,7 +464,7 @@ def build_floorplan_data(gd=None):
         gd = GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict)
 
     to_svg = make_svg_transform()
-    page = compute_page_layout(gd.pts, to_svg)
+    page = compute_page_layout(gd.pts, to_svg, outline_poly=gd.outline_poly)
 
     return FloorplanData(
         pts=gd.pts, to_svg=to_svg,
@@ -1275,6 +1292,8 @@ def _render_plumbing_path(out, data, layout):
     """Render green utility path from washer through west/south side to east."""
     pts = data.pts
     to_svg = data.to_svg
+    if not all(k in pts for k in ("W2", "W5", "F1", "F2", "F14")):
+        return  # F-series points absent (non-standard chain)
 
     # Compute washer center (replicates db-mode logic from _render_appliances)
     w2w5_al, w2w5_in = seg_vecs(pts["W2"], pts["W5"])
