@@ -1274,9 +1274,14 @@ function renderPoints(g) {
   const pointLayer = App.els["layer-points"];
   const labelLayer = App.els["layer-labels"];
 
+  const chainEndNames = new Set(
+    (App.state.outlineChain || []).map(r => r.end_name).filter(Boolean)
+  );
+
   for (const [name, pt] of Object.entries(g.points || {})) {
-    // Filter to F/W/C series and survey points
-    const isFSeries = name.startsWith("F") && !name.startsWith("FC");
+    // Filter to F/W/C series, survey points, and current outline chain endpoints
+    const isFSeries = (name.startsWith("F") && !name.startsWith("FC"))
+                      || chainEndNames.has(name);
     const isWSeries = name.startsWith("W");
     const isCSeries = name.startsWith("C") && name !== "CTR";
     if (!isFSeries && !isWSeries && !isCSeries) continue;
