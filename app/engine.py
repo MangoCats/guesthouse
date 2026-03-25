@@ -1384,6 +1384,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
     handler exists for the given script (caller should fall back to
     subprocess).
     """
+    _has_f_series = "F1" in gd.pts and "F2" in gd.pts
+
     if script_path == "floorplan/gen_floorplan.py":
         from floorplan.gen_floorplan import build_floorplan_data
         from plumbing.gen_plumbing import _compute_boundary_corners
@@ -1436,6 +1438,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "roof/gen_roof.py":
+        if not _has_f_series:
+            return True  # roof outline requires F-series chain
         from roof.gen_roof import render_roof_svg
         svg = render_roof_svg(gd)
         with open(os.path.join(_PROJECT, "roof", "roof.svg"), "w", encoding="utf-8") as f:
@@ -1443,6 +1447,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "walls/gen_walls.py":
+        if not _has_f_series:
+            return True  # walls detail requires F-series chain
         from walls.gen_walls import build_wall_data, render_walls_svg
         data = build_wall_data(gd)
         base = os.path.join(_PROJECT, "walls")
@@ -1455,6 +1461,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "span/gen_span.py":
+        if not _has_f_series:
+            return True  # span analysis requires F-series chain
         from span.gen_span import _generate_svg as _span_svg
         from span._common import build_geometry
         pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry(gd)
@@ -1464,6 +1472,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "span/gen_span_minmax.py":
+        if not _has_f_series:
+            return True  # span analysis requires F-series chain
         from span.gen_span_minmax import _generate_svg as _span_mm_svg
         from span._common import build_geometry
         pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry(gd)
@@ -1473,6 +1483,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "span/gen_span_min.py":
+        if not _has_f_series:
+            return True  # span analysis requires F-series chain
         from span.gen_span_min import _generate_svg as _span_min_svg
         from span._common import build_geometry
         pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry(gd)
@@ -1482,6 +1494,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "site/gen_site_plan.py":
+        if not _has_f_series:
+            return True  # site plan requires F-series chain
         # 'site' shadows stdlib module — use importlib
         import importlib.util
         _sp = importlib.util.spec_from_file_location(
