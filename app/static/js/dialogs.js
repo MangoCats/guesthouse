@@ -37,11 +37,24 @@ const Dialog = {
       const label = document.createElement("label");
       label.textContent = f.label;
       field.appendChild(label);
-      const input = document.createElement("input");
-      input.type = "text";
-      input.name = f.name;
-      input.value = f.value || "";
-      input.placeholder = f.placeholder || "";
+      let input;
+      if (f.type === "select" && f.options) {
+        input = document.createElement("select");
+        input.name = f.name;
+        for (const opt of f.options) {
+          const o = document.createElement("option");
+          o.value = typeof opt === "object" ? opt.value : opt;
+          o.textContent = typeof opt === "object" ? opt.label : opt;
+          if (o.value === f.value) o.selected = true;
+          input.appendChild(o);
+        }
+      } else {
+        input = document.createElement("input");
+        input.type = "text";
+        input.name = f.name;
+        input.value = f.value || "";
+        input.placeholder = f.placeholder || "";
+      }
       field.appendChild(input);
       dialog.appendChild(field);
       inputs[f.name] = input;

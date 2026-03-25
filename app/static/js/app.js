@@ -7573,7 +7573,7 @@ const OpeningTool = { active: false, defaultWidth: 32.0 / 12 };
 function startOpeningPlacement() {
   OpeningTool.active = true;
   App.els["viewport"].style.cursor = "crosshair";
-  showToast("Click on a wall to place an opening", "info");
+  showToast("Click on an outer wall segment or interior wall to place an opening", "info");
 }
 
 function cancelOpeningPlacement() {
@@ -7591,7 +7591,7 @@ function distToSeg(px, py, x1, y1, x2, y2) {
   return Math.sqrt((px - cx) ** 2 + (py - cy) ** 2);
 }
 
-/** Find nearest wall polygon edge to (wx, wy). Returns { name, type } or null. */
+/** Find nearest wall polygon edge to (wx, wy). Returns { name, dist } or null. */
 function findNearestWall(wx, wy) {
   let bestDist = Infinity, bestWall = null;
   const g = App.state.geometry;
@@ -7606,57 +7606,132 @@ function findNearestWall(wx, wy) {
       if (d < bestDist) { bestDist = d; bestWall = { name, type: "iw" }; }
     }
   }
-  return bestDist < 0.5 ? bestWall : null;
+  return bestDist < 0.5 ? { wall: bestWall, dist: bestDist } : null;
+}
+
+/**
+ * Find the nearest straight (line-type) outer wall segment to (wx, wy).
+ * Returns { seg, gap, dist } or null.
+ * gap = feet from seg.start to the click projection along the segment.
+ */
+function findNearestOuterWallLineSeg(wx, wy) {
+  const g = App.state.geometry;
+  if (!g) return null;
+  const segs = g.outline_segments || [];
+  const pts  = g.points || {};
+  let bestDist = Infinity, bestSeg = null, bestGap = 0;
+  for (const seg of segs) {
+    if (seg.type !== "line") continue;
+    const p1 = pts[seg.start], p2 = pts[seg.end];
+    if (!p1 || !p2) continue;
+    const d = distToSeg(wx, wy, p1[0], p1[1], p2[0], p2[1]);
+    if (d < bestDist) {
+      bestDist = d;
+      bestSeg  = seg;
+      const dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+      const len = Math.sqrt(dx * dx + dy * dy);
+      bestGap = len > 1e-9
+        ? Math.max(0, Math.min(len, ((wx - p1[0]) * dx + (wy - p1[1]) * dy) / len))
+        : 0;
+    }
+  }
+  return bestDist < 1.0 ? { seg: bestSeg, gap: bestGap, dist: bestDist } : null;
 }
 
 function openingToolMouseDown(e) {
   const [wx, wy] = mouseToWorld(e);
-  const wall = findNearestWall(wx, wy);
-  if (!wall) {
+  const iwMatch    = findNearestWall(wx, wy);
+  const outerMatch = findNearestOuterWallLineSeg(wx, wy);
+
+  // Pick closest match (outer wall tolerance 1 ft; interior wall tolerance 0.5 ft)
+  const useOuter = outerMatch && (!iwMatch || outerMatch.dist <= iwMatch.dist);
+
+  if (!useOuter && !iwMatch) {
     showToast("No wall found near click", "warning");
     return;
   }
-  // Compute gap = distance from SW (poly[0]) along SW→SE to click point
-  let gap = 0;
-  const poly = App.state.geometry?.interior_walls?.[wall.name]?.poly;
-  if (poly && poly.length >= 2) {
-    const [sx, sy] = poly[0], [ex, ey] = poly[1];
-    const len = Math.sqrt((ex - sx) ** 2 + (ey - sy) ** 2);
-    if (len > 1e-9) {
-      const ux = (ex - sx) / len, uy = (ey - sy) / len;
-      gap = Math.max(0, Math.min(len - 0.01, (wx - sx) * ux + (wy - sy) * uy));
-    }
-  }
-  const defWidth = fmtFtIn(OpeningTool.defaultWidth);
-  Dialog.show({
-    title: `Add Opening on ${wall.name}`,
-    fields: [
-      { label: "Width", name: "width", value: defWidth },
-    ],
-    async onSubmit(values) {
-      const width = parseDimension(values.width);
-      if (!width || width <= 0) { showToast("Invalid width", "error"); return; }
-      try {
-        const resp = await apiFetch("/api/openings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            wall: wall.name,
-            gap,
-            width,
-            variant: App.state.variant,
-          }),
-        });
-        const result = await resp.json();
-        showToast(`Created ${result.name} on ${wall.name}`, "success");
-        OpeningTool.active = false;
-        App.els["viewport"].style.cursor = "crosshair";
-        await reloadAfterChange();
-      } catch (err) {
-        showToast(`Error: ${err.message}`, "error");
+
+  if (useOuter) {
+    // --- Outer opening dialog ---
+    const seg = outerMatch.seg;
+    const gap = outerMatch.gap;
+    const defWidth = fmtFtIn(OpeningTool.defaultWidth);
+    Dialog.show({
+      title: `Add Outer Opening on ${seg.start}–${seg.end}`,
+      fields: [
+        { label: "Width",         name: "width",        value: defWidth },
+        { label: "Opening type",  name: "opening_type", type: "select",
+          options: ["window", "door", "casement"],      value: "window" },
+      ],
+      async onSubmit(values) {
+        const width = parseDimension(values.width);
+        if (!width || width <= 0) { showToast("Invalid width", "error"); return; }
+        try {
+          const resp = await apiFetch("/api/outer-openings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              seg_start:    seg.start,
+              seg_end:      seg.end,
+              gap,
+              width,
+              opening_type: values.opening_type || "window",
+            }),
+          });
+          const result = await resp.json();
+          showToast(`Created ${result.name} on ${seg.start}–${seg.end}`, "success");
+          OpeningTool.active = false;
+          App.els["viewport"].style.cursor = "default";
+          await reloadAfterChange();
+        } catch (err) {
+          showToast(`Error: ${err.message}`, "error");
+        }
+      },
+    });
+  } else {
+    // --- Interior (rough) opening dialog (existing behavior) ---
+    const wall = iwMatch.wall;
+    let gap = 0;
+    const poly = App.state.geometry?.interior_walls?.[wall.name]?.poly;
+    if (poly && poly.length >= 2) {
+      const [sx, sy] = poly[0], [ex, ey] = poly[1];
+      const len = Math.sqrt((ex - sx) ** 2 + (ey - sy) ** 2);
+      if (len > 1e-9) {
+        const ux = (ex - sx) / len, uy = (ey - sy) / len;
+        gap = Math.max(0, Math.min(len - 0.01, (wx - sx) * ux + (wy - sy) * uy));
       }
-    },
-  });
+    }
+    const defWidth = fmtFtIn(OpeningTool.defaultWidth);
+    Dialog.show({
+      title: `Add Opening on ${wall.name}`,
+      fields: [
+        { label: "Width", name: "width", value: defWidth },
+      ],
+      async onSubmit(values) {
+        const width = parseDimension(values.width);
+        if (!width || width <= 0) { showToast("Invalid width", "error"); return; }
+        try {
+          const resp = await apiFetch("/api/openings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              wall: wall.name,
+              gap,
+              width,
+              variant: App.state.variant,
+            }),
+          });
+          const result = await resp.json();
+          showToast(`Created ${result.name} on ${wall.name}`, "success");
+          OpeningTool.active = false;
+          App.els["viewport"].style.cursor = "default";
+          await reloadAfterChange();
+        } catch (err) {
+          showToast(`Error: ${err.message}`, "error");
+        }
+      },
+    });
+  }
 }
 
 /** Define a drawn wall geometry: snap to face or run between two named points. */

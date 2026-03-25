@@ -660,6 +660,72 @@ def create_iw_element(conn, formula, variant=None):
     return name, dict(row)
 
 
+def _next_outer_opening_name(conn):
+    """Return the next unused O{N} name (pure numeric suffix, guaranteed ≥ O12)."""
+    rows = conn.execute(
+        "SELECT name FROM elements WHERE type='opening' AND name GLOB 'O[0-9]*'"
+    ).fetchall()
+    nums = []
+    for r in rows:
+        m = re.match(r"^O(\d+)$", r["name"])
+        if m:
+            nums.append(int(m.group(1)))
+    return f"O{max(nums, default=11) + 1}"
+
+
+def create_outer_opening_element(conn, seg_start, seg_end, gap, width,
+                                 opening_type="window"):
+    """Create a new user outer opening element on a straight outer wall segment.
+
+    seg_start, seg_end: outer wall endpoint names (e.g. "F2"/"F5" or "PA0"/"PA1").
+    gap:    distance in feet from seg_start to the near edge of the opening.
+    width:  opening width in feet.
+    opening_type: "window", "door", or "casement".
+
+    Inner wall endpoints are derived by substituting the first character
+    ("F" or "P") with "W" (e.g. "F2"→"W2", "PA0"→"WA0").
+
+    Returns (name, row_dict).
+    """
+    from app.evaluator import extract_deps
+    inner_start = "W" + seg_start[1:]
+    inner_end   = "W" + seg_end[1:]
+    name = _next_outer_opening_name(conn)
+    props = json.dumps({
+        "seg_start":    seg_start,
+        "seg_end":      seg_end,
+        "opening_type": opening_type,
+    })
+    conn.execute(
+        "INSERT INTO elements (type, name, properties, variant) VALUES ('opening', ?, ?, NULL)",
+        (name, props),
+    )
+    formula = {
+        "type":        "wall_opening",
+        "outer_start": seg_start,
+        "outer_end":   seg_end,
+        "inner_start": inner_start,
+        "inner_end":   inner_end,
+        "from_end":    False,
+        "gap":         gap,
+        "width":       width,
+    }
+    fj = json.dumps(formula)
+    conn.execute(
+        "INSERT INTO element_formulas (element_name, param_name, formula_json, variant) "
+        "VALUES (?, 'position', ?, NULL)",
+        (name, fj),
+    )
+    for dep_type, dep_name in extract_deps(formula):
+        conn.execute(
+            "INSERT OR IGNORE INTO formula_deps "
+            "(element_name, param_name, dep_type, dep_name) VALUES (?, 'position', ?, ?)",
+            (name, dep_type, dep_name),
+        )
+    row = conn.execute("SELECT * FROM elements WHERE name=?", (name,)).fetchone()
+    return name, dict(row)
+
+
 def _next_ro_name(conn):
     """Return the next unused RO{N} name (pure numeric suffix, guaranteed ≥ RO8)."""
     rows = conn.execute(

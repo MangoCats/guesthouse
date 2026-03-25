@@ -24,7 +24,7 @@ from app.database import (
     get_categories, get_outline_chain, get_views, reset_constants,
     get_all_elements, get_element, get_element_by_name,
     create_element, update_element, delete_element, create_iw_element,
-    create_ro_element,
+    create_ro_element, create_outer_opening_element,
     get_all_doors, get_door, create_door, update_door, delete_door,
     get_outline_chain_row, update_outline_segment, insert_outline_segment,
     delete_outline_segment, restore_outline_chain, reset_outline_chain,
@@ -1186,6 +1186,37 @@ def create_app(db_path=None):
         undo_mgr.record(
             "element_create", {"id": rec["id"]}, rec,
             f"Create opening {name}",
+        )
+        _invalidate()
+        _broadcast("element_changed")
+        return jsonify(dict(rec)), 201
+
+    @app.route("/api/outer-openings", methods=["POST"])
+    def api_create_outer_opening():
+        """Create a new outer opening on a straight outer wall line segment.
+
+        Body: {seg_start, seg_end, gap, width, opening_type}
+        seg_start/seg_end: outer wall endpoint names (F- or P-series).
+        gap: feet from seg_start to near edge of opening.
+        width: opening width in feet.
+        opening_type: "window" | "door" | "casement" (default "window").
+        """
+        body = request.get_json(force=True)
+        seg_start    = body.get("seg_start", "")
+        seg_end      = body.get("seg_end", "")
+        width        = body.get("width")
+        gap          = float(body.get("gap") or 0)
+        opening_type = body.get("opening_type", "window")
+        if not seg_start or not seg_end:
+            return jsonify({"error": "seg_start and seg_end required"}), 400
+        if not width or float(width) <= 0:
+            return jsonify({"error": "missing or invalid width"}), 400
+        with get_db(db) as conn:
+            name, rec = create_outer_opening_element(
+                conn, seg_start, seg_end, gap, float(width), opening_type)
+        undo_mgr.record(
+            "element_create", {"id": rec["id"]}, rec,
+            f"Create outer opening {name}",
         )
         _invalidate()
         _broadcast("element_changed")
