@@ -292,8 +292,8 @@ def init_db(db_path=None):
             if "span_end" not in cols:
                 conn.execute("ALTER TABLE inner_wall_overrides "
                              "ADD COLUMN span_end INTEGER")
-            # Ensure inner wall overrides exist (Phase 15½ upgrade)
-            _seed_inner_wall_overrides(conn)
+                # Seed overrides only on first upgrade (span_end column just added)
+                _seed_inner_wall_overrides(conn)
             # Add sort_order column if missing (plumbing supplies upgrade)
             pe_cols = {r[1] for r in conn.execute(
                 "PRAGMA table_info(plumbing_elements)").fetchall()}

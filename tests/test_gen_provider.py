@@ -297,7 +297,13 @@ class TestWalkOverrideChain:
 
 
 class TestOverrideIdentity:
-    """Verify DB-seeded overrides produce geometry matching the hardcoded path."""
+    """Verify DB-seeded overrides produce geometry correctly (DB-only, no hardcoded fallback)."""
+
+    @pytest.fixture
+    def gen_data_no_overrides(self, fresh_db):
+        """Build GeneratorData without any overrides."""
+        constants = get_constants_dict(fresh_db)
+        return build_generator_data(constants, overrides={})
 
     @pytest.fixture
     def gen_data_with_overrides(self, fresh_db):
@@ -312,18 +318,24 @@ class TestOverrideIdentity:
         assert 5 in overrides
         assert len(overrides[5]) == 3  # L, CCW, L
 
-    def test_inner_poly_with_override_matches_hardcoded(
-            self, reference, gen_data_with_overrides):
-        """Inner poly from DB override matches hardcoded F8-F9 splice."""
-        assert len(gen_data_with_overrides.inner_poly) == len(reference.inner_poly)
-        for i, (ref, gen) in enumerate(zip(reference.inner_poly,
-                                            gen_data_with_overrides.inner_poly)):
-            d2 = _pt_dist2(ref, gen)
-            assert d2 < 1e-4, f"inner_poly[{i}]: d²={d2}"
+    def test_inner_poly_override_splices_arc(
+            self, gen_data_no_overrides, gen_data_with_overrides):
+        """DB override adds arc points to inner_poly; no-override baseline is shorter."""
+        n_with = len(gen_data_with_overrides.inner_poly)
+        n_without = len(gen_data_no_overrides.inner_poly)
+        assert n_with > n_without, (
+            f"override should add splice points: {n_with} <= {n_without}")
 
-    def test_inner_area_with_override(self, reference, gen_data_with_overrides):
-        """Inner area from DB override is close to hardcoded."""
-        assert abs(gen_data_with_overrides.inner_area - reference.inner_area) < 0.01
+    def test_w_f8f9_poly_from_override(
+            self, gen_data_no_overrides, gen_data_with_overrides):
+        """w_f8f9_poly populated only when DB override exists for F8→W9."""
+        assert len(gen_data_with_overrides.w_f8f9_poly) > 0
+        assert len(gen_data_no_overrides.w_f8f9_poly) == 0
+
+    def test_inner_area_with_override(self, gen_data_no_overrides, gen_data_with_overrides):
+        """Override reduces inner area slightly (arc splice cuts the corner)."""
+        diff = gen_data_no_overrides.inner_area - gen_data_with_overrides.inner_area
+        assert 0.0 < diff < 0.5, f"area reduction {diff:.4f} sq ft out of expected range"
 
 
 # ── compute_default_override ───────────────────────────────────────────

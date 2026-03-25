@@ -523,8 +523,9 @@ class GeneratorData:
                                 db_openings=None):
         """Compute S/G-series shell paths, F8-F9 polylines, and wall sections.
 
-        overrides   — dict {seg_index: [sub-segment dicts]} from DB, or None
-                      to use the hardcoded f8f9_corner_polyline fallback.
+        overrides   — dict {seg_index: [sub-segment dicts]} from DB, or None.
+                      Inner wall geometry comes exclusively from DB overrides;
+                      there is no hardcoded fallback.
         db_openings — list of DB-driven outer opening dicts with keys
                       name, seg_start, seg_end, poly.  When provided, these
                       are used instead of hardcoded compute_outer_openings.
@@ -533,19 +534,32 @@ class GeneratorData:
         air_gap = constants_dict.get("AIR_GAP",
                                      self.wall_t - 2 * shell_t)
         opening_r = constants_dict.get("OPENING_INSIDE_RADIUS", 1.5 / 12.0)
-        f8f9_inner_r = opening_r + shell_t
 
-        # Apply inner wall overrides to inner_poly (W-series)
+        # Apply inner wall overrides (DB-only — no hardcoded fallback)
         _has_f8f9 = "F8" in self.pts and "W8" in self.pts and "W9" in self.pts
         if overrides:
             self._apply_inner_wall_overrides(overrides)
-        elif _has_f8f9:
-            # Legacy fallback: hardcoded F8-F9 splice (F-series chain only)
-            self._apply_f8f9_hardcoded(f8f9_inner_r)
 
-        # W-series F8-F9 polyline (for shell geometry, always from hardcoded)
-        self.w_f8f9_poly = (f8f9_corner_polyline(
-            self.pts, self.wall_t, f8f9_inner_r) if _has_f8f9 else [])
+        # Find F8→W9 inner-seg index and its DB override chain
+        f8f9_inner_idx = next((i for i, s in enumerate(self.inner_segs)
+                               if s.start == "W8" and s.end == "W9"), None)
+        _f8f9_chain = (overrides.get(f8f9_inner_idx)
+                       if overrides and f8f9_inner_idx is not None else None)
+        _render_f8f9 = bool(_f8f9_chain) and _has_f8f9
+
+        # W/G-series F8-F9 polylines: only present when DB override exists
+        if _render_f8f9:
+            # W-series: walk the DB override chain from W8
+            seg = self.inner_segs[f8f9_inner_idx]
+            start_bearing = _seg_start_bearing(seg, self.pts)
+            self.w_f8f9_poly = walk_override_chain(
+                _f8f9_chain, self.pts["W8"], start_bearing)
+            # G-series: parallel path at shell gap offset (from DB constants)
+            self.g_f8f9_poly = f8f9_corner_polyline(
+                self.pts, shell_t + air_gap, opening_r)
+        else:
+            self.w_f8f9_poly = []
+            self.g_f8f9_poly = []
 
         # S-series (inner face of outer shell)
         self.s_pts, self.s_segs = compute_inset_path(
@@ -557,10 +571,6 @@ class GeneratorData:
             self.outline_segs, self.pts, self.radii,
             shell_t + air_gap, "G")
         self.pts.update(self.g_pts)
-
-        # G-series F8-F9 polyline
-        self.g_f8f9_poly = (f8f9_corner_polyline(
-            self.pts, shell_t + air_gap, opening_r) if _has_f8f9 else [])
 
         # Layout — hardcoded seed values; used only on the standalone
         # subprocess path.  DB-driven callers should use gd.iw_polys instead.
@@ -588,11 +598,6 @@ class GeneratorData:
         # Wall sections
         self.wall_sections = enumerate_wall_sections(
             self.openings, self.outline_segs)
-
-    def _apply_f8f9_hardcoded(self, f8f9_inner_r):
-        """Legacy hardcoded F8-F9 straight-arc-straight splice."""
-        poly = f8f9_corner_polyline(self.pts, self.wall_t, f8f9_inner_r)
-        _splice_poly(self.inner_poly, self.pts["W8"], self.pts["W9"], poly)
 
     def _apply_inner_wall_overrides(self, overrides):
         """Apply DB-driven inner wall overrides to inner_poly."""
