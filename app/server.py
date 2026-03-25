@@ -2101,8 +2101,9 @@ def create_app(db_path=None):
                 "end_name": old_seg["end_name"],
             }, db)
 
-        # Re-solve closure
-        solver, _ = _solve_and_update_closure()
+        # Re-solve closure — pass after_seq so the solver treats the split
+        # segment's section as the edited side (not the default "B" fallback).
+        solver, _ = _solve_and_update_closure(edited_seq=after_seq)
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({
@@ -2160,8 +2161,9 @@ def create_app(db_path=None):
 
         delete_outline_segment(seq, db)
 
-        # Re-solve closure
-        solver, _ = _solve_and_update_closure()
+        # Re-solve closure — use the preceding segment (still present) as the
+        # section hint so the solver adjusts the same side the deletion was in.
+        solver, _ = _solve_and_update_closure(edited_seq=max(0, seq - 1))
         if not solver.valid:
             restore_outline_chain(before_chain, db)
             return jsonify({
