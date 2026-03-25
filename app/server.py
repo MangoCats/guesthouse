@@ -1952,11 +1952,12 @@ def create_app(db_path=None):
         new_anchor_name = chain_rows[-1]["end_name"]
         new_pivot_name  = chain_rows[n // 2]["end_name"]
 
-        # Derive anchor position from current chain walk (never from constants)
+        # Derive new anchor position from chain walk only when anchor name changes.
+        # When anchor name is unchanged, keep the stored position — updating it to
+        # the walked endpoint would shift the entire structure visually.
         current_pos = get_outline_anchor_pos(db)
         if current_pos is not None:
-            cur_anchor, _ = get_outline_anchor_pivot(db)
-            cur_anchor_pt_seq = point_name_to_seq(chain, cur_anchor)
+            cur_anchor_pt_seq = point_name_to_seq(chain, old_anchor)
             cur_a_start = (cur_anchor_pt_seq + 1) % n if cur_anchor_pt_seq is not None else 0
             cur_start_E, cur_start_N, cur_start_brg = current_pos
         else:
@@ -1966,25 +1967,28 @@ def create_app(db_path=None):
             cur_start_N += float(get_constant_value("CORNER_SW_R", db) or fc.CORNER_SW_R)
             cur_start_brg = 0.0
 
-        rotated_chain = [chain[(cur_a_start + i) % n] for i in range(n)]
-        walk_res = walk_chain(rotated_chain, cur_start_E, cur_start_N, cur_start_brg)
-
-        new_anchor_E, new_anchor_N = walk_res.points.get(
-            new_anchor_name, (cur_start_E, cur_start_N))
-
-        # Bearing entering the first segment after new anchor
-        new_anchor_pt_seq = point_name_to_seq(chain, new_anchor_name)
-        new_a_start = (new_anchor_pt_seq + 1) % n if new_anchor_pt_seq is not None else 0
-        brg = cur_start_brg
-        new_a_rotated_idx = (new_a_start - cur_a_start) % n
-        for i, seg in enumerate(rotated_chain):
-            if i == new_a_rotated_idx:
-                break
-            if seg.seg_type == "CW":
-                brg += seg.sweep
-            elif seg.seg_type == "CCW":
-                brg -= seg.sweep
-        new_anchor_brg = brg
+        if new_anchor_name == old_anchor:
+            # Same anchor — keep stored position and bearing unchanged
+            new_anchor_E, new_anchor_N, new_anchor_brg = cur_start_E, cur_start_N, cur_start_brg
+        else:
+            # Different anchor — walk chain to find new anchor's site position
+            rotated_chain = [chain[(cur_a_start + i) % n] for i in range(n)]
+            walk_res = walk_chain(rotated_chain, cur_start_E, cur_start_N, cur_start_brg)
+            new_anchor_E, new_anchor_N = walk_res.points.get(
+                new_anchor_name, (cur_start_E, cur_start_N))
+            # Bearing entering the first segment after new anchor
+            new_anchor_pt_seq = point_name_to_seq(chain, new_anchor_name)
+            new_a_start = (new_anchor_pt_seq + 1) % n if new_anchor_pt_seq is not None else 0
+            brg = cur_start_brg
+            new_a_rotated_idx = (new_a_start - cur_a_start) % n
+            for i, seg in enumerate(rotated_chain):
+                if i == new_a_rotated_idx:
+                    break
+                if seg.seg_type == "CW":
+                    brg += seg.sweep
+                elif seg.seg_type == "CCW":
+                    brg -= seg.sweep
+            new_anchor_brg = brg
 
         # Reset flex columns and user-set flags, then write new anchor/pivot
         with get_db(db) as conn:

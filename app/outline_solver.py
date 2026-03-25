@@ -637,9 +637,14 @@ def solve_with_pivot(chain, anchor_start, pivot_start,
     anchor_name = chain[anchor_point_seq].end_name
     pivot_name = chain[pivot_point_seq].end_name
 
-    anchor_pos = wr.points.get(anchor_name)
+    # The anchor's absolute position is the stored (start_E, start_N) — the fixed
+    # site-coordinate origin of the chain.  Do NOT use wr.points[anchor_name]:
+    # that is the walk's endpoint, which diverges from (start_E, start_N) whenever
+    # the chain has a closure error.  Targeting the walked endpoint would "solve"
+    # flex values to close at a drifted position, shifting the entire structure.
+    anchor_pos = (start_E, start_N)
     pivot_pos = wr.points.get(pivot_name)
-    if anchor_pos is None or pivot_pos is None:
+    if pivot_pos is None:
         return SolverResult(valid=False, solved_values={},
                             closure_error=float("inf"), exit_bearing=0.0)
 
