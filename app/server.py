@@ -123,6 +123,97 @@ def _seed_reference_plumbing_if_needed(db):
         pass  # skip if geometry computation fails (e.g. corrupt DB)
 
 
+def _compute_parcel_outline_rows(pts_cw, offset_ft, min_cw_r, min_ccw_r=None):
+    """Compute outline chain rows for a CW polygon, inset and with rounded corners.
+
+    pts_cw   : list of (E, N) in CW order (do NOT repeat first point)
+    offset_ft: inward offset in feet
+    min_cw_r : radius for CW (convex) corner arcs, feet
+    min_ccw_r: radius for CCW (concave) corner arcs, feet (defaults to min_cw_r)
+
+    Returns (rows, anchor_E, anchor_N, anchor_brg_rad, anchor_name).
+    rows is suitable for restore_outline_chain().
+    """
+    if min_ccw_r is None:
+        min_ccw_r = min_cw_r
+    n = len(pts_cw)
+
+    # Edge bearings (radians, compass: dE=sin, dN=cos)
+    edge_brg = []
+    for i in range(n):
+        p1, p2 = pts_cw[i], pts_cw[(i + 1) % n]
+        edge_brg.append(math.atan2(p2[0] - p1[0], p2[1] - p1[1]) % (2 * math.pi))
+
+    # Sample point on each inset edge (right normal for CW = inward)
+    def _right_pt(p, b, d):
+        return (p[0] + d * math.cos(b), p[1] - d * math.sin(b))
+
+    offset_sample = [_right_pt(pts_cw[i], edge_brg[i], offset_ft) for i in range(n)]
+
+    def _edge_isect(p1, b1, p2, b2):
+        """Intersection of two lines given by point + compass bearing."""
+        det = math.sin(b2 - b1)
+        if abs(det) < 1e-10:
+            return None
+        dpE, dpN = p2[0] - p1[0], p2[1] - p1[1]
+        t = (-dpE * math.cos(b2) + dpN * math.sin(b2)) / det
+        return (p1[0] + t * math.sin(b1), p1[1] + t * math.cos(b1))
+
+    arc_start, arc_end, arc_r, defl_sign, defl_abs = [], [], [], [], []
+    for i in range(n):
+        prev_i = (i - 1 + n) % n
+        b_in, b_out = edge_brg[prev_i], edge_brg[i]
+        corner = _edge_isect(offset_sample[prev_i], b_in, offset_sample[i], b_out)
+
+        d_raw = (b_out - b_in) % (2 * math.pi)
+        if d_raw > math.pi:
+            d_signed, r = d_raw - 2 * math.pi, min_ccw_r  # CCW (concave)
+        else:
+            d_signed, r = d_raw, min_cw_r                  # CW  (convex)
+
+        defl_sign.append(d_signed)
+        defl_abs.append(abs(d_signed))
+        arc_r.append(r)
+
+        if corner is None or abs(d_signed) < 1e-6:
+            arc_start.append(pts_cw[i])
+            arc_end.append(pts_cw[i])
+        else:
+            tl = r * math.tan(abs(d_signed) / 2)
+            arc_start.append((corner[0] - tl * math.sin(b_in),
+                               corner[1] - tl * math.cos(b_in)))
+            arc_end.append((corner[0] + tl * math.sin(b_out),
+                             corner[1] + tl * math.cos(b_out)))
+
+    rows = []
+    for i in range(n):
+        prev_i = (i - 1 + n) % n
+        p1, p2 = arc_end[prev_i], arc_start[i]
+        dist = math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+        rows.append({
+            "seq": 2 * i, "seg_type": "L",
+            "distance": dist, "radius": None,
+            "sweep_name": None, "sweep": None,
+            "center_name": None, "n_pts": None,
+            "end_name": f"PA{i}", "flex": None, "bearing_flex": 0,
+        })
+        seg_type = "CW" if defl_sign[i] >= 0 else "CCW"
+        sweep = defl_abs[i]
+        rows.append({
+            "seq": 2 * i + 1, "seg_type": seg_type,
+            "distance": None, "radius": arc_r[i],
+            "sweep_name": f"{sweep:.12f}", "sweep": sweep,
+            "center_name": f"PC{i}", "n_pts": 12,
+            "end_name": f"PB{i}", "flex": None, "bearing_flex": 0,
+        })
+
+    # Anchor = end of last segment (arc_end[n-1])
+    anchor_name = f"PB{n - 1}"
+    anchor_E, anchor_N = arc_end[n - 1]
+    anchor_brg = edge_brg[n - 1]   # radians — bearing going into seq 0
+    return rows, anchor_E, anchor_N, anchor_brg, anchor_name
+
+
 def create_app(db_path=None):
     """Create and configure the Flask application."""
     db = db_path or DB_PATH
@@ -2003,6 +2094,70 @@ def create_app(db_path=None):
             "chain": get_outline_chain(db),
             "closure_valid": True,
         })
+
+    @app.route("/api/outline/reset-from-parcel", methods=["POST"])
+    def api_reset_outline_from_parcel():
+        """Reset outline chain to follow the P-series parcel boundary.
+
+        Body: {offset_in, min_cw_r_in, min_ccw_r_in}  (all in inches)
+        """
+        body = request.get_json(force=True)
+        offset_in = float(body.get("offset_in", 6.0))
+        min_cw_r_in = float(body.get("min_cw_r_in", 12.0))
+        min_ccw_r_in = float(body.get("min_ccw_r_in", 4.0))
+
+        offset_ft = offset_in / 12.0
+        min_cw_r = min_cw_r_in / 12.0
+        min_ccw_r = min_ccw_r_in / 12.0
+
+        from shared.survey import compute_traverse
+        trav = compute_traverse()
+        pts_cw = [trav["P3"], trav["P2"], trav["POB"], trav["P5"], trav["P4"]]
+
+        # Save state for undo
+        before_chain = get_outline_chain(db)
+        before_anchor, before_pivot = get_outline_anchor_pivot(db)
+        before_anchor_pos = get_outline_anchor_pos(db)
+
+        try:
+            rows, anchor_E, anchor_N, anchor_brg, anchor_name = \
+                _compute_parcel_outline_rows(pts_cw, offset_ft, min_cw_r, min_ccw_r)
+        except Exception as exc:
+            return jsonify({"error": f"Outline computation failed: {exc}"}), 400
+
+        n_corners = len(pts_cw)
+        pivot_name = f"PB{n_corners // 2}"
+
+        restore_outline_chain(rows, db)
+        set_outline_anchor_pivot(anchor_name, pivot_name,
+                                 anchor_E, anchor_N, anchor_brg,
+                                 db, user_set=True)
+        set_outline_flex_user_set(False, db)
+
+        after_chain = get_outline_chain(db)
+        after_anchor_pos = (anchor_E, anchor_N, anchor_brg)
+
+        undo_mgr.record(
+            "outline_parcel_reset",
+            {
+                "chain": before_chain,
+                "anchor_name": before_anchor,
+                "pivot_name": before_pivot,
+                "anchor_pos": list(before_anchor_pos) if before_anchor_pos else None,
+            },
+            {
+                "chain": after_chain,
+                "anchor_name": anchor_name,
+                "pivot_name": pivot_name,
+                "anchor_pos": list(after_anchor_pos),
+            },
+            "Reset outline from parcel",
+        )
+
+        _invalidate()
+        _broadcast("outline_changed")
+
+        return jsonify({"ok": True, "chain": after_chain})
 
     # -- Views & SVG API --
 

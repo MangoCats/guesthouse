@@ -216,6 +216,21 @@ class UndoManager:
             # Outline undo/redo: state is full chain snapshot (list of dicts)
             from app.database import restore_outline_chain
             restore_outline_chain(state, self._db_path)
+        elif action_type == "outline_parcel_reset":
+            # Parcel reset undo/redo: restore chain + anchor position
+            from app.database import (restore_outline_chain,
+                                      set_outline_anchor_pivot,
+                                      clear_outline_pivot)
+            restore_outline_chain(state["chain"], self._db_path)
+            apos = state.get("anchor_pos")
+            if state.get("anchor_name") and state.get("pivot_name") and apos:
+                set_outline_anchor_pivot(
+                    state["anchor_name"], state["pivot_name"],
+                    apos[0], apos[1], apos[2],
+                    self._db_path, user_set=True,
+                )
+            else:
+                clear_outline_pivot(self._db_path)
         elif action_type == "outline_pivot":
             # Pivot undo/redo: state = {"chain": [...], "anchor": str|None,
             #                           "pivot": str|None}

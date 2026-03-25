@@ -95,7 +95,7 @@ function cacheElements() {
     "selection-info", "measure-info",
     "view-tabs", "const-category-filter", "const-search",
     "constants-table", "outline-table", "outline-closure-indicator",
-    "outline-add-btn", "outline-remove-btn", "outline-pivot-btn",
+    "outline-add-btn", "outline-remove-btn", "outline-pivot-btn", "outline-parcel-btn",
     "pivot-banner", "anchor-pos-editor",
     "anchor-pos-E", "anchor-pos-N", "anchor-pos-brg",
     "openings-table",
@@ -3717,6 +3717,90 @@ function showWallSetupWizard() {
  * Edits gap (distance from chosen end of host wall), width, and from_end.
  * Preserves all other formula fields (outer_start/end, inner_start/end, poly_order).
  */
+function showParcelResetDialog() {
+  const overlay = document.createElement("div");
+  overlay.className = "rebase-modal-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:center;justify-content:center;";
+
+  const dlg = document.createElement("div");
+  dlg.className = "rebase-modal";
+  dlg.style.cssText = "background:var(--mantle,#1e1e2e);border:1px solid var(--surface2,#585b70);border-radius:6px;padding:1.2rem 1.5rem;min-width:320px;max-width:400px;";
+
+  dlg.innerHTML = `
+    <h3 style="margin:0 0 .8rem;font-size:1rem;">Reset Outline from Parcel</h3>
+    <p style="margin:0 0 1rem;font-size:.85rem;color:var(--subtext0,#a6adc8);">
+      Replaces the F-series outline with a rounded rectangle that tightly
+      follows the P-series parcel boundary.
+    </p>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="padding:4px 8px 4px 0;">Inset offset</td>
+        <td style="padding:4px 0;">
+          <input id="prd-offset-in" type="number" min="0" step="0.25" value="6"
+            style="width:5rem;"> in
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px 4px 0;">Min CW arc radius</td>
+        <td style="padding:4px 0;">
+          <input id="prd-cw-in" type="number" min="0.1" step="0.5" value="12"
+            style="width:5rem;"> in
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:4px 8px 4px 0;">Min CCW arc radius</td>
+        <td style="padding:4px 0;">
+          <input id="prd-ccw-in" type="number" min="0.1" step="0.5" value="4"
+            style="width:5rem;"> in
+        </td>
+      </tr>
+    </table>
+    <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem;">
+      <button id="prd-cancel" class="prop-btn">Cancel</button>
+      <button id="prd-apply" class="prop-btn"
+        style="background:var(--red,#f38ba8);color:#1e1e2e;">
+        Reset Outline
+      </button>
+    </div>`;
+
+  overlay.appendChild(dlg);
+  document.body.appendChild(overlay);
+
+  const close = () => document.body.removeChild(overlay);
+  dlg.querySelector("#prd-cancel").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+
+  dlg.querySelector("#prd-apply").addEventListener("click", async () => {
+    const offset_in = parseFloat(dlg.querySelector("#prd-offset-in").value) || 6;
+    const min_cw_r_in = parseFloat(dlg.querySelector("#prd-cw-in").value) || 12;
+    const min_ccw_r_in = parseFloat(dlg.querySelector("#prd-ccw-in").value) || 4;
+
+    if (!confirm(
+      "This will replace the entire F-series outline chain.\n" +
+      "The current outline will be saved in undo history.\n\nProceed?"
+    )) return;
+
+    try {
+      const resp = await apiFetch("/api/outline/reset-from-parcel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offset_in, min_cw_r_in, min_ccw_r_in }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        showToast(err.error || "Reset failed", "error");
+        return;
+      }
+      close();
+      showToast("Outline reset from parcel boundary", "success");
+      loadOutlineTable();
+      loadGeometry();
+    } catch (e) {
+      showToast(e.message || "Error", "error");
+    }
+  });
+}
+
 function showOpeningPositionWizard(elemName, paramName, currentFormula, variant) {
   const hostWall = currentFormula.outer_start?.element ?? currentFormula.outer_end?.element ?? "?";
 
@@ -6131,6 +6215,12 @@ function setupOutlineToolbar() {
         startPivotSetMode();
       }
     });
+  }
+
+  // Parcel reset button
+  const parcelBtn = App.els["outline-parcel-btn"];
+  if (parcelBtn) {
+    parcelBtn.addEventListener("click", () => showParcelResetDialog());
   }
 
   // Anchor position editor — commit on Enter or blur
