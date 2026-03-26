@@ -284,6 +284,17 @@ def init_db(db_path=None):
             seed_plumbing(conn)
             # Ensure IW wall formulas exist (Phase 12c upgrade)
             seed_iw_formulas(conn)
+            # Remove orphaned formulas for elements deleted via delete_element()
+            # (Phase 20 upgrade: seed_iw_formulas previously re-seeded formulas
+            # for deleted elements, leaving ghost entries with no elements record)
+            conn.execute("""
+                DELETE FROM element_formulas
+                WHERE element_name NOT IN (SELECT name FROM elements)
+            """)
+            conn.execute("""
+                DELETE FROM formula_deps
+                WHERE element_name NOT IN (SELECT name FROM elements)
+            """)
             # Ensure survey data exists (Phase 14-B upgrade)
             _seed_survey(conn)
             # Add span_end column if missing (Phase 15½ multi-segment upgrade)
@@ -3136,10 +3147,19 @@ def seed_iw_formulas(conn):
                                get_rough_opening_formulas,
                                get_variant_item_formulas, extract_deps)
 
+    # Build set of element names that exist in the elements table.
+    # Elements that were explicitly deleted via delete_element() have no record
+    # here.  Do NOT re-seed formulas for deleted elements — that would resurrect
+    # ghost formula entries that can never be properly deleted again.
+    live_names = {r[0] for r in conn.execute("SELECT name FROM elements").fetchall()}
+
     # Non-variant formulas (variant=NULL): IW walls, layout items, openings
     formulas = {**get_iw_formulas(), **get_layout_item_formulas(),
                 **get_outer_opening_formulas(), **get_rough_opening_formulas()}
     for wall_name, formula in formulas.items():
+        # Skip if element was explicitly deleted (not in elements table)
+        if wall_name not in live_names:
+            continue
         existing = conn.execute(
             "SELECT id FROM element_formulas "
             "WHERE element_name = ? AND param_name = 'position' AND variant IS NULL",
@@ -3165,6 +3185,8 @@ def seed_iw_formulas(conn):
 
     # Variant item formulas (Phase 12e)
     for elem_name, variant, formula in get_variant_item_formulas():
+        if elem_name not in live_names:
+            continue
         if variant is None:
             existing = conn.execute(
                 "SELECT id FROM element_formulas "
