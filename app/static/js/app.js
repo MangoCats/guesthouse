@@ -2042,8 +2042,8 @@ async function showProperties(type, name, data) {
         addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
-    // Formula section for user-created (wall_opening formula) openings
-    if (type === "rough_opening" && data.name) {
+    // Formula section for all openings (outer and rough, seed and user-created)
+    if (data.name) {
       await addFormulaSection(tbody, data.name);
     }
     // Delete button for openings

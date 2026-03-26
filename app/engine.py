@@ -1032,7 +1032,7 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
                 continue
             interior_walls[elem_name] = {"poly": poly, "bbox": bbox}
 
-        # Outer openings (O1-O11, O8a)
+        # Outer openings (O-prefixed, e.g. O1-O11 seed + user-created O12+)
         elif elem_type == "opening" and elem_name.startswith("O") and not elem_name.startswith("O_"):
             entry = {
                 "name": elem_name,
