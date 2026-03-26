@@ -262,8 +262,10 @@ async function placeElement(wx, wy) {
     label: item.label,
   };
 
-  // Carry over metadata from catalog
-  if (item.variants) properties.variants = item.variants;
+  // Carry over metadata from catalog — but NOT variants: the catalog's
+  // variants list controls ADD-menu visibility, not where placed instances
+  // appear.  Placed instances always show in the current variant (set via
+  // the element record's variant column, handled by the server).
   if (item.product_url) properties.product_url = item.product_url;
   if (item.door) properties.door = item.door;
   if (item.clearance) properties.clearance = item.clearance;
