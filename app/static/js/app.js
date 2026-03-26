@@ -4106,9 +4106,10 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   // ── §1 Anchor ─────────────────────────────────────────────────────────────
   const ancSec = sec("\u00a71  Anchor");
   const ancModeName = `wpw-anc-${elemName}`;
-  const rAncPts  = makeRadio(ancModeName, "points",       "Named points", init.anchorMode !== "element_face");
-  const rAncFace = makeRadio(ancModeName, "element_face", "Element face", init.anchorMode === "element_face");
-  ancSec.appendChild(row(rAncPts.wrap, rAncFace.wrap));
+  const rAncPts   = makeRadio(ancModeName, "points",          "Named points",    init.anchorMode !== "element_face" && init.anchorMode !== "face_clearance");
+  const rAncFace  = makeRadio(ancModeName, "element_face",    "Element face",    init.anchorMode === "element_face");
+  const rAncClear = makeRadio(ancModeName, "face_clearance",  "Face clearance",  init.anchorMode === "face_clearance");
+  ancSec.appendChild(row(rAncPts.wrap, rAncFace.wrap, rAncClear.wrap));
 
   // Named-points sub-panel
   const ptsDiv = document.createElement("div");
@@ -4147,31 +4148,74 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   faceDiv.appendChild(row("From: ", rFromStart.wrap, rFromEnd.wrap, " of face"));
   ancSec.appendChild(faceDiv);
 
-  // Shared distance inputs
+  // Face-clearance sub-panel
+  // Constrains one face of this wall to be a fixed perpendicular distance from a
+  // reference line (named segment A→B).  The wall runs parallel to A→B.
+  //
+  // "Near face" = south face (SW-SE edge) = the anchor side.
+  // "Far face"  = north face (NE-NW edge) = anchor + thickness offset.
+  //
+  // Side: Left (CCW) / Right (CW) of A→B = which side of the reference segment
+  // we're measuring from.
+  //
+  // The anchor is placed so that the chosen wall face is `clearance` inches from A→B
+  // on the chosen side.  Thickness is subtracted for the far-face case.
+  const clearDiv = document.createElement("div");
+  const selClearA = ptSel(init.anchorA);
+  const selClearB = ptSel(init.anchorB);
+  const clearSideName  = `wpw-cside-${elemName}`;
+  const clearFaceName  = `wpw-cface-${elemName}`;
+  const rClearLeft  = makeRadio(clearSideName, "left",  "Left (CCW) of A\u2192B",  true);
+  const rClearRight = makeRadio(clearSideName, "right", "Right (CW) of A\u2192B",  false);
+  const rClearNear  = makeRadio(clearFaceName, "near",  "Near face (anchor side)",  true);
+  const rClearFar   = makeRadio(clearFaceName, "far",   "Far face (thickness side)", false);
+  const inpClearIn  = numInp(0, 0.125, "Clearance in inches", "72px");
+  clearDiv.appendChild(row("Reference: ", selClearA, " \u2192 ", selClearB));
+  clearDiv.appendChild(row(rClearLeft.wrap, rClearRight.wrap));
+  clearDiv.appendChild(row("This wall face: ", rClearNear.wrap, rClearFar.wrap));
+  clearDiv.appendChild(row("Clearance: ", inpClearIn, " in"));
+  ancSec.appendChild(clearDiv);
+  ancSec.appendChild(hint("Named points: anchor on A\u2192B. Element face: anchor from wall face. Face clearance: place this wall so one face is exactly N\u2033 from a reference segment."));
+  modal.appendChild(ancSec);
+
+  // Shared distance inputs (used by points + element_face modes)
   const { feet: dFt0, inches: dIn0 } = splitFtIn(init.distFt);
   const inpDistFt = numInp(dFt0, 1,     "Whole feet from anchor reference", "60px");
   const inpDistIn = numInp(dIn0, 0.125, "Additional inches from anchor reference", "72px");
-  ancSec.appendChild(row("Distance: ", inpDistFt, " ft  ", inpDistIn, " in"));
-  ancSec.appendChild(hint("Named points: anchor on the A\u2192B line. Element face: anchor along a wall's face edge."));
-  modal.appendChild(ancSec);
+  ancSec.insertBefore(row("Distance: ", inpDistFt, " ft  ", inpDistIn, " in"), clearDiv);
 
-  function getAnchorMode() { return rAncFace.inp.checked ? "element_face" : "points"; }
+  function getAnchorMode() {
+    if (rAncFace.inp.checked)  return "element_face";
+    if (rAncClear.inp.checked) return "face_clearance";
+    return "points";
+  }
   function updateAnchorMode() {
-    const ef = getAnchorMode() === "element_face";
-    ptsDiv.style.display  = ef ? "none" : "";
-    faceDiv.style.display = ef ? "" : "none";
-    // Auto-select "perp to face" direction when switching to element-face mode
-    // (rFacePerp/rAlong are defined in §2 — safe after full init, not during it)
-    if (ef) rFacePerp.inp.checked = true;
+    const mode = getAnchorMode();
+    ptsDiv.style.display   = mode === "points"         ? "" : "none";
+    faceDiv.style.display  = mode === "element_face"   ? "" : "none";
+    clearDiv.style.display = mode === "face_clearance" ? "" : "none";
+    // Distance row visibility: not used in face_clearance mode
+    const distRow = clearDiv.previousElementSibling;
+    if (distRow) distRow.style.display = mode === "face_clearance" ? "none" : "";
+    // Auto-select "Along A→B" when switching to face_clearance
+    if (mode === "face_clearance") rAlong.inp.checked = true;
+    else if (mode === "element_face") rFacePerp.inp.checked = true;
     else if (getDirType() === "face_perp") rAlong.inp.checked = true;
     updatePreview();
   }
-  rAncPts.inp.addEventListener("change",  updateAnchorMode);
-  rAncFace.inp.addEventListener("change", updateAnchorMode);
-  // Set initial visibility directly (cannot call updateAnchorMode here — rFacePerp
-  // and getDirType are defined later in §2 and would be in the TDZ at this point)
-  ptsDiv.style.display  = init.anchorMode === "element_face" ? "none" : "";
-  faceDiv.style.display = init.anchorMode === "element_face" ? "" : "none";
+  rAncPts.inp.addEventListener("change",   updateAnchorMode);
+  rAncFace.inp.addEventListener("change",  updateAnchorMode);
+  rAncClear.inp.addEventListener("change", updateAnchorMode);
+  // Set initial visibility
+  {
+    const mode = init.anchorMode === "element_face" ? "element_face"
+               : init.anchorMode === "face_clearance" ? "face_clearance" : "points";
+    ptsDiv.style.display   = mode === "points"         ? "" : "none";
+    faceDiv.style.display  = mode === "element_face"   ? "" : "none";
+    clearDiv.style.display = mode === "face_clearance" ? "" : "none";
+    const distRow = clearDiv.previousElementSibling;
+    if (distRow) distRow.style.display = mode === "face_clearance" ? "none" : "";
+  }
 
   // ── §2 Wall Direction ─────────────────────────────────────────────────────
   const dirName = `wpw-dir-${elemName}`;
@@ -4302,6 +4346,29 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
       anchor = Math.abs(distFt) < 1e-9
         ? { element: E, corner: cornerName }
         : { offset: { element: E, corner: cornerName }, dir: faceDir, dist: distFt };
+    } else if (ancMode === "face_clearance") {
+      // Face-clearance mode: position anchor so a chosen face of this wall is
+      // exactly clearanceIn inches from the reference segment A→B.
+      //
+      // segment_perp = CW (right) perpendicular of A→B.
+      // neg(segment_perp) = CCW (left) perpendicular.
+      //
+      // "Near face" = south face = anchor side (distFt = clearance).
+      // "Far face"  = north face = anchor + thickness; we shift the anchor back by
+      //               thickness so the far face lands on the clearance line.
+      const A = selClearA.value, B = selClearB.value;
+      const side = rClearLeft.inp.checked ? "left" : "right";
+      const face = rClearNear.inp.checked ? "near" : "far";
+      const clearanceIn = parseFloat(inpClearIn.value) || 0;
+      const thickIn = parseFloat(inpThickIn.value) || 4;
+      // Distance from A→B to the anchor (south face)
+      const anchorOffsetIn = face === "far" ? clearanceIn - thickIn : clearanceIn;
+      const perpDir = side === "left"
+        ? { neg: { segment_perp: [A, B] } }
+        : { segment_perp: [A, B] };
+      anchor = Math.abs(anchorOffsetIn) < 1e-9
+        ? A
+        : { offset: A, dir: perpDir, dist: anchorOffsetIn / 12 };
     } else {
       const A = selA.value, B = selB.value;
       anchor = Math.abs(distFt) < 1e-9
@@ -4315,6 +4382,9 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     if (dt === "face_perp" && ancMode === "element_face") {
       const E = selAncElem.value, F = selAncFace.value;
       along = { neg: { face_perp: E, face: F } };
+    } else if (ancMode === "face_clearance" && dt === "along") {
+      // In face_clearance mode the wall runs parallel to the reference segment
+      along = { segment: [selClearA.value, selClearB.value] };
     } else {
       switch (dt) {
         case "along":      along = { segment: [A, B] }; break;
