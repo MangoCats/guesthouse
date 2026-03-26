@@ -237,6 +237,16 @@ def build_site_plan_data(gd=None):
                 "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
     p_series_pdf = {n: building_to_pdf(*pts[n]) for n in _P_NAMES}
 
+    # PT1: foot of perpendicular from TC1 onto the P4-P5 line (extended)
+    _p4, _p5, _tc1 = pts["P4"], pts["P5"], pts["TC1"]
+    _p45_dx = _p5[0] - _p4[0]
+    _p45_dy = _p5[1] - _p4[1]
+    _p45_t = ((_tc1[0] - _p4[0]) * _p45_dx + (_tc1[1] - _p4[1]) * _p45_dy) / (
+        _p45_dx * _p45_dx + _p45_dy * _p45_dy)
+    _pt1_e = _p4[0] + _p45_t * _p45_dx
+    _pt1_n = _p4[1] + _p45_t * _p45_dy
+    p_series_pdf["PT1"] = building_to_pdf(_pt1_e, _pt1_n)
+
     return SitePlanData(
         pts=pts,
         building_to_pdf=building_to_pdf,
@@ -567,6 +577,48 @@ def render_site_plan_fs(doc, sp):
     # Draw closed polyline: 40% opaque dark green
     page.draw_polyline(poly_pdf, color=COLOR_OUTER_PATH, width=1.2,
                        closePath=True, stroke_opacity=0.4)
+
+    # --- PT1: foot of perpendicular from TC1 arc center onto P4-P5 line ---
+    pt1_pdf = sp.p_series_pdf["PT1"]
+    p5_pdf  = sp.p_series_pdf["P5"]
+    tc1_pdf = sp.p_series_pdf["TC1"]
+    _pt1_r = 1.8
+    shape = page.new_shape()
+    # Small filled dot at PT1
+    shape.draw_circle(fitz.Point(*pt1_pdf), _pt1_r)
+    shape.finish(color=COLOR_OUTER_PATH, fill=COLOR_OUTER_PATH,
+                 stroke_opacity=0.7, fill_opacity=0.7)
+    # Perpendicular tick line: from PT1 toward TC1, length = 4 PDF pts each side
+    _perp_dx = tc1_pdf[0] - pt1_pdf[0]
+    _perp_dy = tc1_pdf[1] - pt1_pdf[1]
+    _perp_len = math.hypot(_perp_dx, _perp_dy)
+    _tick = 4.0 / _perp_len
+    shape.draw_line(
+        fitz.Point(pt1_pdf[0] - _tick * _perp_dx, pt1_pdf[1] - _tick * _perp_dy),
+        fitz.Point(pt1_pdf[0] + _tick * _perp_dx, pt1_pdf[1] + _tick * _perp_dy),
+    )
+    shape.finish(color=COLOR_OUTER_PATH, width=0.5, stroke_opacity=0.7)
+    shape.commit()
+    # Label: offset perpendicular to P4-P5 direction (toward TC1 side)
+    _p4_pdf = sp.p_series_pdf["P4"]
+    _seg_dx = p5_pdf[0] - _p4_pdf[0]
+    _seg_dy = p5_pdf[1] - _p4_pdf[1]
+    _seg_len = math.hypot(_seg_dx, _seg_dy)
+    # Left-normal of P4→P5 in PDF coords (perp offset away from TC1)
+    # TC1 is to the left of P4→P5 direction; offset label to right (away)
+    _ln_x = _seg_dy / _seg_len   # left-normal x = +dy (PDF y-down, so this points right of travel)
+    _ln_y = -_seg_dx / _seg_len  # left-normal y
+    _dot = _ln_x * _perp_dx + _ln_y * _perp_dy  # positive = same side as TC1
+    if _dot > 0:
+        _ln_x, _ln_y = -_ln_x, -_ln_y  # flip to label on opposite side from TC1
+    _lbl_fs = 5.5
+    _lbl_off = 5.0
+    _lbl = "PT1"
+    _lbl_tw = fitz.get_text_length(_lbl, fontname="helv", fontsize=_lbl_fs)
+    page.insert_text(
+        fitz.Point(pt1_pdf[0] + _lbl_off * _ln_x - _lbl_tw / 2.0,
+                   pt1_pdf[1] + _lbl_off * _ln_y + _lbl_fs / 3.0),
+        _lbl, fontname="helv", fontsize=_lbl_fs, color=COLOR_OUTER_PATH)
 
     return doc
 
