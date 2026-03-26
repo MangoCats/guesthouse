@@ -169,7 +169,7 @@ def compute_all():
     outer_segs = [
         LineSeg("POB", "P2"), LineSeg("P2", "P3"), LineSeg("P3", "T3"),
         ArcSeg("T3", "PX", "TC3", R3, "CW", 60),
-        LineSeg("PX", "P4"), LineSeg("P4", "PT1"),
+        LineSeg("PX", "P4"), LineSeg("P4", "P5"), LineSeg("P5", "PT1"),
         ArcSeg("PT1", "T1", "TC1", R1, "CW", 60),
         ArcSeg("T1", "PA", "TC1", R1, "CW", 60),
         ArcSeg("PA", "T2", "TC2", R2, "CW", 60),
@@ -251,6 +251,7 @@ outer_cfg = LayerConfig(
         "T3":  VertexStyle("T3",  "middle", 0, -12, "#2E7D32", 3.5, 10),
         "PX":  VertexStyle("PX",  "start",  8, -6, "#2E7D32", 3.5, 10),
         "P4":  VertexStyle("P4",  "start", 10, 10, "#d32f2f", 3.5, 10),
+        "P5":  VertexStyle("P5",  "start", 10,  4, "#d32f2f", 3.5, 10),
         "PT1": VertexStyle("PT1", "start", 10,  3, "#0077B6", 3.5, 10),
         "T1":  VertexStyle("T1",  "start", 10, -4, "#0077B6", 3.5, 10),
         "PA":  VertexStyle("PA",  "start",  8, -8, "#0077B6", 3.5, 10),
@@ -259,7 +260,7 @@ outer_cfg = LayerConfig(
     brg_dist_labels={
         ("POB","P2"): BrgDistLabel(-18), ("P2","P3"): BrgDistLabel(-18),
         ("P3","T3"): BrgDistLabel(18), ("PX","P4"): BrgDistLabel(-16),
-        ("P4","PT1"): BrgDistLabel(-16),
+        ("P4","P5"): BrgDistLabel(-16), ("P5","PT1"): BrgDistLabel(-16),
         ("T2","POB"): BrgDistLabel(16),
     },
     arc_labels={
@@ -286,6 +287,7 @@ inset_cfg = LayerConfig(
         "Ti3":  VertexStyle("Ti3",  "middle", 0, 14, "#BF360C", 2.5, 8.5),
         "PiX":  VertexStyle("PiX",  "end",   -8, -6, "#BF360C", 2.5, 8.5),
         "Pi4":  VertexStyle("Pi4",  "end",   -8, 12, "#BF360C", 2.5, 8.5),
+        "Pi5":  VertexStyle("Pi5",  "end",   -8,  4, "#BF360C", 2.5, 8.5),
         "PTi1": VertexStyle("PTi1", "end",  -12, -8, "#BF360C", 2.5, 8.5),
         "Ti1":  VertexStyle("Ti1",  "end",   -8, 12, "#BF360C", 2.5, 8.5),
         "Ai2":  VertexStyle("Ai2",  "end",   -8,  4, "#BF360C", 2.5, 8.5),

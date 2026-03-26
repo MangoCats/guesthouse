@@ -1315,7 +1315,7 @@ def _compute_site_path(pts: dict) -> list[list[float]]:
     outer_segs = [
         LineSeg("POB", "P2"), LineSeg("P2", "P3"), LineSeg("P3", "T3"),
         ArcSeg("T3", "PX", "TC3", R3, "CW", 60),
-        LineSeg("PX", "P4"), LineSeg("P4", "PT1"),
+        LineSeg("PX", "P4"), LineSeg("P4", "P5"), LineSeg("P5", "PT1"),
         ArcSeg("PT1", "T1", "TC1", R1, "CW", 60),
         ArcSeg("T1", "PA", "TC1", R1, "CW", 60),
         ArcSeg("PA", "T2", "TC2", R2, "CW", 60),

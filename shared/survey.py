@@ -122,7 +122,7 @@ def compute_pt1(pts: dict[str, Point], R1: float) -> Point:
 # Inset Path Computation
 # ============================================================
 class InsetResult(NamedTuple):
-    pts_update: dict[str, Point]   # PiOB, Pi2, Pi3, Pi4, PTi1, Ti1-3, PiX, Ai2
+    pts_update: dict[str, Point]   # PiOB, Pi2, Pi3, Pi4, Pi5, PTi1, Ti1-3, PiX, Ai2
     inset_segs: list[Segment]
     R1i: float; R2i: float; R3i: float
 
@@ -159,15 +159,17 @@ def compute_inset(
     update["PiOB"] = line_isect(o10, d_e10, o1, d_e1)
     update["Pi2"] = line_isect(o1, d_e1, o2, d_e2)
     update["Pi3"] = line_isect(o2, d_e2, o3, d_e3)
-    update["Pi4"] = off_pt(pts["P4"], ln5, delta)  # collinear PX-P4-PT1
+    update["Pi4"] = off_pt(pts["P4"], ln5, delta)  # collinear PX-P4-P5-PT1
+    update["Pi5"] = off_pt(pts["P5"], ln5, delta)  # collinear with Pi4 and PTi1
 
-    # PTi1: inset tangency point — PT1 projected outward to R1i circle
-    _pt1 = pts.get("PT1") or compute_pt1(pts, R1)
-    _tc1 = pts["TC1"]
-    _dpt = (_pt1[0] - _tc1[0], _pt1[1] - _tc1[1])
-    _dpt_len = math.hypot(*_dpt)
-    update["PTi1"] = (_tc1[0] + R1i * _dpt[0] / _dpt_len,
-                      _tc1[1] + R1i * _dpt[1] / _dpt_len)
+    # PTi1: intersection of Pi4-Pi5 line (extended beyond Pi5) with TC1 arc (radius R1i)
+    # Line: Pi4 + t*(Pi5-Pi4); t=1 is Pi5; t>1 is the extension toward the arc
+    _pi4 = update["Pi4"]
+    _pi5 = update["Pi5"]
+    _d56 = (_pi5[0] - _pi4[0], _pi5[1] - _pi4[1])
+    update["PTi1"] = line_circle_isect_min_t_gt(
+        _pi4, _d56, pts["TC1"], R1i, 1.0
+    )
 
     update["Ti3"] = (pts["TC3"][0], pts["P3"][1] + delta)
     update["Ti1"] = (pts["T1"][0] - delta*nE, pts["T1"][1] - delta*nN)
@@ -179,7 +181,7 @@ def compute_inset(
     inset_segs = [
         LineSeg("PiOB", "Pi2"), LineSeg("Pi2", "Pi3"), LineSeg("Pi3", "Ti3"),
         ArcSeg("Ti3", "PiX", "TC3", R3i, "CW", 60),
-        LineSeg("PiX", "Pi4"), LineSeg("Pi4", "PTi1"),
+        LineSeg("PiX", "Pi4"), LineSeg("Pi4", "Pi5"), LineSeg("Pi5", "PTi1"),
         ArcSeg("PTi1", "Ti1", "TC1", R1i, "CW", 60),
         ArcSeg("Ti1", "Ai2", "TC1", R1i, "CW", 60),
         ArcSeg("Ai2", "Ti2", "TC2", R2i, "CW", 60),
