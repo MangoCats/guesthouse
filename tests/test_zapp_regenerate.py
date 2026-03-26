@@ -105,7 +105,10 @@ class TestInprocessDispatch:
         assert _run_generator_inprocess("scad/gen_views.py", gd) is None
         assert _run_generator_inprocess("scad/gen_line_drawings.py", gd) is None
         assert _run_generator_inprocess("gen_3views.py", gd) is None
-        assert _run_generator_inprocess("survey/gen_path_svg.py", gd) is None
+
+    def test_survey_path_svg_inprocess(self, gd):
+        result = _run_generator_inprocess("survey/gen_path_svg.py", gd)
+        assert result is True
 
 
 # ── generate_svg_db fallback ──────────────────────────────────────────

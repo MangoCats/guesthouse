@@ -391,6 +391,61 @@ def build_outline_cfg(outline_segs, pts, radii):
         brg_decimal=True,
     )
 
+def build_outline_cfg_db(outline_segs, pts):
+    """Build outline layer config dynamically from DB chain naming convention.
+
+    Works with any point naming (PA/PB, F-series, or mixed).  Labels are
+    placed radially outward from the outline centroid so they don't pile up.
+    """
+    all_names = list(dict.fromkeys(
+        n for s in outline_segs for n in (s.start, s.end) if n in pts
+    ))
+    if all_names:
+        cx = sum(pts[n][0] for n in all_names) / len(all_names)
+        cy = sum(pts[n][1] for n in all_names) / len(all_names)
+    else:
+        cx, cy = 0.0, 0.0
+
+    def _outward(name, label_r=12):
+        de = pts[name][0] - cx
+        dn = pts[name][1] - cy
+        dist = math.hypot(de, dn) or 1.0
+        dx = de / dist * label_r
+        dy = -dn / dist * label_r  # SVG y-down inverts N
+        return dx, dy, "start" if dx >= 0 else "end"
+
+    arc_styles = {}; arc_labels = {}; brg_dist_labels = {}; vertex_styles = {}
+    center_marks = []
+    seen_verts = set()
+    for seg in outline_segs:
+        for name in (seg.start, seg.end):
+            if name not in seen_verts:
+                seen_verts.add(name)
+                if name in pts:
+                    dx, dy, anchor = _outward(name)
+                    vertex_styles[name] = VertexStyle(name, anchor, dx, dy, "#333", 2.5, 10)
+        if isinstance(seg, ArcSeg):
+            arc_styles[(seg.start, seg.end)] = ("#333", 2.0)
+            sw = arc_sweep_deg(seg, pts)
+            r_in = seg.radius * 12
+            r_str = f"{r_in:.0f}\"" if abs(r_in - round(r_in)) < 0.05 else f"{r_in:.1f}\""
+            arc_labels[(seg.start, seg.end)] = ArcLabel(
+                f"R={r_str}", f"{sw:.1f}\u00b0", "start", 10, 4, 11, "#333")
+            if seg.center in pts:
+                center_marks.append(CenterMark(seg.center, seg.start, "#333"))
+        else:
+            brg_dist_labels[(seg.start, seg.end)] = BrgDistLabel(16)
+
+    return LayerConfig(
+        opacity=1.0, fill_color="rgba(200,230,255,0.25)",
+        line_stroke="#333", line_width=2.0,
+        arc_styles=arc_styles, vertex_styles=vertex_styles,
+        brg_dist_labels=brg_dist_labels, arc_labels=arc_labels,
+        center_marks=center_marks if center_marks else None,
+        traverse_pts=None, traverse_stroke=None,
+        brg_decimal=True,
+    )
+
 # ============================================================
 # Section 9: SVG Assembly
 # ============================================================
@@ -407,7 +462,11 @@ def generate_svg(data, iw_polys=None, out_path=None):
     outer_area = data["outer_area"]; inset_area = data["inset_area"]
     outline_area = data["outline_area"]
 
-    outline_cfg = build_outline_cfg(outline_segs, pts, data["radii"])
+    _seg_starts = {s.start for s in outline_segs}
+    if any(n.startswith("F") and n[1:].lstrip("0123456789") in ("", "a", "b") for n in _seg_starts):
+        outline_cfg = build_outline_cfg(outline_segs, pts, data["radii"])
+    else:
+        outline_cfg = build_outline_cfg_db(outline_segs, pts)
 
     lines = []
     lines.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
@@ -425,10 +484,17 @@ def generate_svg(data, iw_polys=None, out_path=None):
     render_floorplan(lines, to_svg, pts, data["outer_poly"], data["inner_poly"],
                      data["inner_segs"], layout=data.get("layout"), iw_polys=iw_polys)
 
-    # Area label: halfway between FC and midpoint of W9-W10
-    _w9w10_mid = ((pts["W9"][0] + pts["W10"][0]) / 2, (pts["W9"][1] + pts["W10"][1]) / 2)
-    cx_o = (pts["FC"][0] + _w9w10_mid[0]) / 2
-    cy_o = (pts["FC"][1] + _w9w10_mid[1]) / 2
+    # Area label: halfway between FC and midpoint of W9-W10 (fall back to outline centroid)
+    if "W9" in pts and "W10" in pts and "FC" in pts:
+        _w9w10_mid = ((pts["W9"][0] + pts["W10"][0]) / 2, (pts["W9"][1] + pts["W10"][1]) / 2)
+        cx_o = (pts["FC"][0] + _w9w10_mid[0]) / 2
+        cy_o = (pts["FC"][1] + _w9w10_mid[1]) / 2
+    elif "FC" in pts:
+        cx_o, cy_o = pts["FC"]
+    else:
+        _op = data["outer_poly"]
+        cx_o = sum(p[0] for p in _op) / len(_op)
+        cy_o = sum(p[1] for p in _op) / len(_op)
     sx, sy = to_svg(cx_o, cy_o)
     lines.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="middle" font-family="Arial"'
                  f' font-size="12" fill="#333" font-weight="bold">{outline_area:.2f} sq ft</text>')

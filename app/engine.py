@@ -1497,8 +1497,6 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "site/gen_site_plan.py":
-        if not _has_f_series:
-            return True  # site plan requires F-series chain
         # 'site' shadows stdlib module — use importlib
         import importlib.util
         _sp = importlib.util.spec_from_file_location(
@@ -1534,9 +1532,13 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         _mod = importlib.util.module_from_spec(_sp)
         _sp.loader.exec_module(_mod)
         _data = _mod.compute_all()
-        # Override seed outline polygons with DB-sourced positions.
-        # outline_segs/radii/pts are kept as F-series (build_outline_cfg requires it);
-        # outer_poly/inner_poly are pure coordinate lists — safe to replace.
+        # Override with DB-sourced geometry.
+        # pts.update() adds PA/PB/WA/WB/PC/FC from DB while keeping survey pts.
+        # outline_segs/inner_segs replaced with DB chain (PA/PB naming).
+        # generate_svg() detects non-F-series segs and uses build_outline_cfg_db.
+        _data["pts"].update(gd.pts)
+        _data["outline_segs"] = gd.outline_segs
+        _data["inner_segs"] = gd.inner_segs
         _data["outer_poly"] = gd.outline_poly
         _data["inner_poly"] = gd.inner_poly
         _data["outline_area"] = gd.outer_area

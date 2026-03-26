@@ -72,6 +72,97 @@ SitePlanData = namedtuple("SitePlanData", [
 ])
 
 
+def _find_site_refs_from_db(outline_segs, pts):
+    """Find F-series equivalent reference points from a DB chain outline.
+
+    Used when the DB chain uses non-F-series naming (PA/PB etc.).
+    Returns a dict of reference points to merge into pts so that
+    build_site_plan_data can use its standard F-series reference names.
+
+    Points returned:
+      F16, F17  — start/end of the south-face LineSeg (most SW-directed)
+      F15       — start of the CW arc preceding F16 (SE corner reference)
+      F18       — southernmost outline vertex (for N-S dimension south ref)
+      F2        — westernmost outline vertex (for E-W dimension west ref)
+      F6        — northernmost outline vertex (for N-S dimension north ref)
+      W9, W10   — virtual E-W direction points (centroid ± 1 ft E)
+      W2, W5    — virtual N-S direction points (centroid ± 1 ft N)
+    """
+    # Target: seed F16→F17 goes SW, unit ≈ (-0.864, -0.504)
+    _TGT_E, _TGT_N = -0.864, -0.504
+
+    seg_from_end = {s.end: s for s in outline_segs}
+
+    all_names = list(dict.fromkeys(
+        n for s in outline_segs for n in (s.start, s.end) if n in pts))
+
+    # Find south-face LineSeg: best dot-product with SW target,
+    # length ≥ 3 ft, bonus if preceded by a CW arc.
+    best_seg = None
+    best_score = -1.0
+    for seg in outline_segs:
+        if not isinstance(seg, LineSeg):
+            continue
+        if seg.start not in pts or seg.end not in pts:
+            continue
+        dx = pts[seg.end][0] - pts[seg.start][0]
+        dy = pts[seg.end][1] - pts[seg.start][1]
+        length = math.hypot(dx, dy)
+        if length < 3.0:
+            continue
+        dot = (dx * _TGT_E + dy * _TGT_N) / length
+        if dot < 0.5:
+            continue
+        prev = seg_from_end.get(seg.start)
+        bonus = 0.1 if (prev is not None and isinstance(prev, ArcSeg)
+                        and prev.direction == "CW") else 0.0
+        score = dot + bonus
+        if score > best_score:
+            best_score = score
+            best_seg = seg
+
+    if best_seg is None:
+        # Fallback: unconstrained best-dot LineSeg
+        for seg in outline_segs:
+            if not isinstance(seg, LineSeg):
+                continue
+            if seg.start not in pts or seg.end not in pts:
+                continue
+            dx = pts[seg.end][0] - pts[seg.start][0]
+            dy = pts[seg.end][1] - pts[seg.start][1]
+            length = math.hypot(dx, dy) or 1.0
+            dot = (dx * _TGT_E + dy * _TGT_N) / length
+            if dot > best_score:
+                best_score = dot
+                best_seg = seg
+
+    result = {}
+    result["F16"] = pts[best_seg.start]
+    result["F17"] = pts[best_seg.end]
+
+    # F15: start of the CW arc that precedes F16 (the SE corner arc)
+    prev_arc = seg_from_end.get(best_seg.start)
+    if prev_arc is not None and isinstance(prev_arc, ArcSeg):
+        result["F15"] = pts[prev_arc.start]
+    else:
+        result["F15"] = pts[max(all_names, key=lambda n: pts[n][0])]
+
+    # Axis-extreme reference points (building is approx. axis-aligned in FC coords)
+    result["F2"]  = pts[min(all_names, key=lambda n: pts[n][0])]   # westernmost
+    result["F6"]  = pts[max(all_names, key=lambda n: pts[n][1])]   # northernmost
+    result["F18"] = pts[min(all_names, key=lambda n: pts[n][1])]   # southernmost
+
+    # Virtual W-series direction points for building-axis unit vectors
+    _cx = sum(pts[n][0] for n in all_names) / len(all_names)
+    _cy = sum(pts[n][1] for n in all_names) / len(all_names)
+    result["W9"]  = (_cx - 1.0, _cy)
+    result["W10"] = (_cx + 1.0, _cy)
+    result["W2"]  = (_cx, _cy - 1.0)
+    result["W5"]  = (_cx, _cy + 1.0)
+
+    return result
+
+
 def build_site_plan_data(gd=None):
     """Compute all site plan geometry — no PDF I/O.
 
@@ -84,10 +175,19 @@ def build_site_plan_data(gd=None):
         pts = data.pts
         outer_poly = data.outer_poly
         inner_poly = data.inner_poly
+        _outline_struct_names = (
+            [f"F{i}" for i in range(1, 19) if i not in (3, 4)] + ["F11a", "F11b"])
+        _f_pdf_names = _outline_struct_names + ["FC"]
     else:
-        pts = gd.pts
+        pts = dict(gd.pts)  # copy so we can add aliases
         outer_poly = gd.outline_poly
         inner_poly = gd.inner_poly
+        # For DB chain (non-F-series naming): add F-series reference aliases
+        if "F16" not in pts or "F15" not in pts:
+            pts.update(_find_site_refs_from_db(gd.outline_segs, pts))
+        _outline_struct_names = list(dict.fromkeys(
+            n for s in gd.outline_segs for n in (s.start, s.end) if n in pts))
+        _f_pdf_names = _outline_struct_names + (["FC"] if "FC" in pts else [])
 
     # --- Survey coordinate calibration ---
     # Scale: 1 inch = 30 ft on the survey; 1 inch = 72 PDF pts
@@ -209,24 +309,25 @@ def build_site_plan_data(gd=None):
     f2_pdf = building_to_pdf(*pts["F2"])
     f15_pdf = (f15_pdf_x, f15_pdf_y)
 
-    # --- F-series PDF coordinates ---
-    _f_names = [f"F{i}" for i in range(1, 19) if i not in (3, 4)] + ["F11a", "F11b", "FC"]
-    f_series_pdf = {name: building_to_pdf(*pts[name]) for name in _f_names}
+    # --- Outline PDF coordinates (F-series or DB chain names) ---
+    f_series_pdf = {name: building_to_pdf(*pts[name]) for name in _f_pdf_names
+                    if name in pts}
 
-    # --- Min setback distances (F-points only, excluding FC) ---
-    _f_struct = [f"F{i}" for i in range(1, 19) if i not in (3, 4)] + ["F11a", "F11b"]
+    # --- Min setback distances (outline structural pts, excluding centroid pts) ---
     min_setback_216 = min(
         ((pt[0] - LINE_TOP[0]) * (-ldy) + (pt[1] - LINE_TOP[1]) * ldx)
         / (llen * SCALE)
-        for pt in (f_series_pdf[n] for n in _f_struct))
+        for pt in (f_series_pdf[n] for n in _outline_struct_names if n in f_series_pdf))
     min_setback_275 = min(
         ((pt[0] - BOT_LEFT[0]) * bdy - (pt[1] - BOT_LEFT[1]) * bdx)
         / (blen * SCALE)
-        for pt in (f_series_pdf[n] for n in _f_struct))
+        for pt in (f_series_pdf[n] for n in _outline_struct_names if n in f_series_pdf))
 
-    # --- Distance from existing residence corner to closest F point ---
+    # --- Distance from existing residence corner to closest outline point ---
     _res_best_name, _res_best_dist = None, float("inf")
-    for n in _f_struct:
+    for n in _outline_struct_names:
+        if n not in f_series_pdf:
+            continue
         pt = f_series_pdf[n]
         d = math.hypot(pt[0] - RESIDENCE_LR[0], pt[1] - RESIDENCE_LR[1])
         if d < _res_best_dist:
