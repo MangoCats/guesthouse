@@ -4030,7 +4030,25 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     }
 
     // --- Far end ---
-    if (f.end_mode === "intersect") {
+    // Detect "fixed_from_line": anchor contains a line_intersection spec, either
+    // directly (near end on line) or inside an offset (far end on line).
+    function _extractIsect(spec) {
+      if (spec && typeof spec === "object") {
+        if (spec.type === "line_intersection") return { isect: spec, negOffset: false };
+        if (spec.offset?.type === "line_intersection") return { isect: spec.offset, negOffset: true };
+      }
+      return null;
+    }
+    const ancIsect = _extractIsect(anc);
+    if (f.end_mode === "fixed" && ancIsect) {
+      farType = "fixed_from_line";
+      farFt = f.length || 0;
+      const seg2 = ancIsect.isect.line2_dir?.segment;
+      if (ancIsect.isect.line2_point) farC = ancIsect.isect.line2_point;
+      if (Array.isArray(seg2) && seg2.length === 2) { farC = seg2[0]; farD = seg2[1]; }
+      // negOffset true → far end on line; false → near end on line
+      // (decoded as initial radio state — handled via init below)
+    } else if (f.end_mode === "intersect") {
       farType = "inner_poly";
     } else if (f.end_mode === "to_line") {
       farType = "to_line";
@@ -4247,30 +4265,44 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   // ── §3 Far End ────────────────────────────────────────────────────────────
   const farName = `wpw-far-${elemName}`;
   const farSec = sec("\u00a73  Far End");
-  const rFixed  = makeRadio(farName, "fixed",      "Fixed length:",              init.farType === "fixed");
-  const rInner  = makeRadio(farName, "inner_poly", "Extend to inner boundary",   init.farType === "inner_poly");
-  const rToLine = makeRadio(farName, "to_line",    "Extend to line:",            init.farType === "to_line");
+  const rFixed      = makeRadio(farName, "fixed",           "Fixed length:",              init.farType === "fixed");
+  const rInner      = makeRadio(farName, "inner_poly",      "Extend to inner boundary",   init.farType === "inner_poly");
+  const rToLine     = makeRadio(farName, "to_line",         "Extend to line:",            init.farType === "to_line");
+  const rFixedLine  = makeRadio(farName, "fixed_from_line", "Fixed, end on line:",        init.farType === "fixed_from_line");
   const { feet: lFt0, inches: lIn0 } = splitFtIn(init.farFt);
   const inpLenFt = numInp(lFt0, 1,     "Whole feet of wall length", "60px");
   const inpLenIn = numInp(lIn0, 0.125, "Additional inches of wall length", "72px");
   const selFarC  = ptSel(init.farC);
   const selFarD  = ptSel(init.farD);
+  // "Fixed, end on line" sub-panel
+  const fixedLineName = `wpw-fle-${elemName}`;
+  const rEndNear = makeRadio(fixedLineName, "near", "Near end on line", true);
+  const rEndFar  = makeRadio(fixedLineName, "far",  "Far end on line",  false);
+  const selFlC   = ptSel(init.farC);
+  const selFlD   = ptSel(init.farD);
+  const fixedLineDiv = document.createElement("div");
+  fixedLineDiv.appendChild(row("Line: ", selFlC, " \u2192 ", selFlD));
+  fixedLineDiv.appendChild(row(rEndNear.wrap, rEndFar.wrap));
   farSec.appendChild(row(rFixed.wrap, inpLenFt, " ft  ", inpLenIn, " in"));
   farSec.appendChild(row(rInner.wrap));
   farSec.appendChild(row(rToLine.wrap, selFarC, " \u2192 ", selFarD));
-  farSec.appendChild(hint("\"Extend to line\" finds where the wall ray intersects the line through C and D."));
+  farSec.appendChild(row(rFixedLine.wrap));
+  farSec.appendChild(fixedLineDiv);
+  farSec.appendChild(hint("\"Fixed, end on line\": fixed length with one end pinned to the intersection of the wall ray with line C\u2192D."));
   modal.appendChild(farSec);
 
   function getFarType() {
-    for (const r of [rFixed, rInner, rToLine]) if (r.inp.checked) return r.inp.value;
+    for (const r of [rFixed, rInner, rToLine, rFixedLine]) if (r.inp.checked) return r.inp.value;
     return "fixed";
   }
   function updateFarInputs() {
     const ft = getFarType();
-    inpLenFt.disabled = ft !== "fixed"; inpLenIn.disabled = ft !== "fixed";
+    inpLenFt.disabled = ft !== "fixed" && ft !== "fixed_from_line";
+    inpLenIn.disabled = ft !== "fixed" && ft !== "fixed_from_line";
     selFarC.disabled = ft !== "to_line"; selFarD.disabled = ft !== "to_line";
+    fixedLineDiv.style.display = ft === "fixed_from_line" ? "" : "none";
   }
-  for (const r of [rFixed, rInner, rToLine])
+  for (const r of [rFixed, rInner, rToLine, rFixedLine])
     r.inp.addEventListener("change", () => { updateFarInputs(); updatePreview(); });
   updateFarInputs();
 
@@ -4415,10 +4447,37 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
 
     // Far end
     const ft = getFarType();
+    const lenFt = (parseFloat(inpLenFt.value) || 0) + (parseFloat(inpLenIn.value) || 0) / 12;
+
+    // "Fixed, end on line": pin one end of a fixed-length wall to the
+    // intersection of the wall ray with a reference line C→D.
+    // The wall ray uses `anchor` (§1) as the ray origin and `along` as direction.
+    // - Near end on line: anchor = intersection; far end = anchor + length.
+    // - Far end on line:  far end = intersection; anchor = intersection − length.
+    if (ft === "fixed_from_line") {
+      const C = selFlC.value, D = selFlD.value;
+      // Intersection of the wall ray (through current anchor along `along`) with line C→D.
+      // `anchor` from §1 is used as the ray origin — any point on the wall ray works.
+      const isect = {
+        type: "line_intersection",
+        line1_point: anchor,
+        line1_dir: along,
+        line2_point: C,
+        line2_dir: { segment: [C, D] },
+      };
+      if (rEndNear.inp.checked) {
+        // Near end on line: anchor = intersection, wall extends forward by length
+        anchor = isect;
+      } else {
+        // Far end on line: anchor = intersection − length * along
+        anchor = { offset: isect, dir: { neg: along }, dist: lenFt };
+      }
+    }
+
     const formula = { type: "wall_rect", anchor, along, thickness_dir: thickDir, thickness };
-    if (ft === "fixed") {
+    if (ft === "fixed" || ft === "fixed_from_line") {
       formula.end_mode = "fixed";
-      formula.length = (parseFloat(inpLenFt.value) || 0) + (parseFloat(inpLenIn.value) || 0) / 12;
+      formula.length = lenFt;
     } else if (ft === "inner_poly") {
       formula.end_mode = "intersect";
       formula.end_target = "inner_poly";
