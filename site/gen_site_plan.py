@@ -12,6 +12,7 @@ import fitz  # pymupdf
 from shared.geometry import vert_isects, path_polygon, segment_polyline, seg_vecs
 from shared.types import LineSeg, ArcSeg
 from shared.svg import git_describe
+from shared.survey import compute_pt1
 
 # Survey coordinate calibration constants (PDF coords from least-squares fitting)
 LINE_TOP = (698.9, 55.2)     # 251.53' meets 216.73' (upper-right corner)
@@ -237,15 +238,11 @@ def build_site_plan_data(gd=None):
                 "T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
     p_series_pdf = {n: building_to_pdf(*pts[n]) for n in _P_NAMES}
 
-    # PT1: foot of perpendicular from TC1 onto the P4-P5 line (extended)
-    _p4, _p5, _tc1 = pts["P4"], pts["P5"], pts["TC1"]
-    _p45_dx = _p5[0] - _p4[0]
-    _p45_dy = _p5[1] - _p4[1]
-    _p45_t = ((_tc1[0] - _p4[0]) * _p45_dx + (_tc1[1] - _p4[1]) * _p45_dy) / (
-        _p45_dx * _p45_dx + _p45_dy * _p45_dy)
-    _pt1_e = _p4[0] + _p45_t * _p45_dx
-    _pt1_n = _p4[1] + _p45_t * _p45_dy
-    p_series_pdf["PT1"] = building_to_pdf(_pt1_e, _pt1_n)
+    # PT1: tangency point of TC1 arc with P4-P5 line extension
+    # (projected onto arc so path_polygon arc segments close exactly)
+    _pt1 = compute_pt1(pts, 10.0)
+    pts["PT1"] = _pt1
+    p_series_pdf["PT1"] = building_to_pdf(*_pt1)
 
     return SitePlanData(
         pts=pts,
@@ -563,7 +560,8 @@ def render_site_plan_fs(doc, sp):
     outer_segs = [
         LineSeg("POB", "P2"), LineSeg("P2", "P3"), LineSeg("P3", "T3"),
         ArcSeg("T3", "PX", "TC3", R3, "CW", 60),
-        LineSeg("PX", "P4"), LineSeg("P4", "P5"), LineSeg("P5", "T1"),
+        LineSeg("PX", "P4"), LineSeg("P4", "PT1"),
+        ArcSeg("PT1", "T1", "TC1", R1, "CW", 60),
         ArcSeg("T1", "PA", "TC1", R1, "CW", 60),
         ArcSeg("PA", "T2", "TC2", R2, "CW", 60),
         LineSeg("T2", "POB"),

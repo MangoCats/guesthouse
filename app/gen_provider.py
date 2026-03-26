@@ -633,7 +633,7 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
         radii        — dict {str: float} of arc radii
     """
     from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
-    from shared.survey import compute_traverse, compute_three_arc, compute_inset
+    from shared.survey import compute_traverse, compute_three_arc, compute_inset, compute_pt1
 
     # 1. Survey traverse
     if db_path is not None:
@@ -641,6 +641,7 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
     else:
         trav_pts = compute_traverse()
     three_arc = compute_three_arc(trav_pts)
+    trav_pts["PT1"] = compute_pt1(trav_pts, three_arc["R1"])
     inset_res = compute_inset(
         trav_pts, three_arc["R1"], three_arc["R2"], three_arc["R3"],
         three_arc["nE"], three_arc["nN"],

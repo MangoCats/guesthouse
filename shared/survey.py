@@ -101,11 +101,28 @@ def compute_three_arc(pts: dict[str, Point]) -> dict[str, float]:
 
     return {"R1": R1, "R2": R2, "R3": R3, "uE": uE, "uN": uN, "nE": nE, "nN": nN}
 
+def compute_pt1(pts: dict[str, Point], R1: float) -> Point:
+    """Compute PT1: tangency point where the TC1 arc meets the P4-P5 line extension.
+
+    PT1 is the foot of the perpendicular from TC1 to the P4-P5 line, projected
+    outward onto the arc (radius R1).  The P4-P5 line is tangent to the arc at
+    PT1 within survey measurement precision.
+    """
+    p4, p5, tc1 = pts["P4"], pts["P5"], pts["TC1"]
+    dx, dy = p5[0] - p4[0], p5[1] - p4[1]
+    t = ((tc1[0] - p4[0]) * dx + (tc1[1] - p4[1]) * dy) / (dx * dx + dy * dy)
+    foot_e = p4[0] + t * dx
+    foot_n = p4[1] + t * dy
+    dir_e, dir_n = foot_e - tc1[0], foot_n - tc1[1]
+    dir_len = math.hypot(dir_e, dir_n)
+    return (tc1[0] + R1 * dir_e / dir_len, tc1[1] + R1 * dir_n / dir_len)
+
+
 # ============================================================
 # Inset Path Computation
 # ============================================================
 class InsetResult(NamedTuple):
-    pts_update: dict[str, Point]   # PiOB, Pi2, Pi3, Pi4, Pi5, Ti1-3, PiX, Ai2
+    pts_update: dict[str, Point]   # PiOB, Pi2, Pi3, Pi4, PTi1, Ti1-3, PiX, Ai2
     inset_segs: list[Segment]
     R1i: float; R2i: float; R3i: float
 
@@ -124,32 +141,33 @@ def compute_inset(
     d_e2 = (pts["P3"][0]-pts["P2"][0], pts["P3"][1]-pts["P2"][1])
     d_e3 = (pts["T3"][0]-pts["P3"][0], pts["T3"][1]-pts["P3"][1])
     d_e5 = (pts["P4"][0]-pts["PX"][0], pts["P4"][1]-pts["PX"][1])
-    d_e6 = (pts["P5"][0]-pts["P4"][0], pts["P5"][1]-pts["P4"][1])
-    d_e7 = (pts["T1"][0]-pts["P5"][0], pts["T1"][1]-pts["P5"][1])
     d_e10 = (pts["POB"][0]-pts["T2"][0], pts["POB"][1]-pts["T2"][1])
 
     ln1 = left_norm(pts["POB"], pts["P2"])
     ln2 = left_norm(pts["P2"], pts["P3"])
     ln3 = left_norm(pts["P3"], pts["T3"])
     ln5 = left_norm(pts["PX"], pts["P4"])
-    ln6 = left_norm(pts["P4"], pts["P5"])
-    ln7 = left_norm(pts["P5"], pts["T1"])
     ln10 = left_norm(pts["T2"], pts["POB"])
 
     o1 = off_pt(pts["POB"], ln1, delta)
     o2 = off_pt(pts["P2"], ln2, delta)
     o3 = off_pt(pts["P3"], ln3, delta)
     o5 = off_pt(pts["PX"], ln5, delta)
-    o6 = off_pt(pts["P4"], ln6, delta)
-    o7 = off_pt(pts["P5"], ln7, delta)
     o10 = off_pt(pts["T2"], ln10, delta)
 
     update = {}
     update["PiOB"] = line_isect(o10, d_e10, o1, d_e1)
     update["Pi2"] = line_isect(o1, d_e1, o2, d_e2)
     update["Pi3"] = line_isect(o2, d_e2, o3, d_e3)
-    update["Pi4"] = off_pt(pts["P4"], ln5, delta)  # collinear PX-P4-P5
-    update["Pi5"] = line_isect(o6, d_e6, o7, d_e7)
+    update["Pi4"] = off_pt(pts["P4"], ln5, delta)  # collinear PX-P4-PT1
+
+    # PTi1: inset tangency point — PT1 projected outward to R1i circle
+    _pt1 = pts.get("PT1") or compute_pt1(pts, R1)
+    _tc1 = pts["TC1"]
+    _dpt = (_pt1[0] - _tc1[0], _pt1[1] - _tc1[1])
+    _dpt_len = math.hypot(*_dpt)
+    update["PTi1"] = (_tc1[0] + R1i * _dpt[0] / _dpt_len,
+                      _tc1[1] + R1i * _dpt[1] / _dpt_len)
 
     update["Ti3"] = (pts["TC3"][0], pts["P3"][1] + delta)
     update["Ti1"] = (pts["T1"][0] - delta*nE, pts["T1"][1] - delta*nN)
@@ -161,7 +179,8 @@ def compute_inset(
     inset_segs = [
         LineSeg("PiOB", "Pi2"), LineSeg("Pi2", "Pi3"), LineSeg("Pi3", "Ti3"),
         ArcSeg("Ti3", "PiX", "TC3", R3i, "CW", 60),
-        LineSeg("PiX", "Pi4"), LineSeg("Pi4", "Pi5"), LineSeg("Pi5", "Ti1"),
+        LineSeg("PiX", "Pi4"), LineSeg("Pi4", "PTi1"),
+        ArcSeg("PTi1", "Ti1", "TC1", R1i, "CW", 60),
         ArcSeg("Ti1", "Ai2", "TC1", R1i, "CW", 60),
         ArcSeg("Ai2", "Ti2", "TC2", R2i, "CW", 60),
         LineSeg("Ti2", "PiOB"),

@@ -10,7 +10,7 @@ from shared.geometry import (
     brg_dist, fmt_brg, fmt_dist,
     compute_inner_walls,
 )
-from shared.survey import compute_traverse, compute_three_arc, compute_inset
+from shared.survey import compute_traverse, compute_three_arc, compute_inset, compute_pt1
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
 from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
 from floorplan.layout import compute_interior_layout
@@ -162,11 +162,15 @@ def compute_all():
     R1, R2, R3 = arc_info["R1"], arc_info["R2"], arc_info["R3"]
     nE, nN = arc_info["nE"], arc_info["nN"]
 
-    # Outer path
+    # PT1: tangency point where TC1 arc meets the P4-P5 line extension
+    pts["PT1"] = compute_pt1(pts, R1)
+
+    # Outer path (corner at PT1 replaces P5; PT1→T1 is CW arc on TC1 circle)
     outer_segs = [
         LineSeg("POB", "P2"), LineSeg("P2", "P3"), LineSeg("P3", "T3"),
         ArcSeg("T3", "PX", "TC3", R3, "CW", 60),
-        LineSeg("PX", "P4"), LineSeg("P4", "P5"), LineSeg("P5", "T1"),
+        LineSeg("PX", "P4"), LineSeg("P4", "PT1"),
+        ArcSeg("PT1", "T1", "TC1", R1, "CW", 60),
         ArcSeg("T1", "PA", "TC1", R1, "CW", 60),
         ArcSeg("PA", "T2", "TC2", R2, "CW", 60),
         LineSeg("T2", "POB"),
@@ -236,7 +240,8 @@ outer_cfg = LayerConfig(
     opacity=0.2, fill_color="#e8edf5",
     line_stroke="#333", line_width=2.0,
     arc_styles={
-        ("T1","PA"): ("#0077B6", 2.5), ("PA","T2"): ("#0077B6", 2.5),
+        ("PT1","T1"): ("#0077B6", 2.5), ("T1","PA"): ("#0077B6", 2.5),
+        ("PA","T2"): ("#0077B6", 2.5),
         ("T3","PX"): ("#2E7D32", 2.5),
     },
     vertex_styles={
@@ -246,7 +251,7 @@ outer_cfg = LayerConfig(
         "T3":  VertexStyle("T3",  "middle", 0, -12, "#2E7D32", 3.5, 10),
         "PX":  VertexStyle("PX",  "start",  8, -6, "#2E7D32", 3.5, 10),
         "P4":  VertexStyle("P4",  "start", 10, 10, "#d32f2f", 3.5, 10),
-        "P5":  VertexStyle("P5",  "start", 14,  3, "#d32f2f", 3.5, 10),
+        "PT1": VertexStyle("PT1", "start", 10,  3, "#0077B6", 3.5, 10),
         "T1":  VertexStyle("T1",  "start", 10, -4, "#0077B6", 3.5, 10),
         "PA":  VertexStyle("PA",  "start",  8, -8, "#0077B6", 3.5, 10),
         "T2":  VertexStyle("T2",  "end",  -10, -4, "#0077B6", 3.5, 10),
@@ -254,11 +259,11 @@ outer_cfg = LayerConfig(
     brg_dist_labels={
         ("POB","P2"): BrgDistLabel(-18), ("P2","P3"): BrgDistLabel(-18),
         ("P3","T3"): BrgDistLabel(18), ("PX","P4"): BrgDistLabel(-16),
-        ("P4","P5"): BrgDistLabel(-16), ("P5","T1"): BrgDistLabel(16),
+        ("P4","PT1"): BrgDistLabel(-16),
         ("T2","POB"): BrgDistLabel(16),
     },
     arc_labels={
-        ("T1","PA"): ArcLabel("Arc 1: R=10'", None, "end", -20, 0, 0, "#0077B6"),
+        ("PT1","T1"): ArcLabel("Arc 1: R=10'", None, "start", 12, 4, 0, "#0077B6"),
         ("PA","T2"): ArcLabel("Arc 2: R=12' 6\"", None, "middle", 0, 16, 0, "#0077B6"),
         ("T3","PX"): ArcLabel("Arc 3: R=11'", None, "start", 12, 4, 0, "#2E7D32"),
     },
@@ -281,7 +286,7 @@ inset_cfg = LayerConfig(
         "Ti3":  VertexStyle("Ti3",  "middle", 0, 14, "#BF360C", 2.5, 8.5),
         "PiX":  VertexStyle("PiX",  "end",   -8, -6, "#BF360C", 2.5, 8.5),
         "Pi4":  VertexStyle("Pi4",  "end",   -8, 12, "#BF360C", 2.5, 8.5),
-        "Pi5":  VertexStyle("Pi5",  "end",   -8, -8, "#BF360C", 2.5, 8.5),
+        "PTi1": VertexStyle("PTi1", "end",  -12, -8, "#BF360C", 2.5, 8.5),
         "Ti1":  VertexStyle("Ti1",  "end",   -8, 12, "#BF360C", 2.5, 8.5),
         "Ai2":  VertexStyle("Ai2",  "end",   -8,  4, "#BF360C", 2.5, 8.5),
         "Ti2":  VertexStyle("Ti2",  "start",  8, 12, "#BF360C", 2.5, 8.5),

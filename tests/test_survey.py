@@ -51,7 +51,7 @@ class TestComputeInset:
         assert abs(inset_result.R3i - (arc_info["R3"] + 0.5)) < 1e-10
 
     def test_pts_update_keys(self, inset_result):
-        expected = {"PiOB", "Pi2", "Pi3", "Pi4", "Pi5", "Ti1", "Ti2", "Ti3", "PiX", "Ai2"}
+        expected = {"PiOB", "Pi2", "Pi3", "Pi4", "PTi1", "Ti1", "Ti2", "Ti3", "PiX", "Ai2"}
         assert expected <= set(inset_result.pts_update.keys())
 
     def test_does_not_mutate_pts(self, pts_base, arc_info):

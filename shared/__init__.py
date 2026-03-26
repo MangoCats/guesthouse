@@ -10,5 +10,5 @@ from .geometry import (
     horiz_isects, vert_isects,
     compute_inner_walls,
 )
-from .survey import compute_traverse, compute_three_arc, InsetResult, compute_inset
+from .survey import compute_traverse, compute_three_arc, InsetResult, compute_inset, compute_pt1
 from .svg import make_svg_transform, W, H

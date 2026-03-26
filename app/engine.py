@@ -1303,18 +1303,20 @@ def _compute_site_path(pts: dict) -> list[list[float]]:
     """
     from shared.types import LineSeg, ArcSeg
     from shared.geometry import path_polygon
-    from shared.survey import compute_traverse, compute_three_arc
+    from shared.survey import compute_traverse, compute_three_arc, compute_pt1
     from floorplan.geometry import align_pts_to_f_series
 
     trav_pts = compute_traverse()
     three_arc = compute_three_arc(trav_pts)
     R1, R2, R3 = three_arc["R1"], three_arc["R2"], three_arc["R3"]
     align_pts_to_f_series(trav_pts)
+    trav_pts["PT1"] = compute_pt1(trav_pts, R1)
 
     outer_segs = [
         LineSeg("POB", "P2"), LineSeg("P2", "P3"), LineSeg("P3", "T3"),
         ArcSeg("T3", "PX", "TC3", R3, "CW", 60),
-        LineSeg("PX", "P4"), LineSeg("P4", "P5"), LineSeg("P5", "T1"),
+        LineSeg("PX", "P4"), LineSeg("P4", "PT1"),
+        ArcSeg("PT1", "T1", "TC1", R1, "CW", 60),
         ArcSeg("T1", "PA", "TC1", R1, "CW", 60),
         ArcSeg("PA", "T2", "TC2", R2, "CW", 60),
         LineSeg("T2", "POB"),
@@ -1325,12 +1327,13 @@ def _compute_site_path(pts: dict) -> list[list[float]]:
 
 def compute_survey_points(constants_dict: dict) -> dict:
     """Return P-series survey points and inter-point distances."""
-    from shared.survey import compute_traverse, compute_three_arc
+    from shared.survey import compute_traverse, compute_three_arc, compute_pt1
     pts = compute_traverse()
     three_arc = compute_three_arc(pts)
+    pts["PT1"] = compute_pt1(pts, three_arc["R1"])
 
     traverse_order = ["POB", "P2", "P3", "P4", "P5"]
-    arc_point_names = ["T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3"]
+    arc_point_names = ["T1", "T2", "T3", "PA", "PX", "TC1", "TC2", "TC3", "PT1"]
 
     points = {}
     for name in traverse_order + arc_point_names:
