@@ -277,6 +277,7 @@ inset_cfg = LayerConfig(
     opacity=0.2, fill_color="rgba(255,152,0,0.3)",
     line_stroke="#BF360C", line_width=1.5,
     arc_styles={
+        ("PTi1","Ti1"): ("#BF360C", 1.5),
         ("Ti1","Ai2"): ("#BF360C", 1.5), ("Ai2","Ti2"): ("#BF360C", 1.5),
         ("Ti3","PiX"): ("#BF360C", 1.5),
     },
