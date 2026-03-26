@@ -343,6 +343,8 @@ def init_db(db_path=None):
             _migrate_iw_prop_constants(conn)
             # Remove drawn CW walls (superseded by formula-based IW system)
             _migrate_remove_drawn_walls(conn)
+            # Ensure new catalog entries exist (Phase 21 upgrade: washer_sm, dryer_sm)
+            _seed_catalog_items(conn, db_path)
     # Seed anchor/pivot defaults after DB is committed (needs constants table)
     if fresh:
         _seed_default_anchor_pivot(db_path)
@@ -1378,8 +1380,22 @@ _VARIANT_ITEMS = [
         "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377"},
         "variants": _VI_ALL,
     }, None),
+    ("dryer_sm", "appliance", {
+        "label": "DRYER", "item_type": "appliance", "shape": "rect",
+        "width": 32.0 / 12.0, "depth": 27.0 / 12.0,
+        "door": {"hinge_idx": 1, "target_idx": 2},
+        "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-8-cu-ft-Stackable-Steam-Cycle-Electric-Dryer-Titanium-ENERGY-STAR/5015416377"},
+        "variants": _VI_ALL,
+    }, None),
     ("washer", "appliance", {
         "label": "WASHER", "item_type": "appliance", "shape": "rect",
+        "door": {"hinge_idx": 2, "target_idx": 1},
+        "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375"},
+        "variants": _VI_ALL_P,
+    }, None),
+    ("washer_sm", "appliance", {
+        "label": "WASHER", "item_type": "appliance", "shape": "rect",
+        "width": 32.0 / 12.0, "depth": 27.0 / 12.0,
         "door": {"hinge_idx": 2, "target_idx": 1},
         "product_url": {"minik": "https://www.lowes.com/pd/Electrolux-Smartboost-Optic-Whites-and-Pure-Rinse-4-5-cu-ft-High-Efficiency-Stackable-Steam-Cycle-Front-Load-Washer-Titanium-ENERGY-STAR/5015416375"},
         "variants": _VI_ALL_P,
@@ -1832,6 +1848,9 @@ def _seed_catalog_items(conn, db_path=None):
 
     for name, elem_type, props, _variant in _VARIANT_ITEMS:
         d = dims.get(name, {})
+        # Explicit dimensions in props override geometry-computed dims
+        w = props.get("width") or d.get("width")
+        dep = props.get("depth") or d.get("depth")
         product_url = props.get("product_url")
         door = props.get("door")
         clearance = props.get("clearance")
@@ -1842,7 +1861,7 @@ def _seed_catalog_items(conn, db_path=None):
             " door, clearance, product_url, variants, stacked, clip_to_inner) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (name, elem_type, props.get("label", name.upper()),
-             d.get("width"), d.get("depth"), d.get("radius"),
+             w, dep, d.get("radius"),
              props.get("shape", "rect"),
              json.dumps(door) if door else None,
              json.dumps(clearance) if clearance else None,
