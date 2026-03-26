@@ -3528,20 +3528,27 @@ function showPlacementWizard(elemName, paramName, currentFormula, variant) {
  * Builds a wall_rect formula and POSTs it to the server.
  */
 function showWallSetupWizard() {
-  // Collect named points from geometry for dropdowns
+  // Collect named points from geometry for dropdowns — data-driven from DB geometry
   const namedPoints = [];
   const geom = App.state.geometry;
-  if (geom && geom.points) {
+  if (geom) {
+    // Collect all point names referenced in outline_segments and inner_segments
+    const ptSet = new Set();
+    for (const seg of (geom.outline_segments || [])) {
+      if (seg.start) ptSet.add(seg.start);
+      if (seg.end) ptSet.add(seg.end);
+    }
+    for (const seg of (geom.inner_segments || [])) {
+      if (seg.start) ptSet.add(seg.start);
+      if (seg.end) ptSet.add(seg.end);
+    }
     const re = /^([A-Za-z]+)(\d*)(.*)/;
-    const sorted = Object.keys(geom.points).filter(n => /^(W|F)\d/.test(n)).sort((a, b) => {
+    const sorted = [...ptSet].sort((a, b) => {
       const [, aP, aN, aS] = a.match(re) ?? ["", a, "", ""];
       const [, bP, bN, bS] = b.match(re) ?? ["", b, "", ""];
       return aP.localeCompare(bP) || (Number(aN) - Number(bN)) || aS.localeCompare(bS);
     });
     namedPoints.push(...sorted);
-  }
-  if (!namedPoints.length) {
-    namedPoints.push("W1", "W2", "W5", "W6", "W7", "W9", "W11", "W12", "W18");
   }
   const ptOpts = namedPoints.map(p => `<option value="${p}">${p}</option>`).join("");
 
