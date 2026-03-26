@@ -212,8 +212,8 @@ def compute_all():
         "inner_segs": inner_segs, "layout": layout,
     }
 
-def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, layout):
-    L = layout
+def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs,
+                     layout=None, iw_polys=None):
     lines.append('<g opacity="0.5">')
     # Wall band (outer - inner hole, evenodd fill)
     od = "M "+" L ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in outer_poly)+" Z"
@@ -227,10 +227,17 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs, lay
         else:
             pl = segment_polyline(seg, pts)
             lines.append(f'<polyline points="{svg_polygon_pts(pl, to_svg)}" fill="none" stroke="#666" stroke-width="1.0" stroke-linecap="round"/>')
-    # Interior walls (all IW structures from layout)
-    for iw in [L.iw1, L.iw2, L.iw2s, L.iw2o, L.iw3, L.iw4, L.iw5, L.iw6,
-               L.iw7, L.iw8, L.iw9, L.iw11, L.iw12]:
-        lines.append(f'<polygon points="{svg_polygon_pts(iw.poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
+    # Interior wall polygons — DB-sourced if provided, else fall back to seed layout
+    if iw_polys is not None:
+        _polys = list(iw_polys.values())
+    elif layout is not None:
+        L = layout
+        _polys = [iw.poly for iw in [L.iw1, L.iw2, L.iw2s, L.iw2o, L.iw3, L.iw4, L.iw5, L.iw6,
+                                     L.iw7, L.iw8, L.iw9, L.iw11, L.iw12]]
+    else:
+        _polys = []
+    for poly in _polys:
+        lines.append(f'<polygon points="{svg_polygon_pts(poly, to_svg)}" fill="rgba(160,160,160,0.5)" stroke="#666" stroke-width="0.8"/>')
     lines.append('</g>')
 
 # ============================================================
@@ -385,45 +392,22 @@ def build_outline_cfg(outline_segs, pts, radii):
     )
 
 # ============================================================
-# Section 9: SVG Assembly + Output (only when run directly)
+# Section 9: SVG Assembly
 # ============================================================
-if __name__ == "__main__":
-    data = compute_all()
+def generate_svg(data, iw_polys=None, out_path=None):
+    """Assemble and write path_area.svg.
+
+    iw_polys — dict {name: poly} of DB-sourced interior wall polygons.
+               If None, falls back to the seed layout in data["layout"].
+    out_path  — output file path; defaults to survey/path_area.svg next to this file.
+    """
     pts = data["pts"]; to_svg = data["to_svg"]
     outer_segs = data["outer_segs"]; inset_segs = data["inset_segs"]
     outline_segs = data["outline_segs"]
     outer_area = data["outer_area"]; inset_area = data["inset_area"]
     outline_area = data["outline_area"]
-    radii = data["radii"]
 
-    print(f'=== INSET PATH (6" inside) ===')
-    print(f"  delta=0.5' R1i={data['R1i']}' R2i={data['R2i']}' R3i={data['R3i']}'")
-    print(f"  Inset area: {inset_area:.2f} sq ft")
-    print(f'=== OUTLINE PATH ===')
-    _pt_notes = [
-        ("F1", "arc tangent"), ("F2", "arc tangent"),
-        ("F5", "arc tangent"),
-        ("F6", "arc tangent"), ("F7", "east of F6"),
-        ("F8", "C7/C8 arc junction"), ("F9", "arc tangent"),
-        ("F10", "arc E-W tangent"),
-        ("F11", "arc tangent C10/C11a"),
-        ("F11a", "top of C11a / flat seg west"),
-        ("F11b", "top of C11 / flat seg east"),
-        ("F12", "line / arc tangent"),
-        ("F13", f"{radii['R_a13']*12:.1f}\" arc / line tangent"),
-        ("F14", f"{radii['R_a13']*12:.1f}\" arc tangent to N-S line"),
-        ("F15", "arc C15, exits North"),
-        ("F16", "arc C15, incoming tangent"),
-        ("F17", "on PiX-Pi5 line"), ("F18", "arc C17 tangent"),
-    ]
-    for name, note in _pt_notes:
-        print(f"  {name:<5s} ({pts[name][0]:.4f}, {pts[name][1]:.4f})  ({note})")
-    print(f"  C17:  ({pts['C17'][0]:.4f}, {pts['C17'][1]:.4f})  (F17->F18 arc center)")
-    print(f"  C15:  ({pts['C15'][0]:.4f}, {pts['C15'][1]:.4f})  (arc C15 center, R={radii['R_a15']:.4f}')")
-    print(f"  C13:  ({pts['C13'][0]:.4f}, {pts['C13'][1]:.4f})  ({radii['R_a13']*12:.1f}\" arc center, R={radii['R_a13']:.4f}')")
-    print(f"  Outline area: {outline_area:.2f} sq ft")
-
-    outline_cfg = build_outline_cfg(outline_segs, pts, radii)
+    outline_cfg = build_outline_cfg(outline_segs, pts, data["radii"])
 
     lines = []
     lines.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
@@ -439,7 +423,7 @@ if __name__ == "__main__":
     render_layer(lines, inset_segs, pts, inset_cfg, to_svg)
     render_layer(lines, outline_segs, pts, outline_cfg, to_svg)
     render_floorplan(lines, to_svg, pts, data["outer_poly"], data["inner_poly"],
-                     data["inner_segs"], data["layout"])
+                     data["inner_segs"], layout=data.get("layout"), iw_polys=iw_polys)
 
     # Area label: halfway between FC and midpoint of W9-W10
     _w9w10_mid = ((pts["W9"][0] + pts["W10"][0]) / 2, (pts["W9"][1] + pts["W10"][1]) / 2)
@@ -474,12 +458,47 @@ if __name__ == "__main__":
     lines.append('</svg>')
 
     svg_content = "\n".join(lines)
-    svg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_area.svg")
-    with open(svg_path, "w", encoding="utf-8") as f:
+    if out_path is None:
+        out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_area.svg")
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(svg_content)
+    return svg_content
 
+
+if __name__ == "__main__":
+    data = compute_all()
+    pts = data["pts"]; radii = data["radii"]
+
+    print(f'=== INSET PATH (6" inside) ===')
+    print(f"  delta=0.5' R1i={data['R1i']}' R2i={data['R2i']}' R3i={data['R3i']}'")
+    print(f"  Inset area: {data['inset_area']:.2f} sq ft")
+    print(f'=== OUTLINE PATH ===')
+    _pt_notes = [
+        ("F1", "arc tangent"), ("F2", "arc tangent"),
+        ("F5", "arc tangent"),
+        ("F6", "arc tangent"), ("F7", "east of F6"),
+        ("F8", "C7/C8 arc junction"), ("F9", "arc tangent"),
+        ("F10", "arc E-W tangent"),
+        ("F11", "arc tangent C10/C11a"),
+        ("F11a", "top of C11a / flat seg west"),
+        ("F11b", "top of C11 / flat seg east"),
+        ("F12", "line / arc tangent"),
+        ("F13", f"{radii['R_a13']*12:.1f}\" arc / line tangent"),
+        ("F14", f"{radii['R_a13']*12:.1f}\" arc tangent to N-S line"),
+        ("F15", "arc C15, exits North"),
+        ("F16", "arc C15, incoming tangent"),
+        ("F17", "on PiX-Pi5 line"), ("F18", "arc C17 tangent"),
+    ]
+    for name, note in _pt_notes:
+        print(f"  {name:<5s} ({pts[name][0]:.4f}, {pts[name][1]:.4f})  ({note})")
+    print(f"  C17:  ({pts['C17'][0]:.4f}, {pts['C17'][1]:.4f})  (F17->F18 arc center)")
+    print(f"  C15:  ({pts['C15'][0]:.4f}, {pts['C15'][1]:.4f})  (arc C15 center, R={radii['R_a15']:.4f}')")
+    print(f"  C13:  ({pts['C13'][0]:.4f}, {pts['C13'][1]:.4f})  ({radii['R_a13']*12:.1f}\" arc center, R={radii['R_a13']:.4f}')")
+    print(f"  Outline area: {data['outline_area']:.2f} sq ft")
+
+    generate_svg(data)
     print(f"\nSVG written to path_area.svg")
-    print(f"Outer path area: {outer_area:.2f} sq ft (rendered at 20%)")
+    print(f"Outer path area: {data['outer_area']:.2f} sq ft (rendered at 20%)")
     print(f"Inset path area: {inset_area:.2f} sq ft (rendered at 20%)")
     print(f"Outline path area: {outline_area:.2f} sq ft (rendered at 100%)")
     print(f"Outline: F1->ArcC1->F2->F5->ArcC5->F6->F7->ArcC7->F8->ArcC8->F9->F10->ArcC10->F11->ArcC11a->F11a->F11b->ArcC11->F12->F13->ArcC13->F14->F15->ArcC15->F16->F17->ArcC17->F18->F1")

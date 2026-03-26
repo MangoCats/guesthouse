@@ -29,13 +29,13 @@ _INPROCESS_SCRIPTS = [
     "site/gen_site_plan.py",
     "scad/gen_flat_roof.py",
     "scad/gen_2in12.py",
+    "survey/gen_path_svg.py",
 ]
 
 # Scripts without in-process handlers — run as subprocesses.
 # These use hardcoded procedural geometry (survey traversal, SCAD dimensions)
 # which is not stored in the DB.
 _SUBPROCESS_SCRIPTS = [
-    os.path.join(_DIR, "survey", "gen_path_svg.py"),
     os.path.join(_DIR, "survey", "gen_path_svg_wo.py"),
     os.path.join(_DIR, "survey", "gen_path_svg_ks.py"),
     os.path.join(_DIR, "survey", "gen_points_pdf.py"),

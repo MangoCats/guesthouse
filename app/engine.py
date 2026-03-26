@@ -1526,6 +1526,24 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         doc_fs.close()
         return True
 
+    if script_path in ("survey/gen_path_svg.py", "survey\\gen_path_svg.py"):
+        import importlib.util
+        _sp = importlib.util.spec_from_file_location(
+            "survey_gen_path_svg",
+            os.path.join(_PROJECT, "survey", "gen_path_svg.py"))
+        _mod = importlib.util.module_from_spec(_sp)
+        _sp.loader.exec_module(_mod)
+        _data = _mod.compute_all()
+        # Override seed outline polygons with DB-sourced positions.
+        # outline_segs/radii/pts are kept as F-series (build_outline_cfg requires it);
+        # outer_poly/inner_poly are pure coordinate lists — safe to replace.
+        _data["outer_poly"] = gd.outline_poly
+        _data["inner_poly"] = gd.inner_poly
+        _data["outline_area"] = gd.outer_area
+        _out = os.path.join(_PROJECT, "survey", "path_area.svg")
+        _mod.generate_svg(_data, iw_polys=gd.iw_polys, out_path=_out)
+        return True
+
     if script_path == "scad/gen_flat_roof.py":
         from scad.gen_flat_roof import generate as gen_flat
         gen_flat(gd)
