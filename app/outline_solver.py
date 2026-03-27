@@ -483,17 +483,44 @@ def auto_assign_section_flex(chain, seqs, edited_seq=None):
         valid_sweep = [s for s in arcs if seq_pos[s] > last_fixed_pos]
         sweep_seq = valid_sweep[0] if valid_sweep else arcs[-1]
 
-    # --- Positional flex: prefer first and last lines, fall back to arcs ---
+    # --- Positional flex: pick pair of lines with bearings closest to 90° apart ---
     pos_candidates = [s for s in seqs if s != sweep_seq]
     line_candidates = [s for s in pos_candidates if chain[s].seg_type == "L"]
     arc_candidates = [s for s in pos_candidates if chain[s].seg_type != "L"]
 
+    # Prefer bearing_flex=1 lines; fixed-bearing lines are often short segments
+    # that can't absorb large positional adjustments.
+    bf1_lines = [s for s in line_candidates if chain[s].bearing_flex]
+    pos_line_candidates = bf1_lines if len(bf1_lines) >= 2 else line_candidates
+
     pos_specs = []
-    if len(line_candidates) >= 2:
-        pos_specs.append(FlexSpec(line_candidates[0], "distance"))
-        pos_specs.append(FlexSpec(line_candidates[-1], "distance"))
-    elif len(line_candidates) == 1:
-        pos_specs.append(FlexSpec(line_candidates[0], "distance"))
+    if len(pos_line_candidates) >= 2:
+        # Compute bearing at start of each segment in section order.
+        # start_brg=0 is fine — |sin(Δbrg)| is rotation-invariant.
+        brg = 0.0
+        brg_at = {}
+        for s in seqs:
+            brg_at[s] = brg
+            seg = chain[s]
+            if seg.seg_type == "CW":
+                brg += seg.sweep
+            elif seg.seg_type == "CCW":
+                brg -= seg.sweep
+        # Pick the pair whose bearing difference is closest to 90° (max |sin(Δbrg)|).
+        # This maximises the 2×2 linear system determinant, avoiding near-singular solves.
+        best_score = -1.0
+        best_pair = (pos_line_candidates[0], pos_line_candidates[-1])
+        for i in range(len(pos_line_candidates)):
+            for j in range(i + 1, len(pos_line_candidates)):
+                si, sj = pos_line_candidates[i], pos_line_candidates[j]
+                score = abs(math.sin(brg_at[si] - brg_at[sj]))
+                if score > best_score:
+                    best_score = score
+                    best_pair = (si, sj)
+        pos_specs.append(FlexSpec(best_pair[0], "distance"))
+        pos_specs.append(FlexSpec(best_pair[1], "distance"))
+    elif len(pos_line_candidates) == 1:
+        pos_specs.append(FlexSpec(pos_line_candidates[0], "distance"))
         pos_specs.append(FlexSpec(arc_candidates[0], "radius"))
     else:
         pos_specs.append(FlexSpec(arc_candidates[0], "radius"))

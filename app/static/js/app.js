@@ -1961,6 +1961,42 @@ function switchToPanel(panelName) {
   if (panel) panel.classList.add("active");
 }
 
+function describeWallAnchor(fj) {
+  const anc = fj.anchor;
+  if (!anc) return "—";
+  if (anc._wfp_elem) {
+    const face = anc._wfp_face ? ` ${anc._wfp_face}` : "";
+    const dist = anc._wfp_dist_in !== undefined ? `, ${anc._wfp_dist_in}"` : "";
+    return `${anc._wfp_elem}${face}${dist}`;
+  }
+  if (typeof anc === "string") return anc;
+  return "—";
+}
+
+function describeWallEnd(fj) {
+  const mode = fj.end_mode || "fixed";
+  if (mode === "to_line" && fj._to_wall_face_elem) {
+    const face = fj._to_wall_face_face ? ` ${fj._to_wall_face_face}` : "";
+    return `${fj._to_wall_face_elem}${face}`;
+  }
+  if (mode === "intersect") return "inner wall";
+  return "fixed length";
+}
+
+function describeAlong(fj) {
+  const a = fj.along;
+  if (!a) return "—";
+  if (Array.isArray(a.segment) && a.segment.length === 2) {
+    const [p, q] = a.segment;
+    return `${typeof p === "string" ? p : "…"} → ${typeof q === "string" ? q : "…"}`;
+  }
+  if (a.perp && Array.isArray(a.perp.segment) && a.perp.segment.length === 2) {
+    const [p, q] = a.perp.segment;
+    return `⊥ ${typeof p === "string" ? p : "…"} → ${typeof q === "string" ? q : "…"}`;
+  }
+  return "—";
+}
+
 async function showProperties(type, name, data) {
   switchToPanel("properties");
   App.els["props-empty"].style.display = "none";
@@ -1974,32 +2010,53 @@ async function showProperties(type, name, data) {
     addPropRow(tbody, "Easting", fmtFtIn(data.pos[0]));
     addPropRow(tbody, "Northing", fmtFtIn(data.pos[1]));
   } else if (type === "wall") {
-    // All IW walls use the formula-based properties panel
     const elemRec = (App.state.elements || []).find(e => e.name === name);
     const props = elemRec ? parseProps(elemRec) : null;
-    {
-      const b = data.bbox;
-      const propConsts = (props && props.prop_constants) || {};
-      const shownConstNames = new Set(Object.values(propConsts));
-      // Editable rows for each mapped property (DB-driven)
-      for (const [propKey, constName] of Object.entries(propConsts)) {
-        const cObj = (App.state.constants || []).find(c => c.name === constName);
-        if (cObj) {
-          const label = propKey.charAt(0).toUpperCase() + propKey.slice(1);
-          addPropRow(tbody, label, formatConstValue(cObj), true, constName);
-        }
-      }
-      // Static bbox context (skip dimensions already editable above)
-      if (!propConsts.width)  addPropRow(tbody, "Width",  fmtFtIn(b.e - b.w));
-      if (!propConsts.height) addPropRow(tbody, "Height", fmtFtIn(b.n - b.s));
-      addPropRow(tbody, "West",  fmtFtIn(b.w));
-      addPropRow(tbody, "South", fmtFtIn(b.s));
-      addPropRow(tbody, "East",  fmtFtIn(b.e));
-      addPropRow(tbody, "North", fmtFtIn(b.n));
-    }
-    // Show related constants not already shown via prop_constants
     const propConsts = (props && props.prop_constants) || {};
     const shownConstNames = new Set(Object.values(propConsts));
+
+    // Editable rows for each mapped property (DB-driven)
+    for (const [propKey, constName] of Object.entries(propConsts)) {
+      const cObj = (App.state.constants || []).find(c => c.name === constName);
+      if (cObj) {
+        const label = propKey.charAt(0).toUpperCase() + propKey.slice(1);
+        addPropRow(tbody, label, formatConstValue(cObj), true, constName);
+      }
+    }
+
+    // Geometry: thickness, length, bearing from polygon
+    const poly = data.poly;
+    if (poly && poly.length >= 4) {
+      const d01 = Math.hypot(poly[1][0]-poly[0][0], poly[1][1]-poly[0][1]);
+      const d12 = Math.hypot(poly[2][0]-poly[1][0], poly[2][1]-poly[1][1]);
+      const wallThick = Math.min(d01, d12);
+      const wallLen   = Math.max(d01, d12);
+      const [lp0, lp1] = d01 >= d12 ? [poly[0], poly[1]] : [poly[1], poly[2]];
+      const bearingDeg = ((Math.atan2(lp1[0]-lp0[0], lp1[1]-lp0[1]) * 180 / Math.PI) + 360) % 360;
+      addPropRow(tbody, "Thickness", fmtFtIn(wallThick));
+      addPropRow(tbody, "Length",    fmtFtIn(wallLen));
+      addPropRow(tbody, "Bearing",   fmtDeg(bearingDeg));
+    }
+
+    // Formula-derived: anchor, end, bearing control
+    try {
+      const variant = App.state.variant || "standard";
+      const resp = await fetch(`/api/formulas/${encodeURIComponent(name)}?variant=${encodeURIComponent(variant)}`);
+      if (resp.ok) {
+        const formulas = await resp.json();
+        const posRec = formulas.find(f => f.param_name === "position");
+        const fj = posRec
+          ? (typeof posRec.formula_json === "string" ? JSON.parse(posRec.formula_json) : posRec.formula_json)
+          : null;
+        if (fj && fj.type === "wall_rect") {
+          addPropRow(tbody, "Anchor",       describeWallAnchor(fj));
+          addPropRow(tbody, "End",          describeWallEnd(fj));
+          addPropRow(tbody, "Bearing ctrl", describeAlong(fj));
+        }
+      }
+    } catch (_) { /* ignore fetch errors */ }
+
+    // Related constants not already shown via prop_constants
     const related = findRelatedConstants(name).filter(c => !shownConstNames.has(c.name));
     if (related.length > 0) {
       addPropRow(tbody, "—", "Related Constants");
@@ -2007,9 +2064,7 @@ async function showProperties(type, name, data) {
         addPropRow(tbody, c.name, formatConstValue(c), true, c.name);
       }
     }
-    // Phase 12b: formula section
     await addFormulaSection(tbody, name);
-    // Layout checkboxes + delete (like furniture addElementActions)
     addWallActions(tbody, name, elemRec);
   } else if (type === "opening" || type === "rough_opening") {
     addPropRow(tbody, "Name", data.name);
