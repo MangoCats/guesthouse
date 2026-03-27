@@ -4183,6 +4183,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
     let anchorElem = "", anchorFace = "north", anchorFromEnd = false;
     let anchorA = pickPt(0), anchorB = pickPt(1), distFt = 0;
     let dirType = "along", dirAngleDeg = 0, compassDeg = 90;
+    let brgA = pickPt(0), brgB = pickPt(1);
     let thickSide = "left", thickIn = 4;
     let farType = "fixed", farFt = 8, farC = pickPt(0), farD = pickPt(1);
     let farWallElem = wallElems[0] || "", farWallFace = "north";
@@ -4195,6 +4196,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
 
     if (!f) return { anchorMode, anchorElem, anchorFace, anchorFromEnd,
                      anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
+                     brgA, brgB,
                      thickSide, thickIn, farType, farFt, farC, farD,
                      farWallElem, farWallFace,
                      clearSide, clearFace, clearanceIn, fixedFromLineEnd,
@@ -4270,7 +4272,13 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
         if (Array.isArray(seg) && seg.length === 2 && anchorMode === "points")
           anchorB = seg[1] || anchorB;
         if ("segment" in al) {
-          dirType = "along";
+          if (f._bearing_seg) {
+            dirType = "bearing_seg";
+            brgA = al.segment[0] || brgA;
+            brgB = al.segment[1] || brgB;
+          } else {
+            dirType = "along";
+          }
         } else if ("neg" in al && al.neg?.perp) {
           dirType = "perp_left";
         } else if ("perp" in al || "segment_perp" in al) {
@@ -4340,6 +4348,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
 
     return { anchorMode, anchorElem, anchorFace, anchorFromEnd,
              anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
+             brgA, brgB,
              thickSide, thickIn, farType, farFt, farC, farD,
              farWallElem, farWallFace,
              clearSide, clearFace, clearanceIn, fixedFromLineEnd,
@@ -4558,29 +4567,40 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
   // ── §2 Wall Direction ─────────────────────────────────────────────────────
   const dirName = `wpw-dir-${elemName}`;
   const dirSec = sec("\u00a72  Wall Direction");
-  const rFacePerp  = makeRadio(dirName, "face_perp",  "Perp to anchor face",       init.dirType === "face_perp");
-  const rAlong     = makeRadio(dirName, "along",      "Along A\u2192B",            init.dirType === "along");
-  const rPerpLeft  = makeRadio(dirName, "perp_left",  "Perp left (CCW 90\u00b0)",  init.dirType === "perp_left");
-  const rPerpRight = makeRadio(dirName, "perp_right", "Perp right (CW 90\u00b0)",  init.dirType === "perp_right");
-  const rAngle     = makeRadio(dirName, "angle",      "Angle from A\u2192B:",      init.dirType === "angle");
-  const rCompass   = makeRadio(dirName, "compass",    "Compass:",                  init.dirType === "compass");
+  const rFacePerp    = makeRadio(dirName, "face_perp",    "Perp to anchor face",       init.dirType === "face_perp");
+  const rAlong       = makeRadio(dirName, "along",        "Along A\u2192B",            init.dirType === "along");
+  const rPerpLeft    = makeRadio(dirName, "perp_left",    "Perp left (CCW 90\u00b0)",  init.dirType === "perp_left");
+  const rPerpRight   = makeRadio(dirName, "perp_right",   "Perp right (CW 90\u00b0)",  init.dirType === "perp_right");
+  const rAngle       = makeRadio(dirName, "angle",        "Angle from A\u2192B:",      init.dirType === "angle");
+  const rCompass     = makeRadio(dirName, "compass",      "Compass:",                  init.dirType === "compass");
+  const rBearingSeg  = makeRadio(dirName, "bearing_seg",  "Along named segment:",      init.dirType === "bearing_seg");
   const inpDirAngle = numInp(init.dirAngleDeg, 1,
     "Degrees CCW from A\u2192B (0 = along A\u2192B, 90 = perp left)", "62px");
   const inpCompass  = numInp(init.compassDeg,  1,
     "Compass bearing: 0=N, 90=E, 180=S, 270=W", "62px");
+  const selBrgA = ptSel(init.brgA);
+  const selBrgB = ptSel(init.brgB);
+  const brgSegRow = row(rBearingSeg.wrap, selBrgA, " \u2192 ", selBrgB);
   dirSec.appendChild(row(rFacePerp.wrap));
   const dirRow1 = row(rAlong.wrap, rPerpLeft.wrap, rPerpRight.wrap);
   const dirRow2 = row(rAngle.wrap, inpDirAngle, " \u00b0 (CCW from A\u2192B)    ",
                       rCompass.wrap, inpCompass, " \u00b0 (0=N, 90=E)");
   dirSec.appendChild(dirRow1);
   dirSec.appendChild(dirRow2);
-  dirSec.appendChild(hint("\"Perp to anchor face\" runs the wall straight out from the selected face. Left/right of A\u2192B also available."));
+  dirSec.appendChild(brgSegRow);
+  function updateDirInputs() {
+    const dt = getDirType();
+    selBrgA.disabled = dt !== "bearing_seg";
+    selBrgB.disabled = dt !== "bearing_seg";
+  }
+  dirSec.appendChild(hint("\"Perp to anchor face\" runs the wall straight out from the selected face. Left/right of A\u2192B also available. \"Along named segment\" uses an independent P\u2192Q pair as bearing reference."));
   modal.appendChild(dirSec);
 
   function getDirType() {
-    for (const r of [rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass]) if (r.inp.checked) return r.inp.value;
+    for (const r of [rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rBearingSeg]) if (r.inp.checked) return r.inp.value;
     return "along";
   }
+  updateDirInputs();
 
   // ── §3 Far End ────────────────────────────────────────────────────────────
   const farName = `wpw-far-${elemName}`;
@@ -4817,9 +4837,10 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
       along = { segment: [selClearA.value, selClearB.value] };
     } else {
       switch (dt) {
-        case "along":      along = { segment: [A, B] }; break;
-        case "perp_left":  along = { neg: { perp: { segment: [A, B] } } }; break;
-        case "perp_right": along = { perp: { segment: [A, B] } }; break;
+        case "along":       along = { segment: [A, B] }; break;
+        case "bearing_seg": along = { segment: [selBrgA.value, selBrgB.value] }; break;
+        case "perp_left":   along = { neg: { perp: { segment: [A, B] } } }; break;
+        case "perp_right":  along = { perp: { segment: [A, B] } }; break;
         case "angle": {
           const rad = (parseFloat(inpDirAngle.value) || 0) * Math.PI / 180;
           along = { rotated: { segment: [A, B] }, angle: rad };
@@ -4875,6 +4896,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
     }
 
     const formula = { type: "wall_rect", anchor, along, thickness_dir: thickDir, thickness };
+    if (dt === "bearing_seg") formula._bearing_seg = true;
     if (ft === "fixed" || ft === "fixed_from_line") {
       formula.end_mode = "fixed";
       formula.length = lenFt;
@@ -4925,11 +4947,14 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
   // Live preview wiring
   [selA, selB, selAncElem, selAncFace, inpDistFt, inpDistIn,
    selWfpElem, selWfpFace, inpWfpDistIn,
-   inpDirAngle, inpCompass, inpThickIn, inpLenFt, inpLenIn, selFarC, selFarD]
+   inpDirAngle, inpCompass, inpThickIn, inpLenFt, inpLenIn, selFarC, selFarD,
+   selBrgA, selBrgB]
     .forEach(el => { el.addEventListener("change", updatePreview); el.addEventListener("input", updatePreview); });
   for (const r of [rAncPts, rAncFace, rFromStart, rFromEnd, rAncWfp,
-                   rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rThkLeft, rThkRight])
+                   rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rBearingSeg, rThkLeft, rThkRight])
     r.inp.addEventListener("change", updatePreview);
+  for (const r of [rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rBearingSeg])
+    r.inp.addEventListener("change", updateDirInputs);
   // Thick-side hint: update when direction or anchor changes
   [selA, selB].forEach(el => el.addEventListener("change", updateThickHint));
   for (const r of [rAlong, rPerpLeft, rPerpRight, rAngle, rCompass])
