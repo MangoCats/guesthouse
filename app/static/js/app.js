@@ -3583,18 +3583,41 @@ function _gwResolveDir(spec, pts) {
     const len = Math.hypot(dx, dy);
     return len > 1e-9 ? [-dy / len, dx / len] : null; // CW perp
   }
+  if ("face_along" in spec || "face_perp" in spec) {
+    const isAlong = "face_along" in spec;
+    const elemName = isAlong ? spec.face_along : spec.face_perp;
+    const face = spec.face;
+    const FACE_IDX = { south: [0, 1], east: [1, 2], north: [2, 3], west: [3, 0] };
+    const poly = App.state.geometry?.interior_walls?.[elemName]?.poly;
+    if (!poly || poly.length < 4) return null;
+    const [i1, i2] = FACE_IDX[face] ?? [2, 3];
+    const dx = poly[i2][0] - poly[i1][0], dy = poly[i2][1] - poly[i1][1];
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-9) return null;
+    // face_along: unit vector along face; face_perp: CW 90° (matching Python evaluator)
+    return isAlong ? [dx / len, dy / len] : [dy / len, -dx / len];
+  }
   return null;
 }
 
 function _gwResolvePoint(spec, pts) {
   if (typeof spec === "string") return pts[spec] ?? null;
   if (Array.isArray(spec) && spec.length === 2) return [+spec[0], +spec[1]];
-  if (spec && typeof spec === "object" && "offset" in spec) {
-    const base = _gwResolvePoint(spec.offset, pts);
-    const dir  = _gwResolveDir(spec.dir, pts);
-    const dist = typeof spec.dist === "number" ? spec.dist : 0;
-    if (!base || !dir) return base ?? null;
-    return [base[0] + dist * dir[0], base[1] + dist * dir[1]];
+  if (spec && typeof spec === "object") {
+    if ("offset" in spec) {
+      const base = _gwResolvePoint(spec.offset, pts);
+      const dir  = _gwResolveDir(spec.dir, pts);
+      const dist = typeof spec.dist === "number" ? spec.dist : 0;
+      if (!base || !dir) return base ?? null;
+      return [base[0] + dist * dir[0], base[1] + dist * dir[1]];
+    }
+    if ("element" in spec) {
+      const poly = App.state.geometry?.interior_walls?.[spec.element]?.poly;
+      if (!poly || poly.length < 4) return null;
+      const CORNER_MAP = { sw: 0, se: 1, ne: 2, nw: 3, SW: 0, SE: 1, NE: 2, NW: 3 };
+      const idx = typeof spec.corner === "number" ? spec.corner : CORNER_MAP[spec.corner];
+      return idx != null && idx < poly.length ? [...poly[idx]] : null;
+    }
   }
   return null;
 }
@@ -4108,36 +4131,77 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
     let thickSide = "left", thickIn = 4;
     let farType = "fixed", farFt = 8, farC = pickPt(0), farD = pickPt(1);
     let farWallElem = wallElems[0] || "", farWallFace = "north";
+    // face_clearance decoded extras
+    let clearSide = "left", clearFace = "near", clearanceIn = 0;
+    // fixed_from_line near/far end
+    let fixedFromLineEnd = "near";
+    // wall_face_point decoded extras
+    let wfpElem = wallElems[0] || "", wfpFace = "south", wfpDistIn = 0;
+
     if (!f) return { anchorMode, anchorElem, anchorFace, anchorFromEnd,
                      anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
-                     thickSide, thickIn, farType, farFt, farC, farD };
+                     thickSide, thickIn, farType, farFt, farC, farD,
+                     farWallElem, farWallFace,
+                     clearSide, clearFace, clearanceIn, fixedFromLineEnd,
+                     wfpElem, wfpFace, wfpDistIn };
 
     // --- Anchor ---
     const anc = f.anchor;
     if (typeof anc === "string") {
       anchorA = anc;
+    } else if (anc && typeof anc === "object" && anc._wfp_elem !== undefined && !("offset" in anc)) {
+      // Wall-face-point at distIn=0: anchor stored as {element, corner, _wfp_*}
+      anchorMode = "wall_face_point";
+      wfpElem = anc._wfp_elem;
+      wfpFace = anc._wfp_face || "south";
+      wfpDistIn = anc._wfp_dist_in ?? 0;
     } else if (anc && typeof anc === "object" && "offset" in anc) {
       const off = anc.offset;
-      if (typeof off === "string") {
+      // Face-clearance mode: offset direction is perpendicular to a named segment.
+      // Detect via segment_perp or neg.segment_perp in anc.dir.
+      // Use stored hint fields for exact round-trip if present.
+      const clearPerp = anc.dir?.segment_perp || anc.dir?.neg?.segment_perp;
+      if (anc._face_clearance_A || (Array.isArray(clearPerp) && clearPerp.length === 2
+            && typeof clearPerp[0] === "string")) {
+        anchorMode = "face_clearance";
+        const refA = anc._face_clearance_A || clearPerp[0];
+        const refB = anc._face_clearance_B || clearPerp[1];
+        anchorA = refA; anchorB = refB;
+        clearSide   = anc._face_clearance_side  ?? ("neg" in (anc.dir || {}) ? "left" : "right");
+        clearFace   = anc._face_clearance_face  ?? "near";
+        clearanceIn = anc._face_clearance_in    ?? (typeof anc.dist === "number"
+                        ? Math.round(anc.dist * 12 * 1000) / 1000 : 0);
+      } else if (typeof off === "string") {
         anchorA = off;
       } else if (off && typeof off === "object" && "element" in off) {
-        // Element-face anchor mode
-        anchorMode = "element_face";
-        anchorElem = off.element;
-        const dir = anc.dir;
-        if (dir?.face_along) {
-          anchorFace = dir.face || "north";
-          anchorFromEnd = false;
-        } else if (dir?.neg?.face_along) {
-          anchorFace = dir.neg.face || "north";
-          anchorFromEnd = true;
+        // Wall-face-point mode (hint takes priority over element_face detection)
+        if (anc._wfp_elem !== undefined) {
+          anchorMode = "wall_face_point";
+          wfpElem = anc._wfp_elem;
+          wfpFace = anc._wfp_face || "south";
+          wfpDistIn = anc._wfp_dist_in ?? 0;
+        } else {
+          // Element-face anchor mode
+          anchorMode = "element_face";
+          anchorElem = off.element;
+          const dir = anc.dir;
+          if (dir?.face_along) {
+            anchorFace = dir.face || "north";
+            anchorFromEnd = false;
+          } else if (dir?.neg?.face_along) {
+            anchorFace = dir.neg.face || "north";
+            anchorFromEnd = true;
+          }
         }
       }
-      const seg = anc.dir?.segment;
-      if (anchorMode === "points" && Array.isArray(seg) && seg.length === 2) {
-        anchorA = seg[0]; anchorB = seg[1];
+      if (anchorMode === "points") {
+        const seg = anc.dir?.segment;
+        if (Array.isArray(seg) && seg.length === 2
+            && typeof seg[0] === "string" && typeof seg[1] === "string") {
+          anchorA = seg[0]; anchorB = seg[1];
+        }
+        if (typeof anc.dist === "number") distFt = anc.dist;
       }
-      if (typeof anc.dist === "number") distFt = anc.dist;
     }
 
     // --- Along direction ---
@@ -4170,7 +4234,13 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
     }
 
     // --- Thickness ---
-    if (typeof f.thickness === "number") thickIn = Math.round(f.thickness * 12 * 1000) / 1000;
+    if (typeof f.thickness === "number") {
+      thickIn = Math.round(f.thickness * 12 * 1000) / 1000;
+    } else if (f.thickness?.const) {
+      // Resolve named constant (e.g. WALL_6IN) to its inch value
+      const c = (App.state.constants || []).find(x => x.name === f.thickness.const);
+      if (c) thickIn = Math.round(c.value * 1000) / 1000; // c.value is in inches
+    }
     const td = f.thickness_dir;
     if (td && typeof td === "object" && !Array.isArray(td)) {
       thickSide = "neg" in td ? "left" : "right";
@@ -4196,8 +4266,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
       const seg2 = ancIsect.isect.line2_dir?.segment;
       if (ancIsect.isect.line2_point) farC = ancIsect.isect.line2_point;
       if (Array.isArray(seg2) && seg2.length === 2) { farC = seg2[0]; farD = seg2[1]; }
-      // negOffset true → far end on line; false → near end on line
-      // (decoded as initial radio state — handled via init below)
+      fixedFromLineEnd = ancIsect.negOffset ? "far" : "near";
     } else if (f.end_mode === "intersect") {
       farType = "inner_poly";
     } else if (f.end_mode === "to_line") {
@@ -4217,14 +4286,23 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
     return { anchorMode, anchorElem, anchorFace, anchorFromEnd,
              anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
              thickSide, thickIn, farType, farFt, farC, farD,
-             farWallElem, farWallFace };
+             farWallElem, farWallFace,
+             clearSide, clearFace, clearanceIn, fixedFromLineEnd,
+             wfpElem, wfpFace, wfpDistIn };
   }
 
   const init = decodeFormula(currentFormula);
   // Apply canvas-click preset anchor (only on fresh wizard with no formula)
   if (presetAnchor && !currentFormula) {
-    init.anchorMode = "points";
-    init.anchorA = presetAnchor;
+    if (typeof presetAnchor === "string") {
+      init.anchorMode = "points";
+      init.anchorA = presetAnchor;
+    } else if (presetAnchor?.type === "wall_face") {
+      init.anchorMode = "wall_face_point";
+      init.wfpElem = presetAnchor.elem;
+      init.wfpFace = presetAnchor.face;
+      init.wfpDistIn = presetAnchor.distIn;
+    }
   }
 
   // ── DOM setup ─────────────────────────────────────────────────────────────
@@ -4284,10 +4362,12 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
   // ── §1 Near End ───────────────────────────────────────────────────────────
   const ancSec = sec("\u00a71  Near End");
   const ancModeName = `wpw-anc-${elemName}`;
-  const rAncPts   = makeRadio(ancModeName, "points",          "Named points",    init.anchorMode !== "element_face" && init.anchorMode !== "face_clearance");
+  const rAncPts   = makeRadio(ancModeName, "points",          "Named points",
+    init.anchorMode !== "element_face" && init.anchorMode !== "face_clearance" && init.anchorMode !== "wall_face_point");
   const rAncFace  = makeRadio(ancModeName, "element_face",    "Element face",    init.anchorMode === "element_face");
   const rAncClear = makeRadio(ancModeName, "face_clearance",  "Face clearance",  init.anchorMode === "face_clearance");
-  ancSec.appendChild(row(rAncPts.wrap, rAncFace.wrap, rAncClear.wrap));
+  const rAncWfp   = makeRadio(ancModeName, "wall_face_point", "Wall face at:",   init.anchorMode === "wall_face_point");
+  ancSec.appendChild(row(rAncPts.wrap, rAncFace.wrap, rAncClear.wrap, rAncWfp.wrap));
 
   // Named-points sub-panel
   const ptsDiv = document.createElement("div");
@@ -4343,17 +4423,28 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
   const selClearB = ptSel(init.anchorB);
   const clearSideName  = `wpw-cside-${elemName}`;
   const clearFaceName  = `wpw-cface-${elemName}`;
-  const rClearLeft  = makeRadio(clearSideName, "left",  "Left (CCW) of A\u2192B",  true);
-  const rClearRight = makeRadio(clearSideName, "right", "Right (CW) of A\u2192B",  false);
-  const rClearNear  = makeRadio(clearFaceName, "near",  "Near face (anchor side)",  true);
-  const rClearFar   = makeRadio(clearFaceName, "far",   "Far face (thickness side)", false);
-  const inpClearIn  = numInp(0, 0.125, "Clearance in inches", "72px");
+  const rClearLeft  = makeRadio(clearSideName, "left",  "Left (CCW) of A\u2192B",  init.clearSide !== "right");
+  const rClearRight = makeRadio(clearSideName, "right", "Right (CW) of A\u2192B",  init.clearSide === "right");
+  const rClearNear  = makeRadio(clearFaceName, "near",  "Near face (anchor side)",  init.clearFace !== "far");
+  const rClearFar   = makeRadio(clearFaceName, "far",   "Far face (thickness side)", init.clearFace === "far");
+  const inpClearIn  = numInp(init.clearanceIn, 0.125, "Clearance in inches", "72px");
   clearDiv.appendChild(row("Reference: ", selClearA, " \u2192 ", selClearB));
   clearDiv.appendChild(row(rClearLeft.wrap, rClearRight.wrap));
   clearDiv.appendChild(row("This wall face: ", rClearNear.wrap, rClearFar.wrap));
   clearDiv.appendChild(row("Clearance: ", inpClearIn, " in"));
   ancSec.appendChild(clearDiv);
-  ancSec.appendChild(hint("Named points: anchor on A\u2192B. Element face: anchor from wall face. Face clearance: place this wall so one face is exactly N\u2033 from a reference segment."));
+  // Wall-face-point sub-panel
+  // Anchors the new wall's near end to a point along an existing wall's face,
+  // snapped to 2" intervals from the face's near end corner.
+  const wfpDiv = document.createElement("div");
+  const selWfpElem = elemSel(init.wfpElem || wallElems[0] || "");
+  const selWfpFace = faceSel(init.wfpFace || "south");
+  const inpWfpDistIn = numInp(init.wfpDistIn || 0, 2, "Distance from near end in inches (2\" grid)", "72px");
+  wfpDiv.appendChild(row("Wall: ", selWfpElem, "  Face: ", selWfpFace));
+  wfpDiv.appendChild(row("Near-end offset: ", inpWfpDistIn, "\u2033 from near corner (2\u2033 grid)"));
+  ancSec.appendChild(wfpDiv);
+
+  ancSec.appendChild(hint("Named points: anchor on A\u2192B. Element face: anchor from wall face corner. Face clearance: place this wall so one face is exactly N\u2033 from a reference segment. Wall face at: anchor to a 2\u2033-grid point along an existing wall's face."));
   modal.appendChild(ancSec);
 
   // Shared distance inputs (used by points + element_face modes)
@@ -4365,34 +4456,41 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
   function getAnchorMode() {
     if (rAncFace.inp.checked)  return "element_face";
     if (rAncClear.inp.checked) return "face_clearance";
+    if (rAncWfp.inp.checked)   return "wall_face_point";
     return "points";
   }
   function updateAnchorMode() {
     const mode = getAnchorMode();
-    ptsDiv.style.display   = mode === "points"         ? "" : "none";
-    faceDiv.style.display  = mode === "element_face"   ? "" : "none";
-    clearDiv.style.display = mode === "face_clearance" ? "" : "none";
-    // Distance row visibility: not used in face_clearance mode
+    ptsDiv.style.display   = mode === "points"          ? "" : "none";
+    faceDiv.style.display  = mode === "element_face"    ? "" : "none";
+    clearDiv.style.display = mode === "face_clearance"  ? "" : "none";
+    wfpDiv.style.display   = mode === "wall_face_point" ? "" : "none";
+    // Distance row: not used in face_clearance or wall_face_point (each has its own)
     const distRow = clearDiv.previousElementSibling;
-    if (distRow) distRow.style.display = mode === "face_clearance" ? "none" : "";
-    // Auto-select "Along A→B" when switching to face_clearance
+    if (distRow) distRow.style.display =
+      (mode === "face_clearance" || mode === "wall_face_point") ? "none" : "";
+    // Auto-select appropriate direction type
     if (mode === "face_clearance") rAlong.inp.checked = true;
-    else if (mode === "element_face") rFacePerp.inp.checked = true;
+    else if (mode === "element_face" || mode === "wall_face_point") rFacePerp.inp.checked = true;
     else if (getDirType() === "face_perp") rAlong.inp.checked = true;
     updatePreview();
   }
   rAncPts.inp.addEventListener("change",   updateAnchorMode);
   rAncFace.inp.addEventListener("change",  updateAnchorMode);
   rAncClear.inp.addEventListener("change", updateAnchorMode);
+  rAncWfp.inp.addEventListener("change",   updateAnchorMode);
   // Set initial visibility
   {
     const mode = init.anchorMode === "element_face" ? "element_face"
-               : init.anchorMode === "face_clearance" ? "face_clearance" : "points";
-    ptsDiv.style.display   = mode === "points"         ? "" : "none";
-    faceDiv.style.display  = mode === "element_face"   ? "" : "none";
-    clearDiv.style.display = mode === "face_clearance" ? "" : "none";
+               : init.anchorMode === "face_clearance" ? "face_clearance"
+               : init.anchorMode === "wall_face_point" ? "wall_face_point" : "points";
+    ptsDiv.style.display   = mode === "points"          ? "" : "none";
+    faceDiv.style.display  = mode === "element_face"    ? "" : "none";
+    clearDiv.style.display = mode === "face_clearance"  ? "" : "none";
+    wfpDiv.style.display   = mode === "wall_face_point" ? "" : "none";
     const distRow = clearDiv.previousElementSibling;
-    if (distRow) distRow.style.display = mode === "face_clearance" ? "none" : "";
+    if (distRow) distRow.style.display =
+      (mode === "face_clearance" || mode === "wall_face_point") ? "none" : "";
   }
 
   // ── §2 Wall Direction ─────────────────────────────────────────────────────
@@ -4437,8 +4535,8 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
   const selFarD  = ptSel(init.farD);
   // "Fixed, end on line" sub-panel
   const fixedLineName = `wpw-fle-${elemName}`;
-  const rEndNear = makeRadio(fixedLineName, "near", "Near end on line", true);
-  const rEndFar  = makeRadio(fixedLineName, "far",  "Far end on line",  false);
+  const rEndNear = makeRadio(fixedLineName, "near", "Near end on line", init.fixedFromLineEnd !== "far");
+  const rEndFar  = makeRadio(fixedLineName, "far",  "Far end on line",  init.fixedFromLineEnd === "far");
   const selFlC   = ptSel(init.farC);
   const selFlD   = ptSel(init.farD);
   const fixedLineDiv = document.createElement("div");
@@ -4590,6 +4688,23 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
       anchor = Math.abs(distFt) < 1e-9
         ? { element: E, corner: cornerName }
         : { offset: { element: E, corner: cornerName }, dir: faceDir, dist: distFt };
+    } else if (ancMode === "wall_face_point") {
+      // Wall-face-point mode: anchor at a 2"-grid distance along an existing wall's face.
+      const E = selWfpElem.value;
+      const F = selWfpFace.value;
+      const distIn = Math.round(parseFloat(inpWfpDistIn.value) / 2) * 2 || 0; // snap to 2" grid
+      const distFtWfp = distIn / 12;
+      const FACE_NEAR_CORNER = { south: "sw", east: "se", north: "ne", west: "nw" };
+      const nearCorner = FACE_NEAR_CORNER[F] || "sw";
+      if (Math.abs(distFtWfp) < 1e-9) {
+        anchor = { element: E, corner: nearCorner,
+                   _wfp_elem: E, _wfp_face: F, _wfp_dist_in: 0 };
+      } else {
+        anchor = { offset: { element: E, corner: nearCorner },
+                   dir: { face_along: E, face: F },
+                   dist: distFtWfp,
+                   _wfp_elem: E, _wfp_face: F, _wfp_dist_in: distIn };
+      }
     } else if (ancMode === "face_clearance") {
       // Face-clearance mode: position anchor so a chosen face of this wall is
       // exactly clearanceIn inches from the reference segment A→B.
@@ -4613,6 +4728,14 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
       anchor = Math.abs(anchorOffsetIn) < 1e-9
         ? A
         : { offset: A, dir: perpDir, dist: anchorOffsetIn / 12 };
+      // Hint fields for exact round-trip decode (face/clearance are ambiguous without them)
+      if (typeof anchor === "object") {
+        anchor._face_clearance_A    = A;
+        anchor._face_clearance_B    = B;
+        anchor._face_clearance_side = side;
+        anchor._face_clearance_face = face;
+        anchor._face_clearance_in   = clearanceIn;
+      }
     } else {
       const A = selA.value, B = selB.value;
       anchor = Math.abs(distFt) < 1e-9
@@ -4623,8 +4746,9 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
     // ── Along direction ───────────────────────────────────────────────────
     const A = selA.value, B = selB.value;
     let along;
-    if (dt === "face_perp" && ancMode === "element_face") {
-      const E = selAncElem.value, F = selAncFace.value;
+    if (dt === "face_perp" && (ancMode === "element_face" || ancMode === "wall_face_point")) {
+      const E = ancMode === "wall_face_point" ? selWfpElem.value : selAncElem.value;
+      const F = ancMode === "wall_face_point" ? selWfpFace.value : selAncFace.value;
       along = { neg: { face_perp: E, face: F } };
     } else if (ancMode === "face_clearance" && dt === "along") {
       // In face_clearance mode the wall runs parallel to the reference segment
@@ -4738,9 +4862,10 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
 
   // Live preview wiring
   [selA, selB, selAncElem, selAncFace, inpDistFt, inpDistIn,
+   selWfpElem, selWfpFace, inpWfpDistIn,
    inpDirAngle, inpCompass, inpThickIn, inpLenFt, inpLenIn, selFarC, selFarD]
     .forEach(el => { el.addEventListener("change", updatePreview); el.addEventListener("input", updatePreview); });
-  for (const r of [rAncPts, rAncFace, rFromStart, rFromEnd,
+  for (const r of [rAncPts, rAncFace, rFromStart, rFromEnd, rAncWfp,
                    rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rThkLeft, rThkRight])
     r.inp.addEventListener("change", updatePreview);
   // Thick-side hint: update when direction or anchor changes
@@ -7398,21 +7523,20 @@ function onMouseMove(e) {
   if (WallAnchorTool.active) {
     const layer = App.els["layer-measure"];
     layer.querySelectorAll(".wall-anchor-snap").forEach(e => e.remove());
-    const pts = App.state.geometry?.points ?? {};
-    let bestName = null, bestDist = Infinity, bestPt = null;
-    for (const [name, pos] of Object.entries(pts)) {
-      const d = Math.hypot(wx - pos[0], wy - pos[1]);
-      if (d < bestDist) { bestDist = d; bestName = name; bestPt = pos; }
-    }
-    if (bestPt) {
+    const best = _wallAnchorFindBest(wx, wy);
+    WallAnchorTool.snapCandidate = best;
+    if (best) {
+      const isWallFace = best.type === "wall_face";
       layer.appendChild(svgEl("circle", {
-        cx: bestPt[0], cy: -bestPt[1], r: "0.22",
+        cx: best.coord[0], cy: -best.coord[1], r: "0.22",
         class: "wall-anchor-snap", fill: "none",
-        stroke: "#f90", "stroke-width": "0.05", opacity: "0.9",
+        stroke: isWallFace ? "#4af" : "#f90", "stroke-width": "0.05", opacity: "0.9",
         "pointer-events": "none",
       }));
-      App.els["coord-display"].textContent =
-        `Snap: ${bestName}  (${fmtFtIn(bestPt[0])}, ${fmtFtIn(bestPt[1])})`;
+      const label = isWallFace
+        ? `${best.elem} ${best.face} +${Math.round(best.distIn)}"  (${fmtFtIn(best.coord[0])}, ${fmtFtIn(best.coord[1])})`
+        : `Snap: ${best.name}  (${fmtFtIn(best.coord[0])}, ${fmtFtIn(best.coord[1])})`;
+      App.els["coord-display"].textContent = label;
     }
   }
 
@@ -8042,7 +8166,49 @@ async function endpointDragMouseUp(e) {
 
 /* ========== Wall Anchor Placement Tool ========== */
 
-const WallAnchorTool = { active: false };
+const WallAnchorTool = { active: false, snapCandidate: null };
+
+/** Return snap candidates along each interior wall face at 2" intervals. */
+function wallFaceSnapCandidates() {
+  const iw = App.state.geometry?.interior_walls ?? {};
+  const FACE_IDX = { south: [0, 1], east: [1, 2], north: [2, 3], west: [3, 0] };
+  const SNAP_IN = 2; // 2-inch grid
+  const candidates = [];
+  for (const [elem, data] of Object.entries(iw)) {
+    const poly = data.poly;
+    if (!poly || poly.length < 4) continue;
+    for (const [face, [i1, i2]] of Object.entries(FACE_IDX)) {
+      const p1 = poly[i1], p2 = poly[i2];
+      const dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+      const lenFt = Math.hypot(dx, dy);
+      if (lenFt < 1e-9) continue;
+      const ux = dx / lenFt, uy = dy / lenFt;
+      for (let distIn = 0; distIn <= lenFt * 12 + 1e-6; distIn += SNAP_IN) {
+        const clamped = Math.min(distIn, Math.floor(lenFt * 12 / SNAP_IN) * SNAP_IN);
+        const d = clamped / 12;
+        candidates.push({ type: "wall_face", elem, face, distIn: clamped,
+                          coord: [p1[0] + d * ux, p1[1] + d * uy] });
+        if (clamped >= lenFt * 12 - 1e-6) break;
+      }
+    }
+  }
+  return candidates;
+}
+
+/** Return the nearest snap candidate (named point or wall face snap) to (wx, wy). */
+function _wallAnchorFindBest(wx, wy) {
+  const pts = App.state.geometry?.points ?? {};
+  let best = null, bestDist = Infinity;
+  for (const [name, pos] of Object.entries(pts)) {
+    const d = Math.hypot(wx - pos[0], wy - pos[1]);
+    if (d < bestDist) { bestDist = d; best = { type: "point", name, coord: pos }; }
+  }
+  for (const c of wallFaceSnapCandidates()) {
+    const d = Math.hypot(wx - c.coord[0], wy - c.coord[1]);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  return best;
+}
 
 /** Enter canvas-click anchor placement mode for adding a new interior wall. */
 function startWallAnchorPlacement() {
@@ -8053,6 +8219,7 @@ function startWallAnchorPlacement() {
 
 function cancelWallAnchorPlacement() {
   WallAnchorTool.active = false;
+  WallAnchorTool.snapCandidate = null;
   App.els["viewport"].style.cursor = "crosshair";
   const layer = App.els["layer-measure"];
   layer.querySelectorAll(".wall-anchor-snap").forEach(e => e.remove());
@@ -8060,14 +8227,14 @@ function cancelWallAnchorPlacement() {
 
 function wallAnchorToolMouseDown(e) {
   const [wx, wy] = mouseToWorld(e);
-  const pts = App.state.geometry?.points ?? {};
-  let bestName = null, bestDist = Infinity;
-  for (const [name, pos] of Object.entries(pts)) {
-    const d = Math.hypot(wx - pos[0], wy - pos[1]);
-    if (d < bestDist) { bestDist = d; bestName = name; }
-  }
+  const best = WallAnchorTool.snapCandidate ?? _wallAnchorFindBest(wx, wy);
   cancelWallAnchorPlacement();
-  showWallPlacementWizard(null, "position", null, null, bestName || undefined);
+  if (best?.type === "wall_face") {
+    showWallPlacementWizard(null, "position", null, null,
+      { type: "wall_face", elem: best.elem, face: best.face, distIn: best.distIn });
+  } else {
+    showWallPlacementWizard(null, "position", null, null, best?.name || undefined);
+  }
 }
 
 /* ========== TL-21: Add Opening Tool ========== */
