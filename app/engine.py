@@ -1097,6 +1097,11 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
                 if isinstance(first_val, dict):
                     door_cfg = door_cfg.get(variant, {})
                 if door_cfg:
+                    if props.get("door_flipped"):
+                        door_cfg = dict(door_cfg)
+                        door_cfg["hinge_idx"], door_cfg["target_idx"] = (
+                            door_cfg["target_idx"], door_cfg["hinge_idx"]
+                        )
                     entry["door"] = door_cfg
             if props.get("clearance"):
                 entry["clearance"] = props["clearance"]

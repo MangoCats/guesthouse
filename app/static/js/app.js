@@ -2100,6 +2100,31 @@ async function showProperties(type, name, data) {
       if (props && typeof addShapePicker === "function") {
         addShapePicker(tbody, elemRec, props);
       }
+      // Flip Door button for items with door swing configuration
+      const hasDoor = (App.state.geometry?.appliance_doors || [])
+        .some(ad => ad.item_name === name);
+      if (hasDoor) {
+        const isFlipped = !!(props && props.door_flipped);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>Door</td><td></td>`;
+        const btn = document.createElement("button");
+        btn.className = "prop-btn";
+        btn.textContent = isFlipped ? "Flip Door (flipped)" : "Flip Door";
+        btn.addEventListener("click", async () => {
+          const curRec = (App.state.elements || []).find(e => e.id === elemRec.id);
+          const curProps = curRec ? parseProps(curRec) : (props || {});
+          const newProps = { ...curProps, door_flipped: !curProps.door_flipped };
+          await fetch(`/api/elements/${elemRec.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ properties: newProps }),
+          });
+          await reloadAfterChange();
+          showProperties(type, name, App.state.selection?.data || data);
+        });
+        tr.querySelector("td:last-child").appendChild(btn);
+        tbody.appendChild(tr);
+      }
     }
     const related = findRelatedConstants(name);
     if (related.length > 0) {
@@ -3521,6 +3546,129 @@ function showPlacementWizard(elemName, paramName, currentFormula, variant) {
   });
 }
 
+// ── Ghost wall preview ────────────────────────────────────────────────────────
+// Client-side partial evaluator for wall_rect formulas. Only handles simple
+// cases (fixed length, named-point or offset anchors, segment/perp/compass
+// directions) — returns null for complex specs, silently suppressing the ghost.
+
+function _gwResolveDir(spec, pts) {
+  if (Array.isArray(spec) && spec.length === 2) {
+    const len = Math.hypot(spec[0], spec[1]);
+    return len > 1e-9 ? [spec[0] / len, spec[1] / len] : null;
+  }
+  if (!spec || typeof spec !== "object") return null;
+  if ("segment" in spec) {
+    const [a, b] = spec.segment;
+    const pa = Array.isArray(a) ? a : pts[a];
+    const pb = Array.isArray(b) ? b : pts[b];
+    if (!pa || !pb) return null;
+    const dx = pb[0] - pa[0], dy = pb[1] - pa[1];
+    const len = Math.hypot(dx, dy);
+    return len > 1e-9 ? [dx / len, dy / len] : null;
+  }
+  if ("perp" in spec) {
+    const d = _gwResolveDir(spec.perp, pts);
+    return d ? [-d[1], d[0]] : null; // CCW 90°
+  }
+  if ("neg" in spec) {
+    const d = _gwResolveDir(spec.neg, pts);
+    return d ? [-d[0], -d[1]] : null;
+  }
+  if ("segment_perp" in spec) {
+    const [a, b] = spec.segment_perp;
+    const pa = Array.isArray(a) ? a : pts[a];
+    const pb = Array.isArray(b) ? b : pts[b];
+    if (!pa || !pb) return null;
+    const dx = pb[0] - pa[0], dy = pb[1] - pa[1];
+    const len = Math.hypot(dx, dy);
+    return len > 1e-9 ? [-dy / len, dx / len] : null; // CW perp
+  }
+  return null;
+}
+
+function _gwResolvePoint(spec, pts) {
+  if (typeof spec === "string") return pts[spec] ?? null;
+  if (Array.isArray(spec) && spec.length === 2) return [+spec[0], +spec[1]];
+  if (spec && typeof spec === "object" && "offset" in spec) {
+    const base = _gwResolvePoint(spec.offset, pts);
+    const dir  = _gwResolveDir(spec.dir, pts);
+    const dist = typeof spec.dist === "number" ? spec.dist : 0;
+    if (!base || !dir) return base ?? null;
+    return [base[0] + dist * dir[0], base[1] + dist * dir[1]];
+  }
+  return null;
+}
+
+function computeWallRectClientSide(formula) {
+  try {
+    const pts = App.state.geometry?.points ?? {};
+    const anchor = _gwResolvePoint(formula.anchor, pts);
+    if (!anchor) return null;
+    const along    = _gwResolveDir(formula.along, pts);
+    const thickDir = _gwResolveDir(formula.thickness_dir, pts);
+    if (!along || !thickDir) return null;
+
+    let thickFt;
+    if (typeof formula.thickness === "number") {
+      thickFt = formula.thickness;
+    } else if (formula.thickness?.const) {
+      const c = (App.state.constants || []).find(x => x.name === formula.thickness.const);
+      thickFt = c ? c.value / 12 : 4 / 12;
+    } else return null;
+
+    if (formula.end_mode !== "fixed" || typeof formula.length !== "number") return null;
+    const length = formula.length;
+
+    const sw = anchor;
+    const se = [anchor[0] + length * along[0],    anchor[1] + length * along[1]];
+    const ne = [se[0]     + thickFt * thickDir[0], se[1]     + thickFt * thickDir[1]];
+    const nw = [sw[0]     + thickFt * thickDir[0], sw[1]     + thickFt * thickDir[1]];
+    return [sw, se, ne, nw];
+  } catch (_) { return null; }
+}
+
+function drawGhostWall(formula) {
+  clearGhostWall();
+  const poly = computeWallRectClientSide(formula);
+  if (!poly) return;
+  const layer = App.els["layer-measure"];
+  layer.appendChild(svgEl("polygon", {
+    points: polyToStr(poly),
+    class: "ghost-wall-preview",
+    fill: "rgba(255,140,0,0.18)",
+    stroke: "#f80",
+    "stroke-width": "0.05",
+    "stroke-dasharray": "0.2 0.08",
+    "pointer-events": "none",
+  }));
+}
+
+function clearGhostWall() {
+  document.querySelectorAll(".ghost-wall-preview").forEach(e => e.remove());
+}
+
+/** Centroid of the inner polygon (or null if unavailable). */
+function innerPolyCentroid() {
+  const poly = App.state.geometry?.inner_poly;
+  if (!poly || poly.length === 0) return null;
+  let cx = 0, cy = 0;
+  for (const p of poly) { cx += p[0]; cy += p[1]; }
+  return [cx / poly.length, cy / poly.length];
+}
+
+/**
+ * Given an anchor point and a normalised along-direction vector, returns
+ * "left" or "right" depending on which side of the wall the interior
+ * polygon centroid falls on (or null if undetermined).
+ */
+function inferThickSideTowardInterior(anchorPt, alongVec) {
+  const centroid = innerPolyCentroid();
+  if (!centroid || !anchorPt || !alongVec) return null;
+  const leftPerp = [-alongVec[1], alongVec[0]]; // CCW 90° of along
+  const toCentroid = [centroid[0] - anchorPt[0], centroid[1] - anchorPt[1]];
+  return (toCentroid[0] * leftPerp[0] + toCentroid[1] * leftPerp[1]) >= 0 ? "left" : "right";
+}
+
 /**
  * Wall Setup Wizard — creates a new user IW wall via POST /api/interior-walls.
  *
@@ -3582,7 +3730,7 @@ function showWallSetupWizard() {
       </tr>
       <tr id="wsw-bearing-row" style="display:none">
         <td>Degrees</td>
-        <td><input id="wsw-bearing" type="number" value="0" style="width:72px"> ° (0=east, 90=north)</td>
+        <td><input id="wsw-bearing" type="number" value="0" style="width:72px"> ° (0=N, 90=E, 180=S, 270=W)</td>
       </tr>
       <tr><th colspan="2" style="">Thickness</th></tr>
       <tr>
@@ -3672,8 +3820,10 @@ function showWallSetupWizard() {
       along = { perp: { segment: [a, b] } };
       thickDir = { segment: [a, b] };
     } else {
-      const deg = parseFloat(modal.querySelector("#wsw-bearing").value) || 0;
-      const rad = deg * Math.PI / 180;
+      const compassDeg = parseFloat(modal.querySelector("#wsw-bearing").value) || 0;
+      // Convert 0=North compass bearing to internal 0=East math convention
+      const internalDeg = (90 - compassDeg + 360) % 360;
+      const rad = internalDeg * Math.PI / 180;
       along = [Math.cos(rad), Math.sin(rad)];
       thickDir = [-Math.sin(rad), Math.cos(rad)];
     }
@@ -3694,18 +3844,12 @@ function showWallSetupWizard() {
 
   modal.querySelector("#wsw-cancel").addEventListener("click", () => overlay.remove());
 
-  modal.querySelector("#wsw-advanced").addEventListener("click", async () => {
+  modal.querySelector("#wsw-advanced").addEventListener("click", () => {
     const formula = buildFormula();
     overlay.remove();
-    try {
-      const data = await apiFetch("/api/interior-walls", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formula }),
-      });
-      await reloadAfterChange();
-      showToast(`Created ${data.name}`, "success");
-      showRebaseDialog(data.name, "position", formula, null);
-    } catch (err) { showToast(err.message || "Failed to create wall", "error"); }
+    // Open placement wizard in create mode with simple-wizard settings pre-populated;
+    // wall is NOT committed yet — the placement wizard's "Create Wall" button does that.
+    showWallPlacementWizard(null, "position", formula, null);
   });
 
   modal.querySelector("#wsw-apply").addEventListener("click", async () => {
@@ -3913,8 +4057,11 @@ function showOpeningPositionWizard(elemName, paramName, currentFormula, variant)
  *   §4  Thickness: inches, and which side of "along" is the wall face
  *
  * Produces a wall_rect formula with symbolic references for cycle-safe rebasing.
+ * When elemName is null the wizard operates in "create" mode: Apply POSTs a new
+ * wall instead of patching an existing formula.  presetAnchor (optional named
+ * point string) pre-fills the §1 Near End anchor on a fresh wizard.
  */
-function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
+function showWallPlacementWizard(elemName, paramName, currentFormula, variant, presetAnchor) {
 
   // ── Named points sorted naturally ─────────────────────────────────────────
   const namedPoints = Object.keys(App.state.geometry?.points ?? {}).sort((a, b) => {
@@ -3960,6 +4107,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     let dirType = "along", dirAngleDeg = 0, compassDeg = 90;
     let thickSide = "left", thickIn = 4;
     let farType = "fixed", farFt = 8, farC = pickPt(0), farD = pickPt(1);
+    let farWallElem = wallElems[0] || "", farWallFace = "north";
     if (!f) return { anchorMode, anchorElem, anchorFace, anchorFromEnd,
                      anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
                      thickSide, thickIn, farType, farFt, farC, farD };
@@ -4016,7 +4164,9 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
       }
     } else if (Array.isArray(al)) {
       dirType = "compass";
-      compassDeg = Math.round(Math.atan2(al[1], al[0]) * 180 / Math.PI * 10) / 10;
+      // Convert internal 0=East math angle to compass 0=North bearing
+      const internalDeg = Math.atan2(al[1], al[0]) * 180 / Math.PI;
+      compassDeg = Math.round(((90 - internalDeg) + 360) % 360 * 10) / 10;
     }
 
     // --- Thickness ---
@@ -4060,12 +4210,22 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
       farFt = f.length;
     }
 
+    // Detect "to_wall_face" hint stored on the formula by buildFormula
+    if (f._to_wall_face_elem) { farWallElem = f._to_wall_face_elem; farType = "to_wall_face"; }
+    if (f._to_wall_face_face) farWallFace = f._to_wall_face_face;
+
     return { anchorMode, anchorElem, anchorFace, anchorFromEnd,
              anchorA, anchorB, distFt, dirType, dirAngleDeg, compassDeg,
-             thickSide, thickIn, farType, farFt, farC, farD };
+             thickSide, thickIn, farType, farFt, farC, farD,
+             farWallElem, farWallFace };
   }
 
   const init = decodeFormula(currentFormula);
+  // Apply canvas-click preset anchor (only on fresh wizard with no formula)
+  if (presetAnchor && !currentFormula) {
+    init.anchorMode = "points";
+    init.anchorA = presetAnchor;
+  }
 
   // ── DOM setup ─────────────────────────────────────────────────────────────
   const overlay = document.createElement("div");
@@ -4118,11 +4278,11 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
 
   // ── Header ────────────────────────────────────────────────────────────────
   const h3 = document.createElement("h3");
-  h3.textContent = `Rebase Wall \u2014 ${elemName}`;
+  h3.textContent = elemName ? `Place Wall \u2014 ${elemName}` : "Add Interior Wall";
   modal.appendChild(h3);
 
-  // ── §1 Anchor ─────────────────────────────────────────────────────────────
-  const ancSec = sec("\u00a71  Anchor");
+  // ── §1 Near End ───────────────────────────────────────────────────────────
+  const ancSec = sec("\u00a71  Near End");
   const ancModeName = `wpw-anc-${elemName}`;
   const rAncPts   = makeRadio(ancModeName, "points",          "Named points",    init.anchorMode !== "element_face" && init.anchorMode !== "face_clearance");
   const rAncFace  = makeRadio(ancModeName, "element_face",    "Element face",    init.anchorMode === "element_face");
@@ -4247,11 +4407,11 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   const inpDirAngle = numInp(init.dirAngleDeg, 1,
     "Degrees CCW from A\u2192B (0 = along A\u2192B, 90 = perp left)", "62px");
   const inpCompass  = numInp(init.compassDeg,  1,
-    "Degrees (0 = East, 90 = North)", "62px");
+    "Compass bearing: 0=N, 90=E, 180=S, 270=W", "62px");
   dirSec.appendChild(row(rFacePerp.wrap));
   const dirRow1 = row(rAlong.wrap, rPerpLeft.wrap, rPerpRight.wrap);
   const dirRow2 = row(rAngle.wrap, inpDirAngle, " \u00b0 (CCW from A\u2192B)    ",
-                      rCompass.wrap, inpCompass, " \u00b0 (0=E, 90=N)");
+                      rCompass.wrap, inpCompass, " \u00b0 (0=N, 90=E)");
   dirSec.appendChild(dirRow1);
   dirSec.appendChild(dirRow2);
   dirSec.appendChild(hint("\"Perp to anchor face\" runs the wall straight out from the selected face. Left/right of A\u2192B also available."));
@@ -4269,6 +4429,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   const rInner      = makeRadio(farName, "inner_poly",      "Extend to inner boundary",   init.farType === "inner_poly");
   const rToLine     = makeRadio(farName, "to_line",         "Extend to line:",            init.farType === "to_line");
   const rFixedLine  = makeRadio(farName, "fixed_from_line", "Fixed, end on line:",        init.farType === "fixed_from_line");
+  const rToWallFace = makeRadio(farName, "to_wall_face",    "End at wall face:",          init.farType === "to_wall_face");
   const { feet: lFt0, inches: lIn0 } = splitFtIn(init.farFt);
   const inpLenFt = numInp(lFt0, 1,     "Whole feet of wall length", "60px");
   const inpLenIn = numInp(lIn0, 0.125, "Additional inches of wall length", "72px");
@@ -4283,16 +4444,23 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   const fixedLineDiv = document.createElement("div");
   fixedLineDiv.appendChild(row("Line: ", selFlC, " \u2192 ", selFlD));
   fixedLineDiv.appendChild(row(rEndNear.wrap, rEndFar.wrap));
+  // "End at wall face" sub-panel
+  const wallFaceDiv = document.createElement("div");
+  const selFarWallElem = elemSel(init.farWallElem || wallElems[0] || "");
+  const selFarWallFace = faceSel(init.farWallFace || "north");
+  wallFaceDiv.appendChild(row("Wall: ", selFarWallElem, "  Face: ", selFarWallFace));
   farSec.appendChild(row(rFixed.wrap, inpLenFt, " ft  ", inpLenIn, " in"));
   farSec.appendChild(row(rInner.wrap));
   farSec.appendChild(row(rToLine.wrap, selFarC, " \u2192 ", selFarD));
   farSec.appendChild(row(rFixedLine.wrap));
   farSec.appendChild(fixedLineDiv);
-  farSec.appendChild(hint("\"Fixed, end on line\": fixed length with one end pinned to the intersection of the wall ray with line C\u2192D."));
+  farSec.appendChild(row(rToWallFace.wrap));
+  farSec.appendChild(wallFaceDiv);
+  farSec.appendChild(hint("\"End at wall face\": extend until hitting a face of another wall. \"Fixed, end on line\": fixed length with one end pinned to a line intersection."));
   modal.appendChild(farSec);
 
   function getFarType() {
-    for (const r of [rFixed, rInner, rToLine, rFixedLine]) if (r.inp.checked) return r.inp.value;
+    for (const r of [rFixed, rInner, rToLine, rFixedLine, rToWallFace]) if (r.inp.checked) return r.inp.value;
     return "fixed";
   }
   function updateFarInputs() {
@@ -4301,9 +4469,11 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
     inpLenIn.disabled = ft !== "fixed" && ft !== "fixed_from_line";
     selFarC.disabled = ft !== "to_line"; selFarD.disabled = ft !== "to_line";
     fixedLineDiv.style.display = ft === "fixed_from_line" ? "" : "none";
+    wallFaceDiv.style.display  = ft === "to_wall_face"    ? "" : "none";
   }
-  for (const r of [rFixed, rInner, rToLine, rFixedLine])
+  for (const r of [rFixed, rInner, rToLine, rFixedLine, rToWallFace])
     r.inp.addEventListener("change", () => { updateFarInputs(); updatePreview(); });
+  [selFarWallElem, selFarWallFace].forEach(el => el.addEventListener("change", updatePreview));
   updateFarInputs();
 
   // ── §4 Thickness ──────────────────────────────────────────────────────────
@@ -4312,12 +4482,46 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   const rThkLeft  = makeRadio(thkName, "left",  "Left (CCW) of wall direction", init.thickSide !== "right");
   const rThkRight = makeRadio(thkName, "right", "Right (CW)",                   init.thickSide === "right");
   const inpThickIn = numInp(init.thickIn, 0.125, "Wall thickness in inches", "72px");
-  thkSec.appendChild(row(rThkLeft.wrap, rThkRight.wrap));
+  const thickHintEl = hint("");
+  const swapSideBtn = document.createElement("button");
+  swapSideBtn.className = "prop-btn";
+  swapSideBtn.textContent = "Swap side";
+  swapSideBtn.title = "Flip the wall to the other side of the direction line";
+  thkSec.appendChild(row(rThkLeft.wrap, rThkRight.wrap, swapSideBtn));
   thkSec.appendChild(row("Thickness: ", inpThickIn, " in"));
-  thkSec.appendChild(hint("\"Left\" = 90\u00b0 CCW from the wall direction. Most interior walls grow inward (left)."));
+  thkSec.appendChild(thickHintEl);
   modal.appendChild(thkSec);
 
   function getThickSide() { return rThkRight.inp.checked ? "right" : "left"; }
+
+  function updateThickHint() {
+    const pts = App.state.geometry?.points ?? {};
+    const A = selA.value, B = selB.value;
+    const pA = pts[A], pB = pts[B];
+    if (!pA || !pB) { thickHintEl.textContent = ""; return; }
+    const dx = pB[0] - pA[0], dy = pB[1] - pA[1];
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-9) { thickHintEl.textContent = ""; return; }
+    const preferred = inferThickSideTowardInterior(pA, [dx / len, dy / len]);
+    if (!preferred) { thickHintEl.textContent = ""; return; }
+    const current = getThickSide();
+    if (preferred === current) {
+      thickHintEl.textContent = "\u2713 Growing toward interior";
+      thickHintEl.style.color = "var(--green, #6a6)";
+    } else {
+      thickHintEl.textContent = "\u26a0 Growing away from interior";
+      thickHintEl.style.color = "var(--yellow, #a84)";
+    }
+  }
+
+  swapSideBtn.addEventListener("click", () => {
+    if (rThkLeft.inp.checked) rThkRight.inp.checked = true;
+    else rThkLeft.inp.checked = true;
+    updateThickHint();
+    updatePreview();
+  });
+  rThkLeft.inp.addEventListener("change",  () => { updateThickHint(); });
+  rThkRight.inp.addEventListener("change", () => { updateThickHint(); });
 
   // ── Preview JSON ──────────────────────────────────────────────────────────
   const prevToggle = document.createElement("button");
@@ -4351,11 +4555,19 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   const advBtn = document.createElement("button");
   advBtn.className = "prop-btn"; advBtn.textContent = "Advanced\u2026";
   advBtn.title = "Open the full JSON-based rebase dialog";
-  advBtn.addEventListener("click", () => { overlay.remove(); showRebaseDialog(elemName, paramName, currentFormula, variant); });
-  btnBar.appendChild(advBtn);
+  advBtn.addEventListener("click", () => {
+    if (elemName) {
+      overlay.remove();
+      clearGhostWall();
+      showRebaseDialog(elemName, paramName, currentFormula, variant);
+    }
+    // In create mode, Advanced… is hidden (no existing element to rebase)
+  });
+  if (elemName) btnBar.appendChild(advBtn);
 
   const applyBtn = document.createElement("button");
-  applyBtn.className = "dialog-btn-primary"; applyBtn.textContent = "Apply";
+  applyBtn.className = "dialog-btn-primary";
+  applyBtn.textContent = elemName ? "Apply" : "Create Wall";
   btnBar.appendChild(applyBtn);
 
   // ── Formula builder ───────────────────────────────────────────────────────
@@ -4427,8 +4639,10 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
           along = { rotated: { segment: [A, B] }, angle: rad };
           break;
         }
-        default: { // compass
-          const rad = (parseFloat(inpCompass.value) || 0) * Math.PI / 180;
+        default: { // compass — input is 0=North; convert to internal 0=East
+          const compassDeg = parseFloat(inpCompass.value) || 0;
+          const internalDeg = (90 - compassDeg + 360) % 360;
+          const rad = internalDeg * Math.PI / 180;
           along = [Math.cos(rad), Math.sin(rad)];
         }
       }
@@ -4482,6 +4696,29 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
       formula.end_mode = "intersect";
       formula.end_target = "inner_poly";
       formula.select = "nearest";
+    } else if (ft === "to_wall_face") {
+      // Translate to a to_line using the two corner points of the chosen wall face.
+      // Wall poly is [SW, SE, NE, NW]; face index pairs match FACE_CORNERS.
+      const wallFaceElemName = selFarWallElem.value;
+      const wallFaceFace     = selFarWallFace.value;
+      const faceIndexMap = { south: [0, 1], east: [1, 2], north: [2, 3], west: [3, 0] };
+      const [i1, i2] = faceIndexMap[wallFaceFace] ?? [2, 3];
+      const wallPoly = App.state.geometry?.interior_walls?.[wallFaceElemName]?.poly;
+      if (wallPoly && wallPoly.length >= 4) {
+        const p1 = wallPoly[i1], p2 = wallPoly[i2];
+        formula.end_mode = "to_line";
+        formula.end_line_point = p1;
+        formula.end_line_dir   = { segment: [p1, p2] }; // literal [E,N] coords
+      } else {
+        // Fall back to to_line with the wall element's corner points symbolically
+        const fc = FACE_CORNERS[wallFaceFace] || FACE_CORNERS.north;
+        formula.end_mode = "to_line";
+        formula.end_line_point = { element: wallFaceElemName, corner: fc.start };
+        formula.end_line_dir   = { face_along: wallFaceElemName, face: wallFaceFace };
+      }
+      // Preserve hint for round-trip decode
+      formula._to_wall_face_elem = wallFaceElemName;
+      formula._to_wall_face_face = wallFaceFace;
     } else { // to_line
       const C = selFarC.value, D = selFarD.value;
       formula.end_mode = "to_line";
@@ -4492,9 +4729,11 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   }
 
   function updatePreview() {
-    if (prevWrap.style.display === "none") return;
-    try { prevTA.value = JSON.stringify(buildFormula(), null, 2); errDiv.textContent = ""; }
-    catch (e) { prevTA.value = `// ${e.message}`; }
+    let formula;
+    try { formula = buildFormula(); errDiv.textContent = ""; } catch (e) { clearGhostWall(); return; }
+    if (prevWrap.style.display !== "none")
+      prevTA.value = JSON.stringify(formula, null, 2);
+    drawGhostWall(formula);
   }
 
   // Live preview wiring
@@ -4504,13 +4743,56 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
   for (const r of [rAncPts, rAncFace, rFromStart, rFromEnd,
                    rFacePerp, rAlong, rPerpLeft, rPerpRight, rAngle, rCompass, rThkLeft, rThkRight])
     r.inp.addEventListener("change", updatePreview);
+  // Thick-side hint: update when direction or anchor changes
+  [selA, selB].forEach(el => el.addEventListener("change", updateThickHint));
+  for (const r of [rAlong, rPerpLeft, rPerpRight, rAngle, rCompass])
+    r.inp.addEventListener("change", updateThickHint);
+  // Auto-select inward side on fresh wizard (no pre-existing formula)
+  if (!currentFormula) {
+    const pts = App.state.geometry?.points ?? {};
+    const pA = pts[selA.value], pB = pts[selB.value];
+    if (pA && pB) {
+      const dx = pB[0] - pA[0], dy = pB[1] - pA[1], len = Math.hypot(dx, dy);
+      if (len > 1e-9) {
+        const preferred = inferThickSideTowardInterior(pA, [dx / len, dy / len]);
+        if (preferred === "right") rThkRight.inp.checked = true;
+        else rThkLeft.inp.checked = true;
+      }
+    }
+  }
+  updateThickHint();
+  updatePreview(); // draw initial ghost on open
 
-  // ── Apply (cycle-check → batch commit) ───────────────────────────────────
+  // ── Apply (create mode: POST new wall; edit mode: cycle-check → batch) ──────
   applyBtn.addEventListener("click", async () => {
     errDiv.textContent = "";
     let formula;
     try { formula = buildFormula(); } catch (e) { errDiv.textContent = e.message; return; }
-    applyBtn.disabled = true; applyBtn.textContent = "Checking\u2026";
+    applyBtn.disabled = true;
+    clearGhostWall();
+
+    // ── Create mode ───────────────────────────────────────────────────────────
+    if (!elemName) {
+      applyBtn.textContent = "Creating\u2026";
+      try {
+        const data = await apiFetch("/api/interior-walls", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ formula }),
+        });
+        overlay.remove();
+        showToast(`Created ${data.name}`, "success");
+        await reloadAfterChange();
+        if (data.name) selectElement("wall", data.name, {});
+      } catch (err) {
+        errDiv.textContent = err.message || "Failed to create wall";
+      } finally {
+        applyBtn.disabled = false; applyBtn.textContent = "Create Wall";
+      }
+      return;
+    }
+
+    // ── Edit mode: cycle-check → batch commit ────────────────────────────────
+    applyBtn.textContent = "Checking\u2026";
     try {
       const pvResp = await fetch("/api/formula-rebase-preview", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -4559,6 +4841,9 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant) {
       applyBtn.disabled = false; applyBtn.textContent = "Apply";
     }
   });
+
+  // Clear ghost on cancel too
+  cancelBtn.addEventListener("click", clearGhostWall, { once: true });
 }
 
 /** Open a rebase dialog for changing formula dependencies with cycle detection.
@@ -4741,6 +5026,8 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
   }
 
   renderDepsSection();
+  // Auto-run cycle check on open so the user sees results immediately
+  requestAnimationFrame(() => checkBtn.click());
 
   // Sync JSON → workingFormula → re-render deps
   syncFromJsonBtn.addEventListener("click", () => {
@@ -4859,7 +5146,30 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
               try { pendingResolutions[res.element_name] = JSON.parse(resEditor.value); }
               catch (_) { pendingResolutions[res.element_name] = null; }
             });
-            resBlock.appendChild(resEditor);
+
+            // "Use current position" — overwrite the resolution textarea with the
+            // element's live bbox, freezing it at its present computed geometry.
+            const freezeBtn = document.createElement("button");
+            freezeBtn.className = "prop-btn";
+            freezeBtn.textContent = "Use current position";
+            freezeBtn.title =
+              "Freeze this element at its current computed bounding box (ignores formula)";
+            freezeBtn.style.marginBottom = "4px";
+            freezeBtn.addEventListener("click", () => {
+              const g = App.state.geometry;
+              const iw = g?.interior_walls?.[res.element_name];
+              if (iw?.bbox) {
+                const { w, e, s, n } = iw.bbox;
+                const frozen = { type: "four_corner", w, e, s, n };
+                resEditor.value = JSON.stringify(frozen, null, 2);
+                pendingResolutions[res.element_name] = frozen;
+                showToast(`${res.element_name}: frozen at current position`, "info");
+              } else {
+                showToast(`No geometry found for ${res.element_name}`, "warning");
+              }
+            });
+            resBlock.insertBefore(freezeBtn, resEditor);
+
             resultsDiv.appendChild(resBlock);
           }
 
@@ -4873,7 +5183,7 @@ function showRebaseDialog(elemName, paramName, currentFormula, variant) {
       errDiv.textContent = `Error: ${e.message}`;
     } finally {
       checkBtn.disabled = false;
-      checkBtn.textContent = "Check for Cycles";
+      checkBtn.textContent = "Re-check Cycles";
     }
   });
 
@@ -7014,6 +7324,8 @@ function onMouseDown(e) {
     App.state.lastPan = { ...App.state.pan };
     App.els["viewport"].style.cursor = "grabbing";
     e.preventDefault();
+  } else if (e.button === 0 && WallAnchorTool.active) {
+    wallAnchorToolMouseDown(e);
   } else if (e.button === 0 && OpeningTool.active) {
     openingToolMouseDown(e);
   } else if (e.button === 0 && PlaceTool.active) {
@@ -7081,6 +7393,28 @@ function onMouseMove(e) {
   // Update coordinate display
   App.els["coord-display"].textContent =
     `E: ${fmtFtIn(wx)}  N: ${fmtFtIn(wy)}`;
+
+  // Wall anchor snap indicator
+  if (WallAnchorTool.active) {
+    const layer = App.els["layer-measure"];
+    layer.querySelectorAll(".wall-anchor-snap").forEach(e => e.remove());
+    const pts = App.state.geometry?.points ?? {};
+    let bestName = null, bestDist = Infinity, bestPt = null;
+    for (const [name, pos] of Object.entries(pts)) {
+      const d = Math.hypot(wx - pos[0], wy - pos[1]);
+      if (d < bestDist) { bestDist = d; bestName = name; bestPt = pos; }
+    }
+    if (bestPt) {
+      layer.appendChild(svgEl("circle", {
+        cx: bestPt[0], cy: -bestPt[1], r: "0.22",
+        class: "wall-anchor-snap", fill: "none",
+        stroke: "#f90", "stroke-width": "0.05", opacity: "0.9",
+        "pointer-events": "none",
+      }));
+      App.els["coord-display"].textContent =
+        `Snap: ${bestName}  (${fmtFtIn(bestPt[0])}, ${fmtFtIn(bestPt[1])})`;
+    }
+  }
 
   // TL-17: Endpoint drag
   if (EndpointDragTool.active) {
@@ -7450,7 +7784,7 @@ function onKeyDown(e) {
     case "h": case "H": setTool("pan"); break;
     case "m": case "M": setTool("measure"); break;
     case "g": case "G": setTool("move"); break;
-    case "w": case "W": showWallSetupWizard(); break;
+    case "w": case "W": startWallAnchorPlacement(); break;
     case "d": setTool("dimension"); break;
     case "l": setTool("label"); break;
     case "r": case "R": showRotationDialog(); break;
@@ -7469,6 +7803,10 @@ function onKeyDown(e) {
       }
       break;
     case "Escape":
+      if (WallAnchorTool.active) {
+        cancelWallAnchorPlacement();
+        break;
+      }
       if (PlumbingDraw.points.length > 0) {
         cancelPlumbingDraw();
         break;
@@ -7700,6 +8038,36 @@ async function endpointDragMouseUp(e) {
   } catch (err) {
     showToast(`Error: ${err.message}`, "error");
   }
+}
+
+/* ========== Wall Anchor Placement Tool ========== */
+
+const WallAnchorTool = { active: false };
+
+/** Enter canvas-click anchor placement mode for adding a new interior wall. */
+function startWallAnchorPlacement() {
+  WallAnchorTool.active = true;
+  App.els["viewport"].style.cursor = "crosshair";
+  showToast("Click to set wall near-end anchor — ESC to cancel", "info");
+}
+
+function cancelWallAnchorPlacement() {
+  WallAnchorTool.active = false;
+  App.els["viewport"].style.cursor = "crosshair";
+  const layer = App.els["layer-measure"];
+  layer.querySelectorAll(".wall-anchor-snap").forEach(e => e.remove());
+}
+
+function wallAnchorToolMouseDown(e) {
+  const [wx, wy] = mouseToWorld(e);
+  const pts = App.state.geometry?.points ?? {};
+  let bestName = null, bestDist = Infinity;
+  for (const [name, pos] of Object.entries(pts)) {
+    const d = Math.hypot(wx - pos[0], wy - pos[1]);
+    if (d < bestDist) { bestDist = d; bestName = name; }
+  }
+  cancelWallAnchorPlacement();
+  showWallPlacementWizard(null, "position", null, null, bestName || undefined);
 }
 
 /* ========== TL-21: Add Opening Tool ========== */
