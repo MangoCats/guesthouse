@@ -4446,9 +4446,9 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
   const wfpDiv = document.createElement("div");
   const selWfpElem = elemSel(init.wfpElem || wallElems[0] || "");
   const selWfpFace = faceSel(init.wfpFace || "south");
-  const inpWfpDistIn = numInp(init.wfpDistIn || 0, 2, "Distance from near end in inches (2\" grid)", "72px");
+  const inpWfpDistIn = numInp(init.wfpDistIn || 0, 0.125, "Distance from near end in inches", "72px");
   wfpDiv.appendChild(row("Wall: ", selWfpElem, "  Face: ", selWfpFace));
-  wfpDiv.appendChild(row("Near-end offset: ", inpWfpDistIn, "\u2033 from near corner (2\u2033 grid)"));
+  wfpDiv.appendChild(row("Near-end offset: ", inpWfpDistIn, "\u2033 from near corner"));
   ancSec.appendChild(wfpDiv);
 
   ancSec.appendChild(hint("Named points: anchor on A\u2192B. Element face: anchor from wall face corner. Face clearance: place this wall so one face is exactly N\u2033 from a reference segment. Wall face at: anchor to a 2\u2033-grid point along an existing wall's face."));
@@ -4699,7 +4699,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
       // Wall-face-point mode: anchor at a 2"-grid distance along an existing wall's face.
       const E = selWfpElem.value;
       const F = selWfpFace.value;
-      const distIn = Math.round(parseFloat(inpWfpDistIn.value) / 2) * 2 || 0; // snap to 2" grid
+      const distIn = parseFloat(inpWfpDistIn.value) || 0;
       const distFtWfp = distIn / 12;
       const FACE_NEAR_CORNER = { south: "sw", east: "se", north: "ne", west: "nw" };
       const nearCorner = FACE_NEAR_CORNER[F] || "sw";
