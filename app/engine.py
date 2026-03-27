@@ -383,6 +383,21 @@ def _face_midpoint(poly, face):
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
 
 
+def _face_point_at(poly, face, dist_in):
+    """Point at dist_in inches from the near corner of a named face of a 4-vertex polygon."""
+    indices = _FACE_MAP.get(face)
+    if not indices or len(poly) < 4:
+        return None
+    i, j = indices
+    a, b = poly[i], poly[j]
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        return None
+    d = dist_in / 12.0
+    return [a[0] + d * dx / length, a[1] + d * dy / length]
+
+
 def _face_vertices(poly, face):
     """Return (vertex_i, vertex_j) for a named face of a 4-vertex polygon."""
     indices = _FACE_MAP.get(face)
@@ -600,6 +615,9 @@ def _resolve_anchor(anchor, geometry_result):
             return None
         wall = geometry_result.get("interior_walls", {}).get(target)
         if wall:
+            dist_in = anchor.get("distIn")
+            if dist_in is not None:
+                return _face_point_at(wall["poly"], face, dist_in)
             return _face_midpoint(wall["poly"], face)
         return None
 

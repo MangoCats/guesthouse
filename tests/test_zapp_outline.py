@@ -375,24 +375,29 @@ class TestAPI16UpdateOutline:
         assert resp.status_code == 404
 
     def test_geometry_reflects_change(self, app_client):
-        """After outline edit, geometry endpoint returns changed data."""
-        # Get original F10 position
-        geom_before = app_client.get("/api/geometry").get_json()
-        f10_before = geom_before["points"]["F10"]
+        """After outline edit, geometry endpoint returns changed data.
 
-        # Change F9->F10 distance (seq 5)
+        The pivot-aware solver keeps F10 fixed by adjusting the flex segment
+        before the edited one.  F7 and F9 (in section A, before seq 5) DO move.
+        """
+        # Get original F9 position
+        geom_before = app_client.get("/api/geometry").get_json()
+        f9_before = geom_before["points"]["F9"]
+
+        # Change F9->F10 distance (seq 5) — solver adjusts section-A flex to
+        # keep F10 in place, which shifts F7 and F9 by the same delta.
         resp = app_client.put("/api/outline/5",
                               json={"dist_or_radius": 16.0})
         assert resp.status_code == 200
 
-        # Get new F10 position
+        # Get new F9 position — must differ after geometry cache invalidation
         geom_after = app_client.get("/api/geometry").get_json()
-        f10_after = geom_after["points"]["F10"]
+        f9_after = geom_after["points"]["F9"]
 
-        # Should be different
+        # Should be different (pivot-aware flex adjustment moves F9)
         dist = math.sqrt(
-            (f10_before[0] - f10_after[0])**2 +
-            (f10_before[1] - f10_after[1])**2
+            (f9_before[0] - f9_after[0])**2 +
+            (f9_before[1] - f9_after[1])**2
         )
         assert dist > 0.1
 

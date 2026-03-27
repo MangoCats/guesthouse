@@ -524,17 +524,50 @@ function buildSnapTargets(g) {
     }
   }
 
-  // Wall faces
+  // Wall faces: 2" interval snap points along each face
   if (g.interior_walls) {
-    const faces = [
+    const FACE_IDX = [
       ["south", 0, 1], ["east", 1, 2], ["north", 2, 3], ["west", 3, 0],
     ];
+    const SNAP_IN = 2;
     for (const [wname, wall] of Object.entries(g.interior_walls)) {
       const poly = wall.poly;
       if (!poly || poly.length < 4) continue;
-      for (const [face, i, j] of faces) {
-        const mid = [(poly[i][0] + poly[j][0]) / 2, (poly[i][1] + poly[j][1]) / 2];
-        targets.push({ type: "wall_face", target: wname, face, pos: mid });
+      for (const [face, i, j] of FACE_IDX) {
+        const p1 = poly[i], p2 = poly[j];
+        const dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+        const lenFt = Math.hypot(dx, dy);
+        if (lenFt < 1e-9) continue;
+        const ux = dx / lenFt, uy = dy / lenFt;
+        for (let distIn = 0; distIn <= lenFt * 12 + 1e-6; distIn += SNAP_IN) {
+          const clamped = Math.min(distIn, Math.floor(lenFt * 12 / SNAP_IN) * SNAP_IN);
+          const d = clamped / 12;
+          targets.push({ type: "wall_face", target: wname, face,
+                         pos: [p1[0] + d * ux, p1[1] + d * uy] });
+          if (clamped >= lenFt * 12 - 1e-6) break;
+        }
+      }
+    }
+  }
+
+  // Inner wall segments (W-series straight sections): 2" interval snap points,
+  // excluding endpoints which are already covered as named points above.
+  if (g.inner_segments) {
+    const pts = g.points || {};
+    const SNAP_IN = 2;
+    for (const seg of g.inner_segments) {
+      if (seg.type !== "line") continue;
+      const p1 = pts[seg.start], p2 = pts[seg.end];
+      if (!p1 || !p2) continue;
+      const dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+      const lenFt = Math.hypot(dx, dy);
+      const lenIn = lenFt * 12;
+      if (lenIn < SNAP_IN * 2 - 1e-6) continue;
+      const ux = dx / lenFt, uy = dy / lenFt;
+      for (let distIn = SNAP_IN; distIn <= lenIn - SNAP_IN + 1e-6; distIn += SNAP_IN) {
+        const d = distIn / 12;
+        targets.push({ type: "inner_seg", target: seg.start,
+                       pos: [p1[0] + d * ux, p1[1] + d * uy] });
       }
     }
   }
@@ -586,7 +619,8 @@ function findNearestSnap(wx, wy, snapTargets, thresholdPx) {
     if (d < bestDist) {
       bestDist = d;
       const anchor = { type: t.type, target: t.target };
-      if (t.face) anchor.face = t.face;
+      if (t.face !== undefined) anchor.face = t.face;
+      if (t.distIn !== undefined) anchor.distIn = t.distIn;
       best = { anchor, pos: t.pos };
     }
   }
@@ -678,6 +712,13 @@ function dimToolMouseMove(e) {
   if (snapResult) {
     wx = snapResult.pos[0];
     wy = snapResult.pos[1];
+    const anc = snapResult.anchor;
+    if (anc && (anc.type === "wall_face" || anc.type === "inner_seg")) {
+      const label = anc.type === "wall_face"
+        ? `${anc.target} ${anc.face}  (${fmtFtIn(wx)}, ${fmtFtIn(wy)})`
+        : `${anc.target}  (${fmtFtIn(wx)}, ${fmtFtIn(wy)})`;
+      App.els["coord-display"].textContent = label;
+    }
   } else if (App.state.showGrid) {
     const snap = 1.0 / 12.0;
     wx = Math.round(wx / snap) * snap;

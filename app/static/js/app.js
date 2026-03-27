@@ -281,6 +281,7 @@ async function loadGeometry() {
       throw new Error(data.error || `HTTP ${resp.status}`);
     }
     App.state.geometry = await resp.json();
+    if (typeof DimTool !== "undefined") DimTool.snapTargets = null; // invalidate on geometry change
     hideErrorBanner();
     if (App.state.activeView === "interactive") {
       if (App.state.variant === "plumbing") renderPlumbingCanvas();
