@@ -248,7 +248,10 @@ async function placeElement(wx, wy) {
   const item = PlaceTool.itemTemplate;
   const type = PlaceTool.itemType;
   const name = nextPlacedName(type, item.key);
-  const poly = rectPoly(wx, wy, item.width, item.depth);
+  const isCircle = item.shape === "circle";
+  const poly = isCircle
+    ? rectPoly(wx, wy, (item.radius || 0.5) * 2, (item.radius || 0.5) * 2)
+    : rectPoly(wx, wy, item.width || 1, item.depth || 1);
 
   const properties = {
     source: "placed",
@@ -261,6 +264,8 @@ async function placeElement(wx, wy) {
     catalog_key: item.key,
     label: item.label,
   };
+
+  if (isCircle && item.radius) properties.radius = item.radius;
 
   // Carry over metadata from catalog — but NOT variants: the catalog's
   // variants list controls ADD-menu visibility, not where placed instances

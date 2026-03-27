@@ -4302,6 +4302,13 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
       init.wfpElem = presetAnchor.elem;
       init.wfpFace = presetAnchor.face;
       init.wfpDistIn = presetAnchor.distIn;
+    } else if (presetAnchor?.type === "inner_seg") {
+      // W-series straight segment: anchor along segment, default perp-right (interior)
+      init.anchorMode = "points";
+      init.anchorA = presetAnchor.startName;
+      init.anchorB = presetAnchor.endName;
+      init.distFt = presetAnchor.distFromStartIn / 12;
+      init.dirType = "perp_right";
     }
   }
 
@@ -7527,15 +7534,24 @@ function onMouseMove(e) {
     WallAnchorTool.snapCandidate = best;
     if (best) {
       const isWallFace = best.type === "wall_face";
+      const isInnerSeg = best.type === "inner_seg";
+      const snapColor = isWallFace ? "#4af" : isInnerSeg ? "#4fa" : "#f90";
       layer.appendChild(svgEl("circle", {
         cx: best.coord[0], cy: -best.coord[1], r: "0.22",
         class: "wall-anchor-snap", fill: "none",
-        stroke: isWallFace ? "#4af" : "#f90", "stroke-width": "0.05", opacity: "0.9",
+        stroke: snapColor, "stroke-width": "0.05", opacity: "0.9",
         "pointer-events": "none",
       }));
-      const label = isWallFace
-        ? `${best.elem} ${best.face} +${Math.round(best.distIn)}"  (${fmtFtIn(best.coord[0])}, ${fmtFtIn(best.coord[1])})`
-        : `Snap: ${best.name}  (${fmtFtIn(best.coord[0])}, ${fmtFtIn(best.coord[1])})`;
+      let label;
+      if (isWallFace) {
+        label = `${best.elem} ${best.face} +${Math.round(best.distIn)}"  (${fmtFtIn(best.coord[0])}, ${fmtFtIn(best.coord[1])})`;
+      } else if (isInnerSeg) {
+        const fromNear = Math.min(best.distIn, best.lenIn - best.distIn);
+        const nearEnd  = best.distIn <= best.lenIn / 2 ? best.startName : best.endName;
+        label = `${best.startName}\u2192${best.endName} +${Math.round(fromNear)}" from ${nearEnd}  (${fmtFtIn(best.coord[0])}, ${fmtFtIn(best.coord[1])})`;
+      } else {
+        label = `Snap: ${best.name}  (${fmtFtIn(best.coord[0])}, ${fmtFtIn(best.coord[1])})`;
+      }
       App.els["coord-display"].textContent = label;
     }
   }
@@ -8168,6 +8184,36 @@ async function endpointDragMouseUp(e) {
 
 const WallAnchorTool = { active: false, snapCandidate: null };
 
+/** Return snap candidates along W-series (inner outer-wall face) straight segments at 2" intervals.
+ *  Points are generated at 2", 4", 6", … up to lenIn−2" so endpoints (named W-points) stay distinct. */
+function innerSegSnapCandidates() {
+  const segs = App.state.geometry?.inner_segments ?? [];
+  const pts  = App.state.geometry?.points ?? {};
+  const SNAP_IN = 2;
+  const candidates = [];
+  for (const seg of segs) {
+    if (seg.type !== "line") continue;
+    const p1 = pts[seg.start], p2 = pts[seg.end];
+    if (!p1 || !p2) continue;
+    const dx = p2[0] - p1[0], dy = p2[1] - p1[1];
+    const lenFt = Math.hypot(dx, dy);
+    const lenIn = lenFt * 12;
+    if (lenIn < SNAP_IN * 2 - 1e-6) continue; // too short for any interior points
+    const ux = dx / lenFt, uy = dy / lenFt;
+    for (let distIn = SNAP_IN; distIn <= lenIn - SNAP_IN + 1e-6; distIn += SNAP_IN) {
+      const d = distIn / 12;
+      candidates.push({
+        type: "inner_seg",
+        startName: seg.start, endName: seg.end,
+        distIn, lenIn,
+        coord: [p1[0] + d * ux, p1[1] + d * uy],
+      });
+    }
+  }
+  return candidates;
+}
+
+
 /** Return snap candidates along each interior wall face at 2" intervals. */
 function wallFaceSnapCandidates() {
   const iw = App.state.geometry?.interior_walls ?? {};
@@ -8207,6 +8253,10 @@ function _wallAnchorFindBest(wx, wy) {
     const d = Math.hypot(wx - c.coord[0], wy - c.coord[1]);
     if (d < bestDist) { bestDist = d; best = c; }
   }
+  for (const c of innerSegSnapCandidates()) {
+    const d = Math.hypot(wx - c.coord[0], wy - c.coord[1]);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
   return best;
 }
 
@@ -8232,6 +8282,13 @@ function wallAnchorToolMouseDown(e) {
   if (best?.type === "wall_face") {
     showWallPlacementWizard(null, "position", null, null,
       { type: "wall_face", elem: best.elem, face: best.face, distIn: best.distIn });
+  } else if (best?.type === "inner_seg") {
+    showWallPlacementWizard(null, "position", null, null, {
+      type: "inner_seg",
+      startName: best.startName,
+      endName: best.endName,
+      distFromStartIn: best.distIn,
+    });
   } else {
     showWallPlacementWizard(null, "position", null, null, best?.name || undefined);
   }

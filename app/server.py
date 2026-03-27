@@ -699,10 +699,10 @@ def create_app(db_path=None):
                 "depth": {"const": "BATH_SINK_DEPTH"},
             }
 
-        # Circle items — get radius from seeded formula or width
+        # Circle items — prefer explicit radius, then catalog lookup, then width/2
         if shape == "circle":
-            radius = width / 2
-            if catalog_key:
+            radius = props.get("radius") or ((width / 2) if width else 0)
+            if not radius and catalog_key:
                 from app.database import get_element_formulas
                 seeded = get_element_formulas(catalog_key, db_path=db)
                 for f in seeded:
