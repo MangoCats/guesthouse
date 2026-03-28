@@ -1233,6 +1233,22 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     # 6b. Site path (survey outer boundary as dense polyline)
     site_path = _compute_site_path(pts)
 
+    # 6c. Roof outline polygon (DB-driven if roof corners configured)
+    roof_poly_pts = []
+    try:
+        from app.database import get_roof_corners
+        roof_data = get_roof_corners(db_path)
+        if roof_data and roof_data.get("corners"):
+            from shared.roof_outline import compute_db_roof_outline
+            corner_names = [c["center"] for c in roof_data["corners"]]
+            corner_radiused = [c.get("radiused", False) for c in roof_data["corners"]]
+            overhang = float(roof_data.get("overhang", 0.5))
+            result_r = compute_db_roof_outline(
+                corner_names, corner_radiused, pts, radii, overhang)
+            roof_poly_pts = [point_to_list(p) for p in result_r.poly]
+    except Exception:
+        pass
+
     # 7. Build result
     outline_poly_pts = path_polygon(outline_segs, pts)
     result = {
@@ -1251,6 +1267,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         "locked_elements": locked,
         "radii": dict(radii),
         "site_path": site_path,
+        "roof_poly": roof_poly_pts,
     }
 
     # Bounding box

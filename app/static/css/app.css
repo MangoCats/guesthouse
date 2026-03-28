@@ -516,6 +516,7 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 
 /* ========== SVG CANVAS STYLES ========== */
 .site-stroke { fill: none; stroke: #7a6a3a; stroke-width: 0.04; stroke-dasharray: 0.2 0.1; }
+.roof-stroke { fill: none; stroke: #8a6a2a; stroke-width: 0.06; stroke-dasharray: 0.3 0.12; }
 .outline-fill { fill: #1a2030; stroke: none; }
 .outline-stroke { fill: none; stroke: var(--text); stroke-width: 0.05; }
 .inner-stroke { fill: none; stroke: var(--accent-dim); stroke-width: 0.04; stroke-dasharray: 0.15 0.08; }

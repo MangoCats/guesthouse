@@ -24,6 +24,7 @@ const App = {
     openLinks: false,
     showAreas: false,
     showSite: true,
+    showRoof: false,
     variant: "standard",
     measureStart: null,
     rubberBand: null,
@@ -85,7 +86,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 function cacheElements() {
   const ids = [
     "canvas", "canvas-transform", "viewport",
-    "layer-site", "layer-outline", "layer-inner", "layer-walls",
+    "layer-site", "layer-roof", "layer-outline", "layer-inner", "layer-walls",
     "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
     "layer-rooms", "layer-points",
     "layer-labels", "layer-dims",
@@ -104,7 +105,7 @@ function cacheElements() {
     "props-empty", "props-detail", "props-title", "props-table",
     "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
-    "show-doors", "show-clearance", "open-links", "show-areas", "show-site",
+    "show-doors", "show-clearance", "open-links", "show-areas", "show-site", "show-roof",
     "roof-style",
     "roof-overhang-in", "roof-overhang-save",
     "roof-corners-table", "roof-add-center", "roof-add-radiused", "roof-add-btn",
@@ -367,6 +368,7 @@ async function saveCurrentLayerConfig() {
     rooms: App.state.showRooms, doors: App.state.showDoors,
     clearance: App.state.showClearance, areas: App.state.showAreas,
     openLinks: App.state.openLinks, site: App.state.showSite,
+    roof: App.state.showRoof,
   };
   try {
     await apiFetch(`/api/variants/${v.id}`, {
@@ -387,7 +389,7 @@ function restoreLayerConfig() {
     openings: "showOpenings", furniture: "showFurniture",
     rooms: "showRooms", doors: "showDoors",
     clearance: "showClearance", areas: "showAreas",
-    openLinks: "openLinks", site: "showSite",
+    openLinks: "openLinks", site: "showSite", roof: "showRoof",
   };
   // cfgKey → element id overrides (keys that don't follow show-{cfgKey} pattern)
   const elIdOverrides = { points: "show-points", openLinks: "open-links" };
@@ -944,6 +946,7 @@ function renderCanvas() {
   clearLayers();
   const overrides = itemOverrides();
   renderSitePath(g);
+  renderRoofOutline(g);
   renderOutline(g);
   renderInnerWalls(g);
   renderInteriorWalls(g);
@@ -965,7 +968,7 @@ function renderCanvas() {
 }
 
 function clearLayers() {
-  const layers = ["layer-site", "layer-outline", "layer-inner", "layer-walls",
+  const layers = ["layer-site", "layer-roof", "layer-outline", "layer-inner", "layer-walls",
     "layer-openings", "layer-doors", "layer-furniture", "layer-clearance",
     "layer-rooms", "layer-points",
     "layer-labels", "layer-dims",
@@ -1041,6 +1044,17 @@ function renderSitePath(g) {
       class: "site-stroke",
     });
     layer.appendChild(el);
+  }
+}
+
+function renderRoofOutline(g) {
+  if (!App.state.showRoof) return;
+  const layer = App.els["layer-roof"];
+  if (g.roof_poly && g.roof_poly.length > 0) {
+    layer.appendChild(svgEl("polygon", {
+      points: polyToStr(g.roof_poly),
+      class: "roof-stroke",
+    }));
   }
 }
 
@@ -7565,7 +7579,7 @@ function setupEventListeners() {
     ["show-openings", "showOpenings"], ["show-furniture", "showFurniture"],
     ["show-rooms", "showRooms"], ["show-doors", "showDoors"],
     ["show-clearance", "showClearance"], ["open-links", "openLinks"],
-    ["show-areas", "showAreas"], ["show-site", "showSite"],
+    ["show-areas", "showAreas"], ["show-site", "showSite"], ["show-roof", "showRoof"],
   ];
   for (const [elId, stateKey] of toggleMap) {
     App.els[elId].addEventListener("change", (e) => {
