@@ -355,14 +355,22 @@ def init_db(db_path=None):
                         (_type, _name, json.dumps(_props), _variant),
                     )
                     break
-            # Ensure NORDVIKEN dimension constants exist
+            # Ensure new dimension constants exist
             for _cname, _val_in, _cat, _desc in _VARIANT_ITEM_CONSTANTS:
-                if _cname.startswith("NORDVIKEN"):
+                if _cname.startswith(("NORDVIKEN", "SKOGSTA", "STOCKHOLM_SOFA")):
                     conn.execute(
                         "INSERT OR IGNORE INTO constants "
                         "(name, value, expr, unit, category, description) "
                         "VALUES (?, ?, ?, ?, ?, ?)",
                         (_cname, _val_in / 12.0, f"{_val_in} / 12.0", "ft", _cat, _desc),
+                    )
+            # Ensure new element records exist for skogsta_bench and stockholm_sofa
+            for _name, _type, _props, _variant in _VARIANT_ITEMS:
+                if _name in ("skogsta_bench", "stockholm_sofa"):
+                    conn.execute(
+                        "INSERT OR IGNORE INTO elements (type, name, properties, variant) "
+                        "VALUES (?, ?, ?, ?)",
+                        (_type, _name, json.dumps(_props), _variant),
                     )
     # Seed anchor/pivot defaults after DB is committed (needs constants table)
     if fresh:
@@ -922,6 +930,10 @@ _VARIANT_ITEM_CONSTANTS = [
     ("SOFA_FULL_D",      34.625, "furniture",  "Full sofa depth"),
     ("NORDVIKEN_L",      82.625, "furniture",  "NORDVIKEN extendable table core length"),
     ("NORDVIKEN_W",      41.375, "furniture",  "NORDVIKEN extendable table width"),
+    ("SKOGSTA_L",        47.25,  "furniture",  "SKOGSTA bench with storage length"),
+    ("SKOGSTA_W",        18.125, "furniture",  "SKOGSTA bench with storage width"),
+    ("STOCKHOLM_SOFA_L", 83.125, "furniture",  "STOCKHOLM sofa length"),
+    ("STOCKHOLM_SOFA_D", 34.625, "furniture",  "STOCKHOLM sofa depth"),
 ]
 
 
@@ -1560,6 +1572,15 @@ _VARIANT_ITEMS = [
         ],
         "variants": _VI_ALL,
     }, None),
+    ("skogsta_bench", "furniture", {
+        "label": "BENCH",
+        "item_type": "furniture",
+        "shape": "rect",
+        "width": 47.25 / 12.0,
+        "depth": 18.125 / 12.0,
+        "product_url": "https://www.ikea.com/us/en/p/skogsta-bench-with-storage-acacia-20611882/",
+        "variants": _VI_ALL,
+    }, None),
     # --- Bedroom ---
     ("bed", "furniture", {
         "label": "KING BED", "item_type": "furniture", "shape": "rect",
@@ -1587,6 +1608,15 @@ _VARIANT_ITEMS = [
         "variants": _VI_ALL,
     }, None),
     # --- Living: standard seating ---
+    ("stockholm_sofa", "furniture", {
+        "label": "SOFA",
+        "item_type": "furniture",
+        "shape": "rect",
+        "width": 83.125 / 12.0,
+        "depth": 34.625 / 12.0,
+        "product_url": "https://www.ikea.com/us/en/p/stockholm-sofa-seglora-natural-20245049/",
+        "variants": _VI_ALL,
+    }, None),
     ("loveseat", "furniture", {
         "label": "LOVESEAT", "item_type": "furniture", "shape": "rect",
         "product_url": "https://www.ikea.com/us/en/p/saltsjoebaden-loveseat-tonerud-red-brown-s59579188/",
