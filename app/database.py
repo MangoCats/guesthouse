@@ -340,6 +340,8 @@ def init_db(db_path=None):
             _migrate_remove_drawn_walls(conn)
             # Fix stale/duplicate seeded opening formulas; migrate user openings to constants
             _migrate_opening_formulas(conn)
+            # Seed per-opening bottom/top elevation constants (idempotent)
+            _seed_opening_elevations(conn)
             # Ensure new catalog entries exist
             _seed_catalog_items(conn, db_path)
             # Ensure nordviken element record exists in elements table
@@ -787,6 +789,38 @@ def _migrate_opening_formulas(conn):
             )
 
 
+def _seed_opening_elevations(conn):
+    """Create {NAME}_BOTTOM_ELEV and {NAME}_TOP_ELEV constants for every outer opening.
+
+    Uses INSERT OR IGNORE so user edits are never overwritten.
+    Defaults: door → bottom=0, window/casement → bottom=20/12.  Top=80/12 for all.
+    Called at DB open (migration) and when creating new openings.
+    """
+    from floorplan.constants import LOWER_WALL_HEIGHT, OPENING_HEIGHT
+    rows = conn.execute(
+        "SELECT name, properties FROM elements "
+        "WHERE type='opening' AND (name GLOB 'O[0-9]*' OR name = 'O8a')"
+    ).fetchall()
+    for row in rows:
+        name = row["name"]
+        props = json.loads(row["properties"] or "{}")
+        otype = props.get("opening_type", "window")
+        bottom = 0.0 if otype == "door" else LOWER_WALL_HEIGHT
+        conn.execute(
+            "INSERT OR IGNORE INTO constants "
+            "(name, value, expr, unit, category, description) VALUES (?, ?, ?, 'ft', 'opening', ?)",
+            (f"{name}_BOTTOM_ELEV", bottom,
+             "0.0" if otype == "door" else "20.0 / 12.0",
+             f"{name} bottom elevation above floor"),
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO constants "
+            "(name, value, expr, unit, category, description) VALUES (?, ?, ?, 'ft', 'opening', ?)",
+            (f"{name}_TOP_ELEV", OPENING_HEIGHT, "80.0 / 12.0",
+             f"{name} top elevation above floor"),
+        )
+
+
 def _next_iw_name(conn):
     """Return the next unused IW{N} name (pure numeric suffix, guaranteed ≥ IW13)."""
     rows = conn.execute(
@@ -922,6 +956,8 @@ def create_outer_opening_element(conn, seg_start, seg_end, gap, width,
             (name, dep_type, dep_name),
         )
     row = conn.execute("SELECT * FROM elements WHERE name=?", (name,)).fetchone()
+    # Seed elevation constants for new opening
+    _seed_opening_elevations(conn)
     return name, dict(row)
 
 

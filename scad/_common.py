@@ -256,3 +256,73 @@ def window_panel_poly(op, outline_segs, inner_segs, pts, panel_half):
         (M_e[0] - nx * panel_half, M_e[1] - ny * panel_half),
         (M_s[0] - nx * panel_half, M_s[1] - ny * panel_half),
     ]
+
+
+def compute_wall_bands(openings, outline_segs, upper_top,
+                       pts, tf_segs, tw_segs, inner_segs,
+                       shell_t, R_in, tw_ov):
+    """Compute per-elevation wall bands driven by per-opening bottom/top elevations.
+
+    Returns list of (z_start, z_end, section_data) where section_data is a list
+    of (label, tpath) pairs ready for linear_extrude.  Bands with no active
+    openings use the full-perimeter T-path (label="full", same tpath each time).
+
+    The full-perimeter T-path is built once and reused for all solid bands.
+
+    openings: list of WallOpening (must have .bottom_elev and .top_elev)
+    upper_top: top of the wall structure (no openings above this)
+    """
+    from shared.wall_shells import enumerate_wall_sections
+
+    # Build full-perimeter T-path (reused for solid bands and upper band)
+    if openings:
+        # Use first opening as seam anchor for full wrap
+        all_secs = enumerate_wall_sections(openings, outline_segs)
+        seam_op = (all_secs[-1:] + all_secs[:-1])[0][0]
+    else:
+        seam_op = None
+
+    def _full_tpath():
+        if seam_op is None:
+            return []
+        return build_tpath(pts, outline_segs, inner_segs, tf_segs, tw_segs,
+                           seam_op, seam_op, shell_t, R_in, tw_ov, full_wrap=True)
+
+    _cached_full = None
+
+    def get_full_tpath():
+        nonlocal _cached_full
+        if _cached_full is None:
+            _cached_full = _full_tpath()
+        return _cached_full
+
+    # Collect unique elevation breakpoints from openings
+    breaks = sorted(set(
+        [0.0] +
+        [op.bottom_elev for op in openings] +
+        [op.top_elev for op in openings]
+    ))
+    # Clamp breaks below upper_top
+    breaks = [b for b in breaks if b < upper_top - 1e-9]
+
+    bands = []
+    for i, z1 in enumerate(breaks):
+        z2 = breaks[i + 1] if i + 1 < len(breaks) else upper_top
+        if z2 - z1 < 1e-9:
+            continue
+        # Active openings: those whose opening span fully covers this band
+        active = [op for op in openings
+                  if op.bottom_elev <= z1 + 1e-9 and op.top_elev >= z2 - 1e-9]
+        if not active:
+            bands.append((z1, z2, [("full", get_full_tpath())]))
+            continue
+        secs = enumerate_wall_sections(active, outline_segs)
+        secs = secs[-1:] + secs[:-1]
+        sec_data = []
+        for start_op, end_op in secs:
+            tp = build_tpath(pts, outline_segs, inner_segs, tf_segs, tw_segs,
+                             start_op, end_op, shell_t, R_in, tw_ov)
+            sec_data.append((f"b{i}_{start_op.name}_{end_op.name}", tp))
+        bands.append((z1, z2, sec_data))
+
+    return bands

@@ -27,22 +27,22 @@ def scad_content():
 
 class TestGenerate2in12:
     def test_output_contains_tpath_data(self, scad_content):
-        assert "t_O11_O1 = [" in scad_content
-        assert "t_O1_O2 = [" in scad_content
-        assert "t_O10_O11 = [" in scad_content
+        assert "t_b1_O11_O1 = [" in scad_content
+        assert "t_b1_O1_O2 = [" in scad_content
+        assert "t_b1_O10_O11 = [" in scad_content
 
     def test_two_lower_sections(self, scad_content):
-        matches = re.findall(r'^t_lower_O\d+_O\d+ = \[', scad_content, re.M)
+        matches = re.findall(r'^t_b0_O\d+_O\d+ = \[', scad_content, re.M)
         assert len(matches) == 2
 
     def test_twelve_middle_sections(self, scad_content):
-        matches = re.findall(r'^t_O\w+_O\w+ = \[', scad_content, re.M)
+        matches = re.findall(r'^t_b1_O\w+_O\w+ = \[', scad_content, re.M)
         assert len(matches) == 12
 
     def test_output_contains_assembly(self, scad_content):
         assert "linear_extrude" in scad_content
         assert "union()" in scad_content
-        assert "wall_shell(t_O11_O1, half_t);" in scad_content
+        assert "wall_shell(t_b1_O11_O1, half_t);" in scad_content
 
     def test_output_contains_helpers(self, scad_content):
         assert "function shell_pts(" in scad_content
@@ -53,12 +53,8 @@ class TestGenerate2in12:
         assert "[0, " in scad_content
         assert "[1, " in scad_content
 
-    def test_three_tier_walls(self, scad_content):
-        assert "lower_height" in scad_content
-        assert "middle_height" in scad_content
+    def test_upper_wall(self, scad_content):
         assert "t_full_upper = [" in scad_content
-        assert "upper_base" in scad_content
-        assert "max_upper_h" in scad_content
         assert "wall_shell(t_full_upper, half_t);" in scad_content
 
     def test_2in12_specific_features(self, scad_content):

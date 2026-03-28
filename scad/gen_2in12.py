@@ -12,20 +12,20 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS,
-                                  OPENING_INSIDE_RADIUS,
-                                  LOWER_WALL_HEIGHT, OPENING_HEIGHT,
+                                  OPENING_INSIDE_RADIUS, OPENING_HEIGHT,
                                   ROOF_MIN_THICK, SHED_ROOF_SLOPE,
                                   SHED_ROOF_EAVE_ELEV, SEAM_SPACING,
                                   SEAM_WIDTH, SEAM_HEIGHT)
 from floorplan.roof import compute_roof_geometry, roof_polyline, roof_segments
-from shared.wall_shells import compute_inset_path, enumerate_wall_sections
+from shared.wall_shells import compute_inset_path
 from scad._common import (seg_to_elem as _seg_to_elem, f8f9_elems as _f8f9_elems,
                           trace_elems as _trace_elems, rev_elems as _rev_elems,
                           uturn_center_elems as _uturn_center_elems,
                           build_tpath as _build_tpath,
                           fmt_ft_in as _fmt_ft_in, scad_seg as _scad_seg,
                           seg_comment as _seg_comment,
-                          window_panel_poly as _window_panel_poly)
+                          window_panel_poly as _window_panel_poly,
+                          compute_wall_bands as _compute_wall_bands)
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _OUT = os.path.join(_DIR, "2in12.scad")
@@ -61,7 +61,6 @@ def generate(gd=None):
     R_in = _consts.get('OPENING_INSIDE_RADIUS', OPENING_INSIDE_RADIUS)
     wall_outer = _consts.get('WALL_OUTER', WALL_OUTER)
 
-    lower_h = _consts.get('LOWER_WALL_HEIGHT', LOWER_WALL_HEIGHT)
     opening_h = _consts.get('OPENING_HEIGHT', OPENING_HEIGHT)
     roof_min_thick = _consts.get('ROOF_MIN_THICK', ROOF_MIN_THICK)
     roof_slope = _consts.get('SHED_ROOF_SLOPE', SHED_ROOF_SLOPE)
@@ -69,8 +68,6 @@ def generate(gd=None):
     seam_spacing = _consts.get('SEAM_SPACING', SEAM_SPACING)
     seam_w = _consts.get('SEAM_WIDTH', SEAM_WIDTH)
     seam_h = _consts.get('SEAM_HEIGHT', SEAM_HEIGHT)
-
-    middle_h = opening_h - lower_h
 
     # Compute TF-series (shell centerline, shell_half from F-face)
     tf_pts, tf_segs = compute_inset_path(outline_segs, pts, radii,
@@ -87,17 +84,6 @@ def generate(gd=None):
                       if s.start == "F8" and s.end == "F9"), None)
     tw_ov = {_f8f9_idx: _f8f9_elems(pts, wall_outer - shell_half,
                              R_in + shell_half)} if _f8f9_idx is not None else {}
-
-    sections = enumerate_wall_sections(openings, outline_segs)
-    sections = sections[-1:] + sections[:-1]
-
-    section_data = []
-    for start_op, end_op in sections:
-        tpath = _build_tpath(
-            pts, outline_segs, inner_segs, tf_segs, tw_segs,
-            start_op, end_op, shell_t, R_in, tw_ov)
-        label = f"{start_op.name}_{end_op.name}"
-        section_data.append((label, tpath))
 
     # Roof outline: T-path arc/line segments + sampled polygon for bounds
     # DB-driven when roof corners are configured; F-series fallback otherwise.
@@ -128,46 +114,28 @@ def generate(gd=None):
     max_roof_z = roof_slope * max_roof_y + roof_z_offset
     max_upper_h = max_roof_z - opening_h  # generous upper wall height
 
-    # Door-only T-path: lower walls (0-20") with only door openings
-    door_openings = [op for op in openings if op.opening_type == "door"]
-    lower_sections = enumerate_wall_sections(door_openings, outline_segs)
-    lower_sections = lower_sections[-1:] + lower_sections[:-1]
+    # N-band walls: driven by per-opening bottom/top elevations
+    bands = _compute_wall_bands(
+        openings, outline_segs, max_roof_z,
+        pts, tf_segs, tw_segs, inner_segs, shell_t, R_in, tw_ov)
 
-    lower_section_data = []
-    for start_op, end_op in lower_sections:
-        tpath = _build_tpath(
-            pts, outline_segs, inner_segs, tf_segs, tw_segs,
-            start_op, end_op, shell_t, R_in, tw_ov)
-        label = f"lower_{start_op.name}_{end_op.name}"
-        lower_section_data.append((label, tpath))
-
-    # Window panels: non-door openings rendered as 1" opaque panels
+    # Window panels: non-door openings with per-opening elevations
     panel_half = 0.5 / 12.0  # 1" thick panel, half-thickness in feet
     window_panels = [
-        (op.name, _window_panel_poly(op, outline_segs, inner_segs, pts, panel_half))
+        (op.name, _window_panel_poly(op, outline_segs, inner_segs, pts, panel_half),
+         op.bottom_elev, op.top_elev - op.bottom_elev)
         for op in openings if op.opening_type != "door"
     ]
 
-    # Full-wall T-path: upper wall band wraps full perimeter, seam at first opening
-    full_start = full_end = sections[0][0]
-    full_tpath = _build_tpath(
-        pts, outline_segs, inner_segs, tf_segs, tw_segs,
-        full_start, full_end, shell_t, R_in, tw_ov, full_wrap=True)
-
     out = []
-    out.append("// 2in12.scad - T-path shell centerline extrusion (2:12 slope)")
-    lower_in = lower_h * 12.0
     opening_in = opening_h * 12.0
     roof_min_in = roof_min_thick * 12.0
-    out.append(f"// Lower walls:  0 to {lower_in:.0f}\" ({lower_h * 12:.0f}\") — door openings only")
-    out.append(f"// Middle walls: {lower_in:.0f}\" to {opening_in:.0f}\" "
-               f"({middle_h * 12:.0f}\") — all openings")
+    out.append("// 2in12.scad - T-path shell centerline extrusion (2:12 slope)")
+    out.append(f"// {len(bands)} elevation band(s): openings by per-opening bottom/top elevation")
     out.append(f"// Upper wall:   {opening_in:.0f}\" to sloped roof underside (full perimeter)")
     out.append(f"// Roof: {roof_min_in:.0f}\" slab, {roof_slope * 12:.0f}:12 slope N, "
                f"{roof_eave_elev:.1f}' at R19-R01")
     out.append("// Construction: 2\" outer shell / 4\" air gap / 2\" inner shell")
-    out.append(f"// {len(lower_section_data)} lower + {len(section_data)} middle "
-               f"+ 1 upper wall sections")
     out.append("// Units: feet")
     out.append("// Generated by scad/gen_2in12.py")
     out.append("")
@@ -215,10 +183,6 @@ def generate(gd=None):
     out.append("}")
     out.append("")
     out.append(f"half_t = {shell_half:.6f};")
-    out.append(f"lower_height = {lower_h:.6f};")
-    out.append(f"middle_height = {middle_h:.6f};")
-    out.append(f"upper_base = {opening_h:.6f};")
-    out.append(f"max_upper_h = {max_upper_h:.6f};")
     out.append(f"roof_thick = {roof_min_thick:.6f};")
     out.append(f"seam_spacing = {seam_spacing:.6f};  // {seam_spacing * 12:.0f}\" on center")
     out.append(f"seam_w = {seam_w:.6f};  // {seam_w * 12:.0f}\" wide")
@@ -229,9 +193,14 @@ def generate(gd=None):
     out.append("              [0, roof_slope, 1, roof_z_off], [0,0,0,1]];")
     out.append("")
 
-    # Collect all T-path data (lower + middle + full-wall + roof) for alignment
-    all_entries = (list(lower_section_data) + list(section_data)
-                   + [("full_upper", full_tpath)])
+    # Collect unique T-paths from bands: "full" label → emitted as t_full_upper
+    seen_labels: dict[str, list] = {}
+    for _z1, _z2, sec_data in bands:
+        for label, tpath in sec_data:
+            scad_label = "full_upper" if label == "full" else label
+            if scad_label not in seen_labels:
+                seen_labels[scad_label] = tpath
+    all_entries = list(seen_labels.items())
 
     # Pre-compute data parts to find alignment width
     all_data_parts = []
@@ -248,40 +217,15 @@ def generate(gd=None):
     max_data_width = max(len(p) for parts in all_data_parts + [roof_parts]
                          for p in parts)
 
-    n_lower = len(lower_section_data)
-    n_middle = len(section_data)
-
-    # Emit lower wall section T-paths (doors O3, O6 only)
-    for (label, tpath), parts in zip(lower_section_data,
-                                      all_data_parts[:n_lower]):
-        out.append(f"// T-path: lower wall {label.replace('lower_', '').replace('_', ' to ')}")
-        out.append(f"t_{label} = [")
+    # Emit T-path data arrays
+    for (scad_label, tpath), parts in zip(all_entries, all_data_parts):
+        out.append(f"// T-path: {scad_label.replace('_', ' ')}")
+        out.append(f"t_{scad_label} = [")
         for elem, data_part in zip(tpath, parts):
             pad = max(1, max_data_width + 1 - len(data_part))
             out.append(f"{data_part}{' ' * pad}{_seg_comment(elem)}")
         out.append("];")
         out.append("")
-
-    # Emit middle wall section T-paths (all openings)
-    for (label, tpath), parts in zip(section_data,
-                                      all_data_parts[n_lower:n_lower + n_middle]):
-        out.append(f"// T-path: wall section {label.replace('_', ' to ')}")
-        out.append(f"t_{label} = [")
-        for elem, data_part in zip(tpath, parts):
-            pad = max(1, max_data_width + 1 - len(data_part))
-            out.append(f"{data_part}{' ' * pad}{_seg_comment(elem)}")
-        out.append("];")
-        out.append("")
-
-    # Emit full-wall T-path (upper band, full perimeter)
-    full_parts = all_data_parts[-1]
-    out.append("// T-path: full wall (upper band)")
-    out.append("t_full_upper = [")
-    for elem, data_part in zip(full_tpath, full_parts):
-        pad = max(1, max_data_width + 1 - len(data_part))
-        out.append(f"{data_part}{' ' * pad}{_seg_comment(elem)}")
-    out.append("];")
-    out.append("")
 
     # Emit roof outline as arc/line T-path segments
     out.append("// Roof outline (DB-driven, south edge = R19-R01 low side of shed roof)")
@@ -296,24 +240,37 @@ def generate(gd=None):
     out.append("wall_cream = [0.88, 0.82, 0.60];  // warm cream-yellow (match main house)")
     out.append("roof_teal = [0.10, 0.35, 0.33];  // dark teal-green metal (match main house)")
     out.append("color(wall_cream) union() {")
-    out.append(f"  // Lower walls (0 to {lower_in:.0f}\", door openings only)")
-    for label, _ in lower_section_data:
-        out.append(f"  linear_extrude(height = lower_height)")
-        out.append(f"    wall_shell(t_{label}, half_t);")
-    out.append(f"  // Middle walls ({lower_in:.0f}\" to {opening_in:.0f}\", all openings)")
-    for label, _ in section_data:
-        out.append(f"  translate([0, 0, lower_height])")
-        out.append(f"    linear_extrude(height = middle_height)")
-        out.append(f"      wall_shell(t_{label}, half_t);")
-    out.append(f"  // Upper wall ({opening_in:.0f}\" to sloped roof underside, full perimeter)")
-    out.append("  render() intersection() {")
-    out.append("    translate([0, 0, upper_base])")
-    out.append("      linear_extrude(height = max_upper_h)")
-    out.append("        wall_shell(t_full_upper, half_t);")
-    out.append("    multmatrix(roof_shear)")
-    out.append("      translate([-25, -20, -20])")
-    out.append("        cube([50, 40, 20]);")
-    out.append("  }")
+    for bi, (z1, z2, sec_data) in enumerate(bands):
+        z1_in = z1 * 12.0
+        z2_in = z2 * 12.0
+        h = z2 - z1
+        is_upper = all(lbl == "full" for lbl, _ in sec_data)
+        active_names = [lbl for lbl, _ in sec_data if lbl != "full"]
+        desc = "full perimeter" if not active_names else f"openings: {', '.join(active_names[:3])}"
+        out.append(f"  // Band {bi}: {z1_in:.0f}\" to {z2_in:.0f}\" — {desc}")
+        if is_upper:
+            out.append("  render() intersection() {")
+            for label, _ in sec_data:
+                scad_label = "full_upper" if label == "full" else label
+                if abs(z1) < 1e-9:
+                    out.append(f"    linear_extrude(height = {h:.6f})")
+                else:
+                    out.append(f"    translate([0, 0, {z1:.6f}])")
+                    out.append(f"      linear_extrude(height = {h:.6f})")
+                out.append(f"        wall_shell(t_{scad_label}, half_t);")
+            out.append("    multmatrix(roof_shear)")
+            out.append("      translate([-25, -20, -20])")
+            out.append("        cube([50, 40, 20]);")
+            out.append("  }")
+        else:
+            for label, _ in sec_data:
+                scad_label = "full_upper" if label == "full" else label
+                if abs(z1) < 1e-9:
+                    out.append(f"  linear_extrude(height = {h:.6f})")
+                else:
+                    out.append(f"  translate([0, 0, {z1:.6f}])")
+                    out.append(f"    linear_extrude(height = {h:.6f})")
+                out.append(f"      wall_shell(t_{scad_label}, half_t);")
     out.append("}")
     out.append(f"// Sloped roof slab ({roof_min_in:.0f}\", {roof_slope * 12:.0f}:12 slope N, "
                f"{roof_eave_elev:.1f}' at R19-R01)")
@@ -333,14 +290,17 @@ def generate(gd=None):
     out.append("          polygon(points = shell_pts(roof_outline, 0));")
     out.append("      }")
     out.append("}")
-    out.append("// Window panels (1\" opaque, middle wall openings only)")
+    out.append("// Window panels (1\" opaque, per-opening elevation range)")
     out.append("window_blue_grey = [0.80, 0.84, 0.90];")
     out.append("color(window_blue_grey) {")
-    for name, poly in window_panels:
+    for name, poly, bot, h in window_panels:
         pts_str = ", ".join(f"[{p[0]:.8f}, {p[1]:.8f}]" for p in poly)
         out.append(f"  // {name}")
-        out.append(f"  translate([0, 0, lower_height])")
-        out.append(f"    linear_extrude(height = middle_height)")
+        if abs(bot) < 1e-9:
+            out.append(f"  linear_extrude(height = {h:.6f})")
+        else:
+            out.append(f"  translate([0, 0, {bot:.6f}])")
+            out.append(f"    linear_extrude(height = {h:.6f})")
         out.append(f"      polygon(points = [{pts_str}]);")
     out.append("}")
     out.append("")

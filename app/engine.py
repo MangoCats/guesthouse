@@ -1059,14 +1059,18 @@ def _build_elements_from_formulas(ev, variant, exclusions, db_path):
 
         # Outer openings (O-prefixed, e.g. O1-O11 seed + user-created O12+)
         elif elem_type == "opening" and elem_name.startswith("O") and not elem_name.startswith("O_"):
+            from floorplan.constants import LOWER_WALL_HEIGHT, OPENING_HEIGHT
+            otype = props.get("opening_type", "window")
+            default_bottom = 0.0 if otype == "door" else LOWER_WALL_HEIGHT
             entry = {
                 "name": elem_name,
                 "seg_start": props.get("seg_start", ""),
                 "seg_end": props.get("seg_end", ""),
                 "poly": poly,
+                "opening_type": otype,
+                "bottom_elev": ev.constants.get(f"{elem_name}_BOTTOM_ELEV", default_bottom),
+                "top_elev":    ev.constants.get(f"{elem_name}_TOP_ELEV",    OPENING_HEIGHT),
             }
-            if props.get("opening_type"):
-                entry["opening_type"] = props["opening_type"]
             if props.get("product_url"):
                 entry["product_url"] = props["product_url"]
             outer_openings.append(entry)

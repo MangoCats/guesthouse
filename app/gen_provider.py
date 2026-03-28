@@ -457,8 +457,13 @@ def _db_openings_to_wall_openings(db_openings, outline_segs, pts):
         else:
             t1 = (poly[0][1] - A[1]) / dy
             t2 = (poly[1][1] - A[1]) / dy
+        from floorplan.constants import LOWER_WALL_HEIGHT, OPENING_HEIGHT
         otype = o.get("opening_type", "window")
-        result.append(WallOpening(o["name"], idx, min(t1, t2), max(t1, t2), otype))
+        default_bottom = 0.0 if otype == "door" else LOWER_WALL_HEIGHT
+        bottom_elev = o.get("bottom_elev", default_bottom)
+        top_elev    = o.get("top_elev",    OPENING_HEIGHT)
+        result.append(WallOpening(o["name"], idx, min(t1, t2), max(t1, t2),
+                                  otype, bottom_elev, top_elev))
     return result
 
 

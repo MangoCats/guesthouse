@@ -21,6 +21,7 @@ from floorplan.constants import (
     RO3_WIDTH, RO3_IW7_GAP,
     IW6_RO_OFFSET_W, IW6_RO_WIDTH,
     WALL_4IN,
+    LOWER_WALL_HEIGHT, OPENING_HEIGHT,
 )
 
 
@@ -49,7 +50,9 @@ class WallOpening(NamedTuple):
     seg_idx: int    # index in outline_segs (0-based)
     t_start: float  # parametric position [0, 1] along the segment
     t_end: float    # parametric position [0, 1] along the segment
-    opening_type: str = "window"  # "window", "casement", or "door"
+    opening_type: str = "window"   # "window", "casement", or "door"
+    bottom_elev: float = LOWER_WALL_HEIGHT  # feet above floor (default: 20" for windows)
+    top_elev: float = OPENING_HEIGHT        # feet above floor (default: 80")
 
 
 def _opening_quad(pts: dict[str, Point],
@@ -313,5 +316,7 @@ def outer_to_wall_openings(openings, outline_segs, pts):
         t1 = _seg_param(pts, seg, o.poly[0])
         t2 = _seg_param(pts, seg, o.poly[1])
         otype = getattr(o, "opening_type", "window")
-        result.append(WallOpening(o.name, idx, min(t1, t2), max(t1, t2), otype))
+        bottom = 0.0 if otype == "door" else LOWER_WALL_HEIGHT
+        result.append(WallOpening(o.name, idx, min(t1, t2), max(t1, t2),
+                                  otype, bottom, OPENING_HEIGHT))
     return result

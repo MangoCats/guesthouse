@@ -2242,6 +2242,15 @@ async function showProperties(type, name, data) {
       const w = Math.sqrt(dx * dx + dy * dy);
       addPropRow(tbody, "Actual width", fmtFtIn(w));
     }
+    // Elevation properties for outer openings
+    if (type === "opening" && data.name) {
+      const botName = `${data.name}_BOTTOM_ELEV`;
+      const topName = `${data.name}_TOP_ELEV`;
+      const botConst = App.state.constants.find(c => c.name === botName);
+      const topConst = App.state.constants.find(c => c.name === topName);
+      if (botConst) addPropRow(tbody, "Bot elev", formatConstValue(botConst), true, botName);
+      if (topConst) addPropRow(tbody, "Top elev", formatConstValue(topConst), true, topName);
+    }
     // SEL-7: Door properties for openings
     if ((type === "rough_opening" || type === "opening") && data.name) {
       showDoorProperties(tbody, data.name);
