@@ -14,8 +14,7 @@ const App = {
     zoom: 1,
     showPoints: true,
     showLabels: true,
-    showDims: false,
-    showUserDims: true,
+    showDims: true,
     showGrid: false,
     showOpenings: true,
     showFurniture: true,
@@ -101,7 +100,7 @@ function cacheElements() {
     "openings-table",
     "rough-openings-table", "interior-walls-table", "furniture-table",
     "props-empty", "props-detail", "props-title", "props-table",
-    "show-points", "show-labels", "show-dims", "show-user-dims", "show-grid",
+    "show-points", "show-labels", "show-dims", "show-grid",
     "show-openings", "show-furniture", "show-rooms",
     "show-doors", "show-clearance", "open-links", "show-areas", "show-site",
     "roof-style",
@@ -358,7 +357,7 @@ async function saveCurrentLayerConfig() {
   if (!v) return;
   const cfg = {
     points: App.state.showPoints, labels: App.state.showLabels,
-    dims: App.state.showDims, userDims: App.state.showUserDims,
+    dims: App.state.showDims,
     grid: App.state.showGrid,
     openings: App.state.showOpenings, furniture: App.state.showFurniture,
     rooms: App.state.showRooms, doors: App.state.showDoors,
@@ -379,7 +378,7 @@ function restoreLayerConfig() {
   const cfg = v?.layer_config || {};
   const map = {
     points: "showPoints", labels: "showLabels", dims: "showDims",
-    userDims: "showUserDims", grid: "showGrid",
+    grid: "showGrid",
     openings: "showOpenings", furniture: "showFurniture",
     rooms: "showRooms", doors: "showDoors",
     clearance: "showClearance", areas: "showAreas",
@@ -387,8 +386,7 @@ function restoreLayerConfig() {
   for (const [cfgKey, stateKey] of Object.entries(map)) {
     const val = cfg[cfgKey] !== undefined ? cfg[cfgKey] : App.state[stateKey];
     App.state[stateKey] = val;
-    const elKeyMap = { userDims: "show-user-dims" };
-    const elKey = elKeyMap[cfgKey] || (cfgKey === "points" ? "show-points" : `show-${cfgKey}`);
+    const elKey = cfgKey === "points" ? "show-points" : `show-${cfgKey}`;
     const el = App.els[elKey];
     if (el) el.checked = val;
   }
@@ -7420,7 +7418,7 @@ function setupEventListeners() {
   // Data-driven display toggle listeners
   const toggleMap = [
     ["show-points", "showPoints"], ["show-labels", "showLabels"],
-    ["show-dims", "showDims"], ["show-user-dims", "showUserDims"],
+    ["show-dims", "showDims"],
     ["show-openings", "showOpenings"], ["show-furniture", "showFurniture"],
     ["show-rooms", "showRooms"], ["show-doors", "showDoors"],
     ["show-clearance", "showClearance"], ["open-links", "openLinks"],
@@ -9024,20 +9022,16 @@ function setTool(tool) {
 
 function renderUserDimensions(g) {
   if (!g.user_dimensions) return;
-  if (!App.state.showDims && !App.state.showUserDims) return;
+  if (!App.state.showDims) return;
   const layer = App.els["layer-labels"];
 
   for (const ud of g.user_dimensions) {
     const p = ud.properties;
     if (!p.start || !p.end) continue;
-    const isBuiltin = p.source === "builtin";
-    // DIS-7: gate on appropriate toggle
-    if (isBuiltin && !App.state.showDims) continue;
-    if (!isBuiltin && !App.state.showUserDims) continue;
     const offset = p.offset || 0;
     const ax = p.start[0], ay = p.start[1];
     const bx = p.end[0], by = p.end[1];
-    const dimStyle = p.dim_style || (isBuiltin ? "solid" : "dashed");
+    const dimStyle = p.dim_style || "solid";
     const lineCls = dimStyle === "solid" ? "dim-line" : "user-dim-line";
     const labelCls = dimStyle === "solid" ? "dim-label" : "user-dim-label";
 
@@ -9054,11 +9048,12 @@ function renderUserDimensions(g) {
 
     // Extension lines (A→A', B→B')
     if (Math.abs(offset) > 0.01) {
+      const extCls = dimStyle === "solid" ? "dim-ext" : "user-dim-ext";
       layer.appendChild(svgEl("line", {
-        x1: ax, y1: -ay, x2: ax2, y2: -ay2, class: "user-dim-ext",
+        x1: ax, y1: -ay, x2: ax2, y2: -ay2, class: extCls,
       }));
       layer.appendChild(svgEl("line", {
-        x1: bx, y1: -by, x2: bx2, y2: -by2, class: "user-dim-ext",
+        x1: bx, y1: -by, x2: bx2, y2: -by2, class: extCls,
       }));
     }
 

@@ -419,8 +419,7 @@ def seed_builtin_dimensions(conn):
     Called from init_db() and reset_elements().
     """
     count = conn.execute(
-        "SELECT COUNT(*) FROM elements WHERE type = 'dimension' "
-        "AND json_extract(properties, '$.source') = 'builtin'"
+        "SELECT COUNT(*) FROM elements WHERE type = 'dimension'"
     ).fetchone()[0]
     if count >= len(BUILTIN_DIMENSIONS):
         return
@@ -433,7 +432,6 @@ def seed_builtin_dimensions(conn):
         if existing:
             continue
         props_dict = {
-            "source": "builtin",
             "start_anchor": dim["start_anchor"],
             "end_anchor": dim["end_anchor"],
             "offset": 0,

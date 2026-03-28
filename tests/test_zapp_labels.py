@@ -282,13 +282,13 @@ class TestGeometryOutput:
                 assert "pos" in le
 
     def test_geometry_has_builtin_dims(self, fresh_db):
-        """Fresh DB has builtin dimensions in user_dimensions."""
+        """Fresh DB has seeded dimensions in user_dimensions (no source distinction)."""
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, db_path=fresh_db)
-        builtin = [d for d in geom["user_dimensions"]
-                   if d["properties"].get("source") == "builtin"]
+        seeded = [d for d in geom["user_dimensions"]
+                  if d["name"].startswith("dim")]
         # Standard variant: 20 normal dims (no dim12bare, dim20, dim21)
-        assert len(builtin) == 20
+        assert len(seeded) == 20
 
 
 # ── Anchor resolution ───────────────────────────────────────────────
@@ -473,7 +473,6 @@ class TestBuiltinDimensionSeeding:
             if e["type"] != "dimension":
                 continue
             props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
-            assert props["source"] == "builtin"
             assert "start_anchor" in props
             assert "end_anchor" in props
 
@@ -763,9 +762,9 @@ class TestDimensionVariantFiltering:
         """Bare variant: 20 normal dims - 2 (dim12a/b) + 3 (bare-only) = 21."""
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, variant="bare", db_path=fresh_db)
-        builtin = [d for d in geom["user_dimensions"]
-                   if d["properties"].get("source") == "builtin"]
-        assert len(builtin) == 21
+        seeded = [d for d in geom["user_dimensions"]
+                  if d["name"].startswith("dim")]
+        assert len(seeded) == 21
 
 
 class TestPropertiesVariantsFiltering:
@@ -817,11 +816,11 @@ class TestBuiltinDimGeometry:
     """Builtin dimensions resolve to valid coordinates."""
 
     def test_all_builtin_dims_resolve(self, fresh_db):
-        """Every builtin dim has resolved start and end coordinates."""
+        """Every seeded dim has resolved start and end coordinates."""
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, db_path=fresh_db)
         builtin = [d for d in geom["user_dimensions"]
-                   if d["properties"].get("source") == "builtin"]
+                   if d["name"].startswith("dim")]
         for dim in builtin:
             p = dim["properties"]
             assert "start" in p, f"{dim['name']} missing start"

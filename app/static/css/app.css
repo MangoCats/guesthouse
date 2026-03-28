@@ -622,6 +622,7 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
 }
 
 .dim-line { stroke: var(--text-dim); stroke-width: 0.02; }
+.dim-ext  { stroke: var(--text-dim); stroke-width: 0.008; opacity: 0.5; }
 .dim-label {
   font-family: sans-serif;
   font-size: 0.3px;
