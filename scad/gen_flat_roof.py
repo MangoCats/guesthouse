@@ -209,8 +209,12 @@ def generate(gd=None):
         label = f"{start_op.name}_{end_op.name}"
         section_data.append((label, tpath))
 
-    # Door-only T-path: lower walls (0-20") with only O3, O6
-    door_openings = [op for op in openings if op.name in ("O3", "O6")]
+    # Door opening names: from DB (gd.door_opening_names) or seed defaults
+    _door_names = (getattr(gd, 'door_opening_names', None)
+                   if gd is not None else None) or {"O3", "O6"}
+
+    # Door-only T-path: lower walls (0-20") with only door openings
+    door_openings = [op for op in openings if op.name in _door_names]
     lower_sections = enumerate_wall_sections(door_openings, outline_segs)
     lower_sections = lower_sections[-1:] + lower_sections[:-1]
 
@@ -222,12 +226,11 @@ def generate(gd=None):
         label = f"lower_{start_op.name}_{end_op.name}"
         lower_section_data.append((label, tpath))
 
-    # Window openings: open in middle wall only (not doors O3/O6, not O4)
-    window_names = {"O1", "O2", "O5", "O7", "O8", "O8a", "O9", "O10", "O11"}
+    # Window panels: non-door openings rendered as 1" opaque panels
     window_panels = []
     panel_half = 0.5 / 12.0  # 1" thick panel, half-thickness in feet
     for op in openings:
-        if op.name not in window_names:
+        if op.name in _door_names:
             continue
         seg = outline_segs[op.seg_idx]
         iseg = inner_segs[op.seg_idx]
@@ -247,10 +250,14 @@ def generate(gd=None):
             (M_s[0] - nx * panel_half, M_s[1] - ny * panel_half),
         ]))
 
-    # Full-wall T-path: only O4 retained (upper wall band)
+    # Full-wall T-path: O4 if present (upper wall band); else seam at first opening
     o4_openings = [op for op in openings if op.name == "O4"]
     full_sections = enumerate_wall_sections(o4_openings, outline_segs)
-    full_start, full_end = full_sections[0]
+    if full_sections:
+        full_start, full_end = full_sections[0]
+    else:
+        # No dedicated upper-band opening — wrap full perimeter at first seam
+        full_start = full_end = sections[0][0]
     full_tpath = _build_tpath(
         pts, outline_segs, inner_segs, tf_segs, tw_segs,
         full_start, full_end, shell_t, R_in, tw_ov, full_wrap=True)

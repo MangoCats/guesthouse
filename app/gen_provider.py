@@ -778,4 +778,19 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
                        roof_corners_data=roof_corners_data)
     if iw_polys:
         gd.iw_polys = iw_polys
+
+    # Door opening names from DB (for SCAD wall-tier selection)
+    gd.door_opening_names = set()
+    if db_path is not None:
+        try:
+            import sqlite3
+            _con = sqlite3.connect(db_path)
+            gd.door_opening_names = {
+                r[0] for r in _con.execute(
+                    "SELECT opening_name FROM doors").fetchall()
+            }
+            _con.close()
+        except Exception:
+            pass
+
     return gd
