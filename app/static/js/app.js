@@ -69,6 +69,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadElements();  // must complete before first render
   loadPlumbingElements();
   await loadVariants();  // populate variant dropdown before geometry
+  restoreLayerConfig();  // sync checkboxes to saved state on initial load
   updateDeleteVariantBtn();
   loadPivotState();
   loadGeometry();
@@ -362,6 +363,7 @@ async function saveCurrentLayerConfig() {
     openings: App.state.showOpenings, furniture: App.state.showFurniture,
     rooms: App.state.showRooms, doors: App.state.showDoors,
     clearance: App.state.showClearance, areas: App.state.showAreas,
+    openLinks: App.state.openLinks, site: App.state.showSite,
   };
   try {
     await apiFetch(`/api/variants/${v.id}`, {
@@ -382,11 +384,14 @@ function restoreLayerConfig() {
     openings: "showOpenings", furniture: "showFurniture",
     rooms: "showRooms", doors: "showDoors",
     clearance: "showClearance", areas: "showAreas",
+    openLinks: "openLinks", site: "showSite",
   };
+  // cfgKey → element id overrides (keys that don't follow show-{cfgKey} pattern)
+  const elIdOverrides = { points: "show-points", openLinks: "open-links" };
   for (const [cfgKey, stateKey] of Object.entries(map)) {
     const val = cfg[cfgKey] !== undefined ? cfg[cfgKey] : App.state[stateKey];
     App.state[stateKey] = val;
-    const elKey = cfgKey === "points" ? "show-points" : `show-${cfgKey}`;
+    const elKey = elIdOverrides[cfgKey] || `show-${cfgKey}`;
     const el = App.els[elKey];
     if (el) el.checked = val;
   }
