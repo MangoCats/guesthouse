@@ -542,21 +542,21 @@ class TestTL26ShapeEditor:
 
 
 # =========================================================================
-# DIS-7: User Dimensions Toggle
+# DIS-7: Dimensions Toggle (unified — no builtin/user distinction)
 # =========================================================================
 
 class TestDIS7UserDimsToggle:
-    """DIS-7: Separate User Dims toggle."""
+    """DIS-7: Single Dims toggle covers all dimensions (no source distinction)."""
 
-    def test_user_dims_checkbox_in_template(self, app_client):
-        """index.html contains the show-user-dims checkbox."""
+    def test_dims_checkbox_in_template(self, app_client):
+        """index.html contains the show-dims checkbox (unified toggle)."""
         resp = app_client.get("/")
         assert resp.status_code == 200
         html = resp.data.decode()
-        assert 'id="show-user-dims"' in html
+        assert 'id="show-dims"' in html
 
-    def test_geometry_has_builtin_and_user_dims(self, app_client):
-        """Geometry response contains both builtin and user-created dims."""
+    def test_geometry_has_seeded_and_user_dims(self, app_client):
+        """Geometry response contains both seeded and user-created dims, no source field."""
         # Create a user dimension
         app_client.post("/api/elements", json={
             "type": "dimension",
@@ -569,15 +569,14 @@ class TestDIS7UserDimsToggle:
         resp = app_client.get("/api/geometry")
         data = resp.get_json()
         dims = data.get("user_dimensions", [])
-        sources = set()
+        names = {d["name"] for d in dims}
+        # Should have both seeded (dim*) and user-created (test_dim1)
+        assert any(n.startswith("dim") for n in names)
+        assert "test_dim1" in names
+        # No dimension should carry a source field
         for d in dims:
             p = d.get("properties", {})
-            if isinstance(p, str):
-                p = json.loads(p)
-            sources.add(p.get("source", "user"))
-        # Should have both builtin (seeded) and user-created
-        assert "builtin" in sources
-        assert "user" in sources or None in sources
+            assert "source" not in p, f"{d['name']} still has source field"
 
 
 # =========================================================================
