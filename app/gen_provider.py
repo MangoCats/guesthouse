@@ -457,7 +457,8 @@ def _db_openings_to_wall_openings(db_openings, outline_segs, pts):
         else:
             t1 = (poly[0][1] - A[1]) / dy
             t2 = (poly[1][1] - A[1]) / dy
-        result.append(WallOpening(o["name"], idx, min(t1, t2), max(t1, t2)))
+        otype = o.get("opening_type", "window")
+        result.append(WallOpening(o["name"], idx, min(t1, t2), max(t1, t2), otype))
     return result
 
 
@@ -778,19 +779,5 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
                        roof_corners_data=roof_corners_data)
     if iw_polys:
         gd.iw_polys = iw_polys
-
-    # Door opening names from DB (for SCAD wall-tier selection)
-    gd.door_opening_names = set()
-    if db_path is not None:
-        try:
-            import sqlite3
-            _con = sqlite3.connect(db_path)
-            gd.door_opening_names = {
-                r[0] for r in _con.execute(
-                    "SELECT opening_name FROM doors").fetchall()
-            }
-            _con.close()
-        except Exception:
-            pass
 
     return gd

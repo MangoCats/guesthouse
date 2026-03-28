@@ -30,6 +30,7 @@ class OuterOpening(NamedTuple):
     seg_start: str       # e.g., "F2" — outline segment start point
     seg_end: str         # e.g., "F5" — outline segment end point
     poly: list[Point]    # 4 vertices: [outer_start, outer_end, inner_end, inner_start]
+    opening_type: str = "window"  # "window", "casement", or "door"
 
 
 class RoughOpening(NamedTuple):
@@ -48,6 +49,7 @@ class WallOpening(NamedTuple):
     seg_idx: int    # index in outline_segs (0-based)
     t_start: float  # parametric position [0, 1] along the segment
     t_end: float    # parametric position [0, 1] along the segment
+    opening_type: str = "window"  # "window", "casement", or "door"
 
 
 def _opening_quad(pts: dict[str, Point],
@@ -82,7 +84,7 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     _t3_end = 1 - O3_GAP_F5 / _seg2_len       # closer to F5
     _t3_start = 1 - (O3_GAP_F5 + O3_WIDTH) / _seg2_len  # farther from F5
     openings.append(OuterOpening("O3", "F2", "F5",
-        _opening_quad(pts, "F2", "F5", "W2", "W5", _t3_start, _t3_end)))
+        _opening_quad(pts, "F2", "F5", "W2", "W5", _t3_start, _t3_end), "door"))
 
     # O2: F2-F5, 48" south of O3
     _t2_end = _t3_start - O2_GAP_O3 / _seg2_len    # north edge, 48" south of O3
@@ -121,7 +123,7 @@ def compute_outer_openings(pts: dict[str, Point], layout) -> list[OuterOpening]:
     _t6_end = 1.0 - O6_GAP_F10 / _seg56_len
     _t6_start = _t6_end - O6_WIDTH / _seg56_len
     openings.append(OuterOpening("O6", "F9", "F10",
-        _opening_quad(pts, "W9", "W10", "F9", "F10", _t6_start, _t6_end)))
+        _opening_quad(pts, "W9", "W10", "F9", "F10", _t6_start, _t6_end), "door"))
 
     # O7: F12-F13, diagonal — NW end 2' from F12, 6' opening
     dE, dN, seg_len = seg_vec(pts["F12"], pts["F13"])
@@ -310,5 +312,6 @@ def outer_to_wall_openings(openings, outline_segs, pts):
         seg = outline_segs[idx]
         t1 = _seg_param(pts, seg, o.poly[0])
         t2 = _seg_param(pts, seg, o.poly[1])
-        result.append(WallOpening(o.name, idx, min(t1, t2), max(t1, t2)))
+        otype = getattr(o, "opening_type", "window")
+        result.append(WallOpening(o.name, idx, min(t1, t2), max(t1, t2), otype))
     return result

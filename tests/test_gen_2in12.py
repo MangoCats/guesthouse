@@ -56,10 +56,10 @@ class TestGenerate2in12:
     def test_three_tier_walls(self, scad_content):
         assert "lower_height" in scad_content
         assert "middle_height" in scad_content
-        assert "t_full_O4 = [" in scad_content
+        assert "t_full_upper = [" in scad_content
         assert "upper_base" in scad_content
         assert "max_upper_h" in scad_content
-        assert "wall_shell(t_full_O4, half_t);" in scad_content
+        assert "wall_shell(t_full_upper, half_t);" in scad_content
 
     def test_2in12_specific_features(self, scad_content):
         assert "roof_shear" in scad_content

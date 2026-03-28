@@ -283,10 +283,10 @@ class TestGenerate:
     def test_output_three_tier_walls(self, scad_content):
         assert "lower_height" in scad_content
         assert "middle_height" in scad_content
-        assert "t_full_O4 = [" in scad_content
+        assert "t_full_upper = [" in scad_content
         assert "upper_base" in scad_content
         assert "upper_height" in scad_content
-        assert "wall_shell(t_full_O4, half_t);" in scad_content
+        assert "wall_shell(t_full_upper, half_t);" in scad_content
 
     def test_output_wedge_roof(self, scad_content):
         assert "translate([0, 0, upper_base + upper_height])" in scad_content
