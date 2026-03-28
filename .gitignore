@@ -1,6 +1,7 @@
 *.svg
 *.pdf
 *.png
+*.scad
 .coverage
 __pycache__/
 adu.egg-info/
