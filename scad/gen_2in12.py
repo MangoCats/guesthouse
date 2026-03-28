@@ -175,9 +175,11 @@ def generate(gd=None):
         openings = gd.openings
         radii = gd.radii
 
-    shell_t = SHELL_THICKNESS
+    _consts = gd.constants if gd is not None else {}
+    shell_t = _consts.get('SHELL_THICKNESS', SHELL_THICKNESS)
     shell_half = shell_t / 2.0
-    R_in = OPENING_INSIDE_RADIUS
+    R_in = _consts.get('OPENING_INSIDE_RADIUS', OPENING_INSIDE_RADIUS)
+    wall_outer = _consts.get('WALL_OUTER', WALL_OUTER)
 
     # Compute TF-series (shell centerline, shell_half from F-face)
     tf_pts, tf_segs = compute_inset_path(outline_segs, pts, radii,
@@ -186,14 +188,14 @@ def generate(gd=None):
 
     # Compute TW-series (shell centerline, shell_half from W-face)
     tw_pts, tw_segs = compute_inset_path(outline_segs, pts, radii,
-                                          WALL_OUTER - shell_half, "TW")
+                                          wall_outer - shell_half, "TW")
     pts.update(tw_pts)
 
     # F8-F9 override for TW-side only (straight-arc-straight at 7" inset)
     _f8f9_idx = next((i for i, s in enumerate(outline_segs)
                       if s.start == "F8" and s.end == "F9"), None)
-    tw_ov = {_f8f9_idx: _f8f9_elems(pts, WALL_OUTER - shell_half,
-                             OPENING_INSIDE_RADIUS + shell_half)} if _f8f9_idx is not None else {}
+    tw_ov = {_f8f9_idx: _f8f9_elems(pts, wall_outer - shell_half,
+                             R_in + shell_half)} if _f8f9_idx is not None else {}
 
     sections = enumerate_wall_sections(openings, outline_segs)
     sections = sections[-1:] + sections[:-1]
@@ -206,15 +208,32 @@ def generate(gd=None):
         label = f"{start_op.name}_{end_op.name}"
         section_data.append((label, tpath))
 
-    # Roof outline polygon and slope parameters
-    roof_geo = compute_roof_geometry(pts, radii)
-    roof_pts = roof_polyline(roof_geo)
-    ref_y = pts["F18"][1]  # F18-F1 northing (south reference)
-    roof_z_offset = ROOF_REF_ELEV_FT - ROOF_SLOPE * ref_y
-    max_roof_y = max(y for _, y in roof_pts)
+    # Roof outline: T-path arc/line segments + sampled polygon for bounds
+    # DB-driven when roof corners are configured; F-series fallback otherwise.
+    _rc = getattr(gd, '_roof_corners_data', None) if gd is not None else None
+    if _rc and _rc.get("corners"):
+        from shared.roof_outline import db_roof_segments
+        _corner_names = [c["center"] for c in _rc["corners"]]
+        _corner_rad    = [c.get("radiused", False) for c in _rc["corners"]]
+        _overhang      = float(_rc.get("overhang", 0.5))
+        roof_elems = db_roof_segments(_corner_names, _corner_rad, pts, radii, _overhang)
+        roof_pts = list(gd.roof_poly) if getattr(gd, 'roof_poly', None) else []
+    elif gd is not None and getattr(gd, 'roof', None) and hasattr(gd.roof, 'r3_radius'):
+        roof_elems = roof_segments(gd.roof)
+        roof_pts = list(gd.roof_poly)
+    else:
+        roof_geo = compute_roof_geometry(pts, radii)
+        roof_elems = roof_segments(roof_geo)
+        roof_pts = roof_polyline(roof_geo)
+    if not roof_pts:
+        roof_pts = roof_polyline(compute_roof_geometry(pts, radii))
     min_roof_y = min(y for _, y in roof_pts)
+    max_roof_y = max(y for _, y in roof_pts)
     min_roof_x = min(x for x, _ in roof_pts)
     max_roof_x = max(x for x, _ in roof_pts)
+    # Reference elevation at south edge of roof outline (R19-R01 = low side of shed roof)
+    ref_y = min_roof_y
+    roof_z_offset = ROOF_REF_ELEV_FT - ROOF_SLOPE * ref_y
     max_roof_z = ROOF_SLOPE * max_roof_y + roof_z_offset
     max_upper_h = max_roof_z - UPPER_BASE_FT  # generous upper wall height
 
@@ -335,9 +354,6 @@ def generate(gd=None):
     out.append("              [0, roof_slope, 1, roof_z_off], [0,0,0,1]];")
     out.append("")
 
-    # Roof outline as vector/arc segments
-    roof_elems = roof_segments(roof_geo)
-
     # Collect all T-path data (lower + middle + full-wall + roof) for alignment
     all_entries = (list(lower_section_data) + list(section_data)
                    + [("full_O4", full_tpath)])
@@ -392,8 +408,8 @@ def generate(gd=None):
     out.append("];")
     out.append("")
 
-    # Emit roof outline as vector/arc segments
-    out.append("// Roof outline (R-series, 6\" overhang from F-face)")
+    # Emit roof outline as arc/line T-path segments
+    out.append("// Roof outline (DB-driven, south edge = R19-R01 low side of shed roof)")
     out.append("roof_outline = [")
     for elem, data_part in zip(roof_elems, roof_parts):
         pad = max(1, max_data_width + 1 - len(data_part))

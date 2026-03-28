@@ -232,25 +232,17 @@ class TestTpathStructure:
         assert len(matches) == 12
 
     def test_roof_outline_is_segments(self, scad_content):
-        """roof_outline uses [0,...] / [1,...] segment format, not [x,y]."""
+        """roof_outline uses [0,...] / [1,...] T-path segment format."""
         m = re.search(r'roof_outline = \[\n(.*?)\];',
                       scad_content, re.DOTALL)
         assert m, "roof_outline not found"
         body = m.group(1)
-        # Every data line should start with [0, or [1,
         data_lines = [l.strip() for l in body.split('\n')
                       if l.strip() and not l.strip().startswith('//')]
+        assert len(data_lines) >= 6  # at least 6 segments (N corners + N lines)
         for line in data_lines:
             assert line.startswith('[0,') or line.startswith('[1,'), \
                 f"unexpected format: {line[:40]}"
-
-    def test_roof_outline_segment_count(self, scad_content):
-        m = re.search(r'roof_outline = \[\n(.*?)\];',
-                      scad_content, re.DOTALL)
-        body = m.group(1)
-        data_lines = [l.strip() for l in body.split('\n')
-                      if l.strip() and not l.strip().startswith('//')]
-        assert len(data_lines) == 8
 
 
 # ── integration test ──────────────────────────────────────────
