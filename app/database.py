@@ -338,6 +338,8 @@ def init_db(db_path=None):
             _migrate_iw_prop_constants(conn)
             # Remove drawn CW walls (superseded by formula-based IW system)
             _migrate_remove_drawn_walls(conn)
+            # Fix stale/duplicate seeded opening formulas; migrate user openings to constants
+            _migrate_opening_formulas(conn)
             # Ensure new catalog entries exist
             _seed_catalog_items(conn, db_path)
             # Ensure nordviken element record exists in elements table
@@ -647,6 +649,144 @@ def _migrate_remove_drawn_walls(conn):
         conn.execute("DELETE FROM elements WHERE id=?", (eid,))
 
 
+def _migrate_opening_formulas(conn):
+    """Fix stale/duplicate seeded opening formulas and migrate user-created openings to constants.
+
+    Seeded openings (O1-O11, O8a): any formula whose outer_start/outer_end disagrees
+    with the canonical definition is deleted and re-seeded.  Duplicate NULL-variant rows
+    for the same opening are collapsed.  Element properties and formula_deps are rebuilt.
+
+    User-created openings (O12+): literal gap/width values are replaced with named
+    constants <NAME>_GAP / <NAME>_WIDTH so the opening is DB-driven and editable,
+    identical in structure to seeded openings.
+    """
+    from app.evaluator import get_outer_opening_formulas, extract_deps
+
+    # Canonical opening_type per seed definition (mirrors _OUTER_OPENINGS in _seed_elements)
+    _canon_otypes = {
+        "O1": "window", "O2": "window", "O3": "door",
+        "O4": "window", "O5": "window", "O6": "door",
+        "O7": "window", "O8": "casement", "O8a": "window",
+        "O9": "casement", "O10": "casement", "O11": "window",
+    }
+
+    # --- Part 1: seeded openings ---
+    canonical = get_outer_opening_formulas()
+    for name, canon_formula in canonical.items():
+        rows = conn.execute(
+            "SELECT id, formula_json FROM element_formulas "
+            "WHERE element_name=? AND param_name='position' AND variant IS NULL",
+            (name,)
+        ).fetchall()
+        if not rows:
+            continue
+
+        canon_os = canon_formula.get("outer_start")
+        canon_oe = canon_formula.get("outer_end")
+        correct_ids, wrong_ids = [], []
+        for r in rows:
+            f = json.loads(r["formula_json"])
+            if f.get("outer_start") == canon_os and f.get("outer_end") == canon_oe:
+                correct_ids.append(r["id"])
+            else:
+                wrong_ids.append(r["id"])
+
+        for id_ in wrong_ids:
+            conn.execute("DELETE FROM element_formulas WHERE id=?", (id_,))
+        if len(correct_ids) > 1:
+            for id_ in sorted(correct_ids)[1:]:
+                conn.execute("DELETE FROM element_formulas WHERE id=?", (id_,))
+
+        needs_reseed = not correct_ids
+        if needs_reseed:
+            conn.execute(
+                "INSERT INTO element_formulas "
+                "(element_name, param_name, formula_json, variant) VALUES (?, 'position', ?, NULL)",
+                (name, json.dumps(canon_formula)),
+            )
+
+        # Rebuild deps whenever anything changed (wrong rows deleted or re-seeded)
+        if wrong_ids or needs_reseed:
+            conn.execute(
+                "DELETE FROM formula_deps WHERE element_name=? AND param_name='position'", (name,)
+            )
+            src = canon_formula if needs_reseed else json.loads(
+                conn.execute(
+                    "SELECT formula_json FROM element_formulas "
+                    "WHERE element_name=? AND param_name='position' AND variant IS NULL",
+                    (name,)
+                ).fetchone()["formula_json"]
+            )
+            for dep_type, dep_name in extract_deps(src):
+                conn.execute(
+                    "INSERT OR IGNORE INTO formula_deps "
+                    "(element_name, param_name, dep_type, dep_name) VALUES (?, 'position', ?, ?)",
+                    (name, dep_type, dep_name),
+                )
+            # Fix element properties if segment names were wrong
+            elem_row = conn.execute(
+                "SELECT properties FROM elements WHERE name=?", (name,)
+            ).fetchone()
+            if elem_row:
+                props = json.loads(elem_row["properties"] or "{}")
+                canon_otype = _canon_otypes.get(name)
+                changed = False
+                if props.get("seg_start") != canon_os or props.get("seg_end") != canon_oe:
+                    props["seg_start"] = canon_os
+                    props["seg_end"]   = canon_oe
+                    changed = True
+                if canon_otype and props.get("opening_type") != canon_otype:
+                    props["opening_type"] = canon_otype
+                    changed = True
+                if changed:
+                    conn.execute(
+                        "UPDATE elements SET properties=? WHERE name=?",
+                        (json.dumps(props), name)
+                    )
+
+    # --- Part 2: user-created openings (O12+) with literal gap/width ---
+    rows = conn.execute(
+        "SELECT id, element_name, formula_json FROM element_formulas "
+        "WHERE param_name='position' AND variant IS NULL "
+        "AND element_name GLOB 'O[0-9][0-9]*'"
+    ).fetchall()
+    for id_, name, fj in rows:
+        f = json.loads(fj)
+        gap   = f.get("gap")
+        width = f.get("width")
+        if isinstance(gap, dict) or isinstance(width, dict):
+            continue  # already uses constants
+        if gap is None or width is None:
+            continue
+        gap_const   = f"{name}_GAP"
+        width_const = f"{name}_WIDTH"
+        seg_start = f.get("outer_start", "")
+        conn.execute(
+            "INSERT OR IGNORE INTO constants "
+            "(name, value, expr, unit, category, description) VALUES (?, ?, ?, 'ft', 'opening', ?)",
+            (gap_const,   gap,   _ft_to_expr(gap),   f"Gap from {seg_start} to near edge of {name}"),
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO constants "
+            "(name, value, expr, unit, category, description) VALUES (?, ?, ?, 'ft', 'opening', ?)",
+            (width_const, width, _ft_to_expr(width), f"{name} opening width"),
+        )
+        f["gap"]   = {"const": gap_const}
+        f["width"] = {"const": width_const}
+        conn.execute(
+            "UPDATE element_formulas SET formula_json=? WHERE id=?", (json.dumps(f), id_)
+        )
+        conn.execute(
+            "DELETE FROM formula_deps WHERE element_name=? AND param_name='position'", (name,)
+        )
+        for dep_type, dep_name in extract_deps(f):
+            conn.execute(
+                "INSERT OR IGNORE INTO formula_deps "
+                "(element_name, param_name, dep_type, dep_name) VALUES (?, 'position', ?, ?)",
+                (name, dep_type, dep_name),
+            )
+
+
 def _next_iw_name(conn):
     """Return the next unused IW{N} name (pure numeric suffix, guaranteed ≥ IW13)."""
     rows = conn.execute(
@@ -707,6 +847,14 @@ def _next_outer_opening_name(conn):
     return f"O{max(nums, default=11) + 1}"
 
 
+def _ft_to_expr(feet):
+    """Return a symbolic expression string for a feet value (e.g. '25.0 / 12.0')."""
+    inches = feet * 12.0
+    if abs(round(inches) - inches) < 1e-6:
+        return f"{int(round(inches))}.0 / 12.0"
+    return f"{round(inches, 4)} / 12.0"
+
+
 def create_outer_opening_element(conn, seg_start, seg_end, gap, width,
                                  opening_type="window"):
     """Create a new user outer opening element on a straight outer wall segment.
@@ -719,12 +867,29 @@ def create_outer_opening_element(conn, seg_start, seg_end, gap, width,
     Inner wall endpoints are derived by substituting the first character
     ("F" or "P") with "W" (e.g. "F2"→"W2", "PA0"→"WA0").
 
+    Named constants <NAME>_GAP and <NAME>_WIDTH are created in the constants
+    table so the opening geometry is fully DB-driven and editable, identical
+    in structure to seeded openings.
+
     Returns (name, row_dict).
     """
     from app.evaluator import extract_deps
     inner_start = "W" + seg_start[1:]
     inner_end   = "W" + seg_end[1:]
     name = _next_outer_opening_name(conn)
+    gap_const   = f"{name}_GAP"
+    width_const = f"{name}_WIDTH"
+    # Seed named constants so the opening is editable like any seeded opening
+    conn.execute(
+        "INSERT OR REPLACE INTO constants "
+        "(name, value, expr, unit, category, description) VALUES (?, ?, ?, 'ft', 'opening', ?)",
+        (gap_const,   gap,   _ft_to_expr(gap),   f"Gap from {seg_start} to near edge of {name}"),
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO constants "
+        "(name, value, expr, unit, category, description) VALUES (?, ?, ?, 'ft', 'opening', ?)",
+        (width_const, width, _ft_to_expr(width), f"{name} opening width"),
+    )
     props = json.dumps({
         "seg_start":    seg_start,
         "seg_end":      seg_end,
@@ -741,8 +906,8 @@ def create_outer_opening_element(conn, seg_start, seg_end, gap, width,
         "inner_start": inner_start,
         "inner_end":   inner_end,
         "from_end":    False,
-        "gap":         gap,
-        "width":       width,
+        "gap":         {"const": gap_const},
+        "width":       {"const": width_const},
     }
     fj = json.dumps(formula)
     conn.execute(
