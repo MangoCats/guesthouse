@@ -1041,8 +1041,8 @@ function renderClearanceZones(g, overrides) {
   if (!App.state.showClearance) return;
   const layer = App.els["layer-clearance"];
   for (const cz of (g.clearance_zones || [])) {
-    // Extract parent item name from "itemname_clearance"
-    const parentName = cz.name.replace(/_clearance$/, "");
+    // Extract parent item name from "itemname_clearance" or "itemname_clearance_N"
+    const parentName = cz.parent || cz.name.replace(/_clearance(_\d+)?$/, "");
     const [ox, oy] = itemOffset(overrides, parentName);
     let poly = cz.poly;
     if (ox !== 0 || oy !== 0) {

@@ -343,8 +343,27 @@ def init_db(db_path=None):
             _migrate_iw_prop_constants(conn)
             # Remove drawn CW walls (superseded by formula-based IW system)
             _migrate_remove_drawn_walls(conn)
-            # Ensure new catalog entries exist (Phase 21 upgrade: washer_sm, dryer_sm)
+            # Ensure new catalog entries exist (Phase 21 upgrade: washer_sm, dryer_sm;
+            # Phase 22 upgrade: nordviken)
             _seed_catalog_items(conn, db_path)
+            # Ensure nordviken element record exists in elements table
+            for _name, _type, _props, _variant in _VARIANT_ITEMS:
+                if _name == "nordviken":
+                    conn.execute(
+                        "INSERT OR IGNORE INTO elements (type, name, properties, variant) "
+                        "VALUES (?, ?, ?, ?)",
+                        (_type, _name, json.dumps(_props), _variant),
+                    )
+                    break
+            # Ensure NORDVIKEN dimension constants exist
+            for _cname, _val_in, _cat, _desc in _VARIANT_ITEM_CONSTANTS:
+                if _cname.startswith("NORDVIKEN"):
+                    conn.execute(
+                        "INSERT OR IGNORE INTO constants "
+                        "(name, value, expr, unit, category, description) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (_cname, _val_in / 12.0, f"{_val_in} / 12.0", "ft", _cat, _desc),
+                    )
     # Seed anchor/pivot defaults after DB is committed (needs constants table)
     if fresh:
         _seed_default_anchor_pivot(db_path)
@@ -901,6 +920,8 @@ _VARIANT_ITEM_CONSTANTS = [
     ("STD_FRIDGE_D",     35.0,   "appliance",  "Standard fridge depth"),
     ("SOFA_FULL_W",      80.75,  "furniture",  "Full sofa width"),
     ("SOFA_FULL_D",      34.625, "furniture",  "Full sofa depth"),
+    ("NORDVIKEN_L",      82.625, "furniture",  "NORDVIKEN extendable table core length"),
+    ("NORDVIKEN_W",      41.375, "furniture",  "NORDVIKEN extendable table width"),
 ]
 
 
@@ -1523,6 +1544,20 @@ _VARIANT_ITEMS = [
     }, None),
     ("dining_chair_2", "furniture", {
         "label": "CHAIR", "item_type": "furniture", "shape": "rect",
+        "variants": _VI_ALL,
+    }, None),
+    ("nordviken", "furniture", {
+        "label": "TABLE",
+        "item_type": "furniture",
+        "shape": "rect",
+        "width": 82.625 / 12.0,
+        "depth": 41.375 / 12.0,
+        "product_url": "https://www.ikea.com/us/en/p/nordviken-extendable-table-antique-stain-00488543/#content",
+        # Clearance on each short end represents 15 9/16" extension leaf (collapsed: 82 5/8", extended: 113 3/4")
+        "clearance": [
+            {"face": [1, 2], "distance": 15.5625 / 12.0},
+            {"face": [3, 0], "distance": 15.5625 / 12.0},
+        ],
         "variants": _VI_ALL,
     }, None),
     # --- Bedroom ---

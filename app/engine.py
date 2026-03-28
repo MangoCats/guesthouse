@@ -263,34 +263,41 @@ def _compute_clearance_zones(variant, variant_items=None):
             cl = item.get("clearance")
             if not cl:
                 continue
-            face = cl["face"]  # [i, j] vertex indices
-            dist = cl["distance"]
+            # Support single clearance dict or list of clearance dicts
+            cl_list = cl if isinstance(cl, list) else [cl]
             poly = item["poly"]  # [[e,n], ...]
-            p_i = poly[face[0]]
-            p_j = poly[face[1]]
-            # Compute face direction and perpendicular
-            dx = p_j[0] - p_i[0]
-            dy = p_j[1] - p_i[1]
-            face_len = math.sqrt(dx**2 + dy**2)
-            if face_len < 1e-12:
-                continue
-            # Right-hand perpendicular of face direction
-            perp = (-dy / face_len, dx / face_len)
-            # Check that perp points away from item centroid
             cx = sum(p[0] for p in poly) / len(poly)
             cy = sum(p[1] for p in poly) / len(poly)
-            mid = ((p_i[0] + p_j[0]) / 2, (p_i[1] + p_j[1]) / 2)
-            to_center = (cx - mid[0], cy - mid[1])
-            if perp[0] * to_center[0] + perp[1] * to_center[1] > 0:
-                perp = (-perp[0], -perp[1])  # flip to point outward
-            # Build extension polygon
-            ext_i = (p_i[0] + dist * perp[0], p_i[1] + dist * perp[1])
-            ext_j = (p_j[0] + dist * perp[0], p_j[1] + dist * perp[1])
-            zones.append({
-                "name": f"{item_name}_clearance",
-                "poly": [list(p_i), list(p_j), list(ext_j), list(ext_i)],
-                "style": "dashed",
-            })
+            for cl_idx, cl_item in enumerate(cl_list):
+                face = cl_item["face"]  # [i, j] vertex indices
+                dist = cl_item["distance"]
+                p_i = poly[face[0]]
+                p_j = poly[face[1]]
+                # Compute face direction and perpendicular
+                dx = p_j[0] - p_i[0]
+                dy = p_j[1] - p_i[1]
+                face_len = math.sqrt(dx**2 + dy**2)
+                if face_len < 1e-12:
+                    continue
+                # Right-hand perpendicular of face direction
+                perp = (-dy / face_len, dx / face_len)
+                # Check that perp points away from item centroid
+                mid = ((p_i[0] + p_j[0]) / 2, (p_i[1] + p_j[1]) / 2)
+                to_center = (cx - mid[0], cy - mid[1])
+                if perp[0] * to_center[0] + perp[1] * to_center[1] > 0:
+                    perp = (-perp[0], -perp[1])  # flip to point outward
+                # Build extension polygon
+                ext_i = (p_i[0] + dist * perp[0], p_i[1] + dist * perp[1])
+                ext_j = (p_j[0] + dist * perp[0], p_j[1] + dist * perp[1])
+                # Single-clearance items keep legacy name; multi-clearance use index suffix
+                name = (f"{item_name}_clearance" if len(cl_list) == 1
+                        else f"{item_name}_clearance_{cl_idx}")
+                zones.append({
+                    "name": name,
+                    "parent": item_name,
+                    "poly": [list(p_i), list(p_j), list(ext_j), list(ext_i)],
+                    "style": "dashed",
+                })
 
     return zones
 

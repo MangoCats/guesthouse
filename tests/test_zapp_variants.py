@@ -293,19 +293,19 @@ class TestDimensionData:
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, "standard", db_path=fresh_db)
         assert "user_dimensions" in geom
-        builtin = [d for d in geom["user_dimensions"]
-                   if d["properties"].get("source") == "builtin"]
-        assert len(builtin) >= 18
+        seeded = [d for d in geom["user_dimensions"]
+                  if d["name"].startswith("dim")]
+        assert len(seeded) >= 18
 
     def test_dimension_has_endpoints(self, fresh_db):
-        """Each builtin dimension should have start, end endpoints."""
+        """Each seeded dimension should have start, end endpoints."""
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, "standard", db_path=fresh_db)
 
         for dim in geom["user_dimensions"]:
-            p = dim["properties"]
-            if p.get("source") != "builtin":
+            if not dim["name"].startswith("dim"):
                 continue
+            p = dim["properties"]
             name = dim["name"]
             assert "start" in p and "end" in p, f"{name} missing endpoints"
             assert len(p["start"]) == 2 and len(p["end"]) == 2, \
@@ -327,12 +327,12 @@ class TestDimensionData:
         resp = app_client.get("/api/geometry")
         data = resp.get_json()
         assert "user_dimensions" in data
-        builtin = [d for d in data["user_dimensions"]
-                   if d["properties"].get("source") == "builtin"]
-        assert len(builtin) >= 18
+        seeded = [d for d in data["user_dimensions"]
+                  if d["name"].startswith("dim")]
+        assert len(seeded) >= 18
         # Spot-check one dimension
 
-        dim01 = next((d for d in builtin if d["name"] == "dim01"), None)
+        dim01 = next((d for d in seeded if d["name"] == "dim01"), None)
         assert dim01 is not None
         p = dim01["properties"]
         dist = math.sqrt((p["end"][0] - p["start"][0])**2 +
