@@ -1471,8 +1471,10 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "roof/gen_roof.py":
-        if not _has_f_series:
-            return True  # roof outline requires F-series chain
+        _has_db_roof = bool(getattr(gd, '_roof_corners_data', None) and
+                            gd._roof_corners_data.get("corners"))
+        if not _has_f_series and not _has_db_roof:
+            return True  # roof outline requires F-series chain or DB corners
         from roof.gen_roof import render_roof_svg
         svg = render_roof_svg(gd)
         with open(os.path.join(_PROJECT, "roof", "roof.svg"), "w", encoding="utf-8") as f:
