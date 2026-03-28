@@ -542,7 +542,7 @@ function buildSnapTargets(g) {
         for (let distIn = 0; distIn <= lenFt * 12 + 1e-6; distIn += SNAP_IN) {
           const clamped = Math.min(distIn, Math.floor(lenFt * 12 / SNAP_IN) * SNAP_IN);
           const d = clamped / 12;
-          targets.push({ type: "wall_face", target: wname, face,
+          targets.push({ type: "wall_face", target: wname, face, distIn: clamped,
                          pos: [p1[0] + d * ux, p1[1] + d * uy] });
           if (clamped >= lenFt * 12 - 1e-6) break;
         }
