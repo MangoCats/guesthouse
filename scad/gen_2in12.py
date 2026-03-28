@@ -253,10 +253,10 @@ def generate(gd=None):
             for label, _ in sec_data:
                 scad_label = "full_upper" if label == "full" else label
                 if abs(z1) < 1e-9:
-                    out.append(f"    linear_extrude(height = {h:.6f})")
+                    out.append(f"    linear_extrude(height = {h:.6f}, convexity = 10)")
                 else:
                     out.append(f"    translate([0, 0, {z1:.6f}])")
-                    out.append(f"      linear_extrude(height = {h:.6f})")
+                    out.append(f"      linear_extrude(height = {h:.6f}, convexity = 10)")
                 out.append(f"        wall_shell(t_{scad_label}, half_t);")
             out.append("    multmatrix(roof_shear)")
             out.append("      translate([-25, -20, -20])")
@@ -266,17 +266,17 @@ def generate(gd=None):
             for label, _ in sec_data:
                 scad_label = "full_upper" if label == "full" else label
                 if abs(z1) < 1e-9:
-                    out.append(f"  linear_extrude(height = {h:.6f})")
+                    out.append(f"  linear_extrude(height = {h:.6f}, convexity = 10)")
                 else:
                     out.append(f"  translate([0, 0, {z1:.6f}])")
-                    out.append(f"    linear_extrude(height = {h:.6f})")
+                    out.append(f"    linear_extrude(height = {h:.6f}, convexity = 10)")
                 out.append(f"      wall_shell(t_{scad_label}, half_t);")
     out.append("}")
     out.append(f"// Sloped roof slab ({roof_min_in:.0f}\", {roof_slope * 12:.0f}:12 slope N, "
                f"{roof_eave_elev:.1f}' at R19-R01)")
     out.append("color(roof_teal) {")
     out.append("  multmatrix(roof_shear)")
-    out.append("    linear_extrude(height = roof_thick)")
+    out.append("    linear_extrude(height = roof_thick, convexity = 10)")
     out.append("      polygon(points = shell_pts(roof_outline, 0));")
     out.append(f"  // Standing seam ribs ({seam_spacing * 12:.0f}\" o.c., "
                f"{seam_w * 12:.0f}\" wide, {seam_h * 12:.1f}\" tall)")
@@ -286,7 +286,7 @@ def generate(gd=None):
     out.append("      intersection() {")
     out.append(f"        translate([x - seam_w/2, {min_roof_y:.6f}, roof_thick])")
     out.append(f"          cube([seam_w, {max_roof_y - min_roof_y:.6f}, seam_h]);")
-    out.append("        linear_extrude(height = roof_thick + seam_h + 0.01)")
+    out.append("        linear_extrude(height = roof_thick + seam_h + 0.01, convexity = 10)")
     out.append("          polygon(points = shell_pts(roof_outline, 0));")
     out.append("      }")
     out.append("}")
@@ -297,10 +297,10 @@ def generate(gd=None):
         pts_str = ", ".join(f"[{p[0]:.8f}, {p[1]:.8f}]" for p in poly)
         out.append(f"  // {name}")
         if abs(bot) < 1e-9:
-            out.append(f"  linear_extrude(height = {h:.6f})")
+            out.append(f"  linear_extrude(height = {h:.6f}, convexity = 10)")
         else:
             out.append(f"  translate([0, 0, {bot:.6f}])")
-            out.append(f"    linear_extrude(height = {h:.6f})")
+            out.append(f"    linear_extrude(height = {h:.6f}, convexity = 10)")
         out.append(f"      polygon(points = [{pts_str}]);")
     out.append("}")
     out.append("")

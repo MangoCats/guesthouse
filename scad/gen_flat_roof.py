@@ -268,10 +268,10 @@ def generate(gd=None):
         for label, _ in sec_data:
             scad_label = "full_upper" if label == "full" else label
             if abs(z1) < 1e-9:
-                out.append(f"  linear_extrude(height = {h:.6f})")
+                out.append(f"  linear_extrude(height = {h:.6f}, convexity = 10)")
             else:
                 out.append(f"  translate([0, 0, {z1:.6f}])")
-                out.append(f"    linear_extrude(height = {h:.6f})")
+                out.append(f"    linear_extrude(height = {h:.6f}, convexity = 10)")
             out.append(f"      wall_shell(t_{scad_label}, half_t);")
     out.append("}")
     out.append(f"// Wedge roof slab ({roof_min_in:.0f}\"-{max_roof_thick_in:.1f}\", "
@@ -279,7 +279,7 @@ def generate(gd=None):
     out.append("color(roof_teal) {")
     out.append(f"  translate([0, 0, upper_base + upper_height])")
     out.append("    render() intersection() {")
-    out.append("      linear_extrude(height = max_roof_thick + 0.1)")
+    out.append("      linear_extrude(height = max_roof_thick + 0.1, convexity = 10)")
     out.append("        polygon(points = shell_pts(roof_outline, 0));")
     out.append("      multmatrix([[1,0,0,0], [0,1,0,0],")
     out.append("                  [0, roof_slope, 1, roof_z_base], [0,0,0,1]])")
@@ -296,7 +296,7 @@ def generate(gd=None):
     out.append("                    [0, roof_slope, 1, roof_z_base], [0,0,0,1]])")
     out.append(f"          translate([x - seam_w/2, {roof_y_south:.6f}, 0])")
     out.append(f"            cube([seam_w, {roof_y_north - roof_y_south:.6f}, seam_h]);")
-    out.append("        linear_extrude(height = max_roof_thick + seam_h + 0.01)")
+    out.append("        linear_extrude(height = max_roof_thick + seam_h + 0.01, convexity = 10)")
     out.append("          polygon(points = shell_pts(roof_outline, 0));")
     out.append("      }")
     out.append("}")
@@ -307,10 +307,10 @@ def generate(gd=None):
         pts_str = ", ".join(f"[{p[0]:.8f}, {p[1]:.8f}]" for p in poly)
         out.append(f"  // {name}")
         if abs(bot) < 1e-9:
-            out.append(f"  linear_extrude(height = {h:.6f})")
+            out.append(f"  linear_extrude(height = {h:.6f}, convexity = 10)")
         else:
             out.append(f"  translate([0, 0, {bot:.6f}])")
-            out.append(f"    linear_extrude(height = {h:.6f})")
+            out.append(f"    linear_extrude(height = {h:.6f}, convexity = 10)")
         out.append(f"      polygon(points = [{pts_str}]);")
     out.append("}")
     out.append("")
