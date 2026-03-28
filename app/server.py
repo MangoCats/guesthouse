@@ -22,6 +22,7 @@ from app.database import (
     DB_PATH, init_db, get_db, get_all_constants, get_constants_dict,
     get_constant_value, update_constant, update_constants_batch,
     get_categories, get_outline_chain, get_views, reset_constants,
+    get_roof_corners, set_roof_corners,
     get_all_elements, get_element, get_element_by_name,
     create_element, update_element, delete_element, create_iw_element,
     create_ro_element, create_outer_opening_element,
@@ -2374,6 +2375,25 @@ def create_app(db_path=None):
             return jsonify({"error": "value required"}), 400
         set_config(key, value, db)
         return jsonify({"ok": True, "key": key, "value": str(value)})
+
+    # -- Roof Outline API --
+
+    @app.route("/api/roof-outline")
+    def api_roof_outline_get():
+        data = get_roof_corners(db)
+        if data is None:
+            # Return empty structure (no DB corners configured)
+            ov_row = get_config("roof_overhang", db)
+            overhang = float(ov_row) if ov_row else 0.5
+            return jsonify({"overhang": overhang, "corners": []})
+        return jsonify(data)
+
+    @app.route("/api/roof-outline", methods=["PUT"])
+    def api_roof_outline_set():
+        data = request.get_json(force=True)
+        set_roof_corners(data, db)
+        _invalidate()
+        return jsonify({"ok": True})
 
     # -- Database Reset API --
 

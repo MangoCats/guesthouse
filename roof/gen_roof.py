@@ -1,4 +1,4 @@
-"""Generate roof outline SVG showing R-series roof corners over building walls."""
+"""Generate roof outline SVG showing roof corners over building walls."""
 import math
 import os
 import sys
@@ -20,8 +20,12 @@ def render_roof_svg(fp_data, roof=None):
 
     fp_data may be a FloorplanData or a GeneratorData.  If roof is None,
     it is taken from fp_data.roof (GeneratorData path).
+
+    Handles both legacy RoofGeometry (R-series labels) and DbRoofResult
+    (corner-center labels).
     """
     from shared.svg import make_svg_transform
+    from shared.roof_outline import DbRoofResult
 
     # Support both GeneratorData and FloorplanData
     pts = fp_data.pts
@@ -34,12 +38,19 @@ def render_roof_svg(fp_data, roof=None):
     if roof is None:
         roof = fp_data.roof
     roof_poly = getattr(fp_data, 'roof_poly', None)
-    if roof_poly is None:
-        from floorplan.roof import roof_polyline
-        roof_poly = roof_polyline(roof)
+    if roof_poly is None and roof is not None:
+        if isinstance(roof, DbRoofResult):
+            roof_poly = roof.poly
+        else:
+            from floorplan.roof import roof_polyline
+            roof_poly = roof_polyline(roof)
+
+    is_db_roof = isinstance(roof, DbRoofResult)
 
     # --- Page layout ---
-    all_pts = list(bldg_poly) + list(roof_poly)
+    all_pts = list(bldg_poly)
+    if roof_poly:
+        all_pts += list(roof_poly)
     all_svg = [to_svg(*p) for p in all_pts]
     xmin = min(p[0] for p in all_svg) - 15
     xmax = max(p[0] for p in all_svg) + 15
@@ -79,28 +90,40 @@ def render_roof_svg(fp_data, roof=None):
                f' stroke="#999" stroke-width="0.5"/>')
 
     # Roof outline (dotted)
-    roof_svg = _svg_pts(roof_poly, to_svg)
-    out.append(f'<polygon points="{roof_svg}" fill="none"'
-               f' stroke="#333" stroke-width="0.8" stroke-dasharray="3,2"/>')
+    if roof_poly:
+        roof_svg = _svg_pts(roof_poly, to_svg)
+        out.append(f'<polygon points="{roof_svg}" fill="none"'
+                   f' stroke="#333" stroke-width="0.8" stroke-dasharray="3,2"/>')
 
-    # R-series point labels
-    for name in ["R1", "R5", "R6", "R7"]:
-        sx, sy = to_svg(*roof.pts[name])
-        out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="1.5"'
-                   f' fill="#333" stroke="none"/>')
-        out.append(f'<text x="{sx + 3:.1f}" y="{sy + 1:.1f}"'
-                   f' font-family="Arial" font-size="5" fill="#333">{name}</text>')
-
-    # R3, R4 labels at the midpoint of each fillet
-    for name, start_name, end_name in [("R3", "R3s", "R3e"), ("R4", "R4s", "R4e")]:
-        ps = roof.pts[start_name]
-        pe = roof.pts[end_name]
-        mid_e = (ps[0] + pe[0]) / 2
-        mid_n = (ps[1] + pe[1]) / 2
-        sx, sy = to_svg(mid_e, mid_n)
-        out.append(f'<text x="{sx:.1f}" y="{sy - 3:.1f}"'
-                   f' text-anchor="middle" font-family="Arial" font-size="5"'
-                   f' fill="#333">{name}</text>')
+    # Corner labels
+    if is_db_roof and roof is not None:
+        for name, pt in roof.corner_pts.items():
+            sx, sy = to_svg(*pt)
+            out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="1.5"'
+                       f' fill="#333" stroke="none"/>')
+            out.append(f'<text x="{sx + 3:.1f}" y="{sy + 1:.1f}"'
+                       f' font-family="Arial" font-size="5" fill="#333">{name}</text>')
+    elif roof is not None and not is_db_roof:
+        # Legacy R-series labels
+        for name in ["R1", "R5", "R6", "R7"]:
+            if name not in roof.pts:
+                continue
+            sx, sy = to_svg(*roof.pts[name])
+            out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="1.5"'
+                       f' fill="#333" stroke="none"/>')
+            out.append(f'<text x="{sx + 3:.1f}" y="{sy + 1:.1f}"'
+                       f' font-family="Arial" font-size="5" fill="#333">{name}</text>')
+        for name, start_name, end_name in [("R3", "R3s", "R3e"), ("R4", "R4s", "R4e")]:
+            if start_name not in roof.pts or end_name not in roof.pts:
+                continue
+            ps = roof.pts[start_name]
+            pe = roof.pts[end_name]
+            mid_e = (ps[0] + pe[0]) / 2
+            mid_n = (ps[1] + pe[1]) / 2
+            sx, sy = to_svg(mid_e, mid_n)
+            out.append(f'<text x="{sx:.1f}" y="{sy - 3:.1f}"'
+                       f' text-anchor="middle" font-family="Arial" font-size="5"'
+                       f' fill="#333">{name}</text>')
 
     # Title block
     tb_w, tb_h = 100, 45
@@ -115,9 +138,10 @@ def render_roof_svg(fp_data, roof=None):
                f' text-anchor="middle" font-family="Arial" font-size="7"'
                f' font-weight="bold">Roof Plan</text>')
     _y += 10
+    area = roof.area if roof is not None else 0.0
     out.append(f'<text x="{tb_x + tb_w / 2:.1f}" y="{_y:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="6"'
-               f' fill="#333">Area: {roof.area:.1f} sq ft</text>')
+               f' fill="#333">Area: {area:.1f} sq ft</text>')
     _y += 8
     out.append(f'<text x="{tb_x + tb_w / 2:.1f}" y="{_y:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="5"'

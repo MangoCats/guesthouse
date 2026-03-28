@@ -214,6 +214,12 @@ CREATE TABLE IF NOT EXISTS catalog_items (
     stacked     INTEGER DEFAULT 0,
     clip_to_inner INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS roof_corners (
+    seq         INTEGER PRIMARY KEY,   -- 0-based ordering around roof perimeter
+    center_name TEXT NOT NULL,         -- arc center name (e.g. 'C01', 'C5')
+    radiused    INTEGER DEFAULT 0      -- 1 = arc corner, 0 = sharp line-to-line
+);
 """
 
 
@@ -1173,6 +1179,7 @@ def _seed_config(conn):
         ("roof_style", "flat"),
         ("setback_216", "11.0"),
         ("setback_275", "25.5"),
+        ("roof_overhang", "0.5"),       # 6 inches = 0.5 ft
     ]
     for key, value in defaults:
         conn.execute(
@@ -3829,4 +3836,58 @@ def restore_inner_wall_overrides(snapshot, db_path=None):
                  ov["seg_type"], ov.get("bearing"), ov.get("distance"),
                  ov.get("radius"), ov.get("sweep"),
                  ov.get("n_pts", 20)),
+            )
+
+
+# ---------------------------------------------------------------------------
+# Roof corners CRUD
+# ---------------------------------------------------------------------------
+
+def get_roof_corners(db_path=None):
+    """Return roof corner config dict or None if no corners are defined.
+
+    Returns dict with keys:
+        overhang  — float, feet
+        corners   — list of {"seq": int, "center": str, "radiused": bool}
+    """
+    with get_db(db_path) as conn:
+        try:
+            ov_row = conn.execute(
+                "SELECT value FROM config WHERE key='roof_overhang'"
+            ).fetchone()
+            overhang = float(ov_row["value"]) if ov_row else 0.5
+            rows = conn.execute(
+                "SELECT seq, center_name, radiused FROM roof_corners ORDER BY seq"
+            ).fetchall()
+        except Exception:
+            return None
+    if not rows:
+        return None
+    return {
+        "overhang": overhang,
+        "corners": [
+            {"seq": r["seq"], "center": r["center_name"], "radiused": bool(r["radiused"])}
+            for r in rows
+        ],
+    }
+
+
+def set_roof_corners(data, db_path=None):
+    """Persist roof corner config.
+
+    data — dict with optional keys:
+        overhang  — float or str, feet
+        corners   — list of {"seq": int, "center": str, "radiused": bool}
+    """
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM roof_corners")
+        for c in data.get("corners", []):
+            conn.execute(
+                "INSERT INTO roof_corners (seq, center_name, radiused) VALUES (?,?,?)",
+                (c["seq"], c["center"], 1 if c.get("radiused") else 0),
+            )
+        if "overhang" in data:
+            conn.execute(
+                "INSERT OR REPLACE INTO config (key, value) VALUES ('roof_overhang', ?)",
+                (str(data["overhang"]),),
             )

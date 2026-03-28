@@ -77,6 +77,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadShapes();
   loadBuildLabel();
   loadRoofStyle();
+  _initRoofPanelEvents();
   loadConfigName();
   loadCatalog();
 });
@@ -105,6 +106,8 @@ function cacheElements() {
     "show-openings", "show-furniture", "show-rooms",
     "show-doors", "show-clearance", "open-links", "show-areas", "show-site",
     "roof-style",
+    "roof-overhang-in", "roof-overhang-save",
+    "roof-corners-table", "roof-add-center", "roof-add-radiused", "roof-add-btn",
     "plumbing-tools", "plumbing-fixtures-table", "plumbing-pipes-table",
     "variant-select", "variant-selector",
     "error-banner", "error-banner-text", "error-banner-action", "error-banner-dismiss",
@@ -573,6 +576,10 @@ async function loadSVGView(viewName) {
     if (viewName === "span_minmax") {
       showSpanRotationProperties();
     }
+    // Show roof outline panel when roof view is active
+    if (viewName === "roof") {
+      loadRoofOutlinePanel();
+    }
   } catch (e) {
     const p = document.createElement("p");
     p.style.cssText = "padding:20px;color:#f88";
@@ -794,6 +801,137 @@ function addConfigRow(tbody, label, configKey, value) {
   tdVal.appendChild(inp);
   tr.appendChild(tdVal);
   tbody.appendChild(tr);
+}
+
+
+/* ========== ROOF OUTLINE PANEL ========== */
+
+let _roofData = null;   // cached {overhang, corners:[{seq,center,radiused},...]}
+
+async function loadRoofOutlinePanel() {
+  try {
+    const resp = await apiFetch("/api/roof-outline");
+    _roofData = await resp.json();
+  } catch (_) {
+    _roofData = { overhang: 0.5, corners: [] };
+  }
+  _renderRoofPanel();
+  // Switch to Roof panel tab
+  document.querySelectorAll(".panel-tab").forEach(btn => btn.classList.remove("active"));
+  document.querySelectorAll(".panel-content").forEach(p => p.classList.remove("active"));
+  const tab = document.querySelector(".panel-tab[data-panel='roof']");
+  if (tab) tab.classList.add("active");
+  const panel = document.getElementById("panel-roof");
+  if (panel) panel.classList.add("active");
+}
+
+function _renderRoofPanel() {
+  if (!_roofData) return;
+  // Overhang field — convert feet to inches for display
+  const ovIn = App.els["roof-overhang-in"];
+  if (ovIn) ovIn.value = ((_roofData.overhang || 0.5) * 12).toFixed(1);
+
+  // Corners table
+  const tbody = App.els["roof-corners-table"].querySelector("tbody");
+  tbody.innerHTML = "";
+  (_roofData.corners || []).forEach((c, idx) => {
+    const tr = document.createElement("tr");
+
+    // Seq number
+    const tdSeq = document.createElement("td");
+    tdSeq.textContent = idx + 1;
+    tr.appendChild(tdSeq);
+
+    // Center name (editable)
+    const tdCenter = document.createElement("td");
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.value = c.center;
+    inp.style.cssText = "width:70px;font-size:11px;";
+    inp.addEventListener("change", () => {
+      _roofData.corners[idx].center = inp.value.trim();
+      _saveRoofOutline();
+    });
+    tdCenter.appendChild(inp);
+    tr.appendChild(tdCenter);
+
+    // Radiused checkbox
+    const tdArc = document.createElement("td");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = !!c.radiused;
+    cb.title = "Radiused arc corner";
+    cb.addEventListener("change", () => {
+      _roofData.corners[idx].radiused = cb.checked;
+      _saveRoofOutline();
+    });
+    tdArc.appendChild(cb);
+    tr.appendChild(tdArc);
+
+    // Remove button
+    const tdDel = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.className = "small-btn";
+    btn.textContent = "×";
+    btn.title = "Remove corner";
+    btn.addEventListener("click", () => {
+      _roofData.corners.splice(idx, 1);
+      // Resequence
+      _roofData.corners.forEach((c2, i2) => { c2.seq = i2; });
+      _renderRoofPanel();
+      _saveRoofOutline();
+    });
+    tdDel.appendChild(btn);
+    tr.appendChild(tdDel);
+
+    tbody.appendChild(tr);
+  });
+}
+
+async function _saveRoofOutline() {
+  if (!_roofData) return;
+  try {
+    await apiFetch("/api/roof-outline", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(_roofData),
+    });
+    showToast("Roof outline saved", "success");
+  } catch (err) {
+    showToast("Failed to save roof outline", "error");
+  }
+}
+
+function _initRoofPanelEvents() {
+  // Save overhang on checkmark click
+  const saveBtn = App.els["roof-overhang-save"];
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      const v = parseFloat(App.els["roof-overhang-in"].value);
+      if (!isNaN(v) && v >= 0) {
+        _roofData = _roofData || { overhang: 0.5, corners: [] };
+        _roofData.overhang = v / 12.0;    // inches → feet
+        _saveRoofOutline();
+      }
+    });
+  }
+
+  // Add corner
+  const addBtn = App.els["roof-add-btn"];
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      const center = (App.els["roof-add-center"].value || "").trim();
+      if (!center) return;
+      const radiused = App.els["roof-add-radiused"].checked;
+      _roofData = _roofData || { overhang: 0.5, corners: [] };
+      const seq = _roofData.corners.length;
+      _roofData.corners.push({ seq, center, radiused });
+      App.els["roof-add-center"].value = "";
+      App.els["roof-add-radiused"].checked = false;
+      _renderRoofPanel();
+      _saveRoofOutline();
+    });
+  }
 }
 
 

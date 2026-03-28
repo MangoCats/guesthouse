@@ -497,13 +497,14 @@ class GeneratorData:
     """
 
     def __init__(self, pts, outline_segs, inner_segs, radii, constants_dict,
-                 overrides=None, db_openings=None):
+                 overrides=None, db_openings=None, roof_corners_data=None):
         self.pts = pts
         self.outline_segs = outline_segs
         self.inner_segs = inner_segs
         self.radii = radii
         self.constants = constants_dict
 
+        self._roof_corners_data = roof_corners_data
         self.wall_t = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
         self.outline_poly = path_polygon(outline_segs, pts)
         self.inner_poly = path_polygon(inner_segs, pts)
@@ -605,14 +606,29 @@ class GeneratorData:
             self.inner_poly, self.inner_segs, self.pts, overrides)
 
     def _compute_roof_geometry(self):
-        """Compute R-series roof geometry (F-series chain only)."""
+        """Compute roof geometry: DB-driven if corners defined, else F-series."""
+        data = self._roof_corners_data
+        if data and data.get("corners"):
+            from shared.roof_outline import compute_db_roof_outline
+            corner_names = [c["center"] for c in data["corners"]]
+            corner_radiused = [c.get("radiused", False) for c in data["corners"]]
+            overhang = float(data.get("overhang", 0.5))
+            try:
+                result = compute_db_roof_outline(
+                    corner_names, corner_radiused, self.pts, self.radii, overhang)
+                self.roof = result
+                self.roof_poly = result.poly
+            except Exception:
+                self.roof = None
+                self.roof_poly = []
+            return
+        # F-series fallback
         if "R_a5" not in self.radii:
             self.roof = None
             self.roof_poly = []
             return
         self.roof = compute_roof_geometry(self.pts, self.radii)
         self.roof_poly = roof_polyline(self.roof)
-        # Merge roof points into main pts dict
         self.pts.update(self.roof.pts)
 
 
@@ -748,8 +764,18 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
         except Exception:
             pass
 
+    # Load roof corners from DB if available
+    roof_corners_data = None
+    if db_path is not None:
+        try:
+            from app.database import get_roof_corners
+            roof_corners_data = get_roof_corners(db_path)
+        except Exception:
+            pass
+
     gd = GeneratorData(pts, outline_segs, inner_segs, radii, constants_dict,
-                       overrides=overrides, db_openings=db_openings)
+                       overrides=overrides, db_openings=db_openings,
+                       roof_corners_data=roof_corners_data)
     if iw_polys:
         gd.iw_polys = iw_polys
     return gd

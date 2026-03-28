@@ -220,6 +220,7 @@
         <button class="panel-tab" data-panel="outline">Outline</button>
         <button class="panel-tab" data-panel="openings">Openings</button>
         <button class="panel-tab" data-panel="plumbing">Plumbing</button>
+        <button class="panel-tab" data-panel="roof">Roof</button>
       </div>
 
       <!-- Properties panel -->
@@ -335,6 +336,30 @@
           </thead>
           <tbody></tbody>
         </table>
+      </div>
+      <!-- Roof panel -->
+      <div id="panel-roof" class="panel-content">
+        <h3>Roof Outline</h3>
+        <div class="panel-toolbar" style="align-items:center;gap:6px;">
+          <label style="font-size:11px;">Overhang (in):</label>
+          <input type="number" id="roof-overhang-in" step="0.5" min="0" max="36"
+                 style="width:60px;font-size:11px;" title="Roof overhang in inches">
+          <button class="small-btn" id="roof-overhang-save" title="Save overhang">&#10003;</button>
+        </div>
+        <table id="roof-corners-table" style="width:100%;font-size:11px;margin-top:6px;">
+          <thead>
+            <tr>
+              <th>#</th><th>Corner</th><th>Arc</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div style="margin-top:6px;display:flex;gap:4px;align-items:center;">
+          <input type="text" id="roof-add-center" placeholder="Center (e.g. C01)"
+                 style="width:90px;font-size:11px;">
+          <label style="font-size:11px;"><input type="checkbox" id="roof-add-radiused"> Arc</label>
+          <button class="small-btn" id="roof-add-btn">+ Add</button>
+        </div>
       </div>
     </aside>
   </div>
