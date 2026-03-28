@@ -4192,7 +4192,22 @@ function showParcelResetDialog() {
 }
 
 function showOpeningPositionWizard(elemName, paramName, currentFormula, variant) {
-  const hostWall = currentFormula.outer_start?.element ?? currentFormula.outer_end?.element ?? "?";
+  // outer_start is either a string (F-series point) or {"element": "IWx", "corner": "SW"}
+  const _os = currentFormula.outer_start, _oe = currentFormula.outer_end;
+  const hostWall = (typeof _os === "object" ? _os?.element : null)
+                ?? (typeof _oe === "object" ? _oe?.element : null)
+                ?? (typeof _os === "string" && typeof _oe === "string" ? `${_os}–${_oe}` : "?");
+
+  // Resolve a formula value that may be a literal or a {"const": "NAME"} reference.
+  function resolveFormulaVal(val, fallback) {
+    if (val == null) return fallback;
+    if (typeof val === "number") return val;
+    if (typeof val === "object" && val.const) {
+      const c = App.state.constants.find(x => x.name === val.const);
+      return c != null ? c.value : fallback;
+    }
+    return fallback;
+  }
 
   // Decode current values
   function splitFtIn(ft) {
@@ -4200,8 +4215,8 @@ function showOpeningPositionWizard(elemName, paramName, currentFormula, variant)
     const inches = Math.round((ft - feet) * 12 * 100) / 100;
     return { feet, inches };
   }
-  const curGap = currentFormula.gap ?? 0;
-  const curWidth = currentFormula.width ?? (32 / 12);
+  const curGap = resolveFormulaVal(currentFormula.gap, 0);
+  const curWidth = resolveFormulaVal(currentFormula.width, 32 / 12);
   const curFromEnd = currentFormula.from_end ?? false;
 
   const gapFI = splitFtIn(curGap);
@@ -4257,18 +4272,43 @@ function showOpeningPositionWizard(elemName, paramName, currentFormula, variant)
     const width = widFt + widIn / 12;
     if (width <= 0) { showToast("Width must be positive", "error"); return; }
 
-    const newFormula = { ...currentFormula, gap, width, from_end: fromEnd };
+    // For const-ref fields, update the backing constant rather than rewriting the formula.
+    const gapConst   = (currentFormula.gap   && typeof currentFormula.gap   === "object") ? currentFormula.gap.const   : null;
+    const widthConst = (currentFormula.width && typeof currentFormula.width === "object") ? currentFormula.width.const : null;
+
+    const newFormula = { ...currentFormula, from_end: fromEnd };
+    if (!gapConst)   newFormula.gap   = gap;
+    if (!widthConst) newFormula.width = width;
+    const needsFormulaUpdate = !gapConst || !widthConst || fromEnd !== (currentFormula.from_end ?? false);
 
     try {
-      const resp = await apiFetch(
-        `/api/formulas/${encodeURIComponent(elemName)}/${encodeURIComponent(paramName)}`,
-        { method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ formula: newFormula, variant }) },
-      );
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        showToast(err.error || "Failed to update formula", "error");
-        return;
+      // Update gap/width via constants API if formula uses const refs
+      if (gapConst) {
+        const r = await apiFetch(`/api/constants/${gapConst}`,
+          { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value: gap }) });
+        if (!r.ok) { showToast((await r.json().catch(()=>({}))).error || "Failed to update gap", "error"); return; }
+        const c = App.state.constants.find(x => x.name === gapConst);
+        if (c) c.value = gap;
+      }
+      if (widthConst) {
+        const r = await apiFetch(`/api/constants/${widthConst}`,
+          { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value: width }) });
+        if (!r.ok) { showToast((await r.json().catch(()=>({}))).error || "Failed to update width", "error"); return; }
+        const c = App.state.constants.find(x => x.name === widthConst);
+        if (c) c.value = width;
+      }
+      // Update formula if from_end changed or gap/width are literals in the formula
+      if (needsFormulaUpdate) {
+        const resp = await apiFetch(
+          `/api/formulas/${encodeURIComponent(elemName)}/${encodeURIComponent(paramName)}`,
+          { method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ formula: newFormula, variant }) },
+        );
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          showToast(err.error || "Failed to update formula", "error");
+          return;
+        }
       }
       document.body.removeChild(overlay);
       showToast(`Updated ${elemName} position`, "success");
