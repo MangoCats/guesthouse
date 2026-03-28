@@ -2408,7 +2408,7 @@ def create_app(db_path=None):
         _broadcast("plumbing_changed")
         return jsonify({"ok": ok, "issues": issues})
 
-    # -- Project Export/Import API (Phase 14-D) --
+    # -- Project Export/Import API --
 
     @app.route("/api/project/export")
     def api_project_export():
@@ -2431,7 +2431,7 @@ def create_app(db_path=None):
         _broadcast("outline_changed")
         return jsonify({"ok": True})
 
-    # -- Configuration Files API (Phase 20) --
+    # -- Configuration Files API --
 
     _CONFIGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "configs")
@@ -2530,7 +2530,7 @@ def create_app(db_path=None):
                 os.remove(p)
         return jsonify({"status": "ok"})
 
-    # -- Catalog API (Phase 20) --
+    # -- Catalog API --
 
     @app.route("/api/catalog")
     def api_catalog():
@@ -2592,7 +2592,7 @@ def create_app(db_path=None):
         constants = get_constants_dict(db)
         return jsonify(compute_survey_points(constants))
 
-    # -- Survey Data API (Phase 14-B) --
+    # -- Survey Data API --
 
     @app.route("/api/survey/legs")
     def api_survey_legs():
@@ -2636,7 +2636,7 @@ def create_app(db_path=None):
         _broadcast("geometry_changed")
         return jsonify({"ok": True})
 
-    # -- Inner Wall Overrides API (Phase 15½-C) --
+    # -- Inner Wall Overrides API --
 
     @app.route("/api/inner-wall-overrides")
     def api_inner_wall_overrides():
@@ -2901,7 +2901,7 @@ def create_app(db_path=None):
                     results[v["name"]] = True
             return jsonify({"ok": True, "results": results})
 
-    # -- Formula endpoints (Phase 12b) --
+    # -- Formula endpoints --
 
     @app.route("/api/formulas")
     def api_formulas():

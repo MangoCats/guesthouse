@@ -1,4 +1,4 @@
-"""Geometry computation engine — formula-driven architecture (Phase 12g).
+"""Geometry computation engine — formula-driven architecture.
 
 All element geometry (walls, openings, furniture, appliances) is computed by
 the FormulaEvaluator from database-stored JSON formulas.  The procedural
@@ -1172,7 +1172,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
                      db_path: str | None = None) -> dict:
     """Compute all building geometry from constants and return JSON-serialisable dict.
 
-    Phase 12h: fully formula-driven architecture.  The FormulaEvaluator is
+    fully formula-driven architecture.  The FormulaEvaluator is
     the sole source for all element geometry (interior walls, openings,
     furniture, appliances).  Element metadata (labels, door configs,
     clearance, URLs) comes from the elements table in the database.
@@ -1758,7 +1758,7 @@ def compute_span_data(constants, db_path=None):
     """Return N-S span profile data for the current geometry.
 
     Returns dict with eastings, spans, south_spans, north_spans arrays.
-    Uses compute_geometry() result (Phase 14-C), no module patching.
+    Uses compute_geometry() result, no module patching.
     """
     from app.database import get_outline_chain
     chain_rows = get_outline_chain(db_path) if db_path else None
@@ -1779,7 +1779,7 @@ def compute_span_rotation(constants, db_path=None):
 
     Returns dict with min_angle, min_span, max_angle, max_span, and
     data array of [angle, max_span] pairs at 5-degree steps.
-    Uses compute_geometry() result (Phase 14-C), no module patching.
+    Uses compute_geometry() result, no module patching.
     """
     from span._common import max_span_at_angle, find_min_span_angle
     from app.database import get_outline_chain

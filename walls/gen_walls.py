@@ -15,9 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import fmt_dist, left_norm, segment_polyline
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
-from floorplan.constants import WALL_OUTER
+from floorplan.constants import WALL_OUTER, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 from floorplan.openings import compute_rough_openings
-from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges,
     arc_strip_poly, line_strip_poly, partial_line_strip,
@@ -84,7 +83,7 @@ def _path_length_between(pts, outline_segs, start_seg_idx, start_t,
     while idx != end_seg_idx:
         seg = outline_segs[idx]
         if isinstance(seg, ArcSeg):
-            if idx == 5 and inset >= SHELL_THICKNESS + AIR_GAP:
+            if seg.start == "F8" and seg.end == "F9" and inset >= SHELL_THICKNESS + AIR_GAP:
                 # F8-F9 inner shell: straight-arc-straight path length
                 R_a8 = seg.radius
                 R_turn = OPENING_INSIDE_RADIUS + (inset - (SHELL_THICKNESS + AIR_GAP))

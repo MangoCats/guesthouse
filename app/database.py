@@ -270,29 +270,19 @@ def init_db(db_path=None):
             seed_plumbing(conn)
             seed_iw_formulas(conn)
         else:
-            # Ensure variant item constants exist (Phase 12a upgrade)
             _seed_variant_item_constants(conn)
             # Ensure all seed doors exist (handles additions like O3, O6)
             _seed_doors(conn)
-            # Ensure variant exclusions exist (Phase 7 upgrade)
             _seed_variant_exclusions(conn)
-            # Ensure variant definitions exist (Phase 11a upgrade)
             _seed_variants(conn)
-            # Ensure config defaults exist (Phase 10b upgrade)
             _seed_config(conn)
-            # Ensure room label elements exist (Phase 8 upgrade)
             from app.labels import seed_room_labels, seed_builtin_dimensions
             seed_room_labels(conn)
-            # Ensure builtin dimension elements exist (unified dims upgrade)
             seed_builtin_dimensions(conn)
-            # Ensure plumbing fixture records exist (Phase 10d upgrade)
             from app.plumbing import seed_plumbing
             seed_plumbing(conn)
-            # Ensure IW wall formulas exist (Phase 12c upgrade)
             seed_iw_formulas(conn)
             # Remove orphaned formulas for elements deleted via delete_element()
-            # (Phase 20 upgrade: seed_iw_formulas previously re-seeded formulas
-            # for deleted elements, leaving ghost entries with no elements record)
             conn.execute("""
                 DELETE FROM element_formulas
                 WHERE element_name NOT IN (SELECT name FROM elements)
@@ -301,9 +291,8 @@ def init_db(db_path=None):
                 DELETE FROM formula_deps
                 WHERE element_name NOT IN (SELECT name FROM elements)
             """)
-            # Ensure survey data exists (Phase 14-B upgrade)
             _seed_survey(conn)
-            # Add span_end column if missing (Phase 15½ multi-segment upgrade)
+            # Add span_end column if missing
             cols = {r[1] for r in conn.execute(
                 "PRAGMA table_info(inner_wall_overrides)").fetchall()}
             if "span_end" not in cols:
@@ -349,8 +338,7 @@ def init_db(db_path=None):
             _migrate_iw_prop_constants(conn)
             # Remove drawn CW walls (superseded by formula-based IW system)
             _migrate_remove_drawn_walls(conn)
-            # Ensure new catalog entries exist (Phase 21 upgrade: washer_sm, dryer_sm;
-            # Phase 22 upgrade: nordviken)
+            # Ensure new catalog entries exist
             _seed_catalog_items(conn, db_path)
             # Ensure nordviken element record exists in elements table
             for _name, _type, _props, _variant in _VARIANT_ITEMS:
@@ -906,7 +894,7 @@ def _seed_constants(conn):
 # ---------------------------------------------------------------------------
 
 # These 24 constants are hardcoded in gen_floorplan.py and replicated in
-# app/variants.py but not defined in floorplan/constants.py.  Phase 12a
+# app/variants.py but not defined in floorplan/constants.py.
 # moves them into the database as first-class constants.
 _VARIANT_ITEM_CONSTANTS = [
     # (name, value_inches, category, description)
@@ -946,7 +934,7 @@ _VARIANT_ITEM_CONSTANTS = [
 
 
 def _seed_variant_item_constants(conn):
-    """Seed dimension constants for variant items (Phase 12a)."""
+    """Seed dimension constants for variant items."""
     for name, value_in, category, description in _VARIANT_ITEM_CONSTANTS:
         value_ft = value_in / 12.0
         expr = f"{value_in} / 12.0"
@@ -957,7 +945,7 @@ def _seed_variant_item_constants(conn):
             (name, value_ft, expr, "ft", category, description),
         )
 
-    # F2 origin position (Phase 14-A) — already in feet
+    # F2 origin position — already in feet
     for name, value, description in [
         ("F2_EASTING",  -18.5, "F2 easting offset from FC"),
         ("F2_NORTHING", -13.5, "F2 northing offset from FC (before R_a1)"),
@@ -971,7 +959,7 @@ def _seed_variant_item_constants(conn):
 
 
 # ---------------------------------------------------------------------------
-# Seed: survey data (Phase 14-B)
+# Seed: survey data
 # ---------------------------------------------------------------------------
 
 # Raw traverse legs from shared/survey.py:_accumulate_legs()
@@ -3285,7 +3273,7 @@ def seed_iw_formulas(conn):
                 (wall_name, dep_type, dep_name),
             )
 
-    # Variant item formulas (Phase 12e)
+    # Variant item formulas
     for elem_name, variant, formula in get_variant_item_formulas():
         if elem_name not in live_names:
             continue
@@ -3321,7 +3309,7 @@ def seed_iw_formulas(conn):
 
 
 # ---------------------------------------------------------------------------
-# Survey CRUD (Phase 14-B)
+# Survey CRUD
 # ---------------------------------------------------------------------------
 
 def get_survey_legs(db_path=None):
@@ -3396,7 +3384,7 @@ def restore_survey(legs, config, db_path=None):
 
 
 # ---------------------------------------------------------------------------
-# Project Export / Import (Phase 14-D)
+# Project Export / Import
 # ---------------------------------------------------------------------------
 
 def export_project(db_path=None):
@@ -3724,7 +3712,7 @@ def import_project(data, db_path=None):
 
 
 # ---------------------------------------------------------------------------
-# Inner Wall Overrides CRUD (Phase 15½)
+# Inner Wall Overrides CRUD
 # ---------------------------------------------------------------------------
 
 def get_inner_wall_overrides(db_path=None):

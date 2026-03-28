@@ -2,7 +2,7 @@
 import math
 import pytest
 from shared.types import LineSeg, ArcSeg
-from walls.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
+from floorplan.constants import SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 from walls.gen_walls import build_wall_data, render_walls_svg
 from shared.wall_shells import (
     lerp, solid_ranges, line_strip_poly, partial_line_strip,

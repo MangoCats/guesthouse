@@ -6,7 +6,7 @@ _resolve_point_spec / _resolve_dir_spec vocabulary from engine.py with
 element-reference resolution, constant-valued distances, and wall/item
 polygon construction.
 
-Phase 12a: core evaluator, topological sort, dependency extraction.
+core evaluator, topological sort, dependency extraction.
 """
 import copy
 import json
@@ -1670,7 +1670,7 @@ def _rebase_recursive(spec, elem_name, corner_specs, elem_data):
 
 
 # ---------------------------------------------------------------------------
-# IW formula definitions (Phase 12c)
+# IW formula definitions
 # ---------------------------------------------------------------------------
 # Direction shorthands for formula specs
 _W18W1_AL = {"segment": ["W18", "W1"]}      # along W18→W1 (≈ west)
@@ -2804,7 +2804,7 @@ def get_rough_opening_formulas():
 
 
 # ---------------------------------------------------------------------------
-# Variant item formula definitions (Phase 12e)
+# Variant item formula definitions
 # ---------------------------------------------------------------------------
 # Direction shorthands for variant item formulas
 _W11W12_AL = {"segment": ["W11", "W12"]}

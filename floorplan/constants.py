@@ -223,3 +223,15 @@ ROCKER_CORNER_R = 3.0 / 12.0      # 3" rounded corner radius
 
 # Roof overhang
 ROOF_OVERHANG = 6.0 / 12.0        # 6" roof overhang beyond wall face
+
+# SCAD / 3D model dimensions (used by scad/gen_flat_roof.py and scad/gen_2in12.py)
+LOWER_WALL_HEIGHT = 20.0 / 12.0     # 1'8" lower wall (door openings only, 0-20")
+OPENING_HEIGHT = 80.0 / 12.0        # 6'8" top of openings (doors + windows, 20-80")
+UPPER_WALL_TOP_FLAT = 112.0 / 12.0  # 9'4" flat-roof upper wall top
+ROOF_MIN_THICK = 18.0 / 12.0        # 18" minimum roof slab thickness (at south edge)
+FLAT_ROOF_SLOPE = 0.25 / 12.0       # 1/4" per foot rise (flat roof, N-ward)
+SHED_ROOF_SLOPE = 2.0 / 12.0        # 2" per foot rise (2:12 shed roof, N-ward)
+SHED_ROOF_EAVE_ELEV = 7.5           # 7'6" underside elevation at south eave (R19-R01)
+SEAM_SPACING = 16.0 / 12.0          # 16" standing seam on-center spacing
+SEAM_WIDTH = 1.0 / 12.0             # 1" seam rib width
+SEAM_HEIGHT = 1.5 / 12.0            # 1.5" seam rib height

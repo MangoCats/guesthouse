@@ -8,12 +8,10 @@ from floorplan.gen_floorplan import build_floorplan_data
 from floorplan.roof import compute_roof_geometry, roof_segments, roof_polyline
 from shared.types import LineSeg, ArcSeg
 
+from scad._common import (scad_seg as _scad_seg, rev_elem as _rev_elem,
+                          fmt_ft_in as _fmt_ft_in, seg_comment as _seg_comment)
 _mod = _import_from("scad", "gen_flat_roof")
-_scad_seg = _mod._scad_seg
-_rev_elem = _mod._rev_elem
 _seg_to_elem = _mod._seg_to_elem
-_fmt_ft_in = _mod._fmt_ft_in
-_seg_comment = _mod._seg_comment
 generate = _mod.generate
 WALL_HEIGHT_FT = _mod.WALL_HEIGHT_FT
 

@@ -22,7 +22,7 @@ from floorplan.roof import compute_roof_geometry, roof_polyline
 
 
 # ---------------------------------------------------------------------------
-# Walk override chain (Phase 15½-B)
+# Walk override chain
 # ---------------------------------------------------------------------------
 
 def walk_override_chain(chain, start_pt, start_bearing_deg):
@@ -381,7 +381,7 @@ def _build_outline_segs_from_chain(chain):
 
 
 def _compute_traverse_from_db(db_path=None):
-    """Compute traverse from DB survey data (Phase 14-B).
+    """Compute traverse from DB survey data.
 
     Same math as shared/survey.py:compute_traverse() but reads legs and
     config from the database instead of hardcoded values.
@@ -469,7 +469,7 @@ def _db_openings_to_wall_openings(db_openings, outline_segs, pts):
 class GeneratorData:
     """All geometry a generator needs, sourced from the database.
 
-    Attributes — Outline (Phase 15-A):
+    Attributes — Outline:
         pts           — dict of named points {str: (E, N)} (F/W/C/P/TC series)
         outline_segs  — list of LineSeg/ArcSeg (CW traversal)
         outline_poly  — list of (E, N) tuples (outline polygon vertices)
@@ -481,7 +481,7 @@ class GeneratorData:
         outer_area    — outline polygon area in sq ft
         inner_area    — inner polygon area in sq ft
 
-    Attributes — Shell (Phase 15-B):
+    Attributes — Shell:
         s_pts         — S-series shell boundary points
         s_segs        — S-series segments (SHELL_THICKNESS inset)
         g_pts         — G-series shell boundary points
@@ -492,7 +492,7 @@ class GeneratorData:
         wall_sections — enumerated wall sections with openings
         layout        — InteriorLayout namedtuple (rooms, appliances, furniture)
 
-    Attributes — Roof (Phase 15-C):
+    Attributes — Roof:
         roof          — RoofGeometry namedtuple (pts, radii, centers, area)
         roof_poly     — list of (E, N) tuples (roof outline polygon)
     """
@@ -518,7 +518,7 @@ class GeneratorData:
         # Inner area computed after F8-F9 replacement (matches build_floorplan_data)
         self.inner_area = poly_area(self.inner_poly)
 
-        # Roof geometry (Phase 15-C)
+        # Roof geometry
         self._compute_roof_geometry()
 
     def _compute_shell_geometry(self, constants_dict, overrides=None,

@@ -125,3 +125,134 @@ def qarc_elem(cx, cy, R, u0, u1):
     sp = (cx + R * u0[0], cy + R * u0[1])
     ep = (cx + R * u1[0], cy + R * u1[1])
     return ("arc", cx, cy, R, a1, a2), sp, ep
+
+
+# ── U-turn and section assembly ───────────────────────────────
+
+def uturn_center_elems(pts, outline_segs, inner_segs, seg_idx, t_param,
+                       side, shell_t, R_in):
+    """Compute centerline U-turn elements: F-arc, crossover, W-arc.
+
+    Returns list of 3 elements (F-side arc, crossover line, W-side arc).
+    These go from F-side to W-side. Reverse for W→F direction.
+    """
+    R_out = R_in + shell_t
+    R_center = R_in + shell_t / 2.0
+
+    seg = outline_segs[seg_idx]
+    F_pt = lerp(pts[seg.start], pts[seg.end], t_param)
+    iseg = inner_segs[seg_idx]
+    W_pt = lerp(pts[iseg.start], pts[iseg.end], t_param)
+
+    dx = pts[seg.end][0] - pts[seg.start][0]
+    dy = pts[seg.end][1] - pts[seg.start][1]
+    ln = math.sqrt(dx * dx + dy * dy)
+    t_hat = (dx / ln, dy / ln)
+    n_ext = (-t_hat[1], t_hat[0])
+
+    if side == "start":
+        open_dir = t_hat
+    else:
+        open_dir = (-t_hat[0], -t_hat[1])
+    wall_dir = (-open_dir[0], -open_dir[1])
+    n_int = (-n_ext[0], -n_ext[1])
+
+    oc = (F_pt[0] - R_out * n_ext[0] + R_out * wall_dir[0],
+          F_pt[1] - R_out * n_ext[1] + R_out * wall_dir[1])
+    ic = (W_pt[0] + R_out * n_ext[0] + R_out * wall_dir[0],
+          W_pt[1] + R_out * n_ext[1] + R_out * wall_dir[1])
+
+    f_arc, _, f_ep = qarc_elem(oc[0], oc[1], R_center, n_ext, open_dir)
+    w_arc, w_sp, _ = qarc_elem(ic[0], ic[1], R_center, open_dir, n_int)
+
+    crossover = ("line", f_ep[0], f_ep[1], w_sp[0], w_sp[1])
+
+    return [f_arc, crossover, w_arc]
+
+
+def build_tpath(pts, outline_segs, inner_segs, tf_segs, tw_segs,
+                start_op, end_op, shell_t, R_in, tw_ov, full_wrap=False):
+    """Build T-path element list for one wall section."""
+    R_out = R_in + shell_t
+
+    # F-side run: trace TF segments between openings (building CW)
+    f_elems = trace_elems(pts, tf_segs, start_op.seg_idx, start_op.t_end,
+                          end_op.seg_idx, end_op.t_start, R_out,
+                          full_wrap=full_wrap)
+
+    # End U-turn (at end_op, side="start": opening ahead in CW direction)
+    end_uturn = uturn_center_elems(pts, outline_segs, inner_segs,
+                                   end_op.seg_idx, end_op.t_start,
+                                   "start", shell_t, R_in)
+
+    # W-side run: trace TW segments, then reverse for T-path CW direction
+    w_elems = trace_elems(pts, tw_segs, start_op.seg_idx, start_op.t_end,
+                          end_op.seg_idx, end_op.t_start, R_out,
+                          seg_overrides=tw_ov, full_wrap=full_wrap)
+    w_rev = rev_elems(w_elems)
+
+    # Start U-turn (at start_op, side="end": opening behind)
+    # Computed F→W then reversed to get W→F direction
+    start_uturn_base = uturn_center_elems(pts, outline_segs, inner_segs,
+                                          start_op.seg_idx, start_op.t_end,
+                                          "end", shell_t, R_in)
+    start_uturn = rev_elems(start_uturn_base)
+
+    return f_elems + end_uturn + w_rev + start_uturn
+
+
+# ── SCAD output formatting ────────────────────────────────────
+
+def fmt_ft_in(ft, in_width=8):
+    """Format feet as ft' inches\" with 4 decimal places on inches."""
+    total_in = ft * 12
+    whole_ft = int(total_in // 12)
+    remaining_in = total_in - whole_ft * 12
+    return f"{whole_ft:2d}' {remaining_in:{in_width}.4f}\""
+
+
+def scad_seg(elem):
+    """Format a T-path element as SCAD array literal."""
+    if elem[0] == "line":
+        _, x1, y1, x2, y2 = elem
+        return f"[0, {x1:.8f}, {y1:.8f}, {x2:.8f}, {y2:.8f}]"
+    _, cx, cy, r, a1, a2 = elem
+    return f"[1, {cx:.8f}, {cy:.8f}, {r:.8f}, {a1:.6f}, {a2:.6f}]"
+
+
+def seg_comment(elem):
+    """Generate an inline comment for a T-path element."""
+    if elem[0] == "line":
+        _, x1, y1, x2, y2 = elem
+        dE, dN = x2 - x1, y2 - y1
+        length = math.sqrt(dE * dE + dN * dN)
+        bearing = math.degrees(math.atan2(dE, dN)) % 360
+        return f"// {fmt_ft_in(length)} @ {bearing:8.4f}deg"
+    _, cx, cy, r, a1, a2 = elem
+    sweep = a2 - a1
+    direction = "CCW" if sweep > 0 else "CW "
+    return f"// {direction} {abs(sweep):8.4f}deg R {fmt_ft_in(r, 7)}"
+
+
+def window_panel_poly(op, outline_segs, inner_segs, pts, panel_half):
+    """Compute a 1\"-panel polygon for a window/casement opening.
+
+    Returns list of 4 (x, y) vertices at the shell centerline face.
+    """
+    seg = outline_segs[op.seg_idx]
+    iseg = inner_segs[op.seg_idx]
+    F_A, F_B = pts[seg.start], pts[seg.end]
+    W_A, W_B = pts[iseg.start], pts[iseg.end]
+    M_A = ((F_A[0] + W_A[0]) / 2, (F_A[1] + W_A[1]) / 2)
+    M_B = ((F_B[0] + W_B[0]) / 2, (F_B[1] + W_B[1]) / 2)
+    M_s = lerp(M_A, M_B, op.t_start)
+    M_e = lerp(M_A, M_B, op.t_end)
+    dx, dy = F_B[0] - F_A[0], F_B[1] - F_A[1]
+    ln = math.sqrt(dx * dx + dy * dy)
+    nx, ny = -dy / ln, dx / ln  # exterior normal
+    return [
+        (M_s[0] + nx * panel_half, M_s[1] + ny * panel_half),
+        (M_e[0] + nx * panel_half, M_e[1] + ny * panel_half),
+        (M_e[0] - nx * panel_half, M_e[1] - ny * panel_half),
+        (M_s[0] - nx * panel_half, M_s[1] - ny * panel_half),
+    ]

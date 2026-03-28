@@ -5,7 +5,6 @@ material through both shells. OpenSCAD offsets this path by ±shell_t/2
 to produce the shell boundary polygon.
 All coordinates in feet.
 """
-import math
 import os
 import sys
 
@@ -13,151 +12,30 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS,
-                                  OPENING_INSIDE_RADIUS)
+                                  OPENING_INSIDE_RADIUS,
+                                  LOWER_WALL_HEIGHT, OPENING_HEIGHT,
+                                  UPPER_WALL_TOP_FLAT, ROOF_MIN_THICK,
+                                  FLAT_ROOF_SLOPE, SEAM_SPACING,
+                                  SEAM_WIDTH, SEAM_HEIGHT)
 from floorplan.roof import compute_roof_geometry, roof_polyline, roof_segments
-from shared.wall_shells import compute_inset_path, enumerate_wall_sections, lerp
-from shared.types import ArcSeg
+from shared.wall_shells import compute_inset_path, enumerate_wall_sections
 from scad._common import (seg_to_elem as _seg_to_elem, f8f9_elems as _f8f9_elems,
-                          trace_elems as _trace_elems, rev_elem as _rev_elem,
-                          rev_elems as _rev_elems, qarc_elem as _qarc_elem)
+                          trace_elems as _trace_elems, rev_elems as _rev_elems,
+                          uturn_center_elems as _uturn_center_elems,
+                          build_tpath as _build_tpath,
+                          fmt_ft_in as _fmt_ft_in, scad_seg as _scad_seg,
+                          seg_comment as _seg_comment,
+                          window_panel_poly as _window_panel_poly)
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _OUT = os.path.join(_DIR, "flat_roof.scad")
 
-LOWER_HEIGHT_IN = 20.0  # 1'8" lower walls (doors O3, O6 only)
-LOWER_HEIGHT_FT = LOWER_HEIGHT_IN / 12.0
+# Fallback values (used when not in gd.constants; match floorplan/constants.py)
+WALL_HEIGHT_FT = OPENING_HEIGHT  # for test introspection
 
-WALL_HEIGHT_IN = 80.0   # 6'8" middle wall top (all openings)
-WALL_HEIGHT_FT = WALL_HEIGHT_IN / 12.0
-MIDDLE_HEIGHT_FT = (WALL_HEIGHT_IN - LOWER_HEIGHT_IN) / 12.0
-
-UPPER_BASE_IN = 80.0    # bottom of upper wall band
-UPPER_TOP_IN = 112.0    # 9'4" top of upper wall band
-UPPER_BASE_FT = UPPER_BASE_IN / 12.0
-UPPER_HEIGHT_FT = (UPPER_TOP_IN - UPPER_BASE_IN) / 12.0
-
-ROOF_THICK_IN = 18.0   # minimum roof slab thickness (inches), at south edge
-ROOF_THICK_FT = ROOF_THICK_IN / 12.0
-ROOF_SLOPE_IN_PER_FT = 0.25   # 1/4" rise per foot of northing
-ROOF_SLOPE = ROOF_SLOPE_IN_PER_FT / 12.0  # ft/ft
-
-SEAM_SPACING_IN = 16.0    # standing seam on-center spacing (inches)
-SEAM_SPACING_FT = SEAM_SPACING_IN / 12.0
-SEAM_WIDTH_IN = 1.0       # seam rib width (inches)
-SEAM_WIDTH_FT = SEAM_WIDTH_IN / 12.0
-SEAM_HEIGHT_IN = 1.5      # seam rib height (inches)
-SEAM_HEIGHT_FT = SEAM_HEIGHT_IN / 12.0
-
-
-
-# ── U-turn centerline ────────────────────────────────────────
-
-
-def _uturn_center_elems(pts, outline_segs, inner_segs, seg_idx, t_param,
-                         side, shell_t, R_in):
-    """Compute centerline U-turn elements: F-arc, crossover, W-arc.
-
-    Returns list of 3 elements (F-side arc, crossover line, W-side arc).
-    These go from F-side to W-side. Reverse for W→F direction.
-    """
-    R_out = R_in + shell_t
-    R_center = R_in + shell_t / 2.0
-
-    seg = outline_segs[seg_idx]
-    F_pt = lerp(pts[seg.start], pts[seg.end], t_param)
-    iseg = inner_segs[seg_idx]
-    W_pt = lerp(pts[iseg.start], pts[iseg.end], t_param)
-
-    dx = pts[seg.end][0] - pts[seg.start][0]
-    dy = pts[seg.end][1] - pts[seg.start][1]
-    ln = math.sqrt(dx * dx + dy * dy)
-    t_hat = (dx / ln, dy / ln)
-    n_ext = (-t_hat[1], t_hat[0])
-
-    if side == "start":
-        open_dir = t_hat
-    else:
-        open_dir = (-t_hat[0], -t_hat[1])
-    wall_dir = (-open_dir[0], -open_dir[1])
-    n_int = (-n_ext[0], -n_ext[1])
-
-    oc = (F_pt[0] - R_out * n_ext[0] + R_out * wall_dir[0],
-          F_pt[1] - R_out * n_ext[1] + R_out * wall_dir[1])
-    ic = (W_pt[0] + R_out * n_ext[0] + R_out * wall_dir[0],
-          W_pt[1] + R_out * n_ext[1] + R_out * wall_dir[1])
-
-    f_arc, _, f_ep = _qarc_elem(oc[0], oc[1], R_center, n_ext, open_dir)
-    w_arc, w_sp, _ = _qarc_elem(ic[0], ic[1], R_center, open_dir, n_int)
-
-    crossover = ("line", f_ep[0], f_ep[1], w_sp[0], w_sp[1])
-
-    return [f_arc, crossover, w_arc]
-
-
-# ── section assembly ──────────────────────────────────────────
-
-def _build_tpath(pts, outline_segs, inner_segs, tf_segs, tw_segs,
-                 start_op, end_op, shell_t, R_in, tw_ov, full_wrap=False):
-    """Build T-path element list for one wall section."""
-    R_out = R_in + shell_t
-
-    # F-side run: trace TF segments between openings (building CW)
-    f_elems = _trace_elems(pts, tf_segs, start_op.seg_idx, start_op.t_end,
-                           end_op.seg_idx, end_op.t_start, R_out,
-                           full_wrap=full_wrap)
-
-    # End U-turn (at end_op, side="start": opening ahead in CW direction)
-    end_uturn = _uturn_center_elems(pts, outline_segs, inner_segs,
-                                     end_op.seg_idx, end_op.t_start,
-                                     "start", shell_t, R_in)
-
-    # W-side run: trace TW segments, then reverse for T-path CW direction
-    w_elems = _trace_elems(pts, tw_segs, start_op.seg_idx, start_op.t_end,
-                           end_op.seg_idx, end_op.t_start, R_out,
-                           seg_overrides=tw_ov, full_wrap=full_wrap)
-    w_rev = _rev_elems(w_elems)
-
-    # Start U-turn (at start_op, side="end": opening behind)
-    # Computed F→W then reversed to get W→F direction
-    start_uturn_base = _uturn_center_elems(pts, outline_segs, inner_segs,
-                                            start_op.seg_idx, start_op.t_end,
-                                            "end", shell_t, R_in)
-    start_uturn = _rev_elems(start_uturn_base)
-
-    return f_elems + end_uturn + w_rev + start_uturn
 
 
 # ── OpenSCAD output ───────────────────────────────────────────
-
-def _fmt_ft_in(ft, in_width=8):
-    """Format feet as ft' inches\" with 4 decimal places on inches."""
-    total_in = ft * 12
-    whole_ft = int(total_in // 12)
-    remaining_in = total_in - whole_ft * 12
-    return f"{whole_ft:2d}' {remaining_in:{in_width}.4f}\""
-
-
-def _scad_seg(elem):
-    """Format a T-path element as SCAD array literal."""
-    if elem[0] == "line":
-        _, x1, y1, x2, y2 = elem
-        return f"[0, {x1:.8f}, {y1:.8f}, {x2:.8f}, {y2:.8f}]"
-    _, cx, cy, r, a1, a2 = elem
-    return f"[1, {cx:.8f}, {cy:.8f}, {r:.8f}, {a1:.6f}, {a2:.6f}]"
-
-
-def _seg_comment(elem):
-    """Generate an inline comment for a T-path element."""
-    if elem[0] == "line":
-        _, x1, y1, x2, y2 = elem
-        dE, dN = x2 - x1, y2 - y1
-        length = math.sqrt(dE * dE + dN * dN)
-        bearing = math.degrees(math.atan2(dE, dN)) % 360
-        return f"// {_fmt_ft_in(length)} @ {bearing:8.4f}deg"
-    _, cx, cy, r, a1, a2 = elem
-    sweep = a2 - a1
-    direction = "CCW" if sweep > 0 else "CW "
-    return f"// {direction} {abs(sweep):8.4f}deg R {_fmt_ft_in(r, 7)}"
 
 
 def generate(gd=None):
@@ -181,6 +59,18 @@ def generate(gd=None):
     shell_half = shell_t / 2.0
     R_in = _consts.get('OPENING_INSIDE_RADIUS', OPENING_INSIDE_RADIUS)
     wall_outer = _consts.get('WALL_OUTER', WALL_OUTER)
+
+    lower_h = _consts.get('LOWER_WALL_HEIGHT', LOWER_WALL_HEIGHT)
+    opening_h = _consts.get('OPENING_HEIGHT', OPENING_HEIGHT)
+    upper_top = _consts.get('UPPER_WALL_TOP_FLAT', UPPER_WALL_TOP_FLAT)
+    roof_min_thick = _consts.get('ROOF_MIN_THICK', ROOF_MIN_THICK)
+    roof_slope = _consts.get('FLAT_ROOF_SLOPE', FLAT_ROOF_SLOPE)
+    seam_spacing = _consts.get('SEAM_SPACING', SEAM_SPACING)
+    seam_w = _consts.get('SEAM_WIDTH', SEAM_WIDTH)
+    seam_h = _consts.get('SEAM_HEIGHT', SEAM_HEIGHT)
+
+    middle_h = opening_h - lower_h
+    upper_h = upper_top - opening_h
 
     # Compute TF-series (shell centerline, shell_half from F-face)
     tf_pts, tf_segs = compute_inset_path(outline_segs, pts, radii,
@@ -223,28 +113,11 @@ def generate(gd=None):
         lower_section_data.append((label, tpath))
 
     # Window panels: non-door openings rendered as 1" opaque panels
-    window_panels = []
     panel_half = 0.5 / 12.0  # 1" thick panel, half-thickness in feet
-    for op in openings:
-        if op.opening_type == "door":
-            continue
-        seg = outline_segs[op.seg_idx]
-        iseg = inner_segs[op.seg_idx]
-        F_A, F_B = pts[seg.start], pts[seg.end]
-        W_A, W_B = pts[iseg.start], pts[iseg.end]
-        M_A = ((F_A[0] + W_A[0]) / 2, (F_A[1] + W_A[1]) / 2)
-        M_B = ((F_B[0] + W_B[0]) / 2, (F_B[1] + W_B[1]) / 2)
-        M_s = lerp(M_A, M_B, op.t_start)
-        M_e = lerp(M_A, M_B, op.t_end)
-        dx, dy = F_B[0] - F_A[0], F_B[1] - F_A[1]
-        ln = math.sqrt(dx * dx + dy * dy)
-        nx, ny = -dy / ln, dx / ln  # exterior normal
-        window_panels.append((op.name, [
-            (M_s[0] + nx * panel_half, M_s[1] + ny * panel_half),
-            (M_e[0] + nx * panel_half, M_e[1] + ny * panel_half),
-            (M_e[0] - nx * panel_half, M_e[1] - ny * panel_half),
-            (M_s[0] - nx * panel_half, M_s[1] - ny * panel_half),
-        ]))
+    window_panels = [
+        (op.name, _window_panel_poly(op, outline_segs, inner_segs, pts, panel_half))
+        for op in openings if op.opening_type != "door"
+    ]
 
     # Full-wall T-path: upper wall band wraps full perimeter, seam at first opening
     full_start = full_end = sections[0][0]
@@ -276,22 +149,26 @@ def generate(gd=None):
     roof_y_north = max(y for _, y in roof_pts)
     roof_x_west = min(x for x, _ in roof_pts)
     roof_x_east = max(x for x, _ in roof_pts)
-    # Flat bottom at wall_height; top slopes up toward north
-    # At south edge: thickness = ROOF_THICK_FT (18")
-    # At north edge: thickness = ROOF_THICK_FT + slope * delta_y
-    roof_z_base = ROOF_THICK_FT - ROOF_SLOPE * roof_y_south
-    max_roof_thick = ROOF_THICK_FT + ROOF_SLOPE * (roof_y_north - roof_y_south)
+    # Flat bottom at opening_h; top slopes up toward north
+    # At south edge: thickness = roof_min_thick; at north: += slope * delta_y
+    roof_z_base = roof_min_thick - roof_slope * roof_y_south
+    max_roof_thick = roof_min_thick + roof_slope * (roof_y_north - roof_y_south)
     max_roof_thick_in = max_roof_thick * 12.0
+
+    lower_in = lower_h * 12.0
+    opening_in = opening_h * 12.0
+    upper_top_in = upper_top * 12.0
+    roof_min_in = roof_min_thick * 12.0
 
     out = []
     out.append("// flat_roof.scad - T-path shell centerline extrusion")
-    out.append(f"// Lower walls:  0 to {LOWER_HEIGHT_IN:.0f}\" (1'8\") — door openings only")
-    out.append(f"// Middle walls: {LOWER_HEIGHT_IN:.0f}\" to {WALL_HEIGHT_IN:.0f}\" "
-               f"(5'0\") — all openings")
-    out.append(f"// Upper wall:   {UPPER_BASE_IN:.0f}\" to {UPPER_TOP_IN:.0f}\" "
-               f"(9'4\") — full perimeter")
-    out.append(f"// Roof: {ROOF_THICK_IN:.0f}\"-{max_roof_thick_in:.1f}\" wedge slab "
-               f"(1/4\"/ft slope N, {ROOF_THICK_IN:.0f}\" min at south)")
+    out.append(f"// Lower walls:  0 to {lower_in:.0f}\" (1'8\") — door openings only")
+    out.append(f"// Middle walls: {lower_in:.0f}\" to {opening_in:.0f}\" "
+               f"({middle_h * 12:.0f}\") — all openings")
+    out.append(f"// Upper wall:   {opening_in:.0f}\" to {upper_top_in:.0f}\" "
+               f"({upper_h * 12:.0f}\") — full perimeter")
+    out.append(f"// Roof: {roof_min_in:.0f}\"-{max_roof_thick_in:.1f}\" wedge slab "
+               f"(1/4\"/ft slope N, {roof_min_in:.0f}\" min at south)")
     out.append("// Construction: 2\" outer shell / 4\" air gap / 2\" inner shell")
     out.append(f"// {len(lower_section_data)} lower + {len(section_data)} middle "
                f"+ 1 upper wall sections")
@@ -342,16 +219,16 @@ def generate(gd=None):
     out.append("}")
     out.append("")
     out.append(f"half_t = {shell_half:.6f};")
-    out.append(f"lower_height = {LOWER_HEIGHT_FT:.6f};")
-    out.append(f"middle_height = {MIDDLE_HEIGHT_FT:.6f};")
-    out.append(f"upper_base = {UPPER_BASE_FT:.6f};")
-    out.append(f"upper_height = {UPPER_HEIGHT_FT:.6f};")
-    out.append(f"roof_thick = {ROOF_THICK_FT:.6f};")
+    out.append(f"lower_height = {lower_h:.6f};")
+    out.append(f"middle_height = {middle_h:.6f};")
+    out.append(f"upper_base = {opening_h:.6f};")
+    out.append(f"upper_height = {upper_h:.6f};")
+    out.append(f"roof_thick = {roof_min_thick:.6f};")
     out.append(f"max_roof_thick = {max_roof_thick:.6f};")
-    out.append(f"seam_spacing = {SEAM_SPACING_FT:.6f};  // {SEAM_SPACING_IN:.0f}\" on center")
-    out.append(f"seam_w = {SEAM_WIDTH_FT:.6f};  // {SEAM_WIDTH_IN:.0f}\" wide")
-    out.append(f"seam_h = {SEAM_HEIGHT_FT:.6f};  // {SEAM_HEIGHT_IN:.1f}\" tall")
-    out.append(f"roof_slope = {ROOF_SLOPE:.8f};  // {ROOF_SLOPE_IN_PER_FT}\" per ft")
+    out.append(f"seam_spacing = {seam_spacing:.6f};  // {seam_spacing * 12:.0f}\" on center")
+    out.append(f"seam_w = {seam_w:.6f};  // {seam_w * 12:.0f}\" wide")
+    out.append(f"seam_h = {seam_h:.6f};  // {seam_h * 12:.1f}\" tall")
+    out.append(f"roof_slope = {roof_slope:.8f};  // {roof_slope * 12:.4f}\" per ft")
     out.append(f"roof_z_base = {roof_z_base:.8f};")
     out.append("")
 
@@ -422,23 +299,22 @@ def generate(gd=None):
     out.append("wall_cream = [0.88, 0.82, 0.60];  // warm cream-yellow (match main house)")
     out.append("roof_teal = [0.10, 0.35, 0.33];  // dark teal-green metal (match main house)")
     out.append("color(wall_cream) union() {")
-    out.append(f"  // Lower walls (0 to {LOWER_HEIGHT_IN:.0f}\", door openings only)")
+    out.append(f"  // Lower walls (0 to {lower_in:.0f}\", door openings only)")
     for label, _ in lower_section_data:
         out.append(f"  linear_extrude(height = lower_height)")
         out.append(f"    wall_shell(t_{label}, half_t);")
-    out.append(f"  // Middle walls ({LOWER_HEIGHT_IN:.0f}\" to {WALL_HEIGHT_IN:.0f}\","
-               f" all openings)")
+    out.append(f"  // Middle walls ({lower_in:.0f}\" to {opening_in:.0f}\", all openings)")
     for label, _ in section_data:
         out.append(f"  translate([0, 0, lower_height])")
         out.append(f"    linear_extrude(height = middle_height)")
         out.append(f"      wall_shell(t_{label}, half_t);")
-    out.append(f"  // Upper wall ({UPPER_BASE_IN:.0f}\" to {UPPER_TOP_IN:.0f}\", full perimeter)")
+    out.append(f"  // Upper wall ({opening_in:.0f}\" to {upper_top_in:.0f}\", full perimeter)")
     out.append("  translate([0, 0, upper_base])")
     out.append("    linear_extrude(height = upper_height)")
     out.append("      wall_shell(t_full_upper, half_t);")
     out.append("}")
-    out.append(f"// Wedge roof slab ({ROOF_THICK_IN:.0f}\"-{max_roof_thick_in:.1f}\", "
-               f"1/4\"/ft slope N)")
+    out.append(f"// Wedge roof slab ({roof_min_in:.0f}\"-{max_roof_thick_in:.1f}\", "
+               f"{roof_slope * 12:.3g}\"/ft slope N)")
     out.append("color(roof_teal) {")
     out.append(f"  translate([0, 0, upper_base + upper_height])")
     out.append("    render() intersection() {")
@@ -449,10 +325,10 @@ def generate(gd=None):
     out.append("        translate([-25, -20, -25])")
     out.append("          cube([50, 40, 25]);")
     out.append("    }")
-    out.append(f"  // Standing seam ribs ({SEAM_SPACING_IN:.0f}\" o.c., "
-               f"{SEAM_WIDTH_IN:.0f}\" wide, {SEAM_HEIGHT_IN:.1f}\" tall)")
+    out.append(f"  // Standing seam ribs ({seam_spacing * 12:.0f}\" o.c., "
+               f"{seam_w * 12:.0f}\" wide, {seam_h * 12:.1f}\" tall)")
     out.append(f"  translate([0, 0, upper_base + upper_height])")
-    out.append(f"    for (x = [{roof_x_west + SEAM_SPACING_FT / 2:.6f} "
+    out.append(f"    for (x = [{roof_x_west + seam_spacing / 2:.6f} "
                f": seam_spacing : {roof_x_east:.6f}])")
     out.append("      intersection() {")
     out.append("        multmatrix([[1,0,0,0], [0,1,0,0],")

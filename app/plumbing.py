@@ -153,7 +153,7 @@ def seed_plumbing(conn):
 # ---------------------------------------------------------------------------
 # Reference plumbing computation — replicates _render_plumbing_path() from
 # floorplan/gen_floorplan.py using geometry dict data.
-# Constants hardcoded per NF-4 duplication principle.
+# Constants hardcoded without importing app/ modules.
 # ---------------------------------------------------------------------------
 _WH_RADIUS = 14.0 / 12.0
 _KITCHEN_SINK_WIDTH = 45.0 / 12.0

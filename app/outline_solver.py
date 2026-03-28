@@ -1,8 +1,8 @@
 """Outline chain walk and closure solver for the ADU Editor.
 
 Replicates floorplan/geometry.py's chain walk and closure logic as
-pure math.  No imports from floorplan/ (NF-4 compliance).  After
-Phase 5 the outline_chain database table is authoritative.
+pure math.  No imports from floorplan/ (architectural compliance).  After
+The outline_chain database table is authoritative.
 """
 import math
 from typing import NamedTuple
