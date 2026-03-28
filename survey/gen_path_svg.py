@@ -463,7 +463,11 @@ def generate_svg(data, iw_polys=None, out_path=None):
     outline_area = data["outline_area"]
 
     _seg_starts = {s.start for s in outline_segs}
-    if any(n.startswith("F") and n[1:].lstrip("0123456789") in ("", "a", "b") for n in _seg_starts):
+    # Old F-series uses unpadded single-digit names (F1-F9) and alpha suffixes (F11a, F11b).
+    # DB F-series zero-pads single digits (F01-F09) — so F1/F2 never appear in DB chains.
+    # Two-digit names (F10-F20, F21-F26) are shared, so only check unambiguous old names.
+    _OLD_F_UNIQUE = {"F1","F2","F5","F6","F7","F8","F9","F11a","F11b"}
+    if _seg_starts & _OLD_F_UNIQUE:
         outline_cfg = build_outline_cfg(outline_segs, pts, data["radii"])
     else:
         outline_cfg = build_outline_cfg_db(outline_segs, pts)

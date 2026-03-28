@@ -182,8 +182,9 @@ def build_site_plan_data(gd=None):
         pts = dict(gd.pts)  # copy so we can add aliases
         outer_poly = gd.outline_poly
         inner_poly = gd.inner_poly
-        # For DB chain (non-F-series naming): add F-series reference aliases
-        if "F16" not in pts or "F15" not in pts:
+        # Add F-series reference aliases and virtual axis-direction points (W9, W10, W2, W5).
+        # DB uses zero-padded single-digit names (W09, W02) so W9/W2 are never present.
+        if "W9" not in pts:
             pts.update(_find_site_refs_from_db(gd.outline_segs, pts))
         _outline_struct_names = list(dict.fromkeys(
             n for s in gd.outline_segs for n in (s.start, s.end) if n in pts))
