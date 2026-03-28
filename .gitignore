@@ -7,4 +7,3 @@ __pycache__/
 adu.egg-info/
 .git_describe
 nul
-*.db
