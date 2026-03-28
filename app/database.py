@@ -357,7 +357,7 @@ def init_db(db_path=None):
                     break
             # Ensure new dimension constants exist
             for _cname, _val_in, _cat, _desc in _VARIANT_ITEM_CONSTANTS:
-                if _cname.startswith(("NORDVIKEN", "SKOGSTA", "STOCKHOLM_SOFA")):
+                if _cname.startswith(("NORDVIKEN", "SKOGSTA", "STOCKHOLM_SOFA", "TONSTAD")):
                     conn.execute(
                         "INSERT OR IGNORE INTO constants "
                         "(name, value, expr, unit, category, description) "
@@ -366,7 +366,7 @@ def init_db(db_path=None):
                     )
             # Ensure new element records exist for skogsta_bench and stockholm_sofa
             for _name, _type, _props, _variant in _VARIANT_ITEMS:
-                if _name in ("skogsta_bench", "stockholm_sofa"):
+                if _name in ("skogsta_bench", "stockholm_sofa", "tonstad_chair"):
                     conn.execute(
                         "INSERT OR IGNORE INTO elements (type, name, properties, variant) "
                         "VALUES (?, ?, ?, ?)",
@@ -934,6 +934,8 @@ _VARIANT_ITEM_CONSTANTS = [
     ("SKOGSTA_W",        18.125, "furniture",  "SKOGSTA bench with storage width"),
     ("STOCKHOLM_SOFA_L", 83.125, "furniture",  "STOCKHOLM sofa length"),
     ("STOCKHOLM_SOFA_D", 34.625, "furniture",  "STOCKHOLM sofa depth"),
+    ("TONSTAD_W",        18.5,   "furniture",  "TONSTAD chair width"),
+    ("TONSTAD_D",        22.0,   "furniture",  "TONSTAD chair depth"),
 ]
 
 
@@ -1570,6 +1572,15 @@ _VARIANT_ITEMS = [
             {"face": [1, 2], "distance": 15.5625 / 12.0},
             {"face": [3, 0], "distance": 15.5625 / 12.0},
         ],
+        "variants": _VI_ALL,
+    }, None),
+    ("tonstad_chair", "furniture", {
+        "label": "CHAIR",
+        "item_type": "furniture",
+        "shape": "rect",
+        "width": 18.5 / 12.0,
+        "depth": 22.0 / 12.0,
+        "product_url": "https://www.ikea.com/us/en/p/tonstad-chair-bomstad-golden-brown-brown-oak-effect-s29602171/#content",
         "variants": _VI_ALL,
     }, None),
     ("skogsta_bench", "furniture", {
