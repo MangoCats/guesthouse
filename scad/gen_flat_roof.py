@@ -131,6 +131,22 @@ def generate(gd=None):
     roof_z_base = roof_min_thick - roof_slope * roof_y_south
     max_roof_thick = roof_min_thick + roof_slope * (roof_y_north - roof_y_south)
     max_roof_thick_in = max_roof_thick * 12.0
+    # Compute intersection cube bounds from roof_elems (includes overhang).
+    # For arcs use center ± radius as a conservative bound.
+    _elem_xs = []
+    _elem_ys = []
+    for _e in roof_elems:
+        if _e[0] == "line":
+            _elem_xs += [_e[1], _e[3]]; _elem_ys += [_e[2], _e[4]]
+        else:
+            _elem_xs += [_e[1] - _e[3], _e[1] + _e[3]]
+            _elem_ys += [_e[2] - _e[3], _e[2] + _e[3]]
+    _margin = 2.0
+    _cube_x_min = min(_elem_xs) - _margin
+    _cube_x_max = max(_elem_xs) + _margin
+    _cube_y_min = min(_elem_ys) - _margin
+    _cube_y_max = max(_elem_ys) + _margin
+    _cube_z_depth = 30.0  # generous depth in shear space
 
     lower_in = lower_h * 12.0
     opening_in = opening_h * 12.0
@@ -283,8 +299,8 @@ def generate(gd=None):
     out.append("        polygon(points = shell_pts(roof_outline, 0));")
     out.append("      multmatrix([[1,0,0,0], [0,1,0,0],")
     out.append("                  [0, roof_slope, 1, roof_z_base], [0,0,0,1]])")
-    out.append("        translate([-25, -20, -25])")
-    out.append("          cube([50, 40, 25]);")
+    out.append(f"        translate([{_cube_x_min:.4f}, {_cube_y_min:.4f}, -{_cube_z_depth:.1f}])")
+    out.append(f"          cube([{_cube_x_max - _cube_x_min:.4f}, {_cube_y_max - _cube_y_min:.4f}, {_cube_z_depth:.1f}]);")
     out.append("    }")
     out.append(f"  // Standing seam ribs ({seam_spacing * 12:.0f}\" o.c., "
                f"{seam_w * 12:.0f}\" wide, {seam_h * 12:.1f}\" tall)")

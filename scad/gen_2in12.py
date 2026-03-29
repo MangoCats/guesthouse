@@ -113,6 +113,22 @@ def generate(gd=None):
     roof_z_offset = roof_eave_elev - roof_slope * ref_y
     max_roof_z = roof_slope * max_roof_y + roof_z_offset
     max_upper_h = max_roof_z - opening_h  # generous upper wall height
+    # Compute intersection cube bounds from roof_elems (includes overhang).
+    # For arcs use center ± radius as a conservative bound.
+    _elem_xs = []
+    _elem_ys = []
+    for _e in roof_elems:
+        if _e[0] == "line":
+            _elem_xs += [_e[1], _e[3]]; _elem_ys += [_e[2], _e[4]]
+        else:
+            _elem_xs += [_e[1] - _e[3], _e[1] + _e[3]]
+            _elem_ys += [_e[2] - _e[3], _e[2] + _e[3]]
+    _margin = 2.0
+    _cube_x_min = min(_elem_xs) - _margin
+    _cube_x_max = max(_elem_xs) + _margin
+    _cube_y_min = min(_elem_ys) - _margin
+    _cube_y_max = max(_elem_ys) + _margin
+    _cube_z_depth = 30.0  # generous depth in shear space
 
     # N-band walls: driven by per-opening bottom/top elevations
     bands = _compute_wall_bands(
@@ -259,8 +275,8 @@ def generate(gd=None):
                     out.append(f"      linear_extrude(height = {h:.6f}, convexity = 10)")
                 out.append(f"        wall_shell(t_{scad_label}, half_t);")
             out.append("    multmatrix(roof_shear)")
-            out.append("      translate([-25, -20, -20])")
-            out.append("        cube([50, 40, 20]);")
+            out.append(f"      translate([{_cube_x_min:.4f}, {_cube_y_min:.4f}, -{_cube_z_depth:.1f}])")
+            out.append(f"        cube([{_cube_x_max - _cube_x_min:.4f}, {_cube_y_max - _cube_y_min:.4f}, {_cube_z_depth:.1f}]);")
             out.append("  }")
         else:
             for label, _ in sec_data:
