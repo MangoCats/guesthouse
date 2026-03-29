@@ -756,6 +756,7 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
     # Compute DB-driven geometry once for outer openings + IW polys
     db_openings = None
     iw_polys = None
+    ro_polys = None
     if db_path is not None:
         try:
             from app.engine import compute_geometry
@@ -767,6 +768,7 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
                 for name, data in geom.get("interior_walls", {}).items()
                 if "poly" in data
             }
+            ro_polys = geom.get("rough_openings", [])
         except Exception:
             pass
 
@@ -784,5 +786,7 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
                        roof_corners_data=roof_corners_data)
     if iw_polys:
         gd.iw_polys = iw_polys
+    if ro_polys is not None:
+        gd.ro_polys = ro_polys
 
     return gd

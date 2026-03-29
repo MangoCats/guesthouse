@@ -145,6 +145,7 @@ class WallData(NamedTuple):
     roof: object           # RoofGeometry
     constants: dict        # DB constants (SHELL_THICKNESS, AIR_GAP, etc.)
     iw_polys: dict         # DB interior wall polygons, or None for seed path
+    ro_polys: list         # DB rough opening dicts, or None for seed path
     roof_poly: list        # Roof outline polygon (precomputed)
 
 
@@ -232,6 +233,7 @@ def build_wall_data(gd=None):
         roof=gd.roof,
         constants=gd.constants,
         iw_polys=getattr(gd, 'iw_polys', None),
+        ro_polys=getattr(gd, 'ro_polys', None),
         roof_poly=_get_roof_poly(gd),
     )
 
@@ -254,7 +256,11 @@ def _render_interior_walls(out, data):
     layout = data.layout
 
     if layout is None:
-        # DB path — render whatever iw_polys the DB provides
+        # DB path — render iw_polys and rough openings from DB
+        _RO_COLOR = "darkred"
+        _RO_SW = "0.5"
+        _LABEL_GAP = 3.0
+
         if data.iw_polys:
             for name, poly in sorted(data.iw_polys.items()):
                 svg = svg_polygon_pts(poly, to_svg, prec=2)
@@ -268,6 +274,53 @@ def _render_interior_walls(out, data):
                                f' text-anchor="middle" dominant-baseline="central"'
                                f' font-family="Arial" font-size="6"'
                                f' fill="{CLR_LABEL}">{name}</text>')
+
+        for ro in (data.ro_polys or []):
+            b = ro.get("bbox") or {}
+            poly = ro.get("poly")
+            orient = ro.get("orientation", "H")
+            name = ro.get("name", "")
+
+            if poly:
+                _rp_svg = [to_svg(*p) for p in poly]
+                pts_str = " ".join(f"{x:.1f},{y:.1f}" for x, y in _rp_svg)
+                out.append(f'<polygon points="{pts_str}" fill="none"'
+                           f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+                out.append(f'<line x1="{_rp_svg[0][0]:.1f}" y1="{_rp_svg[0][1]:.1f}"'
+                           f' x2="{_rp_svg[2][0]:.1f}" y2="{_rp_svg[2][1]:.1f}"'
+                           f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+                out.append(f'<line x1="{_rp_svg[1][0]:.1f}" y1="{_rp_svg[1][1]:.1f}"'
+                           f' x2="{_rp_svg[3][0]:.1f}" y2="{_rp_svg[3][1]:.1f}"'
+                           f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+                cx = sum(p[0] for p in poly) / len(poly)
+                cy = sum(p[1] for p in poly) / len(poly)
+                lx, ly = to_svg(cx, cy)
+                rot = ""
+            elif b:
+                x1, y1 = to_svg(b["w"], b["n"])
+                x2, y2 = to_svg(b["e"], b["s"])
+                out.append(f'<rect x="{x1:.1f}" y="{y1:.1f}"'
+                           f' width="{x2 - x1:.1f}" height="{y2 - y1:.1f}"'
+                           f' fill="none" stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+                out.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}"'
+                           f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+                out.append(f'<line x1="{x2:.1f}" y1="{y1:.1f}" x2="{x1:.1f}" y2="{y2:.1f}"'
+                           f' stroke="{_RO_COLOR}" stroke-width="{_RO_SW}"/>')
+                if orient == "H":
+                    lx, ly = to_svg((b["w"] + b["e"]) / 2, b["n"])
+                    ly -= _LABEL_GAP
+                    rot = ""
+                else:
+                    lx, ly = to_svg(b["w"], (b["s"] + b["n"]) / 2)
+                    lx -= _LABEL_GAP
+                    rot = f' transform="rotate(-90 {lx:.1f} {ly:.1f})"'
+            else:
+                continue
+
+            out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
+                       f' dominant-baseline="central" font-family="Arial"'
+                       f' font-size="6" fill="{_RO_COLOR}"{rot}>{name}</text>')
+
         return
 
     inner_poly = data.inner_poly
@@ -924,10 +977,89 @@ def _render_wall_table(out, data):
     return tbl_border_bottom
 
 
+def _render_interior_walls_table_db(out, data, tbl_border_bottom):
+    """Render interior walls table from DB iw_polys + ro_polys."""
+    if not data.iw_polys:
+        return
+    tbl_left = data.tb_left
+
+    def _poly_edges(poly):
+        edges = []
+        for i in range(len(poly)):
+            j = (i + 1) % len(poly)
+            dx = poly[j][0] - poly[i][0]
+            dy = poly[j][1] - poly[i][1]
+            edges.append(math.sqrt(dx**2 + dy**2))
+        return edges
+
+    # Build RO lookup: wall_name → list of "ROx width" strings
+    ro_by_wall: dict[str, list[str]] = {}
+    for ro in (data.ro_polys or []):
+        w_in = ro.get("width", 0) * 12
+        w_str = f"{w_in:.2f}".rstrip("0").rstrip(".")
+        ro_by_wall.setdefault(ro.get("wall_name", ""), []).append(
+            f"{ro.get('name','')} {w_str}&#8243;")
+
+    # Build rows: (id, thickness_in, length_ft)
+    iw_rows = []
+    for name, poly in sorted(data.iw_polys.items()):
+        if len(poly) < 3:
+            continue
+        edges = _poly_edges(poly)
+        thick_in = min(edges) * 12
+        length_ft = max(edges)
+        iw_rows.append((name, thick_in, length_ft))
+
+    iw_tbl_top = tbl_border_bottom + 14
+    iw_row_h = 7.5
+    iw_col = [tbl_left + 20, tbl_left + 48, tbl_left + 82, tbl_left + 168]
+
+    out.append(f'<text x="{(tbl_left + iw_col[-1]) / 2:.1f}" y="{iw_tbl_top:.1f}"'
+               f' text-anchor="middle" font-family="Arial" font-size="7"'
+               f' font-weight="bold" fill="{CLR_TITLE}">Interior Walls</text>')
+
+    iw_hdr_y = iw_tbl_top + 10
+    iw_hdrs = ["ID", "Thk", "Length", "Openings"]
+    iw_hdr_x = [tbl_left + 2, iw_col[1] - 2, iw_col[2] - 2, iw_col[2] + 2]
+    iw_hdr_a = ["start", "end", "end", "start"]
+    for hx, ha, hd in zip(iw_hdr_x, iw_hdr_a, iw_hdrs):
+        out.append(f'<text x="{hx:.1f}" y="{iw_hdr_y:.1f}"'
+                   f' text-anchor="{ha}" font-family="Arial" font-size="6"'
+                   f' font-weight="bold" fill="{CLR_TITLE}">{hd}</text>')
+
+    iw_line_y = iw_hdr_y + 2.5
+    out.append(f'<line x1="{tbl_left:.1f}" y1="{iw_line_y:.1f}"'
+               f' x2="{iw_col[-1]:.1f}" y2="{iw_line_y:.1f}"'
+               f' stroke="#999" stroke-width="0.5"/>')
+
+    for ri, (iw_id, thick_in, length_ft) in enumerate(iw_rows):
+        y = iw_line_y + (ri + 1) * iw_row_h
+        total_in = length_ft * 12
+        ft = int(total_in) // 12
+        remain_in = total_in - ft * 12
+        length_str = f"{ft}&#8242; {remain_in:.1f}&#8243;"
+        ros = ", ".join(ro_by_wall.get(iw_id, []))
+        thk_str = f'{thick_in:.1f}&#8243;'
+        vals = [iw_id, thk_str, length_str, ros]
+        for vx, va, vv in zip(iw_hdr_x, iw_hdr_a, vals):
+            out.append(f'<text x="{vx:.1f}" y="{y:.1f}"'
+                       f' text-anchor="{va}" font-family="Arial"'
+                       f' font-size="6" fill="{CLR_TITLE}">{vv}</text>')
+
+    iw_border_top = iw_tbl_top - 8.5
+    iw_border_bottom = iw_line_y + len(iw_rows) * iw_row_h + 3
+    out.append(f'<rect x="{tbl_left:.1f}" y="{iw_border_top:.1f}"'
+               f' width="{iw_col[-1] - tbl_left:.1f}"'
+               f' height="{iw_border_bottom - iw_border_top:.1f}"'
+               f' fill="none" stroke="#999" stroke-width="0.5"/>')
+
+
 def _render_interior_walls_table(out, data, tbl_border_bottom):
     """Render the interior walls summary table."""
     if data.layout is None:
-        return  # DB path — table uses seed layout, skip when unavailable
+        # DB path — build table from iw_polys + ro_polys
+        _render_interior_walls_table_db(out, data, tbl_border_bottom)
+        return
     pts = data.pts
     layout = data.layout
     tbl_left = data.tb_left
