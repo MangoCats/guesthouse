@@ -143,6 +143,25 @@ class WallData(NamedTuple):
     g_f8f9_poly: list      # G-series F8-F9 straight-arc-straight polyline
     w_f8f9_poly: list      # W-series F8-F9 straight-arc-straight polyline
     roof: object           # RoofGeometry
+    constants: dict        # DB constants (SHELL_THICKNESS, AIR_GAP, etc.)
+    iw_polys: dict         # DB interior wall polygons, or None for seed path
+    roof_poly: list        # Roof outline polygon (precomputed)
+
+
+def _get_roof_poly(gd):
+    """Return roof polygon from a GeneratorData, handling both old and DB roof types."""
+    roof = getattr(gd, 'roof', None)
+    if roof is None:
+        return []
+    # DbRoofResult has .poly directly
+    if hasattr(roof, 'poly') and roof.poly:
+        return roof.poly
+    # Old RoofGeometry requires roof_polyline()
+    try:
+        from floorplan.roof import roof_polyline
+        return roof_polyline(roof)
+    except Exception:
+        return []
 
 
 def build_wall_data(gd=None):
@@ -162,7 +181,9 @@ def build_wall_data(gd=None):
     to_svg = make_svg_transform()
 
     # --- Page layout: 1:72 scale ---
-    _f_names = [f"F{i}" for i in range(19) if i not in (0, 3, 4)]
+    # Use actual outline segment point names (works with any naming scheme)
+    _f_names = list(dict.fromkeys(
+        n for s in gd.outline_segs for n in (s.start, s.end) if n in gd.pts))
     _f_svg = [to_svg(*gd.pts[k]) for k in _f_names]
     _bldg_xmin = min(p[0] for p in _f_svg)
     _bldg_xmax = max(p[0] for p in _f_svg)
@@ -209,6 +230,9 @@ def build_wall_data(gd=None):
         g_f8f9_poly=gd.g_f8f9_poly,
         w_f8f9_poly=gd.w_f8f9_poly,
         roof=gd.roof,
+        constants=gd.constants,
+        iw_polys=getattr(gd, 'iw_polys', None),
+        roof_poly=_get_roof_poly(gd),
     )
 
 
@@ -228,6 +252,24 @@ def _render_interior_walls(out, data):
     pts = data.pts
     to_svg = data.to_svg
     layout = data.layout
+
+    if layout is None:
+        # DB path — render whatever iw_polys the DB provides
+        if data.iw_polys:
+            for name, poly in sorted(data.iw_polys.items()):
+                svg = svg_polygon_pts(poly, to_svg, prec=2)
+                out.append(f'<polygon points="{svg}" fill="{CLR_IW_FILL}"'
+                           f' stroke="{CLR_IW_STROKE}" stroke-width="0.5"/>')
+                if len(poly) >= 3:
+                    cx = sum(p[0] for p in poly) / len(poly)
+                    cy = sum(p[1] for p in poly) / len(poly)
+                    sx, sy = to_svg(cx, cy)
+                    out.append(f'<text x="{sx:.1f}" y="{sy:.1f}"'
+                               f' text-anchor="middle" dominant-baseline="central"'
+                               f' font-family="Arial" font-size="6"'
+                               f' fill="{CLR_LABEL}">{name}</text>')
+        return
+
     inner_poly = data.inner_poly
 
     IW_FILL = CLR_IW_FILL
@@ -506,9 +548,11 @@ def _render_wall_segments(out, data):
     g_segs = data.g_segs
     openings = data.openings
 
-    shell_t = SHELL_THICKNESS
-    R_in = OPENING_INSIDE_RADIUS
+    _c = data.constants
+    shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
+    R_in = _c.get("OPENING_INSIDE_RADIUS", OPENING_INSIDE_RADIUS)
     R_out = R_in + shell_t
+    _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
 
     WALL_FILL = CLR_SHELL_FILL
     OPENING_FILL = CLR_OPENING_FILL
@@ -580,14 +624,14 @@ def _render_wall_segments(out, data):
                     # U-turn at opening start (wall→opening transition)
                     uturn_start = uturn_polygon(
                         pts, outline_segs, inner_segs, s_segs, g_segs,
-                        seg_idx, op.t_start, "start", shell_t, R_in, WALL_OUTER)
+                        seg_idx, op.t_start, "start", shell_t, R_in, _wall_outer)
                     _svg_polygon(out, uturn_start, to_svg, WALL_FILL,
                                  stroke="none")
 
                     # U-turn at opening end (opening→wall transition)
                     uturn_end = uturn_polygon(
                         pts, outline_segs, inner_segs, s_segs, g_segs,
-                        seg_idx, op.t_end, "end", shell_t, R_in, WALL_OUTER)
+                        seg_idx, op.t_end, "end", shell_t, R_in, _wall_outer)
                     _svg_polygon(out, uturn_end, to_svg, WALL_FILL,
                                  stroke="none")
 
@@ -610,8 +654,10 @@ def _render_section_outlines(out, data):
     """Render continuous outlines per wall section."""
     pts = data.pts
     to_svg = data.to_svg
-    shell_t = SHELL_THICKNESS
-    R_in = OPENING_INSIDE_RADIUS
+    _c = data.constants
+    shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
+    R_in = _c.get("OPENING_INSIDE_RADIUS", OPENING_INSIDE_RADIUS)
+    _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
 
     _f8f9_idx = next((i for i, s in enumerate(data.outline_segs)
                       if s.start == "F8" and s.end == "F9"), None)
@@ -621,7 +667,7 @@ def _render_section_outlines(out, data):
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(
             pts, data.outline_segs, data.inner_segs, data.s_segs, data.g_segs,
-            start_op, end_op, shell_t, R_in, WALL_OUTER,
+            start_op, end_op, shell_t, R_in, _wall_outer,
             g_seg_overrides=g_overrides, w_seg_overrides=w_overrides)
         for path in [outer_path, cavity_path]:
             svg_pts = svg_polygon_pts(path, to_svg, prec=2)
@@ -685,9 +731,12 @@ def _render_title_block(out, data):
                f' fill="#999">from {_git_desc}</text>')
 
     # Wall construction note
+    _c = data.constants
+    _shell_in = _c.get("SHELL_THICKNESS", SHELL_THICKNESS) * 12
+    _gap_in = _c.get("AIR_GAP", AIR_GAP) * 12
     out.append(f'<text x="{data.tb_cx:.1f}" y="{data.tb_top+76:.1f}"'
                f' text-anchor="middle" font-family="Arial" font-size="7"'
-               f' fill="#999">{SHELL_THICKNESS*12:.0f}&#8243; shell / {AIR_GAP*12:.0f}&#8243; gap / {SHELL_THICKNESS*12:.0f}&#8243; shell</text>')
+               f' fill="#999">{_shell_in:.0f}&#8243; shell / {_gap_in:.0f}&#8243; gap / {_shell_in:.0f}&#8243; shell</text>')
 
 
 def _compute_slope_wall_area(pts, outline_segs, inner_segs):
@@ -726,14 +775,16 @@ def _compute_slope_wall_area(pts, outline_segs, inner_segs):
     return outer_area + inner_area
 
 
-def compute_wall_table_rows(pts, outline_segs, openings):
+def compute_wall_table_rows(pts, outline_segs, openings, constants=None):
     """Compute wall segment measurements for the wall table.
 
     Returns a list of (label, outer_inches, inner_inches, shell_inches,
     area_2_12_sqft) tuples, one per wall section, rotated so O11-O1 first.
     """
-    shell_t = SHELL_THICKNESS
-    R_in = OPENING_INSIDE_RADIUS
+    _c = constants or {}
+    shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
+    R_in = _c.get("OPENING_INSIDE_RADIUS", OPENING_INSIDE_RADIUS)
+    _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
     R_out = R_in + shell_t
 
     sections = enumerate_wall_sections(openings, outline_segs)
@@ -742,7 +793,7 @@ def compute_wall_table_rows(pts, outline_segs, openings):
 
     # U-turn centerline length (same for every section)
     R_mid = R_in + shell_t / 2          # centerline radius through shell
-    uturn_straight = WALL_OUTER - 2 * (shell_t + R_in)
+    uturn_straight = _wall_outer - 2 * (shell_t + R_in)
     uturn_cl = 2 * (math.pi / 2) * R_mid + uturn_straight  # feet
 
     rows = []
@@ -756,12 +807,12 @@ def compute_wall_table_rows(pts, outline_segs, openings):
         outer_ft = _path_length_between(
             pts, outline_segs, s_seg, s_t, e_seg, e_t, 0.0)
         inner_ft = _path_length_between(
-            pts, outline_segs, s_seg, s_t, e_seg, e_t, WALL_OUTER)
+            pts, outline_segs, s_seg, s_t, e_seg, e_t, _wall_outer)
         outer_cl_ft = _path_length_between(
             pts, outline_segs, s_seg, s_t, e_seg, e_t, shell_t / 2)
         inner_cl_ft = _path_length_between(
             pts, outline_segs, s_seg, s_t, e_seg, e_t,
-            WALL_OUTER - shell_t / 2)
+            _wall_outer - shell_t / 2)
         shell_ft = (outer_cl_ft - 2 * R_out) + (inner_cl_ft - 2 * R_out) + 2 * uturn_cl
 
         outer_in = outer_ft * 12
@@ -776,7 +827,7 @@ def compute_wall_table_rows(pts, outline_segs, openings):
 def _render_wall_table(out, data):
     """Render the wall segment measurement table. Returns table bottom y."""
     table_rows = compute_wall_table_rows(
-        data.pts, data.outline_segs, data.openings)
+        data.pts, data.outline_segs, data.openings, data.constants)
     slope_area = _compute_slope_wall_area(
         data.pts, data.outline_segs, data.inner_segs)
 
@@ -875,6 +926,8 @@ def _render_wall_table(out, data):
 
 def _render_interior_walls_table(out, data, tbl_border_bottom):
     """Render the interior walls summary table."""
+    if data.layout is None:
+        return  # DB path — table uses seed layout, skip when unavailable
     pts = data.pts
     layout = data.layout
     tbl_left = data.tb_left
@@ -963,41 +1016,37 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
 
 
 def _render_f_labels(out, data):
-    """Render F-series point labels on the exterior side of the outline."""
+    """Render outline point labels on the exterior side of the outline."""
     pts = data.pts
     to_svg = data.to_svg
+    outline_segs = data.outline_segs
 
     FONT_SIZE = "5"
     COLOR = "#d32f2f"
     DOT_R = "1.0"
+    LABEL_DIST = 5.0  # SVG px outward from point
 
-    # (name, anchor, dx, dy) — dx/dy in SVG units from the transformed point
-    _F_LABELS = [
-        ("F1",   "middle",   0,   6),
-        ("F2",   "end",     -5,   0),
-        ("F5",   "end",     -5,   0),
-        ("F6",   "middle",   0,  -5),
-        ("F7",   "middle",   0,  -5),
-        ("F8",   "end",     -5,   0),
-        ("F9",   "middle",   0,  -5),
-        ("F10",  "middle",   0,  -5),
-        ("F11",  "start",    4,  -3),
-        ("F11a", "middle",   0,  -5),
-        ("F11b", "middle",   0,  -5),
-        ("F12",  "start",    4,  -3),
-        ("F13",  "start",    5,   0),
-        ("F14",  "start",    5,   0),
-        ("F15",  "start",    5,   0),
-        ("F16",  "start",    5,   2),
-        ("F17",  "middle",   0,   6),
-        ("F18",  "middle",   0,   6),
-    ]
+    all_names = list(dict.fromkeys(
+        n for s in outline_segs for n in (s.start, s.end) if n in pts))
+    if not all_names:
+        return
 
-    for name, anchor, dx, dy in _F_LABELS:
+    # Centroid in SVG coords for outward label placement
+    _csx, _csy = to_svg(
+        sum(pts[n][0] for n in all_names) / len(all_names),
+        sum(pts[n][1] for n in all_names) / len(all_names),
+    )
+
+    for name in all_names:
         sx, sy = to_svg(*pts[name])
+        dx, dy = sx - _csx, sy - _csy
+        d = math.sqrt(dx * dx + dy * dy) or 1.0
+        lx = sx + dx / d * LABEL_DIST
+        ly = sy + dy / d * LABEL_DIST
+        anchor = "end" if dx < -1 else ("start" if dx > 1 else "middle")
         out.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="{DOT_R}"'
                    f' fill="{COLOR}"/>')
-        out.append(f'<text x="{sx + dx:.1f}" y="{sy + dy:.1f}"'
+        out.append(f'<text x="{lx:.1f}" y="{ly:.1f}"'
                    f' text-anchor="{anchor}" dominant-baseline="central"'
                    f' font-family="Arial" font-size="{FONT_SIZE}"'
                    f' fill="{COLOR}">{name}</text>')
@@ -1035,8 +1084,7 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
         _render_interior_walls_table(out, data, tbl_bottom)
 
     # --- Roof outline (dotted) ---
-    from floorplan.roof import roof_polyline
-    roof_poly = roof_polyline(data.roof)
+    roof_poly = data.roof_poly
     roof_svg = svg_polygon_pts(roof_poly, to_svg, prec=2)
     out.append(f'<polygon points="{roof_svg}" fill="none"'
                f' stroke="#333" stroke-width="0.6" stroke-dasharray="3,2"/>')

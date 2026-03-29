@@ -1503,8 +1503,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         return True
 
     if script_path == "walls/gen_walls.py":
-        if not _has_f_series:
-            return True  # walls detail requires F-series chain
+        if not gd.outline_segs:
+            return True
         from walls.gen_walls import build_wall_data, render_walls_svg
         data = build_wall_data(gd)
         base = os.path.join(_PROJECT, "walls")
