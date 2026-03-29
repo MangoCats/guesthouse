@@ -995,7 +995,16 @@ def _render_interior_walls_table_db(out, data, tbl_border_bottom):
     # Build RO lookup: wall_name → list of "ROx width" strings
     ro_by_wall: dict[str, list[str]] = {}
     for ro in (data.ro_polys or []):
-        w_in = ro.get("width", 0) * 12
+        poly = ro.get("poly")
+        if poly and len(poly) >= 4:
+            edges = [math.hypot(poly[(i+1)%4][0]-poly[i][0],
+                                poly[(i+1)%4][1]-poly[i][1]) for i in range(4)]
+            w_in = max(edges) * 12
+        else:
+            b = ro.get("bbox") or {}
+            orient = ro.get("orientation", "H")
+            w_in = (b.get("e", 0) - b.get("w", 0) if orient == "H"
+                    else b.get("n", 0) - b.get("s", 0)) * 12
         w_str = f"{w_in:.2f}".rstrip("0").rstrip(".")
         ro_by_wall.setdefault(ro.get("wall_name", ""), []).append(
             f"{ro.get('name','')} {w_str}&#8243;")
