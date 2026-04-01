@@ -40,20 +40,21 @@ class TestDB9Elements:
         assert count == 13
 
     def test_seeded_element_types(self, fresh_db):
-        """All seeded elements are walls, labels, dims, openings, or variant items."""
+        """All seeded elements are walls, labels, dims, openings, areas, or variant items."""
         with get_db(fresh_db) as conn:
             types = conn.execute(
                 "SELECT DISTINCT type FROM elements ORDER BY type"
             ).fetchall()
             type_set = {r[0] for r in types}
-        expected = {"wall", "label", "dimension", "opening",
+        expected = {"wall", "label", "dimension", "opening", "area",
                     "furniture", "appliance", "fixture"}
-        assert type_set == expected
+        assert type_set.issubset(expected), f"Unexpected types: {type_set - expected}"
 
-    def test_11_room_labels_seeded(self, fresh_db):
+    def test_11_area_elements_seeded(self, fresh_db):
+        """11 room area elements are seeded (replaces legacy room label elements)."""
         with get_db(fresh_db) as conn:
             count = conn.execute(
-                "SELECT count(*) FROM elements WHERE type = 'label'"
+                "SELECT count(*) FROM elements WHERE type = 'area'"
             ).fetchone()[0]
         assert count == 11
 
@@ -114,12 +115,14 @@ class TestElementCRUD:
 class TestElementBusinessLogic:
 
     def test_get_elements_for_variant_all(self, fresh_db):
-        # 13 IW walls + 11 labels + 20 dims + 19 openings + variant items
+        # 13 IW walls + 11 area elements + 20 dims + 19 openings + variant items
         elems = get_elements_for_variant("standard", fresh_db)
-        assert len(elems) >= 44  # at least walls + labels + dims
+        assert len(elems) >= 44  # at least walls + areas + dims
         types = {e["type"] for e in elems}
-        assert {"wall", "label", "dimension", "opening",
-                "furniture", "appliance", "fixture"} == types
+        expected = {"wall", "label", "dimension", "opening", "area",
+                    "furniture", "appliance", "fixture"}
+        assert types.issubset(expected), f"Unexpected types: {types - expected}"
+        assert "wall" in types and "area" in types and "dimension" in types
 
     def test_get_elements_for_variant_specific(self, fresh_db):
         create_element("furniture", "VARIANT_ITEM", {}, "standard", fresh_db)

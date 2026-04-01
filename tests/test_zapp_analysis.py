@@ -41,12 +41,12 @@ class TestRoomAreas:
             assert "area" in lbl, f"{lbl['name']} missing area in sf"
             assert "poly" in lbl, f"{lbl['name']} missing poly in sf"
 
-    def test_standard_no_polys(self, fresh_db):
-        """Non-SF variants should NOT have highlight polygons."""
+    def test_standard_has_polys(self, fresh_db):
+        """All variants include area poly (needed for canvas vertex editing)."""
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, "standard", db_path=fresh_db)
         for lbl in geom["room_labels"]:
-            assert "poly" not in lbl, f"{lbl['name']} has poly in standard"
+            assert "poly" in lbl, f"{lbl['name']} missing poly in standard"
 
     def test_api_returns_areas(self, app_client):
         resp = app_client.get("/api/geometry?variant=standard")

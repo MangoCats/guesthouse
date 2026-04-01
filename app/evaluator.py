@@ -270,6 +270,8 @@ class FormulaEvaluator:
             return self._eval_ellipse_rect(formula)
         if ftype == "shape_transform":
             return self._eval_shape_transform(formula)
+        if ftype == "area_poly":
+            return self._eval_area_poly(formula)
         return None
 
     # -------------------------------------------------------------------
@@ -878,6 +880,63 @@ class FormulaEvaluator:
         return result
 
     # -------------------------------------------------------------------
+    # area_poly evaluator
+    # -------------------------------------------------------------------
+
+    def _eval_area_poly(self, formula):
+        """Evaluate area_poly formula → {"poly": [...], "area": float, "bbox": {...}}."""
+        vertices = formula.get("vertices", [])
+        poly = []
+        for v in vertices:
+            pt = self.resolve_point(v)
+            if pt is None:
+                return None
+            poly.append(pt)
+        if len(poly) < 3:
+            return None
+        # Shoelace base area
+        n = len(poly)
+        area = 0.0
+        for i in range(n):
+            x0, y0 = poly[i]
+            x1, y1 = poly[(i + 1) % n]
+            area += x0 * y1 - x1 * y0
+        area = abs(area) / 2.0
+        # Arc adjustments: circular segment area (R²/2)(|θ| − sin|θ|) with sign
+        for adj in formula.get("arc_adjustments", []):
+            center = self.resolve_point(adj.get("center"))
+            if center is None:
+                continue
+            p1 = poly[adj["from_idx"]]
+            p2 = poly[adj["to_idx"]]
+            R = math.hypot(p1[0] - center[0], p1[1] - center[1])
+            dx1, dy1 = p1[0] - center[0], p1[1] - center[1]
+            dx2, dy2 = p2[0] - center[0], p2[1] - center[1]
+            cross_val = dx1 * dy2 - dy1 * dx2
+            dot_val = dx1 * dx2 + dy1 * dy2
+            theta = abs(math.atan2(cross_val, dot_val))
+            seg_area = (R ** 2 / 2.0) * (theta - math.sin(theta))
+            area += adj.get("sign", 1) * seg_area
+        # Subtract element polygon areas (e.g. wall stubs inside a room)
+        for elem_name in formula.get("subtract_elements", []):
+            elem = self.elements.get(elem_name)
+            if elem and "poly" in elem:
+                ep = elem["poly"]
+                ea = 0.0
+                ne = len(ep)
+                for i in range(ne):
+                    x0, y0 = ep[i][0], ep[i][1]
+                    x1, y1 = ep[(i + 1) % ne][0], ep[(i + 1) % ne][1]
+                    ea += x0 * y1 - x1 * y0
+                area -= abs(ea) / 2.0
+        return {
+            "poly": poly,
+            "area": round(area, 2),
+            "bbox": _bbox_from_poly(poly),
+            "arc_adjustments": formula.get("arc_adjustments", []),
+        }
+
+    # -------------------------------------------------------------------
     # Resolution functions
     # -------------------------------------------------------------------
 
@@ -1384,6 +1443,22 @@ def _extract_deps_recursive(spec, deps):
     # Arc point sub-dict
     if "arc_point" in spec:
         _extract_deps_recursive(spec["arc_point"], deps)
+
+    # area_poly vertices list
+    if "vertices" in spec:
+        _extract_deps_recursive(spec["vertices"], deps)
+
+    # area_poly arc_adjustments: each has a "center" point spec
+    if "arc_adjustments" in spec:
+        for adj in spec["arc_adjustments"]:
+            if isinstance(adj, dict) and "center" in adj:
+                _extract_deps_recursive(adj["center"], deps)
+
+    # area_poly subtract_elements: list of element name strings
+    if "subtract_elements" in spec:
+        for elem_name in spec["subtract_elements"]:
+            if isinstance(elem_name, str):
+                deps.add(("element", elem_name))
 
     # Line-polygon intersection
     if "line_poly_isect" in spec:
@@ -3811,3 +3886,242 @@ def get_variant_item_formulas():
     }, "daybed")
 
     return formulas
+
+
+# ---------------------------------------------------------------------------
+# Area element formulas (11 rooms)
+# ---------------------------------------------------------------------------
+
+def _li_ve(e_src, n_src):
+    """Line intersection of vertical through e_src × horizontal through n_src."""
+    return {"type": "line_intersection",
+            "line1_point": e_src, "line1_dir": "north",
+            "line2_point": n_src, "line2_dir": "east"}
+
+
+def get_area_formulas():
+    """Return dict of {room_name: formula_json} for all 11 seeded area elements."""
+
+    def _el(name, corner):
+        return {"element": name, "corner": corner}
+
+    # IW2S east face direction: from SE corner to NE corner
+    _iw2s_e_dir = {"segment": [_el("IW2S", 1), _el("IW2S", 2)]}
+
+    return {
+
+        # -----------------------------------------------------------------
+        # BEDROOM — 4 rectangular corners
+        # -----------------------------------------------------------------
+        "BEDROOM": {
+            "type": "area_poly",
+            "vertices": [
+                _li_ve(_el("IW9", 2), _el("IW1", 0)),    # NE of IW9 [E] × SW of IW1 [N]
+                _li_ve(_el("IW11", 3), _el("IW1", 0)),   # NW of IW11 [E] × SW of IW1 [N]
+                _li_ve(_el("IW11", 3), "W1"),             # NW of IW11 [E] × W1 [N]
+                _li_ve(_el("IW9", 2), "W1"),              # NE of IW9 [E] × W1 [N]
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # UTIL_N — 8 corners, rectangular wall intersections
+        # -----------------------------------------------------------------
+        "UTIL_N": {
+            "type": "area_poly",
+            "vertices": [
+                # iw3_w2w5 = line_isect(IW3[3], w18w1_al, W2, w2w5_al)
+                _li({"element": "IW3", "corner": 3},
+                    {"segment": ["W18", "W1"]},
+                    "W2",
+                    {"segment": ["W2", "W5"]}),
+                _el("IW8", 0),
+                _el("IW8", 1),
+                _el("IW1", 0),
+                _el("IW9", 3),
+                _li_ve(_el("IW9", 0), _el("IW7", 2)),    # E from IW9[0] × N from IW7[2]
+                _el("IW7", 3),
+                _el("IW3", 3),                            # iw3_nw
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # UTIL_S — traces the F1→F2 CW arc (C1) plus IW3 boundary
+        # -----------------------------------------------------------------
+        # poly: [IW3[3], li_ve(IW3[0],W1), W1, W2, iw3_w2w5]
+        # arc_adjustment: W1(idx2)→W2(idx3), CW arc around C1, sign=+1
+        "UTIL_S": {
+            "type": "area_poly",
+            "vertices": [
+                _el("IW3", 3),                                  # iw3_nw
+                _li_ve(_el("IW3", 0), "W1"),                    # E from IW3 SW × N from W1
+                "W1",                                            # arc start (idx 2)
+                "W2",                                            # arc end   (idx 3)
+                # iw3_w2w5
+                _li({"element": "IW3", "corner": 3},
+                    {"segment": ["W18", "W1"]},
+                    "W2",
+                    {"segment": ["W2", "W5"]}),
+            ],
+            "arc_adjustments": [
+                {"from_idx": 2, "to_idx": 3, "center": "C1", "sign": 1},
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # KITCHEN — 8 corners, rectangular intersections + IW2 family
+        # -----------------------------------------------------------------
+        "KITCHEN": {
+            "type": "area_poly",
+            "vertices": [
+                _el("O6", 0),                                   # SW corner of O6
+                # iw2s_at_w9 = line_isect(IW2S[1], iw2s_e_al, W9, w9w10_al)
+                _li(_el("IW2S", 1), _iw2s_e_dir, "W9", {"segment": ["W9", "W10"]}),
+                _el("IW2S", 1),
+                _el("IW2O", 3),
+                _el("IW2O", 0),
+                _el("IW2", 2),
+                _el("IW2", 1),
+                _el("RO1", 3),                                  # NW corner of RO1
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # LIVING — traces inner wall arcs F10→F14, plus O6 and RO1
+        # -----------------------------------------------------------------
+        # poly: [O6[0], W10, W11, W11a, W11b, W12, W13, W14, IW1[2], RO1[3]]
+        # arc adjustments:
+        #   W10→W11 (CCW C10): sign=-1
+        #   W11→W11a (CW C11a): sign=+1
+        #   W11b→W12 (CW C11): sign=+1
+        #   W13→W14 (CW C13): sign=+1
+        "LIVING": {
+            "type": "area_poly",
+            "vertices": [
+                _el("O6", 0),     # idx 0
+                "W10",            # idx 1 — arc C10 start
+                "W11",            # idx 2 — arc C10 end / C11a start
+                "W11a",           # idx 3 — arc C11a end
+                "W11b",           # idx 4 — arc C11 start
+                "W12",            # idx 5 — arc C11 end
+                "W13",            # idx 6 — arc C13 start
+                "W14",            # idx 7 — arc C13 end
+                _el("IW1", 2),    # idx 8
+                _el("RO1", 3),    # idx 9
+            ],
+            "arc_adjustments": [
+                {"from_idx": 1, "to_idx": 2,  "center": "C10",  "sign": -1},
+                {"from_idx": 2, "to_idx": 3,  "center": "C11a", "sign": 1},
+                {"from_idx": 4, "to_idx": 5,  "center": "C11",  "sign": 1},
+                {"from_idx": 6, "to_idx": 7,  "center": "C13",  "sign": 1},
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # BATH — traces F5→F6 CW arc (C5), minus IW6 stub
+        # -----------------------------------------------------------------
+        # poly: [IW8[3], IW8[2], IW2[3], IW2O[1], IW2O[2], IW2S[0], IW2S[3], W6, W5]
+        # arc: W6(idx7)→W5(idx8), CW arc C5 (reversed traversal), sign=+1
+        "BATH": {
+            "type": "area_poly",
+            "vertices": [
+                _el("IW8", 3),    # idx 0
+                _el("IW8", 2),    # idx 1
+                _el("IW2", 3),    # idx 2
+                _el("IW2O", 1),   # idx 3
+                _el("IW2O", 2),   # idx 4
+                _el("IW2S", 0),   # idx 5
+                _el("IW2S", 3),   # idx 6
+                "W6",             # idx 7 — arc start (arc goes W6→W5)
+                "W5",             # idx 8 — arc end
+            ],
+            "arc_adjustments": [
+                {"from_idx": 7, "to_idx": 8, "center": "C5", "sign": 1},
+            ],
+            "subtract_elements": ["IW6"],
+        },
+
+        # -----------------------------------------------------------------
+        # OFFICE — traces F15→F18 arcs (C15, C17)
+        # -----------------------------------------------------------------
+        # poly: [IW5[0], li_ve(W15,IW5[0]), W15, W16, W17, W18, IW4[1], IW4[2], IW12[2], IW12[3]]
+        # arcs: W15→W16 (CW C15, sign=+1), W17→W18 (CW C17, sign=+1)
+        "OFFICE": {
+            "type": "area_poly",
+            "vertices": [
+                _el("IW5", 0),                         # idx 0
+                _li_ve("W15", _el("IW5", 0)),          # idx 1 — E from W15 × N from IW5[0]
+                "W15",                                  # idx 2 — arc C15 start
+                "W16",                                  # idx 3 — arc C15 end
+                "W17",                                  # idx 4 — arc C17 start
+                "W18",                                  # idx 5 — arc C17 end
+                _el("IW4", 1),                         # idx 6
+                _el("IW4", 2),                         # idx 7
+                _el("IW12", 2),                        # idx 8
+                _el("IW12", 3),                        # idx 9
+            ],
+            "arc_adjustments": [
+                {"from_idx": 2, "to_idx": 3, "center": "C15", "sign": 1},
+                {"from_idx": 4, "to_idx": 5, "center": "C17", "sign": 1},
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # WH — traces F7→F8 CW arc (C7) and F8→F9 CCW arc (C8)
+        # -----------------------------------------------------------------
+        # poly: [IW2S[2], W7, W8, W9, li_ve(IW2S[2], W9)]
+        # arcs: W7→W8 (CW C7, sign=+1), W8→W9 (CCW C8, sign=-1)
+        "WH": {
+            "type": "area_poly",
+            "vertices": [
+                _el("IW2S", 2),                        # idx 0
+                "W7",                                   # idx 1 — arc C7 start
+                "W8",                                   # idx 2 — arc C7 end / C8 start
+                "W9",                                   # idx 3 — arc C8 end
+                _li_ve(_el("IW2S", 2), "W9"),           # idx 4 — E from IW2S[2] × N from W9
+            ],
+            "arc_adjustments": [
+                {"from_idx": 1, "to_idx": 2, "center": "C7", "sign": 1},
+                {"from_idx": 2, "to_idx": 3, "center": "C8", "sign": -1},
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # E CLOSET — 4 rectangular corners
+        # -----------------------------------------------------------------
+        "E CLOSET": {
+            "type": "area_poly",
+            "vertices": [
+                _li_ve(_el("IW11", 1), _el("IW12", 0)),   # E from IW11[1] × N from IW12[0]
+                _li_ve(_el("IW4", 0),  _el("IW12", 0)),   # E from IW4[0]  × N from IW12[0]
+                _el("IW4", 0),
+                _li_ve(_el("IW11", 1), "W1"),              # E from IW11[1] × N from W1
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # W CLOSET — 4 rectangular corners
+        # -----------------------------------------------------------------
+        "W CLOSET": {
+            "type": "area_poly",
+            "vertices": [
+                _li_ve(_el("IW3", 1), _el("IW7", 0)),     # E from IW3[1] × N from IW7[0]
+                _li_ve(_el("IW9", 0), _el("IW7", 0)),     # E from IW9[0] × N from IW7[0]
+                _li_ve(_el("IW9", 0), "W1"),               # E from IW9[0] × N from W1
+                _li_ve(_el("IW3", 1), "W1"),               # E from IW3[1] × N from W1
+            ],
+        },
+
+        # -----------------------------------------------------------------
+        # STORAGE — 4 rectangular corners
+        # -----------------------------------------------------------------
+        "STORAGE": {
+            "type": "area_poly",
+            "vertices": [
+                _li_ve(_el("IW11", 1), _el("IW5", 3)),    # E from IW11[1] × N from IW5[3]
+                _li_ve("W14",          _el("IW5", 3)),     # E from W14     × N from IW5[3]
+                _li_ve("W14",          _el("IW1", 0)),     # E from W14     × N from IW1[0]
+                _li_ve(_el("IW11", 1), _el("IW1", 0)),    # E from IW11[1] × N from IW1[0]
+            ],
+        },
+
+    }

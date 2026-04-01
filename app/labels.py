@@ -20,9 +20,12 @@ def seed_room_labels(conn):
     Migrates any offsets from the legacy room_label_offsets table.
     Called from init_db() and reset_elements().
     """
-    # Check if room label elements already exist
+    # Check if all room label names already exist (as label or area elements)
     count = conn.execute(
-        "SELECT COUNT(*) FROM elements WHERE type = 'label'"
+        "SELECT COUNT(*) FROM elements WHERE name IN ({})".format(
+            ",".join("?" * len(ROOM_LABEL_NAMES))
+        ),
+        ROOM_LABEL_NAMES,
     ).fetchone()[0]
     if count >= len(ROOM_LABEL_NAMES):
         return
@@ -38,9 +41,9 @@ def seed_room_labels(conn):
         pass  # Table may not exist in test DBs
 
     for name in ROOM_LABEL_NAMES:
-        # Skip if this specific label already exists
+        # Skip if this name already exists (as label OR area element)
         existing = conn.execute(
-            "SELECT id FROM elements WHERE type = 'label' AND name = ?",
+            "SELECT id FROM elements WHERE name = ?",
             (name,),
         ).fetchone()
         if existing:

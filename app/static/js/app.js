@@ -1361,48 +1361,40 @@ function renderRoomLabels(g) {
     const [e, n] = lbl.pos;
     const hasArea = lbl.area !== undefined;
     const showArea = hasArea && (App.state.variant === "sf" || App.state.showAreas);
+    const displayLabel = lbl.label || lbl.name;
+    const color = lbl.color || "#dddddd";
 
-    // Clickable highlight polygon (SF variant)
+    // Filled area polygon (always rendered, selectable as area element)
     if (lbl.poly) {
-      const hlPoly = svgEl("polygon", {
+      const areaPoly = svgEl("polygon", {
         points: polyToStr(lbl.poly),
-        class: "room-highlight",
-        "data-room": lbl.name,
+        fill: color,
+        "fill-opacity": "0.18",
+        stroke: color,
+        "stroke-width": "0.025",
+        "stroke-opacity": "0.5",
+        class: "room-area-fill selectable",
+        "data-type": "area",
+        "data-name": lbl.name,
       });
-      hlPoly.addEventListener("click", () => {
-        // Toggle: remove if already highlighted, else clear others and show
-        if (hlPoly.classList.contains("room-highlight-active")) {
-          hlPoly.classList.remove("room-highlight-active");
-        } else {
-          layer.querySelectorAll(".room-highlight-active").forEach(
-            el => el.classList.remove("room-highlight-active"));
-          hlPoly.classList.add("room-highlight-active");
-        }
+      areaPoly.addEventListener("click", (ev) => {
+        selectElement("area", lbl.name, lbl, ev);
       });
-      layer.appendChild(hlPoly);
+      layer.appendChild(areaPoly);
     }
 
-    // Look up font_size from label_elements
-    const leRec = (g.label_elements || []).find(le => le.name === lbl.name);
-    const fontSize = leRec && leRec.properties.font_size ? leRec.properties.font_size : null;
-
-    // Group for name + area text (clickable when SF)
+    // Name text label
     const nameEl = svgEl("text", {
       x: e, y: -n + (showArea ? -0.15 : 0),
-      class: "room-label selectable" + (showArea ? " room-label-sf" : ""),
+      class: "room-label",
       "text-anchor": "middle",
       "dominant-baseline": "middle",
-      "data-type": "label", "data-name": lbl.name,
+      "data-type": "area", "data-name": lbl.name,
     });
-    if (fontSize) nameEl.style.fontSize = fontSize + "px";
-    nameEl.textContent = lbl.name;
-    if (lbl.poly) {
-      nameEl.style.cursor = "pointer";
-      nameEl.addEventListener("click", () => {
-        const hl = layer.querySelector(`.room-highlight[data-room="${lbl.name}"]`);
-        if (hl) hl.dispatchEvent(new Event("click"));
-      });
-    }
+    nameEl.textContent = displayLabel;
+    nameEl.addEventListener("click", (ev) => {
+      selectElement("area", lbl.name, lbl, ev);
+    });
     layer.appendChild(nameEl);
 
     if (showArea) {
@@ -1413,13 +1405,6 @@ function renderRoomLabels(g) {
         "dominant-baseline": "middle",
       });
       areaEl.textContent = lbl.area + " sf";
-      if (lbl.poly) {
-        areaEl.style.cursor = "pointer";
-        areaEl.addEventListener("click", () => {
-          const hl = layer.querySelector(`.room-highlight[data-room="${lbl.name}"]`);
-          if (hl) hl.dispatchEvent(new Event("click"));
-        });
-      }
       layer.appendChild(areaEl);
     }
   }
@@ -2427,6 +2412,68 @@ async function showProperties(type, name, data) {
       addPropRow(tbody, "End Anchor", fmtAnchor(props.end_anchor));
       addStyleControls(tbody, elemRec, props, "dimension");
       addViewOverrideControls(tbody, elemRec, props);
+      addElementActions(tbody, elemRec);
+    }
+  } else if (type === "area") {
+    const elemRec = (App.state.elements || []).find(e => e.name === name && e.type === "area");
+    if (elemRec) {
+      const props = parseProps(elemRec);
+      // Computed area
+      if (data && data.area !== undefined) {
+        addPropRow(tbody, "Area", data.area + " sf");
+      }
+      // Editable label
+      const lblTr = document.createElement("tr");
+      const lblTd1 = document.createElement("td"); lblTd1.textContent = "Label";
+      lblTr.appendChild(lblTd1);
+      const lblTd2 = document.createElement("td");
+      const lblInp = document.createElement("input");
+      lblInp.type = "text"; lblInp.className = "prop-edit-input";
+      lblInp.value = props.label || name;
+      lblInp.addEventListener("change", async () => {
+        const newProps = { ...props, label: lblInp.value };
+        await fetch(`/api/elements/${elemRec.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ properties: newProps }),
+        });
+        await reloadAfterChange();
+      });
+      lblTd2.appendChild(lblInp);
+      lblTr.appendChild(lblTd2);
+      tbody.appendChild(lblTr);
+      // Editable color
+      const colTr = document.createElement("tr");
+      const colTd1 = document.createElement("td"); colTd1.textContent = "Color";
+      colTr.appendChild(colTd1);
+      const colTd2 = document.createElement("td");
+      const colInp = document.createElement("input");
+      colInp.type = "color"; colInp.className = "prop-edit-input";
+      colInp.value = props.color || "#dddddd";
+      colInp.addEventListener("change", async () => {
+        const newProps = { ...props, color: colInp.value };
+        await fetch(`/api/elements/${elemRec.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ properties: newProps }),
+        });
+        await reloadAfterChange();
+      });
+      colTd2.appendChild(colInp);
+      colTr.appendChild(colTd2);
+      tbody.appendChild(colTr);
+      // Edit Vertices button
+      const evTr = document.createElement("tr");
+      const evTd = document.createElement("td"); evTd.colSpan = 2;
+      const evBtn = document.createElement("button");
+      evBtn.textContent = "Edit Vertices";
+      evBtn.className = "prop-action-btn";
+      evBtn.addEventListener("click", () => {
+        AreaEditTool.activate(elemRec.id, name, data);
+      });
+      evTd.appendChild(evBtn);
+      evTr.appendChild(evTd);
+      tbody.appendChild(evTr);
       addElementActions(tbody, elemRec);
     }
   } else if (type === "label") {
@@ -7784,6 +7831,8 @@ function onMouseDown(e) {
     dimToolMouseDown(e);
   } else if (e.button === 0 && App.state.activeTool === "label") {
     labelToolMouseDown(e);
+  } else if (e.button === 0 && App.state.activeTool === "draw-area") {
+    _areaDrawClick(e);
   } else if (e.button === 0 && App.state.activeTool === "measure") {
     const [wx, wy] = mouseToWorld(e);
     App.state.measureStart = [wx, wy];

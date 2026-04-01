@@ -1157,6 +1157,46 @@ def create_app(db_path=None):
             "can_redo": undo_mgr.can_redo,
         })
 
+    @app.route("/api/elements/<int:element_id>/vertices", methods=["PUT"])
+    def api_update_area_vertices(element_id):
+        """Update area_poly formula vertices and arc_adjustments."""
+        el = get_element(element_id, db)
+        if not el:
+            return jsonify({"error": "not found"}), 404
+        if el["type"] != "area":
+            return jsonify({"error": "not an area element"}), 400
+        body = request.get_json(force=True)
+        vertices = body.get("vertices", [])
+        arc_adjustments = body.get("arc_adjustments", [])
+        subtract_elements = body.get("subtract_elements", [])
+        new_formula = {
+            "type": "area_poly",
+            "vertices": vertices,
+            "arc_adjustments": arc_adjustments,
+        }
+        if subtract_elements:
+            new_formula["subtract_elements"] = subtract_elements
+        name = el["name"]
+        # Get old formula for undo
+        old_formula = None
+        for f in get_element_formulas(name, db_path=db):
+            if f["param_name"] == "poly":
+                fj = f["formula_json"]
+                old_formula = json.loads(fj) if isinstance(fj, str) else fj
+                break
+        from app.evaluator import extract_deps
+        upsert_formula(name, "poly", new_formula, variant=None, db_path=db)
+        rebuild_formula_deps(name, "poly", list(extract_deps(new_formula)), db_path=db)
+        undo_mgr.record(
+            "area_vertices_update",
+            {"id": element_id, "name": name, "formula": old_formula},
+            {"id": element_id, "name": name, "formula": new_formula},
+            f"Edit {name} vertices",
+        )
+        _broadcast("element_changed")
+        _invalidate()
+        return jsonify({"ok": True})
+
     # -- Openings API (stored as type='opening' elements) --
 
     @app.route("/api/openings", methods=["POST"])

@@ -836,6 +836,404 @@ function labelToolMouseDown(e) {
   });
 }
 
+/* ========== Area Edit Tool ========== */
+/**
+ * Vertex drag editor for area_poly elements.
+ * Activated from the area properties panel "Edit Vertices" button.
+ */
+const AreaEditTool = {
+  active: false,
+  elementId: null,
+  name: null,
+  vertices: [],        // formula spec list (may be strings or dicts)
+  resolvedPoly: [],    // [[E, N], ...] from g.room_labels
+  arcAdjustments: [],
+  subtractElements: [],
+  handles: [],         // SVG circle elements
+  ghostLine: null,     // SVG polygon outline ghost
+  dragIdx: null,       // index of handle being dragged
+  dragHandle: null,    // SVG element being dragged
+  startScreen: null,
+  startWorld: null,
+  _layer: null,
+};
+
+const AREA_SNAP_R = 0.25; // feet, snap threshold
+
+/** Return candidate snap targets: [{spec, pt: [E,N]}] */
+function _areaSnapTargets() {
+  const g = App.state.geometry;
+  if (!g) return [];
+  const targets = [];
+  // W-series and other named points
+  for (const [pname, pt] of Object.entries(g.points || {})) {
+    targets.push({ spec: pname, pt: [pt[0], pt[1]] });
+  }
+  // Interior wall corners
+  for (const [wname, wdata] of Object.entries(g.interior_walls || {})) {
+    const poly = wdata.poly || [];
+    for (let i = 0; i < poly.length; i++) {
+      targets.push({ spec: { element: wname, corner: i }, pt: [poly[i][0], poly[i][1]] });
+    }
+  }
+  // Opening corners
+  for (const op of [...(g.outer_openings || []), ...(g.rough_openings || [])]) {
+    if (!op.poly) continue;
+    for (let i = 0; i < op.poly.length; i++) {
+      targets.push({ spec: { element: op.name, corner: i }, pt: [op.poly[i][0], op.poly[i][1]] });
+    }
+  }
+  return targets;
+}
+
+function _areaFindSnap(wx, wy) {
+  const targets = _areaSnapTargets();
+  let best = null, bestDist = AREA_SNAP_R;
+  for (const t of targets) {
+    const d = Math.hypot(wx - t.pt[0], wy - t.pt[1]);
+    if (d < bestDist) { bestDist = d; best = t; }
+  }
+  return best;
+}
+
+function _areaRenderHandles() {
+  const tool = AreaEditTool;
+  if (!tool.active || !tool._layer) return;
+  // Remove old handles
+  for (const h of tool.handles) h.remove();
+  tool.handles = [];
+  if (tool.ghostLine) { tool.ghostLine.remove(); tool.ghostLine = null; }
+
+  // Ghost polygon outline
+  const ptStr = tool.resolvedPoly.map(p => `${p[0]},${-p[1]}`).join(" ");
+  tool.ghostLine = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+  tool.ghostLine.setAttribute("points", ptStr);
+  tool.ghostLine.setAttribute("fill", "none");
+  tool.ghostLine.setAttribute("stroke", "#4af");
+  tool.ghostLine.setAttribute("stroke-width", "0.04");
+  tool.ghostLine.setAttribute("stroke-dasharray", "0.1 0.05");
+  tool._layer.appendChild(tool.ghostLine);
+
+  // Vertex handles
+  for (let i = 0; i < tool.resolvedPoly.length; i++) {
+    const [e, n] = tool.resolvedPoly[i];
+    const h = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    h.setAttribute("cx", e);
+    h.setAttribute("cy", -n);
+    h.setAttribute("r", "0.12");
+    h.setAttribute("fill", "#4af");
+    h.setAttribute("stroke", "#fff");
+    h.setAttribute("stroke-width", "0.025");
+    h.setAttribute("cursor", "grab");
+    h.dataset.idx = i;
+    h.addEventListener("mousedown", _areaHandleMouseDown);
+    tool._layer.appendChild(h);
+    tool.handles.push(h);
+  }
+}
+
+function _areaHandleMouseDown(e) {
+  const tool = AreaEditTool;
+  if (!tool.active) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const idx = parseInt(e.currentTarget.dataset.idx, 10);
+  tool.dragIdx = idx;
+  tool.dragHandle = e.currentTarget;
+  const rect = App.els["viewport"].getBoundingClientRect();
+  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  tool.startScreen = { x: e.clientX, y: e.clientY };
+  tool.startWorld = [wx, wy];
+  tool.dragHandle.setAttribute("fill", "#fa0");
+  tool.dragHandle.setAttribute("cursor", "grabbing");
+}
+
+async function _areaHandleMouseUp(e) {
+  const tool = AreaEditTool;
+  if (!tool.active || tool.dragIdx === null) return;
+  const rect = App.els["viewport"].getBoundingClientRect();
+  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const snap = _areaFindSnap(wx, wy);
+  let newSpec;
+  if (snap) {
+    newSpec = snap.spec;
+    tool.resolvedPoly[tool.dragIdx] = [...snap.pt];
+  } else {
+    newSpec = [wx, wy];
+    tool.resolvedPoly[tool.dragIdx] = [wx, wy];
+  }
+  tool.vertices[tool.dragIdx] = newSpec;
+  tool.dragIdx = null;
+  tool.dragHandle = null;
+  _areaRenderHandles();
+  // Commit to server
+  await _areaCommitVertices();
+}
+
+function _areaHandleMouseMove(e) {
+  const tool = AreaEditTool;
+  if (!tool.active || tool.dragIdx === null || !tool.dragHandle) return;
+  const rect = App.els["viewport"].getBoundingClientRect();
+  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  // Move handle and ghost
+  tool.dragHandle.setAttribute("cx", wx);
+  tool.dragHandle.setAttribute("cy", -wy);
+  // Update ghost polygon
+  const pts = tool.resolvedPoly.map((p, i) =>
+    i === tool.dragIdx ? `${wx},${-wy}` : `${p[0]},${-p[1]}`
+  ).join(" ");
+  if (tool.ghostLine) tool.ghostLine.setAttribute("points", pts);
+  // Snap highlight
+  const snap = _areaFindSnap(wx, wy);
+  tool.dragHandle.setAttribute("fill", snap ? "#0f0" : "#fa0");
+}
+
+async function _areaCommitVertices() {
+  const tool = AreaEditTool;
+  try {
+    await fetch(`/api/elements/${tool.elementId}/vertices`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        vertices: tool.vertices,
+        arc_adjustments: tool.arcAdjustments,
+        subtract_elements: tool.subtractElements,
+      }),
+    });
+    await reloadAfterChange();
+    // Update resolved poly from fresh geometry
+    const g = App.state.geometry;
+    if (g && g.room_labels) {
+      const rl = g.room_labels.find(r => r.name === tool.name);
+      if (rl && rl.poly) {
+        tool.resolvedPoly = rl.poly.map(p => [...p]);
+      }
+    }
+    _areaRenderHandles();
+  } catch (err) {
+    showToast("Failed to save vertices", "error");
+  }
+}
+
+AreaEditTool.activate = async function(elementId, name, data) {
+  const tool = AreaEditTool;
+  tool.elementId = elementId;
+  tool.name = name;
+  tool.resolvedPoly = (data.poly || []).map(p => [...p]);
+  tool.arcAdjustments = data.arc_adjustments || [];
+  tool.subtractElements = [];
+  tool._layer = App.els["layer-measure"];
+
+  // Fetch the formula to get the spec vertices
+  try {
+    const resp = await fetch(`/api/formulas/${encodeURIComponent(name)}`);
+    if (resp.ok) {
+      const formulas = await resp.json();
+      const polyRec = formulas.find(f => f.param_name === "poly");
+      if (polyRec) {
+        const fj = typeof polyRec.formula_json === "string"
+          ? JSON.parse(polyRec.formula_json) : polyRec.formula_json;
+        tool.vertices = fj.vertices || tool.resolvedPoly.map(p => [...p]);
+        tool.arcAdjustments = fj.arc_adjustments || [];
+        tool.subtractElements = fj.subtract_elements || [];
+      } else {
+        tool.vertices = tool.resolvedPoly.map(p => [...p]);
+      }
+    }
+  } catch (_) {
+    tool.vertices = tool.resolvedPoly.map(p => [...p]);
+  }
+
+  tool.active = true;
+  _areaRenderHandles();
+
+  // Register mouse event listeners on viewport
+  const vp = App.els["viewport"];
+  vp.addEventListener("mousemove", _areaHandleMouseMove);
+  vp.addEventListener("mouseup", _areaHandleMouseUp);
+
+  showToast(`Editing ${name} vertices — drag handles, click Done when finished`, "info");
+};
+
+AreaEditTool.deactivate = function() {
+  const tool = AreaEditTool;
+  tool.active = false;
+  for (const h of tool.handles) h.remove();
+  tool.handles = [];
+  if (tool.ghostLine) { tool.ghostLine.remove(); tool.ghostLine = null; }
+  const vp = App.els["viewport"];
+  vp.removeEventListener("mousemove", _areaHandleMouseMove);
+  vp.removeEventListener("mouseup", _areaHandleMouseUp);
+  tool.elementId = null;
+  tool.dragIdx = null;
+  tool.dragHandle = null;
+};
+
+
+/* ========== Area Draw Tool ========== */
+/**
+ * Draw a new area polygon by clicking canvas vertices.
+ * Finish: click near first vertex (≤ AREA_SNAP_R) or press Enter.
+ */
+const AreaDrawTool = {
+  active: false,
+  vertices: [],         // [[E, N], ...]
+  _layer: null,
+  _polyEl: null,        // live polygon preview
+  _rubberLine: null,    // line from last vertex to cursor
+  _handles: [],         // vertex circles
+};
+
+function _areaDrawRender() {
+  const tool = AreaDrawTool;
+  const layer = tool._layer;
+  if (!layer) return;
+  if (tool._polyEl) tool._polyEl.remove();
+  if (tool._rubberLine) tool._rubberLine.remove();
+  for (const h of tool._handles) h.remove();
+  tool._handles = [];
+  tool._polyEl = null;
+  tool._rubberLine = null;
+
+  if (tool.vertices.length === 0) return;
+
+  // Polygon preview
+  tool._polyEl = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+  tool._polyEl.setAttribute("points",
+    tool.vertices.map(p => `${p[0]},${-p[1]}`).join(" "));
+  tool._polyEl.setAttribute("fill", "#88f");
+  tool._polyEl.setAttribute("fill-opacity", "0.15");
+  tool._polyEl.setAttribute("stroke", "#88f");
+  tool._polyEl.setAttribute("stroke-width", "0.04");
+  layer.appendChild(tool._polyEl);
+
+  // Vertex handles
+  for (const [e, n] of tool.vertices) {
+    const h = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    h.setAttribute("cx", e); h.setAttribute("cy", -n); h.setAttribute("r", "0.1");
+    h.setAttribute("fill", "#88f"); h.setAttribute("stroke", "#fff");
+    h.setAttribute("stroke-width", "0.02");
+    layer.appendChild(h);
+    tool._handles.push(h);
+  }
+}
+
+function _areaDrawMouseMove(e) {
+  const tool = AreaDrawTool;
+  if (!tool.active || tool.vertices.length === 0) return;
+  const rect = App.els["viewport"].getBoundingClientRect();
+  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  if (tool._rubberLine) tool._rubberLine.remove();
+  const last = tool.vertices[tool.vertices.length - 1];
+  tool._rubberLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  tool._rubberLine.setAttribute("x1", last[0]); tool._rubberLine.setAttribute("y1", -last[1]);
+  tool._rubberLine.setAttribute("x2", wx); tool._rubberLine.setAttribute("y2", -wy);
+  tool._rubberLine.setAttribute("stroke", "#88f"); tool._rubberLine.setAttribute("stroke-width", "0.03");
+  tool._rubberLine.setAttribute("stroke-dasharray", "0.1 0.05");
+  tool._layer.appendChild(tool._rubberLine);
+}
+
+function _areaDrawClick(e) {
+  const tool = AreaDrawTool;
+  if (!tool.active) return;
+  e.preventDefault(); e.stopPropagation();
+  const rect = App.els["viewport"].getBoundingClientRect();
+  const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+  // Close if near first vertex
+  if (tool.vertices.length >= 3) {
+    const first = tool.vertices[0];
+    if (Math.hypot(wx - first[0], wy - first[1]) <= AREA_SNAP_R) {
+      _areaDrawFinish();
+      return;
+    }
+  }
+
+  tool.vertices.push([wx, wy]);
+  _areaDrawRender();
+}
+
+async function _areaDrawFinish() {
+  const tool = AreaDrawTool;
+  if (tool.vertices.length < 3) {
+    showToast("Need at least 3 vertices", "error");
+    return;
+  }
+  // Prompt for name/label
+  Dialog.open({
+    title: "New Area",
+    fields: [
+      { id: "label", label: "Label", type: "text", value: "New Area" },
+    ],
+    onConfirm: async (vals) => {
+      const label = vals.label.trim() || "New Area";
+      const autoName = "AREA" + Date.now().toString().slice(-5);
+      // Create element
+      const resp1 = await fetch("/api/elements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "area",
+          name: autoName,
+          properties: { label, color: "#dddddd" },
+        }),
+      });
+      if (!resp1.ok) { showToast("Failed to create area", "error"); return; }
+      const created = await resp1.json();
+      // Create formula
+      const resp2 = await fetch(`/api/elements/${created.id}/vertices`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vertices: tool.vertices.map(p => [...p]),
+          arc_adjustments: [],
+        }),
+      });
+      if (resp2.ok) {
+        showToast(`Created area ${label}`, "success");
+        AreaDrawTool.deactivate();
+        await reloadAfterChange();
+      } else {
+        showToast("Failed to save area vertices", "error");
+      }
+    },
+    onCancel: () => {},
+  });
+}
+
+function _areaDrawKeyDown(e) {
+  if (!AreaDrawTool.active) return;
+  if (e.key === "Enter") { e.preventDefault(); _areaDrawFinish(); }
+  if (e.key === "Escape") { e.preventDefault(); AreaDrawTool.deactivate(); }
+}
+
+AreaDrawTool.activate = function() {
+  const tool = AreaDrawTool;
+  tool.active = true;
+  tool.vertices = [];
+  tool._layer = App.els["layer-measure"];
+  const vp = App.els["viewport"];
+  vp.addEventListener("click", _areaDrawClick);
+  vp.addEventListener("mousemove", _areaDrawMouseMove);
+  document.addEventListener("keydown", _areaDrawKeyDown);
+  showToast("Click to place vertices. Click near first vertex or press Enter to close.", "info");
+};
+
+AreaDrawTool.deactivate = function() {
+  const tool = AreaDrawTool;
+  tool.active = false;
+  if (tool._polyEl) { tool._polyEl.remove(); tool._polyEl = null; }
+  if (tool._rubberLine) { tool._rubberLine.remove(); tool._rubberLine = null; }
+  for (const h of tool._handles) h.remove();
+  tool._handles = [];
+  tool.vertices = [];
+  const vp = App.els["viewport"];
+  vp.removeEventListener("click", _areaDrawClick);
+  vp.removeEventListener("mousemove", _areaDrawMouseMove);
+  document.removeEventListener("keydown", _areaDrawKeyDown);
+};
+
+
 function nextLabelName() {
   const elements = App.state.elements || [];
   let max = 0;

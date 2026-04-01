@@ -269,6 +269,7 @@ def init_db(db_path=None):
             from app.plumbing import seed_plumbing
             seed_plumbing(conn)
             seed_iw_formulas(conn)
+            seed_area_formulas(conn)
         else:
             _seed_variant_item_constants(conn)
             # Ensure all seed doors exist (handles additions like O3, O6)
@@ -282,6 +283,7 @@ def init_db(db_path=None):
             from app.plumbing import seed_plumbing
             seed_plumbing(conn)
             seed_iw_formulas(conn)
+            seed_area_formulas(conn)
             # Remove orphaned formulas for elements deleted via delete_element()
             conn.execute("""
                 DELETE FROM element_formulas
@@ -1947,6 +1949,27 @@ def _seed_elements(conn):
             (elem_type, name, json.dumps(props), variant),
         )
 
+    # --- Area elements (11 rooms) ---
+    _AREA_SEED = [
+        ("BEDROOM",  {"label": "Bedroom",  "color": "#b3d9ff"}),
+        ("BATH",     {"label": "Bath",     "color": "#d9f0b3"}),
+        ("KITCHEN",  {"label": "Kitchen",  "color": "#ffd9b3"}),
+        ("LIVING",   {"label": "Living",   "color": "#f0d9ff"}),
+        ("OFFICE",   {"label": "Office",   "color": "#ffeeb3"}),
+        ("UTIL_N",   {"label": "Util N",   "color": "#d9d9d9"}),
+        ("UTIL_S",   {"label": "Util S",   "color": "#d9d9d9"}),
+        ("E CLOSET", {"label": "E Closet", "color": "#e0d9ff"}),
+        ("W CLOSET", {"label": "W Closet", "color": "#e0d9ff"}),
+        ("STORAGE",  {"label": "Storage",  "color": "#e0e0d9"}),
+        ("WH",       {"label": "Wtr Htr",  "color": "#ffe0d9"}),
+    ]
+    for name, props in _AREA_SEED:
+        conn.execute(
+            "INSERT OR REPLACE INTO elements (type, name, properties, variant) "
+            "VALUES (?, ?, ?, ?)",
+            ("area", name, json.dumps(props), None),
+        )
+
     # Layout item placeholders (BED, COUNTER, etc.) were removed — layout
     # formulas now use lowercase names matching _VARIANT_ITEMS directly.
 
@@ -3506,6 +3529,43 @@ def seed_iw_formulas(conn):
                 "(element_name, param_name, dep_type, dep_name) "
                 "VALUES (?, 'position', ?, ?)",
                 (elem_name, dep_type, dep_name),
+            )
+
+
+def seed_area_formulas(conn):
+    """Seed area_poly formulas for all 11 room area elements.
+
+    Idempotent: skips rooms that already have a 'poly' formula.
+    """
+    from app.evaluator import get_area_formulas, extract_deps
+
+    live_names = {r[0] for r in conn.execute("SELECT name FROM elements").fetchall()}
+    area_formulas = get_area_formulas()
+
+    for room_name, formula in area_formulas.items():
+        if room_name not in live_names:
+            continue
+        existing = conn.execute(
+            "SELECT id FROM element_formulas "
+            "WHERE element_name = ? AND param_name = 'poly' AND variant IS NULL",
+            (room_name,),
+        ).fetchone()
+        if existing:
+            continue
+        fj = json.dumps(formula)
+        conn.execute(
+            "INSERT INTO element_formulas "
+            "(element_name, param_name, formula_json, variant) "
+            "VALUES (?, 'poly', ?, NULL)",
+            (room_name, fj),
+        )
+        deps = extract_deps(formula)
+        for dep_type, dep_name in deps:
+            conn.execute(
+                "INSERT OR IGNORE INTO formula_deps "
+                "(element_name, param_name, dep_type, dep_name) "
+                "VALUES (?, 'poly', ?, ?)",
+                (room_name, dep_type, dep_name),
             )
 
 

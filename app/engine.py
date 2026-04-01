@@ -1285,12 +1285,78 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         from app.variants import VARIANTS
         result["available_variants"] = list(VARIANTS.keys())
 
-    # Room labels and SF extras
-    room_data = _compute_room_labels(pts, result["interior_walls"],
-                                      result, inner_segs, variant, db_path)
-    result["room_labels"] = room_data["room_labels"]
-    if "sf_lines" in room_data:
-        result["sf_lines"] = room_data["sf_lines"]
+    # Room labels from area elements evaluated by FormulaEvaluator
+    room_labels = []
+    _label_offsets = {}
+    for _e in all_elems:
+        # Offset may be stored in area element properties or legacy label elements
+        if _e["type"] in ("label", "area"):
+            _ep = (json.loads(_e["properties"])
+                   if isinstance(_e["properties"], str) else (_e["properties"] or {}))
+            _oe = _ep.get("offset_e", 0.0)
+            _on = _ep.get("offset_n", 0.0)
+            if _oe or _on:
+                _label_offsets[_e["name"]] = (_oe, _on)
+    for _ae in all_elems:
+        if _ae["type"] != "area":
+            continue
+        _aname = _ae["name"]
+        _ev_res = ev.elements.get(_aname)
+        if not _ev_res or "poly" not in _ev_res:
+            continue
+        _aprops = (json.loads(_ae["properties"])
+                   if isinstance(_ae["properties"], str) else (_ae["properties"] or {}))
+        _poly = _ev_res["poly"]
+        _n = len(_poly)
+        _cx = sum(p[0] for p in _poly) / _n
+        _cy = sum(p[1] for p in _poly) / _n
+        _de, _dn = _label_offsets.get(_aname, (0.0, 0.0))
+        room_labels.append({
+            "name": _aname,
+            "label": _aprops.get("label", _aname),
+            "pos": [_cx + _de, _cy + _dn],
+            "centroid": [_cx, _cy],
+            "area": _ev_res["area"],
+            "poly": [[p[0], p[1]] for p in _poly],
+            "color": _aprops.get("color", "#dddddd"),
+            "arc_adjustments": _ev_res.get("arc_adjustments", []),
+        })
+    result["room_labels"] = room_labels
+
+    # SF partition lines (variant-specific boundary between SF zones)
+    if variant == "sf":
+        try:
+            from shared.geometry import seg_vecs, line_isect
+            _o6 = ev.elements.get("O6")
+            _ro1 = ev.elements.get("RO1")
+            _iw2s = ev.elements.get("IW2S")
+            if _o6 and _ro1 and _iw2s:
+                _o6_w = _o6["poly"][0]
+                _ro1_nw = _ro1["poly"][3]
+                _iw2s_se = _iw2s["poly"][1]
+                _iw2s_ne = _iw2s["poly"][2]
+                _iw2s_eal, _ = seg_vecs(_iw2s_se, _iw2s_ne)
+                _w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
+                _iw2s_at_w9 = line_isect(_iw2s_se, _iw2s_eal, pts["W9"], _w9w10_al)
+                _iw3 = ev.elements.get("IW3")
+                _iw3_nw = _iw3["poly"][3] if _iw3 else None
+                _w18w1_al, _ = seg_vecs(pts["W18"], pts["W1"])
+                _w2w5_al, _ = seg_vecs(pts["W2"], pts["W5"])
+                _iw3_w2w5 = (line_isect(_iw3_nw, _w18w1_al, pts["W2"], _w2w5_al)
+                              if _iw3_nw else None)
+                sf_lines = [
+                    {"start": point_to_list(_ro1_nw), "end": point_to_list(_o6_w)},
+                    {"start": point_to_list(pts["W9"]),
+                     "end": point_to_list(_iw2s_at_w9)},
+                ]
+                if _iw3_nw and _iw3_w2w5:
+                    sf_lines.append({
+                        "start": point_to_list(_iw3_nw),
+                        "end": point_to_list(_iw3_w2w5),
+                    })
+                result["sf_lines"] = sf_lines
+        except Exception:
+            pass
 
     # Door arcs — uses formula-evaluated opening polygons (now dict-based)
     result["door_arcs"] = _compute_door_arcs(

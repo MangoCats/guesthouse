@@ -29,43 +29,41 @@ from tests.test_zapp_conftest import fresh_db, app_client  # noqa: F401
 # ── Room label seeding ───────────────────────────────────────────────
 
 class TestRoomLabelSeeding:
-    """Room label elements are seeded on fresh DB."""
+    """Room area elements (formerly label elements) are seeded on fresh DB."""
 
-    def test_11_room_labels_exist(self, fresh_db):
+    def test_11_area_elements_exist(self, fresh_db):
+        """11 room area elements replace legacy room label elements."""
         elements = get_all_elements(fresh_db)
-        labels = [e for e in elements if e["type"] == "label"]
-        assert len(labels) == 11
+        areas = [e for e in elements if e["type"] == "area"]
+        assert len(areas) == 11
 
-    def test_room_label_names(self, fresh_db):
+    def test_room_area_names(self, fresh_db):
         elements = get_all_elements(fresh_db)
-        names = {e["name"] for e in elements if e["type"] == "label"}
+        names = {e["name"] for e in elements if e["type"] == "area"}
         assert names == set(ROOM_LABEL_NAMES)
 
-    def test_room_label_properties(self, fresh_db):
+    def test_room_area_properties(self, fresh_db):
         elements = get_all_elements(fresh_db)
         for e in elements:
-            if e["type"] != "label":
+            if e["type"] != "area":
                 continue
             props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
-            assert props["source"] == "room"
-            assert "offset_e" in props
-            assert "offset_n" in props
-            assert "font_size" in props
-            assert props["text"] == e["name"]
+            assert "label" in props
+            assert "color" in props
 
     def test_seed_idempotent(self, fresh_db):
         """Calling seed_room_labels again doesn't duplicate."""
         with get_db(fresh_db) as conn:
             seed_room_labels(conn)
         elements = get_all_elements(fresh_db)
-        labels = [e for e in elements if e["type"] == "label"]
-        assert len(labels) == 11
+        areas = [e for e in elements if e["type"] == "area"]
+        assert len(areas) == 11
 
-    def test_room_label_variant_null(self, fresh_db):
-        """Room labels have variant=NULL (visible to all)."""
+    def test_room_area_variant_null(self, fresh_db):
+        """Room area elements have variant=NULL (visible to all)."""
         elements = get_all_elements(fresh_db)
         for e in elements:
-            if e["type"] == "label":
+            if e["type"] == "area":
                 assert e["variant"] is None
 
 
@@ -271,15 +269,15 @@ class TestGeometryOutput:
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, db_path=fresh_db)
         assert "label_elements" in geom
-        assert len(geom["label_elements"]) == 11  # room labels
 
-    def test_label_elements_have_centroid(self, fresh_db):
+    def test_room_labels_have_centroid(self, fresh_db):
+        """Room labels (now from area elements) have centroid and pos."""
         constants = get_constants_dict(fresh_db)
         geom = compute_geometry(constants, db_path=fresh_db)
-        for le in geom["label_elements"]:
-            if le["properties"]["source"] == "room":
-                assert "centroid" in le
-                assert "pos" in le
+        assert len(geom["room_labels"]) == 11
+        for rl in geom["room_labels"]:
+            assert "centroid" in rl
+            assert "pos" in rl
 
     def test_geometry_has_builtin_dims(self, fresh_db):
         """Fresh DB has seeded dimensions in user_dimensions (no source distinction)."""

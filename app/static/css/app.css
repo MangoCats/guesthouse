@@ -568,6 +568,18 @@ td input.changed { border-color: var(--yellow); background: rgba(249, 226, 175, 
   fill: #7f849c;
   pointer-events: auto;
 }
+.room-area-fill {
+  cursor: pointer;
+  transition: fill-opacity 0.15s;
+}
+.room-area-fill:hover {
+  fill-opacity: 0.32 !important;
+}
+.room-area-fill.selected-highlight {
+  fill-opacity: 0.35 !important;
+  stroke-width: 0.04 !important;
+}
+/* Legacy highlight (kept for backward compat) */
 .room-highlight {
   fill: transparent;
   stroke: none;
