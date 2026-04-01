@@ -1220,7 +1220,7 @@ AreaDrawTool.activate = function() {
   tool.vertices = [];
   tool._layer = App.els["layer-measure"];
   const vp = App.els["viewport"];
-  vp.addEventListener("click", _areaDrawClick);
+  vp.addEventListener("click", _areaDrawClick, true);   // capture: beats circle stopPropagation
   vp.addEventListener("mousemove", _areaDrawMouseMove);
   document.addEventListener("keydown", _areaDrawKeyDown);
   showToast("Click to place vertices. Click near first vertex or press Enter to close.", "info");
@@ -1235,7 +1235,7 @@ AreaDrawTool.deactivate = function() {
   tool._handles = [];
   tool.vertices = [];
   const vp = App.els["viewport"];
-  vp.removeEventListener("click", _areaDrawClick);
+  vp.removeEventListener("click", _areaDrawClick, true);
   vp.removeEventListener("mousemove", _areaDrawMouseMove);
   document.removeEventListener("keydown", _areaDrawKeyDown);
 };
