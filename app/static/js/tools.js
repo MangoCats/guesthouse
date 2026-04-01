@@ -1160,12 +1160,12 @@ async function _areaDrawFinish() {
     return;
   }
   // Prompt for name/label
-  Dialog.open({
+  Dialog.show({
     title: "New Area",
     fields: [
-      { id: "label", label: "Label", type: "text", value: "New Area" },
+      { name: "label", label: "Label", type: "text", value: "New Area" },
     ],
-    onConfirm: async (vals) => {
+    onSubmit: async (vals) => {
       const label = vals.label.trim() || "New Area";
       const autoName = "AREA" + Date.now().toString().slice(-5);
       // Create element
