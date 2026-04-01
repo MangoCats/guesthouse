@@ -1123,12 +1123,15 @@ function _areaDrawMouseMove(e) {
   if (!tool.active || tool.vertices.length === 0) return;
   const rect = App.els["viewport"].getBoundingClientRect();
   const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const snap = _areaFindSnap(wx, wy);
+  const [tx, ty] = snap ? snap.pt : [wx, wy];
   if (tool._rubberLine) tool._rubberLine.remove();
   const last = tool.vertices[tool.vertices.length - 1];
   tool._rubberLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   tool._rubberLine.setAttribute("x1", last[0]); tool._rubberLine.setAttribute("y1", -last[1]);
-  tool._rubberLine.setAttribute("x2", wx); tool._rubberLine.setAttribute("y2", -wy);
-  tool._rubberLine.setAttribute("stroke", "#88f"); tool._rubberLine.setAttribute("stroke-width", "0.03");
+  tool._rubberLine.setAttribute("x2", tx); tool._rubberLine.setAttribute("y2", -ty);
+  tool._rubberLine.setAttribute("stroke", snap ? "#0f0" : "#88f");
+  tool._rubberLine.setAttribute("stroke-width", "0.03");
   tool._rubberLine.setAttribute("stroke-dasharray", "0.1 0.05");
   tool._layer.appendChild(tool._rubberLine);
 }
@@ -1140,16 +1143,20 @@ function _areaDrawClick(e) {
   const rect = App.els["viewport"].getBoundingClientRect();
   const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 
+  // Snap to named points / wall corners
+  const snap = _areaFindSnap(wx, wy);
+  const [vx, vy] = snap ? snap.pt : [wx, wy];
+
   // Close if near first vertex
   if (tool.vertices.length >= 3) {
     const first = tool.vertices[0];
-    if (Math.hypot(wx - first[0], wy - first[1]) <= AREA_SNAP_R) {
+    if (Math.hypot(vx - first[0], vy - first[1]) <= AREA_SNAP_R) {
       _areaDrawFinish();
       return;
     }
   }
 
-  tool.vertices.push([wx, wy]);
+  tool.vertices.push([vx, vy]);
   _areaDrawRender();
 }
 

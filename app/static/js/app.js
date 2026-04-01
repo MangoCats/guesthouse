@@ -1389,9 +1389,11 @@ function renderRoomLabels(g) {
           if (arc) {
             const R = arc.R;
             const largeArc = Math.abs(arc.theta) >= Math.PI ? 1 : 0;
-            // theta < 0: CW in world (Y-up) = CCW in SVG (Y-down) → sweep=0
-            // theta > 0: CCW in world = CW in SVG → sweep=1
-            const sweep = arc.theta > 0 ? 1 : 0;
+            // SVG Y is flipped from world Y, but SVG's CW/CCW definition is also flipped,
+            // so the two flips cancel: CW in world = CW in SVG (sweep=1).
+            // theta < 0 → CW in world → sweep=1
+            // theta > 0 → CCW in world → sweep=0
+            const sweep = arc.theta < 0 ? 1 : 0;
             d += ` A ${R},${R} 0 ${largeArc} ${sweep} ${p2[0]},${-p2[1]}`;
           } else {
             d += ` L ${p2[0]},${-p2[1]}`;
