@@ -1209,7 +1209,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     # 5. FormulaEvaluator — sole source for all element geometry
     base_points = {k: point_to_list(v) for k, v in pts.items()}
     inner = [(p[0], p[1]) for p in inner_poly]
-    ev = FormulaEvaluator(constants_dict, base_points, inner, radii)
+    ev = FormulaEvaluator(constants_dict, base_points, inner, radii, inner_segs=inner_segs)
     ev.load_formulas_from_db(db_path=db_path, variant=variant)
     ev.evaluate_all()
 

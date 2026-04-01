@@ -126,7 +126,7 @@ class FormulaEvaluator:
         result = ev.elements["IW1"]  # {"poly": [...], "bbox": {...}}
     """
 
-    def __init__(self, constants, base_points, inner_poly, radii):
+    def __init__(self, constants, base_points, inner_poly, radii, inner_segs=None):
         """Initialise with base geometry context.
 
         Args:
@@ -134,11 +134,27 @@ class FormulaEvaluator:
             base_points: dict name → (E, N) or [E, N]
             inner_poly: list of [E, N] or (E, N) — inner wall polygon
             radii: dict name → float radius values
+            inner_segs: list of LineSeg/ArcSeg — inner wall segments for auto arc detection
         """
         self.constants = dict(constants)
         self.points = {k: list(v) for k, v in base_points.items()}
         self.inner_poly = [list(p) for p in inner_poly] if inner_poly else []
         self.radii = dict(radii) if radii else {}
+
+        # Inner-wall arc descriptors for automatic arc detection in area_poly formulas.
+        # Each entry: {"center": [E, N], "R": float, "direction": "CW"/"CCW"}
+        self._inner_arcs = []
+        if inner_segs:
+            from shared.types import ArcSeg
+            for seg in inner_segs:
+                if isinstance(seg, ArcSeg):
+                    c = base_points.get(seg.center)
+                    if c is not None:
+                        self._inner_arcs.append({
+                            "center": list(c),
+                            "R": seg.radius,
+                            "direction": seg.direction,
+                        })
 
         # Computed element results: name → {"poly": [...], "bbox": {...}}
         self.elements = {}
@@ -902,9 +918,14 @@ class FormulaEvaluator:
             x1, y1 = poly[(i + 1) % n]
             area += x0 * y1 - x1 * y0
         area = abs(area) / 2.0
-        # Arc adjustments: circular segment area (R²/2)(|θ| − sin|θ|) with sign.
-        # Also accumulate resolved arc descriptors for the renderer (SVG arc commands).
+        # Arc area corrections and resolved arc descriptors for the SVG renderer.
+        # Phase 1: explicit arc_adjustments in the formula (highest priority, e.g. seed formulas)
+        # Phase 2: auto-detect edges whose endpoints both lie on the same inner-wall arc
+        # signed_theta < 0 → CW in world (Y-up) → CCW in SVG (Y-down) → sweep=0
+        # signed_theta > 0 → CCW in world → CW in SVG → sweep=1
         arcs = []
+        handled_edges = set()  # (from_idx, to_idx) already handled by explicit adjustments
+
         for adj in formula.get("arc_adjustments", []):
             center = self.resolve_point(adj.get("center"))
             if center is None:
@@ -919,14 +940,46 @@ class FormulaEvaluator:
             signed_theta = math.atan2(cross_val, dot_val)
             seg_area = (R ** 2 / 2.0) * (abs(signed_theta) - math.sin(abs(signed_theta)))
             area += adj.get("sign", 1) * seg_area
-            # signed_theta < 0 → CW in world (Y-up) → CCW in SVG (Y-down) → sweep=0
-            # signed_theta > 0 → CCW in world → CW in SVG → sweep=1
             arcs.append({
                 "from_idx": adj["from_idx"],
                 "to_idx": adj["to_idx"],
                 "R": R,
                 "theta": signed_theta,
             })
+            handled_edges.add((adj["from_idx"], adj["to_idx"]))
+
+        # Auto-detect arc edges: consecutive vertex pairs that both lie on an inner-wall arc.
+        # Tolerance: 0.02 ft ≈ 0.24 in — tight enough to avoid false positives.
+        _EPS = 0.02
+        for i in range(n):
+            next_i = (i + 1) % n
+            if (i, next_i) in handled_edges:
+                continue
+            p1, p2 = poly[i], poly[next_i]
+            for arc_desc in self._inner_arcs:
+                cx, cy = arc_desc["center"]
+                R = arc_desc["R"]
+                if (abs(math.hypot(p1[0] - cx, p1[1] - cy) - R) < _EPS and
+                        abs(math.hypot(p2[0] - cx, p2[1] - cy) - R) < _EPS):
+                    dx1, dy1 = p1[0] - cx, p1[1] - cy
+                    dx2, dy2 = p2[0] - cx, p2[1] - cy
+                    cross_val = dx1 * dy2 - dy1 * dx2
+                    dot_val = dx1 * dx2 + dy1 * dy2
+                    signed_theta = math.atan2(cross_val, dot_val)
+                    if abs(signed_theta) < 1e-6:
+                        break
+                    seg_area = (R ** 2 / 2.0) * (abs(signed_theta) - math.sin(abs(signed_theta)))
+                    # CW inner-wall arc = convex wall corner → arc adds area → sign=+1
+                    # CCW inner-wall arc = concave wall corner → arc subtracts area → sign=-1
+                    sign = 1 if arc_desc["direction"] == "CW" else -1
+                    area += sign * seg_area
+                    arcs.append({
+                        "from_idx": i,
+                        "to_idx": next_i,
+                        "R": R,
+                        "theta": signed_theta,
+                    })
+                    break
         # Subtract element polygon areas (e.g. wall stubs inside a room)
         for elem_name in formula.get("subtract_elements", []):
             elem = self.elements.get(elem_name)
