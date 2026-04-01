@@ -3546,20 +3546,34 @@ def seed_area_formulas(conn):
         if room_name not in live_names:
             continue
         existing = conn.execute(
-            "SELECT id FROM element_formulas "
+            "SELECT id, formula_json FROM element_formulas "
             "WHERE element_name = ? AND param_name = 'poly' AND variant IS NULL",
             (room_name,),
         ).fetchone()
-        if existing:
-            continue
         fj = json.dumps(formula)
-        conn.execute(
-            "INSERT INTO element_formulas "
-            "(element_name, param_name, formula_json, variant) "
-            "VALUES (?, 'poly', ?, NULL)",
-            (room_name, fj),
-        )
         deps = extract_deps(formula)
+        if existing:
+            existing_formula = json.loads(existing[1])
+            if existing_formula.get("customized"):
+                continue  # User has edited this formula — preserve their changes
+            # Update seed formula (picks up new arc_adjustments, vertex improvements)
+            conn.execute(
+                "UPDATE element_formulas SET formula_json = ? "
+                "WHERE element_name = ? AND param_name = 'poly' AND variant IS NULL",
+                (fj, room_name),
+            )
+            conn.execute(
+                "DELETE FROM formula_deps "
+                "WHERE element_name = ? AND param_name = 'poly'",
+                (room_name,),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO element_formulas "
+                "(element_name, param_name, formula_json, variant) "
+                "VALUES (?, 'poly', ?, NULL)",
+                (room_name, fj),
+            )
         for dep_type, dep_name in deps:
             conn.execute(
                 "INSERT OR IGNORE INTO formula_deps "

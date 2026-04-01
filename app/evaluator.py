@@ -902,21 +902,31 @@ class FormulaEvaluator:
             x1, y1 = poly[(i + 1) % n]
             area += x0 * y1 - x1 * y0
         area = abs(area) / 2.0
-        # Arc adjustments: circular segment area (R²/2)(|θ| − sin|θ|) with sign
+        # Arc adjustments: circular segment area (R²/2)(|θ| − sin|θ|) with sign.
+        # Also accumulate resolved arc descriptors for the renderer (SVG arc commands).
+        arcs = []
         for adj in formula.get("arc_adjustments", []):
             center = self.resolve_point(adj.get("center"))
             if center is None:
                 continue
             p1 = poly[adj["from_idx"]]
             p2 = poly[adj["to_idx"]]
-            R = math.hypot(p1[0] - center[0], p1[1] - center[1])
             dx1, dy1 = p1[0] - center[0], p1[1] - center[1]
             dx2, dy2 = p2[0] - center[0], p2[1] - center[1]
+            R = math.hypot(dx1, dy1)
             cross_val = dx1 * dy2 - dy1 * dx2
             dot_val = dx1 * dx2 + dy1 * dy2
-            theta = abs(math.atan2(cross_val, dot_val))
-            seg_area = (R ** 2 / 2.0) * (theta - math.sin(theta))
+            signed_theta = math.atan2(cross_val, dot_val)
+            seg_area = (R ** 2 / 2.0) * (abs(signed_theta) - math.sin(abs(signed_theta)))
             area += adj.get("sign", 1) * seg_area
+            # signed_theta < 0 → CW in world (Y-up) → CCW in SVG (Y-down) → sweep=0
+            # signed_theta > 0 → CCW in world → CW in SVG → sweep=1
+            arcs.append({
+                "from_idx": adj["from_idx"],
+                "to_idx": adj["to_idx"],
+                "R": R,
+                "theta": signed_theta,
+            })
         # Subtract element polygon areas (e.g. wall stubs inside a room)
         for elem_name in formula.get("subtract_elements", []):
             elem = self.elements.get(elem_name)
@@ -934,6 +944,7 @@ class FormulaEvaluator:
             "area": round(area, 2),
             "bbox": _bbox_from_poly(poly),
             "arc_adjustments": formula.get("arc_adjustments", []),
+            "arcs": arcs,
         }
 
     # -------------------------------------------------------------------

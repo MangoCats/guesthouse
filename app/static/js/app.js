@@ -1364,23 +1364,56 @@ function renderRoomLabels(g) {
     const displayLabel = lbl.label || lbl.name;
     const color = lbl.color || "#dddddd";
 
-    // Filled area polygon (always rendered, selectable as area element)
+    // Filled area polygon (always rendered, selectable as area element).
+    // Uses <path> with SVG arc commands when arc_adjustments exist (curved walls),
+    // otherwise falls back to <polygon> with straight lines.
     if (lbl.poly) {
-      const areaPoly = svgEl("polygon", {
-        points: polyToStr(lbl.poly),
-        fill: color,
-        "fill-opacity": "0.18",
-        stroke: color,
-        "stroke-width": "0.025",
-        "stroke-opacity": "0.5",
-        class: "room-area-fill selectable",
-        "data-type": "area",
-        "data-name": lbl.name,
-      });
-      areaPoly.addEventListener("click", (ev) => {
+      let areaEl;
+      const arcs = lbl.arcs || [];
+      if (arcs.length > 0) {
+        // Build SVG path with arc segments for curved edges
+        const poly = lbl.poly;
+        const n = poly.length;
+        // Index arcs by from_idx (only adjacent-vertex arcs supported)
+        const arcMap = {};
+        for (const arc of arcs) {
+          if (arc.to_idx === (arc.from_idx + 1) % n) {
+            arcMap[arc.from_idx] = arc;
+          }
+        }
+        let d = `M ${poly[0][0]},${-poly[0][1]}`;
+        for (let i = 0; i < n; i++) {
+          const nextIdx = (i + 1) % n;
+          const p2 = poly[nextIdx];
+          const arc = arcMap[i];
+          if (arc) {
+            const R = arc.R;
+            const largeArc = Math.abs(arc.theta) >= Math.PI ? 1 : 0;
+            // theta < 0: CW in world (Y-up) = CCW in SVG (Y-down) → sweep=0
+            // theta > 0: CCW in world = CW in SVG → sweep=1
+            const sweep = arc.theta > 0 ? 1 : 0;
+            d += ` A ${R},${R} 0 ${largeArc} ${sweep} ${p2[0]},${-p2[1]}`;
+          } else {
+            d += ` L ${p2[0]},${-p2[1]}`;
+          }
+        }
+        d += " Z";
+        areaEl = svgEl("path", { d });
+      } else {
+        areaEl = svgEl("polygon", { points: polyToStr(lbl.poly) });
+      }
+      areaEl.setAttribute("fill", color);
+      areaEl.setAttribute("fill-opacity", "0.18");
+      areaEl.setAttribute("stroke", color);
+      areaEl.setAttribute("stroke-width", "0.025");
+      areaEl.setAttribute("stroke-opacity", "0.5");
+      areaEl.setAttribute("class", "room-area-fill selectable");
+      areaEl.setAttribute("data-type", "area");
+      areaEl.setAttribute("data-name", lbl.name);
+      areaEl.addEventListener("click", (ev) => {
         selectElement("area", lbl.name, lbl, ev);
       });
-      layer.appendChild(areaPoly);
+      layer.appendChild(areaEl);
     }
 
     // Name text label

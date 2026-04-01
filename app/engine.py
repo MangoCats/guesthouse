@@ -1320,6 +1320,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
             "poly": [[p[0], p[1]] for p in _poly],
             "color": _aprops.get("color", "#dddddd"),
             "arc_adjustments": _ev_res.get("arc_adjustments", []),
+            "arcs": _ev_res.get("arcs", []),
         })
     result["room_labels"] = room_labels
 

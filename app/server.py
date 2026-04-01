@@ -1173,6 +1173,7 @@ def create_app(db_path=None):
             "type": "area_poly",
             "vertices": vertices,
             "arc_adjustments": arc_adjustments,
+            "customized": True,
         }
         if subtract_elements:
             new_formula["subtract_elements"] = subtract_elements
