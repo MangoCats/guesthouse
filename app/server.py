@@ -627,6 +627,34 @@ def create_app(db_path=None):
         return [round(cx / grid_ft) * grid_ft,
                 round(cy / grid_ft) * grid_ft]
 
+    def _spec_from_position(cx, cy, geom):
+        """Return a parametric {ref, dAlong, dPerp} spec for position (cx, cy).
+
+        Finds the nearest named chain point in geom["points"], then projects
+        the displacement into that point's local tangent frame.
+        Falls back to a literal [cx, cy] if no points are available.
+        """
+        import math as _math
+        points = geom.get("points", {})
+        tangents = geom.get("point_tangents", {})
+        best_ref = None
+        best_dist = float("inf")
+        for name, pt in points.items():
+            d = _math.hypot(cx - pt[0], cy - pt[1])
+            if d < best_dist:
+                best_dist = d
+                best_ref = (name, pt)
+        if best_ref is None:
+            return [cx, cy]
+        ref_name, ref_pt = best_ref
+        along = tangents.get(ref_name, [1.0, 0.0])
+        perp = [-along[1], along[0]]
+        de = cx - ref_pt[0]
+        dn = cy - ref_pt[1]
+        d_along = de * along[0] + dn * along[1]
+        d_perp = de * perp[0] + dn * perp[1]
+        return {"ref": ref_name, "dAlong": round(d_along, 6), "dPerp": round(d_perp, 6)}
+
     # Maps formula type → the field name that holds the position point.
     # Used by the unified move handler and placement code.
     _FORMULA_POSITION_FIELD = {
@@ -997,7 +1025,7 @@ def create_app(db_path=None):
             ftype = formula.get("type")
             pos_field = _FORMULA_POSITION_FIELD.get(ftype)
             if pos_field:
-                formula[pos_field] = [new_cx, new_cy]
+                formula[pos_field] = _spec_from_position(new_cx, new_cy, geom)
             elif ftype in ("four_corner", "dining_chair"):
                 # Translate all corners / derived items by delta
                 poly = item_geom.get("poly", [])
