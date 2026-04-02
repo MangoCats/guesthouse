@@ -450,6 +450,24 @@ def _resolve_point_spec(spec, geom):
         return list(pt) if pt else None
 
     if isinstance(spec, dict):
+        # Parametric reference with local-frame offset: {ref, dAlong, dPerp}
+        if "ref" in spec:
+            ref_pt = _resolve_point_spec(spec["ref"], geom)
+            if ref_pt is None:
+                return None
+            d_along = float(spec.get("dAlong", 0.0))
+            d_perp = float(spec.get("dPerp", 0.0))
+            if d_along == 0.0 and d_perp == 0.0:
+                return list(ref_pt)
+            ref_name = spec["ref"] if isinstance(spec["ref"], str) else None
+            tangents = geom.get("point_tangents", {})
+            along = tangents.get(ref_name, [1.0, 0.0]) if ref_name else [1.0, 0.0]
+            perp = [-along[1], along[0]]
+            return [
+                ref_pt[0] + d_along * along[0] + d_perp * perp[0],
+                ref_pt[1] + d_along * along[1] + d_perp * perp[1],
+            ]
+
         if "face_mid" in spec:
             poly = _find_wall_poly(geom, spec["face_mid"])
             if poly:

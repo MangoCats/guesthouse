@@ -566,7 +566,9 @@ function buildSnapTargets(g) {
       const ux = dx / lenFt, uy = dy / lenFt;
       for (let distIn = SNAP_IN; distIn <= lenIn - SNAP_IN + 1e-6; distIn += SNAP_IN) {
         const d = distIn / 12;
-        targets.push({ type: "inner_seg", target: seg.start,
+        // Store as parametric computed spec: offset dAlong feet from seg.start
+        targets.push({ type: "computed",
+                       spec: { ref: seg.start, dAlong: d, dPerp: 0 },
                        pos: [p1[0] + d * ux, p1[1] + d * uy] });
       }
     }
@@ -618,9 +620,11 @@ function findNearestSnap(wx, wy, snapTargets, thresholdPx) {
     const d = Math.sqrt(dx * dx + dy * dy);
     if (d < bestDist) {
       bestDist = d;
-      const anchor = { type: t.type, target: t.target };
-      if (t.face !== undefined) anchor.face = t.face;
+      const anchor = { type: t.type };
+      if (t.target !== undefined) anchor.target = t.target;
+      if (t.face  !== undefined) anchor.face    = t.face;
       if (t.distIn !== undefined) anchor.distIn = t.distIn;
+      if (t.spec  !== undefined) anchor.spec    = t.spec;
       best = { anchor, pos: t.pos };
     }
   }
@@ -680,6 +684,10 @@ function dimToolMouseDown(e) {
     const snap = 1.0 / 12.0;
     wx = Math.round(wx / snap) * snap;
     wy = Math.round(wy / snap) * snap;
+  }
+  // Always generate a parametric anchor so endpoints follow the building geometry
+  if (!anchor) {
+    anchor = { type: "computed", spec: _specFromPosition(wx, wy) };
   }
 
   if (!DimTool.start) {
