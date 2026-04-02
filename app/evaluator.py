@@ -870,6 +870,12 @@ class FormulaEvaluator:
         shape_name = formula.get("shape_name")
         center = self.resolve_point(formula.get("center"))
         rotation = formula.get("rotation_deg", 0)
+        # rotation_ref: add tangent angle of named chain point to rotation_deg
+        rotation_ref = formula.get("rotation_ref")
+        if rotation_ref:
+            tangent = self._point_tangents.get(rotation_ref, [1.0, 0.0])
+            ref_angle = math.degrees(math.atan2(tangent[1], tangent[0]))
+            rotation = ref_angle + rotation
         if center is None or not shape_name:
             return None
 
@@ -1235,6 +1241,19 @@ class FormulaEvaluator:
         if not isinstance(spec, dict):
             return None
 
+        # Reference-tangent direction: {ref_tangent: name, angle_offset_deg: N}
+        # Resolves to the tangent at the named chain point, rotated by angle_offset_deg.
+        if "ref_tangent" in spec:
+            ref_name = spec["ref_tangent"]
+            along = list(self._point_tangents.get(ref_name, [1.0, 0.0]))
+            angle_offset = float(spec.get("angle_offset_deg", 0.0))
+            if abs(angle_offset) > 1e-9:
+                rad = math.radians(angle_offset)
+                cos_a, sin_a = math.cos(rad), math.sin(rad)
+                along = [along[0] * cos_a - along[1] * sin_a,
+                         along[0] * sin_a + along[1] * cos_a]
+            return along
+
         # Face along direction
         if "face_along" in spec:
             name = spec["face_along"]
@@ -1487,6 +1506,14 @@ def _extract_deps_recursive(spec, deps):
     # Parametric reference offset — recurse into ref spec
     if "ref" in spec:
         _extract_deps_recursive(spec["ref"], deps)
+
+    # Reference-tangent direction dependency
+    if "ref_tangent" in spec:
+        deps.add(("point", spec["ref_tangent"]))
+
+    # shape_transform rotation reference
+    if "rotation_ref" in spec and isinstance(spec["rotation_ref"], str):
+        deps.add(("point", spec["rotation_ref"]))
 
     # Element reference
     if "element" in spec:

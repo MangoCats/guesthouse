@@ -627,6 +627,46 @@ def create_app(db_path=None):
         return [round(cx / grid_ft) * grid_ft,
                 round(cy / grid_ft) * grid_ft]
 
+    def _dir_to_ref_tangent(dir_field_val, ref_name, tangents):
+        """Convert a direction field value to {ref_tangent, angle_offset_deg}.
+
+        Preserves the current world angle while re-expressing it relative to
+        ref_name's tangent direction.  Returns None for complex specs that
+        can't be trivially converted (caller should leave those unchanged).
+        """
+        import math as _math
+        tx, ty = tangents.get(ref_name, [1.0, 0.0])
+        ref_angle = _math.degrees(_math.atan2(ty, tx))
+
+        if isinstance(dir_field_val, (list, tuple)) and len(dir_field_val) == 2:
+            dx, dy = float(dir_field_val[0]), float(dir_field_val[1])
+            world_angle = _math.degrees(_math.atan2(dy, dx))
+        elif isinstance(dir_field_val, dict) and "ref_tangent" in dir_field_val:
+            old_ref = dir_field_val["ref_tangent"]
+            old_tx, old_ty = tangents.get(old_ref, [1.0, 0.0])
+            old_ref_angle = _math.degrees(_math.atan2(old_ty, old_tx))
+            world_angle = old_ref_angle + dir_field_val.get("angle_offset_deg", 0.0)
+        else:
+            return None  # complex spec — leave unchanged
+
+        angle_offset = world_angle - ref_angle
+        while angle_offset > 180:
+            angle_offset -= 360
+        while angle_offset <= -180:
+            angle_offset += 360
+        return {"ref_tangent": ref_name, "angle_offset_deg": round(angle_offset, 4)}
+
+    # Direction fields for each formula type that rotate with the anchor reference.
+    _FORMULA_DIR_FIELDS = {
+        "item_rect":       ["along", "across"],
+        "item_circle":     [],
+        "toilet_shape":    ["along", "outward"],
+        "bath_sink_shape": ["along", "outward"],
+        "ellipse_rect":    ["along", "outward"],
+        "dining_triangle": ["along", "across"],
+        "shape_transform": [],   # handled via rotation_ref
+    }
+
     def _spec_from_position(cx, cy, geom):
         """Return a parametric {ref, dAlong, dPerp} spec for position (cx, cy).
 
@@ -1025,7 +1065,37 @@ def create_app(db_path=None):
             ftype = formula.get("type")
             pos_field = _FORMULA_POSITION_FIELD.get(ftype)
             if pos_field:
-                formula[pos_field] = _spec_from_position(new_cx, new_cy, geom)
+                pos_spec = _spec_from_position(new_cx, new_cy, geom)
+                formula[pos_field] = pos_spec
+                # Convert direction fields to ref_tangent specs so the item
+                # rotates with the building when its reference moves.
+                ref_name = pos_spec.get("ref") if isinstance(pos_spec, dict) else None
+                if ref_name:
+                    tangents = geom.get("point_tangents", {})
+                    for df in _FORMULA_DIR_FIELDS.get(ftype, []):
+                        if df in formula:
+                            converted = _dir_to_ref_tangent(formula[df], ref_name, tangents)
+                            if converted is not None:
+                                formula[df] = converted
+                    if ftype == "shape_transform":
+                        import math as _math
+                        cur_rotation = formula.get("rotation_deg", 0)
+                        rotation_ref = formula.get("rotation_ref")
+                        if rotation_ref and rotation_ref in tangents:
+                            old_tx, old_ty = tangents[rotation_ref]
+                            old_ref_angle = _math.degrees(_math.atan2(old_ty, old_tx))
+                            world_rotation = old_ref_angle + cur_rotation
+                        else:
+                            world_rotation = cur_rotation
+                        new_tx, new_ty = tangents.get(ref_name, [1.0, 0.0])
+                        new_ref_angle = _math.degrees(_math.atan2(new_ty, new_tx))
+                        new_offset = world_rotation - new_ref_angle
+                        while new_offset > 180:
+                            new_offset -= 360
+                        while new_offset <= -180:
+                            new_offset += 360
+                        formula["rotation_deg"] = round(new_offset, 4)
+                        formula["rotation_ref"] = ref_name
             elif ftype in ("four_corner", "dining_chair"):
                 # Translate all corners / derived items by delta
                 poly = item_geom.get("poly", [])
