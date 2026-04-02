@@ -1257,6 +1257,7 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     outline_poly_pts = path_polygon(outline_segs, pts)
     result = {
         "points": {name: point_to_list(pt) for name, pt in sorted(pts.items())},
+        "point_tangents": ev._point_tangents,
         "outline_segments": [seg_to_dict(s) for s in outline_segs],
         "inner_segments": [seg_to_dict(s) for s in inner_segs],
         "outline_poly": [point_to_list(p) for p in outline_poly_pts],

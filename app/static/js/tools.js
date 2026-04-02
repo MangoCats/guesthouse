@@ -896,6 +896,62 @@ function _areaFindSnap(wx, wy) {
   return best;
 }
 
+/**
+ * Resolve a vertex spec to [E, N] world coordinates.
+ * Handles: [E,N] literals, "W03" named-point strings, {element,corner} element corners,
+ * and {ref, dAlong, dPerp} parametric offset specs.
+ */
+function _resolveVertexSpec(spec) {
+  const g = App.state.geometry;
+  if (!g) return null;
+  if (Array.isArray(spec) && spec.length === 2) return [spec[0], spec[1]];
+  if (typeof spec === "string") {
+    const pt = g.points?.[spec];
+    return pt ? [pt[0], pt[1]] : null;
+  }
+  if (!spec || typeof spec !== "object") return null;
+  if ("ref" in spec) {
+    const refPt = _resolveVertexSpec(spec.ref);
+    if (!refPt) return null;
+    const dAlong = spec.dAlong || 0, dPerp = spec.dPerp || 0;
+    if (!dAlong && !dPerp) return refPt;
+    const refName = typeof spec.ref === "string" ? spec.ref : null;
+    const along = (refName && g.point_tangents?.[refName]) || [1, 0];
+    const perp = [-along[1], along[0]];
+    return [
+      refPt[0] + dAlong * along[0] + dPerp * perp[0],
+      refPt[1] + dAlong * along[1] + dPerp * perp[1],
+    ];
+  }
+  if ("element" in spec) {
+    const poly = g.interior_walls?.[spec.element]?.poly;
+    return (poly && poly[spec.corner]) ? [poly[spec.corner][0], poly[spec.corner][1]] : null;
+  }
+  return null;
+}
+
+/**
+ * Build a parametric vertex spec for a world-coordinate position.
+ * Within snap radius of a named reference → return that spec (zero offset).
+ * Otherwise → find nearest named chain point and express offset in its local frame.
+ */
+function _specFromPosition(wx, wy) {
+  const g = App.state.geometry;
+  const snap = _areaFindSnap(wx, wy);
+  if (snap) return snap.spec;
+  // No snap — parametric offset from nearest named chain point
+  let bestRef = null, bestDist = Infinity;
+  for (const [pname, pt] of Object.entries(g?.points || {})) {
+    const d = Math.hypot(wx - pt[0], wy - pt[1]);
+    if (d < bestDist) { bestDist = d; bestRef = { name: pname, pt: [pt[0], pt[1]] }; }
+  }
+  if (!bestRef) return [wx, wy];  // no chain points at all — literal fallback
+  const along = g?.point_tangents?.[bestRef.name] || [1, 0];
+  const perp = [-along[1], along[0]];
+  const de = wx - bestRef.pt[0], dn = wy - bestRef.pt[1];
+  return { ref: bestRef.name, dAlong: de * along[0] + dn * along[1], dPerp: de * perp[0] + dn * perp[1] };
+}
+
 function _areaRenderHandles() {
   const tool = AreaEditTool;
   if (!tool.active || !tool._layer) return;
@@ -953,16 +1009,9 @@ async function _areaHandleMouseUp(e) {
   if (!tool.active || tool.dragIdx === null) return;
   const rect = App.els["viewport"].getBoundingClientRect();
   const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-  const snap = _areaFindSnap(wx, wy);
-  let newSpec;
-  if (snap) {
-    newSpec = snap.spec;
-    tool.resolvedPoly[tool.dragIdx] = [...snap.pt];
-  } else {
-    newSpec = [wx, wy];
-    tool.resolvedPoly[tool.dragIdx] = [wx, wy];
-  }
+  const newSpec = _specFromPosition(wx, wy);
   tool.vertices[tool.dragIdx] = newSpec;
+  tool.resolvedPoly[tool.dragIdx] = _resolveVertexSpec(newSpec) || [wx, wy];
   tool.dragIdx = null;
   tool.dragHandle = null;
   _areaRenderHandles();
@@ -1077,11 +1126,12 @@ AreaEditTool.deactivate = function() {
  */
 const AreaDrawTool = {
   active: false,
-  vertices: [],         // [[E, N], ...]
+  vertices: [],      // vertex specs: string | [E,N] | {ref,dAlong,dPerp} | {element,corner}
+  _resolvedPts: [],  // [E,N] resolved from vertices — kept in sync by _areaDrawRender
   _layer: null,
-  _polyEl: null,        // live polygon preview
-  _rubberLine: null,    // line from last vertex to cursor
-  _handles: [],         // vertex circles
+  _polyEl: null,     // live polygon preview
+  _rubberLine: null, // line from last vertex to cursor
+  _handles: [],      // vertex circles
 };
 
 function _areaDrawRender() {
@@ -1095,12 +1145,14 @@ function _areaDrawRender() {
   tool._polyEl = null;
   tool._rubberLine = null;
 
-  if (tool.vertices.length === 0) return;
+  // Resolve all vertex specs to world coords
+  tool._resolvedPts = tool.vertices.map(s => _resolveVertexSpec(s)).filter(Boolean);
+  if (tool._resolvedPts.length === 0) return;
 
   // Polygon preview
   tool._polyEl = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
   tool._polyEl.setAttribute("points",
-    tool.vertices.map(p => `${p[0]},${-p[1]}`).join(" "));
+    tool._resolvedPts.map(p => `${p[0]},${-p[1]}`).join(" "));
   tool._polyEl.setAttribute("fill", "#88f");
   tool._polyEl.setAttribute("fill-opacity", "0.15");
   tool._polyEl.setAttribute("stroke", "#88f");
@@ -1108,7 +1160,7 @@ function _areaDrawRender() {
   layer.appendChild(tool._polyEl);
 
   // Vertex handles
-  for (const [e, n] of tool.vertices) {
+  for (const [e, n] of tool._resolvedPts) {
     const h = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     h.setAttribute("cx", e); h.setAttribute("cy", -n); h.setAttribute("r", "0.1");
     h.setAttribute("fill", "#88f"); h.setAttribute("stroke", "#fff");
@@ -1120,15 +1172,15 @@ function _areaDrawRender() {
 
 function _areaDrawMouseMove(e) {
   const tool = AreaDrawTool;
-  if (!tool.active || tool.vertices.length === 0) return;
+  if (!tool.active || tool._resolvedPts.length === 0) return;
   const rect = App.els["viewport"].getBoundingClientRect();
   const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
   const snap = _areaFindSnap(wx, wy);
   const [tx, ty] = snap ? snap.pt : [wx, wy];
   if (tool._rubberLine) tool._rubberLine.remove();
-  const last = tool.vertices[tool.vertices.length - 1];
+  const lastPt = tool._resolvedPts[tool._resolvedPts.length - 1];
   tool._rubberLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  tool._rubberLine.setAttribute("x1", last[0]); tool._rubberLine.setAttribute("y1", -last[1]);
+  tool._rubberLine.setAttribute("x1", lastPt[0]); tool._rubberLine.setAttribute("y1", -lastPt[1]);
   tool._rubberLine.setAttribute("x2", tx); tool._rubberLine.setAttribute("y2", -ty);
   tool._rubberLine.setAttribute("stroke", snap ? "#0f0" : "#88f");
   tool._rubberLine.setAttribute("stroke-width", "0.03");
@@ -1143,20 +1195,20 @@ function _areaDrawClick(e) {
   const rect = App.els["viewport"].getBoundingClientRect();
   const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 
-  // Snap to named points / wall corners
-  const snap = _areaFindSnap(wx, wy);
-  const [vx, vy] = snap ? snap.pt : [wx, wy];
+  // Build parametric spec for this position; resolve to world coords for close-check
+  const spec = _specFromPosition(wx, wy);
+  const resolved = _resolveVertexSpec(spec) || [wx, wy];
 
-  // Close if near first vertex
+  // Close if resolved position is near first resolved vertex
   if (tool.vertices.length >= 3) {
-    const first = tool.vertices[0];
-    if (Math.hypot(vx - first[0], vy - first[1]) <= AREA_SNAP_R) {
+    const firstPt = tool._resolvedPts[0];
+    if (firstPt && Math.hypot(resolved[0] - firstPt[0], resolved[1] - firstPt[1]) <= AREA_SNAP_R) {
       _areaDrawFinish();
       return;
     }
   }
 
-  tool.vertices.push([vx, vy]);
+  tool.vertices.push(spec);
   _areaDrawRender();
 }
 
@@ -1218,6 +1270,7 @@ AreaDrawTool.activate = function() {
   const tool = AreaDrawTool;
   tool.active = true;
   tool.vertices = [];
+  tool._resolvedPts = [];
   tool._layer = App.els["layer-measure"];
   const vp = App.els["viewport"];
   vp.addEventListener("click", _areaDrawClick, true);   // capture: beats circle stopPropagation
@@ -1234,6 +1287,7 @@ AreaDrawTool.deactivate = function() {
   for (const h of tool._handles) h.remove();
   tool._handles = [];
   tool.vertices = [];
+  tool._resolvedPts = [];
   const vp = App.els["viewport"];
   vp.removeEventListener("click", _areaDrawClick, true);
   vp.removeEventListener("mousemove", _areaDrawMouseMove);

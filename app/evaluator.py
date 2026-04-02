@@ -144,8 +144,11 @@ class FormulaEvaluator:
         # Inner-wall arc descriptors for automatic arc detection in area_poly formulas.
         # Each entry: {"center": [E, N], "R": float, "direction": "CW"/"CCW"}
         self._inner_arcs = []
+        # Per-chain-point tangent directions for parametric vertex offsets.
+        # Key: point name; value: [along_e, along_n] unit vector (outgoing tangent at that point).
+        self._point_tangents = {}
         if inner_segs:
-            from shared.types import ArcSeg
+            from shared.types import ArcSeg, LineSeg
             for seg in inner_segs:
                 if isinstance(seg, ArcSeg):
                     c = base_points.get(seg.center)
@@ -155,6 +158,24 @@ class FormulaEvaluator:
                             "R": seg.radius,
                             "direction": seg.direction,
                         })
+                    # Outgoing tangent at seg.start: perpendicular to radius, in arc travel direction
+                    p_start = base_points.get(seg.start)
+                    if c is not None and p_start is not None:
+                        rx = p_start[0] - c[0]; ry = p_start[1] - c[1]
+                        r = math.hypot(rx, ry)
+                        if r > 1e-9:
+                            if seg.direction == "CW":
+                                self._point_tangents[seg.start] = [ry / r, -rx / r]
+                            else:
+                                self._point_tangents[seg.start] = [-ry / r, rx / r]
+                elif isinstance(seg, LineSeg):
+                    p_start = base_points.get(seg.start)
+                    p_end = base_points.get(seg.end)
+                    if p_start is not None and p_end is not None:
+                        de = p_end[0] - p_start[0]; dn = p_end[1] - p_start[1]
+                        length = math.hypot(de, dn)
+                        if length > 1e-9:
+                            self._point_tangents[seg.start] = [de / length, dn / length]
 
         # Computed element results: name → {"poly": [...], "bbox": {...}}
         self.elements = {}
@@ -1033,6 +1054,24 @@ class FormulaEvaluator:
         if not isinstance(spec, dict):
             return None
 
+        # Parametric reference with local-frame offset: {ref, dAlong, dPerp}
+        # dAlong is along the chain tangent at the reference point; dPerp is 90° CCW from that.
+        if "ref" in spec:
+            ref_pt = self.resolve_point(spec["ref"])
+            if ref_pt is None:
+                return None
+            d_along = float(spec.get("dAlong", 0.0))
+            d_perp = float(spec.get("dPerp", 0.0))
+            if d_along == 0.0 and d_perp == 0.0:
+                return list(ref_pt)
+            ref_name = spec["ref"] if isinstance(spec["ref"], str) else None
+            along = self._point_tangents.get(ref_name, [1.0, 0.0]) if ref_name else [1.0, 0.0]
+            perp = [-along[1], along[0]]
+            return [
+                ref_pt[0] + d_along * along[0] + d_perp * perp[0],
+                ref_pt[1] + d_along * along[1] + d_perp * perp[1],
+            ]
+
         # Element corner reference
         if "element" in spec:
             elem_name = spec["element"]
@@ -1444,6 +1483,10 @@ def _extract_deps_recursive(spec, deps):
         return
     if not isinstance(spec, dict):
         return
+
+    # Parametric reference offset — recurse into ref spec
+    if "ref" in spec:
+        _extract_deps_recursive(spec["ref"], deps)
 
     # Element reference
     if "element" in spec:
