@@ -680,6 +680,11 @@ def create_app(db_path=None):
         best_ref = None
         best_dist = float("inf")
         for name, pt in points.items():
+            # Only consider points that have a tangent — i.e., chain points (W-series).
+            # Other named points (arc centers C-series, outline F-series, etc.) don't
+            # have a meaningful tangent and would produce wrong offsets.
+            if name not in tangents:
+                continue
             d = _math.hypot(cx - pt[0], cy - pt[1])
             if d < best_dist:
                 best_dist = d
