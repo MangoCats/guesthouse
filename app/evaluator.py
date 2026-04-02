@@ -973,11 +973,17 @@ class FormulaEvaluator:
                     # CCW inner-wall arc = concave wall corner → arc subtracts area → sign=-1
                     sign = 1 if arc_desc["direction"] == "CW" else -1
                     area += sign * seg_area
+                    # For SVG rendering, theta sign determines sweep direction (< 0 → CW → sweep=1).
+                    # Near 180°: cross≈0 so atan2 always returns +π regardless of actual direction.
+                    # In that case override with the known direction from the stored arc descriptor.
+                    theta_render = signed_theta
+                    if abs(cross_val) < 1e-4 and dot_val < 0:
+                        theta_render = -math.pi if arc_desc["direction"] == "CW" else math.pi
                     arcs.append({
                         "from_idx": i,
                         "to_idx": next_i,
                         "R": R,
-                        "theta": signed_theta,
+                        "theta": theta_render,
                     })
                     break
         # Subtract element polygon areas (e.g. wall stubs inside a room)
