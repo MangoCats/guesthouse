@@ -1126,8 +1126,7 @@ AreaEditTool.deactivate = function() {
  */
 const AreaDrawTool = {
   active: false,
-  vertices: [],      // vertex specs: string | [E,N] | {ref,dAlong,dPerp} | {element,corner}
-  _resolvedPts: [],  // [E,N] resolved from vertices — kept in sync by _areaDrawRender
+  vertices: [],      // [E, N] world coordinates — plain arrays for reliable rendering
   _layer: null,
   _polyEl: null,     // live polygon preview
   _rubberLine: null, // line from last vertex to cursor
@@ -1145,14 +1144,12 @@ function _areaDrawRender() {
   tool._polyEl = null;
   tool._rubberLine = null;
 
-  // Resolve all vertex specs to world coords
-  tool._resolvedPts = tool.vertices.map(s => _resolveVertexSpec(s)).filter(Boolean);
-  if (tool._resolvedPts.length === 0) return;
+  if (tool.vertices.length === 0) return;
 
-  // Polygon preview
+  // Polygon preview (vertices are plain [E,N] arrays — no resolution needed)
   tool._polyEl = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
   tool._polyEl.setAttribute("points",
-    tool._resolvedPts.map(p => `${p[0]},${-p[1]}`).join(" "));
+    tool.vertices.map(p => `${p[0]},${-p[1]}`).join(" "));
   tool._polyEl.setAttribute("fill", "#88f");
   tool._polyEl.setAttribute("fill-opacity", "0.15");
   tool._polyEl.setAttribute("stroke", "#88f");
@@ -1160,7 +1157,7 @@ function _areaDrawRender() {
   layer.appendChild(tool._polyEl);
 
   // Vertex handles
-  for (const [e, n] of tool._resolvedPts) {
+  for (const [e, n] of tool.vertices) {
     const h = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     h.setAttribute("cx", e); h.setAttribute("cy", -n); h.setAttribute("r", "0.1");
     h.setAttribute("fill", "#88f"); h.setAttribute("stroke", "#fff");
@@ -1172,13 +1169,13 @@ function _areaDrawRender() {
 
 function _areaDrawMouseMove(e) {
   const tool = AreaDrawTool;
-  if (!tool.active || tool._resolvedPts.length === 0) return;
+  if (!tool.active || tool.vertices.length === 0) return;
   const rect = App.els["viewport"].getBoundingClientRect();
   const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
   const snap = _areaFindSnap(wx, wy);
   const [tx, ty] = snap ? snap.pt : [wx, wy];
   if (tool._rubberLine) tool._rubberLine.remove();
-  const lastPt = tool._resolvedPts[tool._resolvedPts.length - 1];
+  const lastPt = tool.vertices[tool.vertices.length - 1];
   tool._rubberLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
   tool._rubberLine.setAttribute("x1", lastPt[0]); tool._rubberLine.setAttribute("y1", -lastPt[1]);
   tool._rubberLine.setAttribute("x2", tx); tool._rubberLine.setAttribute("y2", -ty);
@@ -1195,20 +1192,20 @@ function _areaDrawClick(e) {
   const rect = App.els["viewport"].getBoundingClientRect();
   const [wx, wy] = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 
-  // Build parametric spec for this position; resolve to world coords for close-check
-  const spec = _specFromPosition(wx, wy);
-  const resolved = _resolveVertexSpec(spec) || [wx, wy];
+  // Use snapped position if available, otherwise raw cursor position
+  const snap = _areaFindSnap(wx, wy);
+  const [vx, vy] = snap ? snap.pt : [wx, wy];
 
-  // Close if resolved position is near first resolved vertex
+  // Close if near first vertex (compare world coords directly)
   if (tool.vertices.length >= 3) {
-    const firstPt = tool._resolvedPts[0];
-    if (firstPt && Math.hypot(resolved[0] - firstPt[0], resolved[1] - firstPt[1]) <= AREA_SNAP_R) {
+    const [fx, fy] = tool.vertices[0];
+    if (Math.hypot(vx - fx, vy - fy) <= AREA_SNAP_R) {
       _areaDrawFinish();
       return;
     }
   }
 
-  tool.vertices.push(spec);
+  tool.vertices.push([vx, vy]);
   _areaDrawRender();
 }
 
@@ -1244,7 +1241,8 @@ async function _areaDrawFinish() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vertices: tool.vertices.map(p => [...p]),
+          // Convert world-coord pairs to parametric specs at commit time
+          vertices: tool.vertices.map(([vx, vy]) => _specFromPosition(vx, vy)),
           arc_adjustments: [],
         }),
       });
@@ -1270,7 +1268,6 @@ AreaDrawTool.activate = function() {
   const tool = AreaDrawTool;
   tool.active = true;
   tool.vertices = [];
-  tool._resolvedPts = [];
   tool._layer = App.els["layer-measure"];
   const vp = App.els["viewport"];
   vp.addEventListener("click", _areaDrawClick, true);   // capture: beats circle stopPropagation
@@ -1287,7 +1284,6 @@ AreaDrawTool.deactivate = function() {
   for (const h of tool._handles) h.remove();
   tool._handles = [];
   tool.vertices = [];
-  tool._resolvedPts = [];
   const vp = App.els["viewport"];
   vp.removeEventListener("click", _areaDrawClick, true);
   vp.removeEventListener("mousemove", _areaDrawMouseMove);
