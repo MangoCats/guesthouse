@@ -388,22 +388,71 @@ def build_site_plan_data(gd=None):
     )
 
 
+def _label_aabb(cx, cy, tw, fs, angle_deg):
+    """Axis-aligned bounding box of a rotated text label centered at (cx, cy).
+
+    Returns (x_min, y_min, x_max, y_max).
+    """
+    th = fs * 1.2
+    a = math.radians(angle_deg)
+    ca, sa = math.cos(a), math.sin(a)
+    hw, hh = tw / 2.0, th / 2.0
+    corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
+    xs = [cx + dx * ca - dy * sa for dx, dy in corners]
+    ys = [cy + dx * sa + dy * ca for dx, dy in corners]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _aabb_overlap(a, b):
+    """Return True if two AABBs (x0,y0,x1,y1) overlap."""
+    return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
+
+
 def _draw_dim_line(shape, page, pt1, pt2, label, color,
-                   fs=DIM_LABEL_FS, offset=DIM_LABEL_OFFSET):
-    """Draw a dimension line between pt1 and pt2 with centered rotated label."""
+                   fs=DIM_LABEL_FS, offset=DIM_LABEL_OFFSET,
+                   along_frac=0.5, avoid_aabbs=()):
+    """Draw a dimension line between pt1 and pt2 with a rotated label.
+
+    along_frac: label position along the line (0=pt1, 0.5=midpoint, 1=pt2).
+    avoid_aabbs: iterable of (x0,y0,x1,y1) AABBs to avoid with the label.
+      If the default along_frac causes overlap, the label is shifted along the
+      line in steps of 0.05 (trying both directions) until clear or exhausted.
+    """
     shape.draw_line(fitz.Point(*pt1), fitz.Point(*pt2))
     shape.finish(color=color, width=0.3)
     dx = pt2[0] - pt1[0]
     dy = pt2[1] - pt1[1]
-    length = math.hypot(dx, dy)
+    length = math.hypot(dx, dy) or 1.0
     deg = math.degrees(math.atan2(dy, dx))
-    mid_x = (pt1[0] + pt2[0]) / 2.0 + offset * dy / length
-    mid_y = (pt1[1] + pt2[1]) / 2.0 - offset * dx / length
     tw = fitz.get_text_length(label, fontname="helv", fontsize=fs)
+
+    def _label_center(frac):
+        cx = pt1[0] + frac * dx + offset * dy / length
+        cy = pt1[1] + frac * dy - offset * dx / length
+        return cx, cy
+
+    def _overlaps(frac):
+        cx, cy = _label_center(frac)
+        aabb = _label_aabb(cx, cy, tw, fs, -deg - 180)
+        return any(_aabb_overlap(aabb, b) for b in avoid_aabbs)
+
+    frac = along_frac
+    if avoid_aabbs and _overlaps(frac):
+        for step in (i * 0.05 for i in range(1, 18)):
+            for candidate in (along_frac - step, along_frac + step):
+                candidate = max(0.05, min(0.95, candidate))
+                if not _overlaps(candidate):
+                    frac = candidate
+                    break
+            else:
+                continue
+            break
+
+    cx, cy = _label_center(frac)
     page.insert_text(
-        fitz.Point(mid_x - tw / 2.0, mid_y + fs / 3.0),
+        fitz.Point(cx - tw / 2.0, cy + fs / 3.0),
         label, fontname="helv", fontsize=fs, color=color,
-        morph=(fitz.Point(mid_x, mid_y), fitz.Matrix(-deg - 180)))
+        morph=(fitz.Point(cx, cy), fitz.Matrix(-deg - 180)))
 
 
 def _draw_setback_label(page, pt_pdf, line_p1, line_p2, value_ft, color,
@@ -459,18 +508,7 @@ def render_site_plan(sp, corners=True):
         shape.finish(color=(1, 0, 0), width=0.5, fill=None,
                      stroke_opacity=0.4)
 
-    # --- SE corner to west-ref dimension line (E-W external dimension) ---
-    f15 = pts["_site_se_pt"]
-    f15_pdf = building_to_pdf(*f15)
-    foot_pdf = building_to_pdf(pts["_site_w_pt"][0], f15[1])
-    _draw_dim_line(shape, page, f15_pdf, foot_pdf,
-                   f"{sp.ew_dim_ft:.1f}'", COLOR_PROPOSED)
-
-    # --- N-S Interior Max Span dimension line ---
-    _draw_dim_line(shape, page, sp.span_s_pdf, sp.span_n_pdf,
-                   f"{sp.ns_dim_ft:.1f}'", COLOR_PROPOSED)
-
-    # --- "PROPOSED 950SF MAX ADU" label ---
+    # --- "PROPOSED 950SF MAX ADU" label (computed early for overlap avoidance) ---
     fc_pdf = building_to_pdf(*pts["FC"])
     _char_w = fitz.get_text_length("M", fontname="helv", fontsize=BLDG_LABEL_FS)
     label_pdf = (fc_pdf[0] + 0.25 * _char_w, fc_pdf[1] + 5.0 * SCALE - 2.3 * BLDG_LABEL_FS)
@@ -478,11 +516,30 @@ def render_site_plan(sp, corners=True):
     label_lh = BLDG_LABEL_FS * 1.15
     block_h = label_lh * len(label_lines)
     start_y = label_pdf[1] - block_h / 2.0 + BLDG_LABEL_FS
+    _max_lw = max(fitz.get_text_length(l, fontname="helv", fontsize=BLDG_LABEL_FS)
+                  for l in label_lines)
+    _bldg_label_aabb = (
+        label_pdf[0] - _max_lw / 2.0, start_y - BLDG_LABEL_FS,
+        label_pdf[0] + _max_lw / 2.0, start_y + (len(label_lines) - 1) * label_lh,
+    )
     for i, line in enumerate(label_lines):
         lw = fitz.get_text_length(line, fontname="helv", fontsize=BLDG_LABEL_FS)
         page.insert_text(
             fitz.Point(label_pdf[0] - lw / 2.0, start_y + i * label_lh),
             line, fontname="helv", fontsize=BLDG_LABEL_FS, color=COLOR_PROPOSED)
+
+    # --- SE corner to west-ref dimension line (E-W external dimension) ---
+    f15 = pts["_site_se_pt"]
+    f15_pdf = building_to_pdf(*f15)
+    foot_pdf = building_to_pdf(pts["_site_w_pt"][0], f15[1])
+    _draw_dim_line(shape, page, f15_pdf, foot_pdf,
+                   f"{sp.ew_dim_ft:.1f}'", COLOR_PROPOSED,
+                   avoid_aabbs=(_bldg_label_aabb,))
+
+    # --- N-S Interior Max Span dimension line ---
+    _draw_dim_line(shape, page, sp.span_s_pdf, sp.span_n_pdf,
+                   f"{sp.ns_dim_ft:.1f}'", COLOR_PROPOSED,
+                   avoid_aabbs=(_bldg_label_aabb,))
 
     # --- Setback caption (from 216.73' line) ---
     f16_pdf = building_to_pdf(*pts["_site_sf_start"])
