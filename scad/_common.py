@@ -320,8 +320,13 @@ def compute_wall_bands(openings, outline_segs, upper_top,
         secs = secs[-1:] + secs[:-1]
         sec_data = []
         for start_op, end_op in secs:
+            # full_wrap=True when start and end are the same opening (single
+            # active opening in this band): the wall section must traverse the
+            # entire perimeter instead of tracing a stub within one segment.
+            wrap = (start_op is end_op)
             tp = build_tpath(pts, outline_segs, inner_segs, tf_segs, tw_segs,
-                             start_op, end_op, shell_t, R_in, tw_ov)
+                             start_op, end_op, shell_t, R_in, tw_ov,
+                             full_wrap=wrap)
             sec_data.append((f"b{i}_{start_op.name}_{end_op.name}", tp))
         bands.append((z1, z2, sec_data))
 
