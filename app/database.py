@@ -1044,6 +1044,8 @@ def _categorize(name: str) -> str:
         return "geometry"
     if any(n.startswith(p) for p in ("DOOR_", "F8F9", "JAMB", "STD_")):
         return "construction"
+    if n.startswith("SITE_"):
+        return "site"
     return "misc"
 
 

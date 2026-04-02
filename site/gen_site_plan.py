@@ -73,22 +73,23 @@ SitePlanData = namedtuple("SitePlanData", [
 
 
 def _find_site_refs_from_db(outline_segs, pts):
-    """Find F-series equivalent reference points from a DB chain outline.
+    """Find reference points from a DB chain outline, stored under internal alias names.
 
-    Used when the DB chain uses non-F-series naming (PA/PB etc.).
-    Returns a dict of reference points to merge into pts so that
-    build_site_plan_data can use its standard F-series reference names.
+    All returned keys use the ``_site_`` prefix to avoid overwriting any real
+    DB point coordinates in pts.  Callers must use these internal names (not
+    legacy F-series names) when accessing the returned reference points.
 
-    Points returned:
-      F16, F17  — start/end of the south-face LineSeg (most SW-directed)
-      F15       — start of the CW arc preceding F16 (SE corner reference)
-      F18       — southernmost outline vertex (for N-S dimension south ref)
-      F2        — westernmost outline vertex (for E-W dimension west ref)
-      F6        — northernmost outline vertex (for N-S dimension north ref)
-      W9, W10   — virtual E-W direction points (centroid ± 1 ft E)
-      W2, W5    — virtual N-S direction points (centroid ± 1 ft N)
+    Keys returned:
+      _site_sf_start  — start of the south-face LineSeg (most SW-directed)
+      _site_sf_end    — end   of the south-face LineSeg
+      _site_se_pt     — start of the CW arc preceding the south face (SE corner ref)
+      _site_w_pt      — westernmost outline vertex (E-W dimension west ref)
+      _site_n_pt      — northernmost outline vertex (N-S dimension north ref)
+      _site_s_pt      — southernmost outline vertex (N-S dimension south ref)
+      W9, W10         — virtual E-W direction points (centroid ± 1 ft E)
+      W2, W5          — virtual N-S direction points (centroid ± 1 ft N)
     """
-    # Target: seed F16→F17 goes SW, unit ≈ (-0.864, -0.504)
+    # Target: seed south face goes SW, unit ≈ (-0.864, -0.504)
     _TGT_E, _TGT_N = -0.864, -0.504
 
     seg_from_end = {s.end: s for s in outline_segs}
@@ -137,20 +138,20 @@ def _find_site_refs_from_db(outline_segs, pts):
                 best_seg = seg
 
     result = {}
-    result["F16"] = pts[best_seg.start]
-    result["F17"] = pts[best_seg.end]
+    result["_site_sf_start"] = pts[best_seg.start]
+    result["_site_sf_end"]   = pts[best_seg.end]
 
-    # F15: start of the CW arc that precedes F16 (the SE corner arc)
+    # SE corner reference: start of the CW arc preceding the south face
     prev_arc = seg_from_end.get(best_seg.start)
     if prev_arc is not None and isinstance(prev_arc, ArcSeg):
-        result["F15"] = pts[prev_arc.start]
+        result["_site_se_pt"] = pts[prev_arc.start]
     else:
-        result["F15"] = pts[max(all_names, key=lambda n: pts[n][0])]
+        result["_site_se_pt"] = pts[max(all_names, key=lambda n: pts[n][0])]
 
     # Axis-extreme reference points (building is approx. axis-aligned in FC coords)
-    result["F2"]  = pts[min(all_names, key=lambda n: pts[n][0])]   # westernmost
-    result["F6"]  = pts[max(all_names, key=lambda n: pts[n][1])]   # northernmost
-    result["F18"] = pts[min(all_names, key=lambda n: pts[n][1])]   # southernmost
+    result["_site_w_pt"] = pts[min(all_names, key=lambda n: pts[n][0])]   # westernmost
+    result["_site_n_pt"] = pts[max(all_names, key=lambda n: pts[n][1])]   # northernmost
+    result["_site_s_pt"] = pts[min(all_names, key=lambda n: pts[n][1])]   # southernmost
 
     # Virtual W-series direction points for building-axis unit vectors
     _cx = sum(pts[n][0] for n in all_names) / len(all_names)
@@ -178,17 +179,34 @@ def build_site_plan_data(gd=None):
         _outline_struct_names = (
             [f"F{i}" for i in range(1, 19) if i not in (3, 4)] + ["F11a", "F11b"])
         _f_pdf_names = _outline_struct_names + ["FC"]
+        # Internal aliases for the original F-series reference points
+        pts["_site_sf_start"] = pts["F16"]
+        pts["_site_sf_end"]   = pts["F17"]
+        pts["_site_se_pt"]    = pts["F15"]
+        pts["_site_w_pt"]     = pts["F2"]
+        pts["_site_n_pt"]     = pts["F6"]
+        pts["_site_s_pt"]     = pts["F18"]
+        p45_dist = P45_DIST_216
+        p3_dist  = P3_DIST_275
     else:
-        pts = dict(gd.pts)  # copy so we can add aliases
+        pts = dict(gd.pts)  # copy so we can add aliases without mutating gd
         outer_poly = gd.outline_poly
         inner_poly = gd.inner_poly
-        # Add F-series reference aliases and virtual axis-direction points (W9, W10, W2, W5).
-        # DB uses zero-padded single-digit names (W09, W02) so W9/W2 are never present.
+        # Add internal reference aliases (_site_*) from DB chain geometry.
+        # Also add virtual axis-direction points (W9/W10/W2/W5) if not already
+        # present as real inner-wall points (original non-zero-padded DB has them).
+        _site_refs = _find_site_refs_from_db(gd.outline_segs, pts)
+        pts.update({k: v for k, v in _site_refs.items() if k.startswith("_site_")})
         if "W9" not in pts:
-            pts.update(_find_site_refs_from_db(gd.outline_segs, pts))
+            for k in ("W9", "W10", "W2", "W5"):
+                if k in _site_refs:
+                    pts[k] = _site_refs[k]
         _outline_struct_names = list(dict.fromkeys(
             n for s in gd.outline_segs for n in (s.start, s.end) if n in pts))
         _f_pdf_names = _outline_struct_names + (["FC"] if "FC" in pts else [])
+        # Setback distances from DB constants (authoritative)
+        p45_dist = gd.constants.get("SITE_P4_DIST_216", P45_DIST_216)
+        p3_dist  = gd.constants.get("SITE_P3_DIST_275", P3_DIST_275)
 
     # --- Survey coordinate calibration ---
     # Scale: 1 inch = 30 ft on the survey; 1 inch = 72 PDF pts
@@ -202,9 +220,9 @@ def build_site_plan_data(gd=None):
     # Angle of property line from E-axis (real-world):
     prop_angle = math.atan2(-ldy, ldx)  # atan2(-502.6, 119) ≈ -76.7°
 
-    # F16→F17 direction in building coords
-    f16 = pts["F16"]
-    f17 = pts["F17"]
+    # South-face direction in building coords
+    f16 = pts["_site_sf_start"]
+    f17 = pts["_site_sf_end"]
     f16f17_angle = math.atan2(f17[1] - f16[1], f17[0] - f16[0])
 
     # Rotation needed: rotate building so F16→F17 is parallel to property line
@@ -221,8 +239,8 @@ def build_site_plan_data(gd=None):
         return (ce + de * cos_r - dn * sin_r,
                 cn + de * sin_r + dn * cos_r)
 
-    # F15 is the reference point for placement
-    f15 = pts["F15"]
+    # SE corner reference point for placement
+    f15 = pts["_site_se_pt"]
 
     # --- Constraint-based placement (2×2 linear system) ---
     # After rotation, each building point has a fixed PDF offset from F15.
@@ -244,15 +262,15 @@ def build_site_plan_data(gd=None):
     # Signed distance to left of LINE_TOP→LINE_BOT = property interior.
     a1 = -ldy / llen
     b1 = ldx / llen
-    c1 = (P45_DIST_216 * SCALE
+    c1 = (p45_dist * SCALE
           + a1 * (LINE_TOP[0] - off_p4_x) + b1 * (LINE_TOP[1] - off_p4_y))
 
-    # Constraint B: P3 is P3_DIST_275 inside the 275.08' line.
+    # Constraint B: P3 is p3_dist inside the 275.08' line.
     # Direction BOT_LEFT→LINE_BOT; interior is to the right.
     bdx, bdy, blen = _LINE_275_DX, _LINE_275_DY, _LINE_275_LEN
     a2 = bdy / blen
     b2 = -bdx / blen
-    c2 = (P3_DIST_275 * SCALE
+    c2 = (p3_dist * SCALE
           + a2 * (BOT_LEFT[0] - off_p3_x) + b2 * (BOT_LEFT[1] - off_p3_y))
 
     # Solve: a1*fx + b1*fy = c1,  a2*fx + b2*fy = c2
@@ -284,10 +302,12 @@ def build_site_plan_data(gd=None):
     _bld_ew, _ = seg_vecs(pts["W9"], pts["W10"])   # building E-W direction
     _bld_ns, _ = seg_vecs(pts["W2"], pts["W5"])     # building N-S direction
 
-    _df_ew = (pts["F15"][0] - pts["F2"][0], pts["F15"][1] - pts["F2"][1])
+    _df_ew = (pts["_site_se_pt"][0] - pts["_site_w_pt"][0],
+              pts["_site_se_pt"][1] - pts["_site_w_pt"][1])
     ew_dim_ft = abs(_df_ew[0] * _bld_ew[0] + _df_ew[1] * _bld_ew[1])
 
-    _df_ns = (pts["F6"][0] - pts["F18"][0], pts["F6"][1] - pts["F18"][1])
+    _df_ns = (pts["_site_n_pt"][0] - pts["_site_s_pt"][0],
+              pts["_site_n_pt"][1] - pts["_site_s_pt"][1])
     ns_dim_ft = abs(_df_ns[0] * _bld_ns[0] + _df_ns[1] * _bld_ns[1])
 
     # --- N-S Interior Max Span (dimension line position only) ---
@@ -307,7 +327,7 @@ def build_site_plan_data(gd=None):
     span_s_pdf = building_to_pdf(_best_e, _best_s)
     span_n_pdf = building_to_pdf(_best_e, _best_n)
 
-    f2_pdf = building_to_pdf(*pts["F2"])
+    f2_pdf = building_to_pdf(*pts["_site_w_pt"])
     f15_pdf = (f15_pdf_x, f15_pdf_y)
 
     # --- Outline PDF coordinates (F-series or DB chain names) ---
@@ -439,10 +459,10 @@ def render_site_plan(sp, corners=True):
         shape.finish(color=(1, 0, 0), width=0.5, fill=None,
                      stroke_opacity=0.4)
 
-    # --- F15 to F2-F5 dimension line ---
-    f15 = pts["F15"]
+    # --- SE corner to west-ref dimension line (E-W external dimension) ---
+    f15 = pts["_site_se_pt"]
     f15_pdf = building_to_pdf(*f15)
-    foot_pdf = building_to_pdf(pts["F2"][0], f15[1])
+    foot_pdf = building_to_pdf(pts["_site_w_pt"][0], f15[1])
     _draw_dim_line(shape, page, f15_pdf, foot_pdf,
                    f"{sp.ew_dim_ft:.1f}'", COLOR_PROPOSED)
 
@@ -465,8 +485,8 @@ def render_site_plan(sp, corners=True):
             line, fontname="helv", fontsize=BLDG_LABEL_FS, color=COLOR_PROPOSED)
 
     # --- Setback caption (from 216.73' line) ---
-    f16_pdf = building_to_pdf(*pts["F16"])
-    f17_pdf = building_to_pdf(*pts["F17"])
+    f16_pdf = building_to_pdf(*pts["_site_sf_start"])
+    f17_pdf = building_to_pdf(*pts["_site_sf_end"])
     mid_f16f17 = ((f16_pdf[0] + f17_pdf[0]) / 2.0,
                   (f16_pdf[1] + f17_pdf[1]) / 2.0)
     _draw_setback_label(page, mid_f16f17, LINE_TOP, LINE_BOT,

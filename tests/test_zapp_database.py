@@ -77,7 +77,7 @@ class TestDB2ConstantsSeeding:
 class TestDB3ConstantCategories:
     EXPECTED_CATEGORIES = {
         "wall", "interior_wall", "opening", "appliance",
-        "furniture", "fixture", "geometry", "construction", "misc",
+        "furniture", "fixture", "geometry", "construction", "misc", "site",
     }
 
     def test_categories_match(self, fresh_db):
