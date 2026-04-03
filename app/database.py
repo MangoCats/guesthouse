@@ -395,6 +395,29 @@ def init_db(db_path=None):
                             (_tc_formula,),
                         )
                     break
+            # Ensure three_feet element and formula exist
+            for _name, _type, _props, _variant in _VARIANT_ITEMS:
+                if _name == "three_feet":
+                    conn.execute(
+                        "INSERT OR IGNORE INTO elements (type, name, properties, variant) "
+                        "VALUES (?, ?, ?, ?)",
+                        (_type, _name, json.dumps(_props), _variant),
+                    )
+                    _tf_has_formula = conn.execute(
+                        "SELECT id FROM element_formulas "
+                        "WHERE element_name='three_feet' "
+                        "AND param_name='position' AND variant IS NULL"
+                    ).fetchone()
+                    if not _tf_has_formula:
+                        _tf_formula = json.dumps({
+                            "type": "item_circle", "center": [0, 0], "radius": 1.5})
+                        conn.execute(
+                            "INSERT INTO element_formulas "
+                            "(element_name, param_name, formula_json, variant) "
+                            "VALUES ('three_feet', 'position', ?, NULL)",
+                            (_tf_formula,),
+                        )
+                    break
     # Seed anchor/pivot defaults after DB is committed (needs constants table)
     if fresh:
         _seed_default_anchor_pivot(db_path)
@@ -1911,6 +1934,11 @@ _VARIANT_ITEMS = [
     ("turning_circle", "furniture", {
         "label": "TURNING CIRCLE", "item_type": "furniture", "shape": "circle",
         "radius": 2.5,
+        "variants": _VI_ALL,
+    }, None),
+    ("three_feet", "furniture", {
+        "label": "THREE FEET", "item_type": "furniture", "shape": "circle",
+        "radius": 1.5,
         "variants": _VI_ALL,
     }, None),
 ]

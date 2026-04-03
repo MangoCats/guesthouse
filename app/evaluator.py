@@ -4034,6 +4034,15 @@ def get_variant_item_formulas():
         "radius": 2.5,
     })
 
+    # ===================================================================
+    # THREE FEET — 3' diameter circle, all variants
+    # ===================================================================
+    _f("three_feet", {
+        "type": "item_circle",
+        "center": [0, 0],
+        "radius": 1.5,
+    })
+
     return formulas
 
 
