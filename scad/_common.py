@@ -470,14 +470,62 @@ def compute_wall_bands(openings, outline_segs, upper_top,
 
 # ── Interior wall SCAD output ─────────────────────────────────
 
-# White pine: pale, warm cream (Eastern White Pine)
-IW_PINE_COLOR = "[0.91, 0.85, 0.65]"
+# White pine: warm amber-yellow, slightly darker for contrast vs concrete walls
+IW_PINE_COLOR = "[0.82, 0.72, 0.38]"
 IW_DOOR_H = 82.5 / 12.0  # 82.5" door height in feet
+# Outward expansion applied to opening polygons so their faces don't lie
+# exactly coplanar with the wall faces (eliminates OpenSCAD thin-skin artifact)
+_OPENING_EPS = 0.02  # ft (~1/4")
 
 
 def _pts_str(poly):
     """Format polygon point list as SCAD array."""
     return ", ".join(f"[{p[0]:.8f}, {p[1]:.8f}]" for p in poly)
+
+
+def _offset_poly_2d(poly, eps):
+    """Compute the outward parallel offset of a 2D convex polygon.
+
+    Works for any winding order (CW or CCW).  Each edge is moved outward
+    by eps; new vertices are the intersections of adjacent offset edges.
+    """
+    n = len(poly)
+    # Signed area: positive = CCW, negative = CW
+    area2 = sum(poly[i][0] * poly[(i + 1) % n][1]
+                - poly[(i + 1) % n][0] * poly[i][1]
+                for i in range(n))
+    sign = 1 if area2 > 0 else -1  # CCW→right-of-edge is outward; CW→left
+
+    # Build offset lines: (ox, oy, dx, dy) — a point and direction
+    offset_lines = []
+    for i in range(n):
+        x1, y1 = poly[i][0], poly[i][1]
+        x2, y2 = poly[(i + 1) % n][0], poly[(i + 1) % n][1]
+        dx, dy = x2 - x1, y2 - y1
+        length = math.hypot(dx, dy)
+        if length < 1e-10:
+            continue
+        # Outward unit normal
+        nx, ny = sign * dy / length, -sign * dx / length
+        offset_lines.append((x1 + eps * nx, y1 + eps * ny, dx, dy))
+
+    if len(offset_lines) < 3:
+        return [tuple(p) for p in poly]
+
+    # New vertices: intersect each pair of adjacent offset lines
+    m = len(offset_lines)
+    new_pts = []
+    for i in range(m):
+        ox1, oy1, dx1, dy1 = offset_lines[i]
+        ox2, oy2, dx2, dy2 = offset_lines[(i + 1) % m]
+        cross = dx1 * dy2 - dy1 * dx2
+        if abs(cross) < 1e-10:
+            new_pts.append((ox2, oy2))
+        else:
+            dp = (ox2 - ox1, oy2 - oy1)
+            t = (dp[0] * dy2 - dp[1] * dx2) / cross
+            new_pts.append((ox1 + t * dx1, oy1 + t * dy1))
+    return new_pts
 
 
 def interior_wall_scad(out, iw_polys, ro_polys, get_wall_top):
@@ -492,6 +540,7 @@ def interior_wall_scad(out, iw_polys, ro_polys, get_wall_top):
 
     Each interior wall is extruded from z=0 to get_wall_top(name).
     Rough openings are subtracted from 0 to IW_DOOR_H (82.5").
+    Opening polygons are expanded by _OPENING_EPS to avoid coplanar faces.
     """
     if not iw_polys:
         return
@@ -516,10 +565,11 @@ def interior_wall_scad(out, iw_polys, ro_polys, get_wall_top):
             out.append(f"    linear_extrude(height = {z_top:.6f}, convexity = 10)")
             out.append(f"      polygon(points = [{_pts_str(poly)}]);")
             for ro in wall_ros:
+                exp = _offset_poly_2d(ro["poly"], _OPENING_EPS)
                 out.append(f"    // {ro['name']}")
                 out.append(f"    translate([0, 0, -0.001])")
                 out.append(f"    linear_extrude(height = iw_door_h + 0.001, convexity = 10)")
-                out.append(f"      polygon(points = [{_pts_str(ro['poly'])}]);")
+                out.append(f"      polygon(points = [{_pts_str(exp)}]);")
             out.append(f"  }}")
         else:
             out.append(f"  linear_extrude(height = {z_top:.6f}, convexity = 10)")
