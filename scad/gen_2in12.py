@@ -26,7 +26,8 @@ from scad._common import (seg_to_elem as _seg_to_elem, f8f9_elems as _f8f9_elems
                           seg_comment as _seg_comment,
                           window_panel_poly as _window_panel_poly,
                           compute_wall_bands as _compute_wall_bands,
-                          build_tw_overrides as _build_tw_overrides)
+                          build_tw_overrides as _build_tw_overrides,
+                          interior_wall_scad as _interior_wall_scad)
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _OUT = os.path.join(_DIR, "2in12.scad")
@@ -327,6 +328,16 @@ def generate(gd=None):
         out.append(f"      polygon(points = [{pts_str}]);")
     out.append("}")
     out.append("")
+
+    # Interior walls: height follows 2:12 roof slope at each wall's avg N coord
+    iw_polys = getattr(gd, 'iw_polys', None) if gd is not None else None
+    ro_polys = getattr(gd, 'ro_polys', None) if gd is not None else None
+    if iw_polys:
+        def _iw_top(name):
+            poly = iw_polys[name]
+            avg_y = sum(p[1] for p in poly) / len(poly)
+            return roof_z_offset + roof_slope * avg_y
+        _interior_wall_scad(out, iw_polys, ro_polys, get_wall_top=_iw_top)
 
     with open(_OUT, "w") as f:
         f.write("\n".join(out))

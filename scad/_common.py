@@ -466,3 +466,64 @@ def compute_wall_bands(openings, outline_segs, upper_top,
         bands.append((z1, z2, sec_data))
 
     return bands
+
+
+# ── Interior wall SCAD output ─────────────────────────────────
+
+# White pine: pale, warm cream (Eastern White Pine)
+IW_PINE_COLOR = "[0.91, 0.85, 0.65]"
+IW_DOOR_H = 82.5 / 12.0  # 82.5" door height in feet
+
+
+def _pts_str(poly):
+    """Format polygon point list as SCAD array."""
+    return ", ".join(f"[{p[0]:.8f}, {p[1]:.8f}]" for p in poly)
+
+
+def interior_wall_scad(out, iw_polys, ro_polys, get_wall_top):
+    """Append interior wall SCAD blocks to output list.
+
+    Parameters:
+        out          — list to append SCAD lines to
+        iw_polys     — dict {wall_name: [[x,y], ...]} (4-vertex polygons)
+        ro_polys     — list of rough-opening dicts with keys:
+                        name, wall_name, poly
+        get_wall_top — callable(wall_name) → top elevation in feet
+
+    Each interior wall is extruded from z=0 to get_wall_top(name).
+    Rough openings are subtracted from 0 to IW_DOOR_H (82.5").
+    """
+    if not iw_polys:
+        return
+
+    # Group openings by wall
+    openings_by_wall = {}
+    for ro in (ro_polys or []):
+        openings_by_wall.setdefault(ro["wall_name"], []).append(ro)
+
+    out.append("// Interior walls (white pine, openings at 82.5\")")
+    out.append(f"iw_door_h = {IW_DOOR_H:.8f};  // 82.5\" door height")
+    out.append(f"color({IW_PINE_COLOR}) union() {{")
+
+    for name in sorted(iw_polys):
+        poly = iw_polys[name]
+        z_top = get_wall_top(name)
+        wall_ros = openings_by_wall.get(name, [])
+
+        out.append(f"  // {name}")
+        if wall_ros:
+            out.append(f"  difference() {{")
+            out.append(f"    linear_extrude(height = {z_top:.6f}, convexity = 10)")
+            out.append(f"      polygon(points = [{_pts_str(poly)}]);")
+            for ro in wall_ros:
+                out.append(f"    // {ro['name']}")
+                out.append(f"    translate([0, 0, -0.001])")
+                out.append(f"    linear_extrude(height = iw_door_h + 0.001, convexity = 10)")
+                out.append(f"      polygon(points = [{_pts_str(ro['poly'])}]);")
+            out.append(f"  }}")
+        else:
+            out.append(f"  linear_extrude(height = {z_top:.6f}, convexity = 10)")
+            out.append(f"    polygon(points = [{_pts_str(poly)}]);")
+
+    out.append("}")
+    out.append("")

@@ -27,7 +27,8 @@ from scad._common import (seg_to_elem as _seg_to_elem, f8f9_elems as _f8f9_elems
                           seg_comment as _seg_comment,
                           window_panel_poly as _window_panel_poly,
                           compute_wall_bands as _compute_wall_bands,
-                          build_tw_overrides as _build_tw_overrides)
+                          build_tw_overrides as _build_tw_overrides,
+                          interior_wall_scad as _interior_wall_scad)
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _OUT = os.path.join(_DIR, "flat_roof.scad")
@@ -337,6 +338,13 @@ def generate(gd=None):
         out.append(f"      polygon(points = [{pts_str}]);")
     out.append("}")
     out.append("")
+
+    # Interior walls
+    iw_polys = getattr(gd, 'iw_polys', None) if gd is not None else None
+    ro_polys = getattr(gd, 'ro_polys', None) if gd is not None else None
+    if iw_polys:
+        _interior_wall_scad(out, iw_polys, ro_polys,
+                            get_wall_top=lambda _name: upper_top)
 
     with open(_OUT, "w") as f:
         f.write("\n".join(out))
