@@ -372,6 +372,29 @@ def init_db(db_path=None):
                         "VALUES (?, ?, ?, ?)",
                         (_type, _name, json.dumps(_props), _variant),
                     )
+            # Ensure turning_circle element and formula exist
+            for _name, _type, _props, _variant in _VARIANT_ITEMS:
+                if _name == "turning_circle":
+                    conn.execute(
+                        "INSERT OR IGNORE INTO elements (type, name, properties, variant) "
+                        "VALUES (?, ?, ?, ?)",
+                        (_type, _name, json.dumps(_props), _variant),
+                    )
+                    _tc_has_formula = conn.execute(
+                        "SELECT id FROM element_formulas "
+                        "WHERE element_name='turning_circle' "
+                        "AND param_name='position' AND variant IS NULL"
+                    ).fetchone()
+                    if not _tc_has_formula:
+                        _tc_formula = json.dumps({
+                            "type": "item_circle", "center": [0, 0], "radius": 2.5})
+                        conn.execute(
+                            "INSERT INTO element_formulas "
+                            "(element_name, param_name, formula_json, variant) "
+                            "VALUES ('turning_circle', 'position', ?, NULL)",
+                            (_tc_formula,),
+                        )
+                    break
     # Seed anchor/pivot defaults after DB is committed (needs constants table)
     if fresh:
         _seed_default_anchor_pivot(db_path)
@@ -1882,6 +1905,12 @@ _VARIANT_ITEMS = [
     ("desk_chair", "furniture", {
         "label": "CHAIR", "item_type": "furniture", "shape": "rect",
         "product_url": "https://www.amazon.com/BESTFAIR-Ergonomic-Office-Chair-Adjustable/dp/B0FDQDMP2D?th=1",
+        "variants": _VI_ALL,
+    }, None),
+    # --- Accessibility ---
+    ("turning_circle", "furniture", {
+        "label": "TURNING CIRCLE", "item_type": "furniture", "shape": "circle",
+        "radius": 2.5,
         "variants": _VI_ALL,
     }, None),
 ]

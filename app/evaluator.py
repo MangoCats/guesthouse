@@ -4025,6 +4025,15 @@ def get_variant_item_formulas():
                     {"neg": _rk_hw}, _rk_cr),
     }, "daybed")
 
+    # ===================================================================
+    # TURNING CIRCLE — 5' diameter accessibility circle, all variants
+    # ===================================================================
+    _f("turning_circle", {
+        "type": "item_circle",
+        "center": [0, 0],
+        "radius": 2.5,
+    })
+
     return formulas
 
 
