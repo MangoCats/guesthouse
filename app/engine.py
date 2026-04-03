@@ -1604,8 +1604,8 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
 
     if script_path in ("span/gen_span.py", "span/gen_span_minmax.py",
                         "span/gen_span_min.py"):
-        if not _has_f_series:
-            return True  # span analysis requires F-series chain
+        if not gd.inner_poly:
+            return True  # span analysis requires inner wall polygon
         from span._common import _IWLayoutProxy
         from app.database import get_outline_chain
 
