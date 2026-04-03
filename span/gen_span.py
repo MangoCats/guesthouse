@@ -31,12 +31,17 @@ def _compute_spans(inner_poly, layout):
 
     Returns (eastings, spans, south_spans, north_spans) all in feet.
       spans       — total N-S span (blue curve)
-      south_spans — south W surface to IW midline (green curve)
-      north_spans — IW midline to north W surface (cyan curve)
+      south_spans — south W surface to most-central IW midline (green curve)
+      north_spans — most-central IW midline to north W surface (cyan curve)
     When no IW is intersected, south_spans = north_spans = spans.
+
+    Uses all DB-driven IW walls when layout is a _IWLayoutProxy; falls back
+    to IW1 and IW8 for the standalone subprocess path.
     """
-    iw1_poly = layout.iw1.poly
-    iw8_poly = layout.iw8.poly
+    if hasattr(layout, 'all_walls'):
+        iw_polys = [w.poly for w in layout.all_walls().values()]
+    else:
+        iw_polys = [layout.iw1.poly, layout.iw8.poly]
 
     e_min = min(p[0] for p in inner_poly)
     e_max = max(p[0] for p in inner_poly)
@@ -55,16 +60,19 @@ def _compute_spans(inner_poly, layout):
 
         spans.append(span)
 
-        # find IW midline at this easting (IW8 or IW1, whichever first from south)
+        # Find the IW midline most central to the span at this easting
         mid_n = None
-        iw1_ns = vert_isects(iw1_poly, e)
-        if len(iw1_ns) >= 2:
-            mid_n = (min(iw1_ns) + max(iw1_ns)) / 2
-        iw8_ns = vert_isects(iw8_poly, e)
-        if len(iw8_ns) >= 2:
-            iw8_mid = (min(iw8_ns) + max(iw8_ns)) / 2
-            if mid_n is None or iw8_mid < mid_n:   # closer to south
-                mid_n = iw8_mid
+        if span > 0:
+            span_center = (south_n + north_n) / 2
+            best_dist = float('inf')
+            for iw_poly in iw_polys:
+                iw_ns = vert_isects(iw_poly, e)
+                if len(iw_ns) >= 2:
+                    iw_mid = (min(iw_ns) + max(iw_ns)) / 2
+                    dist = abs(iw_mid - span_center)
+                    if dist < best_dist:
+                        best_dist = dist
+                        mid_n = iw_mid
 
         if mid_n is not None and span > 0:
             south_spans.append(mid_n - south_n)
@@ -179,8 +187,8 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     leg_y = g_top + 10
     for i, (color, label) in enumerate([
         ("#1565C0", "Total span"),
-        ("#2E7D32", "S wall \u2192 IW mid"),
-        ("#00ACC1", "IW mid \u2192 N wall"),
+        ("#2E7D32", "S wall \u2192 central IW mid"),
+        ("#00ACC1", "Central IW mid \u2192 N wall"),
         ("#999", "Roof span"),
     ]):
         ly_i = leg_y + i * 11
@@ -199,8 +207,12 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     o.append(f'<polygon points="{wp}" fill="white"'
              f' stroke="#1565C0" stroke-width="0.6"/>')
 
-    # IW1 and IW8 in the outline (show the dividing walls)
-    for wall_poly in [layout.iw1.poly, layout.iw8.poly]:
+    # Interior walls in the outline
+    if hasattr(layout, 'all_walls'):
+        iw_wall_polys = [w.poly for w in layout.all_walls().values()]
+    else:
+        iw_wall_polys = [layout.iw1.poly, layout.iw8.poly]
+    for wall_poly in iw_wall_polys:
         wpts = " ".join(f"{ex(p[0]):.1f},{ny(p[1]):.1f}" for p in wall_poly)
         o.append(f'<polygon points="{wpts}" fill="rgba(100,100,100,0.25)"'
                  f' stroke="#666" stroke-width="0.4"/>')

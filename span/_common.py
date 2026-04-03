@@ -29,8 +29,15 @@ class _IWLayoutProxy:
     """
 
     def __init__(self, iw_polys):
+        self._wall_names = []
         for iw_name, poly in iw_polys.items():
-            setattr(self, iw_name.lower(), _IWWallProxy(poly))
+            attr = iw_name.lower()
+            setattr(self, attr, _IWWallProxy(poly))
+            self._wall_names.append(attr)
+
+    def all_walls(self):
+        """Return all IW walls as {attr_name: _IWWallProxy}."""
+        return {name: getattr(self, name) for name in self._wall_names}
 
 
 # ── geometry bootstrap ─────────────────────────────────────────
@@ -66,7 +73,28 @@ def build_geometry(gd=None):
 # ── IW centerlines ─────────────────────────────────────────────
 
 def extract_iw_centerlines(layout):
-    """Midlines of IW1, IW2, IW8 as line segments [(p1, p2), ...]."""
+    """Midlines of interior walls as line segments [(p1, p2), ...].
+
+    When layout is a DB-driven _IWLayoutProxy (has all_walls()), uses all
+    available IW walls.  Falls back to hardcoded IW1/IW2/IW8 for the
+    standalone subprocess path where layout is a real InteriorLayout.
+
+    Orientation is determined by bbox: walls wider than tall get a
+    horizontal centerline; taller walls get a vertical centerline.
+    """
+    if hasattr(layout, 'all_walls'):
+        cls = []
+        for wall in layout.all_walls().values():
+            if wall.e - wall.w >= wall.n - wall.s:
+                # E-W dominant: horizontal centerline at N-S midpoint
+                mid_n = (wall.s + wall.n) / 2
+                cls.append(((wall.w, mid_n), (wall.e, mid_n)))
+            else:
+                # N-S dominant: vertical centerline at E-W midpoint
+                mid_e = (wall.w + wall.e) / 2
+                cls.append(((mid_e, wall.s), (mid_e, wall.n)))
+        return cls
+    # Fallback: hardcoded IW1, IW2, IW8 (standalone subprocess path only)
     iw1 = layout.iw1
     mid_n1 = (iw1.s + iw1.n) / 2
     cl1 = ((iw1.poly[0][0], mid_n1), ((iw1.poly[1][0] + iw1.poly[2][0]) / 2, mid_n1))
@@ -204,8 +232,11 @@ def compute_rotation_data(angle, outer_poly, inner_poly, iw_cls, cx, cy,
             if n is not None and span > 0 and bot < n < top:
                 iw_ns.append(n)
         if iw_ns and span > 0:
-            s_spans.append(min(iw_ns) - bot)
-            n_spans.append(top - max(iw_ns))
+            # Pick the IW midline most central to the span
+            span_center = (bot + top) / 2
+            mid_n = min(iw_ns, key=lambda n: abs(n - span_center))
+            s_spans.append(mid_n - bot)
+            n_spans.append(top - mid_n)
         else:
             s_spans.append(span)
             n_spans.append(span)

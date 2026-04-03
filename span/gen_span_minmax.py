@@ -96,8 +96,8 @@ def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
     ly = MT + 2
     for i, (col, lab) in enumerate([
         ("#1565C0", "Total span"),
-        ("#2E7D32", "Bottom \u2192 nearest IW mid"),
-        ("#00ACC1", "Uppermost IW mid \u2192 top"),
+        ("#2E7D32", "Bottom \u2192 central IW mid"),
+        ("#00ACC1", "Central IW mid \u2192 top"),
         ("#999", "Roof span"),
     ]):
         lx = ML + i * 120
