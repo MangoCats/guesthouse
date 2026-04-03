@@ -26,7 +26,8 @@ from scad._common import (seg_to_elem as _seg_to_elem, f8f9_elems as _f8f9_elems
                           fmt_ft_in as _fmt_ft_in, scad_seg as _scad_seg,
                           seg_comment as _seg_comment,
                           window_panel_poly as _window_panel_poly,
-                          compute_wall_bands as _compute_wall_bands)
+                          compute_wall_bands as _compute_wall_bands,
+                          build_tw_overrides as _build_tw_overrides)
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _OUT = os.path.join(_DIR, "flat_roof.scad")
@@ -88,6 +89,12 @@ def generate(gd=None):
                       if s.start == "F8" and s.end == "F9"), None)
     tw_ov = {_f8f9_idx: _f8f9_elems(pts, wall_outer - shell_half,
                              R_in + shell_half)} if _f8f9_idx is not None else {}
+
+    # W Override → TW override elements (DB-driven inner wall shape)
+    if gd is not None and gd.wall_overrides:
+        _wov = _build_tw_overrides(gd.wall_overrides, inner_segs, pts)
+        for _k, _v in _wov.items():
+            tw_ov.setdefault(_k, _v)
 
     # N-band wall: bands driven by per-opening bottom/top elevations
     bands = _compute_wall_bands(

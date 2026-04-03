@@ -511,6 +511,7 @@ class GeneratorData:
         self.constants = constants_dict
 
         self._roof_corners_data = roof_corners_data
+        self.wall_overrides = overrides or {}
         self.wall_t = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
         self.outline_poly = path_polygon(outline_segs, pts)
         self.inner_poly = path_polygon(inner_segs, pts)

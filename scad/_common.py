@@ -1,6 +1,6 @@
 """Shared helpers for SCAD generators."""
 import math
-from shared.types import ArcSeg
+from shared.types import ArcSeg, LineSeg
 from shared.wall_shells import lerp
 
 
@@ -256,6 +256,141 @@ def window_panel_poly(op, outline_segs, inner_segs, pts, panel_half):
         (M_e[0] - nx * panel_half, M_e[1] - ny * panel_half),
         (M_s[0] - nx * panel_half, M_s[1] - ny * panel_half),
     ]
+
+
+def _seg_start_bearing_deg(seg, pts):
+    """Compute compass bearing (degrees, 0=N/90=E) at the start of an inner seg."""
+    if isinstance(seg, ArcSeg):
+        c = pts[seg.center]
+        s = pts[seg.start]
+        rx, ry = s[0] - c[0], s[1] - c[1]
+        if seg.direction == "CW":
+            dx, dy = ry, -rx  # CW tangent = right normal of radius
+        else:
+            dx, dy = -ry, rx  # CCW tangent = left normal
+    else:
+        s, e = pts[seg.start], pts[seg.end]
+        dx, dy = e[0] - s[0], e[1] - s[1]
+    return math.degrees(math.atan2(dx, dy)) % 360
+
+
+def override_tw_elems(chain, w_start_pt, tw_start_pt, initial_bearing_deg):
+    """Compute TW-series SCAD elements from a W-series override chain.
+
+    Walks both W and TW paths simultaneously. For line sub-segments the
+    same displacement is applied to both; for arc sub-segments the W arc
+    center is used with R_TW = dist(tw_cur, center) so the TW arc is the
+    parallel-offset curve of the W arc.
+
+    Returns list of ("line",...) or ("arc",...) SCAD element tuples.
+    """
+    w_cur = w_start_pt
+    tw_cur = tw_start_pt
+    cur_bearing = initial_bearing_deg
+    elems = []
+
+    for sub in chain:
+        seg_type = sub["seg_type"]
+        if seg_type == "L":
+            brg = sub["bearing"]
+            dist = sub["distance"]
+            brg_rad = math.radians(brg)
+            dx = dist * math.sin(brg_rad)
+            dy = dist * math.cos(brg_rad)
+            w_next = (w_cur[0] + dx, w_cur[1] + dy)
+            tw_next = (tw_cur[0] + dx, tw_cur[1] + dy)
+            elems.append(("line", tw_cur[0], tw_cur[1], tw_next[0], tw_next[1]))
+            w_cur = w_next
+            tw_cur = tw_next
+            cur_bearing = brg
+        else:
+            # Arc: CCW or CW
+            radius = sub["radius"]
+            sweep_deg = sub["sweep"]
+            sweep_rad = math.radians(sweep_deg)
+
+            # Travel direction vector from compass bearing
+            dir_x = math.sin(math.radians(cur_bearing))
+            dir_y = math.cos(math.radians(cur_bearing))
+
+            # W arc center (left of travel for CCW, right for CW)
+            if seg_type == "CCW":
+                cx = w_cur[0] - dir_y * radius
+                cy = w_cur[1] + dir_x * radius
+            else:
+                cx = w_cur[0] + dir_y * radius
+                cy = w_cur[1] - dir_x * radius
+
+            # TW arc: same center, radius = dist(tw_cur, center)
+            r_tw = math.hypot(tw_cur[0] - cx, tw_cur[1] - cy)
+
+            # SCAD arc angles from TW entry point
+            a1 = math.degrees(math.atan2(tw_cur[1] - cy, tw_cur[0] - cx))
+            if seg_type == "CCW":
+                a2 = a1 + sweep_deg
+            else:
+                a2 = a1 - sweep_deg
+            elems.append(("arc", cx, cy, r_tw, a1, a2))
+
+            # Advance W along its arc
+            w_entry = math.atan2(w_cur[1] - cy, w_cur[0] - cx)
+            w_exit = w_entry + sweep_rad if seg_type == "CCW" else w_entry - sweep_rad
+            w_cur = (cx + radius * math.cos(w_exit),
+                     cy + radius * math.sin(w_exit))
+
+            # Advance TW along its arc
+            tw_entry = math.atan2(tw_cur[1] - cy, tw_cur[0] - cx)
+            tw_exit = tw_entry + sweep_rad if seg_type == "CCW" else tw_entry - sweep_rad
+            tw_cur = (cx + r_tw * math.cos(tw_exit),
+                      cy + r_tw * math.sin(tw_exit))
+
+            # Update compass bearing
+            if seg_type == "CCW":
+                cur_bearing = (cur_bearing - sweep_deg) % 360
+            else:
+                cur_bearing = (cur_bearing + sweep_deg) % 360
+
+    return elems
+
+
+def build_tw_overrides(overrides, inner_segs, pts):
+    """Build tw_ov dict from W inner-wall override chains.
+
+    For each override, computes TW SCAD elements that replace the default
+    TW path for that segment index.  The TW start point is looked up as
+    "TW" + (W-point numeric suffix), which must already be present in pts
+    (added by compute_inset_path with prefix="TW").
+
+    Returns dict {seg_idx: [elements]} suitable for merging into tw_ov.
+    """
+    result = {}
+    n = len(inner_segs)
+    for seg_idx, chain in overrides.items():
+        if seg_idx >= n or not chain:
+            continue
+        seg = inner_segs[seg_idx]
+        if seg.start not in pts:
+            continue
+
+        w_start = pts[seg.start]
+
+        # TW point: same suffix as W point (W8 → TW8, W04 → TW04)
+        tw_name = "TW" + seg.start[1:]
+        if tw_name not in pts:
+            continue
+        tw_start = pts[tw_name]
+
+        # Initial bearing: from first sub-seg if L, else compute from seg
+        if chain[0]["seg_type"] == "L":
+            initial_brg = chain[0]["bearing"]
+        else:
+            initial_brg = _seg_start_bearing_deg(seg, pts)
+
+        elems = override_tw_elems(chain, w_start, tw_start, initial_brg)
+        if elems:
+            result[seg_idx] = elems
+
+    return result
 
 
 def compute_wall_bands(openings, outline_segs, upper_top,
