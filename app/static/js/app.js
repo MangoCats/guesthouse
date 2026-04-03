@@ -4556,7 +4556,7 @@ function showWallPlacementWizard(elemName, paramName, currentFormula, variant, p
       } else {
         const seg = al.segment || al.perp?.segment || al.segment_perp
                   || al.neg?.perp?.segment || al.rotated?.segment;
-        if (Array.isArray(seg) && seg.length === 2 && anchorMode === "points")
+        if (Array.isArray(seg) && seg.length === 2 && anchorMode === "points" && !f._bearing_seg)
           anchorB = seg[1] || anchorB;
         if ("segment" in al) {
           if (f._bearing_seg) {
