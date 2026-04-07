@@ -636,18 +636,32 @@ def render_dimensions_db(out, geom, to_svg):
         label_prefix = props.get("label_prefix", "")
         label = label_prefix + fmt_dist(dist)
 
-        # Optional label positioning point
-        label_pt = None
-        offset_data = props.get("offset")
-        if offset_data and "offset" in offset_data:
-            label_pt = tuple(offset_data["offset"])
+        # Perpendicular offset in feet (positive = toward caption top)
+        raw_offset = props.get("offset", 0)
+        offset = float(raw_offset) if raw_offset else 0.0
 
-        # Use the same rendering as gen_floorplan's _rotated_dim
-        _rotated_dim(out, p1, p2, label, to_svg, label_pt=label_pt)
+        _rotated_dim(out, p1, p2, label, to_svg, offset=offset)
 
 
-def _rotated_dim(out, p1, p2, label, to_svg, label_pt=None):
-    """Rotated dimension line with tick marks and label."""
+def _rotated_dim(out, p1, p2, label, to_svg, offset=0.0):
+    """Rotated dimension line with tick marks and label.
+
+    offset: perpendicular distance in feet to shift the entire line, endcaps,
+    and label away from the defined endpoints.  Positive = toward the caption-
+    top side (left normal of p1→p2); negative = opposite side.
+    """
+    # Apply perpendicular offset in world space before converting to SVG.
+    if abs(offset) > 1e-9:
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+        wlen = math.sqrt(dx * dx + dy * dy)
+        if wlen > 1e-9:
+            # Left normal (CCW 90°) of direction p1→p2 in world coords (N = up)
+            wx = -dy / wlen
+            wy = dx / wlen
+            p1 = (p1[0] + offset * wx, p1[1] + offset * wy)
+            p2 = (p2[0] + offset * wx, p2[1] + offset * wy)
+
     sx1, sy1 = to_svg(*p1)
     sx2, sy2 = to_svg(*p2)
     sdx = sx2 - sx1
@@ -666,15 +680,8 @@ def _rotated_dim(out, p1, p2, label, to_svg, label_pt=None):
                    f'x2="{sx + tk * px:.1f}" y2="{sy + tk * py:.1f}" '
                    f'stroke="{DIM_COLOR}" stroke-width="0.8"/>')
 
-    if label_pt is not None:
-        lsx, lsy = to_svg(*label_pt)
-        ux, uy = sdx / slen, sdy / slen
-        t = (lsx - sx1) * ux + (lsy - sy1) * uy
-        lmx = sx1 + t * ux
-        lmy = sy1 + t * uy
-    else:
-        lmx = (sx1 + sx2) / 2
-        lmy = (sy1 + sy2) / 2
+    lmx = (sx1 + sx2) / 2
+    lmy = (sy1 + sy2) / 2
 
     ang = math.degrees(math.atan2(sdy, sdx))
     # Normalize text angle to (-90°, 90°] for readability.

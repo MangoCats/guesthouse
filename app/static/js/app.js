@@ -2403,7 +2403,39 @@ async function showProperties(type, name, data) {
       const dist = props.start && props.end ?
         Math.sqrt((props.end[0] - props.start[0]) ** 2 + (props.end[1] - props.start[1]) ** 2) : 0;
       addPropRow(tbody, "Distance", fmtFtIn(dist));
-      addPropRow(tbody, "Offset", fmtFtIn(props.offset || 0));
+      // Editable offset field
+      {
+        const offTr = document.createElement("tr");
+        const offTd1 = document.createElement("td"); offTd1.textContent = "Offset";
+        offTr.appendChild(offTd1);
+        const offTd2 = document.createElement("td");
+        const offInp = document.createElement("input");
+        offInp.type = "text";
+        offInp.className = "prop-edit-input";
+        offInp.value = fmtFtIn(props.offset || 0);
+        offInp.title = "Perpendicular offset (e.g. 3' 0\", -2' 6\")";
+        const saveOffset = async () => {
+          let raw = offInp.value.trim();
+          let sign = 1;
+          if (raw.startsWith("-")) { sign = -1; raw = raw.slice(1).trim(); }
+          const val = parseDimension(raw);
+          if (isNaN(val)) { showToast("Invalid offset value", "error"); offInp.value = fmtFtIn(props.offset || 0); return; }
+          const newOffset = sign * val;
+          const cur = (App.state.elements || []).find(e => e.id === elemRec.id);
+          const curProps = cur ? parseProps(cur) : props;
+          const newProps = { ...curProps, offset: newOffset };
+          await fetch(`/api/elements/${elemRec.id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ properties: newProps }),
+          });
+          await reloadAfterChange();
+        };
+        offInp.addEventListener("change", saveOffset);
+        offInp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveOffset(); } });
+        offTd2.appendChild(offInp);
+        offTr.appendChild(offTd2);
+        tbody.appendChild(offTr);
+      }
       addPropRow(tbody, "Label Rot.", props.label_rotation || "parallel");
       // Style selector (solid = builtin look, dashed = user look)
       const styleTr = document.createElement("tr");
