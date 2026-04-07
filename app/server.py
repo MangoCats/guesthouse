@@ -7,7 +7,6 @@ import datetime
 import json
 import math
 import os
-import sys as _sys
 import queue
 import re
 import shutil
@@ -58,7 +57,7 @@ from app.doors import validate_door
 from app.elements import IW_HOSTED_OPENINGS
 from app.engine import (
     compute_geometry, generate_svg, generate_svg_db,
-    build_generator_data_from_db, get_svg_content, patch_constants,
+    build_generator_data_from_db, get_svg_content,
     compute_survey_points,
 )
 from app.plumbing import (
@@ -76,7 +75,6 @@ from app.outline_solver import (db_rows_to_chain,
                                 validate_pivot_placement,
                                 auto_assign_section_flex, walk_chain)
 from app.undo import UndoManager
-import floorplan.constants as fc
 
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -213,6 +211,20 @@ def _compute_parcel_outline_rows(pts_cw, offset_ft, min_cw_r, min_ccw_r=None):
     anchor_E, anchor_N = arc_end[n - 1]
     anchor_brg = edge_brg[n - 1]   # radians — bearing going into seq 0
     return rows, anchor_E, anchor_N, anchor_brg, anchor_name
+
+
+# ---------------------------------------------------------------------------
+# Formula dependency summary cache
+# Invalidated whenever rebuild_formula_deps() is called.
+# ---------------------------------------------------------------------------
+_dep_summary_cache: dict | None = None
+_dep_cache_lock = threading.Lock()
+
+
+def _invalidate_dep_cache():
+    global _dep_summary_cache
+    with _dep_cache_lock:
+        _dep_summary_cache = None
 
 
 def create_app(db_path=None):
@@ -1003,6 +1015,7 @@ def create_app(db_path=None):
                 rebuild_formula_deps(
                     name, "position", list(extract_deps(new_formula)), db_path=db
                 )
+                _invalidate_dep_cache()
                 undo_mgr.record(
                     "element_move",
                     {"move_type": "formula", "name": name, "formula": formula_json},
@@ -1291,6 +1304,7 @@ def create_app(db_path=None):
         from app.evaluator import extract_deps
         upsert_formula(name, "poly", new_formula, variant=None, db_path=db)
         rebuild_formula_deps(name, "poly", list(extract_deps(new_formula)), db_path=db)
+        _invalidate_dep_cache()
         undo_mgr.record(
             "area_vertices_update",
             {"id": element_id, "name": name, "formula": old_formula},
@@ -1529,7 +1543,12 @@ def create_app(db_path=None):
         """Return constant↔element dependency maps built from formula_deps.
         const_to_elems: {const_name: [elem_name, ...]}
         elem_to_consts: {elem_name: [const_name, ...]}
+        Result is cached and invalidated whenever formula deps are rebuilt.
         """
+        global _dep_summary_cache
+        with _dep_cache_lock:
+            if _dep_summary_cache is not None:
+                return jsonify(_dep_summary_cache)
         all_deps = get_all_formula_deps(db_path=db)
         const_to_elems: dict = {}
         elem_to_consts: dict = {}
@@ -1542,7 +1561,10 @@ def create_app(db_path=None):
                 const_to_elems[cname].append(elem)
             if cname not in (elem_to_consts.setdefault(elem, [])):
                 elem_to_consts[elem].append(cname)
-        return jsonify({"const_to_elems": const_to_elems, "elem_to_consts": elem_to_consts})
+        result = {"const_to_elems": const_to_elems, "elem_to_consts": elem_to_consts}
+        with _dep_cache_lock:
+            _dep_summary_cache = result
+        return jsonify(result)
 
     @app.route("/api/variants")
     def api_variants():
@@ -2053,7 +2075,7 @@ def create_app(db_path=None):
             cur_a_start = 0
             cur_start_E = float(get_constant_value("F2_EASTING", db) or -18.5)
             cur_start_N = float(get_constant_value("F2_NORTHING", db) or -13.5)
-            cur_start_N += float(get_constant_value("CORNER_SW_R", db) or fc.CORNER_SW_R)
+            cur_start_N += float(get_constant_value("CORNER_SW_R", db) or 10.0 / 12.0)
             cur_start_brg = 0.0
 
         rotated_chain = [chain[(cur_a_start + i) % n] for i in range(n)]
@@ -2140,7 +2162,7 @@ def create_app(db_path=None):
             cur_a_start = 0
             cur_start_E = float(get_constant_value("F2_EASTING", db) or -18.5)
             cur_start_N = float(get_constant_value("F2_NORTHING", db) or -13.5)
-            cur_start_N += float(get_constant_value("CORNER_SW_R", db) or fc.CORNER_SW_R)
+            cur_start_N += float(get_constant_value("CORNER_SW_R", db) or 10.0 / 12.0)
             cur_start_brg = 0.0
 
         if new_anchor_name == old_anchor:
@@ -3101,6 +3123,7 @@ def create_app(db_path=None):
         # Rebuild dependency cache
         deps = extract_deps(formula_json)
         rebuild_formula_deps(element_name, param_name, deps, db_path=db)
+        _invalidate_dep_cache()
         _broadcast("element_changed")
         _invalidate()
         return jsonify(result)
@@ -3232,6 +3255,7 @@ def create_app(db_path=None):
                            variant=f.get("variant"), db_path=db)
             rebuild_formula_deps(f["element_name"], f["param_name"],
                                   [], db_path=db)
+        _invalidate_dep_cache()
 
         # 7. Delete the element record only if no formulas remain
         #    (other variants may still have formulas for this element).
@@ -3276,8 +3300,8 @@ def create_app(db_path=None):
                             db_path=db)
         if not ok:
             return jsonify({"error": "not found"}), 404
-        # Clear dependency cache
         rebuild_formula_deps(element_name, param_name, [], db_path=db)
+        _invalidate_dep_cache()
         _broadcast("element_changed")
         _invalidate()
         return jsonify({"ok": True})
@@ -3473,7 +3497,7 @@ def create_app(db_path=None):
             deps = extract_deps(c["formula"])
             rebuild_formula_deps(elem_name, param_name, list(deps), db_path=db)
             applied.append(f"{elem_name}/{param_name}")
-
+        _invalidate_dep_cache()
         _broadcast("element_changed")
         _invalidate()
         return jsonify({"ok": True, "applied": applied})

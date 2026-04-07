@@ -580,12 +580,15 @@ class GeneratorData:
             shell_t + air_gap, "G")
         self.pts.update(self.g_pts)
 
-        # Layout — hardcoded seed values; used only on the standalone
-        # subprocess path.  DB-driven callers should use gd.iw_polys instead.
+        # Layout — hardcoded seed values used for outer wall shell rendering
+        # and plumbing path geometry.  DB-driven callers also use gd.iw_polys
+        # for interior wall polygons (span generators).
         try:
             from floorplan.layout import compute_interior_layout
             self.layout = compute_interior_layout(self.pts, self.inner_poly)
-        except Exception:
+        except Exception as _exc:
+            import logging as _logging
+            _logging.warning("compute_interior_layout failed: %s", _exc)
             self.layout = None
 
         # DB-driven IW polygons — populated by build_generator_data() when

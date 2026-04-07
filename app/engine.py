@@ -1188,6 +1188,125 @@ def _compute_traverse_from_db(db_path=None):
     return _impl(db_path)
 
 
+def _collect_room_labels(ev, all_elems):
+    """Build room_labels list from area elements evaluated by FormulaEvaluator."""
+    label_offsets = {}
+    for e in all_elems:
+        if e["type"] in ("label", "area"):
+            ep = (json.loads(e["properties"])
+                  if isinstance(e["properties"], str) else (e["properties"] or {}))
+            oe = ep.get("offset_e", 0.0)
+            on = ep.get("offset_n", 0.0)
+            if oe or on:
+                label_offsets[e["name"]] = (oe, on)
+    room_labels = []
+    for ae in all_elems:
+        if ae["type"] != "area":
+            continue
+        aname = ae["name"]
+        ev_res = ev.elements.get(aname)
+        if not ev_res or "poly" not in ev_res:
+            continue
+        aprops = (json.loads(ae["properties"])
+                  if isinstance(ae["properties"], str) else (ae["properties"] or {}))
+        poly = ev_res["poly"]
+        n = len(poly)
+        cx = sum(p[0] for p in poly) / n
+        cy = sum(p[1] for p in poly) / n
+        de, dn = label_offsets.get(aname, (0.0, 0.0))
+        room_labels.append({
+            "name": aname,
+            "label": aprops.get("label", aname),
+            "pos": [cx + de, cy + dn],
+            "centroid": [cx, cy],
+            "area": ev_res["area"],
+            "poly": [[p[0], p[1]] for p in poly],
+            "color": aprops.get("color", "#dddddd"),
+            "arc_adjustments": ev_res.get("arc_adjustments", []),
+            "arcs": ev_res.get("arcs", []),
+        })
+    return room_labels
+
+
+def _collect_sf_lines(ev, pts, variant):
+    """Build SF partition line list for the 'sf' variant (empty for all others)."""
+    if variant != "sf":
+        return []
+    try:
+        from shared.geometry import seg_vecs, line_isect
+        o6 = ev.elements.get("O6")
+        ro1 = ev.elements.get("RO1")
+        iw2s = ev.elements.get("IW2S")
+        if not (o6 and ro1 and iw2s):
+            return []
+        o6_w = o6["poly"][0]
+        ro1_nw = ro1["poly"][3]
+        iw2s_se = iw2s["poly"][1]
+        iw2s_ne = iw2s["poly"][2]
+        iw2s_eal, _ = seg_vecs(iw2s_se, iw2s_ne)
+        w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
+        iw2s_at_w9 = line_isect(iw2s_se, iw2s_eal, pts["W9"], w9w10_al)
+        iw3 = ev.elements.get("IW3")
+        iw3_nw = iw3["poly"][3] if iw3 else None
+        w18w1_al, _ = seg_vecs(pts["W18"], pts["W1"])
+        w2w5_al, _ = seg_vecs(pts["W2"], pts["W5"])
+        iw3_w2w5 = (line_isect(iw3_nw, w18w1_al, pts["W2"], w2w5_al)
+                    if iw3_nw else None)
+        sf_lines = [
+            {"start": point_to_list(ro1_nw), "end": point_to_list(o6_w)},
+            {"start": point_to_list(pts["W9"]), "end": point_to_list(iw2s_at_w9)},
+        ]
+        if iw3_nw and iw3_w2w5:
+            sf_lines.append({
+                "start": point_to_list(iw3_nw),
+                "end": point_to_list(iw3_w2w5),
+            })
+        return sf_lines
+    except Exception:
+        return []
+
+
+def _collect_user_dims_and_labels(all_elems, variant, exclusions, result):
+    """Filter dimension and label elements for the active variant.
+
+    Returns (user_dims, label_elems) lists ready for result serialisation.
+    Anchor references in dimension properties are resolved against result.
+    """
+    excluded_dims = exclusions.get("dimension", set())
+    user_dims = []
+    label_elems = []
+    for e in all_elems:
+        props = (json.loads(e["properties"])
+                 if isinstance(e["properties"], str) else e["properties"])
+        variants_list = props.get("variants")
+        if variants_list is not None:
+            if variant not in variants_list:
+                continue
+        else:
+            elem_variant = e.get("variant")
+            if elem_variant is not None and elem_variant != variant:
+                continue
+        if e["type"] == "dimension":
+            if e["name"] in excluded_dims:
+                continue
+            for anchor_key, coord_key in [("start_anchor", "start"), ("end_anchor", "end")]:
+                anchor = props.get(anchor_key)
+                if anchor:
+                    resolved = _resolve_anchor(anchor, result)
+                    if resolved:
+                        props[coord_key] = resolved
+            user_dims.append({"id": e["id"], "name": e["name"], "properties": props})
+        elif e["type"] == "label":
+            entry = {"id": e["id"], "name": e["name"], "properties": props}
+            if props.get("source") == "room":
+                rl = next((r for r in result["room_labels"] if r["name"] == e["name"]), None)
+                if rl:
+                    entry["centroid"] = rl["centroid"]
+                    entry["pos"] = rl["pos"]
+            label_elems.append(entry)
+    return user_dims, label_elems
+
+
 def compute_geometry(constants_dict: dict, variant: str = "standard",
                      chain_rows: list[dict] | None = None,
                      doors_data: list[dict] | None = None,
@@ -1305,78 +1424,12 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
         result["available_variants"] = list(VARIANTS.keys())
 
     # Room labels from area elements evaluated by FormulaEvaluator
-    room_labels = []
-    _label_offsets = {}
-    for _e in all_elems:
-        # Offset may be stored in area element properties or legacy label elements
-        if _e["type"] in ("label", "area"):
-            _ep = (json.loads(_e["properties"])
-                   if isinstance(_e["properties"], str) else (_e["properties"] or {}))
-            _oe = _ep.get("offset_e", 0.0)
-            _on = _ep.get("offset_n", 0.0)
-            if _oe or _on:
-                _label_offsets[_e["name"]] = (_oe, _on)
-    for _ae in all_elems:
-        if _ae["type"] != "area":
-            continue
-        _aname = _ae["name"]
-        _ev_res = ev.elements.get(_aname)
-        if not _ev_res or "poly" not in _ev_res:
-            continue
-        _aprops = (json.loads(_ae["properties"])
-                   if isinstance(_ae["properties"], str) else (_ae["properties"] or {}))
-        _poly = _ev_res["poly"]
-        _n = len(_poly)
-        _cx = sum(p[0] for p in _poly) / _n
-        _cy = sum(p[1] for p in _poly) / _n
-        _de, _dn = _label_offsets.get(_aname, (0.0, 0.0))
-        room_labels.append({
-            "name": _aname,
-            "label": _aprops.get("label", _aname),
-            "pos": [_cx + _de, _cy + _dn],
-            "centroid": [_cx, _cy],
-            "area": _ev_res["area"],
-            "poly": [[p[0], p[1]] for p in _poly],
-            "color": _aprops.get("color", "#dddddd"),
-            "arc_adjustments": _ev_res.get("arc_adjustments", []),
-            "arcs": _ev_res.get("arcs", []),
-        })
-    result["room_labels"] = room_labels
+    result["room_labels"] = _collect_room_labels(ev, all_elems)
 
     # SF partition lines (variant-specific boundary between SF zones)
-    if variant == "sf":
-        try:
-            from shared.geometry import seg_vecs, line_isect
-            _o6 = ev.elements.get("O6")
-            _ro1 = ev.elements.get("RO1")
-            _iw2s = ev.elements.get("IW2S")
-            if _o6 and _ro1 and _iw2s:
-                _o6_w = _o6["poly"][0]
-                _ro1_nw = _ro1["poly"][3]
-                _iw2s_se = _iw2s["poly"][1]
-                _iw2s_ne = _iw2s["poly"][2]
-                _iw2s_eal, _ = seg_vecs(_iw2s_se, _iw2s_ne)
-                _w9w10_al, _ = seg_vecs(pts["W9"], pts["W10"])
-                _iw2s_at_w9 = line_isect(_iw2s_se, _iw2s_eal, pts["W9"], _w9w10_al)
-                _iw3 = ev.elements.get("IW3")
-                _iw3_nw = _iw3["poly"][3] if _iw3 else None
-                _w18w1_al, _ = seg_vecs(pts["W18"], pts["W1"])
-                _w2w5_al, _ = seg_vecs(pts["W2"], pts["W5"])
-                _iw3_w2w5 = (line_isect(_iw3_nw, _w18w1_al, pts["W2"], _w2w5_al)
-                              if _iw3_nw else None)
-                sf_lines = [
-                    {"start": point_to_list(_ro1_nw), "end": point_to_list(_o6_w)},
-                    {"start": point_to_list(pts["W9"]),
-                     "end": point_to_list(_iw2s_at_w9)},
-                ]
-                if _iw3_nw and _iw3_w2w5:
-                    sf_lines.append({
-                        "start": point_to_list(_iw3_nw),
-                        "end": point_to_list(_iw3_w2w5),
-                    })
-                result["sf_lines"] = sf_lines
-        except Exception:
-            pass
+    sf_lines = _collect_sf_lines(ev, pts, variant)
+    if sf_lines:
+        result["sf_lines"] = sf_lines
 
     # Door arcs — uses formula-evaluated opening polygons (now dict-based)
     result["door_arcs"] = _compute_door_arcs(
@@ -1390,43 +1443,9 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
     result["appliance_doors"] = _compute_appliance_doors(
         result.get("variant_items"), variant)
 
-    # Dimension and label elements
-    all_elements = get_all_elements(db_path)
-    excluded_dims = exclusions.get("dimension", set())
-    user_dims = []
-    label_elems = []
-    for e in all_elements:
-        props = json.loads(e["properties"]) if isinstance(e["properties"], str) else e["properties"]
-        variants_list = props.get("variants")
-        if variants_list is not None:
-            if variant not in variants_list:
-                continue
-        else:
-            elem_variant = e.get("variant")
-            if elem_variant is not None and elem_variant != variant:
-                continue
-        if e["type"] == "dimension":
-            if e["name"] in excluded_dims:
-                continue
-            for anchor_key, coord_key in [("start_anchor", "start"), ("end_anchor", "end")]:
-                anchor = props.get(anchor_key)
-                if anchor:
-                    resolved = _resolve_anchor(anchor, result)
-                    if resolved:
-                        props[coord_key] = resolved
-            user_dims.append({
-                "id": e["id"], "name": e["name"], "properties": props,
-            })
-        elif e["type"] == "label":
-            entry = {"id": e["id"], "name": e["name"], "properties": props}
-            if props.get("source") == "room":
-                rl = next((r for r in result["room_labels"] if r["name"] == e["name"]), None)
-                if rl:
-                    entry["centroid"] = rl["centroid"]
-                    entry["pos"] = rl["pos"]
-            label_elems.append(entry)
-    result["user_dimensions"] = user_dims
-    result["label_elements"] = label_elems
+    # Dimension and label elements — reuse already-fetched all_elems
+    result["user_dimensions"], result["label_elements"] = (
+        _collect_user_dims_and_labels(all_elems, variant, exclusions, result))
 
     return result
 
