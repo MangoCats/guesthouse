@@ -1364,10 +1364,10 @@ function renderRoomLabels(g) {
     const displayLabel = lbl.label || lbl.name;
     const color = lbl.color || "#dddddd";
 
-    // Filled area polygon (always rendered, selectable as area element).
+    // Filled area polygon (rendered when areas are shown, selectable as area element).
     // Uses <path> with SVG arc commands when arc_adjustments exist (curved walls),
     // otherwise falls back to <polygon> with straight lines.
-    if (lbl.poly) {
+    if (showArea && lbl.poly) {
       let areaEl;
       const arcs = lbl.arcs || [];
       if (arcs.length > 0) {

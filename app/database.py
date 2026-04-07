@@ -1384,27 +1384,29 @@ def _seed_outline_chain(conn):
 
 def _seed_views(conn):
     """Register all generator scripts and their outputs."""
+    # Tuples: (name, label, script, svg_path, category, enabled)
     views = [
-        ("floorplan", "Floorplan", "floorplan/gen_floorplan.py", "floorplan/floorplan.svg", "design"),
-        ("walls", "Wall Detail", "walls/gen_walls.py", "walls/walls.svg", "construction"),
-        ("all_walls", "All Walls", "walls/gen_walls.py", "walls/all_walls.svg", "construction"),
-        ("span", "Span Analysis", "span/gen_span.py", "span/span.svg", "analysis"),
-        ("span_min", "Min Span", "span/gen_span_min.py", "span/span_min.svg", "analysis"),
-        ("span_minmax", "Span vs Rotation", "span/gen_span_minmax.py", "span/span_minmax.svg", "analysis"),
-        ("path_area", "Survey Path", "survey/gen_path_svg.py", "survey/path_area.svg", "survey"),
-        ("roof", "Roof", "roof/gen_roof.py", "roof/roof.svg", "design"),
-        ("plumbing", "Plumbing", "floorplan/gen_floorplan.py", "floorplan/floorplan_plumbing.svg", "design"),
-        ("site_plan_df", "Site Plan (DF)", "site/gen_site_plan.py", "site/site_plan_df.pdf", "site"),
-        ("site_plan_fs", "Site Plan (FS)", "site/gen_site_plan.py", "site/site_plan_fs.pdf", "site"),
-        ("3d_flat", "3D Flat Roof", "scad/gen_flat_roof.py", "scad/flat_roof_patio.png", "3d"),
-        ("3d_2in12", "3D 2:12 Roof", "scad/gen_2in12.py", "scad/2in12_patio.png", "3d"),
-        ("3views", "3-View Layout", "gen_3views.py", "3views.pdf", "3d"),
+        ("floorplan", "Floorplan", "floorplan/gen_floorplan.py", "floorplan/floorplan.svg", "design", 1),
+        ("walls", "Wall Detail", "walls/gen_walls.py", "walls/walls.svg", "construction", 1),
+        ("all_walls", "All Walls", "walls/gen_walls.py", "walls/all_walls.svg", "construction", 1),
+        ("span", "Span Analysis", "span/gen_span.py", "span/span.svg", "analysis", 1),
+        ("span_min", "Min Span", "span/gen_span_min.py", "span/span_min.svg", "analysis", 1),
+        # span_minmax is generated but not shown as a UI tab (enabled=0)
+        ("span_minmax", "Span vs Rotation", "span/gen_span_minmax.py", "span/span_minmax.svg", "analysis", 0),
+        ("path_area", "Survey Path", "survey/gen_path_svg.py", "survey/path_area.svg", "survey", 1),
+        ("roof", "Roof", "roof/gen_roof.py", "roof/roof.svg", "design", 1),
+        ("plumbing", "Plumbing", "floorplan/gen_floorplan.py", "floorplan/floorplan_plumbing.svg", "design", 1),
+        ("site_plan_df", "Site Plan (DF)", "site/gen_site_plan.py", "site/site_plan_df.pdf", "site", 1),
+        ("site_plan_fs", "Site Plan (FS)", "site/gen_site_plan.py", "site/site_plan_fs.pdf", "site", 1),
+        ("3d_flat", "3D Flat Roof", "scad/gen_flat_roof.py", "scad/flat_roof_patio.png", "3d", 1),
+        ("3d_2in12", "3D 2:12 Roof", "scad/gen_2in12.py", "scad/2in12_patio.png", "3d", 1),
+        ("3views", "3-View Layout", "gen_3views.py", "3views.pdf", "3d", 1),
     ]
-    for name, label, script, svg_path, cat in views:
+    for name, label, script, svg_path, cat, enabled in views:
         conn.execute(
             "INSERT OR REPLACE INTO views (name, label, script, svg_path, category, enabled) "
-            "VALUES (?, ?, ?, ?, ?, 1)",
-            (name, label, script, svg_path, cat),
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (name, label, script, svg_path, cat, enabled),
         )
 
 

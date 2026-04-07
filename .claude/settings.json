@@ -1,7 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(do echo \"=== $func ===\")"
+      "Bash(do echo \"=== $func ===\")",
+      "WebFetch(domain:library.coburns.com)",
+      "WebFetch(domain:mainlinecollection.com)",
+      "WebFetch(domain:s1.img-b.com)",
+      "WebFetch(domain:www.americanstandard-us.com)",
+      "WebFetch(domain:www.access-board.gov)",
+      "WebFetch(domain:www.barclayproducts.com)",
+      "WebFetch(domain:thesinkboutique.com)",
+      "WebFetch(domain:focalpointhardware.com)",
+      "WebFetch(domain:www.ranneyblair.com)",
+      "WebFetch(domain:www.duravit.us)",
+      "WebFetch(domain:www.us.laufen.com)",
+      "WebFetch(domain:www.signaturehardware.com)",
+      "WebFetch(domain:www.archiexpo.com)",
+      "WebFetch(domain:www.kbauthority.com)",
+      "WebFetch(domain:pro.duravit.us)",
+      "WebFetch(domain:www.duravit.com)",
+      "WebFetch(domain:www.modobath.com)",
+      "WebFetch(domain:www.kohler.com)",
+      "WebFetch(domain:www.wsbathcollections.com)",
+      "WebFetch(domain:www.wayfair.com)",
+      "WebFetch(domain:swissmadison.com)",
+      "WebFetch(domain:www.fergusonhome.com)",
+      "WebFetch(domain:www.thebathoutlet.com)",
+      "WebFetch(domain:www.afsupply.com)"
     ]
   }
 }
