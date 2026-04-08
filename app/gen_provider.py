@@ -594,6 +594,7 @@ class GeneratorData:
         # DB-driven IW polygons — populated by build_generator_data() when
         # db_path is available.  Span generators prefer these over layout.
         self.iw_polys = None
+        self.glazing_rows = None  # list of GlazingRow, set by make_generator_data
 
         # Openings (parametric on outline segments) for wall section enumeration
         if db_openings is not None:
@@ -733,6 +734,163 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
     return pts, outline_segs, inner_segs, radii
 
 
+def _compute_glazing_rows(geom, pts, chain_rows):
+    """Compute room glazing table rows from compute_geometry output.
+
+    Returns list of dicts:
+        label, floor_sqft, glass_sqft, pct,
+        walls: [{w_start, w_end, f_start, f_end, room_span_ft,
+                 openings: [{name, type, width_ft, height_ft, glass_sqft}]}]
+    """
+    import math
+
+    def _seg_dir(p1, p2):
+        dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+        d = math.hypot(dx, dy)
+        return (dx / d, dy / d) if d > 1e-10 else (0.0, 0.0)
+
+    def _angle_between(u, v):
+        dot = min(1.0, abs(u[0] * v[0] + u[1] * v[1]))
+        return math.degrees(math.acos(dot))
+
+    def _pt_to_line_dist(p, lp1, lp2):
+        dx, dy = lp2[0] - lp1[0], lp2[1] - lp1[1]
+        dlen = math.hypot(dx, dy)
+        if dlen < 1e-10:
+            return math.dist(p, lp1)
+        return abs((p[0] - lp1[0]) * dy - (p[1] - lp1[1]) * dx) / dlen
+
+    def _project_t(p, lp1, lp2):
+        dx, dy = lp2[0] - lp1[0], lp2[1] - lp1[1]
+        d2 = dx * dx + dy * dy
+        if d2 < 1e-10:
+            return 0.0
+        return ((p[0] - lp1[0]) * dx + (p[1] - lp1[1]) * dy) / d2
+
+    def _t_range(points, lp1, lp2):
+        ts = [_project_t(p, lp1, lp2) for p in points]
+        return min(ts), max(ts)
+
+    def _intervals_overlap(a_lo, a_hi, b_lo, b_hi):
+        return max(0.0, min(a_hi, b_hi) - max(a_lo, b_lo)) > 1e-4
+
+    # Build W-series line segments from chain
+    w_line_segs = []
+    if chain_rows:
+        prev_f = chain_rows[-1]['end_name']
+        for row in chain_rows:
+            f_end, f_start = row['end_name'], prev_f
+            w_start = 'W' + f_start[1:]
+            w_end   = 'W' + f_end[1:]
+            if row['seg_type'] == 'L' and w_start in pts and w_end in pts:
+                w_line_segs.append((w_start, w_end, f_start, f_end))
+            prev_f = f_end
+
+    # Rooms from room_labels (area = arc-corrected)
+    rooms = [(r['label'], r['area'], r['poly'])
+             for r in geom.get('room_labels', [])
+             if r.get('poly') and r.get('area', 0) > 0]
+
+    # Windows and casements from outer_openings
+    PARALLEL_DEG  = 0.5
+    COINCIDENT_FT = 0.10
+    MIN_EDGE_FT   = 1.0 / 12.0
+
+    openings = {}
+    for o in geom.get('outer_openings', []):
+        if o.get('opening_type') == 'door':
+            continue
+        opoly = o.get('poly', [])
+        if len(opoly) < 2:
+            continue
+        width_ft  = math.dist(opoly[0], opoly[1])
+        height_ft = o.get('top_elev', 80/12) - o.get('bottom_elev', 20/12)
+        openings[o['name']] = {
+            'type':       o['opening_type'],
+            'f_start':    o.get('seg_start', ''),
+            'f_end':      o.get('seg_end', ''),
+            'width_ft':   width_ft,
+            'height_ft':  height_ft,
+            'glass_sqft': width_ft * height_ft,
+            'poly':       opoly,
+        }
+
+    result = []
+    for label, floor_sqft, poly in sorted(rooms, key=lambda x: x[0]):
+        n = len(poly)
+        matched = {}
+
+        for i in range(n):
+            ep1 = poly[i]
+            ep2 = poly[(i + 1) % n]
+            elen = math.dist(ep1, ep2)
+            if elen < 1e-4:
+                continue
+            edir = _seg_dir(ep1, ep2)
+
+            for ws, we, fs, fe in w_line_segs:
+                wp1, wp2 = pts[ws], pts[we]
+                wdir = _seg_dir(wp1, wp2)
+                if _angle_between(edir, wdir) > PARALLEL_DEG:
+                    continue
+                if max(_pt_to_line_dist(ep1, wp1, wp2),
+                       _pt_to_line_dist(ep2, wp1, wp2)) > COINCIDENT_FT:
+                    continue
+                r_lo, r_hi = _t_range([ep1, ep2], wp1, wp2)
+                if (r_hi - r_lo) * math.dist(wp1, wp2) < MIN_EDGE_FT:
+                    continue
+                key = (ws, we)
+                if key not in matched:
+                    matched[key] = {'f_start': fs, 'f_end': fe,
+                                    'w_start': ws, 'w_end': we,
+                                    'r_lo': r_lo, 'r_hi': r_hi,
+                                    'wlen': math.dist(wp1, wp2)}
+                else:
+                    matched[key]['r_lo'] = min(matched[key]['r_lo'], r_lo)
+                    matched[key]['r_hi'] = max(matched[key]['r_hi'], r_hi)
+
+        # Assign openings by t-range overlap
+        wall_list = []
+        for key, m in sorted(matched.items(), key=lambda x: x[0]):
+            wp1, wp2 = pts[m['w_start']], pts[m['w_end']]
+            r_lo, r_hi = m['r_lo'], m['r_hi']
+            assigned = []
+            for oname, od in openings.items():
+                if od['f_start'] != m['f_start'] or od['f_end'] != m['f_end']:
+                    continue
+                o_lo, o_hi = _t_range(od['poly'], wp1, wp2)
+                if _intervals_overlap(r_lo, r_hi, o_lo, o_hi):
+                    assigned.append({
+                        'name':       oname,
+                        'type':       od['type'],
+                        'width_ft':   od['width_ft'],
+                        'height_ft':  od['height_ft'],
+                        'glass_sqft': od['glass_sqft'],
+                    })
+            wall_list.append({
+                'w_start':     m['w_start'],
+                'w_end':       m['w_end'],
+                'f_start':     m['f_start'],
+                'f_end':       m['f_end'],
+                'room_span_ft': (r_hi - r_lo) * m['wlen'],
+                'openings':    sorted(assigned, key=lambda x: x['name']),
+            })
+
+        total_glass = sum(
+            o['glass_sqft'] for w in wall_list for o in w['openings'])
+        pct = total_glass / floor_sqft * 100.0 if floor_sqft > 0 else 0.0
+
+        result.append({
+            'label':       label,
+            'floor_sqft':  floor_sqft,
+            'glass_sqft':  total_glass,
+            'pct':         pct,
+            'walls':       wall_list,
+        })
+
+    return result
+
+
 def build_generator_data(constants_dict, chain_rows=None, db_path=None,
                          overrides=None):
     """Build a GeneratorData object from DB state.
@@ -761,6 +919,7 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
     db_openings = None
     iw_polys = None
     ro_polys = None
+    glazing_rows = None
     if db_path is not None:
         try:
             from app.engine import compute_geometry
@@ -773,6 +932,8 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
                 if "poly" in data
             }
             ro_polys = geom.get("rough_openings", [])
+            glazing_rows = _compute_glazing_rows(
+                geom, pts, chain_rows or [])
         except Exception:
             pass
 
@@ -792,5 +953,7 @@ def build_generator_data(constants_dict, chain_rows=None, db_path=None,
         gd.iw_polys = iw_polys
     if ro_polys is not None:
         gd.ro_polys = ro_polys
+    if glazing_rows is not None:
+        gd.glazing_rows = glazing_rows
 
     return gd

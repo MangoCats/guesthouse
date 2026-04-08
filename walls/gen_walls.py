@@ -147,6 +147,7 @@ class WallData(NamedTuple):
     iw_polys: dict         # DB interior wall polygons, or None for seed path
     ro_polys: list         # DB rough opening dicts, or None for seed path
     roof_poly: list        # Roof outline polygon (precomputed)
+    glazing_rows: list     # Room glazing table rows, or None
 
 
 def _get_roof_poly(gd):
@@ -235,6 +236,7 @@ def build_wall_data(gd=None):
         iw_polys=getattr(gd, 'iw_polys', None),
         ro_polys=getattr(gd, 'ro_polys', None),
         roof_poly=_get_roof_poly(gd),
+        glazing_rows=getattr(gd, 'glazing_rows', None),
     )
 
 
@@ -1061,14 +1063,14 @@ def _render_interior_walls_table_db(out, data, tbl_border_bottom):
                f' width="{iw_col[-1] - tbl_left:.1f}"'
                f' height="{iw_border_bottom - iw_border_top:.1f}"'
                f' fill="none" stroke="#999" stroke-width="0.5"/>')
+    return iw_border_bottom
 
 
 def _render_interior_walls_table(out, data, tbl_border_bottom):
-    """Render the interior walls summary table."""
+    """Render the interior walls summary table. Returns table bottom y."""
     if data.layout is None:
         # DB path — build table from iw_polys + ro_polys
-        _render_interior_walls_table_db(out, data, tbl_border_bottom)
-        return
+        return _render_interior_walls_table_db(out, data, tbl_border_bottom)
     pts = data.pts
     layout = data.layout
     tbl_left = data.tb_left
@@ -1154,6 +1156,86 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
                f' width="{iw_col[-1] - tbl_left:.1f}"'
                f' height="{iw_border_bottom - iw_border_top:.1f}"'
                f' fill="none" stroke="#999" stroke-width="0.5"/>')
+    return iw_border_bottom
+
+
+def _render_room_glazing_table(out, data, tbl_border_bottom):
+    """Render room window-to-floor glazing summary table below Interior Walls."""
+    rows = data.glazing_rows
+    if not rows:
+        return
+
+    tbl_left  = data.tb_left
+    tbl_right = tbl_left + 168   # match Interior Walls table right edge
+
+    tbl_top = tbl_border_bottom + 14
+    row_h   = 7.5
+
+    # Columns: Room | Floor | Glass (with opening IDs) | Ratio
+    # Interior Walls right edge = tbl_left + 168
+    col_x = [tbl_left + 2,  tbl_left + 57, tbl_left + 142, tbl_left + 166]
+    col_a = ["start",        "end",          "end",           "end"]
+    hdrs  = ["Room",         "Floor",        "Glass",         "Ratio"]
+
+    out.append(
+        f'<text x="{(tbl_left + tbl_right) / 2:.1f}" y="{tbl_top:.1f}"'
+        f' text-anchor="middle" font-family="Arial" font-size="7"'
+        f' font-weight="bold" fill="{CLR_TITLE}">Room Glazing</text>'
+    )
+
+    hdr_y = tbl_top + 10
+    for hx, ha, hd in zip(col_x, col_a, hdrs):
+        out.append(
+            f'<text x="{hx:.1f}" y="{hdr_y:.1f}"'
+            f' text-anchor="{ha}" font-family="Arial" font-size="6"'
+            f' font-weight="bold" fill="{CLR_TITLE}">{hd}</text>'
+        )
+
+    line_y = hdr_y + 2.5
+    out.append(
+        f'<line x1="{tbl_left:.1f}" y1="{line_y:.1f}"'
+        f' x2="{tbl_right:.1f}" y2="{line_y:.1f}"'
+        f' stroke="#999" stroke-width="0.5"/>'
+    )
+
+    for ri, row in enumerate(rows):
+        y = line_y + (ri + 1) * row_h
+        label      = row['label']
+        floor_sqft = row['floor_sqft']
+        glass_sqft = row['glass_sqft']
+        pct        = row['pct']
+
+        # Opening IDs with widths (no type label — just IDs)
+        op_ids = sorted({
+            o['name']
+            for w in row['walls'] for o in w['openings']
+        })
+        glass_str = (
+            f"{glass_sqft:.1f} sf  ({', '.join(op_ids)})"
+            if op_ids else "&#8212;"
+        )
+
+        vals = [
+            label,
+            f"{floor_sqft:.1f} sf",
+            glass_str,
+            f"{pct:.1f}%",
+        ]
+        for vx, va, vv in zip(col_x, col_a, vals):
+            out.append(
+                f'<text x="{vx:.1f}" y="{y:.1f}"'
+                f' text-anchor="{va}" font-family="Arial"'
+                f' font-size="6" fill="{CLR_TITLE}">{vv}</text>'
+            )
+
+    border_top    = tbl_top - 8.5
+    border_bottom = line_y + len(rows) * row_h + 3
+    out.append(
+        f'<rect x="{tbl_left:.1f}" y="{border_top:.1f}"'
+        f' width="{tbl_right - tbl_left:.1f}"'
+        f' height="{border_bottom - border_top:.1f}"'
+        f' fill="none" stroke="#999" stroke-width="0.5"/>'
+    )
 
 
 def _render_f_labels(out, data):
@@ -1222,7 +1304,9 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
     tbl_bottom = _render_wall_table(out, data)
 
     if include_interior:
-        _render_interior_walls_table(out, data, tbl_bottom)
+        iw_bottom = _render_interior_walls_table(out, data, tbl_bottom)
+        if iw_bottom is not None:
+            _render_room_glazing_table(out, data, iw_bottom)
 
     # --- Roof outline (dotted) ---
     roof_poly = data.roof_poly
@@ -1240,8 +1324,17 @@ def render_walls_svg(data, *, title="Outer Walls", include_interior=False):
 # ============================================================
 
 if __name__ == "__main__":
-    data = build_wall_data()
     _dir = os.path.dirname(os.path.abspath(__file__))
+    _db = os.path.join(_dir, "..", "app", "adu.db")
+    if os.path.exists(_db):
+        from app.database import get_constants_dict, get_outline_chain
+        from app.gen_provider import build_generator_data
+        _constants = get_constants_dict(_db)
+        _chain = get_outline_chain(_db)
+        _gd = build_generator_data(_constants, chain_rows=_chain, db_path=_db)
+        data = build_wall_data(_gd)
+    else:
+        data = build_wall_data()
 
     svg_content = render_walls_svg(data)
     svg_path = os.path.join(_dir, "walls.svg")
