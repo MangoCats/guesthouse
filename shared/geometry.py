@@ -226,6 +226,9 @@ def fmt_dist(ft: float) -> str:
     total_in = round(ft * 12, 2)
     whole_ft = int(total_in // 12)
     remaining_in = total_in - whole_ft * 12
+    if remaining_in >= 12.0:
+        whole_ft += 1
+        remaining_in = 0.0
     in_str = f"{remaining_in:.2f}".rstrip('0').rstrip('.')
     return f"{whole_ft}' {in_str}\""
 

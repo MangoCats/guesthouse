@@ -1045,9 +1045,12 @@ def _render_interior_walls_table_db(out, data, tbl_border_bottom):
 
     for ri, (iw_id, thick_in, length_ft) in enumerate(iw_rows):
         y = iw_line_y + (ri + 1) * iw_row_h
-        total_in = length_ft * 12
+        total_in = round(length_ft * 12, 1)
         ft = int(total_in) // 12
         remain_in = total_in - ft * 12
+        if remain_in >= 12.0:
+            ft += 1
+            remain_in = 0.0
         length_str = f"{ft}&#8242; {remain_in:.1f}&#8243;"
         ros = ", ".join(ro_by_wall.get(iw_id, []))
         thk_str = f'{thick_in:.1f}&#8243;'
@@ -1138,9 +1141,12 @@ def _render_interior_walls_table(out, data, tbl_border_bottom):
     # Data rows
     for ri, (iw_id, thick, length_ft, _vert) in enumerate(iw_rows):
         y = iw_line_y + (ri + 1) * iw_row_h
-        total_in = length_ft * 12
+        total_in = round(length_ft * 12, 1)
         ft = int(total_in) // 12
         remain_in = total_in - ft * 12
+        if remain_in >= 12.0:
+            ft += 1
+            remain_in = 0.0
         length_str = f"{ft}&#8242; {remain_in:.1f}&#8243;"
         ros = ", ".join(ro_by_wall.get(iw_id, []))
         vals = [iw_id, f'{thick}&#8243;', length_str, ros]
