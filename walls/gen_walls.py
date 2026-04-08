@@ -1211,7 +1211,7 @@ def _render_room_glazing_table(out, data, tbl_border_bottom):
             for w in row['walls'] for o in w['openings']
         })
         glass_str = (
-            f"{glass_sqft:.1f} sf  ({', '.join(op_ids)})"
+            f"({', '.join(op_ids)})  {glass_sqft:.1f} sf"
             if op_ids else "&#8212;"
         )
 
