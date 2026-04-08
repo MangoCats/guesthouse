@@ -1902,13 +1902,7 @@ def _seed_catalog_items(conn, db_path=None):
 
 def _seed_doors(conn):
     """Seed the doors table with default configurations for O3, O6, RO1–RO7."""
-    import importlib
-    import floorplan.constants as mod
-    importlib.reload(mod)
-
-    for opening_name, width_const, hinge, swing, dtype in _DOOR_SEED:
-        width_ft = getattr(mod, width_const, 3.0)
-        width_in = round(width_ft * 12.0, 2)
+    for opening_name, width_in, hinge, swing, dtype in _DOOR_SEED:
         conn.execute(
             "INSERT OR IGNORE INTO doors "
             "(opening_name, width, hinge_side, swing_direction, door_type) "
@@ -2168,14 +2162,13 @@ def _seed_default_anchor_pivot(db_path):
     Pivot  = end_name of middle chain segment.
     Anchor coords = (F2_EASTING, F2_NORTHING + CORNER_SW_R, 0.0).
     """
-    import floorplan.constants as fc
     chain_rows = get_outline_chain(db_path)
     if not chain_rows:
         return
     n = len(chain_rows)
     anchor_name = chain_rows[-1]["end_name"]
     pivot_name = chain_rows[n // 2]["end_name"]
-    R_a1 = get_constant_value("CORNER_SW_R", db_path) or fc.CORNER_SW_R
+    R_a1 = get_constant_value("CORNER_SW_R", db_path) or 10.0 / 12.0
     anchor_E = get_constant_value("F2_EASTING", db_path) or -18.5
     anchor_N = get_constant_value("F2_NORTHING", db_path) or -13.5
     # F2_NORTHING is stored before the R_a1 offset (same convention as before)
@@ -2641,27 +2634,8 @@ def reset_elements(db_path=None):
 
 def restore_elements(elements, doors, db_path=None):
     """Restore elements and doors tables from a snapshot (for undo/redo)."""
-
-    db_path = db_path or DB_PATH
-    with get_db(db_path) as conn:
-        conn.execute("DELETE FROM elements")
-        conn.execute("DELETE FROM doors")
-        for e in elements:
-            props = e.get("properties", "{}")
-            if isinstance(props, dict):
-                props = json.dumps(props)
-            conn.execute(
-                "INSERT INTO elements (id, type, name, properties, variant) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (e["id"], e["type"], e["name"], props, e.get("variant")),
-            )
-        for d in doors:
-            conn.execute(
-                "INSERT INTO doors (opening_name, width, hinge_side, "
-                "swing_direction, door_type) VALUES (?, ?, ?, ?, ?)",
-                (d["opening_name"], d["width"], d["hinge_side"],
-                 d["swing_direction"], d["door_type"]),
-            )
+    _restore_table("elements", elements, db_path)
+    _restore_table("doors", doors, db_path)
 
 
 # ---------------------------------------------------------------------------
@@ -3326,19 +3300,10 @@ def reset_survey(db_path=None):
 
 def restore_survey(legs, config, db_path=None):
     """Restore survey legs and config from snapshot (for undo/redo)."""
-    with get_db(db_path or DB_PATH) as conn:
-        conn.execute("DELETE FROM survey_legs")
+    db_path = db_path or DB_PATH
+    _restore_table("survey_legs", legs, db_path)
+    with get_db(db_path) as conn:
         conn.execute("DELETE FROM survey_config")
-        for leg in legs:
-            conn.execute(
-                "INSERT INTO survey_legs "
-                "(seq, bearing_deg, bearing_min, bearing_sec, "
-                "distance_ft, distance_inch, label) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (leg["seq"], leg["bearing_deg"], leg["bearing_min"],
-                 leg["bearing_sec"], leg["distance_ft"],
-                 leg["distance_inch"], leg.get("label")),
-            )
         for key, value in config.items():
             conn.execute(
                 "INSERT INTO survey_config (key, value) VALUES (?, ?)",

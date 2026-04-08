@@ -411,15 +411,16 @@ _VARIANT_ITEMS = [
 # Door defaults
 # ---------------------------------------------------------------------------
 
-# (opening_name, door_width_constant, hinge_side, swing_direction, door_type)
+# (opening_name, width_inches, hinge_side, swing_direction, door_type)
+# Width values match the corresponding *_DOOR_WIDTH constants in floorplan/constants.py.
 _DOOR_SEED = [
-    ("O3",  "O3_DOOR_WIDTH",  "north", "east",  "single"),
-    ("O6",  "O6_DOOR_WIDTH",  "east",  "south", "single"),
-    ("RO1", "RO1_DOOR_WIDTH", "east",  "south", "single"),
-    ("RO2", "RO2_DOOR_WIDTH", "north", "east",  "single"),
-    ("RO3", "RO3_DOOR_WIDTH", "south", "west",  "single"),
-    ("RO4", "RO4_DOOR_WIDTH", "south", "west",  "single"),
-    ("RO5", "RO5_DOOR_WIDTH", "east",  "north", "single"),
-    ("RO6", "RO6_DOOR_WIDTH", "west",  "west",  "double"),
-    ("RO7", "RO7_DOOR_WIDTH", "east",  "east",  "double"),
+    ("O3",  30.0, "north", "east",  "single"),
+    ("O6",  42.0, "east",  "south", "single"),
+    ("RO1", 36.0, "east",  "south", "single"),
+    ("RO2", 36.0, "north", "east",  "single"),
+    ("RO3", 36.0, "south", "west",  "single"),
+    ("RO4", 36.0, "south", "west",  "single"),
+    ("RO5", 36.0, "east",  "north", "single"),
+    ("RO6", 24.0, "west",  "west",  "double"),
+    ("RO7", 24.0, "east",  "east",  "double"),
 ]
