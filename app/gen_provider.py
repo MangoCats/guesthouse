@@ -623,10 +623,12 @@ class GeneratorData:
             from shared.roof_outline import compute_db_roof_outline
             corner_names = [c["center"] for c in data["corners"]]
             corner_radiused = [c.get("radiused", False) for c in data["corners"]]
+            corner_shortcut = [c.get("shortcut", False) for c in data["corners"]]
             overhang = float(data.get("overhang", 0.5))
             try:
                 result = compute_db_roof_outline(
-                    corner_names, corner_radiused, self.pts, self.radii, overhang)
+                    corner_names, corner_radiused, self.pts, self.radii, overhang,
+                    corner_shortcut=corner_shortcut)
                 self.roof = result
                 self.roof_poly = result.poly
             except Exception:

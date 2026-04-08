@@ -108,7 +108,7 @@ function cacheElements() {
     "show-doors", "show-clearance", "open-links", "show-areas", "show-site", "show-roof",
     "roof-style",
     "roof-overhang-in", "roof-overhang-save",
-    "roof-corners-table", "roof-add-center", "roof-add-radiused", "roof-add-btn",
+    "roof-corners-table", "roof-add-center", "roof-add-radiused", "roof-add-shortcut", "roof-add-btn",
     "plumbing-tools", "plumbing-fixtures-table", "plumbing-pipes-table",
     "variant-select", "variant-selector",
     "error-banner", "error-banner-text", "error-banner-action", "error-banner-dismiss",
@@ -870,6 +870,19 @@ function _renderRoofPanel() {
     tdArc.appendChild(cb);
     tr.appendChild(tdArc);
 
+    // Shortcut checkbox
+    const tdSC = document.createElement("td");
+    const cbSC = document.createElement("input");
+    cbSC.type = "checkbox";
+    cbSC.checked = !!c.shortcut;
+    cbSC.title = "Shortcut corner: extends incoming tangent line to intersect next outgoing tangent, skipping this corner's arc/vertex";
+    cbSC.addEventListener("change", () => {
+      _roofData.corners[idx].shortcut = cbSC.checked;
+      _saveRoofOutline();
+    });
+    tdSC.appendChild(cbSC);
+    tr.appendChild(tdSC);
+
     // Remove button
     const tdDel = document.createElement("td");
     const btn = document.createElement("button");
@@ -925,11 +938,13 @@ function _initRoofPanelEvents() {
       const center = (App.els["roof-add-center"].value || "").trim();
       if (!center) return;
       const radiused = App.els["roof-add-radiused"].checked;
+      const shortcut = App.els["roof-add-shortcut"].checked;
       _roofData = _roofData || { overhang: 0.5, corners: [] };
       const seq = _roofData.corners.length;
-      _roofData.corners.push({ seq, center, radiused });
+      _roofData.corners.push({ seq, center, radiused, shortcut });
       App.els["roof-add-center"].value = "";
       App.els["roof-add-radiused"].checked = false;
+      App.els["roof-add-shortcut"].checked = false;
       _renderRoofPanel();
       _saveRoofOutline();
     });

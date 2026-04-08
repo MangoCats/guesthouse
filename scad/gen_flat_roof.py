@@ -117,8 +117,10 @@ def generate(gd=None):
         from shared.roof_outline import db_roof_segments
         _corner_names = [c["center"] for c in _rc["corners"]]
         _corner_rad    = [c.get("radiused", False) for c in _rc["corners"]]
+        _corner_sc     = [c.get("shortcut", False) for c in _rc["corners"]]
         _overhang      = float(_rc.get("overhang", 0.5))
-        roof_elems = db_roof_segments(_corner_names, _corner_rad, pts, radii, _overhang)
+        roof_elems = db_roof_segments(_corner_names, _corner_rad, pts, radii, _overhang,
+                                      corner_shortcut=_corner_sc)
         roof_pts = list(gd.roof_poly) if getattr(gd, 'roof_poly', None) else []
     elif gd is not None and getattr(gd, 'roof', None) and hasattr(gd.roof, 'r3_radius'):
         # gd has F-series roof already computed

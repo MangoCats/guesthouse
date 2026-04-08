@@ -258,7 +258,8 @@ CREATE TABLE IF NOT EXISTS catalog_items (
 CREATE TABLE IF NOT EXISTS roof_corners (
     seq         INTEGER PRIMARY KEY,   -- 0-based ordering around roof perimeter
     center_name TEXT NOT NULL,         -- arc center name (e.g. 'C01', 'C5')
-    radiused    INTEGER DEFAULT 0      -- 1 = arc corner, 0 = sharp line-to-line
+    radiused    INTEGER DEFAULT 0,     -- 1 = arc corner, 0 = sharp line-to-line
+    shortcut    INTEGER DEFAULT 0      -- 1 = shortcut corner (extends incoming line to next outgoing)
 );
 """
 
@@ -372,6 +373,12 @@ def init_db(db_path=None):
             if "bearing_flex" not in oc_cols:
                 conn.execute("ALTER TABLE outline_chain "
                              "ADD COLUMN bearing_flex INTEGER DEFAULT 0")
+            # Add shortcut column to roof_corners if missing
+            rc_cols = {r[1] for r in conn.execute(
+                "PRAGMA table_info(roof_corners)").fetchall()}
+            if "shortcut" not in rc_cols:
+                conn.execute("ALTER TABLE roof_corners "
+                             "ADD COLUMN shortcut INTEGER DEFAULT 0")
             # Migrate element_formulas/formula_deps to COLLATE NOCASE
             _migrate_nocase_formulas(conn)
             # Migrate existing placed items: create formulas if missing
@@ -3784,7 +3791,7 @@ def get_roof_corners(db_path=None):
             ).fetchone()
             overhang = float(ov_row["value"]) if ov_row else 0.5
             rows = conn.execute(
-                "SELECT seq, center_name, radiused FROM roof_corners ORDER BY seq"
+                "SELECT seq, center_name, radiused, shortcut FROM roof_corners ORDER BY seq"
             ).fetchall()
         except Exception:
             return None
@@ -3793,7 +3800,12 @@ def get_roof_corners(db_path=None):
     return {
         "overhang": overhang,
         "corners": [
-            {"seq": r["seq"], "center": r["center_name"], "radiused": bool(r["radiused"])}
+            {
+                "seq": r["seq"],
+                "center": r["center_name"],
+                "radiused": bool(r["radiused"]),
+                "shortcut": bool(r["shortcut"]),
+            }
             for r in rows
         ],
     }
@@ -3810,8 +3822,9 @@ def set_roof_corners(data, db_path=None):
         conn.execute("DELETE FROM roof_corners")
         for c in data.get("corners", []):
             conn.execute(
-                "INSERT INTO roof_corners (seq, center_name, radiused) VALUES (?,?,?)",
-                (c["seq"], c["center"], 1 if c.get("radiused") else 0),
+                "INSERT INTO roof_corners (seq, center_name, radiused, shortcut) VALUES (?,?,?,?)",
+                (c["seq"], c["center"], 1 if c.get("radiused") else 0,
+                 1 if c.get("shortcut") else 0),
             )
         if "overhang" in data:
             conn.execute(

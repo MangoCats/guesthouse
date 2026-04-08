@@ -93,7 +93,8 @@ def compute_db_roof_outline(corner_names: list,
                              pts: dict,
                              radii: dict,
                              overhang: float,
-                             n_arc: int = 30) -> DbRoofResult:
+                             n_arc: int = 30,
+                             corner_shortcut: list = None) -> DbRoofResult:
     """Compute DB-driven roof outline polygon.
 
     Parameters
@@ -104,6 +105,10 @@ def compute_db_roof_outline(corner_names: list,
     radii           Radii dict from outline_solver: 'R_a{suffix}' → radius
     overhang        Overhang distance in feet
     n_arc           Arc discretisation point count for radiused corners
+    corner_shortcut Parallel bool list; True = shortcut corner.  A shortcut
+                    corner produces no polygon vertex of its own; instead its
+                    incoming tangent line is extended and intersected with the
+                    next non-shortcut corner's outgoing tangent line.
 
     Returns
     -------
@@ -112,6 +117,8 @@ def compute_db_roof_outline(corner_names: list,
     N = len(corner_names)
     if N < 3:
         raise ValueError("roof outline requires at least 3 corner centers")
+    if corner_shortcut is None:
+        corner_shortcut = [False] * N
 
     # Derive the arc center point name from the corner name.
     # R-series names (R01, R03, …) map to C-series centers (C01, C03, …).
@@ -137,17 +144,31 @@ def compute_db_roof_outline(corner_names: list,
         cb, rb = pts[_cname(corner_names[j])], r_roof[j]
         tangent_lines.append(_ext_tangent_outside(ca, ra, cb, rb))
 
+    # Compute effective incoming tangent line for each corner.
+    # A shortcut corner at index i propagates its own incoming tangent forward
+    # so that corner i+1 uses effective_incoming[i] instead of tangent_lines[i].
+    # Two passes handle chains of consecutive shortcut corners.
+    effective_incoming = [tangent_lines[(i - 1) % N] for i in range(N)]
+    for _ in range(2):
+        for i in range(N):
+            prev_i = (i - 1) % N
+            if corner_shortcut[prev_i]:
+                effective_incoming[i] = effective_incoming[prev_i]
+
     # Build polygon and label positions
     poly = []
     corner_pts = {}
 
     for i in range(N):
-        prev_i = (i - 1) % N
-        pa_in,  pb_in,  nx_in,  ny_in  = tangent_lines[prev_i]
+        if corner_shortcut[i]:
+            # Shortcut: no polygon vertex; incoming line propagated to next corner
+            continue
+
+        pa_in,  pb_in,  nx_in,  ny_in  = effective_incoming[i]
         pa_out, pb_out, nx_out, ny_out = tangent_lines[i]
 
-        # pb_in  = tangent point of incoming line ON circle i (entry point)
-        # pa_out = tangent point of outgoing line ON circle i (exit point)
+        # pb_in  = tangent point of effective incoming line on circle i (entry point)
+        # pa_out = tangent point of outgoing line on circle i (exit point)
 
         if not corner_radiused[i]:
             # Sharp: intersection of the two tangent lines
@@ -184,7 +205,8 @@ def db_roof_segments(corner_names: list,
                      corner_radiused: list,
                      pts: dict,
                      radii: dict,
-                     overhang: float) -> list:
+                     overhang: float,
+                     corner_shortcut: list = None) -> list:
     """Compute DB-driven roof outline as T-path arc/line segments.
 
     Returns a list of ("line", x1, y1, x2, y2) and
@@ -200,10 +222,14 @@ def db_roof_segments(corner_names: list,
     pts             Geometry points dict (must include all C-series center names)
     radii           Radii dict: 'R_a{suffix}' → radius in feet
     overhang        Overhang distance in feet
+    corner_shortcut Parallel bool list; True = shortcut corner (no segment output;
+                    incoming tangent propagated to the next corner's incoming)
     """
     N = len(corner_names)
     if N < 3:
         raise ValueError("roof outline requires at least 3 corner centers")
+    if corner_shortcut is None:
+        corner_shortcut = [False] * N
 
     def _cname(name):
         return ("C" + name[1:]) if name.startswith("R") else name
@@ -222,31 +248,42 @@ def db_roof_segments(corner_names: list,
         cb, rb = pts[_cname(corner_names[j])], r_roof[j]
         tangent_lines.append(_ext_tangent_outside(ca, ra, cb, rb))
 
+    # Propagate effective incoming tangent lines past shortcut corners
+    effective_incoming = [tangent_lines[(i - 1) % N] for i in range(N)]
+    for _ in range(2):
+        for i in range(N):
+            prev_i = (i - 1) % N
+            if corner_shortcut[prev_i]:
+                effective_incoming[i] = effective_incoming[prev_i]
+
     # Corner geometry: entry/exit tangent points and sharp vertices
-    corner_entry = []   # tangent point where incoming line arrives at corner i
-    corner_exit = []    # tangent point where outgoing line leaves corner i
-    corner_vertex = []  # sharp vertex (None for radiused corners)
+    corner_entry = []   # tangent point of effective incoming line on circle i
+    corner_exit = []    # tangent point of outgoing line leaving circle i
+    corner_vertex = []  # sharp vertex (None for radiused or shortcut corners)
 
     for i in range(N):
-        prev_i = (i - 1) % N
-        _, pb_in, nx_in, ny_in = tangent_lines[prev_i]
+        _, pb_in, nx_in, ny_in = effective_incoming[i]
         pa_out, _, nx_out, ny_out = tangent_lines[i]
 
         corner_entry.append(pb_in)
         corner_exit.append(pa_out)
 
-        if not corner_radiused[i]:
+        if corner_shortcut[i] or corner_radiused[i]:
+            corner_vertex.append(None)
+        else:
             d_in  = (-ny_in,  nx_in)
             d_out = (-ny_out, nx_out)
             v = line_isect(pb_in, d_in, pa_out, d_out)
             corner_vertex.append(v)
-        else:
-            corner_vertex.append(None)
 
     def _pt_exit(i):
+        if corner_shortcut[i]:
+            return None
         return corner_exit[i] if corner_radiused[i] else corner_vertex[i]
 
     def _pt_entry(i):
+        if corner_shortcut[i]:
+            return None
         return corner_entry[i] if corner_radiused[i] else corner_vertex[i]
 
     def _arc_cw(center, radius, sp, ep):
@@ -257,12 +294,19 @@ def db_roof_segments(corner_names: list,
 
     segments = []
     for i in range(N):
+        if corner_shortcut[i]:
+            # No arc/vertex for shortcut corners; tangent i→i+1 is skipped
+            continue
+
         if corner_radiused[i]:
             center = pts[_cname(corner_names[i])]
             segments.append(_arc_cw(center, r_roof[i],
                                     corner_entry[i], corner_exit[i]))
 
         next_i = (i + 1) % N
+        # Find the next non-shortcut corner to connect to
+        while corner_shortcut[next_i]:
+            next_i = (next_i + 1) % N
         start = _pt_exit(i)
         end = _pt_entry(next_i)
         segments.append(("line", start[0], start[1], end[0], end[1]))
