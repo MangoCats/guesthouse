@@ -543,7 +543,8 @@ function buildSnapTargets(g) {
           const clamped = Math.min(distIn, Math.floor(lenFt * 12 / SNAP_IN) * SNAP_IN);
           const d = clamped / 12;
           targets.push({ type: "wall_face", target: wname, face, distIn: clamped,
-                         pos: [p1[0] + d * ux, p1[1] + d * uy] });
+                         pos: [p1[0] + d * ux, p1[1] + d * uy],
+                         segP1: p1, segUx: ux, segUy: uy, segLenFt: lenFt });
           if (clamped >= lenFt * 12 - 1e-6) break;
         }
       }
@@ -569,7 +570,8 @@ function buildSnapTargets(g) {
         // Store as parametric computed spec: offset dAlong feet from seg.start
         targets.push({ type: "computed",
                        spec: { ref: seg.start, dAlong: d, dPerp: 0 },
-                       pos: [p1[0] + d * ux, p1[1] + d * uy] });
+                       pos: [p1[0] + d * ux, p1[1] + d * uy],
+                       segP1: p1, segUx: ux, segUy: uy, segLenFt: lenFt });
       }
     }
   }
@@ -608,12 +610,20 @@ function buildSnapTargets(g) {
 /**
  * Find nearest snap target within pixel threshold.
  * Returns { anchor: {type, target, face?}, pos: [E, N] } or null.
+ *
+ * When startPoint [E, N] is provided (placing the 2nd dimension endpoint),
+ * and the best snap is a surface point (wall_face or inner_seg), checks
+ * whether the perpendicular foot of startPoint onto that surface falls in the
+ * same 2" cell as the cursor's projection.  If so, snaps to the foot instead,
+ * making it easy to place a dimension line perpendicular to the surface even
+ * when the perpendicular foot doesn't fall on a 2" interval.
  */
-function findNearestSnap(wx, wy, snapTargets, thresholdPx) {
+function findNearestSnap(wx, wy, snapTargets, thresholdPx, startPoint) {
   if (!snapTargets || snapTargets.length === 0) return null;
   const worldThreshold = (thresholdPx || 12) / (App.state.zoom || 1);
   let best = null;
   let bestDist = worldThreshold;
+  let bestSrcTarget = null;
   for (const t of snapTargets) {
     const dx = t.pos[0] - wx;
     const dy = t.pos[1] - wy;
@@ -626,8 +636,47 @@ function findNearestSnap(wx, wy, snapTargets, thresholdPx) {
       if (t.distIn !== undefined) anchor.distIn = t.distIn;
       if (t.spec  !== undefined) anchor.spec    = t.spec;
       best = { anchor, pos: t.pos };
+      bestSrcTarget = t;
     }
   }
+
+  // Perpendicular-snap override: when placing the 2nd dimension endpoint and
+  // the best snap is on a surface that has segment geometry, check whether
+  // projecting startPoint perpendicularly onto that surface would land in the
+  // same 2" cell as the cursor.  If so, the two nearest 2" snaps straddle the
+  // perpendicular foot — prefer the foot so the dimension is perpendicular.
+  if (best && startPoint && bestSrcTarget && bestSrcTarget.segP1) {
+    const SNAP_IN = 2;
+    const t = bestSrcTarget;
+    const [sx, sy] = startPoint;
+    const px1 = t.segP1[0], py1 = t.segP1[1];
+    const ux = t.segUx, uy = t.segUy;
+    // Foot of perpendicular from startPoint onto the surface line
+    const tFoot = (sx - px1) * ux + (sy - py1) * uy;
+    // Cursor's projection along the surface
+    const tCursor = (wx - px1) * ux + (wy - py1) * uy;
+    if (tFoot >= 0 && tFoot <= t.segLenFt) {
+      const footX = px1 + tFoot * ux;
+      const footY = py1 + tFoot * uy;
+      const tFootIn  = tFoot  * 12;
+      const tCursorIn = tCursor * 12;
+      // Same 2" cell AND foot is not already a 2" interval point
+      const sameCell = Math.floor(tCursorIn / SNAP_IN) === Math.floor(tFootIn / SNAP_IN);
+      const footAlreadySnap = Math.abs(tFootIn % SNAP_IN) < 1e-6;
+      if (sameCell && !footAlreadySnap) {
+        const perpAnchor = { type: t.type };
+        if (t.target !== undefined) perpAnchor.target = t.target;
+        if (t.face   !== undefined) perpAnchor.face   = t.face;
+        if (t.type === "wall_face") {
+          perpAnchor.distIn = tFoot * 12;
+        } else if (t.type === "computed" && t.spec) {
+          perpAnchor.spec = { ref: t.spec.ref, dAlong: tFoot, dPerp: 0 };
+        }
+        best = { anchor: perpAnchor, pos: [footX, footY] };
+      }
+    }
+  }
+
   return best;
 }
 
@@ -675,7 +724,7 @@ function dimToolMouseDown(e) {
 
   // Try geometry snap first, then grid snap
   let anchor = null;
-  const snapResult = findNearestSnap(wx, wy, DimTool.snapTargets, 12);
+  const snapResult = findNearestSnap(wx, wy, DimTool.snapTargets, 12, DimTool.start);
   if (snapResult) {
     wx = snapResult.pos[0];
     wy = snapResult.pos[1];
@@ -715,7 +764,7 @@ function dimToolMouseMove(e) {
   }
 
   // Show snap indicator even before first click
-  const snapResult = findNearestSnap(wx, wy, DimTool.snapTargets, 12);
+  const snapResult = findNearestSnap(wx, wy, DimTool.snapTargets, 12, DimTool.start);
   updateSnapIndicator(snapResult);
   if (snapResult) {
     wx = snapResult.pos[0];
