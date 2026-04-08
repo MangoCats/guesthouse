@@ -221,130 +221,112 @@ def render_interior_walls_db(out, geom, to_svg):
 
 
 def _render_split_wall(out, iw_name, poly, rough_openings, half_sw, to_svg):
-    """Render a wall split by rough openings.
+    """Render a wall split by one or more rough openings.
 
-    For each rough opening, determines which face it intersects and splits
-    the wall polygon accordingly, rendering jamb blocks at the split points.
+    Collects all RO boundaries, sorts them along the wall axis, then renders
+    the solid segments between them together with jamb blocks at each opening.
+    Orientation is taken from the first RO (all ROs on the same wall share it).
     """
     if len(poly) < 4:
         return
 
-    # For each RO, find where it intersects this wall
-    # RO poly has 4 vertices; its bbox tells us the cut location
+    ro_polys = []
     for ro in rough_openings:
-        ro_poly = ro.get("poly", [])
-        if len(ro_poly) < 4:
-            continue
-        ro_poly = [(p[0], p[1]) for p in ro_poly]
+        rp = ro.get("poly", [])
+        if len(rp) >= 4:
+            ro_polys.append([(p[0], p[1]) for p in rp])
+    if not ro_polys:
+        # No valid RO polys — render as plain wall
+        _wall_poly(out, poly, to_svg, stroke=False)
+        centroid = (sum(p[0] for p in poly) / len(poly),
+                    sum(p[1] for p in poly) / len(poly))
+        faces = _long_face_indices(poly)
+        for i in faces:
+            _wall_stroke_line(out, poly[i], poly[(i + 1) % len(poly)],
+                              half_sw, to_svg, toward=centroid)
+        return
 
-        # Determine orientation from RO properties
-        orientation = ro.get("orientation", "H")
-
-        # Find which wall edge the RO intersects by projecting RO center
-        # onto wall edges
-        ro_cx = sum(p[0] for p in ro_poly) / len(ro_poly)
-        ro_cy = sum(p[1] for p in ro_poly) / len(ro_poly)
-
-        # Simple approach: render the wall polygon minus the RO area
-        # by splitting into sub-polygons on each side of the RO
-        _render_wall_with_opening(out, poly, ro_poly, orientation, half_sw, to_svg)
-
-    # If multiple ROs on same wall, they've each been rendered
-    # For now, handle single RO case (most common)
-
-
-def _render_wall_with_opening(out, wall_poly, ro_poly, orientation, half_sw, to_svg):
-    """Render wall polygon split by a single rough opening.
-
-    Determines the split axis from orientation (H=horizontal wall split
-    vertically by RO, V=vertical wall split horizontally by RO).
-    """
-    wp = wall_poly
-    rp = ro_poly
-
-    # Get wall and RO bounding boxes
-    w_es = [p[0] for p in wp]
-    w_ns = [p[1] for p in wp]
-    r_es = [p[0] for p in rp]
-    r_ns = [p[1] for p in rp]
+    orientation = rough_openings[0].get("orientation", "H")
 
     if orientation == "H":
-        # Horizontal wall (runs E-W), RO splits it vertically
-        # Wall vertices: SW=0, SE=1, NE=2, NW=3 (typical)
-        # Split into west piece and east piece
-        # West piece: wall vertices west of RO
-        # East piece: wall vertices east of RO
+        # Horizontal wall (runs E-W): sort wall and each RO into west/east vertex pairs.
+        # A "boundary" is a (south_pt, north_pt) pair at a specific E position.
+        # Build a list of boundaries: wall_west, ro0_west, ro0_east, ro1_west, ro1_east, …, wall_east
+        # Solid sub-walls are rendered between consecutive (non-gap) boundaries.
 
-        # Find RO west and east edges on wall's south and north faces
-        ro_w = min(r_es)
-        ro_e = max(r_es)
+        w_sorted = sorted(poly, key=lambda p: p[0])
+        wall_w = sorted(w_sorted[:2], key=lambda p: p[1])   # [s, n]
+        wall_e = sorted(w_sorted[2:], key=lambda p: p[1])   # [s, n]
+        wall_al = _unit_vec(wall_w[0], wall_e[0])
+        neg_al = (-wall_al[0], -wall_al[1])
 
-        # Build west sub-wall: from wall west end to RO west edge
-        # Build east sub-wall: from RO east edge to wall east end
-        # This works for any wall vertex ordering if we know the split coords
+        # Sort ROs west→east by their leftmost vertex
+        ro_bounds = []  # list of (west_pair, east_pair)
+        for rp in ro_polys:
+            rp_s = sorted(rp, key=lambda p: p[0])
+            rw = sorted(rp_s[:2], key=lambda p: p[1])   # [s, n]
+            re = sorted(rp_s[2:], key=lambda p: p[1])   # [s, n]
+            ro_bounds.append((rw, re))
+        ro_bounds.sort(key=lambda b: b[0][0][0])  # sort by west boundary south E
 
-        # Use RO poly vertices directly as the split boundary
-        # RO poly: [SW, SE, NE, NW] typically
-        # Sort RO vertices into west pair and east pair
-        ro_sorted_e = sorted(rp, key=lambda p: p[0])
-        ro_west_pair = sorted(ro_sorted_e[:2], key=lambda p: p[1])  # [south, north]
-        ro_east_pair = sorted(ro_sorted_e[2:], key=lambda p: p[1])  # [south, north]
+        # Build ordered list of boundaries: (south_pt, north_pt, is_gap_start)
+        # Solid segments lie between pairs: (wall_w … ro0_w), (ro0_e … ro1_w), …, (roN_e … wall_e)
+        solid_segs = []
+        left = wall_w
+        for rw, re in ro_bounds:
+            solid_segs.append((left, rw))
+            left = re
+        solid_segs.append((left, wall_e))
 
-        # Sort wall vertices into west pair and east pair
-        w_sorted_e = sorted(wp, key=lambda p: p[0])
-        w_west_pair = sorted(w_sorted_e[:2], key=lambda p: p[1])  # [south, north]
-        w_east_pair = sorted(w_sorted_e[2:], key=lambda p: p[1])  # [south, north]
-
-        # West sub-wall: w_west_south, ro_west_south, ro_west_north, w_west_north
-        west_poly = [w_west_pair[0], ro_west_pair[0], ro_west_pair[1], w_west_pair[1]]
-        # East sub-wall: ro_east_south, w_east_south, w_east_north, ro_east_north
-        east_poly = [ro_east_pair[0], w_east_pair[0], w_east_pair[1], ro_east_pair[1]]
-
-        for sub in [west_poly, east_poly]:
+        for left_pair, right_pair in solid_segs:
+            sub = [left_pair[0], right_pair[0], right_pair[1], left_pair[1]]
             if _poly_has_area(sub):
                 _wall_poly(out, sub, to_svg, stroke=False)
-                sub_centroid = (sum(p[0] for p in sub) / len(sub),
-                                sum(p[1] for p in sub) / len(sub))
-                for i in range(len(sub)):
-                    _wall_stroke_line(out, sub[i], sub[(i + 1) % len(sub)],
-                                      half_sw, to_svg, toward=sub_centroid)
+                sc = (sum(p[0] for p in sub) / 4, sum(p[1] for p in sub) / 4)
+                for i in range(4):
+                    _wall_stroke_line(out, sub[i], sub[(i + 1) % 4],
+                                      half_sw, to_svg, toward=sc)
 
-        # Jamb blocks at RO edges
-        # Along direction = wall long axis (E-W)
-        wall_al = _unit_vec(w_west_pair[0], w_east_pair[0])
-        neg_al = (-wall_al[0], -wall_al[1])
-        _jamb_poly(out, ro_west_pair[1], ro_west_pair[0], wall_al, to_svg)
-        _jamb_poly(out, ro_east_pair[0], ro_east_pair[1], neg_al, to_svg)
+        # Jamb blocks at each RO boundary
+        for rw, re in ro_bounds:
+            _jamb_poly(out, rw[1], rw[0], wall_al, to_svg)   # west jamb
+            _jamb_poly(out, re[0], re[1], neg_al, to_svg)    # east jamb
 
     else:
-        # Vertical wall (runs N-S), RO splits it horizontally
-        ro_s = min(r_ns)
-        ro_n = max(r_ns)
+        # Vertical wall (runs N-S): sort by N coordinate
+        w_sorted = sorted(poly, key=lambda p: p[1])
+        wall_s = sorted(w_sorted[:2], key=lambda p: p[0])   # [w, e]
+        wall_n = sorted(w_sorted[2:], key=lambda p: p[0])   # [w, e]
+        wall_al = _unit_vec(wall_s[0], wall_n[0])
+        neg_al = (-wall_al[0], -wall_al[1])
 
-        ro_sorted_n = sorted(rp, key=lambda p: p[1])
-        ro_south_pair = sorted(ro_sorted_n[:2], key=lambda p: p[0])
-        ro_north_pair = sorted(ro_sorted_n[2:], key=lambda p: p[0])
+        ro_bounds = []
+        for rp in ro_polys:
+            rp_s = sorted(rp, key=lambda p: p[1])
+            rs = sorted(rp_s[:2], key=lambda p: p[0])   # [w, e]
+            rn = sorted(rp_s[2:], key=lambda p: p[0])   # [w, e]
+            ro_bounds.append((rs, rn))
+        ro_bounds.sort(key=lambda b: b[0][0][1])  # sort by south boundary west N
 
-        w_sorted_n = sorted(wp, key=lambda p: p[1])
-        w_south_pair = sorted(w_sorted_n[:2], key=lambda p: p[0])
-        w_north_pair = sorted(w_sorted_n[2:], key=lambda p: p[0])
+        solid_segs = []
+        left = wall_s
+        for rs, rn in ro_bounds:
+            solid_segs.append((left, rs))
+            left = rn
+        solid_segs.append((left, wall_n))
 
-        south_poly = [w_south_pair[0], w_south_pair[1], ro_south_pair[1], ro_south_pair[0]]
-        north_poly = [ro_north_pair[0], ro_north_pair[1], w_north_pair[1], w_north_pair[0]]
-
-        for sub in [south_poly, north_poly]:
+        for bottom_pair, top_pair in solid_segs:
+            sub = [bottom_pair[0], bottom_pair[1], top_pair[1], top_pair[0]]
             if _poly_has_area(sub):
                 _wall_poly(out, sub, to_svg, stroke=False)
-                sub_centroid = (sum(p[0] for p in sub) / len(sub),
-                                sum(p[1] for p in sub) / len(sub))
-                for i in range(len(sub)):
-                    _wall_stroke_line(out, sub[i], sub[(i + 1) % len(sub)],
-                                      half_sw, to_svg, toward=sub_centroid)
+                sc = (sum(p[0] for p in sub) / 4, sum(p[1] for p in sub) / 4)
+                for i in range(4):
+                    _wall_stroke_line(out, sub[i], sub[(i + 1) % 4],
+                                      half_sw, to_svg, toward=sc)
 
-        wall_al = _unit_vec(w_south_pair[0], w_north_pair[0])
-        neg_al = (-wall_al[0], -wall_al[1])
-        _jamb_poly(out, ro_south_pair[0], ro_south_pair[1], wall_al, to_svg)
-        _jamb_poly(out, ro_north_pair[1], ro_north_pair[0], neg_al, to_svg)
+        for rs, rn in ro_bounds:
+            _jamb_poly(out, rs[0], rs[1], wall_al, to_svg)   # south jamb
+            _jamb_poly(out, rn[1], rn[0], neg_al, to_svg)    # north jamb
 
 
 def _poly_has_area(poly):
