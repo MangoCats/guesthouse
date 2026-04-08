@@ -25,7 +25,8 @@
       "WebFetch(domain:swissmadison.com)",
       "WebFetch(domain:www.fergusonhome.com)",
       "WebFetch(domain:www.thebathoutlet.com)",
-      "WebFetch(domain:www.afsupply.com)"
+      "WebFetch(domain:www.afsupply.com)",
+      "WebFetch(domain:cdn.shopify.com)"
     ]
   }
 }

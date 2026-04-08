@@ -369,7 +369,8 @@ _SUPPRESS_LABEL = {"toilet_n", "toilet_s", "work_counter",
 
 # Per-item rendering overrides: label text, dominant-baseline, letter-spacing.
 _ITEM_LABEL_OVERRIDES = {
-    "bath_sink": {"label": "SINK", "dominant_baseline": "central"},
+    "bath_sink":   {"label": "SINK", "dominant_baseline": "central"},
+    "bath_sink_l": {"label": "SINK", "dominant_baseline": "central"},
     "util_sink": {"label": "SINK"},
     "bed": {"dominant_baseline": "central"},
     "counter": {"letter_spacing": "0.5", "force_rotation": -90},  # closet counter
@@ -765,28 +766,16 @@ def render_room_labels_db(out, geom, to_svg):
 # SF variant extras rendering from DB data
 # ---------------------------------------------------------------------------
 
-# SF room labels: same as standard but includes area below each label
-_SF_ROOM_LABELS = ["BEDROOM", "UTIL_N", "UTIL_S", "KITCHEN", "LIVING",
-                   "BATH", "OFFICE"]
-_SF_ROOM_ATTRS = {
-    "BEDROOM": {"text_anchor": "end", "dominant_baseline": "hanging",
-                "display": "BEDROOM"},
-    "UTIL_N": {"text_anchor": "middle", "dominant_baseline": "hanging",
-               "display": "UTIL"},
-    "KITCHEN": {"text_anchor": "middle"},
-    "LIVING": {"text_anchor": "middle"},
-    "BATH": {"text_anchor": "middle"},
-    "OFFICE": {"text_anchor": "middle", "y_offset": 3},
-}
-
 
 def render_sf_extras_db(out, geom, to_svg):
     """Render SF variant extras: room labels with areas and dashed lines.
 
     The SF variant shows room names, square footage values, and dashed
     partition reference lines — all from compute_geometry() output.
+    Renders every area element defined in the DB generically.
     """
-    half_gap = 2.0  # gap between label and sf value
+    line_height = 8.0   # matches font-size
+    half_gap = 2.0      # gap between label line and sf value line
 
     # Dashed partition lines
     for sf_line in geom.get("sf_lines", []):
@@ -800,52 +789,26 @@ def render_sf_extras_db(out, geom, to_svg):
                        f'stroke="{DIM_COLOR}" stroke-width="0.5" '
                        f'stroke-dasharray="4,3"/>')
 
-    # Room labels with areas
-    labels_by_name = {}
+    # Room labels with areas — render all defined area elements
     for rl in geom.get("room_labels", []):
-        labels_by_name[rl.get("name", "")] = rl
-
-    for name in _SF_ROOM_LABELS:
-        rl = labels_by_name.get(name)
-        if not rl:
-            continue
         pos = rl.get("pos")
         if not pos:
             continue
+        display_text = rl.get("label") or rl.get("name", "")
         area = rl.get("area", 0)
 
-        attrs = _SF_ROOM_ATTRS.get(name, {})
-        display_text = attrs.get("display", name)
-        text_anchor = attrs.get("text_anchor", "middle")
-        y_off = attrs.get("y_offset", 0)
-
         sx, sy = to_svg(pos[0], pos[1])
-        sy += y_off
 
-        db_attr = ""
-        if "dominant_baseline" in attrs:
-            db_attr = f' dominant-baseline="{attrs["dominant_baseline"]}"'
-
-        # Room name
-        out.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="{text_anchor}"'
-                   f'{db_attr} font-family="Arial" font-size="8" '
+        # Room name (centered, baseline at pos)
+        out.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="middle"'
+                   f' dominant-baseline="middle" font-family="Arial" font-size="8" '
                    f'fill="#666">{display_text}</text>')
 
-        # Area value below (skip for UTIL_S — it only gets the sf value,
-        # positioned at its own centroid)
-        if name == "UTIL_S":
-            # UTIL_S: only render the sf value at its centroid
-            out.append(f'<text x="{sx:.1f}" y="{sy + half_gap:.1f}" '
-                       f'text-anchor="middle" dominant-baseline="hanging" '
-                       f'font-family="Arial" font-size="8" '
-                       f'fill="#666">{area:.1f} sf</text>')
-        elif name != "UTIL_S":
-            sf_y = sy + 8.0 + half_gap
-            out.append(f'<text x="{sx:.1f}" y="{sf_y:.1f}" '
-                       f'text-anchor="{text_anchor}"'
-                       f' dominant-baseline="hanging" '
-                       f'font-family="Arial" font-size="8" '
-                       f'fill="#666">{area:.1f} sf</text>')
+        # Area value on the line below
+        sf_y = sy + line_height + half_gap
+        out.append(f'<text x="{sx:.1f}" y="{sf_y:.1f}" text-anchor="middle"'
+                   f' dominant-baseline="middle" font-family="Arial" font-size="8" '
+                   f'fill="#666">{area:.1f} sf</text>')
 
 
 # ---------------------------------------------------------------------------
@@ -861,7 +824,7 @@ _LABEL_TO_DB_NAMES = {
     "DRYER": {"dryer"}, "WASHER": {"washer"}, "HAMPER": {"hamper"},
     "COUNTER": {"counter", "north_counter", "work_counter"},
     "WH": {"water_heater"}, "FRIDGE": {"fridge"}, "STOVE": {"stove"},
-    "SINK": {"util_sink", "kitchen_sink", "bath_sink"},
+    "SINK": {"util_sink", "kitchen_sink", "bath_sink", "bath_sink_l"},
     "D/W": {"dishwasher"}, "ICE": {"ice_maker"},
     "MICRO": {"microwave"}, "C": {"coffee_maker"},
     "TABLE": {"dining_table"}, "TOILET": {"toilet_n", "toilet_s"},

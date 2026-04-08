@@ -71,6 +71,10 @@ SINK_RY = 8.25 / 12.0             # 8-1/4" half-depth (16-1/2" total)
 BATH_SINK_LENGTH = 33.875 / 12.0  # 33-7/8" along wall
 BATH_SINK_DEPTH = 18.75 / 12.0    # 18-3/4" front-to-back
 
+# BATH SINK L (plan view, D-shape — Swiss Madison SM-WS326 Chateau, left-side faucet wall-mount)
+BATH_SINK_L_LENGTH = 30.0 / 12.0  # 30" along wall
+BATH_SINK_L_DEPTH = 17.0 / 12.0   # 17" front-to-back
+
 # Kitchen appliances (feet)
 KITCHEN_SINK_WIDTH = 45.0 / 12.0   # 45" E-W
 KITCHEN_SINK_DEPTH = 24.0 / 12.0   # 24" N-S

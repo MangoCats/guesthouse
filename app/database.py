@@ -644,17 +644,18 @@ def _migrate_placed_item_formulas(conn):
                 "facing_dir": [-sin_r, cos_r],
                 "width_dir": [cos_r, sin_r],
             }
-        elif shape == "bath_sink":
+        elif shape in ("bath_sink", "bath_sink_l"):
             import math as _math
             rad = rotation * _math.pi / 180
             cos_r, sin_r = _math.cos(rad), _math.sin(rad)
+            _pfx = "BATH_SINK_L" if shape == "bath_sink_l" else "BATH_SINK"
             formula = {
                 "type": "bath_sink_shape",
                 "anchor": center,
                 "along": [cos_r, sin_r],
                 "outward": [-sin_r, cos_r],
-                "length": {"const": "BATH_SINK_LENGTH"},
-                "depth": {"const": "BATH_SINK_DEPTH"},
+                "length": {"const": f"{_pfx}_LENGTH"},
+                "depth": {"const": f"{_pfx}_DEPTH"},
             }
         elif shape == "circle":
             radius = props.get("radius") or props.get("width", 1) / 2
@@ -1467,6 +1468,29 @@ def _seed_shapes(conn):
          "from central 50% of far edge"),
     )
 
+    # Bath sink L (Swiss Madison SM-WS326 Chateau, 30 x 17) with semicircular bulge.
+    # Same D-shape geometry as bath_sink, scaled to SM-WS326 dimensions.
+    bsl_length = 30.0 / 12.0
+    bsl_depth = 17.0 / 12.0
+    bsl_half = bsl_length / 2
+    bsl_quarter = bsl_length / 4
+    bsl_rect = bsl_depth - bsl_quarter
+    bsl_pts = [[bsl_half, 0], [-bsl_half, 0], [-bsl_half, bsl_rect]]
+    for i in range(ARC_N_SEMICIRCLE + 1):
+        t = math.pi - math.pi * i / ARC_N_SEMICIRCLE
+        bsl_pts.append([round(math.cos(t) * bsl_quarter, 6),
+                        round(bsl_rect + math.sin(t) * bsl_quarter, 6)])
+    bsl_pts.append([bsl_half, bsl_rect])
+    conn.execute(
+        "INSERT OR REPLACE INTO shapes "
+        "(name, poly_json, scale, origin, width_key, depth_key, description) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("bath_sink_l", json.dumps(bsl_pts), 1.0, "center",
+         "BATH_SINK_L_LENGTH", "BATH_SINK_L_DEPTH",
+         "Swiss Madison SM-WS326 Chateau left-side faucet wall-mount sink; "
+         "rectangle with semicircular bulge from central 50% of far edge"),
+    )
+
     # Dining table (Oscar triangle set): base + two tangent lines + apex arc
     # + corner fillets.  Stored as pre-computed polygon in local frame
     # (dx = along base centered on 0, dy = toward apex).
@@ -1825,11 +1849,12 @@ def _seed_catalog_items(conn, db_path=None):
                     dims[name] = {"width": round(rx * 2, 6),
                                   "depth": round(ry * 2, 6)}
 
-            # bath_sink_shape: BATH_SINK_LENGTH / BATH_SINK_DEPTH
+            # bath_sink_shape: resolve length/depth from formula const refs
             elif ftype == "bath_sink_shape":
-                bl = constants.get("BATH_SINK_LENGTH")
-                bd = _eval_expr(fj.get("depth")) or constants.get(
-                    "BATH_SINK_DEPTH")
+                bl = (_eval_expr(fj.get("length")) or
+                      constants.get("BATH_SINK_LENGTH"))
+                bd = (_eval_expr(fj.get("depth")) or
+                      constants.get("BATH_SINK_DEPTH"))
                 if bl and bd:
                     dims[name] = {"width": round(bl, 6),
                                   "depth": round(bd, 6)}

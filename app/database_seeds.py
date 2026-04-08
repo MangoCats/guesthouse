@@ -178,6 +178,11 @@ _VARIANT_ITEMS = [
         "product_url": "https://www.magnushomeproducts.com/products/tripoli-vitreous-china-wall-mount-bathroom-sink",
         "variants": _VI_ALL_P,
     }, None),
+    ("bath_sink_l", "fixture", {
+        "label": "BATH SINK L", "item_type": "fixture", "shape": "bath_sink_l",
+        "product_url": "https://swissmadison.com/products/chateau-27-5-left-side-faucet-wall-mount-bathroom-sink",
+        "variants": _VI_ALL_P,
+    }, None),
     ("kitchen_sink", "fixture", {
         "label": "SINK", "item_type": "fixture", "shape": "rect",
         "product_url": "https://www.webstaurantstore.com/advance-tabco-fs1181824l-45-fabricated-one-compartment-sink-with-24-left-drainboard-18-x-18-x-14-bowl/109FS1L241818.html",

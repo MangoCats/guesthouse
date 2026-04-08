@@ -773,16 +773,17 @@ def create_app(db_path=None):
             }
 
         # Bath sink → bath_sink_shape formula
-        if shape == "bath_sink":
+        if shape in ("bath_sink", "bath_sink_l"):
             rad = rotation_deg * math.pi / 180
             cos_r, sin_r = math.cos(rad), math.sin(rad)
+            _pfx = "BATH_SINK_L" if shape == "bath_sink_l" else "BATH_SINK"
             return {
                 "type": "bath_sink_shape",
                 "anchor": [cx, cy],
                 "along": [cos_r, sin_r],          # default east, rotated CCW
                 "outward": [-sin_r, cos_r],        # default north, rotated CCW
-                "length": {"const": "BATH_SINK_LENGTH"},
-                "depth": {"const": "BATH_SINK_DEPTH"},
+                "length": {"const": f"{_pfx}_LENGTH"},
+                "depth": {"const": f"{_pfx}_DEPTH"},
             }
 
         # Circle items — prefer explicit radius, then catalog lookup, then width/2

@@ -246,11 +246,11 @@ class TestDB13RoomLabelOffsets:
 
 class TestShapesTable:
     def test_shape_count(self, fresh_db):
-        """Three shapes seeded: toilet, bath_sink, dining_table."""
+        """Four shapes seeded: toilet, bath_sink, bath_sink_l, dining_table."""
         shapes = get_shapes(fresh_db)
-        assert len(shapes) == 3
+        assert len(shapes) == 4
         names = {s["name"] for s in shapes}
-        assert names == {"toilet", "bath_sink", "dining_table"}
+        assert names == {"toilet", "bath_sink", "bath_sink_l", "dining_table"}
 
     def test_get_shape_by_name(self, fresh_db):
         """get_shape returns the toilet shape with required fields."""
