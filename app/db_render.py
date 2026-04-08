@@ -60,10 +60,24 @@ def _wall_poly(out, poly, to_svg, stroke=True):
         out.append(f'<polygon points="{svg}" fill="{WALL_FILL}" stroke="none"/>')
 
 
-def _wall_stroke_line(out, p_start, p_end, half_sw, to_svg):
-    """Render a wall face stroke line inset by half_sw."""
-    _al, _out = seg_vecs(p_start, p_end)
-    _inw = (-_out[0], -_out[1])
+def _wall_stroke_line(out, p_start, p_end, half_sw, to_svg, toward=None):
+    """Render a wall face stroke line inset by half_sw toward polygon interior.
+
+    ``toward`` is a point inside the polygon (e.g. its centroid).  When
+    supplied the inward perpendicular is chosen by dotting both candidates
+    against the centroid direction, making the result independent of polygon
+    winding order.  Falls back to left-perpendicular when omitted.
+    """
+    _al, _right = seg_vecs(p_start, p_end)
+    if toward is not None:
+        mx = (p_start[0] + p_end[0]) * 0.5
+        my = (p_start[1] + p_end[1]) * 0.5
+        if _right[0] * (toward[0] - mx) + _right[1] * (toward[1] - my) >= 0:
+            _inw = _right
+        else:
+            _inw = (-_right[0], -_right[1])
+    else:
+        _inw = (-_right[0], -_right[1])
     _p1 = offset_pt(p_start, half_sw, _inw)
     _p2 = offset_pt(p_end, half_sw, _inw)
     sx1, sy1 = to_svg(*_p1)
@@ -195,9 +209,12 @@ def render_interior_walls_db(out, geom, to_svg):
             # Simple wall — no openings
             _wall_poly(out, poly, to_svg, stroke=False)
             # Stroke only long faces (room boundaries) by default
+            centroid = (sum(p[0] for p in poly) / len(poly),
+                        sum(p[1] for p in poly) / len(poly))
             faces = _long_face_indices(poly)
             for i in faces:
-                _wall_stroke_line(out, poly[i], poly[(i + 1) % len(poly)], half_sw, to_svg)
+                _wall_stroke_line(out, poly[i], poly[(i + 1) % len(poly)],
+                                  half_sw, to_svg, toward=centroid)
         else:
             # Wall with rough openings — split and render segments
             _render_split_wall(out, iw_name, poly, wall_ros, half_sw, to_svg)
@@ -286,8 +303,11 @@ def _render_wall_with_opening(out, wall_poly, ro_poly, orientation, half_sw, to_
         for sub in [west_poly, east_poly]:
             if _poly_has_area(sub):
                 _wall_poly(out, sub, to_svg, stroke=False)
+                sub_centroid = (sum(p[0] for p in sub) / len(sub),
+                                sum(p[1] for p in sub) / len(sub))
                 for i in range(len(sub)):
-                    _wall_stroke_line(out, sub[i], sub[(i + 1) % len(sub)], half_sw, to_svg)
+                    _wall_stroke_line(out, sub[i], sub[(i + 1) % len(sub)],
+                                      half_sw, to_svg, toward=sub_centroid)
 
         # Jamb blocks at RO edges
         # Along direction = wall long axis (E-W)
@@ -315,8 +335,11 @@ def _render_wall_with_opening(out, wall_poly, ro_poly, orientation, half_sw, to_
         for sub in [south_poly, north_poly]:
             if _poly_has_area(sub):
                 _wall_poly(out, sub, to_svg, stroke=False)
+                sub_centroid = (sum(p[0] for p in sub) / len(sub),
+                                sum(p[1] for p in sub) / len(sub))
                 for i in range(len(sub)):
-                    _wall_stroke_line(out, sub[i], sub[(i + 1) % len(sub)], half_sw, to_svg)
+                    _wall_stroke_line(out, sub[i], sub[(i + 1) % len(sub)],
+                                      half_sw, to_svg, toward=sub_centroid)
 
         wall_al = _unit_vec(w_south_pair[0], w_north_pair[0])
         neg_al = (-wall_al[0], -wall_al[1])
