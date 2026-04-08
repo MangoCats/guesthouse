@@ -1173,7 +1173,7 @@ def _render_room_glazing_table(out, data, tbl_border_bottom):
 
     # Columns: Room | Floor | Glass (with opening IDs) | Ratio
     # Interior Walls right edge = tbl_left + 168
-    col_x = [tbl_left + 2,  tbl_left + 57, tbl_left + 142, tbl_left + 166]
+    col_x = [tbl_left + 2,  tbl_left + 83, tbl_left + 148, tbl_left + 166]
     col_a = ["start",        "end",          "end",           "end"]
     hdrs  = ["Room",         "Floor",        "Glass",         "Ratio"]
 
