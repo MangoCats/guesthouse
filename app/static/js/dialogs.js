@@ -112,9 +112,11 @@ const Dialog = {
     overlay.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
+        e.stopPropagation();
         okBtn.click();
       } else if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
         cancelBtn.click();
       }
     });
