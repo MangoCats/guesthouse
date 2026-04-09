@@ -1,0 +1,264 @@
+"""Generate N-S span measurement SVG.
+
+Measures the north-south interior span at every inch of easting across
+the W-series (inner wall) polygon.  Outputs a portrait-Letter SVG with
+the span graph directly above a plan-view structure outline.
+
+Three curves:
+  blue  — total N-S span (south W surface to north W surface)
+  green — south W surface to midline of IW8 or IW1 (whichever is hit first)
+  cyan  — midline of IW8/IW1 to north W surface
+When no 6" IW is intersected, green and cyan both equal the full span.
+
+Output: span/span.svg
+"""
+import os, sys, math
+
+# Ensure project root is on sys.path for package imports
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
+from shared.geometry import vert_isects, fmt_dist
+from shared.svg import git_describe
+from span._common import (
+    build_geometry, render_y_grid, render_x_grid, render_span_curves,
+)
+
+
+# ── span computation ───────────────────────────────────────────
+
+def _compute_spans(inner_poly, layout):
+    """N-S span at every inch of easting.
+
+    Returns (eastings, spans, south_spans, north_spans) all in feet.
+      spans       — total N-S span (blue curve)
+      south_spans — south W surface to most-central IW midline (green curve)
+      north_spans — most-central IW midline to north W surface (cyan curve)
+    When no IW is intersected, south_spans = north_spans = spans.
+
+    Uses all DB-driven IW walls when layout is a _IWLayoutProxy; falls back
+    to IW1 and IW8 for the standalone subprocess path.
+    """
+    if hasattr(layout, 'all_walls'):
+        iw_polys = [w.poly for w in layout.all_walls().values()]
+    else:
+        iw_polys = [layout.iw1.poly, layout.iw8.poly]
+
+    e_min = min(p[0] for p in inner_poly)
+    e_max = max(p[0] for p in inner_poly)
+    inch = 1.0 / 12.0
+    eastings, spans, south_spans, north_spans = [], [], [], []
+    e = e_min
+    while e <= e_max + 1e-9:
+        ns = vert_isects(inner_poly, e)
+        if len(ns) >= 2:
+            south_n = min(ns)
+            north_n = max(ns)
+            span = north_n - south_n
+        else:
+            span = 0.0
+            south_n = north_n = 0.0
+
+        spans.append(span)
+
+        # Find the IW midline most central to the span at this easting
+        mid_n = None
+        if span > 0:
+            span_center = (south_n + north_n) / 2
+            best_dist = float('inf')
+            for iw_poly in iw_polys:
+                iw_ns = vert_isects(iw_poly, e)
+                if len(iw_ns) >= 2:
+                    iw_mid = (min(iw_ns) + max(iw_ns)) / 2
+                    dist = abs(iw_mid - span_center)
+                    if dist < best_dist:
+                        best_dist = dist
+                        mid_n = iw_mid
+
+        if mid_n is not None and span > 0:
+            south_spans.append(mid_n - south_n)
+            north_spans.append(north_n - mid_n)
+        else:
+            south_spans.append(span)
+            north_spans.append(span)
+
+        eastings.append(e)
+        e += inch
+    return eastings, spans, south_spans, north_spans
+
+
+# ── SVG generation ─────────────────────────────────────────────
+
+def _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly):
+    eastings, spans, south_spans, north_spans = _compute_spans(inner_poly, layout)
+
+    # roof spans at same eastings
+    roof_spans = []
+    for e in eastings:
+        rns = vert_isects(roof_poly, e)
+        if len(rns) >= 2:
+            roof_spans.append(max(rns) - min(rns))
+        else:
+            roof_spans.append(0.0)
+    max_span = max(spans)
+    max_span_e = eastings[spans.index(max_span)]
+    max_roof_span = max(roof_spans) if roof_spans else 0.0
+
+    # bounding box of all visible geometry
+    all_pts = outer_poly + inner_poly
+    E0 = min(p[0] for p in all_pts)           # westmost easting (X origin)
+    N_MIN = min(p[1] for p in all_pts)
+    N_MAX = max(p[1] for p in all_pts)
+
+    # ── page layout (portrait US Letter @ 72 dpi) ──
+    PW, PH = 612, 792
+    ML, MR, MT, MB = 62, 20, 40, 25           # margins
+    GAP = 32                                    # graph ↔ outline gap
+
+    plot_w = PW - ML - MR                      # usable width
+    AXIS_FT = 36.0                              # X-axis range (feet)
+    xs = plot_w / AXIS_FT                       # pt per survey-foot (horiz)
+
+    outline_h = (N_MAX - N_MIN) * xs            # 1:1 aspect outline
+    graph_h = PH - MT - MB - GAP - outline_h
+    if graph_h < 160:                           # safety: compress outline
+        graph_h = 200
+        outline_h = PH - MT - MB - GAP - graph_h
+
+    y_max_ft = math.ceil(max(max_span, max_roof_span))  # graph Y cap (feet)
+    ys = graph_h / y_max_ft                     # pt per span-foot
+
+    g_top = MT;            g_bot = MT + graph_h
+    o_top = g_bot + GAP;   o_bot = o_top + outline_h
+
+    # coordinate mappers
+    def ex(e):  return ML + (e - E0) * xs       # easting → SVG x
+    def sy(s):  return g_bot - s * ys            # span → graph SVG y
+    def ny(n):  return o_bot - (n - N_MIN) * xs  # northing → outline SVG y
+
+    o: list[str] = []
+    o.append(f'<svg xmlns="http://www.w3.org/2000/svg"'
+             f' width="{PW}" height="{PH}" viewBox="0 0 {PW} {PH}">')
+    o.append('<rect width="100%" height="100%" fill="white"/>')
+
+    # ── title ─────────────────────────────────────────────────
+    o.append(f'<text x="{PW / 2}" y="{MT - 14}" text-anchor="middle"'
+             f' font-family="Arial" font-size="13" font-weight="bold"'
+             f' fill="#222">N\u2013S Interior Span (0\u00b0)</text>')
+
+    # ── graph frame ───────────────────────────────────────────
+    o.append(f'<rect x="{ML}" y="{g_top}" width="{plot_w}" height="{graph_h}"'
+             f' fill="none" stroke="#bbb" stroke-width="0.5"/>')
+
+    # Y grid + labels (every 2 ft if tall, else every 1 ft)
+    render_y_grid(o, ML, plot_w, g_bot, y_max_ft, ys)
+
+    # X grid + ticks + labels (every 5 ft)
+    render_x_grid(o, ML, plot_w, g_top, g_bot, xs, AXIS_FT)
+
+    # span curves: roof (grey), south-to-IW (green), IW-to-north (cyan), total (blue)
+    render_span_curves(o, eastings,
+                       (roof_spans, south_spans, north_spans, spans), ex, sy)
+
+    # max roof span dashed line + label (grey)
+    if max_roof_span > 0:
+        ry = sy(max_roof_span)
+        o.append(f'<line x1="{ML}" y1="{ry:.1f}" x2="{ML + plot_w}" y2="{ry:.1f}"'
+                 f' stroke="#999" stroke-width="0.7" stroke-dasharray="6,3"/>')
+        o.append(f'<text x="{ML + plot_w - 3}" y="{ry + 10:.1f}" text-anchor="end"'
+                 f' font-family="Arial" font-size="8" fill="#999"'
+                 f' font-weight="bold">max roof: {fmt_dist(max_roof_span)}</text>')
+
+    # max-span dashed line + label
+    my = sy(max_span)
+    o.append(f'<line x1="{ML}" y1="{my:.1f}" x2="{ML + plot_w}" y2="{my:.1f}"'
+             f' stroke="#C62828" stroke-width="0.7" stroke-dasharray="6,3"/>')
+    o.append(f'<text x="{ML + plot_w - 3}" y="{my - 3:.1f}" text-anchor="end"'
+             f' font-family="Arial" font-size="8" fill="#C62828"'
+             f' font-weight="bold">{fmt_dist(max_span)}</text>')
+
+    # Y-axis title (rotated)
+    lx, ly = 10, (g_top + g_bot) / 2
+    o.append(f'<text x="{lx}" y="{ly:.1f}" text-anchor="middle"'
+             f' font-family="Arial" font-size="9" fill="#333"'
+             f' transform="rotate(-90,{lx},{ly:.1f})">Span (ft)</text>')
+
+    # legend
+    leg_x = ML + 8
+    leg_y = g_top + 10
+    for i, (color, label) in enumerate([
+        ("#1565C0", "Total span"),
+        ("#2E7D32", "S wall \u2192 central IW mid"),
+        ("#00ACC1", "Central IW mid \u2192 N wall"),
+        ("#999", "Roof span"),
+    ]):
+        ly_i = leg_y + i * 11
+        o.append(f'<line x1="{leg_x}" y1="{ly_i}" x2="{leg_x + 14}" y2="{ly_i}"'
+                 f' stroke="{color}" stroke-width="1.2"/>')
+        o.append(f'<text x="{leg_x + 17}" y="{ly_i + 3}" font-family="Arial"'
+                 f' font-size="6" fill="#444">{label}</text>')
+
+    # ── outline panel ─────────────────────────────────────────
+    # F polygon (outer) — gray fill shows walls
+    fp = " ".join(f"{ex(p[0]):.1f},{ny(p[1]):.1f}" for p in outer_poly)
+    o.append(f'<polygon points="{fp}" fill="rgba(180,180,180,0.30)"'
+             f' stroke="#555" stroke-width="0.6"/>')
+    # W polygon (inner) — white fill cuts out interior
+    wp = " ".join(f"{ex(p[0]):.1f},{ny(p[1]):.1f}" for p in inner_poly)
+    o.append(f'<polygon points="{wp}" fill="white"'
+             f' stroke="#1565C0" stroke-width="0.6"/>')
+
+    # Interior walls in the outline
+    if hasattr(layout, 'all_walls'):
+        iw_wall_polys = [w.poly for w in layout.all_walls().values()]
+    else:
+        iw_wall_polys = [layout.iw1.poly, layout.iw8.poly]
+    for wall_poly in iw_wall_polys:
+        wpts = " ".join(f"{ex(p[0]):.1f},{ny(p[1]):.1f}" for p in wall_poly)
+        o.append(f'<polygon points="{wpts}" fill="rgba(100,100,100,0.25)"'
+                 f' stroke="#666" stroke-width="0.4"/>')
+
+    # F-series dots + labels
+    for i in range(19):
+        if i == 4:
+            continue
+        nm = f"F{i}"
+        if nm in pts:
+            x, y = ex(pts[nm][0]), ny(pts[nm][1])
+            o.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="1.2" fill="#555"/>')
+            o.append(f'<text x="{x + 3:.1f}" y="{y - 2:.1f}" font-family="Arial"'
+                     f' font-size="4.5" fill="#555">{nm}</text>')
+
+    # W-series dots
+    for i in range(19):
+        nm = f"W{i}"
+        if nm in pts:
+            x, y = ex(pts[nm][0]), ny(pts[nm][1])
+            o.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="1.0" fill="#1565C0"/>')
+
+    # vertical reference line at max-span easting (across both panels)
+    mx = ex(max_span_e)
+    o.append(f'<line x1="{mx:.1f}" y1="{g_top}" x2="{mx:.1f}" y2="{o_bot}"'
+             f' stroke="#C62828" stroke-width="0.4" stroke-dasharray="2,3" opacity="0.35"/>')
+
+    # version stamp
+    ver = git_describe()
+    o.append(f'<text x="{PW - 5}" y="{PH - 5}" text-anchor="end"'
+             f' font-family="Arial" font-size="5" fill="#ccc">{ver}</text>')
+
+    o.append('</svg>')
+    return '\n'.join(o)
+
+
+# ── entry point ────────────────────────────────────────────────
+
+def main():
+    pts, _, outer_poly, inner_poly, layout, roof_poly = build_geometry()
+    svg = _generate_svg(pts, outer_poly, inner_poly, layout, roof_poly)
+    outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "span.svg")
+    with open(outpath, 'w', encoding='utf-8') as f:
+        f.write(svg)
+    print(f"Wrote {outpath}")
+
+
+if __name__ == "__main__":
+    main()

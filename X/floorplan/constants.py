@@ -1,0 +1,245 @@
+"""Named physical dimension constants for the floorplan.
+
+All values in feet unless noted. Inches converted via / 12.0.
+"""
+
+# Shell construction (constant regardless of wall thickness)
+SHELL_THICKNESS = 2.0 / 12.0         # 2" concrete shell
+
+# Wall thicknesses (feet)
+WALL_OUTER = 8.0 / 12.0           # 8" outer wall (adjustable: 8"-12")
+assert 8.0 / 12.0 <= WALL_OUTER <= 12.0 / 12.0, "WALL_OUTER must be 8\"-12\""
+WALL_EXTRA = WALL_OUTER - 8.0 / 12.0     # wall extra beyond 8" baseline
+WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2, IW2s)
+WALL_4IN = 4.0 / 12.0             # 4" interior wall (IW3, IW4)
+WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW5)
+
+# Appliance dimensions (feet)
+APPLIANCE_WIDTH = 35.0 / 12.0     # 35" washer/dryer width
+APPLIANCE_DEPTH = 30.0 / 12.0     # 30" washer/dryer depth
+APPLIANCE_OFFSET_FROM_W2 = 6.0 / 12.0   # 6" from W2, CW-normal to W2-W5
+APPLIANCE_OFFSET_FROM_W1 = 4.0 / 12.0   # 4" from W1, along W2-W5 direction
+APPLIANCE_GAP = 1.0 / 12.0        # 1" gap between dryer and washer
+
+# Counter
+COUNTER_DEPTH = 24.0 / 12.0       # 2' E-W
+COUNTER_LENGTH = 6.0              # 6' N-S
+COUNTER_GAP = 36.0 / 12.0         # 3' east of dryer
+
+# Rooms
+IW1_OFFSET_FROM_W1 = 12.0 + 8.0/12.0    # 12'8" from W1, along W2-W5 direction
+IW1_OFFSET_FROM_W2 = 6.5           # 6'6" from W2, CW-normal to W2-W5
+# IW2 segments (breakup of former single IW2 into lower, oblique, shower)
+IW_W2_REF_DIST = 8.0                  # 8' from W7 toward W6 for virtual W2 reference
+IW2_DIST_W2W5 = 6.5                  # 6'6" from W2-W5 inner wall (true perpendicular)
+IW2_LENGTH = 42.0 / 12.0             # 42" north from IW1 north face
+IW2S_W2REF_OFFSET = 6.5              # offset from virtual W2 ref → ~5'4" true from W2-W5
+IW2S_LENGTH = 72.0 / 12.0            # 72" (6') south from W6-W7 inner wall
+IW2O_THICKNESS = 6.0 / 12.0          # 6" thick perpendicular to midline
+IW4_GAP_IW11 = 30.0 / 12.0           # 30" from IW11 east face to IW4 west face
+RO1_OFFSET_FROM_IW2 = 120.0 / 12.0   # 10'0" from IW2 east face, CW-normal to W2-W5
+
+# Bed
+BED_WIDTH = 76.0 / 12.0           # 76" king bed
+BED_LENGTH = 94.0 / 12.0          # 94" (incl. frame)
+BED_WALL_GAP = 2.0 / 12.0         # 2" bed-to-outer-wall inward gap
+
+# Dresser
+DRESSER_WIDTH = 34.0 / 12.0       # 34" E-W
+DRESSER_DEPTH = 19.0 / 12.0       # 19" N-S
+DRESSER_GAP_IW15 = 2.0 / 12.0     # 2" west of IW15
+DRESSER_GAP_IW1 = 1.0 / 12.0      # 1" south of IW1
+
+# Shelves (IKEA KALLAX 57 7/8 × 15 3/8 top view, long side E-W along IW1)
+SHELVES_LENGTH = 57.875 / 12.0    # 57 7/8" E-W (along IW1)
+SHELVES_DEPTH = 15.375 / 12.0     # 15 3/8" N-S
+SHELVES_GAP_IW1 = 0.25 / 12.0    # 1/4" from IW1
+SHELVES_GAP_IW9 = 0.25 / 12.0    # 1/4" from IW9
+
+# Water heater
+WH_RADIUS = 14.0 / 12.0           # 14" radius (28" diameter)
+
+# Toilet (plan view)
+TOILET_WIDTH = 15.0 / 12.0        # 15"
+TOILET_TANK_DEPTH = 8.0 / 12.0    # 8" tank
+
+# UTIL sink (plan view, rectangle half-dimensions — 24" Petten console)
+SINK_RX = 11.8125 / 12.0          # 11-13/16" half-width (23-5/8" total)
+SINK_RY = 8.25 / 12.0             # 8-1/4" half-depth (16-1/2" total)
+
+# BATH sink (plan view, D-shape — Tripoli wall-mount, flat back + rounded front)
+BATH_SINK_LENGTH = 33.875 / 12.0  # 33-7/8" along wall
+BATH_SINK_DEPTH = 18.75 / 12.0    # 18-3/4" front-to-back
+
+# BATH SINK L (plan view, D-shape — Swiss Madison SM-WS326 Chateau, left-side faucet wall-mount)
+BATH_SINK_L_LENGTH = 30.0 / 12.0  # 30" along wall
+BATH_SINK_L_DEPTH = 17.0 / 12.0   # 17" front-to-back
+
+# Kitchen appliances (feet)
+KITCHEN_SINK_WIDTH = 45.0 / 12.0   # 45" E-W
+KITCHEN_SINK_DEPTH = 24.0 / 12.0   # 24" N-S
+DW_WIDTH = 28.0 / 12.0             # 28" dishwasher E-W
+DW_DEPTH = 27.0 / 12.0             # 27" dishwasher N-S
+STOVE_WIDTH = 30.0 / 12.0          # 30" stove E-W
+STOVE_DEPTH = 27.0 / 12.0          # 27" stove N-S
+FRIDGE_SIZE = 36.0 / 12.0          # 36" fridge (square)
+MINIK_FRIDGE_W = 23.375 / 12.0    # 23-3/8" IKEA BERGSNAS width (E-W)
+MINIK_FRIDGE_D = 24.75 / 12.0     # 24-3/4" IKEA BERGSNAS depth (N-S)
+KITCHEN_GAP = 0.75 / 12.0          # 3/4" gap between kitchen appliances
+KITCHEN_CTR_LENGTH = 72.0 / 12.0   # 72" kitchen counter E-W along IW1 north
+KITCHEN_CTR_DEPTH = 30.0 / 12.0    # 30" kitchen counter depth N-S
+NORTH_CTR_LENGTH = 36.0 / 12.0     # 36" north wall counter E-W
+NORTH_CTR_DEPTH = 30.0 / 12.0      # 30" north wall counter depth N-S
+EAST_CTR_LENGTH = 30.0 / 12.0      # 30" east counter E-W along W9-W10
+EAST_CTR_DEPTH = 42.0 / 12.0       # 42" east counter depth N-S
+
+# IW1 rough opening
+RO1_OFFSET_FROM_IW9 = 76.0 / 12.0    # 76" from IW9 east face
+IW1_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
+
+# IW2o rough opening (RO4 centered on IW2o oblique segment)
+IW2_RO_WIDTH = 38.0 / 12.0        # 38" opening width along IW2o
+
+# IW3 (perpendicular to W18-W1, 4" thick, runs from W18-W1 to IW7 N face)
+IW3_OFFSET_IW9 = 30.0 / 12.0     # 30" from IW9 W face along W18-W1
+IW3_DIST_W2W5 = 102.0 / 12.0     # 8'6" from W2-W5 to IW3 west face
+
+# IW7 (parallel to W18-W1, 4" thick, between IW3 and IW9)
+IW7_OFFSET_FROM_W18W1 = 6.0          # 6' from W18-W1 to IW7 south face
+
+# IW9 (perpendicular to W18-W1, 4" thick — extends from W18-W1 to IW1 S face)
+IW9_OFFSET_O10 = 6.0 / 12.0         # 6" past O10 along W18-W1
+
+# IW11 (4" thick, N-S)
+IW9_IW11_GAP = 12.0                  # 12' from IW9 east face to IW11 west face
+
+# IW12 (4" thick, perpendicular to IW11)
+IW12_S_OFFSET_W18W1 = 68.0 / 12.0    # 5'8" from W18-W1 to IW12 S face
+IW9_RO_WIDTH = 50.0 / 12.0          # 50" opening width along IW9 (RO7)
+
+# RO3 (in IW9)
+RO3_WIDTH = 38.0 / 12.0             # 38" opening width along IW9
+RO3_IW7_GAP = 5.0 / 12.0           # 5" from IW7 N face to RO3 south edge
+
+# IW4 rough opening
+IW4_RO_WIDTH = 38.0 / 12.0        # 38" opening width N-S
+
+# IW11 rough opening (RO6)
+IW11_RO_WIDTH = 50.0 / 12.0       # 50" opening width along IW11
+
+# IW6 partition
+IW6_THICKNESS = 1.0 / 12.0        # 1" partition
+IW6_OFFSET_FROM_W6 = 5.5                 # 5'6" from W6, CW-normal to W6-W7
+
+# IW6 rough opening
+IW6_RO_OFFSET_W = 3.0 / 12.0      # 3" west of IW2 west face
+IW6_RO_WIDTH = 38.0 / 12.0        # 38" opening width E-W
+
+# Outer-wall openings (numbered CW around outline)
+# O1 (F2-F5 west wall, 72" south of O2)
+O1_WIDTH = 19.0 / 12.0             # 19" opening width
+O1_GAP_O2 = 72.0 / 12.0            # 72" from O1 north edge to O2 south edge
+# O2 (F2-F5, 48" south of O3)
+O2_WIDTH = 19.0 / 12.0             # 19" opening width
+O2_GAP_O3 = 48.0 / 12.0            # 48" from O2 north edge to O3 south edge
+# O3 (F2-F5, 4" from F5)
+O3_GAP_F5 = 8.0 / 12.0             # 8" from F5 along F5-F2 line
+O3_WIDTH = 32.0 / 12.0             # 32" opening width
+O3_DOOR_WIDTH = 30.0 / 12.0        # 30" door in O3
+# O4 (F6-F7, relative to IW2 west face)
+O4_HALF_WIDTH = 4.5 / 12.0         # 4.5" half-width (9" total)
+O4_OFFSET_FROM_IW2 = 11.0 / 12.0     # 11" from IW2
+# O5 (F9-F10)
+O5_OFFSET_FROM_IW2 = 120.0 / 12.0       # 10' from IW2, CW-normal to W2-W5
+O5_WIDTH = 68.0 / 12.0            # 5'8" opening width
+# O6 (F9-F10)
+O6_WIDTH = 44.0 / 12.0             # 44" opening width
+O6_GAP_F10 = 6.0 / 12.0            # 6" from O6 east edge to F10
+# F10 easting: 15'2" east of nominal F9
+F10_OFFSET_FROM_F9 = 182.0 / 12.0     # 15'2" from F9, along W9-W10
+O6_DOOR_WIDTH = 42.0 / 12.0        # 42" door, centered in opening
+RO1_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO1
+RO2_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO2
+RO3_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO3
+RO4_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO4
+RO5_DOOR_WIDTH = 36.0 / 12.0       # 36" door in RO5
+RO6_DOOR_WIDTH = 24.0 / 12.0       # 24" door leaf in RO6 (double door, 2×24")
+RO7_DOOR_WIDTH = 24.0 / 12.0       # 24" door leaf in RO7 (double door, 2×24")
+# Shell construction: 2" shell / gap / 2" shell
+AIR_GAP = WALL_OUTER - 2 * SHELL_THICKNESS  # air gap between shells
+OPENING_INSIDE_RADIUS = 10.0 / 304.8  # 10mm inside corner radius at openings
+# Door jamb block thickness = wall - 2*(opening_inside_radius + shell_thickness)
+DOOR_FLAT_FACE = WALL_OUTER - 2 * (OPENING_INSIDE_RADIUS + SHELL_THICKNESS)
+# F8-F9 inner wall turn radius (W-face = inner face of inner shell)
+F8F9_INNER_TURN_R = OPENING_INSIDE_RADIUS + SHELL_THICKNESS  # ~2.56" (10mm + 2")
+# O7 (F12-F13 diagonal wall)
+O7_NW_GAP = 2.0                    # 2' from F12 to NW end
+O7_HALF_WIDTH = 36.0 / 12.0        # 36" half-width (72" total opening)
+# O8 (F14-F15)
+O8_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
+# O8a (F18-F1 south wall, east of O9)
+O8A_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width (19" total)
+O8A_GAP_O9 = 48.0 / 12.0           # 48" from O8a west end to O9 east end
+# O9, O10, O11 (F18-F1 south wall chain)
+O9_HALF_WIDTH = 12.5 / 12.0        # 12.5" half-width
+O10_HALF_WIDTH = 12.5 / 12.0       # 12.5" half-width
+O11_HALF_WIDTH = 9.5 / 12.0        # 9.5" half-width
+O9_OFFSET_IW11 = 6.0 / 12.0       # 6" IW11 SW to O9 SE along F18-F1
+O9_O10_WALL = 82.0 / 12.0         # 82" solid wall between O9 NW and O10 SE
+O10_O11_WALL = 72.0 / 12.0        # 72" solid wall between O10 NW and O11 SE
+BED_GAP_O9 = 4.0 / 12.0           # 4" from O9 NW to bed SE along W18-W1
+
+# IW5 partition
+IW5_S_OFFSET_FROM_IW1 = 30.0 / 12.0      # 30" from IW1 S face to IW5 S face
+
+# Outline geometry constraints
+CORNER_SW_R = 10.0 / 12.0 + WALL_EXTRA   # R_a1: SW corner (10" at 8" wall)
+F11AB_TARGET = 1.0                 # 1'0" target F11a-F11b distance
+IW1_OFFSET_FROM_W9 = 11.0              # 11'0" from W9, CW-normal to W9-W10
+
+# Jamb and gap constants
+JAMB_WIDTH = 1.0 / 12.0           # 1" jamb width (rough openings)
+STD_GAP = 2.0 / 12.0              # 2" standard gap (furniture/appliance spacing)
+KITCHEN_APPL_GAP = 3.0 / 12.0     # 3" gap (kitchen appliance spacing/setback)
+
+# Furniture dimensions
+LOVESEAT_WIDTH = 35.0 / 12.0      # 35" loveseat short side
+LOVESEAT_LENGTH = 65.0 / 12.0     # 65" loveseat long side
+LOVESEAT_OFFSET_IW4 = 4.522741716102669  # feet along IW4 outward from IW4/IW1 corner
+LOVESEAT_OFFSET_IW1 = 5.609454568566491  # feet along IW1 outward from IW4/IW1 corner
+DESK_WIDTH = 60.0 / 12.0          # 60" desk (along wall)
+DESK_DEPTH = 30.0 / 12.0          # 30" desk (perpendicular to wall)
+DESK_CHAIR_WIDTH = 27.0 / 12.0   # 27" desk chair E-W
+DESK_CHAIR_DEPTH = 24.0 / 12.0   # 24" desk chair N-S
+DESK_CHAIR_GAP = 12.0 / 12.0     # 12" gap between desk and chair
+CHAIR_WIDTH = 32.0 / 12.0         # 32" chair E-W
+CHAIR_DEPTH = 37.0 / 12.0         # 37" chair N-S
+CHAIR_CORNER_R = 3.0 / 12.0       # 3" rounded corner radius
+OTTOMAN_SIZE = 29.0 / 12.0        # 29" square ottoman
+ET_RADIUS_CM = 25.0               # 25 cm endtable radius
+SOFA_WIDTH = 97.2 / 12.0          # 97.2" sofa E-W
+SOFA_DEPTH = 24.6 / 12.0          # 24.6" sofa N-S
+ICE_WIDTH = 17.7 / 12.0           # 17.7" ice maker E-W
+ICE_DEPTH = 15.8 / 12.0           # 15.8" ice maker N-S
+ROCKER_WIDTH = 26.75 / 12.0       # 26.75" POANG rocking chair E-W
+ROCKER_DEPTH = 37.0 / 12.0        # 37" POANG rocking chair N-S
+ROCKER_CORNER_R = 3.0 / 12.0      # 3" rounded corner radius
+
+# Site plan placement constraints (distances from property lines, feet)
+SITE_P4_DIST_216 = 11.0            # P4/P5 setback from 216.73-ft east property line
+SITE_P3_DIST_275 = 25.5            # P3 setback from 275.08-ft south property line
+
+# Roof overhang
+ROOF_OVERHANG = 6.0 / 12.0        # 6" roof overhang beyond wall face
+
+# SCAD / 3D model dimensions (used by scad/gen_flat_roof.py and scad/gen_2in12.py)
+LOWER_WALL_HEIGHT = 20.0 / 12.0     # 1'8" lower wall (door openings only, 0-20")
+OPENING_HEIGHT = 80.0 / 12.0        # 6'8" top of openings (doors + windows, 20-80")
+UPPER_WALL_TOP_FLAT = 112.0 / 12.0  # 9'4" flat-roof upper wall top
+ROOF_MIN_THICK = 18.0 / 12.0        # 18" minimum roof slab thickness (at south edge)
+FLAT_ROOF_SLOPE = 0.25 / 12.0       # 1/4" per foot rise (flat roof, N-ward)
+SHED_ROOF_SLOPE = 2.0 / 12.0        # 2" per foot rise (2:12 shed roof, N-ward)
+SHED_ROOF_EAVE_ELEV = 7.5           # 7'6" underside elevation at south eave (R19-R01)
+SEAM_SPACING = 16.0 / 12.0          # 16" standing seam on-center spacing
+SEAM_WIDTH = 1.0 / 12.0             # 1" seam rib width
+SEAM_HEIGHT = 1.5 / 12.0            # 1.5" seam rib height
