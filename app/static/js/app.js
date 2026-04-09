@@ -2285,6 +2285,50 @@ async function showProperties(type, name, data) {
       const topConst = App.state.constants.find(c => c.name === topName);
       if (botConst) addPropRow(tbody, "Bot elev", formatConstValue(botConst), true, botName);
       if (topConst) addPropRow(tbody, "Top elev", formatConstValue(topConst), true, topName);
+
+      // Opening type selector
+      const hasDoor = (App.state.doors || []).some(d => d.opening_name === data.name);
+      const currentType = data.opening_type || "window";
+      const tr = document.createElement("tr");
+      const tdLabel = document.createElement("td");
+      tdLabel.textContent = "Opening type";
+      const tdVal = document.createElement("td");
+      if (hasDoor) {
+        // Door is present — only "door" is valid; show read-only
+        const span = document.createElement("span");
+        span.textContent = "door (locked)";
+        span.title = "Remove the door to change opening type";
+        span.style.opacity = "0.6";
+        tdVal.appendChild(span);
+      } else {
+        const sel = document.createElement("select");
+        sel.className = "prop-select";
+        const options = [
+          ["window",    "Window"],
+          ["casement",  "Casement L"],
+          ["casement_r","Casement R"],
+        ];
+        for (const [val, label] of options) {
+          const opt = document.createElement("option");
+          opt.value = val;
+          opt.textContent = label;
+          if (val === currentType) opt.selected = true;
+          sel.appendChild(opt);
+        }
+        sel.addEventListener("change", async () => {
+          await fetch(`/api/openings/${data.name}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ opening_type: sel.value }),
+          });
+          await reloadAfterChange();
+          showProperties(type, data.name, App.state.selection?.data || data);
+        });
+        tdVal.appendChild(sel);
+      }
+      tr.appendChild(tdLabel);
+      tr.appendChild(tdVal);
+      tbody.appendChild(tr);
     }
     // SEL-7: Door properties for openings
     if ((type === "rough_opening" || type === "opening") && data.name) {

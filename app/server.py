@@ -1399,6 +1399,28 @@ def create_app(db_path=None, skip_init=False):
         for k in ("width", "offset", "segment", "host_wall"):
             if k in body:
                 props[k] = body[k]
+
+        # Handle opening_type change
+        if "opening_type" in body:
+            new_type = body["opening_type"]
+            valid_types = {"window", "door", "casement", "casement_r"}
+            if new_type not in valid_types:
+                return jsonify({"error": f"invalid opening_type: must be one of {sorted(valid_types)}"}), 400
+            old_type = props.get("opening_type", "window")
+            # If a door record exists, it blocks switching to non-door types
+            existing_door = get_door(name, db)
+            if existing_door and new_type != "door":
+                return jsonify({"error": "Remove the door from this opening before changing its type"}), 400
+            props["opening_type"] = new_type
+            # Adjust bottom elevation default when switching door <-> non-door
+            from floorplan.constants import LOWER_WALL_HEIGHT
+            if old_type != new_type:
+                bot_key = f"{name}_BOTTOM_ELEV"
+                if new_type == "door":
+                    update_constant(bot_key, 0.0, db_path=db)
+                elif old_type == "door":
+                    update_constant(bot_key, LOWER_WALL_HEIGHT, db_path=db)
+
         updated = update_element(old["id"], {"properties": props}, db)
         undo_mgr.record(
             "opening_update", old, updated,

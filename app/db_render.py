@@ -502,12 +502,15 @@ def render_door_arcs_db(out, geom, to_svg):
 # ---------------------------------------------------------------------------
 
 def render_casement_windows_db(out, geom, to_svg, shell_thickness):
-    """Render casement window swing arcs for openings with opening_type=casement.
+    """Render casement window swing arcs for openings with opening_type=casement/casement_r.
 
     Casement windows swing outward at 45 degrees (vs doors at 90 degrees).
+    casement   — hinge at poly[0] end (left as the wall traversal goes)
+    casement_r — hinge at poly[1] end (right / opposite side)
     """
     for oo in geom.get("outer_openings", []):
-        if oo.get("opening_type") != "casement":
+        otype = oo.get("opening_type", "")
+        if otype not in ("casement", "casement_r"):
             continue
         poly = oo.get("poly", [])
         if len(poly) < 4:
@@ -531,11 +534,8 @@ def render_casement_windows_db(out, geom, to_svg, shell_thickness):
         if wlen < 1e-12:
             continue
 
-        # Hinge at one end, offset inward by shell thickness
-        # Determine hinge end based on opening name convention
-        name = oo.get("name", "")
-        # O9 hinges at poly[1] side, O8 and O10 hinge at poly[0] side
-        if name == "O9":
+        # Hinge side: casement=poly[0], casement_r=poly[1]
+        if otype == "casement_r":
             hinge_idx, close_idx = 1, 0
         else:
             hinge_idx, close_idx = 0, 1
