@@ -1,0 +1,347 @@
+"""Generate path_area_ks.svg — outline + openings + K-series stake points with distance table."""
+import os, sys, math, datetime
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
+from shared.svg import make_svg_transform, W, H, git_describe, svg_polygon_pts
+from shared.geometry import line_isect, fmt_dist
+from survey.gen_path_svg import (
+    compute_all, render_layer, render_floorplan,
+    build_outline_cfg, outer_cfg,
+)
+from floorplan.openings import compute_outer_openings
+from survey.gen_path_svg_wo import render_openings, OPENING_FILL, OPENING_STROKE
+
+K_COLOR = '#8B008B'  # dark magenta
+P_REFS = ["POB", "P2", "P3", "P4", "P5"]
+
+# K-to-opening assignments: which openings are measured from each K point
+K_OPENING_MAP = [
+    ("K1", ["O1", "O2", "O3"]),
+    ("K2", ["O4", "O5", "O6"]),
+    ("K3", ["O7"]),
+    ("K4", ["O8"]),
+    ("K6", ["O9", "O10", "O11"]),
+]
+EASTING_ONLY = {"O5", "O6"}  # easting distance only from K2
+
+# K-series definitions: each is the intersection of two F-segment lines
+K_DEFS = [
+    ("K1", "F18", "F1",  "F2",  "F5"),
+    ("K2", "F2",  "F5",  "F6",  "F7"),
+    ("K3", "F6",  "F7",  "F12", "F13"),
+    ("K4", "F12", "F13", "F14", "F15"),
+    ("K5", "F14", "F15", "F16", "F17"),
+    ("K6", "F16", "F17", "F18", "F1"),
+]
+
+
+def compute_k_points(pts):
+    """Compute K-series points as line-line intersections of F-segments."""
+    k_pts = {}
+    for name, a1, a2, b1, b2 in K_DEFS:
+        da = (pts[a2][0] - pts[a1][0], pts[a2][1] - pts[a1][1])
+        db = (pts[b2][0] - pts[b1][0], pts[b2][1] - pts[b1][1])
+        k_pts[name] = line_isect(pts[a1], da, pts[b1], db)
+    return k_pts
+
+
+def _ang_diff(a, b):
+    """Positive angular difference in [0, 180], handling 0-360 rollover."""
+    d = abs(a - b) % 360
+    return min(d, 360 - d)
+
+
+def _diverse_select(origin, targets, n):
+    """Select n targets with greatest angular diversity from origin.
+
+    targets: dict mapping name -> (easting, northing).
+    Returns [(name, distance), ...] sorted by distance.
+    """
+    info = {}
+    for name, pos in targets.items():
+        dE = pos[0] - origin[0]
+        dN = pos[1] - origin[1]
+        info[name] = (math.degrees(math.atan2(dE, dN)) % 360,
+                       math.hypot(dE, dN))
+
+    candidates = list(targets.keys())
+    for _ in range(len(candidates) - n):
+        sc = sorted(candidates, key=lambda p: info[p][0])
+        m = len(sc)
+
+        best_diff = float('inf')
+        best_i = 0
+        for i in range(m):
+            diff = _ang_diff(info[sc[i]][0], info[sc[(i + 1) % m]][0])
+            if diff < best_diff:
+                best_diff = diff
+                best_i = i
+
+        ia = best_i
+        ib = (best_i + 1) % m
+        a_name = sc[ia]
+        b_name = sc[ib]
+
+        neighbor_b = sc[(ia - 1) % m]
+        gap_if_remove_a = _ang_diff(info[b_name][0], info[neighbor_b][0])
+
+        neighbor_a = sc[(ib + 1) % m]
+        gap_if_remove_b = _ang_diff(info[a_name][0], info[neighbor_a][0])
+
+        if gap_if_remove_a <= gap_if_remove_b:
+            candidates.remove(a_name)
+        else:
+            candidates.remove(b_name)
+
+    return sorted([(p, info[p][1]) for p in candidates], key=lambda x: x[1])
+
+
+def k_closest_p(k_pt, pts, n=3):
+    """Return n P-series points selected for angular diversity, sorted by distance."""
+    return _diverse_select(k_pt, {p: pts[p] for p in P_REFS}, n)
+
+
+K_NAMES = ["K1", "K2", "K3", "K4", "K5", "K6"]
+
+
+def k_best_k(k_name, k_pts, n=3):
+    """Return n other K points selected for angular diversity, sorted by distance."""
+    others = {name: k_pts[name] for name in K_NAMES if name != k_name}
+    return _diverse_select(k_pts[k_name], others, n)
+
+
+def render_k_points(lines, k_pts, to_svg):
+    """Draw K-series point dots and labels."""
+    label_offsets = {
+        "K1": ("end",   -8,  8),
+        "K2": ("end",   -8, -6),
+        "K3": ("start",  8, -6),
+        "K4": ("start",  8,  4),
+        "K5": ("start",  8,  8),
+        "K6": ("middle", 0,  14),
+    }
+    for name, pt in k_pts.items():
+        sx, sy = to_svg(*pt)
+        anchor, dx, dy = label_offsets[name]
+        lines.append(f'<circle cx="{sx:.1f}" cy="{sy:.1f}" r="3.5" fill="{K_COLOR}"/>')
+        lines.append(f'<text x="{sx+dx:.1f}" y="{sy+dy:.1f}" text-anchor="{anchor}"'
+                     f' font-family="Arial" font-size="10" font-weight="bold"'
+                     f' fill="{K_COLOR}">{name}</text>')
+
+
+def render_distance_table(lines, k_pts, pts):
+    """Render an SVG table of K-to-P and K-to-K distances. Returns bottom y."""
+    # Collect rows: [(pair_label, distance_str, color), ...]
+    # 'p' = K-to-P row, 'k' = K-to-K row
+    rows = []
+    seen_kk = set()  # track K-K pairs to avoid duplicates (e.g. K1-K2 / K2-K1)
+    for name in K_NAMES:
+        for pname, d in k_closest_p(k_pts[name], pts, n=3):
+            rows.append((f"{name}\u2013{pname}", fmt_dist(d), "p"))
+        for kname, d in k_best_k(name, k_pts, n=3):
+            pair_key = frozenset((name, kname))
+            if pair_key in seen_kk:
+                continue
+            seen_kk.add(pair_key)
+            rows.append((f"{name}\u2013{kname}", fmt_dist(d), "k"))
+
+    # Table position and sizing — upper right, close to geometry
+    tx, ty = 610, 50
+    col1_w = 70   # pair column
+    col2_w = 80   # distance column
+    row_h = 10
+    fs = 8
+    hdr_h = 13
+
+    # Background
+    table_h = hdr_h + len(rows) * row_h + 4
+    table_w = col1_w + col2_w
+    lines.append(f'<rect x="{tx-4}" y="{ty-11}" width="{table_w+8}" height="{table_h}"'
+                 f' fill="white" stroke="#ccc" stroke-width="0.5" rx="3"/>')
+
+    # Header
+    lines.append(f'<text x="{tx}" y="{ty}" font-family="Arial" font-size="{fs}"'
+                 f' font-weight="bold" fill="#333">Pair</text>')
+    lines.append(f'<text x="{tx+col1_w}" y="{ty}" font-family="Arial" font-size="{fs}"'
+                 f' font-weight="bold" fill="#333">Distance</text>')
+    lines.append(f'<line x1="{tx-2}" y1="{ty+3}" x2="{tx+table_w+2}" y2="{ty+3}"'
+                 f' stroke="#999" stroke-width="0.5"/>')
+    ty += hdr_h
+
+    # Data rows with separator lines between K groups
+    prev_k = None
+    for pair, dist, kind in rows:
+        cur_k = pair.split("\u2013")[0]
+        if prev_k is not None and cur_k != prev_k:
+            lines.append(f'<line x1="{tx-2}" y1="{ty-row_h+2}" x2="{tx+table_w+2}" y2="{ty-row_h+2}"'
+                         f' stroke="#ddd" stroke-width="0.5"/>')
+        pair_color = K_COLOR if kind == "p" else "#336"
+        lines.append(f'<text x="{tx}" y="{ty}" font-family="Arial" font-size="{fs}"'
+                     f' fill="{pair_color}">{pair}</text>')
+        lines.append(f'<text x="{tx+col1_w}" y="{ty}" font-family="Arial" font-size="{fs}"'
+                     f' fill="#555">{dist}</text>')
+        ty += row_h
+        prev_k = cur_k
+
+    return ty  # y position after last row
+
+
+def render_opening_table(lines, k_pts, openings, top_y):
+    """Render an SVG table of K-to-opening distances below the distance table."""
+    o_map = {o.name: o for o in openings}
+
+    rows = []  # (k_name, display_text)
+    for k_name, o_names in K_OPENING_MAP:
+        kpt = k_pts[k_name]
+        for oname in o_names:
+            o = o_map[oname]
+            width = math.hypot(o.poly[1][0] - o.poly[0][0],
+                               o.poly[1][1] - o.poly[0][1])
+            if oname in EASTING_ONLY:
+                d0 = abs(o.poly[0][0] - kpt[0])
+                d1 = abs(o.poly[1][0] - kpt[0])
+                dist = min(d0, d1)
+                suffix = " E"
+            else:
+                d0 = math.hypot(o.poly[0][0] - kpt[0], o.poly[0][1] - kpt[1])
+                d1 = math.hypot(o.poly[1][0] - kpt[0], o.poly[1][1] - kpt[1])
+                dist = min(d0, d1)
+                suffix = ""
+            rows.append((k_name, f'{k_name} {oname} ({fmt_dist(width)}) @ {fmt_dist(dist)}{suffix}'))
+
+    tx = 610
+    ty = top_y + 6  # small gap below distance table
+    fs = 8
+    row_h = 10
+    hdr_h = 13
+    col_w = 160
+
+    table_h = hdr_h + len(rows) * row_h + 4
+    lines.append(f'<rect x="{tx-4}" y="{ty-11}" width="{col_w+8}" height="{table_h}"'
+                 f' fill="white" stroke="#ccc" stroke-width="0.5" rx="3"/>')
+
+    lines.append(f'<text x="{tx}" y="{ty}" font-family="Arial" font-size="{fs}"'
+                 f' font-weight="bold" fill="#333">Opening Locations</text>')
+    lines.append(f'<line x1="{tx-2}" y1="{ty+3}" x2="{tx+col_w+2}" y2="{ty+3}"'
+                 f' stroke="#999" stroke-width="0.5"/>')
+    ty += hdr_h
+
+    prev_k = None
+    for k_name, text in rows:
+        if prev_k is not None and k_name != prev_k:
+            lines.append(f'<line x1="{tx-2}" y1="{ty-row_h+2}" x2="{tx+col_w+2}" y2="{ty-row_h+2}"'
+                         f' stroke="#ddd" stroke-width="0.5"/>')
+        lines.append(f'<text x="{tx}" y="{ty}" font-family="Arial" font-size="{fs}"'
+                     f' fill="{OPENING_STROKE}">{text}</text>')
+        ty += row_h
+        prev_k = k_name
+
+
+if __name__ == "__main__":
+    data = compute_all()
+    pts = data["pts"]; to_svg = data["to_svg"]
+    outer_segs = data["outer_segs"]
+    outline_segs = data["outline_segs"]
+    outer_area = data["outer_area"]
+    outline_area = data["outline_area"]
+    radii = data["radii"]; layout = data["layout"]
+
+    # Compute K-series and add to pts
+    k_pts = compute_k_points(pts)
+    pts.update(k_pts)
+
+    outline_cfg = build_outline_cfg(outline_segs, pts, radii)._replace(
+        vertex_styles={}, brg_dist_labels=None, arc_labels=None, center_marks=None)
+
+    lines = []
+    lines.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">')
+    lines.append(f'<rect width="{W}" height="{H}" fill="white"/>')
+    lines.append('<defs>')
+    lines.append('  <marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">'
+                 '<polygon points="0 0, 8 3, 0 6" fill="#333"/></marker>')
+    lines.append(f'  <clipPath id="page"><rect width="{W}" height="{H}"/></clipPath>')
+    lines.append('</defs>')
+    lines.append(f'<text x="{W/2}" y="30" text-anchor="middle" font-family="Arial" font-size="14"'
+                 f' font-weight="bold">Site Path \u2014 Outline + Openings + Stakes</text>')
+
+    # Outer path (no inset)
+    render_layer(lines, outer_segs, pts, outer_cfg, to_svg)
+    render_layer(lines, outline_segs, pts, outline_cfg, to_svg)
+    render_floorplan(lines, to_svg, pts, data["outer_poly"], data["inner_poly"],
+                     data["inner_segs"], layout)
+
+    # O-series openings
+    outer_openings = compute_outer_openings(pts, layout)
+    render_openings(lines, outer_openings, to_svg)
+
+    # K-series stake points
+    render_k_points(lines, k_pts, to_svg)
+
+    # Dashed lines from each K to its selected P and K points
+    for name in K_NAMES:
+        kx, ky = to_svg(*k_pts[name])
+        for pname, _ in k_closest_p(k_pts[name], pts, n=3):
+            px, py = to_svg(*pts[pname])
+            lines.append(f'<line x1="{kx:.1f}" y1="{ky:.1f}" x2="{px:.1f}" y2="{py:.1f}"'
+                         f' stroke="{K_COLOR}" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.4"/>')
+        for kname, _ in k_best_k(name, k_pts, n=3):
+            px, py = to_svg(*k_pts[kname])
+            lines.append(f'<line x1="{kx:.1f}" y1="{ky:.1f}" x2="{px:.1f}" y2="{py:.1f}"'
+                         f' stroke="#336" stroke-width="0.5" stroke-dasharray="3,3" opacity="0.3"/>')
+
+    # Area label
+    _w9w10_mid = ((pts["W9"][0] + pts["W10"][0]) / 2, (pts["W9"][1] + pts["W10"][1]) / 2)
+    cx_o = (pts["FC"][0] + _w9w10_mid[0]) / 2
+    cy_o = (pts["FC"][1] + _w9w10_mid[1]) / 2
+    sx, sy = to_svg(cx_o, cy_o)
+    lines.append(f'<text x="{sx:.1f}" y="{sy:.1f}" text-anchor="middle" font-family="Arial"'
+                 f' font-size="12" fill="#333" font-weight="bold">{outline_area:.2f} sq ft</text>')
+    lines.append(f'<text x="{sx:.1f}" y="{sy+14:.1f}" text-anchor="middle" font-family="Arial"'
+                 f' font-size="9" fill="#666">(Outline enclosed area)</text>')
+
+    # North arrow
+    lines.append('<line x1="742" y1="560" x2="742" y2="524" stroke="#333" stroke-width="2" marker-end="url(#ah)"/>')
+    lines.append('<text x="742" y="518" text-anchor="middle" font-family="Arial" font-size="13" font-weight="bold">N</text>')
+
+    # Distance table
+    dist_bottom = render_distance_table(lines, k_pts, pts)
+
+    # Opening locations table
+    render_opening_table(lines, k_pts, outer_openings, dist_bottom)
+
+    # Legend
+    ly = 550
+    lines.append(f'<rect x="40" y="{ly}" width="14" height="8" fill="#e8edf5" stroke="#333" stroke-width="1" opacity="0.3"/>')
+    lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#999">Outer path at 20% ({outer_area:.2f} sq ft)</text>')
+    ly += 12
+    lines.append(f'<line x1="40" y1="{ly+4}" x2="54" y2="{ly+4}" stroke="#333" stroke-width="2.0"/>')
+    lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="#333">Outline path ({outline_area:.2f} sq ft)</text>')
+    ly += 12
+    lines.append(f'<rect x="40" y="{ly}" width="14" height="8" fill="{OPENING_FILL}" stroke="{OPENING_STROKE}" stroke-width="1"/>')
+    lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="{OPENING_STROKE}">Openings (O1\u2013O11)</text>')
+    ly += 12
+    lines.append(f'<circle cx="47" cy="{ly+4}" r="3.5" fill="{K_COLOR}"/>')
+    lines.append(f'<text x="60" y="{ly+7}" font-family="Arial" font-size="8" fill="{K_COLOR}">Stake points (K1\u2013K6)</text>')
+
+    # Footer
+    _now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    _git_desc = git_describe()
+    lines.append(f'<text x="{W/2}" y="{H-2}" text-anchor="middle" font-family="Arial" font-size="7.5"'
+                 f' fill="#999">Generated {_now} from {_git_desc}</text>')
+    lines.append('</svg>')
+
+    svg_content = "\n".join(lines)
+    svg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "path_area_ks.svg")
+    with open(svg_path, "w", encoding="utf-8") as f:
+        f.write(svg_content)
+
+    print(f"\nSVG written to path_area_ks.svg")
+    print(f"K-series stake points:")
+    for name in K_NAMES:
+        pt = k_pts[name]
+        print(f"  {name}: ({pt[0]:.4f}, {pt[1]:.4f})")
+        for pname, d in k_closest_p(k_pts[name], pts, n=3):
+            print(f"    {name}-{pname}: {fmt_dist(d)}")
+        for kname, d in k_best_k(name, k_pts, n=3):
+            print(f"    {name}-{kname}: {fmt_dist(d)}")

@@ -1,0 +1,11 @@
+Rough field survey:
+
+From P.O.B.
+
+proceed brg 257° 53' 45" + 19'  1.0" then
+proceed brg 180° 54' 31" + 26' 11.0" then
+proceed brg  93° 36' 07" + 31' 10.5" then
+proceed brg  56° 36' 31" + 13'  2.5" then
+proceed brg 317° 11' 44" + 34' 11.5" to P.O.B.
+
+
