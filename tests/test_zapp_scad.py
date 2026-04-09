@@ -126,6 +126,7 @@ class TestGenerateScad:
 class TestGenerateViews:
     """POST /api/generate-views endpoint."""
 
+    @pytest.mark.slow
     def test_generate_views_endpoint(self, app_client):
         resp = app_client.post("/api/generate-views")
         data = resp.get_json()

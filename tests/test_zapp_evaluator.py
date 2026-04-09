@@ -1344,14 +1344,29 @@ class TestSeededIWFormulas:
 # Variant item formula tests (Phase 12e)
 # ---------------------------------------------------------------------------
 
+_ALL_VARIANTS = ["standard", "minik", "daybed"]
+_STD_DAY = ["standard", "daybed"]
+_STD = ["standard"]
+_MINIK = ["minik"]
+_DAY = ["daybed"]
+_MINI_DAY = ["minik", "daybed"]
+
+
 class TestVariantItemFormulas:
-    """Verify formula-computed variant items match procedural output."""
+    """Verify formula-computed variant items match procedural output.
+
+    Each test is parametrized only for the variants where its item exists,
+    eliminating skips for cross-variant combinations that never run.
+    """
 
     TOLERANCE = 0.02  # 0.02 ft = 0.24" — slightly looser for complex items
 
-    @pytest.fixture(params=["standard", "minik", "daybed"])
+    @pytest.fixture
     def variant_geom(self, request, fresh_db):
-        """Compute procedural geometry and build evaluator for each variant."""
+        """Compute procedural geometry and build evaluator for given variant.
+
+        Receives variant name via indirect parametrize on each test method.
+        """
         variant = request.param
         from app.database import get_constants_dict
         from app.engine import compute_geometry
@@ -1400,8 +1415,6 @@ class TestVariantItemFormulas:
     def _check_item(self, variant_geom, item_name):
         variant, geom, ev = variant_geom
         vi = geom.get("variant_items", {})
-        if item_name not in vi:
-            pytest.skip(f"{item_name} not in {variant} variant")
         proc_poly = vi[item_name]["poly"]
         form = ev.elements.get(item_name)
         assert form is not None, \
@@ -1410,14 +1423,14 @@ class TestVariantItemFormulas:
                                 f"{item_name}({variant})")
 
     # All-variant items
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_hamper(self, variant_geom):
         self._check_item(variant_geom, "hamper")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_water_heater(self, variant_geom):
         variant, geom, ev = variant_geom
         vi = geom.get("variant_items", {})
-        if "water_heater" not in vi:
-            pytest.skip("no water_heater")
         proc = vi["water_heater"]
         form = ev.elements.get("water_heater")
         assert form is not None
@@ -1426,104 +1439,136 @@ class TestVariantItemFormulas:
         assert form["center"][1] == pytest.approx(proc["center"][1], abs=0.01)
         assert form["radius"] == pytest.approx(proc["radius"], abs=1e-6)
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_toilet_s(self, variant_geom):
         self._check_item(variant_geom, "toilet_s")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_toilet_n(self, variant_geom):
         self._check_item(variant_geom, "toilet_n")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_util_sink(self, variant_geom):
         self._check_item(variant_geom, "util_sink")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_bath_sink(self, variant_geom):
         self._check_item(variant_geom, "bath_sink")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_kitchen_sink(self, variant_geom):
         self._check_item(variant_geom, "kitchen_sink")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_ice_maker(self, variant_geom):
         self._check_item(variant_geom, "ice_maker")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_coffee_maker(self, variant_geom):
         self._check_item(variant_geom, "coffee_maker")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_dining_table(self, variant_geom):
         self._check_item(variant_geom, "dining_table")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_dining_chair_1(self, variant_geom):
         self._check_item(variant_geom, "dining_chair_1")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_dining_chair_2(self, variant_geom):
         self._check_item(variant_geom, "dining_chair_2")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_chair(self, variant_geom):
         self._check_item(variant_geom, "chair")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_ottoman(self, variant_geom):
         self._check_item(variant_geom, "ottoman")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_desk(self, variant_geom):
         self._check_item(variant_geom, "desk")
 
+    @pytest.mark.parametrize("variant_geom", _ALL_VARIANTS, indirect=True)
     def test_desk_chair(self, variant_geom):
         self._check_item(variant_geom, "desk_chair")
 
-    # Standard/daybed-only items
+    # Standard + daybed items
+    @pytest.mark.parametrize("variant_geom", _STD_DAY, indirect=True)
     def test_stove(self, variant_geom):
         self._check_item(variant_geom, "stove")
 
+    @pytest.mark.parametrize("variant_geom", _STD_DAY, indirect=True)
     def test_dishwasher(self, variant_geom):
         self._check_item(variant_geom, "dishwasher")
 
+    @pytest.mark.parametrize("variant_geom", _STD_DAY, indirect=True)
     def test_fridge(self, variant_geom):
         self._check_item(variant_geom, "fridge")
 
+    @pytest.mark.parametrize("variant_geom", _STD_DAY, indirect=True)
     def test_work_counter(self, variant_geom):
         self._check_item(variant_geom, "work_counter")
 
+    @pytest.mark.parametrize("variant_geom", _STD_DAY, indirect=True)
     def test_microwave(self, variant_geom):
         self._check_item(variant_geom, "microwave")
 
+    @pytest.mark.parametrize("variant_geom", _STD_DAY, indirect=True)
     def test_north_counter(self, variant_geom):
         self._check_item(variant_geom, "north_counter")
 
     # Minik-only items
+    @pytest.mark.parametrize("variant_geom", _MINIK, indirect=True)
     def test_kitchen_counter(self, variant_geom):
         self._check_item(variant_geom, "kitchen_counter")
 
+    @pytest.mark.parametrize("variant_geom", _MINIK, indirect=True)
     def test_cooktop(self, variant_geom):
         self._check_item(variant_geom, "cooktop")
 
+    @pytest.mark.parametrize("variant_geom", _MINIK, indirect=True)
     def test_toaster(self, variant_geom):
         self._check_item(variant_geom, "toaster")
 
+    @pytest.mark.parametrize("variant_geom", _MINIK, indirect=True)
     def test_sofa(self, variant_geom):
         self._check_item(variant_geom, "sofa")
 
     # Standard-only items
+    @pytest.mark.parametrize("variant_geom", _STD, indirect=True)
     def test_loveseat(self, variant_geom):
         self._check_item(variant_geom, "loveseat")
 
+    @pytest.mark.parametrize("variant_geom", _STD, indirect=True)
     def test_et(self, variant_geom):
         self._check_item(variant_geom, "et")
 
+    @pytest.mark.parametrize("variant_geom", _STD, indirect=True)
     def test_loveseat2(self, variant_geom):
         self._check_item(variant_geom, "loveseat2")
 
     # Daybed-only items
+    @pytest.mark.parametrize("variant_geom", _DAY, indirect=True)
     def test_shelves2(self, variant_geom):
         self._check_item(variant_geom, "shelves2")
 
+    @pytest.mark.parametrize("variant_geom", _DAY, indirect=True)
     def test_et_east(self, variant_geom):
         self._check_item(variant_geom, "et_east")
 
+    @pytest.mark.parametrize("variant_geom", _DAY, indirect=True)
     def test_daybed(self, variant_geom):
         self._check_item(variant_geom, "daybed")
 
+    @pytest.mark.parametrize("variant_geom", _DAY, indirect=True)
     def test_et_west(self, variant_geom):
         self._check_item(variant_geom, "et_west")
 
-    # Rocker (minik and daybed variants)
+    # Minik + daybed items
+    @pytest.mark.parametrize("variant_geom", _MINI_DAY, indirect=True)
     def test_rocker(self, variant_geom):
         self._check_item(variant_geom, "rocker")
 

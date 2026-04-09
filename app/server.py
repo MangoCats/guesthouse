@@ -227,15 +227,21 @@ def _invalidate_dep_cache():
         _dep_summary_cache = None
 
 
-def create_app(db_path=None):
-    """Create and configure the Flask application."""
-    db = db_path or DB_PATH
-    init_db(db)
+def create_app(db_path=None, skip_init=False):
+    """Create and configure the Flask application.
 
-    # Validate database health on startup
-    _db_ok, _db_issues = validate_db(db)
-    if not _db_ok:
-        print(f"WARNING: Database issues detected: {_db_issues}")
+    skip_init=True skips init_db and validate_db (used in tests where the DB
+    is already freshly seeded via file copy).  Reference plumbing is seeded
+    unconditionally since it is idempotent and required by app_client tests.
+    """
+    db = db_path or DB_PATH
+    if not skip_init:
+        init_db(db)
+
+        # Validate database health on startup
+        _db_ok, _db_issues = validate_db(db)
+        if not _db_ok:
+            print(f"WARNING: Database issues detected: {_db_issues}")
 
     _seed_reference_plumbing_if_needed(db)
 

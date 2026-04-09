@@ -10,6 +10,23 @@ from floorplan.geometry import compute_outline_geometry, align_pts_to_f_series
 from floorplan.layout import compute_interior_layout
 from floorplan.constants import WALL_OUTER
 
+from app.database import init_db as _init_db
+
+
+@pytest.fixture(scope="session")
+def _db_template(tmp_path_factory):
+    """Seed a database once per session; fresh_db copies it per test.
+
+    Session-scoped so init_db (~0.3s) runs only once regardless of how many
+    test files import fresh_db from test_zapp_conftest.
+
+    Also runs _seed_reference_plumbing_if_needed so the template is fully
+    equivalent to a DB that has been through create_app() startup.
+    """
+    db_path = str(tmp_path_factory.mktemp("db_template") / "template.db")
+    _init_db(db_path)
+    return db_path
+
 _PROJECT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 

@@ -9,9 +9,14 @@ openings.  Those modules have 'from floorplan.constants import ...'
 at module scope, so reload gives them new copies of the patched
 values.  Restoring floorplan.constants alone leaves the other three
 modules stale.  We therefore snapshot and restore ALL four modules.
+
+Performance note: fresh_db uses a session-scoped template DB that is
+seeded once and copied via shutil.copy2 (~0.003s) rather than calling
+init_db() (~0.307s) per test.
 """
 import importlib
 import os
+import shutil
 import sys
 import pytest
 
@@ -50,20 +55,23 @@ def _restore_modules(snapshots):
 
 
 @pytest.fixture
-def fresh_db(tmp_path):
-    """Create an isolated database seeded with default data."""
+def fresh_db(tmp_path, _db_template):
+    """Create an isolated database by copying the session template (~0.003s vs ~0.307s for init_db)."""
     snapshot = _snapshot_modules()
     db_path = str(tmp_path / "test.db")
-    init_db(db_path)
+    shutil.copy2(_db_template, db_path)
     yield db_path
     _restore_modules(snapshot)
 
 
 @pytest.fixture
 def app_client(fresh_db):
-    """Flask test client backed by a fresh isolated database."""
+    """Flask test client backed by a fresh isolated database.
+
+    Passes skip_init=True since fresh_db is already fully seeded.
+    """
     from app.server import create_app
-    app = create_app(db_path=fresh_db)
+    app = create_app(db_path=fresh_db, skip_init=True)
     app.config["TESTING"] = True
     with app.test_client() as client:
         yield client

@@ -18,6 +18,9 @@ include = ["shared", "shared.*", "floorplan", "floorplan.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow-running (deselect with '-m \"not slow\"')",
+]
 
 [tool.coverage.run]
 omit = ["survey/adjust_pentagon.py", "survey/compute_path.py"]

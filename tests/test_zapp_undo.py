@@ -92,15 +92,17 @@ class TestUndoManager:
         assert not mgr.can_redo
 
     def test_max_depth_50(self, fresh_db):
-        mgr = UndoManager(fresh_db, max_depth=50)
-        for i in range(60):
+        # Use depth=10 to test capping logic with fewer DB writes (same algorithm).
+        # The integration test test_50_level_depth validates the production depth=50 requirement.
+        mgr = UndoManager(fresh_db, max_depth=10)
+        for i in range(15):
             mgr.record("constant_update", {"X": float(i)}, {"X": float(i + 1)})
-        # Stack should be capped at 50
+        # Stack should be capped at 10
         count = 0
         while mgr.can_undo:
             mgr.undo()
             count += 1
-        assert count == 50
+        assert count == 10
 
     def test_undo_nothing_returns_none(self, fresh_db):
         mgr = UndoManager(fresh_db)
