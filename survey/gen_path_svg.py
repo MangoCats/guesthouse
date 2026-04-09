@@ -219,14 +219,11 @@ def render_floorplan(lines, to_svg, pts, outer_poly, inner_poly, inner_segs,
     od = "M "+" L ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in outer_poly)+" Z"
     id_ = "M "+" L ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in reversed(inner_poly))+" Z"
     lines.append(f'<path d="{od} {id_}" fill="rgba(160,160,160,0.5)" fill-rule="evenodd" stroke="none"/>')
-    # Inner wall strokes
-    for seg in inner_segs:
-        if isinstance(seg, LineSeg):
-            s1,s2 = to_svg(*pts[seg.start]),to_svg(*pts[seg.end])
-            lines.append(f'<line x1="{s1[0]:.1f}" y1="{s1[1]:.1f}" x2="{s2[0]:.1f}" y2="{s2[1]:.1f}" stroke="#666" stroke-width="1.0"/>')
-        else:
-            pl = segment_polyline(seg, pts)
-            lines.append(f'<polyline points="{svg_polygon_pts(pl, to_svg)}" fill="none" stroke="#666" stroke-width="1.0" stroke-linecap="round"/>')
+    # Inner wall stroke — use inner_poly (override-corrected) so W Override
+    # geometries are reflected correctly.  inner_segs is retained in the
+    # signature for caller compatibility but is no longer used for rendering.
+    inner_pts_svg = svg_polygon_pts(inner_poly, to_svg)
+    lines.append(f'<polygon points="{inner_pts_svg}" fill="none" stroke="#666" stroke-width="1.0"/>')
     # Interior wall polygons — DB-sourced if provided, else fall back to seed layout
     if iw_polys is not None:
         _polys = list(iw_polys.values())
