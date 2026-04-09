@@ -1383,9 +1383,11 @@ def compute_geometry(constants_dict: dict, variant: str = "standard",
             from shared.roof_outline import compute_db_roof_outline
             corner_names = [c["center"] for c in roof_data["corners"]]
             corner_radiused = [c.get("radiused", False) for c in roof_data["corners"]]
+            corner_shortcut = [c.get("shortcut", False) for c in roof_data["corners"]]
             overhang = float(roof_data.get("overhang", 0.5))
             result_r = compute_db_roof_outline(
-                corner_names, corner_radiused, pts, radii, overhang)
+                corner_names, corner_radiused, pts, radii, overhang,
+                corner_shortcut=corner_shortcut)
             roof_poly_pts = [point_to_list(p) for p in result_r.poly]
     except Exception:
         pass

@@ -170,18 +170,30 @@ def compute_db_roof_outline(corner_names: list,
         # pb_in  = tangent point of effective incoming line on circle i (entry point)
         # pa_out = tangent point of outgoing line on circle i (exit point)
 
+        prev_i = (i - 1) % N
+        preceded_by_shortcut = corner_shortcut[prev_i]
+
         if not corner_radiused[i]:
             # Sharp: intersection of the two tangent lines
             d_in  = (-ny_in,  nx_in)   # line direction ⊥ to normal
             d_out = (-ny_out, nx_out)
             v = line_isect(pb_in, d_in, pa_out, d_out)
             poly.append(v)
-            corner_pts[corner_names[i]] = v
+            if preceded_by_shortcut:
+                # The vertex is the shortcut corner's turn point — label it there.
+                # This corner's own label goes at its outgoing tangent point (pa_out),
+                # where the straight line is tangent to this corner's overhang circle.
+                corner_pts[corner_names[prev_i]] = v
+                corner_pts[corner_names[i]] = pa_out
+            else:
+                corner_pts[corner_names[i]] = v
         else:
-            # Radiused: CW arc from pb_in to pa_out around corner center
+            # Radiused: CW arc from entry tangent point to exit tangent point.
+            # Compute tp_in from the incoming normal directly (not from pb_in, which
+            # is on the previous circle and would be wrong if preceded by a shortcut).
             center = pts[_cname(corner_names[i])]
             r = r_roof[i]
-            tp_in  = pb_in   # == center + r * (nx_in, ny_in)
+            tp_in  = (center[0] + r * nx_in, center[1] + r * ny_in)
             tp_out = pa_out  # == center + r * (nx_out, ny_out)
             poly.append(tp_in)
             arc_pts = _sample_arc_cw(center, r, tp_in, tp_out, n_arc)
@@ -190,7 +202,12 @@ def compute_db_roof_outline(corner_names: list,
             # Label at arc midpoint
             mid = arc_pts[len(arc_pts) // 2] if arc_pts else (
                 (tp_in[0] + tp_out[0]) / 2, (tp_in[1] + tp_out[1]) / 2)
-            corner_pts[corner_names[i]] = mid
+            if preceded_by_shortcut:
+                # Shortcut corner's label at the arc entry; this corner at arc midpoint.
+                corner_pts[corner_names[prev_i]] = tp_in
+                corner_pts[corner_names[i]] = mid
+            else:
+                corner_pts[corner_names[i]] = mid
 
     area = poly_area(poly)
     return DbRoofResult(
