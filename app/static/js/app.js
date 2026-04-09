@@ -2322,7 +2322,11 @@ async function showProperties(type, name, data) {
             body: JSON.stringify({ opening_type: sel.value }),
           });
           await reloadAfterChange();
-          showProperties(type, data.name, App.state.selection?.data || data);
+          // Use fresh outer_openings data from the just-reloaded geometry,
+          // not App.state.selection.data which still holds the pre-change value.
+          const freshData = (App.state.geometry?.outer_openings || [])
+            .find(o => o.name === data.name) || data;
+          showProperties(type, data.name, freshData);
         });
         tdVal.appendChild(sel);
       }
