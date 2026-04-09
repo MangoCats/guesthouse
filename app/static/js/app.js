@@ -8361,7 +8361,7 @@ async function detachAnchor(name, which) {
 }
 
 function onKeyDown(e) {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
 
   // Config Save / Save As / Load
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
