@@ -7669,7 +7669,7 @@ function showDoorProperties(tbody, roName) {
   }
   const isSlider = door.door_type === "hanging_slider";
   addPropRow(tbody, "—", "Door");
-  addPropRow(tbody, isSlider ? "Panel width" : "Width", door.width + '"');
+  addDoorWidthRow(tbody, isSlider ? "Panel width" : "Width", door.width, roName, door);
   addDoorDropdownRow(tbody, isSlider ? "Roll dir" : "Hinge", door.hinge_side, roName, "hinge_side", null, door);
   addDoorDropdownRow(tbody, isSlider ? "Track side" : "Swing", door.swing_direction, roName, "swing_direction", null, door);
   addDoorDropdownRow(tbody, "Type", door.door_type, roName, "door_type",
@@ -7692,6 +7692,39 @@ function showDoorProperties(tbody, roName) {
     td.appendChild(btn);
   }
   tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+function addDoorWidthRow(tbody, label, widthInches, openingName, door) {
+  const tr = document.createElement("tr");
+  const tdLabel = document.createElement("td");
+  tdLabel.textContent = label;
+  tr.appendChild(tdLabel);
+  const tdVal = document.createElement("td");
+  const inp = document.createElement("input");
+  inp.type = "number";
+  inp.className = "prop-edit-input";
+  inp.value = widthInches;
+  inp.min = "1";
+  inp.step = "0.5";
+  inp.addEventListener("focus", () => inp.select());
+  inp.addEventListener("change", async () => {
+    const v = parseFloat(inp.value);
+    if (isNaN(v) || v <= 0) { inp.value = door.width; return; }
+    try {
+      await apiFetch(`/api/doors/${openingName}`, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({width: v}),
+      });
+      door.width = v;
+    } catch (e) {
+      showToast("Width update failed: " + e.message, "error");
+      inp.value = door.width;
+    }
+  });
+  tdVal.appendChild(inp);
+  tr.appendChild(tdVal);
   tbody.appendChild(tr);
 }
 
