@@ -262,8 +262,10 @@ def _compute_hanging_slider_track(along, along_len, cross, mid_start, mid_end,
     else:
         track_face_dir = along if dot_swing_along > 0 else (-along[0], -along[1])
 
-    # Track center: half wall thickness outward from opening center + 1/2" gap
-    offset_dist = wall_cross_len / 2.0 + 0.5 / 12.0
+    # Track center: half wall thickness + 1/2" gap + half stroke (1/2").
+    # The stroke is 1" thick; positioning the center 1" outside the wall face
+    # puts the near edge of the stroke exactly 1/2" outside the wall face.
+    offset_dist = wall_cross_len / 2.0 + 1.0 / 12.0
 
     def _track_pt(along_dist):
         return (
