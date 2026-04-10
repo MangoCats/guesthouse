@@ -569,6 +569,20 @@ class GeneratorData:
             self.w_f8f9_poly = []
             self.g_f8f9_poly = []
 
+        # All override polylines keyed by inner_seg index (= outline_seg index).
+        # Used by _render_walls for section outlines and inner strip fills.
+        self.w_override_polys = {}
+        if overrides:
+            for seg_idx, chain in overrides.items():
+                if seg_idx >= len(self.inner_segs):
+                    continue
+                seg = self.inner_segs[seg_idx]
+                if seg.start not in self.pts:
+                    continue
+                start_bearing = _seg_start_bearing(seg, self.pts)
+                self.w_override_polys[seg_idx] = walk_override_chain(
+                    chain, self.pts[seg.start], start_bearing)
+
         # S-series (inner face of outer shell)
         self.s_pts, self.s_segs = compute_inset_path(
             self.outline_segs, self.pts, self.radii, shell_t, "S")
