@@ -142,6 +142,8 @@ class WallData(NamedTuple):
     ft_per_inch: float
     g_f8f9_poly: list      # G-series F8-F9 straight-arc-straight polyline
     w_f8f9_poly: list      # W-series F8-F9 straight-arc-straight polyline
+    g_override_polys: dict  # All G override polylines keyed by seg index
+    w_override_polys: dict  # All W override polylines keyed by seg index
     roof: object           # RoofGeometry
     constants: dict        # DB constants (SHELL_THICKNESS, AIR_GAP, etc.)
     iw_polys: dict         # DB interior wall polygons, or None for seed path
@@ -231,6 +233,8 @@ def build_wall_data(gd=None):
         ft_per_inch=_ft_per_inch,
         g_f8f9_poly=gd.g_f8f9_poly,
         w_f8f9_poly=gd.w_f8f9_poly,
+        g_override_polys=gd.g_override_polys,
+        w_override_polys=gd.w_override_polys,
         roof=gd.roof,
         constants=gd.constants,
         iw_polys=getattr(gd, 'iw_polys', None),
@@ -631,6 +635,10 @@ def _render_wall_segments(out, data):
                 # F8-F9: straight-arc-straight path for inner shell
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
+            elif seg_idx in data.w_override_polys:
+                g_bound = data.g_override_polys.get(seg_idx,
+                              [pts[g_seg.start], pts[g_seg.end]])
+                inner_shell = list(g_bound) + list(reversed(data.w_override_polys[seg_idx]))
             else:
                 inner_shell = arc_strip_poly(g_seg, pts, "G", inner_seg)
             _svg_polygon(out, inner_shell, to_svg, WALL_FILL, stroke="none")
@@ -642,8 +650,13 @@ def _render_wall_segments(out, data):
                                                s_seg.start, s_seg.end)
                 _svg_polygon(out, outer_strip, to_svg, WALL_FILL, stroke="none")
 
-                inner_strip = line_strip_poly(pts, g_seg.start, g_seg.end,
-                                               inner_seg.start, inner_seg.end)
+                if seg_idx in data.w_override_polys:
+                    g_bound = data.g_override_polys.get(seg_idx,
+                                  [pts[g_seg.start], pts[g_seg.end]])
+                    inner_strip = list(g_bound) + list(reversed(data.w_override_polys[seg_idx]))
+                else:
+                    inner_strip = line_strip_poly(pts, g_seg.start, g_seg.end,
+                                                   inner_seg.start, inner_seg.end)
                 _svg_polygon(out, inner_strip, to_svg, WALL_FILL, stroke="none")
             else:
                 # Has openings — draw solid sections and U-turns
@@ -716,8 +729,10 @@ def _render_section_outlines(out, data):
 
     _f8f9_idx = next((i for i, s in enumerate(data.outline_segs)
                       if s.start == "F8" and s.end == "F9"), None)
-    g_overrides = {_f8f9_idx: data.g_f8f9_poly} if _f8f9_idx is not None else {}
-    w_overrides = {_f8f9_idx: data.w_f8f9_poly} if _f8f9_idx is not None else {}
+    g_overrides = dict(data.g_override_polys)
+    if _f8f9_idx is not None and data.g_f8f9_poly:
+        g_overrides[_f8f9_idx] = data.g_f8f9_poly
+    w_overrides = data.w_override_polys
     sections = enumerate_wall_sections(data.openings, data.outline_segs)
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(

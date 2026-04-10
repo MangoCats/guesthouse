@@ -363,6 +363,7 @@ class FloorplanData(NamedTuple):
     g_f8f9_poly: list       # G-series F8-F9 straight-arc-straight polyline
     layout: Any             # InteriorLayout
     w_override_polys: dict  # All W override polylines keyed by seg index
+    g_override_polys: dict  # All G override polylines keyed by seg index (parallel, 2" toward F)
 
 
 def compute_page_layout(pts, to_svg, outline_poly=None):
@@ -478,6 +479,7 @@ def build_floorplan_data(gd=None):
         openings=gd.openings, g_f8f9_poly=gd.g_f8f9_poly,
         layout=gd.layout,
         w_override_polys=gd.w_override_polys,
+        g_override_polys=gd.g_override_polys,
         **page,
     )
 
@@ -903,8 +905,9 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                 inner_shell = (list(data.g_f8f9_poly)
                                + list(reversed(data.w_f8f9_poly)))
             elif seg_idx in data.w_override_polys:
-                G_A, G_B = pts[g_seg.start], pts[g_seg.end]
-                inner_shell = [G_A, G_B] + list(reversed(data.w_override_polys[seg_idx]))
+                g_bound = data.g_override_polys.get(seg_idx,
+                              [pts[g_seg.start], pts[g_seg.end]])
+                inner_shell = list(g_bound) + list(reversed(data.w_override_polys[seg_idx]))
             else:
                 inner_shell = arc_strip_poly(g_seg, pts, "G", inner_seg)
             _svg_wall_poly(out, inner_shell, to_svg)
@@ -917,8 +920,9 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                 _svg_wall_poly(out, outer_strip, to_svg)
 
                 if seg_idx in data.w_override_polys:
-                    G_A, G_B = pts[g_seg.start], pts[g_seg.end]
-                    inner_strip = [G_A, G_B] + list(reversed(data.w_override_polys[seg_idx]))
+                    g_bound = data.g_override_polys.get(seg_idx,
+                                  [pts[g_seg.start], pts[g_seg.end]])
+                    inner_strip = list(g_bound) + list(reversed(data.w_override_polys[seg_idx]))
                 else:
                     inner_strip = line_strip_poly(pts, g_seg.start, g_seg.end,
                                                   inner_seg.start, inner_seg.end)
@@ -985,10 +989,11 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                         out.append(_poly_el)
 
     # --- Continuous section outlines ---
-    # w_override_polys covers all DB overrides; g_overrides only for F8-F9 arc case
     _f8f9_idx = next((i for i, s in enumerate(outline_segs)
                       if s.start == "F8" and s.end == "F9"), None)
-    g_overrides = {_f8f9_idx: data.g_f8f9_poly} if _f8f9_idx is not None else {}
+    g_overrides = dict(data.g_override_polys)
+    if _f8f9_idx is not None and data.g_f8f9_poly:
+        g_overrides[_f8f9_idx] = data.g_f8f9_poly
     w_overrides = data.w_override_polys
     sections = enumerate_wall_sections(openings, outline_segs)
     for start_op, end_op in sections:

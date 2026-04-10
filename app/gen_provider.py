@@ -92,6 +92,87 @@ def walk_override_chain(chain, start_pt, start_bearing_deg):
     return polyline
 
 
+def _compute_g_override_poly(chain, w_start_pt, w_start_bearing_deg,
+                              g_start_pt, g_end_pt, inner_shell_t):
+    """Compute G-series override polyline parallel to the W-series override chain.
+
+    Uses the same arc centers as the W-series but with radius adjusted by
+    inner_shell_t (CCW arcs: R - inner_shell_t; CW arcs: R + inner_shell_t).
+    Straight legs are implicit straight-line connections between arc entry/exit
+    points.  Result always starts exactly at g_start_pt and ends at g_end_pt.
+
+    Parameters:
+        chain              — W override chain (same as passed to walk_override_chain)
+        w_start_pt         — W-series start point (E, N)
+        w_start_bearing_deg — compass bearing at start of W chain
+        g_start_pt         — G-series start point (E, N)
+        g_end_pt           — G-series end point (E, N)
+        inner_shell_t      — inner shell thickness in feet (= wall_t - shell_t - air_gap)
+
+    Returns list of (E, N) points forming the G-series override polyline.
+    """
+    cur_w = w_start_pt
+    cur_bearing = w_start_bearing_deg
+    poly = [g_start_pt]
+
+    for sub in chain:
+        seg_type = sub["seg_type"]
+        if seg_type == "L":
+            dist = sub["distance"]
+            bearing = sub["bearing"]
+            brg_rad = math.radians(bearing)
+            cur_w = (cur_w[0] + dist * math.sin(brg_rad),
+                     cur_w[1] + dist * math.cos(brg_rad))
+            cur_bearing = bearing
+        else:
+            # Arc: compute W arc center, then G arc with adjusted radius
+            radius = sub["radius"]
+            sweep_deg = sub["sweep"]
+            n_pts = sub.get("n_pts", 20)
+            sweep_rad = math.radians(sweep_deg)
+            dir_x = math.sin(math.radians(cur_bearing))
+            dir_y = math.cos(math.radians(cur_bearing))
+
+            if seg_type == "CCW":
+                # Center to left of travel; G is concave-side = smaller radius
+                center = (cur_w[0] - dir_y * radius,
+                          cur_w[1] + dir_x * radius)
+                g_radius = max(0.0, radius - inner_shell_t)
+                entry_angle = math.atan2(cur_w[1] - center[1],
+                                         cur_w[0] - center[0])
+                # G arc entry: same angle from same center, g_radius distance
+                poly.append((center[0] + g_radius * math.cos(entry_angle),
+                              center[1] + g_radius * math.sin(entry_angle)))
+                for i in range(1, n_pts + 1):
+                    a = entry_angle + i * sweep_rad / n_pts
+                    poly.append((center[0] + g_radius * math.cos(a),
+                                 center[1] + g_radius * math.sin(a)))
+                exit_angle = entry_angle + sweep_rad
+                cur_w = (center[0] + radius * math.cos(exit_angle),
+                         center[1] + radius * math.sin(exit_angle))
+                cur_bearing = (cur_bearing - sweep_deg) % 360
+            else:  # CW
+                # Center to right of travel; G is convex-side = larger radius
+                center = (cur_w[0] + dir_y * radius,
+                          cur_w[1] - dir_x * radius)
+                g_radius = radius + inner_shell_t
+                entry_angle = math.atan2(cur_w[1] - center[1],
+                                         cur_w[0] - center[0])
+                poly.append((center[0] + g_radius * math.cos(entry_angle),
+                              center[1] + g_radius * math.sin(entry_angle)))
+                for i in range(1, n_pts + 1):
+                    a = entry_angle - i * sweep_rad / n_pts
+                    poly.append((center[0] + g_radius * math.cos(a),
+                                 center[1] + g_radius * math.sin(a)))
+                exit_angle = entry_angle - sweep_rad
+                cur_w = (center[0] + radius * math.cos(exit_angle),
+                         center[1] + radius * math.sin(exit_angle))
+                cur_bearing = (cur_bearing + sweep_deg) % 360
+
+    poly.append(g_end_pt)
+    return poly
+
+
 # ---------------------------------------------------------------------------
 # Inner poly splice helpers
 # ---------------------------------------------------------------------------
@@ -593,6 +674,24 @@ class GeneratorData:
             self.outline_segs, self.pts, self.radii,
             shell_t + air_gap, "G")
         self.pts.update(self.g_pts)
+
+        # G-series override polylines: parallel to w_override_polys but 2"
+        # toward the outer wall (same arc center, radius - inner_shell_t).
+        inner_shell_t = self.wall_t - shell_t - air_gap
+        self.g_override_polys = {}
+        if overrides:
+            for seg_idx, chain in overrides.items():
+                if seg_idx >= len(self.inner_segs) or seg_idx >= len(self.g_segs):
+                    continue
+                inner_seg = self.inner_segs[seg_idx]
+                g_seg = self.g_segs[seg_idx]
+                if (inner_seg.start not in self.pts or
+                        g_seg.start not in self.pts or g_seg.end not in self.pts):
+                    continue
+                start_bearing = _seg_start_bearing(inner_seg, self.pts)
+                self.g_override_polys[seg_idx] = _compute_g_override_poly(
+                    chain, self.pts[inner_seg.start], start_bearing,
+                    self.pts[g_seg.start], self.pts[g_seg.end], inner_shell_t)
 
         # Layout — hardcoded seed values used for outer wall shell rendering
         # and plumbing path geometry.  DB-driven callers also use gd.iw_polys
