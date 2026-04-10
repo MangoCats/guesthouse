@@ -7,7 +7,7 @@ validation.  Door geometry rendering is currently handled by the engine
 from app.database import get_all_doors, get_door, create_door, update_door, delete_door
 
 VALID_SIDES = {"east", "west", "north", "south"}
-VALID_TYPES = {"single", "double"}
+VALID_TYPES = {"single", "double", "hanging_slider"}
 
 
 def validate_door(hinge_side, swing_direction, door_type="single"):

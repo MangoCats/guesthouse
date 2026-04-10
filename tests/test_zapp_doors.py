@@ -39,7 +39,7 @@ class TestDB10Doors:
         for d in doors:
             assert d["hinge_side"] in ("east", "west", "north", "south")
             assert d["swing_direction"] in ("east", "west", "north", "south")
-            assert d["door_type"] in ("single", "double")
+            assert d["door_type"] in ("single", "double", "hanging_slider")
             assert d["width"] > 0
         # RO6 and RO7 should be double doors
         ro6 = get_door("RO6", fresh_db)

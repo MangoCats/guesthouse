@@ -78,11 +78,14 @@ class TestDoorArcs:
             assert name not in names
 
     def test_door_arc_points_count(self, fresh_db):
-        """All door arc polylines should have 21 points (0..20)."""
+        """Hinged door arc polylines have 21 points; sliders have empty arc_pts."""
         g = _geom_with_doors(fresh_db)
         for arc in g["door_arcs"]:
             for leaf in arc["leaves"]:
-                assert len(leaf["arc_pts"]) == 21
+                if leaf.get("slider"):
+                    assert leaf["arc_pts"] == []
+                else:
+                    assert len(leaf["arc_pts"]) == 21
 
     def test_door_arc_radius_matches_width(self, fresh_db):
         """Arc radius (distance from hinge to first arc point) should match door width."""
@@ -94,6 +97,37 @@ class TestDoorArcs:
         dist = math.sqrt((p0[0] - hx)**2 + (p0[1] - hy)**2)
         # RO1 door width is 36" = 3.0 ft
         assert abs(dist - 3.0) < 0.01
+
+    def test_hanging_slider_track_geometry(self, fresh_db):
+        """Hanging slider produces slider=True leaf with track length > opening width."""
+        from app.database import create_door, get_all_elements, get_outline_chain, get_constants_dict
+        # Temporarily create a hanging slider on RO2
+        create_door("RO2_SLIDER_TEST", 40, "east", "south", "hanging_slider", fresh_db)
+        # Build a minimal opening poly for RO2 from geometry
+        constants = get_constants_dict(fresh_db)
+        chain_rows = get_outline_chain(fresh_db)
+        doors = [{"opening_name": "RO2_SLIDER_TEST", "width": 40,
+                  "hinge_side": "east", "swing_direction": "south",
+                  "door_type": "hanging_slider"}]
+        # Inject a synthetic opening with known poly (3ft wide, 8/12ft thick, axis-aligned)
+        from app.engine import _compute_door_leaves
+        opening_w = 3.0  # ft
+        wall_t = 8.0 / 12.0  # ft
+        poly = [(0, 0), (opening_w, 0), (opening_w, wall_t), (0, wall_t)]
+        door_cfg = {"opening_name": "X", "width": 40, "hinge_side": "east",
+                    "swing_direction": "south", "door_type": "hanging_slider"}
+        leaves = _compute_door_leaves(poly, door_cfg)
+        assert len(leaves) == 1
+        leaf = leaves[0]
+        assert leaf.get("slider") is True
+        assert leaf["arc_pts"] == []
+        # Track length > panel width (40/12 ft) + opening width (3 ft)
+        track_len = math.sqrt(
+            (leaf["tip"][0] - leaf["hinge"][0])**2 +
+            (leaf["tip"][1] - leaf["hinge"][1])**2
+        )
+        panel_w = 40.0 / 12.0
+        assert track_len > opening_w + panel_w
 
 
 class TestClearanceZones:

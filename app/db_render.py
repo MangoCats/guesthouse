@@ -460,22 +460,27 @@ def render_door_arcs_db(out, geom, to_svg):
         for leaf in da.get("leaves", []):
             hinge = leaf["hinge"]
             tip = leaf["tip"]
-            arc_pts = leaf["arc_pts"]
-
             hx, hy = to_svg(hinge[0], hinge[1])
             tx, ty = to_svg(tip[0], tip[1])
 
-            # Hinge-to-tip line
-            out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" '
-                       f'x2="{tx:.1f}" y2="{ty:.1f}" '
-                       f'stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
-            # Swing arc
-            if arc_pts:
-                pts_str = " ".join(
-                    f"{to_svg(p[0], p[1])[0]:.1f},{to_svg(p[0], p[1])[1]:.1f}"
-                    for p in arc_pts)
-                out.append(f'<polyline points="{pts_str}" fill="none" '
-                           f'stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
+            if leaf.get("slider"):
+                # Hanging slider (barn door): 1"-thick track line
+                out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" '
+                           f'x2="{tx:.1f}" y2="{ty:.1f}" '
+                           f'stroke="{JAMB_COLOR}" stroke-width="1.0" '
+                           f'stroke-linecap="square"/>')
+            else:
+                # Hinged door: hinge-to-tip line + swing arc
+                arc_pts = leaf["arc_pts"]
+                out.append(f'<line x1="{hx:.1f}" y1="{hy:.1f}" '
+                           f'x2="{tx:.1f}" y2="{ty:.1f}" '
+                           f'stroke="{JAMB_COLOR}" stroke-width="1.0"/>')
+                if arc_pts:
+                    pts_str = " ".join(
+                        f"{to_svg(p[0], p[1])[0]:.1f},{to_svg(p[0], p[1])[1]:.1f}"
+                        for p in arc_pts)
+                    out.append(f'<polyline points="{pts_str}" fill="none" '
+                               f'stroke="{JAMB_COLOR}" stroke-width="0.5"/>')
 
     # Appliance door arcs (fridge, washer, dryer, microwave)
     for ad in geom.get("appliance_doors", []):

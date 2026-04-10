@@ -131,6 +131,7 @@ def _compute_door_leaves(poly, door):
     if len_01 >= len_03:
         # Normal: poly[0]→poly[1] is along the opening width
         along_len = len_01
+        wall_cross_len = len_03
         along = (dx_01 / len_01, dy_01 / len_01)
         cross = (dx_03 / len_03, dy_03 / len_03)
         mid_start = ((p0[0] + p3[0]) / 2, (p0[1] + p3[1]) / 2)
@@ -138,6 +139,7 @@ def _compute_door_leaves(poly, door):
     else:
         # Swapped: poly[0]→poly[3] is along the opening width
         along_len = len_03
+        wall_cross_len = len_01
         along = (dx_03 / len_03, dy_03 / len_03)
         cross = (dx_01 / len_01, dy_01 / len_01)
         mid_start = ((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2)
@@ -179,6 +181,13 @@ def _compute_door_leaves(poly, door):
     gap = (along_len - door_width_ft) / 2.0
     if gap < 0:
         gap = 0
+
+    if door_type == "hanging_slider":
+        return _compute_hanging_slider_track(
+            along, along_len, cross, mid_start, mid_end,
+            door_width_ft, dot_hinge, dot_swing_cross, dot_swing_along,
+            wall_cross_len,
+        )
 
     if door_type == "double":
         # Double door: two leaves, hinged at opposite ends
@@ -224,6 +233,56 @@ def _compute_door_leaves(poly, door):
             "tip": list(tip),
             "arc_pts": [list(p) for p in arc_pts],
         }]
+
+
+def _compute_hanging_slider_track(along, along_len, cross, mid_start, mid_end,
+                                   door_width_ft, dot_hinge,
+                                   dot_swing_cross, dot_swing_along,
+                                   wall_cross_len):
+    """Compute track geometry for a hanging slider (barn) door.
+
+    The track is a line offset 1/2" outward from the wall face on the
+    swing_direction side.  It spans from 2" before the door's closed
+    position to 2" past the door's fully-open position.
+
+    Returns a single leaf dict with slider=True; hinge/tip are track
+    endpoints; arc_pts is empty.
+    """
+    # Roll direction: which end the door slides toward when opening
+    if dot_hinge > 0:
+        roll_dir = along              # toward mid_end
+        non_roll_jamb = mid_start
+    else:
+        roll_dir = (-along[0], -along[1])  # toward mid_start
+        non_roll_jamb = mid_end
+
+    # Track face direction (which wall face the track hangs on)
+    if abs(dot_swing_cross) >= abs(dot_swing_along):
+        track_face_dir = cross if dot_swing_cross > 0 else (-cross[0], -cross[1])
+    else:
+        track_face_dir = along if dot_swing_along > 0 else (-along[0], -along[1])
+
+    # Track center: half wall thickness outward from opening center + 1/2" gap
+    offset_dist = wall_cross_len / 2.0 + 0.5 / 12.0
+
+    def _track_pt(along_dist):
+        return (
+            non_roll_jamb[0] + along_dist * roll_dir[0] + offset_dist * track_face_dir[0],
+            non_roll_jamb[1] + along_dist * roll_dir[1] + offset_dist * track_face_dir[1],
+        )
+
+    # Closed: door non-roll end at non_roll_jamb (pos=0), roll end at door_width_ft.
+    # Open:  door slid along_len; roll end at along_len + door_width_ft.
+    # Track extends 2" past each extreme.
+    track_start = _track_pt(-2.0 / 12.0)
+    track_end = _track_pt(along_len + door_width_ft + 2.0 / 12.0)
+
+    return [{
+        "hinge": list(track_start),
+        "tip": list(track_end),
+        "arc_pts": [],
+        "slider": True,
+    }]
 
 
 def _swing_arc(hinge, radius, dir_from, dir_to, n_pts=20):

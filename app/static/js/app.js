@@ -1174,20 +1174,30 @@ function renderDoors(g, overrides) {
   // Structural door arcs (openings)
   for (const door of (g.door_arcs || [])) {
     for (const leaf of door.leaves) {
-      layer.appendChild(svgEl("line", {
-        x1: leaf.hinge[0], y1: -leaf.hinge[1],
-        x2: leaf.tip[0], y2: -leaf.tip[1],
-        class: "door-line",
-      }));
-      const pts = leaf.arc_pts.map(p => `${p[0]},${-p[1]}`).join(" ");
-      layer.appendChild(svgEl("polyline", {
-        points: pts,
-        class: "door-arc",
-      }));
-      layer.appendChild(svgEl("circle", {
-        cx: leaf.hinge[0], cy: -leaf.hinge[1], r: 0.04,
-        class: "door-hinge",
-      }));
+      if (leaf.slider) {
+        // Hanging slider (barn door): thick track line only
+        layer.appendChild(svgEl("line", {
+          x1: leaf.hinge[0], y1: -leaf.hinge[1],
+          x2: leaf.tip[0], y2: -leaf.tip[1],
+          class: "door-slider-track",
+        }));
+      } else {
+        // Hinged door: hinge-to-tip line + swing arc
+        layer.appendChild(svgEl("line", {
+          x1: leaf.hinge[0], y1: -leaf.hinge[1],
+          x2: leaf.tip[0], y2: -leaf.tip[1],
+          class: "door-line",
+        }));
+        const pts = leaf.arc_pts.map(p => `${p[0]},${-p[1]}`).join(" ");
+        layer.appendChild(svgEl("polyline", {
+          points: pts,
+          class: "door-arc",
+        }));
+        layer.appendChild(svgEl("circle", {
+          cx: leaf.hinge[0], cy: -leaf.hinge[1], r: 0.04,
+          class: "door-hinge",
+        }));
+      }
     }
   }
   // Appliance door arcs (fridge, washer, dryer, microwave)
@@ -7657,12 +7667,13 @@ function showDoorProperties(tbody, roName) {
     tbody.appendChild(tr);
     return;
   }
+  const isSlider = door.door_type === "hanging_slider";
   addPropRow(tbody, "—", "Door");
-  addPropRow(tbody, "Width", door.width + '"');
-  addDoorDropdownRow(tbody, "Hinge", door.hinge_side, roName, "hinge_side", null, door);
-  addDoorDropdownRow(tbody, "Swing", door.swing_direction, roName, "swing_direction", null, door);
+  addPropRow(tbody, isSlider ? "Panel width" : "Width", door.width + '"');
+  addDoorDropdownRow(tbody, isSlider ? "Roll dir" : "Hinge", door.hinge_side, roName, "hinge_side", null, door);
+  addDoorDropdownRow(tbody, isSlider ? "Track side" : "Swing", door.swing_direction, roName, "swing_direction", null, door);
   addDoorDropdownRow(tbody, "Type", door.door_type, roName, "door_type",
-    ["single", "double"], door);
+    ["single", "double", "hanging_slider"], door);
 
   // Flip buttons
   const tr = document.createElement("tr");
@@ -7670,7 +7681,10 @@ function showDoorProperties(tbody, roName) {
   td.colSpan = 2;
   td.style.display = "flex";
   td.style.gap = "4px";
-  for (const [label, field] of [["Flip Hinge", "hinge_side"], ["Flip Swing", "swing_direction"]]) {
+  const flipPairs = isSlider
+    ? [["Flip Roll", "hinge_side"], ["Flip Track", "swing_direction"]]
+    : [["Flip Hinge", "hinge_side"], ["Flip Swing", "swing_direction"]];
+  for (const [label, field] of flipPairs) {
     const btn = document.createElement("button");
     btn.textContent = label;
     btn.className = "prop-btn";
@@ -7743,7 +7757,7 @@ function showAddDoorDialog(openingName) {
       {name: "swing_direction", label: "Swing direction", type: "select",
        options: ["east", "west", "north", "south"], value: "south"},
       {name: "door_type", label: "Type", type: "select",
-       options: ["single", "double"], value: "single"},
+       options: ["single", "double", "hanging_slider"], value: "single"},
     ],
     onSubmit: async (vals) => {
       try {
