@@ -735,7 +735,7 @@ async function showSpanRotationProperties() {
     _spanRotationCache = await resp.json();
   }
   const data = _spanRotationCache;
-  const tbody = App.els["props-table"];
+  const tbody = App.els["props-table"].querySelector("tbody");
   tbody.innerHTML = "";
   App.els["props-title"].textContent = "Span vs Rotation";
   App.els["props-detail"].style.display = "block";
@@ -750,7 +750,7 @@ async function showSpanRotationProperties() {
 
 /** Show site plan properties panel with setbacks and survey points. */
 async function showSitePlanProperties() {
-  const tbody = App.els["props-table"];
+  const tbody = App.els["props-table"].querySelector("tbody");
   tbody.innerHTML = "";
   App.els["props-title"].textContent = "Site Plan";
   App.els["props-detail"].style.display = "block";
