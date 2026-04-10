@@ -982,6 +982,13 @@ def render_floorplan_svg_db(geom, data, room_title="Parent Suite",
     # Outer wall shells (outline-derived, not from interior formulas)
     _render_walls(out, data, layout, bare=bare or sf, skip_interior_walls=True)
 
+    # Roof outline (dashed, drawn over outer walls so overhang is visible)
+    roof_poly = geom.get("roof_poly", [])
+    if roof_poly:
+        roof_svg = _poly_svg([(p[0], p[1]) for p in roof_poly], to_svg)
+        out.append(f'<polygon points="{roof_svg}" fill="none"'
+                   f' stroke="#333" stroke-width="0.8" stroke-dasharray="3,2"/>')
+
     # Interior walls from DB
     render_interior_walls_db(out, geom, to_svg)
 
