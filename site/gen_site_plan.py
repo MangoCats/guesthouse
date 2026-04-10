@@ -55,10 +55,12 @@ SitePlanData = namedtuple("SitePlanData", [
     "building_to_pdf",  # transform function (E,N) → (pdf_x, pdf_y)
     "rotation_deg",     # rotation angle in degrees
     "f15_pdf",          # F15 position in PDF coords
-    "ew_dim_ft",        # E-W external dimension (F2→F15 along building E-W)
+    "ew_dim_ft",        # E-W external dimension (_site_se_pt → _site_w_pt projected)
     "ns_dim_ft",        # N-S external dimension (F18→F6 along building N-S)
+    "arc_dim_ft",       # arc midpoint of F02-F03 to F24b-F26 surface (along C02 line)
     "min_setback_216",  # min perpendicular dist of any F point from 216.73' line (ft)
     "min_setback_275",  # min perpendicular dist of any F point from 275.08' line (ft)
+    "min275_pdf",       # PDF coords of the F-series point closest to 275.08' line
     "draw_poly",        # interpolated building outline (building coords)
     "inner_poly",       # inner wall polygon
     "span_s_pdf",       # N-S span south endpoint in PDF coords
@@ -306,6 +308,97 @@ def build_site_plan_data(gd=None):
               pts["_site_se_pt"][1] - pts["_site_w_pt"][1])
     ew_dim_ft = abs(_df_ew[0] * _bld_ew[0] + _df_ew[1] * _bld_ew[1])
 
+    # NS dim: northernmost point in the western 33% of outline → shoot ray south.
+    # Works for any outline shape (arc or line north face) without naming specific points.
+    _segs_for_ns = gd.outline_segs if gd is not None else []
+    arc_dim_ft = 0.0
+    if _segs_for_ns:
+        # E extent of all outline vertices
+        _all_e = [pts[n][0] for s in _segs_for_ns
+                  for n in (s.start, s.end) if n in pts]
+        _e_lo, _e_hi = min(_all_e), max(_all_e)
+        _e_west_limit = _e_lo + 0.33 * (_e_hi - _e_lo)  # western 33%
+
+        def _angle_on_arc(a_test, a_start, a_end, direction):
+            """Robust check: is a_test within the arc sweep from a_start to a_end?
+            Uses modular arithmetic to avoid atan2 ±π sign ambiguity."""
+            _2pi = 2 * math.pi
+            if direction == "CW":
+                sweep = (a_start - a_end) % _2pi
+                to_test = (a_start - a_test) % _2pi
+            else:
+                sweep = (a_end - a_start) % _2pi
+                to_test = (a_test - a_start) % _2pi
+            return to_test <= sweep + 1e-9
+
+        def _seg_north_extremum(seg):
+            """Return (E, N) of the northernmost point of seg within the western 33%."""
+            if seg.start not in pts or seg.end not in pts:
+                return None
+            p1, p2 = pts[seg.start], pts[seg.end]
+            candidates = []
+            for p in (p1, p2):
+                if p[0] <= _e_west_limit:
+                    candidates.append(p)
+            if isinstance(seg, ArcSeg) and seg.center in pts:
+                cx, cy = pts[seg.center]
+                R = math.hypot(p1[0]-cx, p1[1]-cy)
+                tip = (cx, cy + R)
+                if tip[0] <= _e_west_limit:
+                    a1 = math.atan2(p1[1]-cy, p1[0]-cx)
+                    a2 = math.atan2(p2[1]-cy, p2[0]-cx)
+                    if _angle_on_arc(math.pi / 2.0, a1, a2, seg.direction):
+                        candidates.append(tip)
+            return max(candidates, key=lambda p: p[1]) if candidates else None
+
+        _north_candidates = [_seg_north_extremum(s) for s in _segs_for_ns]
+        _north_candidates = [p for p in _north_candidates if p is not None]
+        if _north_candidates:
+            _E_n, _N_n = max(_north_candidates, key=lambda p: p[1])
+
+            def _ray_south_isects(e_ray, n_start):
+                """N values where the vertical ray E=e_ray crosses outline below n_start."""
+                hits = []
+                for seg in _segs_for_ns:
+                    if seg.start not in pts or seg.end not in pts:
+                        continue
+                    p1, p2 = pts[seg.start], pts[seg.end]
+                    if isinstance(seg, LineSeg):
+                        dx = p2[0] - p1[0]
+                        if abs(dx) < 1e-9:
+                            continue
+                        t = (e_ray - p1[0]) / dx
+                        if -1e-9 <= t <= 1+1e-9:
+                            n_hit = p1[1] + t * (p2[1] - p1[1])
+                            if n_hit < n_start - 1e-6:
+                                hits.append(n_hit)
+                    elif isinstance(seg, ArcSeg):
+                        if seg.center not in pts:
+                            continue
+                        cx, cy = pts[seg.center]
+                        R = math.hypot(p1[0]-cx, p1[1]-cy)
+                        disc = R*R - (e_ray - cx)**2
+                        if disc < 0:
+                            continue
+                        for sign in (+1, -1):
+                            n_hit = cy + sign * math.sqrt(disc)
+                            if n_hit >= n_start - 1e-6:
+                                continue
+                            a_hit = math.atan2(n_hit-cy, e_ray-cx)
+                            a1 = math.atan2(p1[1]-cy, p1[0]-cx)
+                            a2 = math.atan2(p2[1]-cy, p2[0]-cx)
+                            if not _angle_on_arc(a_hit, a1, a2, seg.direction):
+                                continue
+                            hits.append(n_hit)
+                return hits
+
+            _hits = _ray_south_isects(_E_n, _N_n)
+            if _hits:
+                _N_s = max(_hits)   # closest face south of the north extremum
+                arc_dim_ft = _N_n - _N_s
+                pts["_arc_dim_start"] = (_E_n, _N_n)
+                pts["_arc_dim_end"]   = (_E_n, _N_s)
+
     _df_ns = (pts["_site_n_pt"][0] - pts["_site_s_pt"][0],
               pts["_site_n_pt"][1] - pts["_site_s_pt"][1])
     ns_dim_ft = abs(_df_ns[0] * _bld_ns[0] + _df_ns[1] * _bld_ns[1])
@@ -339,10 +432,15 @@ def build_site_plan_data(gd=None):
         ((pt[0] - LINE_TOP[0]) * (-ldy) + (pt[1] - LINE_TOP[1]) * ldx)
         / (llen * SCALE)
         for pt in (f_series_pdf[n] for n in _outline_struct_names if n in f_series_pdf))
-    min_setback_275 = min(
-        ((pt[0] - BOT_LEFT[0]) * bdy - (pt[1] - BOT_LEFT[1]) * bdx)
-        / (blen * SCALE)
-        for pt in (f_series_pdf[n] for n in _outline_struct_names if n in f_series_pdf))
+    _min275_best_pt, min_setback_275 = None, float("inf")
+    for _n in _outline_struct_names:
+        if _n not in f_series_pdf:
+            continue
+        _pt = f_series_pdf[_n]
+        _d = (((_pt[0] - BOT_LEFT[0]) * bdy - (_pt[1] - BOT_LEFT[1]) * bdx)
+              / (blen * SCALE))
+        if _d < min_setback_275:
+            min_setback_275, _min275_best_pt = _d, _pt
 
     # --- Distance from existing residence corner to closest outline point ---
     _res_best_name, _res_best_dist = None, float("inf")
@@ -373,8 +471,10 @@ def build_site_plan_data(gd=None):
         f15_pdf=f15_pdf,
         ew_dim_ft=ew_dim_ft,
         ns_dim_ft=ns_dim_ft,
+        arc_dim_ft=arc_dim_ft,
         min_setback_216=min_setback_216,
         min_setback_275=min_setback_275,
+        min275_pdf=_min275_best_pt,
         draw_poly=draw_poly,
         inner_poly=inner_poly,
         span_s_pdf=span_s_pdf,
@@ -528,7 +628,7 @@ def render_site_plan(sp, corners=True):
             fitz.Point(label_pdf[0] - lw / 2.0, start_y + i * label_lh),
             line, fontname="helv", fontsize=BLDG_LABEL_FS, color=COLOR_PROPOSED)
 
-    # --- SE corner to west-ref dimension line (E-W external dimension) ---
+    # --- E-W external dimension line (_site_se_pt → west ref) ---
     f15 = pts["_site_se_pt"]
     f15_pdf = building_to_pdf(*f15)
     foot_pdf = building_to_pdf(pts["_site_w_pt"][0], f15[1])
@@ -536,10 +636,13 @@ def render_site_plan(sp, corners=True):
                    f"{sp.ew_dim_ft:.1f}'", COLOR_PROPOSED,
                    avoid_aabbs=(_bldg_label_aabb,))
 
-    # --- N-S Interior Max Span dimension line ---
-    _draw_dim_line(shape, page, sp.span_s_pdf, sp.span_n_pdf,
-                   f"{sp.ns_dim_ft:.1f}'", COLOR_PROPOSED,
-                   avoid_aabbs=(_bldg_label_aabb,))
+    # --- Arc dim: midpoint of F02-F03 arc to F24b-F26 surface ---
+    if "_arc_dim_start" in pts and "_arc_dim_end" in pts:
+        _arc_a_pdf = building_to_pdf(*pts["_arc_dim_end"])    # isect (south)
+        _arc_b_pdf = building_to_pdf(*pts["_arc_dim_start"])  # arc_mid (north)
+        _draw_dim_line(shape, page, _arc_a_pdf, _arc_b_pdf,
+                       f"{sp.arc_dim_ft:.1f}'", COLOR_PROPOSED,
+                       avoid_aabbs=(_bldg_label_aabb,))
 
     # --- Setback caption (from 216.73' line) ---
     f16_pdf = building_to_pdf(*pts["_site_sf_start"])
@@ -550,7 +653,7 @@ def render_site_plan(sp, corners=True):
                         sp.min_setback_216, COLOR_PROPOSED)
 
     # --- Min setback from 275.08' line caption ---
-    _draw_setback_label(page, sp.f2_pdf, BOT_LEFT, LINE_BOT,
+    _draw_setback_label(page, sp.min275_pdf, BOT_LEFT, LINE_BOT,
                         sp.min_setback_275, COLOR_PROPOSED)
 
     # --- Distance from residence corner to closest F point ---
@@ -706,13 +809,15 @@ def render_site_plan_df(doc, sp):
     _df2_bot = _df2_cy + _df_h / 2.0
     _draw_drainfield(_df2_left, _df2_top, _df2_right, _df2_bot, _df_r)
 
-    # New drainfield: midway between F2 (PDF) and 275.08'/216.73' corner
-    f2_pdf = sp.f2_pdf
-    _ndf_dx = LINE_BOT[0] - f2_pdf[0]
-    _ndf_dy = LINE_BOT[1] - f2_pdf[1]
+    # New drainfield: P3-near end is 8' from P3, aligned along P3→LINE_BOT
+    p3_pdf = sp.p_series_pdf["P3"]
+    _ndf_dx = LINE_BOT[0] - p3_pdf[0]
+    _ndf_dy = LINE_BOT[1] - p3_pdf[1]
     _ndf_len = math.hypot(_ndf_dx, _ndf_dy)
-    _ndf_cx = (f2_pdf[0] + LINE_BOT[0]) / 2.0 - 4.0 * SCALE * _ndf_dx / _ndf_len
-    _ndf_cy = (f2_pdf[1] + LINE_BOT[1]) / 2.0 - 4.0 * SCALE * _ndf_dy / _ndf_len
+    _ndf_ux = _ndf_dx / _ndf_len
+    _ndf_uy = _ndf_dy / _ndf_len
+    _ndf_cx = p3_pdf[0] + (6.0 * SCALE + _df_w / 2.0) * _ndf_ux
+    _ndf_cy = p3_pdf[1] + (6.0 * SCALE + _df_w / 2.0) * _ndf_uy
     _ndf_angle = math.degrees(math.atan2(_ndf_dy, _ndf_dx))
     _ndf_left = _ndf_cx - _df_w / 2.0
     _ndf_top = _ndf_cy - _df_h / 2.0
