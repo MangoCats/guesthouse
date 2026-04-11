@@ -22,10 +22,10 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      var flatUrl = glbToUrl(window.GLB_FLAT_ROOF);
-      var in12Url = glbToUrl(window.GLB_2IN12);
-      document.querySelectorAll('model-viewer[data-model="flat_roof"]').forEach(function(v) { v.src = flatUrl; });
-      document.querySelectorAll('model-viewer[data-model="2in12"]').forEach(function(v) { v.src = in12Url; });
+      document.querySelectorAll('model-viewer[data-model]').forEach(function(v) {
+        var key = 'GLB_' + v.dataset.model.toUpperCase();
+        if (window[key]) v.src = glbToUrl(window[key]);
+      });
     });
   </script>
 
@@ -77,7 +77,7 @@
 
   <div class="layout">
     <div class="label">Base</div>
-    <model-viewer data-model="2in12"
+    <model-viewer data-model="Base"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
@@ -92,7 +92,7 @@
 
   <div class="layout">
     <div class="label">Mark 6</div>
-    <model-viewer data-model="2in12"
+    <model-viewer data-model="Mark6"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
@@ -107,7 +107,7 @@
 
   <div class="layout">
     <div class="label">Mark 8</div>
-    <model-viewer data-model="flat_roof"
+    <model-viewer data-model="Mark8"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
@@ -122,7 +122,7 @@
 
   <div class="layout">
     <div class="label">Mark 9</div>
-    <model-viewer data-model="flat_roof"
+    <model-viewer data-model="Mark9"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
@@ -137,7 +137,7 @@
 
   <div class="layout">
     <div class="label">Mark X</div>
-    <model-viewer data-model="flat_roof"
+    <model-viewer data-model="MarkX"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
