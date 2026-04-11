@@ -4,7 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Daybed Layout Options</title>
+
+  <!-- Embedded GLB data (base64) — works on file:// without a local server -->
+  <script src="models.js"></script>
+
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+
+  <script>
+    // Convert a base64-encoded GLB string to a Blob URL that model-viewer can load.
+    // Using Blob URLs avoids the fetch() restriction on file:// pages.
+    function glbToUrl(b64) {
+      var bin = atob(b64);
+      var buf = new ArrayBuffer(bin.length);
+      var bytes = new Uint8Array(buf);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return URL.createObjectURL(new Blob([buf], {type: 'model/gltf-binary'}));
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var flatUrl = glbToUrl(window.GLB_FLAT_ROOF);
+      var in12Url = glbToUrl(window.GLB_2IN12);
+      document.querySelectorAll('model-viewer[data-model="flat_roof"]').forEach(function(v) { v.src = flatUrl; });
+      document.querySelectorAll('model-viewer[data-model="2in12"]').forEach(function(v) { v.src = in12Url; });
+    });
+  </script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -31,7 +55,6 @@
       color: #89b4fa;
       margin-bottom: 0.5rem;
     }
-    /* 3-D viewer */
     model-viewer {
       display: block;
       width: 100%;
@@ -54,10 +77,8 @@
 
   <div class="layout">
     <div class="label">Base</div>
-    <model-viewer src="2in12.glb"
+    <model-viewer data-model="2in12"
       camera-orbit="225deg 75deg auto"
-      min-camera-orbit="auto auto auto"
-      max-camera-orbit="auto auto auto"
       camera-controls
       auto-rotate
       auto-rotate-delay="3000"
@@ -71,7 +92,7 @@
 
   <div class="layout">
     <div class="label">Mark 6</div>
-    <model-viewer src="2in12.glb"
+    <model-viewer data-model="2in12"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
@@ -86,7 +107,7 @@
 
   <div class="layout">
     <div class="label">Mark 8</div>
-    <model-viewer src="flat_roof.glb"
+    <model-viewer data-model="flat_roof"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
@@ -101,7 +122,7 @@
 
   <div class="layout">
     <div class="label">Mark 9</div>
-    <model-viewer src="flat_roof.glb"
+    <model-viewer data-model="flat_roof"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
@@ -116,7 +137,7 @@
 
   <div class="layout">
     <div class="label">Mark X</div>
-    <model-viewer src="flat_roof.glb"
+    <model-viewer data-model="flat_roof"
       camera-orbit="225deg 75deg auto"
       camera-controls
       auto-rotate
