@@ -71,8 +71,10 @@ def _parse_poly_extrusions(block, skip_door_cutouts=False):
     """
     Return list of (pts, z_base, height) for every
       [translate([0,0,Z])] linear_extrude(height=H) polygon(points=[...])
-    in block.  If skip_door_cutouts, skip entries where the preceding context
-    contains 'translate([0, 0, -0.001])'.
+    in block.  If skip_door_cutouts, skip entries where the 120 chars
+    immediately preceding the polygon contain '-0.001' (door cutout marker).
+    Uses a narrow window for the cutout check so the marker from a preceding
+    difference() block doesn't bleed into the next wall's context.
     """
     result = []
     # Find every polygon(points = [...]) call
@@ -82,11 +84,13 @@ def _parse_poly_extrusions(block, skip_door_cutouts=False):
             continue
         pts = ast.literal_eval(re.sub(r'//[^\n]*', '', arr_str))
 
-        # Look back up to 300 chars for height and z
-        ctx = block[max(0, pm.start() - 300): pm.start()]
-
-        if skip_door_cutouts and '-0.001' in ctx:
+        # Narrow context (120 chars) for door-cutout detection only
+        near_ctx = block[max(0, pm.start() - 120): pm.start()]
+        if skip_door_cutouts and '-0.001' in near_ctx:
             continue
+
+        # Wider context (300 chars) for height and z-translate
+        ctx = block[max(0, pm.start() - 300): pm.start()]
 
         leh = re.findall(r'linear_extrude\s*\(\s*height\s*=\s*([\d.]+)', ctx)
         if not leh:
@@ -294,11 +298,84 @@ def extrude_ring(outer_2d, inner_2d, mesh,
     _stitch_caps(it, ot, mesh)
 
 
+def _triangulate_polygon(pts_2d):
+    """
+    Ear-clipping triangulation for a simple polygon (convex or concave).
+    Returns a list of (i, j, k) index triples whose winding matches the
+    polygon orientation (CCW positive / CW negative area).
+    """
+    def _cross2(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    def _pt_in_tri(p, a, b, c):
+        d1 = _cross2(a, b, p)
+        d2 = _cross2(b, c, p)
+        d3 = _cross2(c, a, p)
+        has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+        has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
+        return not (has_neg and has_pos)
+
+    pts = list(pts_2d)
+    n = len(pts)
+    if n < 3:
+        return []
+    if n == 3:
+        return [(0, 1, 2)]
+
+    # Signed area: positive = CCW, negative = CW
+    area2 = sum(_cross2(pts[0], pts[i], pts[i + 1]) for i in range(1, n - 1))
+
+    indices = list(range(n))
+    triangles = []
+    limit = n * n + 10  # safety iteration cap
+
+    for _ in range(limit):
+        m = len(indices)
+        if m < 3:
+            break
+        if m == 3:
+            triangles.append((indices[0], indices[1], indices[2]))
+            break
+
+        ear_found = False
+        for i in range(m):
+            pi = indices[(i - 1) % m]
+            ci = indices[i]
+            ni = indices[(i + 1) % m]
+            a, b, c = pts[pi], pts[ci], pts[ni]
+
+            # Ear tip must be convex w.r.t. polygon orientation
+            cross = _cross2(a, b, c)
+            if (area2 > 0 and cross <= 0) or (area2 < 0 and cross >= 0):
+                continue
+
+            # No other vertex may lie strictly inside the ear triangle
+            is_ear = True
+            for j in range(m):
+                ji = indices[j]
+                if ji in (pi, ci, ni):
+                    continue
+                if _pt_in_tri(pts[ji], a, b, c):
+                    is_ear = False
+                    break
+
+            if is_ear:
+                triangles.append((pi, ci, ni))
+                indices.pop(i)
+                ear_found = True
+                break
+
+        if not ear_found:
+            break  # degenerate polygon — stop to avoid infinite loop
+
+    return triangles
+
+
 def extrude_polygon(pts_2d, mesh, z_bot=0.0, z_top=None,
                     top_fn=None, flip_top=False):
     """
-    Extrude a simple (convex) polygon into a prism.
-    Fan-triangulation from vertex 0 is used for the caps.
+    Extrude a simple polygon (convex or concave) into a prism.
+    Ear-clipping triangulation is used for the caps.
     top_fn(x, y) overrides z_top for per-vertex heights.
     """
     if top_fn is None:
@@ -313,18 +390,19 @@ def extrude_polygon(pts_2d, mesh, z_bot=0.0, z_top=None,
     for i in range(n):
         mesh.add_quad(bot[i], bot[(i + 1) % n], top[(i + 1) % n], top[i])
 
-    # Bottom cap (fan from vertex 0, winding: CCW when viewed from below)
-    for i in range(1, n - 1):
-        mesh.add_tri(bot[0], bot[i + 1], bot[i])
+    tris = _triangulate_polygon(pts_2d)
+
+    # Bottom cap (reversed winding for downward-facing normal)
+    for a, b, c in tris:
+        mesh.add_tri(bot[a], bot[c], bot[b])
 
     # Top cap
-    tris_top = [(top[0], top[i], top[i + 1]) for i in range(1, n - 1)]
     if flip_top:
-        for a, b, c in tris_top:
-            mesh.add_tri(a, c, b)
+        for a, b, c in tris:
+            mesh.add_tri(top[a], top[c], top[b])
     else:
-        for a, b, c in tris_top:
-            mesh.add_tri(a, b, c)
+        for a, b, c in tris:
+            mesh.add_tri(top[a], top[b], top[c])
 
 
 # ──────────────────────────────  Model builders  ─────────────────────────────
@@ -345,15 +423,20 @@ def _build_walls(data, wall_mesh):
 
 def _build_walls_2in12_upper(data, wall_mesh):
     """
-    Band 2 of the 2in12 model: upper wall clipped by the roof shear plane.
-    z_top per point = min(6.666667 + 5.555556, roof_slope * y + roof_z_off)
+    Band 5 of the 2in12 model: upper wall clipped by the roof shear plane.
+    z_top per point = min(z_base + height, roof_slope * y + roof_z_off)
+    where z_base and height come from the parsed 't_full_upper' wall entry.
     """
     s      = data['scalars']
     half_t = s['half_t']
     slope  = s['roof_slope']
     z_off  = s['roof_z_off']
-    z_base = 6.666667
-    z_max  = z_base + 5.555556
+
+    upper_entry = next((w for w in data['walls'] if w[0] == 't_full_upper'), None)
+    if upper_entry is None:
+        return
+    _, z_base, height = upper_entry
+    z_max = z_base + height
 
     def top_fn(x, y):
         return min(z_max, slope * y + z_off)
@@ -411,12 +494,14 @@ def _build_roof_2in12(data, roof_mesh):
     for i in range(n):
         roof_mesh.add_quad(bot3[i], bot3[(i + 1) % n],
                             top3[(i + 1) % n], top3[i])
-    # Bottom cap
-    for i in range(1, n - 1):
-        roof_mesh.add_tri(bot3[0], bot3[i + 1], bot3[i])
+
+    tris = _triangulate_polygon(pts)
+    # Bottom cap (reversed winding for downward-facing normal)
+    for a, b, c in tris:
+        roof_mesh.add_tri(bot3[a], bot3[c], bot3[b])
     # Top cap
-    for i in range(1, n - 1):
-        roof_mesh.add_tri(top3[0], top3[i], top3[i + 1])
+    for a, b, c in tris:
+        roof_mesh.add_tri(top3[a], top3[b], top3[c])
 
 
 def _build_windows(data, win_mesh):
