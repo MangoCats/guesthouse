@@ -636,6 +636,14 @@ def render_site_plan(sp, corners=True):
                    f"{sp.ew_dim_ft:.1f}'", COLOR_PROPOSED,
                    avoid_aabbs=(_bldg_label_aabb,))
 
+    # --- N-S external dimension line (_site_s_pt → north ref, same easting) ---
+    s_pt = pts["_site_s_pt"]
+    s_pdf = building_to_pdf(*s_pt)
+    n_pdf = building_to_pdf(s_pt[0], pts["_site_n_pt"][1])
+    _draw_dim_line(shape, page, s_pdf, n_pdf,
+                   f"{sp.ns_dim_ft:.1f}'", COLOR_PROPOSED,
+                   avoid_aabbs=(_bldg_label_aabb,))
+
     # --- Arc dim: midpoint of F02-F03 arc to F24b-F26 surface ---
     if "_arc_dim_start" in pts and "_arc_dim_end" in pts:
         _arc_a_pdf = building_to_pdf(*pts["_arc_dim_end"])    # isect (south)
