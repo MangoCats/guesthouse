@@ -36,8 +36,12 @@ function findElementRecord(type, name) {
   if (type === "wall") {
     return elements.find(e => e.type === "wall" && e.name === name) || null;
   }
-  // For furniture/appliance, check if there's an override element
-  return elements.find(e => e.name === name) || null;
+  const variant = App.state.variant;
+  const candidates = elements.filter(e => e.type === type && e.name === name);
+  if (candidates.length === 0) return null;
+  const exact = candidates.find(e => e.variant === variant);
+  if (exact) return exact;
+  return candidates.find(e => e.variant === null) || candidates[0] || null;
 }
 
 
@@ -123,7 +127,10 @@ const MOVABLE_TYPES = new Set(["wall", "furniture", "appliance", "fixture", "dim
 function findMovableAtPoint(clientX, clientY) {
   const hits = document.elementsFromPoint(clientX, clientY);
   for (const hit of hits) {
-    const el = hit.closest("[data-name][data-type]");
+    let el = hit.matches("[data-name][data-type]") ? hit : hit.closest("[data-name][data-type]");
+    if (!el && hit.nodeName.toLowerCase() === "a") {
+      el = hit.querySelector("[data-name][data-type]");
+    }
     if (el && MOVABLE_TYPES.has(el.getAttribute("data-type"))) {
       return el;
     }
@@ -419,7 +426,7 @@ async function commitMove(targets, dx, dy) {
         const resp = await fetch(`/api/elements/${elementId}/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dx, dy }),
+          body: JSON.stringify({ dx, dy, variant: App.state.variant }),
         });
         const data = await resp.json();
         if (resp.ok) {

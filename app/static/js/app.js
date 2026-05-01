@@ -1263,6 +1263,8 @@ function renderFurniture(g, overrides) {
           const a = document.createElementNS("http://www.w3.org/2000/svg", "a");
           a.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", itemStyle.product_url);
           a.setAttribute("target", "_blank");
+          a.setAttribute("data-type", item.type);
+          a.setAttribute("data-name", name);
           a.appendChild(el);
           layer.appendChild(a);
         } else {
@@ -1286,6 +1288,8 @@ function renderFurniture(g, overrides) {
           const a = document.createElementNS("http://www.w3.org/2000/svg", "a");
           a.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", itemStyle.product_url);
           a.setAttribute("target", "_blank");
+          a.setAttribute("data-type", item.type);
+          a.setAttribute("data-name", name);
           a.appendChild(el);
           layer.appendChild(a);
         } else {
@@ -1325,6 +1329,8 @@ function renderFurniture(g, overrides) {
         const icon = svgEl("text", {
           x: iconX, y: iconY,
           class: "link-icon",
+          "data-type": item.type,
+          "data-name": name,
         });
         icon.textContent = "\u{1F517}";
         icon.addEventListener("click", (e) => {
@@ -7559,7 +7565,7 @@ function updateOpeningsTable() {
 async function loadElements() {
   try {
     const [elemResp, doorResp, exclResp] = await Promise.all([
-      fetch("/api/elements"),
+      fetch(`/api/elements?variant=${encodeURIComponent(App.state.variant)}`),
       fetch("/api/doors"),
       fetch("/api/exclusions"),
     ]);

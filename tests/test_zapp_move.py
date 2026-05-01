@@ -299,3 +299,27 @@ class TestFurnitureOverride:
         data = resp.get_json()
         assert abs(data["offset_x"] - 1.5) < 1e-9
         assert abs(data["offset_y"] - (-0.75)) < 1e-9
+
+    def test_move_variant_item_creates_variant_formula(self, app_client):
+        """Moving a placed item should create a variant-specific position formula."""
+        resp = app_client.get("/api/elements")
+        elements = resp.get_json()
+        geom = app_client.get("/api/geometry?variant=standard").get_json()
+        variant_items = set(geom.get("variant_items", {}).keys())
+        item = next(
+            (e for e in elements
+             if e["type"] in ("furniture", "appliance", "fixture")
+             and e["name"] in variant_items),
+            None,
+        )
+        assert item is not None, "No movable variant item found in the test fixture"
+        variant = item["variant"] or "standard"
+
+        resp = app_client.post(f"/api/elements/{item['id']}/move", json={
+            "dx": 0.5, "dy": 0.25, "variant": variant,
+        })
+        assert resp.status_code == 200
+        from app.database import get_element_formulas
+
+        variant_formulas = get_element_formulas(item["name"], variant=variant)
+        assert any(f["param_name"] == "position" and f["variant"] == variant for f in variant_formulas)

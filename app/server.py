@@ -922,6 +922,7 @@ def create_app(db_path=None, skip_init=False):
         if not el:
             return jsonify({"error": "not found"}), 404
         body = request.get_json(force=True)
+        request_variant = body.get("variant")
 
         # Resolve anchor-based format to dx/dy
         if "anchor" in body:
@@ -1050,16 +1051,21 @@ def create_app(db_path=None, skip_init=False):
         # Preserves formula type, rotation, shape, dimensions — everything
         # except the position point, which becomes absolute coordinates.
         # COLLATE NOCASE on element_formulas handles case-insensitive lookup.
-        variant = el.get("variant") or "standard"
+        el_variant = el.get("variant")
         formula_name = name
         formula_variant = None  # variant stored on the formula row
+        search_variant = request_variant if request_variant is not None else el_variant
 
         def _find_position_formula(fname, var):
-            """Find the position formula, trying variant then NULL."""
+            """Find the position formula, trying exact variant then NULL fallback."""
             for v in (var, None):
                 rows = get_element_formulas(fname, variant=v, db_path=db)
                 for r in rows:
                     if r["param_name"] == "position":
+                        # When searching for a specific variant, skip NULL-variant
+                        # rows — they're only fallbacks, handled in the next iteration.
+                        if v is not None and r.get("variant") is None:
+                            continue
                         fj = r["formula_json"]
                         return (
                             json.loads(fj) if isinstance(fj, str) else fj,
@@ -1068,11 +1074,12 @@ def create_app(db_path=None, skip_init=False):
                         )
             return None, fname, None
 
+        el_variant = el.get("variant")
         old_formula_json, formula_name, formula_variant = \
-            _find_position_formula(name, variant)
+            _find_position_formula(name, search_variant)
 
         if el["type"] in ("furniture", "appliance", "fixture") and old_formula_json:
-            geom = _get_geometry(variant)
+            geom = _get_geometry(request_variant or el_variant or "standard")
             vi = geom.get("variant_items", {})
             item_geom = vi.get(name, {})
             # pos_origin = resolved value of the formula's position field.
@@ -1135,8 +1142,9 @@ def create_app(db_path=None, skip_init=False):
             else:
                 return jsonify({"error": f"unsupported formula type {ftype}"}), 400
 
+            target_variant = formula_variant if formula_variant is not None else el_variant
             upsert_formula(formula_name, "position", formula,
-                           variant=formula_variant, db_path=db)
+                           variant=target_variant, db_path=db)
 
             # Update center in element properties for placed items
             if props.get("source") == "placed" or props.get("center"):

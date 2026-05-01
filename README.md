@@ -45,6 +45,16 @@ python span/gen_span_minmax.py       # → span/span_minmax.svg
 python span/gen_span_min.py          # → span/span_min.svg
 ```
 
+## Interactive Editor
+
+Start the interactive ADU Editor:
+
+```
+python run_app.py
+```
+
+This starts the Flask server on `127.0.0.1:5000` and opens the app in your default browser. Use `--port <PORT>` to change the port or `--no-browser` to start without opening a browser.
+
 ## Tests
 
 ```

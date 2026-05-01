@@ -2905,7 +2905,8 @@ def get_all_formulas(variant=None, db_path=None):
             rows = conn.execute(
                 "SELECT * FROM element_formulas "
                 "WHERE variant IS NULL OR variant = ? "
-                "ORDER BY element_name, param_name",
+                "ORDER BY element_name, param_name, "
+                "CASE WHEN variant IS NULL THEN 0 ELSE 1 END",
                 (variant,),
             ).fetchall()
         return [dict(r) for r in rows]
