@@ -1091,7 +1091,6 @@ function renderOutline(g) {
 }
 
 function renderInnerWalls(g) {
-  if (!App.state.showPoints) return; // inner line visible when points shown
   const layer = App.els["layer-inner"];
   if (g.inner_poly && g.inner_poly.length > 0) {
     const el = svgEl("polygon", {
