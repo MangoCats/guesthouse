@@ -967,9 +967,9 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                     _svg_wall_poly(out, uturn_end, to_svg)
 
                 # Opening void polygons (4" wide, centered on wall)
-                # Skip doors (O3, O6) — only render window voids
+                # Skip doors — only windows and casements get the blue void fill
                 for op in seg_ops:
-                    if op.name in ("O3", "O6"):
+                    if getattr(op, "opening_type", "window") == "door":
                         continue
                     S_A, S_B = pts[s_seg.start], pts[s_seg.end]
                     G_A, G_B = pts[g_seg.start], pts[g_seg.end]
