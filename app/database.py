@@ -2816,6 +2816,42 @@ def get_door(opening_name, db_path=None):
         return dict(row) if row else None
 
 
+def _sync_opening_type_for_door(conn, opening_name, new_type):
+    """Keep an opening's opening_type in sync with its door record.
+
+    An outer-wall opening must never be both a door (door record present) and
+    a window/casement (its opening_type renders a void).  Whenever a door is
+    added to or removed from an opening, this flips the opening element's
+    opening_type to match (``door`` on add, ``window`` on remove) and updates
+    its ``<name>_BOTTOM_ELEV`` constant (door=0, otherwise 20").
+
+    Scoped to openings that already carry an ``opening_type`` property; interior
+    rough openings (no opening_type, always passages) are left untouched.
+    Operates on the supplied open connection so the change is atomic with the
+    door INSERT/DELETE.
+    """
+    from floorplan.constants import LOWER_WALL_HEIGHT
+    row = conn.execute(
+        "SELECT id, properties FROM elements "
+        "WHERE name = ? AND type = 'opening'",
+        (opening_name,),
+    ).fetchone()
+    if not row:
+        return
+    try:
+        props = json.loads(row["properties"]) if row["properties"] else {}
+    except (ValueError, TypeError):
+        props = {}
+    if "opening_type" not in props:
+        return  # interior rough opening — no window/door duality
+    props["opening_type"] = new_type
+    conn.execute("UPDATE elements SET properties = ? WHERE id = ?",
+                 (json.dumps(props), row["id"]))
+    bottom = 0.0 if new_type == "door" else LOWER_WALL_HEIGHT
+    conn.execute("UPDATE constants SET value = ?, expr = ? WHERE name = ?",
+                 (float(bottom), str(bottom), f"{opening_name}_BOTTOM_ELEV"))
+
+
 def create_door(opening_name, width, hinge_side, swing_direction, door_type="single", db_path=None):
     """Create a new door. Returns the created record dict."""
     with get_db(db_path) as conn:
@@ -2824,6 +2860,7 @@ def create_door(opening_name, width, hinge_side, swing_direction, door_type="sin
             "VALUES (?, ?, ?, ?, ?)",
             (opening_name, float(width), hinge_side, swing_direction, door_type),
         )
+        _sync_opening_type_for_door(conn, opening_name, "door")
         return {
             "id": cur.lastrowid, "opening_name": opening_name,
             "width": float(width), "hinge_side": hinge_side,
@@ -2840,6 +2877,7 @@ def create_door_raw(record, db_path=None):
             (record["id"], record["opening_name"], record["width"],
              record["hinge_side"], record["swing_direction"], record["door_type"]),
         )
+        _sync_opening_type_for_door(conn, record["opening_name"], "door")
 
 
 def update_door(opening_name, updates, db_path=None):
@@ -2864,11 +2902,17 @@ def update_door(opening_name, updates, db_path=None):
 
 
 def delete_door(opening_name, db_path=None):
-    """Delete a door by opening name.  Returns True if deleted."""
+    """Delete a door by opening name.  Returns True if deleted.
+
+    Reverts the opening's opening_type to ``window`` (if it carries one) so a
+    typed outer opening is never left marked ``door`` without a door record.
+    """
     with get_db(db_path) as conn:
         cur = conn.execute(
             "DELETE FROM doors WHERE opening_name = ?", (opening_name,)
         )
+        if cur.rowcount > 0:
+            _sync_opening_type_for_door(conn, opening_name, "window")
         return cur.rowcount > 0
 
 

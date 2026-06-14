@@ -8,7 +8,9 @@ import pytest
 
 from app.database import (
     get_db, init_db, get_all_doors, get_door, create_door, update_door, delete_door,
+    get_element_by_name, get_constants_dict,
 )
+from floorplan.constants import LOWER_WALL_HEIGHT
 from app.doors import validate_door
 from app.undo import UndoManager
 
@@ -73,6 +75,63 @@ class TestDoorCRUD:
         result = delete_door("RO1", fresh_db)
         assert result is True
         assert get_door("RO1", fresh_db) is None
+
+
+# ── Door / opening_type consistency ───────────────────────────────────
+# An outer-wall opening must never be both a door (door record present) and
+# a window/casement (its opening_type renders a void).  Door create/delete
+# keeps opening_type in sync.
+
+def _otype(name, db):
+    return json.loads(get_element_by_name(name, db)["properties"]).get("opening_type")
+
+
+class TestDoorOpeningTypeSync:
+
+    def test_create_door_flips_window_to_door(self, fresh_db):
+        assert _otype("O1", fresh_db) == "window"
+        create_door("O1", 30, "east", "south", "single", fresh_db)
+        assert _otype("O1", fresh_db) == "door"
+
+    def test_delete_door_reverts_to_window(self, fresh_db):
+        create_door("O1", 30, "east", "south", "single", fresh_db)
+        delete_door("O1", fresh_db)
+        assert _otype("O1", fresh_db) == "window"
+
+    def test_interior_opening_untouched(self, fresh_db):
+        # Rough openings carry no opening_type (always passages) and must not
+        # gain one when a door is added/removed.
+        before = json.loads(get_element_by_name("RO1", fresh_db)["properties"])
+        assert "opening_type" not in before
+        delete_door("RO1", fresh_db)
+        create_door("RO1", 36, "east", "south", "single", fresh_db)
+        after = json.loads(get_element_by_name("RO1", fresh_db)["properties"])
+        assert "opening_type" not in after
+
+    def test_create_door_on_missing_element_is_noop(self, fresh_db):
+        # No element by this name — must not raise.
+        rec = create_door("NO_SUCH_OPENING", 30, "east", "south", "single", fresh_db)
+        assert rec["opening_name"] == "NO_SUCH_OPENING"
+
+    def test_bottom_elev_follows_door_state(self, fresh_db):
+        # Reopen to run the migration branch that seeds elevation constants.
+        init_db(fresh_db)
+        create_door("O1", 30, "east", "south", "single", fresh_db)
+        assert get_constants_dict(fresh_db)["O1_BOTTOM_ELEV"] == 0.0
+        delete_door("O1", fresh_db)
+        assert get_constants_dict(fresh_db)["O1_BOTTOM_ELEV"] == LOWER_WALL_HEIGHT
+
+    def test_seed_has_no_door_window_conflict(self, fresh_db):
+        door_names = {d["opening_name"] for d in get_all_doors(fresh_db)}
+        for name in door_names:
+            el = get_element_by_name(name, fresh_db)
+            if not el:
+                continue
+            props = json.loads(el["properties"])
+            if "opening_type" in props:
+                assert props["opening_type"] == "door", (
+                    f"{name} has a door record but opening_type="
+                    f"{props['opening_type']!r}")
 
 
 # ── Door validation ───────────────────────────────────────────────────
