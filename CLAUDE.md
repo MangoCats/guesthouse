@@ -57,12 +57,16 @@ scad/                — OpenSCAD 3D model and line drawing generation
 blend/               — Blender 3D model generation
   gen_blend.py       — Native Blender (.blend) model of the currently-loaded
                        editor model (app/adu.db). The launcher builds gd from the
-                       live DB, picks the roof from its config roof_style, and
-                       generates SCAD fresh (restoring the on-disk scad file),
-                       then hands a manifest (config_name, roof_type, SCAD text,
+                       live DB and generates SCAD fresh (restoring the on-disk
+                       scad file) for two variants — the configured roof_style and
+                       a 2:12 sloped roof — then hands a manifest (list of models +
                        parcel) to headless Blender. Reuses scad/gen_gltf.py's
                        parser + mesh builders so geometry matches the .glb models
-                       exactly. Re-launches itself if invoked under plain python
+                       exactly, except the roof is rebuilt natively as a planar
+                       n-gon prism (gen_gltf's ear-clipping leaves a triangular
+                       gap on the repeated closing vertex). Window glazing uses a
+                       very transparent material (alpha 0.18, EEVEE Next BLENDED).
+                       Re-launches itself if invoked under plain python
                        ($BLENDER_EXE overrides the auto-detected blender.exe).
                        Adds a green grass ground plane covering the survey parcel
                        (site-plan property extent), computed by inverting
@@ -73,7 +77,8 @@ blend/               — Blender 3D model generation
                        boundary (216.73' line), meeting at the SW corner, with 4"
                        posts every 10'. (Survey plat is N-left/E-top, not N-up —
                        see site/gen_site_plan.py.) Outputs blend/<config_name>.blend
-                       (e.g. blend/MarkZ.blend). Invoking Blender directly with no
+                       and blend/<config_name>_2in12.blend (e.g. blend/MarkZ.blend
+                       + blend/MarkZ_2in12.blend). Invoking Blender directly with no
                        manifest falls back to legacy flat_roof + 2in12 builds.
 
 plumbing/            — Plumbing plan generation

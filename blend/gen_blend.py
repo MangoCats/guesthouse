@@ -22,7 +22,9 @@ the building's FC-origin feet frame.  This is computed in the launching process
 (which has PyMuPDF) and passed to headless Blender as a JSON argument, since
 Blender's bundled Python lacks fitz.
 
-Outputs: blend/<config_name>.blend (the currently-loaded model, e.g. MarkZ.blend)
+Outputs: blend/<config_name>.blend (currently-loaded model) and
+blend/<config_name>_2in12.blend (2:12 sloped-roof version) — e.g. MarkZ.blend
+and MarkZ_2in12.blend.
 
 Usage:
     python blend/gen_blend.py            # locates Blender and runs headless
@@ -48,7 +50,7 @@ _MODELS = [
 _MATERIALS = {
     "wall": ([0.88, 0.82, 0.60, 1.00], 0.85),  # warm cream-yellow shells
     "roof": ([0.10, 0.35, 0.33, 1.00], 0.55),  # dark teal-green metal slab
-    "win":  ([0.80, 0.84, 0.90, 0.90], 0.10),  # blue-grey glazing
+    "win":  ([0.80, 0.84, 0.90, 0.18], 0.05),  # blue-grey glazing (very transparent)
     "iw":   ([0.82, 0.72, 0.38, 1.00], 0.90),  # white-pine interior walls
     "grass": ([0.20, 0.50, 0.16, 1.00], 0.95),  # green ground plane (parcel)
     "fence_3rail": ([0.22, 0.12, 0.05, 1.00], 0.90),  # dark brown wood (3-rail)
@@ -172,11 +174,11 @@ def _run_in_blender():
             with open(extra[0], encoding="utf-8") as f:
                 manifest = json.load(f)
 
-    if manifest and manifest.get("scad_text"):
-        meshes, roof_spec = _build_meshes(manifest["scad_text"],
-                                          manifest["roof_type"])
-        _build_blend_file(manifest["config_name"], meshes,
-                          manifest.get("parcel"), roof_spec)
+    if manifest and manifest.get("models"):
+        parcel = manifest.get("parcel")
+        for m in manifest["models"]:
+            meshes, roof_spec = _build_meshes(m["scad_text"], m["roof_type"])
+            _build_blend_file(m["name"], meshes, parcel, roof_spec)
         return
 
     # Legacy fallback: build both roof types from the committed scad files
@@ -199,8 +201,15 @@ def _make_material(bpy, key):
         if "Alpha" in bsdf.inputs:
             bsdf.inputs["Alpha"].default_value = rgba[3]
     if rgba[3] < 1.0:
-        mat.blend_method = "BLEND"
-    # Viewport display colour (solid shading).
+        # Legacy EEVEE / older Blender.
+        if hasattr(mat, "blend_method"):
+            mat.blend_method = "BLEND"
+        if hasattr(mat, "show_transparent_back"):
+            mat.show_transparent_back = False
+        # EEVEE Next (Blender 4.2+/5.x) uses a per-material render method.
+        if hasattr(mat, "surface_render_method"):
+            mat.surface_render_method = "BLENDED"
+    # Viewport display colour (solid shading); alpha drives solid-mode opacity.
     mat.diffuse_color = rgba
     return mat
 
@@ -468,8 +477,12 @@ def _scad_text_from_gd(ggl, gd, roof_type):
 def _prepare_from_db():
     """Build a manifest for the currently-loaded model from app/adu.db.
 
-    Returns {config_name, roof_type, scad_text, parcel} or None on failure
-    (caller then falls back to the committed-scad legacy build).
+    Produces two .blend files from the same DB geometry: the currently-loaded
+    model with its own roof (named <config_name>) and a 2:12 sloped-roof
+    version (named <config_name>_2in12).
+
+    Returns {models: [{name, roof_type, scad_text}, ...], parcel} or None on
+    failure (caller then falls back to the committed-scad legacy build).
     """
     try:
         import sqlite3
@@ -489,10 +502,16 @@ def _prepare_from_db():
         roof_style = (cfg.get("roof_style") or "flat").lower()
         roof_type = "flat_roof" if roof_style.startswith("flat") else "2in12"
 
-        scad_text = _scad_text_from_gd(ggl, gd, roof_type)
+        # Currently-loaded model (its configured roof).
+        models = [{"name": config_name, "roof_type": roof_type,
+                   "scad_text": _scad_text_from_gd(ggl, gd, roof_type)}]
+        # 2:12 sloped-roof version as its own file (skip if already 2:12).
+        if roof_type != "2in12":
+            models.append({"name": f"{config_name}_2in12", "roof_type": "2in12",
+                           "scad_text": _scad_text_from_gd(ggl, gd, "2in12")})
+
         parcel = _parcel_from_gd(gd)
-        return {"config_name": config_name, "roof_type": roof_type,
-                "scad_text": scad_text, "parcel": parcel}
+        return {"models": models, "parcel": parcel}
     except Exception as exc:
         print(f"gen_blend: could not build from DB ({exc}); "
               "falling back to committed scad files")
@@ -555,8 +574,9 @@ def generate(gd=None):
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(manifest, f)
         cmd += ["--", manifest_path]
-        print(f"gen_blend: building '{manifest['config_name']}' "
-              f"({manifest['roof_type']}) from app/adu.db")
+        _names = ", ".join(f"{m['name']} ({m['roof_type']})"
+                           for m in manifest["models"])
+        print(f"gen_blend: building from app/adu.db: {_names}")
     else:
         print("gen_blend: building legacy flat_roof + 2in12 from committed scad")
 
