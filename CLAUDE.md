@@ -54,6 +54,14 @@ scad/                — OpenSCAD 3D model and line drawing generation
   gen_views.py       — Multi-view rendered output
   gen_line_drawings.py — Line drawing SVGs from SCAD
 
+blend/               — Blender 3D model generation
+  gen_blend.py       — Native Blender (.blend) models mirroring the SCAD models.
+                       Reuses scad/gen_gltf.py's parser + mesh builders so geometry
+                       matches the .glb models exactly. Runs headless via Blender;
+                       re-launches itself if invoked under plain python ($BLENDER_EXE
+                       overrides the auto-detected blender.exe). Outputs
+                       blend/flat_roof.blend, blend/2in12.blend
+
 plumbing/            — Plumbing plan generation
   gen_plumbing.py    — Water supply/drain plan SVG. Outputs plumbing/plumbing.svg
 ```

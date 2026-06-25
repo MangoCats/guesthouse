@@ -44,6 +44,7 @@ _SUBPROCESS_SCRIPTS = [
     os.path.join(_DIR, "gen_3views.py"),
     os.path.join(_DIR, "plumbing", "gen_plumbing.py"),
     os.path.join(_DIR, "scad", "gen_gltf.py"),
+    os.path.join(_DIR, "blend", "gen_blend.py"),
 ]
 
 
