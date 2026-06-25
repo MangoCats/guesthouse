@@ -15,6 +15,13 @@ Coordinate system: SCAD/Blender are both Z-up (east X, north Y, up Z), so —
 unlike the glTF export — no axis swap is applied.  Units are feet; the scene
 is configured for imperial display (1 Blender unit = 1 foot).
 
+A flat green ground plane covering the survey parcel (the property extent from
+the site plans) is added beneath the building.  Its outline is the four parcel
+corners from site/gen_site_plan.py, transformed from PDF/survey space back into
+the building's FC-origin feet frame.  This is computed in the launching process
+(which has PyMuPDF) and passed to headless Blender as a JSON argument, since
+Blender's bundled Python lacks fitz.
+
 Outputs: blend/flat_roof.blend, blend/2in12.blend
 
 Usage:
@@ -24,6 +31,7 @@ Usage:
 
 import os
 import sys
+import json
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_DIR)
@@ -40,7 +48,11 @@ _MATERIALS = {
     "roof": ([0.10, 0.35, 0.33, 1.00], 0.55),  # dark teal-green metal slab
     "win":  ([0.80, 0.84, 0.90, 0.90], 0.10),  # blue-grey glazing
     "iw":   ([0.82, 0.72, 0.38, 1.00], 0.90),  # white-pine interior walls
+    "grass": ([0.20, 0.50, 0.16, 1.00], 0.95),  # green ground plane (parcel)
 }
+
+# Ground plane sits a hair below z=0 so it doesn't z-fight the wall base caps.
+_GRASS_Z = -0.01  # feet
 
 
 # ─────────────────────────  geometry (no bpy needed)  ────────────────────────
@@ -99,9 +111,19 @@ def _build_meshes(scad_file, roof_type):
 def _run_in_blender():
     import bpy  # noqa: F401  (only importable inside Blender)
 
+    # Parcel polygon (building/FC feet coords) is passed after "--" as a JSON
+    # file path by the launching process; absent when run directly in Blender.
+    parcel = None
+    argv = sys.argv
+    if "--" in argv:
+        extra = argv[argv.index("--") + 1:]
+        if extra and os.path.isfile(extra[0]):
+            with open(extra[0]) as f:
+                parcel = json.load(f)
+
     for stem, scad_file, roof_type in _MODELS:
         meshes = _build_meshes(scad_file, roof_type)
-        _build_blend_file(stem, meshes)
+        _build_blend_file(stem, meshes, parcel)
 
 
 def _make_material(bpy, key):
@@ -123,7 +145,24 @@ def _make_material(bpy, key):
     return mat
 
 
-def _build_blend_file(stem, meshes):
+def _build_grass(bpy, coll, stem, parcel):
+    """Add a flat green ground-plane ngon covering the parcel outline."""
+    if not parcel or len(parcel) < 3:
+        return
+    verts = [(float(x), float(y), _GRASS_Z) for x, y in parcel]
+    face = [tuple(range(len(verts)))]
+    name = f"{stem}_Grass"
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], face)
+    mesh.update()
+    mesh.validate()
+    mesh.materials.append(_make_material(bpy, "grass"))
+    for poly in mesh.polygons:
+        poly.use_smooth = False
+    coll.objects.link(bpy.data.objects.new(name, mesh))
+
+
+def _build_blend_file(stem, meshes, parcel=None):
     import bpy
 
     # Start from a clean, empty scene.
@@ -165,11 +204,60 @@ def _build_blend_file(stem, meshes):
         for poly in mesh.polygons:
             poly.use_smooth = False
 
+    _build_grass(bpy, coll, stem, parcel)
+
     out_path = os.path.join(_DIR, f"{stem}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=out_path)
     tris = sum(len(meshes[k][1]) // 3 for k in meshes)
     print(f"  wrote {out_path}  ({tris:,} tris, "
           f"{len(meshes)} object(s))")
+
+
+# ───────────────────────────  parcel (launcher side)  ───────────────────────
+
+def _compute_parcel_poly():
+    """Return the survey parcel outline as [[E, N], ...] in FC-origin feet.
+
+    Inverts site/gen_site_plan.py's building→PDF placement transform for the
+    four parcel corners.  Runs in the launching interpreter (needs PyMuPDF);
+    returns None on any failure so the model still builds without grass.
+    """
+    try:
+        import math
+        import importlib.util
+        if _ROOT not in sys.path:
+            sys.path.insert(0, _ROOT)
+        from app.engine import build_generator_data_from_db
+
+        # Load site/gen_site_plan.py by path (the dir name "site" clashes with
+        # the stdlib site module, so a normal import is unsafe).
+        sp_path = os.path.join(_ROOT, "site", "gen_site_plan.py")
+        spec = importlib.util.spec_from_file_location("adu_gen_site_plan", sp_path)
+        gsp = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gsp)
+
+        gd = build_generator_data_from_db(os.path.join(_ROOT, "app", "adu.db"))
+        sp = gsp.build_site_plan_data(gd)
+
+        f15 = sp.pts["_site_se_pt"]
+        fpx, fpy = sp.f15_pdf
+        scale = sp.SCALE
+        rot = math.radians(sp.rotation_deg)
+        cos_r, sin_r = math.cos(rot), math.sin(rot)
+
+        def pdf_to_building(px, py):
+            re = f15[0] + (px - fpx) / scale
+            rn = f15[1] - (py - fpy) / scale
+            de, dn = re - f15[0], rn - f15[1]
+            return [f15[0] + de * cos_r + dn * sin_r,
+                    f15[1] - de * sin_r + dn * cos_r]
+
+        # Order corners CCW around the parcel (NW→SW→SE→NE).
+        return [pdf_to_building(*c) for c in
+                (gsp.CORNER_NW, gsp.CORNER_SW, gsp.CORNER_SE, gsp.CORNER_NE)]
+    except Exception as exc:
+        print(f"gen_blend: parcel computation failed ({exc}); no grass plane")
+        return None
 
 
 # ─────────────────────────  headless re-launch shim  ─────────────────────────
@@ -212,15 +300,29 @@ def generate(gd=None):
         pass
 
     import subprocess
+    import tempfile
     blender = _find_blender()
     if not blender:
         print("Blender not found (set $BLENDER_EXE); skipping .blend generation")
         return
+
+    cmd = [blender, "--background", "--python", os.path.abspath(__file__)]
+
+    # Compute the parcel here (PyMuPDF available) and hand it to Blender.
+    parcel = _compute_parcel_poly()
+    parcel_path = None
+    if parcel:
+        fd, parcel_path = tempfile.mkstemp(prefix="adu_parcel_", suffix=".json")
+        with os.fdopen(fd, "w") as f:
+            json.dump(parcel, f)
+        cmd += ["--", parcel_path]
+
     print(f"gen_blend: launching {blender} headless ...")
-    subprocess.check_call(
-        [blender, "--background", "--python", os.path.abspath(__file__)],
-        cwd=_ROOT,
-    )
+    try:
+        subprocess.check_call(cmd, cwd=_ROOT)
+    finally:
+        if parcel_path and os.path.exists(parcel_path):
+            os.remove(parcel_path)
 
 
 if __name__ == "__main__":

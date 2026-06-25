@@ -59,8 +59,12 @@ blend/               — Blender 3D model generation
                        Reuses scad/gen_gltf.py's parser + mesh builders so geometry
                        matches the .glb models exactly. Runs headless via Blender;
                        re-launches itself if invoked under plain python ($BLENDER_EXE
-                       overrides the auto-detected blender.exe). Outputs
-                       blend/flat_roof.blend, blend/2in12.blend
+                       overrides the auto-detected blender.exe). Adds a green grass
+                       ground plane covering the survey parcel (site-plan property
+                       extent), computed by inverting site/gen_site_plan.py's
+                       building→PDF transform in the launcher (needs PyMuPDF) and
+                       passed to Blender as JSON. Outputs blend/flat_roof.blend,
+                       blend/2in12.blend
 
 plumbing/            — Plumbing plan generation
   gen_plumbing.py    — Water supply/drain plan SVG. Outputs plumbing/plumbing.svg
