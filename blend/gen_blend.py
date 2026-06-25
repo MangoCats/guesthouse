@@ -303,14 +303,15 @@ def _build_blend_file(stem, meshes, parcel=None):
 
     _build_grass(bpy, coll, stem, parcel)
 
-    # Boundary fences: 3-rail along the SE→SW edge; single-rail along the
-    # NE→SE edge (the empty side opposite the 3-rail). They meet at the SE
-    # corner.  parcel order is [NW, SW, SE, NE].
+    # Boundary fences (parcel order is [NW, NE, SE, SW]): the dark 3-rail fence
+    # runs along the WEST boundary (NW–SW, the 275.08' line); the lighter
+    # single-rail fence runs along the SOUTH boundary (SW–SE, the 216.73'
+    # line).  They meet at the SW corner.
     if parcel and len(parcel) >= 4:
-        nw, sw, se, ne = parcel[0], parcel[1], parcel[2], parcel[3]
-        _build_fence(bpy, coll, stem, se, sw, "fence_3rail",
+        nw, ne, se, sw = parcel[0], parcel[1], parcel[2], parcel[3]
+        _build_fence(bpy, coll, stem, sw, nw, "fence_3rail",
                      3, _FENCE3_TOP, "Fence3Rail")
-        _build_fence(bpy, coll, stem, ne, se, "fence_1rail",
+        _build_fence(bpy, coll, stem, se, sw, "fence_1rail",
                      1, _FENCE1_TOP, "Fence1Rail")
 
     out_path = os.path.join(_DIR, f"{stem}.blend")
@@ -357,9 +358,12 @@ def _compute_parcel_poly():
             return [f15[0] + de * cos_r + dn * sin_r,
                     f15[1] - de * sin_r + dn * cos_r]
 
-        # Order corners CCW around the parcel (NW→SW→SE→NE).
+        # Corners in true compass order: NW, NE, SE, SW.  (The survey plat is
+        # drawn N-left / E-top, not N-up — see site/gen_site_plan.py.  The
+        # building/FC frame uses true Easting/Northing, so these map directly
+        # to the model's X=E / Y=N ground plane.)
         return [pdf_to_building(*c) for c in
-                (gsp.CORNER_NW, gsp.CORNER_SW, gsp.CORNER_SE, gsp.CORNER_NE)]
+                (gsp.CORNER_NW, gsp.CORNER_NE, gsp.CORNER_SE, gsp.CORNER_SW)]
     except Exception as exc:
         print(f"gen_blend: parcel computation failed ({exc}); no grass plane")
         return None

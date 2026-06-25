@@ -64,10 +64,12 @@ blend/               — Blender 3D model generation
                        extent), computed by inverting site/gen_site_plan.py's
                        building→PDF transform in the launcher (needs PyMuPDF) and
                        passed to Blender as JSON. Adds post-and-rail boundary
-                       fences: dark-brown 3-rail (4'8") along the SE-SW parcel
-                       edge, lighter-brown single-rail (4'0") along the NE-SE
-                       edge (meeting at the SE corner), with 4" posts every 10'.
-                       Outputs blend/flat_roof.blend, blend/2in12.blend
+                       fences: dark-brown 3-rail (4'8") along the west property
+                       boundary (275.08' line), lighter-brown single-rail (4'0")
+                       along the south boundary (216.73' line), meeting at the SW
+                       corner, with 4" posts every 10'. (Survey plat is N-left/
+                       E-top, not N-up — see site/gen_site_plan.py.) Outputs
+                       blend/flat_roof.blend, blend/2in12.blend
 
 plumbing/            — Plumbing plan generation
   gen_plumbing.py    — Water supply/drain plan SVG. Outputs plumbing/plumbing.svg

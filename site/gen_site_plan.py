@@ -20,11 +20,26 @@ LINE_BOT = (817.9, 557.8)    # 216.73' meets 275.08' (lower-right corner)
 BOT_LEFT = (160.0, 561.9)    # 275.08' left endpoint
 TL_251 = (108.0, 174.5)      # 251.53' upper-left corner of parcel
 
-# Named corner aliases (intersections of the four labeled property lines)
-CORNER_NW = TL_251     # 251.53' meets 163.69'
-CORNER_NE = LINE_TOP   # 251.53' meets 216.73'
-CORNER_SE = LINE_BOT   # 216.73' meets 275.08'
-CORNER_SW = BOT_LEFT   # 275.08' meets 163.69'
+# Named corner aliases (intersections of the four labeled property lines).
+#
+# IMPORTANT — survey orientation: the recorded plat is NOT drawn north-up.
+# True north points toward the LEFT of the page (and slightly down); a good
+# working approximation is N≈left, E≈top (hence S≈right, W≈bottom).  The
+# page-position constants above therefore map to these TRUE compass corners,
+# which is what these aliases name:
+#
+#     property line   compass boundary   page edge
+#     251.53'         EAST               top    (TL_251 .. LINE_TOP)
+#     216.73'         SOUTH              right  (LINE_TOP .. LINE_BOT)
+#     275.08'         WEST               bottom (LINE_BOT .. BOT_LEFT)
+#     163.69'         NORTH              left   (BOT_LEFT .. TL_251)
+#
+# NOTE: the building/FC frame uses true Easting/Northing, so these compass
+# names also match the parcel corners' positions in building coordinates.
+CORNER_NE = TL_251     # page top-left:     East 251.53' meets North 163.69'
+CORNER_SE = LINE_TOP   # page top-right:    East 251.53' meets South 216.73'
+CORNER_SW = LINE_BOT   # page bottom-right: South 216.73' meets West 275.08'
+CORNER_NW = BOT_LEFT   # page bottom-left:  West 275.08' meets North 163.69'
 
 # Placement constraints: survey point distances from property lines (feet)
 P45_DIST_216 = 11.0    # P4/P5 tangent-normal distance from 216.73' line
