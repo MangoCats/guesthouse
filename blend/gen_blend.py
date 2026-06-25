@@ -77,11 +77,13 @@ def _read_scad_file(scad_file):
 
 
 def _build_meshes(scad_text, roof_type):
-    """Parse SCAD text and return {key: (verts, indices)} per material.
+    """Parse SCAD text and return ({key: (verts, indices)}, roof_spec).
 
-    Reuses scad/gen_gltf.py's parser and mesh builders verbatim so the Blender
-    geometry is identical to the GLB geometry.  ``verts`` is an (N,3) float
-    array (SCAD Z-up coords, feet); ``indices`` is a flat triangle-index array.
+    Walls, glazing and interior walls reuse scad/gen_gltf.py's mesh builders
+    verbatim (identical to the GLB geometry).  The roof is returned separately
+    as a ``roof_spec`` so it can be built natively in Blender as a planar n-gon
+    — gen_gltf's ear-clipping leaves a triangular gap when the sampled roof
+    outline repeats its closing vertex.
     """
     if _ROOT not in sys.path:
         sys.path.insert(0, _ROOT)
@@ -90,7 +92,6 @@ def _build_meshes(scad_text, roof_type):
     data = g._parse_scad_text(scad_text)
 
     wall_mesh = g.MeshBuilder()
-    roof_mesh = g.MeshBuilder()
     win_mesh  = g.MeshBuilder()
     iw_mesh   = g.MeshBuilder()
 
@@ -108,21 +109,52 @@ def _build_meshes(scad_text, roof_type):
             g.extrude_ring(outer, inner, wall_mesh,
                            z_bot=z_base, z_top=z_base + height)
         g._build_walls_2in12_upper(data, wall_mesh)
-        g._build_roof_2in12(data, roof_mesh)
     else:
         g._build_walls(data, wall_mesh)
-        g._build_roof_flat(data, roof_mesh)
 
     g._build_windows(data, win_mesh)
     g._build_interior_walls(data, iw_mesh)
 
     out = {}
-    for key, mb in (("wall", wall_mesh), ("roof", roof_mesh),
-                    ("win", win_mesh), ("iw", iw_mesh)):
+    for key, mb in (("wall", wall_mesh), ("win", win_mesh), ("iw", iw_mesh)):
         verts, _norms, indices = mb.to_arrays()
         if verts is not None and len(verts):
             out[key] = (verts, indices)
-    return out
+    return out, _roof_spec(g, data, roof_type)
+
+
+def _roof_spec(g, data, roof_type):
+    """Roof outline polygon + bottom/top z-plane coefficients (z = a + b*x + c*y).
+
+    Both roof caps are planar (the flat roof's wedge top and the 2:12 slab are
+    tilted planes; the flat roof's underside is level), so the roof can be a
+    clean planar n-gon prism.  Consecutive duplicate outline points — including
+    the repeated closing vertex that breaks gen_gltf's ear-clipping — are removed.
+    """
+    poly = g.shell_pts(data["roof_outline"], 0)
+    clean = []
+    for p in poly:
+        if not clean or math.hypot(p[0] - clean[-1][0],
+                                   p[1] - clean[-1][1]) > 1e-9:
+            clean.append((float(p[0]), float(p[1])))
+    if len(clean) >= 2 and math.hypot(clean[0][0] - clean[-1][0],
+                                      clean[0][1] - clean[-1][1]) < 1e-9:
+        clean.pop()
+
+    s = data["scalars"]
+    if roof_type == "2in12":
+        slope = s["roof_slope"]
+        z_off = s["roof_z_off"]
+        thick = s["roof_thick"]
+        bot = (z_off, 0.0, slope)
+        top = (z_off + thick, 0.0, slope)
+    else:
+        z_tr = s["upper_base"] + s["upper_height"]
+        slope = s["roof_slope"]
+        z_base_rel = s["roof_z_base"]
+        bot = (z_tr, 0.0, 0.0)
+        top = (z_tr + z_base_rel, 0.0, slope)
+    return {"poly": clean, "bot": bot, "top": top}
 
 
 # ───────────────────────────  Blender model build  ──────────────────────────
@@ -141,16 +173,17 @@ def _run_in_blender():
                 manifest = json.load(f)
 
     if manifest and manifest.get("scad_text"):
-        meshes = _build_meshes(manifest["scad_text"], manifest["roof_type"])
+        meshes, roof_spec = _build_meshes(manifest["scad_text"],
+                                          manifest["roof_type"])
         _build_blend_file(manifest["config_name"], meshes,
-                          manifest.get("parcel"))
+                          manifest.get("parcel"), roof_spec)
         return
 
     # Legacy fallback: build both roof types from the committed scad files
     # (no DB / manifest — e.g. when Blender is launched directly).
     for stem, scad_file, roof_type in _MODELS:
-        meshes = _build_meshes(_read_scad_file(scad_file), roof_type)
-        _build_blend_file(stem, meshes, None)
+        meshes, roof_spec = _build_meshes(_read_scad_file(scad_file), roof_type)
+        _build_blend_file(stem, meshes, None, roof_spec)
 
 
 def _make_material(bpy, key):
@@ -275,7 +308,40 @@ def _build_fence(bpy, coll, stem, p_start, p_end, mat_key, n_rails, top_h, label
     coll.objects.link(bpy.data.objects.new(name, mesh))
 
 
-def _build_blend_file(stem, meshes, parcel=None):
+def _build_roof_native(bpy, coll, stem, roof_spec):
+    """Build the roof as a solid planar-capped prism (no triangulation gaps).
+
+    Top and bottom are single n-gon faces (Blender triangulates planar n-gons
+    cleanly); side quads connect them, so the roof reads solid from above and
+    below across its whole footprint.
+    """
+    if not roof_spec:
+        return
+    poly = roof_spec["poly"]
+    n = len(poly)
+    if n < 3:
+        return
+    ba, bbx, bcy = roof_spec["bot"]
+    ta, tbx, tcy = roof_spec["top"]
+    verts = [(x, y, ba + bbx * x + bcy * y) for x, y in poly]
+    verts += [(x, y, ta + tbx * x + tcy * y) for x, y in poly]
+    faces = [tuple(range(n - 1, -1, -1)),   # bottom n-gon (downward normal)
+             tuple(range(n, 2 * n))]        # top n-gon (upward normal)
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append((i, j, n + j, n + i))  # side quad
+    name = f"{stem}_Roof"
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    mesh.validate()
+    mesh.materials.append(_make_material(bpy, "roof"))
+    for p in mesh.polygons:
+        p.use_smooth = False
+    coll.objects.link(bpy.data.objects.new(name, mesh))
+
+
+def _build_blend_file(stem, meshes, parcel=None, roof_spec=None):
     import bpy
 
     # Start from a clean, empty scene.
@@ -291,10 +357,9 @@ def _build_blend_file(stem, meshes, parcel=None):
 
     coll = scene.collection
 
-    _key_label = {"wall": "Walls", "roof": "Roof",
-                  "win": "Windows", "iw": "InteriorWalls"}
+    _key_label = {"wall": "Walls", "win": "Windows", "iw": "InteriorWalls"}
 
-    for key in ("wall", "roof", "win", "iw"):
+    for key in ("wall", "win", "iw"):
         if key not in meshes:
             continue
         verts, indices = meshes[key]
@@ -316,6 +381,8 @@ def _build_blend_file(stem, meshes, parcel=None):
         # Flat shading to match the faceted SCAD/GLB look.
         for poly in mesh.polygons:
             poly.use_smooth = False
+
+    _build_roof_native(bpy, coll, stem, roof_spec)
 
     _build_grass(bpy, coll, stem, parcel)
 
