@@ -32,6 +32,7 @@ Usage:
 import os
 import sys
 import json
+import math
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_DIR)
@@ -49,10 +50,20 @@ _MATERIALS = {
     "win":  ([0.80, 0.84, 0.90, 0.90], 0.10),  # blue-grey glazing
     "iw":   ([0.82, 0.72, 0.38, 1.00], 0.90),  # white-pine interior walls
     "grass": ([0.20, 0.50, 0.16, 1.00], 0.95),  # green ground plane (parcel)
+    "fence_west":  ([0.22, 0.12, 0.05, 1.00], 0.90),  # dark brown wood (W boundary)
+    "fence_south": ([0.48, 0.30, 0.14, 1.00], 0.90),  # lighter brown wood (S boundary)
 }
 
 # Ground plane sits a hair below z=0 so it doesn't z-fight the wall base caps.
 _GRASS_Z = -0.01  # feet
+
+# ── Fence dimensions (feet) ──
+_POST_W = 4.0 / 12.0       # 4" square posts
+_RAIL_THICK = 2.0 / 12.0   # 2" rail thickness (perpendicular to fence plane)
+_RAIL_H = 4.0 / 12.0       # 4" rail height (vertical)
+_POST_SPACING = 10.0       # posts every 10'
+_W_FENCE_TOP = 4.0 + 8.0 / 12.0  # west fence top-of-top-rail = 4'8"
+_S_FENCE_TOP = 4.0               # south fence top-of-top-rail = 4'0"
 
 
 # ─────────────────────────  geometry (no bpy needed)  ────────────────────────
@@ -162,6 +173,92 @@ def _build_grass(bpy, coll, stem, parcel):
     coll.objects.link(bpy.data.objects.new(name, mesh))
 
 
+def _box_into(verts, faces, p0, p1, half_w, z_bot, z_top):
+    """Append an oriented box to verts/faces.
+
+    The box's central axis runs from p0=(x,y) to p1=(x,y) in the XY plane,
+    extruded ±half_w perpendicular to that axis and from z_bot to z_top.
+    """
+    x0, y0 = p0
+    x1, y1 = p1
+    dx, dy = x1 - x0, y1 - y0
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        ux, uy = 1.0, 0.0
+    else:
+        ux, uy = dx / length, dy / length
+    px, py = -uy, ux  # perpendicular in XY plane
+
+    corners_xy = [
+        (x0 - half_w * px, y0 - half_w * py),  # start, -w
+        (x1 - half_w * px, y1 - half_w * py),  # end,   -w
+        (x1 + half_w * px, y1 + half_w * py),  # end,   +w
+        (x0 + half_w * px, y0 + half_w * py),  # start, +w
+    ]
+    b = len(verts)
+    for cx, cy in corners_xy:
+        verts.append((cx, cy, z_bot))
+    for cx, cy in corners_xy:
+        verts.append((cx, cy, z_top))
+    faces.extend([
+        (b + 0, b + 1, b + 2, b + 3),  # bottom
+        (b + 4, b + 5, b + 6, b + 7),  # top
+        (b + 0, b + 1, b + 5, b + 4),  # sides
+        (b + 1, b + 2, b + 6, b + 5),
+        (b + 2, b + 3, b + 7, b + 6),
+        (b + 3, b + 0, b + 4, b + 7),
+    ])
+
+
+def _build_fence(bpy, coll, stem, p_start, p_end, mat_key, n_rails, top_h, label):
+    """Build a post-and-rail fence object along the segment p_start→p_end.
+
+    n_rails horizontal rails are evenly spaced with the top rail's top at
+    top_h; square posts run from the ground to top_h every _POST_SPACING feet
+    (and at both endpoints).
+    """
+    x0, y0 = p_start[0], p_start[1]
+    x1, y1 = p_end[0], p_end[1]
+    dx, dy = x1 - x0, y1 - y0
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        return
+    ux, uy = dx / length, dy / length
+
+    verts, faces = [], []
+
+    # Rails: tops evenly spaced; rail k (1..n) tops at top_h * k / n_rails.
+    for k in range(1, n_rails + 1):
+        rail_top = top_h * k / n_rails
+        _box_into(verts, faces, (x0, y0), (x1, y1),
+                  _RAIL_THICK / 2.0, rail_top - _RAIL_H, rail_top)
+
+    # Posts every _POST_SPACING ft along the line, plus one at the far end.
+    half = _POST_W / 2.0
+    dists = []
+    d = 0.0
+    while d < length - 1e-6:
+        dists.append(d)
+        d += _POST_SPACING
+    dists.append(length)
+    for dd in dists:
+        cx, cy = x0 + ux * dd, y0 + uy * dd
+        _box_into(verts, faces,
+                  (cx - ux * half, cy - uy * half),
+                  (cx + ux * half, cy + uy * half),
+                  half, 0.0, top_h)
+
+    name = f"{stem}_{label}"
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    mesh.validate()
+    mesh.materials.append(_make_material(bpy, mat_key))
+    for poly in mesh.polygons:
+        poly.use_smooth = False
+    coll.objects.link(bpy.data.objects.new(name, mesh))
+
+
 def _build_blend_file(stem, meshes, parcel=None):
     import bpy
 
@@ -206,11 +303,17 @@ def _build_blend_file(stem, meshes, parcel=None):
 
     _build_grass(bpy, coll, stem, parcel)
 
+    # Boundary fences: west = NW→SW (parcel[0]→[1]), south = SW→SE ([1]→[2]).
+    if parcel and len(parcel) >= 4:
+        nw, sw, se = parcel[0], parcel[1], parcel[2]
+        _build_fence(bpy, coll, stem, sw, nw, "fence_west",
+                     3, _W_FENCE_TOP, "FenceWest")
+        _build_fence(bpy, coll, stem, se, sw, "fence_south",
+                     1, _S_FENCE_TOP, "FenceSouth")
+
     out_path = os.path.join(_DIR, f"{stem}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=out_path)
-    tris = sum(len(meshes[k][1]) // 3 for k in meshes)
-    print(f"  wrote {out_path}  ({tris:,} tris, "
-          f"{len(meshes)} object(s))")
+    print(f"  wrote {out_path}  ({len(coll.objects)} object(s))")
 
 
 # ───────────────────────────  parcel (launcher side)  ───────────────────────

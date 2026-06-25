@@ -63,7 +63,10 @@ blend/               — Blender 3D model generation
                        ground plane covering the survey parcel (site-plan property
                        extent), computed by inverting site/gen_site_plan.py's
                        building→PDF transform in the launcher (needs PyMuPDF) and
-                       passed to Blender as JSON. Outputs blend/flat_roof.blend,
+                       passed to Blender as JSON. Adds post-and-rail boundary
+                       fences: dark-brown 3-rail (4'8") along the west property
+                       line, lighter-brown single-rail (4'0") along the south,
+                       with 4" posts every 10'. Outputs blend/flat_roof.blend,
                        blend/2in12.blend
 
 plumbing/            — Plumbing plan generation
