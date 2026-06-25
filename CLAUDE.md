@@ -64,14 +64,17 @@ blend/               — Blender 3D model generation
                        parser + mesh builders so geometry matches the .glb models
                        exactly, except the roof is rebuilt natively as a planar
                        n-gon prism (gen_gltf's ear-clipping leaves a triangular
-                       gap on the repeated closing vertex). Window glazing uses a
+                       gap on the repeated closing vertex), and interior walls are
+                       built per-wall with their door openings boolean-cut to door
+                       height (the GLB build omits them). Window glazing uses a
                        very transparent material (alpha 0.18, EEVEE Next BLENDED).
                        Re-launches itself if invoked under plain python
                        ($BLENDER_EXE overrides the auto-detected blender.exe).
                        Adds a green grass ground plane covering the survey parcel
                        (site-plan property extent), computed by inverting
                        site/gen_site_plan.py's building→PDF transform (needs
-                       PyMuPDF). Adds post-and-rail boundary fences: dark-brown
+                       PyMuPDF), with the building exterior outline (gd.outline_poly)
+                       cut out so no lawn shows under the house. Adds post-and-rail boundary fences: dark-brown
                        3-rail (4'8") along the west property boundary (275.08'
                        line), lighter-brown single-rail (4'0") along the south
                        boundary (216.73' line), meeting at the SW corner, with 4"

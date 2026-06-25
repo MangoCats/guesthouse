@@ -79,13 +79,13 @@ def _read_scad_file(scad_file):
 
 
 def _build_meshes(scad_text, roof_type):
-    """Parse SCAD text and return ({key: (verts, indices)}, roof_spec).
+    """Parse SCAD text → ({key: (verts, indices)}, roof_spec, iw_walls, door_h).
 
-    Walls, glazing and interior walls reuse scad/gen_gltf.py's mesh builders
-    verbatim (identical to the GLB geometry).  The roof is returned separately
-    as a ``roof_spec`` so it can be built natively in Blender as a planar n-gon
-    — gen_gltf's ear-clipping leaves a triangular gap when the sampled roof
-    outline repeats its closing vertex.
+    Walls and glazing reuse scad/gen_gltf.py's mesh builders verbatim (identical
+    to the GLB geometry).  The roof and interior walls are returned as data so
+    they can be built natively in Blender: the roof as a planar n-gon (gen_gltf's
+    ear-clipping leaves a triangular gap on the repeated closing vertex), and the
+    interior walls with their door openings cut out (the GLB build omits them).
     """
     if _ROOT not in sys.path:
         sys.path.insert(0, _ROOT)
@@ -95,7 +95,6 @@ def _build_meshes(scad_text, roof_type):
 
     wall_mesh = g.MeshBuilder()
     win_mesh  = g.MeshBuilder()
-    iw_mesh   = g.MeshBuilder()
 
     s = data["scalars"]
     if roof_type == "2in12":
@@ -115,14 +114,54 @@ def _build_meshes(scad_text, roof_type):
         g._build_walls(data, wall_mesh)
 
     g._build_windows(data, win_mesh)
-    g._build_interior_walls(data, iw_mesh)
 
     out = {}
-    for key, mb in (("wall", wall_mesh), ("win", win_mesh), ("iw", iw_mesh)):
+    for key, mb in (("wall", wall_mesh), ("win", win_mesh)):
         verts, _norms, indices = mb.to_arrays()
         if verts is not None and len(verts):
             out[key] = (verts, indices)
-    return out, _roof_spec(g, data, roof_type)
+
+    iw_walls, door_h = _parse_interior_walls(g, scad_text)
+    return out, _roof_spec(g, data, roof_type), iw_walls, door_h
+
+
+def _parse_interior_walls(g, scad_text):
+    """Parse the interior-wall SCAD block into [{poly, z_top, openings}], door_h.
+
+    Each wall is a ``linear_extrude(height=<float>)`` of a polygon; its door
+    openings follow as ``linear_extrude(height = iw_door_h + ...)`` polygons
+    (inside the same difference()).  Openings are grouped with the most recent
+    wall, mirroring the SCAD emission order.
+    """
+    import ast
+    import re
+
+    pos = scad_text.find("// Interior walls")
+    if pos < 0:
+        return [], 82.5 / 12.0
+    block = scad_text[pos:]
+
+    m = re.search(r'iw_door_h\s*=\s*([\d.]+)', block)
+    door_h = float(m.group(1)) if m else 82.5 / 12.0
+
+    walls = []
+    for em in re.finditer(r'linear_extrude\s*\(\s*height\s*=\s*([^,]+?)\s*,', block):
+        height_expr = em.group(1)
+        pm = re.search(r'polygon\s*\(\s*points\s*=\s*(\[)', block[em.end():])
+        if not pm:
+            continue
+        start = em.end() + pm.start(1)
+        arr = g._bracket_array(block, start)
+        if arr is None:
+            continue
+        pts = ast.literal_eval(re.sub(r'//[^\n]*', '', arr))
+        if "iw_door_h" in height_expr:
+            if walls:
+                walls[-1]["openings"].append(pts)
+        else:
+            walls.append({"poly": pts, "z_top": float(height_expr),
+                          "openings": []})
+    return walls, door_h
 
 
 def _roof_spec(g, data, roof_type):
@@ -176,16 +215,20 @@ def _run_in_blender():
 
     if manifest and manifest.get("models"):
         parcel = manifest.get("parcel")
+        footprint = manifest.get("footprint")
         for m in manifest["models"]:
-            meshes, roof_spec = _build_meshes(m["scad_text"], m["roof_type"])
-            _build_blend_file(m["name"], meshes, parcel, roof_spec)
+            meshes, roof_spec, iw_walls, door_h = _build_meshes(
+                m["scad_text"], m["roof_type"])
+            _build_blend_file(m["name"], meshes, parcel, roof_spec,
+                              iw_walls, door_h, footprint)
         return
 
     # Legacy fallback: build both roof types from the committed scad files
     # (no DB / manifest — e.g. when Blender is launched directly).
     for stem, scad_file, roof_type in _MODELS:
-        meshes, roof_spec = _build_meshes(_read_scad_file(scad_file), roof_type)
-        _build_blend_file(stem, meshes, None, roof_spec)
+        meshes, roof_spec, iw_walls, door_h = _build_meshes(
+            _read_scad_file(scad_file), roof_type)
+        _build_blend_file(stem, meshes, None, roof_spec, iw_walls, door_h)
 
 
 def _make_material(bpy, key):
@@ -214,21 +257,100 @@ def _make_material(bpy, key):
     return mat
 
 
-def _build_grass(bpy, coll, stem, parcel):
-    """Add a flat green ground-plane ngon covering the parcel outline."""
+def _build_grass(bpy, coll, stem, parcel, footprint=None):
+    """Add a flat green ground plane over the parcel, with the building footprint
+    cut out so no lawn shows inside the exterior outline."""
     if not parcel or len(parcel) < 3:
         return
-    verts = [(float(x), float(y), _GRASS_Z) for x, y in parcel]
-    face = [tuple(range(len(verts)))]
+    import mathutils
+    from mathutils.geometry import tessellate_polygon
+
+    outer = [mathutils.Vector((float(x), float(y), 0.0)) for x, y in parcel]
+    loops = [outer]
+    if footprint and len(footprint) >= 3:
+        loops.append([mathutils.Vector((float(x), float(y), 0.0))
+                      for x, y in footprint])
+
+    tris = tessellate_polygon(loops)
+    verts = [(v.x, v.y, _GRASS_Z) for loop in loops for v in loop]
     name = f"{stem}_Grass"
     mesh = bpy.data.meshes.new(name)
-    mesh.from_pydata(verts, [], face)
+    mesh.from_pydata(verts, [], tris)
     mesh.update()
     mesh.validate()
     mesh.materials.append(_make_material(bpy, "grass"))
     for poly in mesh.polygons:
         poly.use_smooth = False
     coll.objects.link(bpy.data.objects.new(name, mesh))
+
+
+def _prism_mesh(bpy, name, poly2d, z_bot, z_top):
+    """Create a closed prism mesh from a 2D polygon extruded z_bot→z_top."""
+    n = len(poly2d)
+    verts = [(float(x), float(y), z_bot) for x, y in poly2d]
+    verts += [(float(x), float(y), z_top) for x, y in poly2d]
+    faces = [tuple(range(n - 1, -1, -1)), tuple(range(n, 2 * n))]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append((i, j, n + j, n + i))
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    mesh.validate()
+    return mesh
+
+
+def _build_interior_walls_doors(bpy, coll, stem, iw_walls, door_h):
+    """Build interior walls with their door openings cut out.
+
+    Each wall is extruded floor→z_top; door openings are subtracted with a
+    boolean (a cutter prism per opening, from just below the floor up to the
+    door height) so the doorways read as real openings with a header above.
+    """
+    if not iw_walls:
+        return
+    mat = _make_material(bpy, "iw")
+    for i, w in enumerate(iw_walls):
+        poly = w["poly"]
+        if len(poly) < 3:
+            continue
+        wmesh = _prism_mesh(bpy, f"{stem}_IW{i}", poly, 0.0, w["z_top"])
+        wobj = bpy.data.objects.new(f"{stem}_InteriorWall{i}", wmesh)
+        coll.objects.link(wobj)
+
+        if w["openings"]:
+            cv, cf = [], []
+            for op in w["openings"]:
+                n = len(op)
+                if n < 3:
+                    continue
+                b = len(cv)
+                cv += [(float(x), float(y), -0.1) for x, y in op]
+                cv += [(float(x), float(y), door_h) for x, y in op]
+                cf.append(tuple(range(b + n - 1, b - 1, -1)))
+                cf.append(tuple(range(b + n, b + 2 * n)))
+                for k in range(n):
+                    j = (k + 1) % n
+                    cf.append((b + k, b + j, b + n + j, b + n + k))
+            cmesh = bpy.data.meshes.new(f"{stem}_IWcut{i}")
+            cmesh.from_pydata(cv, [], cf)
+            cmesh.update()
+            cmesh.validate()
+            cobj = bpy.data.objects.new(f"{stem}_IWcut{i}", cmesh)
+            coll.objects.link(cobj)
+
+            mod = wobj.modifiers.new("door", "BOOLEAN")
+            mod.operation = "DIFFERENCE"
+            mod.object = cobj
+            if hasattr(mod, "solver"):
+                mod.solver = "EXACT"
+            bpy.context.view_layer.objects.active = wobj
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            bpy.data.objects.remove(cobj, do_unlink=True)
+
+        wobj.data.materials.append(mat)
+        for p in wobj.data.polygons:
+            p.use_smooth = False
 
 
 def _box_into(verts, faces, p0, p1, half_w, z_bot, z_top):
@@ -350,7 +472,8 @@ def _build_roof_native(bpy, coll, stem, roof_spec):
     coll.objects.link(bpy.data.objects.new(name, mesh))
 
 
-def _build_blend_file(stem, meshes, parcel=None, roof_spec=None):
+def _build_blend_file(stem, meshes, parcel=None, roof_spec=None,
+                      iw_walls=None, door_h=None, footprint=None):
     import bpy
 
     # Start from a clean, empty scene.
@@ -366,9 +489,9 @@ def _build_blend_file(stem, meshes, parcel=None, roof_spec=None):
 
     coll = scene.collection
 
-    _key_label = {"wall": "Walls", "win": "Windows", "iw": "InteriorWalls"}
+    _key_label = {"wall": "Walls", "win": "Windows"}
 
-    for key in ("wall", "win", "iw"):
+    for key in ("wall", "win"):
         if key not in meshes:
             continue
         verts, indices = meshes[key]
@@ -393,7 +516,9 @@ def _build_blend_file(stem, meshes, parcel=None, roof_spec=None):
 
     _build_roof_native(bpy, coll, stem, roof_spec)
 
-    _build_grass(bpy, coll, stem, parcel)
+    _build_interior_walls_doors(bpy, coll, stem, iw_walls, door_h)
+
+    _build_grass(bpy, coll, stem, parcel, footprint)
 
     # Boundary fences (parcel order is [NW, NE, SE, SW]): the dark 3-rail fence
     # runs along the WEST boundary (NW–SW, the 275.08' line); the lighter
@@ -511,7 +636,10 @@ def _prepare_from_db():
                            "scad_text": _scad_text_from_gd(ggl, gd, "2in12")})
 
         parcel = _parcel_from_gd(gd)
-        return {"models": models, "parcel": parcel}
+        # Building exterior outline (FC feet) — used to cut a hole in the grass
+        # so the lawn doesn't show under the house.
+        footprint = [[float(x), float(y)] for x, y in gd.outline_poly]
+        return {"models": models, "parcel": parcel, "footprint": footprint}
     except Exception as exc:
         print(f"gen_blend: could not build from DB ({exc}); "
               "falling back to committed scad files")
