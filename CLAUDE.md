@@ -55,21 +55,26 @@ scad/                — OpenSCAD 3D model and line drawing generation
   gen_line_drawings.py — Line drawing SVGs from SCAD
 
 blend/               — Blender 3D model generation
-  gen_blend.py       — Native Blender (.blend) models mirroring the SCAD models.
-                       Reuses scad/gen_gltf.py's parser + mesh builders so geometry
-                       matches the .glb models exactly. Runs headless via Blender;
-                       re-launches itself if invoked under plain python ($BLENDER_EXE
-                       overrides the auto-detected blender.exe). Adds a green grass
-                       ground plane covering the survey parcel (site-plan property
-                       extent), computed by inverting site/gen_site_plan.py's
-                       building→PDF transform in the launcher (needs PyMuPDF) and
-                       passed to Blender as JSON. Adds post-and-rail boundary
-                       fences: dark-brown 3-rail (4'8") along the west property
-                       boundary (275.08' line), lighter-brown single-rail (4'0")
-                       along the south boundary (216.73' line), meeting at the SW
-                       corner, with 4" posts every 10'. (Survey plat is N-left/
-                       E-top, not N-up — see site/gen_site_plan.py.) Outputs
-                       blend/flat_roof.blend, blend/2in12.blend
+  gen_blend.py       — Native Blender (.blend) model of the currently-loaded
+                       editor model (app/adu.db). The launcher builds gd from the
+                       live DB, picks the roof from its config roof_style, and
+                       generates SCAD fresh (restoring the on-disk scad file),
+                       then hands a manifest (config_name, roof_type, SCAD text,
+                       parcel) to headless Blender. Reuses scad/gen_gltf.py's
+                       parser + mesh builders so geometry matches the .glb models
+                       exactly. Re-launches itself if invoked under plain python
+                       ($BLENDER_EXE overrides the auto-detected blender.exe).
+                       Adds a green grass ground plane covering the survey parcel
+                       (site-plan property extent), computed by inverting
+                       site/gen_site_plan.py's building→PDF transform (needs
+                       PyMuPDF). Adds post-and-rail boundary fences: dark-brown
+                       3-rail (4'8") along the west property boundary (275.08'
+                       line), lighter-brown single-rail (4'0") along the south
+                       boundary (216.73' line), meeting at the SW corner, with 4"
+                       posts every 10'. (Survey plat is N-left/E-top, not N-up —
+                       see site/gen_site_plan.py.) Outputs blend/<config_name>.blend
+                       (e.g. blend/MarkZ.blend). Invoking Blender directly with no
+                       manifest falls back to legacy flat_roof + 2in12 builds.
 
 plumbing/            — Plumbing plan generation
   gen_plumbing.py    — Water supply/drain plan SVG. Outputs plumbing/plumbing.svg

@@ -6,10 +6,10 @@ interior walls — but as native Blender mesh objects with materials, saved to
 .blend files.
 
 Accuracy: the triangle geometry is reused verbatim from ``scad/gen_gltf.py``
-(the same parser + mesh builders that drive ``opts/*.glb``), which in turn is
-fed by the DB-generated ``scad/flat_roof.scad`` / ``scad/2in12.scad``.  No
-geometry is re-derived here, so the Blender model matches the SCAD/GLB models
-to the millimetre.
+(the same parser + mesh builders that drive ``opts/*.glb``).  The SCAD source
+is generated fresh from the live editor DB (``app/adu.db``) for the currently
+loaded model — using that model's own roof style — so the Blender model
+matches it (and the SCAD/GLB pipeline) to the millimetre.
 
 Coordinate system: SCAD/Blender are both Z-up (east X, north Y, up Z), so —
 unlike the glTF export — no axis swap is applied.  Units are feet; the scene
@@ -22,11 +22,11 @@ the building's FC-origin feet frame.  This is computed in the launching process
 (which has PyMuPDF) and passed to headless Blender as a JSON argument, since
 Blender's bundled Python lacks fitz.
 
-Outputs: blend/flat_roof.blend, blend/2in12.blend
+Outputs: blend/<config_name>.blend (the currently-loaded model, e.g. MarkZ.blend)
 
 Usage:
     python blend/gen_blend.py            # locates Blender and runs headless
-    blender --background --python blend/gen_blend.py
+    blender --background --python blend/gen_blend.py   # legacy: both roof types
 """
 
 import os
@@ -37,6 +37,7 @@ import math
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_DIR)
 
+# Legacy fallback (used only when Blender is invoked directly with no manifest):
 # (display stem, source .scad file, roof_type for gen_gltf builders)
 _MODELS = [
     ("flat_roof", "flat_roof.scad", "flat_roof"),
@@ -68,8 +69,15 @@ _FENCE1_TOP = 4.0               # single-rail fence top-of-top-rail = 4'0"
 
 # ─────────────────────────  geometry (no bpy needed)  ────────────────────────
 
-def _build_meshes(scad_file, roof_type):
-    """Parse a .scad file and return {key: (verts, indices)} per material.
+def _read_scad_file(scad_file):
+    """Read SCAD text from the scad/ directory (legacy fallback path)."""
+    p = os.path.join(_ROOT, "scad", scad_file)
+    with open(p, encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+def _build_meshes(scad_text, roof_type):
+    """Parse SCAD text and return {key: (verts, indices)} per material.
 
     Reuses scad/gen_gltf.py's parser and mesh builders verbatim so the Blender
     geometry is identical to the GLB geometry.  ``verts`` is an (N,3) float
@@ -79,7 +87,7 @@ def _build_meshes(scad_file, roof_type):
         sys.path.insert(0, _ROOT)
     from scad import gen_gltf as g
 
-    data = g._load_scad(scad_file)
+    data = g._parse_scad_text(scad_text)
 
     wall_mesh = g.MeshBuilder()
     roof_mesh = g.MeshBuilder()
@@ -122,19 +130,27 @@ def _build_meshes(scad_file, roof_type):
 def _run_in_blender():
     import bpy  # noqa: F401  (only importable inside Blender)
 
-    # Parcel polygon (building/FC feet coords) is passed after "--" as a JSON
-    # file path by the launching process; absent when run directly in Blender.
-    parcel = None
+    # The launching process passes a manifest JSON path after "--" describing
+    # the currently-loaded model (config_name, roof_type, SCAD text, parcel).
+    manifest = None
     argv = sys.argv
     if "--" in argv:
         extra = argv[argv.index("--") + 1:]
         if extra and os.path.isfile(extra[0]):
-            with open(extra[0]) as f:
-                parcel = json.load(f)
+            with open(extra[0], encoding="utf-8") as f:
+                manifest = json.load(f)
 
+    if manifest and manifest.get("scad_text"):
+        meshes = _build_meshes(manifest["scad_text"], manifest["roof_type"])
+        _build_blend_file(manifest["config_name"], meshes,
+                          manifest.get("parcel"))
+        return
+
+    # Legacy fallback: build both roof types from the committed scad files
+    # (no DB / manifest — e.g. when Blender is launched directly).
     for stem, scad_file, roof_type in _MODELS:
-        meshes = _build_meshes(scad_file, roof_type)
-        _build_blend_file(stem, meshes, parcel)
+        meshes = _build_meshes(_read_scad_file(scad_file), roof_type)
+        _build_blend_file(stem, meshes, None)
 
 
 def _make_material(bpy, key):
@@ -319,22 +335,17 @@ def _build_blend_file(stem, meshes, parcel=None):
     print(f"  wrote {out_path}  ({len(coll.objects)} object(s))")
 
 
-# ───────────────────────────  parcel (launcher side)  ───────────────────────
+# ─────────────────────  currently-loaded model (launcher side)  ──────────────
 
-def _compute_parcel_poly():
-    """Return the survey parcel outline as [[E, N], ...] in FC-origin feet.
+def _parcel_from_gd(gd):
+    """Survey parcel outline as [[E, N], ...] in FC-origin feet, from gd.
 
     Inverts site/gen_site_plan.py's building→PDF placement transform for the
-    four parcel corners.  Runs in the launching interpreter (needs PyMuPDF);
-    returns None on any failure so the model still builds without grass.
+    four parcel corners.  Returns None on failure so the model still builds
+    without a grass plane.
     """
     try:
-        import math
         import importlib.util
-        if _ROOT not in sys.path:
-            sys.path.insert(0, _ROOT)
-        from app.engine import build_generator_data_from_db
-
         # Load site/gen_site_plan.py by path (the dir name "site" clashes with
         # the stdlib site module, so a normal import is unsafe).
         sp_path = os.path.join(_ROOT, "site", "gen_site_plan.py")
@@ -342,9 +353,7 @@ def _compute_parcel_poly():
         gsp = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gsp)
 
-        gd = build_generator_data_from_db(os.path.join(_ROOT, "app", "adu.db"))
         sp = gsp.build_site_plan_data(gd)
-
         f15 = sp.pts["_site_se_pt"]
         fpx, fpy = sp.f15_pdf
         scale = sp.SCALE
@@ -366,6 +375,60 @@ def _compute_parcel_poly():
                 (gsp.CORNER_NW, gsp.CORNER_NE, gsp.CORNER_SE, gsp.CORNER_SW)]
     except Exception as exc:
         print(f"gen_blend: parcel computation failed ({exc}); no grass plane")
+        return None
+
+
+def _scad_text_from_gd(ggl, gd, roof_type):
+    """Generate SCAD text for roof_type from gd, restoring the on-disk file.
+
+    gen_gltf._generate_variant_scad writes scad/<roof_type>.scad as a side
+    effect; we save and restore the committed file so a standalone run doesn't
+    leave the working tree dirty.
+    """
+    scad_path = os.path.join(_ROOT, "scad", f"{roof_type}.scad")
+    original = None
+    if os.path.exists(scad_path):
+        with open(scad_path, encoding="utf-8", errors="replace") as f:
+            original = f.read()
+    try:
+        return ggl._generate_variant_scad(gd, roof_type)
+    finally:
+        if original is not None:
+            with open(scad_path, "w", encoding="utf-8") as f:
+                f.write(original)
+
+
+def _prepare_from_db():
+    """Build a manifest for the currently-loaded model from app/adu.db.
+
+    Returns {config_name, roof_type, scad_text, parcel} or None on failure
+    (caller then falls back to the committed-scad legacy build).
+    """
+    try:
+        import sqlite3
+        if _ROOT not in sys.path:
+            sys.path.insert(0, _ROOT)
+        from app.engine import build_generator_data_from_db
+        from scad import gen_gltf as ggl
+
+        db_path = os.path.join(_ROOT, "app", "adu.db")
+        gd = build_generator_data_from_db(db_path)
+
+        # Model identity + roof style from the live config table.
+        con = sqlite3.connect(db_path)
+        cfg = dict(con.execute("SELECT key, value FROM config").fetchall())
+        con.close()
+        config_name = cfg.get("config_name") or "model"
+        roof_style = (cfg.get("roof_style") or "flat").lower()
+        roof_type = "flat_roof" if roof_style.startswith("flat") else "2in12"
+
+        scad_text = _scad_text_from_gd(ggl, gd, roof_type)
+        parcel = _parcel_from_gd(gd)
+        return {"config_name": config_name, "roof_type": roof_type,
+                "scad_text": scad_text, "parcel": parcel}
+    except Exception as exc:
+        print(f"gen_blend: could not build from DB ({exc}); "
+              "falling back to committed scad files")
         return None
 
 
@@ -397,9 +460,8 @@ def _find_blender():
 def generate(gd=None):
     """Entry point.  Re-launches under Blender if bpy is unavailable.
 
-    ``gd`` is accepted for gen_all-style compatibility but unused: geometry is
-    read from the already-generated scad/*.scad files (which gen_all writes
-    from the DB before this runs).
+    ``gd`` is accepted for gen_all-style compatibility but unused: the model is
+    built from the live editor DB (app/adu.db) for the currently-loaded config.
     """
     try:
         import bpy  # noqa: F401
@@ -417,21 +479,26 @@ def generate(gd=None):
 
     cmd = [blender, "--background", "--python", os.path.abspath(__file__)]
 
-    # Compute the parcel here (PyMuPDF available) and hand it to Blender.
-    parcel = _compute_parcel_poly()
-    parcel_path = None
-    if parcel:
-        fd, parcel_path = tempfile.mkstemp(prefix="adu_parcel_", suffix=".json")
-        with os.fdopen(fd, "w") as f:
-            json.dump(parcel, f)
-        cmd += ["--", parcel_path]
+    # Build the currently-loaded model (SCAD + parcel) here, where the full app
+    # stack and PyMuPDF are available, and hand it to Blender as a manifest.
+    manifest = _prepare_from_db()
+    manifest_path = None
+    if manifest:
+        fd, manifest_path = tempfile.mkstemp(prefix="adu_blend_", suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(manifest, f)
+        cmd += ["--", manifest_path]
+        print(f"gen_blend: building '{manifest['config_name']}' "
+              f"({manifest['roof_type']}) from app/adu.db")
+    else:
+        print("gen_blend: building legacy flat_roof + 2in12 from committed scad")
 
     print(f"gen_blend: launching {blender} headless ...")
     try:
         subprocess.check_call(cmd, cwd=_ROOT)
     finally:
-        if parcel_path and os.path.exists(parcel_path):
-            os.remove(parcel_path)
+        if manifest_path and os.path.exists(manifest_path):
+            os.remove(manifest_path)
 
 
 if __name__ == "__main__":
