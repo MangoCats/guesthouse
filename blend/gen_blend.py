@@ -50,8 +50,8 @@ _MATERIALS = {
     "win":  ([0.80, 0.84, 0.90, 0.90], 0.10),  # blue-grey glazing
     "iw":   ([0.82, 0.72, 0.38, 1.00], 0.90),  # white-pine interior walls
     "grass": ([0.20, 0.50, 0.16, 1.00], 0.95),  # green ground plane (parcel)
-    "fence_west":  ([0.22, 0.12, 0.05, 1.00], 0.90),  # dark brown wood (W boundary)
-    "fence_south": ([0.48, 0.30, 0.14, 1.00], 0.90),  # lighter brown wood (S boundary)
+    "fence_3rail": ([0.22, 0.12, 0.05, 1.00], 0.90),  # dark brown wood (3-rail)
+    "fence_1rail": ([0.48, 0.30, 0.14, 1.00], 0.90),  # lighter brown wood (single-rail)
 }
 
 # Ground plane sits a hair below z=0 so it doesn't z-fight the wall base caps.
@@ -62,8 +62,8 @@ _POST_W = 4.0 / 12.0       # 4" square posts
 _RAIL_THICK = 2.0 / 12.0   # 2" rail thickness (perpendicular to fence plane)
 _RAIL_H = 4.0 / 12.0       # 4" rail height (vertical)
 _POST_SPACING = 10.0       # posts every 10'
-_W_FENCE_TOP = 4.0 + 8.0 / 12.0  # west fence top-of-top-rail = 4'8"
-_S_FENCE_TOP = 4.0               # south fence top-of-top-rail = 4'0"
+_FENCE3_TOP = 4.0 + 8.0 / 12.0  # 3-rail fence top-of-top-rail = 4'8"
+_FENCE1_TOP = 4.0               # single-rail fence top-of-top-rail = 4'0"
 
 
 # ─────────────────────────  geometry (no bpy needed)  ────────────────────────
@@ -303,13 +303,15 @@ def _build_blend_file(stem, meshes, parcel=None):
 
     _build_grass(bpy, coll, stem, parcel)
 
-    # Boundary fences: west = NW→SW (parcel[0]→[1]), south = SW→SE ([1]→[2]).
+    # Boundary fences: 3-rail along the SE→SW edge; single-rail along the
+    # NE→SE edge (the empty side opposite the 3-rail). They meet at the SE
+    # corner.  parcel order is [NW, SW, SE, NE].
     if parcel and len(parcel) >= 4:
-        nw, sw, se = parcel[0], parcel[1], parcel[2]
-        _build_fence(bpy, coll, stem, sw, nw, "fence_west",
-                     3, _W_FENCE_TOP, "FenceWest")
-        _build_fence(bpy, coll, stem, se, sw, "fence_south",
-                     1, _S_FENCE_TOP, "FenceSouth")
+        nw, sw, se, ne = parcel[0], parcel[1], parcel[2], parcel[3]
+        _build_fence(bpy, coll, stem, se, sw, "fence_3rail",
+                     3, _FENCE3_TOP, "Fence3Rail")
+        _build_fence(bpy, coll, stem, ne, se, "fence_1rail",
+                     1, _FENCE1_TOP, "Fence1Rail")
 
     out_path = os.path.join(_DIR, f"{stem}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=out_path)
