@@ -505,10 +505,28 @@ def _setup_lighting(bpy, scene, coll):
         except TypeError:
             pass
 
+    import mathutils
     sun_data = bpy.data.lights.new("Sun", "SUN")
-    sun_data.energy = 2.5
+    sun_data.energy = 1.25  # 50% of the previous 2.5
     sun = bpy.data.objects.new("Sun", sun_data)
-    sun.rotation_euler = (math.radians(55), math.radians(15), math.radians(30))
+
+    # Sun direction: 2pm local solar time (no DST) at 30°N on the fall equinox.
+    # Fall equinox → solar declination δ ≈ 0; 2pm → hour angle H = +30° (west).
+    # Building frame is true E/N (X=East, Y=North, Z=Up).
+    lat = math.radians(30.0)
+    decl = 0.0
+    hour_angle = math.radians(15.0 * (14.0 - 12.0))  # +30°
+    elev = math.asin(math.sin(lat) * math.sin(decl)
+                     + math.cos(lat) * math.cos(decl) * math.cos(hour_angle))
+    az_from_south = math.atan2(
+        math.sin(hour_angle),
+        math.cos(hour_angle) * math.sin(lat) - math.tan(decl) * math.cos(lat))
+    az = math.pi + az_from_south  # azimuth from north, clockwise (SW afternoon)
+    to_sun = mathutils.Vector((math.cos(elev) * math.sin(az),   # East  (+X)
+                               math.cos(elev) * math.cos(az),   # North (+Y)
+                               math.sin(elev)))                 # Up    (+Z)
+    # A sun lamp emits along its local -Z; aim that down the incoming rays.
+    sun.rotation_euler = (-to_sun).to_track_quat("-Z", "Y").to_euler()
     coll.objects.link(sun)
 
 
