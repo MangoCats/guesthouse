@@ -547,7 +547,7 @@ def _setup_walkaround(bpy, scene, coll, walk_path):
     cam_data = bpy.data.cameras.new("WalkCam")
     cam_data.sensor_fit = "VERTICAL"
     cam_data.lens_unit = "FOV"
-    cam_data.angle = math.radians(120.0)  # vertical FOV (±60°)
+    cam_data.angle = math.radians(105.0)  # vertical FOV (±52.5°)
     cam = bpy.data.objects.new("WalkCam", cam_data)
     coll.objects.link(cam)
 
@@ -559,7 +559,7 @@ def _setup_walkaround(bpy, scene, coll, walk_path):
     scene.camera = cam
     scene.frame_start = 1
     scene.frame_end = len(walk_path)
-    scene.render.fps = 5
+    scene.render.fps = 30
     scene.render.resolution_x = 1280
     scene.render.resolution_y = 720
 
@@ -820,10 +820,10 @@ def _prepare_from_db():
         # Building exterior outline (FC feet) — used to cut a hole in the grass
         # so the lawn doesn't show under the house.
         footprint = [[float(x), float(y)] for x, y in gd.outline_poly]
-        # Walk-around camera path: 60 points around the building, clockwise from
-        # the 42" door side (used to animate the 2:12 model).
+        # Walk-around camera path: 1800 points around the building, clockwise
+        # from the 42" door side (used to animate the 2:12 model at 30 fps).
         walk_path = _walk_path([(p[0], p[1]) for p in gd.outline_poly],
-                               _door_start_angle(gd))
+                               _door_start_angle(gd), n=1800, fine=7200)
         return {"models": models, "parcel": parcel, "footprint": footprint,
                 "walk_path": walk_path}
     except Exception as exc:
