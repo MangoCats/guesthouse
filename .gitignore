@@ -2,6 +2,7 @@
 *.pdf
 *.png
 *.scad
+*.mp4
 .coverage
 __pycache__/
 adu.egg-info/

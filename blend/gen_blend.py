@@ -489,6 +489,29 @@ def _build_roof_native(bpy, coll, stem, roof_spec):
     coll.objects.link(bpy.data.objects.new(name, mesh))
 
 
+def _setup_lighting(bpy, scene, coll):
+    """Add a sky world + sun so the model renders out of the box."""
+    world = bpy.data.worlds.new("World")
+    world.use_nodes = True
+    bg = world.node_tree.nodes.get("Background")
+    if bg is not None:
+        bg.inputs[0].default_value = (0.60, 0.75, 0.95, 1.0)  # soft sky blue
+        bg.inputs[1].default_value = 0.8
+    scene.world = world
+    # Punchy colours for the flat-shaded model (avoid AgX desaturation).
+    if hasattr(scene.view_settings, "view_transform"):
+        try:
+            scene.view_settings.view_transform = "Standard"
+        except TypeError:
+            pass
+
+    sun_data = bpy.data.lights.new("Sun", "SUN")
+    sun_data.energy = 2.5
+    sun = bpy.data.objects.new("Sun", sun_data)
+    sun.rotation_euler = (math.radians(55), math.radians(15), math.radians(30))
+    coll.objects.link(sun)
+
+
 def _setup_walkaround(bpy, scene, coll, walk_path):
     """Add a 60-frame walk-around camera animation (1 fps).
 
@@ -588,6 +611,8 @@ def _build_blend_file(stem, meshes, parcel=None, roof_spec=None,
                      3, _FENCE3_TOP, "Fence3Rail")
         _build_fence(bpy, coll, stem, se, sw, "fence_1rail",
                      1, _FENCE1_TOP, "Fence1Rail")
+
+    _setup_lighting(bpy, scene, coll)
 
     if walk_path:
         _setup_walkaround(bpy, scene, coll, walk_path)
