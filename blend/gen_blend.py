@@ -284,8 +284,21 @@ def _build_grass(bpy, coll, stem, parcel, footprint=None):
     coll.objects.link(bpy.data.objects.new(name, mesh))
 
 
+def _ccw(poly):
+    """Return the polygon wound counter-clockwise (positive signed area).
+
+    Prism faces are built assuming a CCW base so their normals point outward;
+    a CW input would invert the cutter and the boolean would remove nothing.
+    """
+    n = len(poly)
+    area2 = sum(poly[i][0] * poly[(i + 1) % n][1]
+                - poly[(i + 1) % n][0] * poly[i][1] for i in range(n))
+    return list(poly) if area2 >= 0 else list(reversed(poly))
+
+
 def _prism_mesh(bpy, name, poly2d, z_bot, z_top):
     """Create a closed prism mesh from a 2D polygon extruded z_bot→z_top."""
+    poly2d = _ccw(poly2d)
     n = len(poly2d)
     verts = [(float(x), float(y), z_bot) for x, y in poly2d]
     verts += [(float(x), float(y), z_top) for x, y in poly2d]
@@ -321,6 +334,7 @@ def _build_interior_walls_doors(bpy, coll, stem, iw_walls, door_h):
         if w["openings"]:
             cv, cf = [], []
             for op in w["openings"]:
+                op = _ccw(op)
                 n = len(op)
                 if n < 3:
                     continue
