@@ -343,12 +343,17 @@ def _ccw(poly):
     return list(poly) if area2 >= 0 else list(reversed(poly))
 
 
-def _prism_mesh(bpy, name, poly2d, z_bot, z_top):
-    """Create a closed prism mesh from a 2D polygon extruded z_bot→z_top."""
+def _prism_mesh(bpy, name, poly2d, z_bot, z_top, top_fn=None):
+    """Create a closed prism mesh from a 2D polygon extruded z_bot→z_top.
+
+    If ``top_fn`` is given it overrides ``z_top`` per top vertex (e.g. to follow
+    a sloped roof underside), so the prism gets a tilted top face.
+    """
     poly2d = _ccw(poly2d)
     n = len(poly2d)
     verts = [(float(x), float(y), z_bot) for x, y in poly2d]
-    verts += [(float(x), float(y), z_top) for x, y in poly2d]
+    verts += [(float(x), float(y),
+               top_fn(x, y) if top_fn else z_top) for x, y in poly2d]
     faces = [tuple(range(n - 1, -1, -1)), tuple(range(n, 2 * n))]
     for i in range(n):
         j = (i + 1) % n
@@ -360,12 +365,18 @@ def _prism_mesh(bpy, name, poly2d, z_bot, z_top):
     return mesh
 
 
-def _build_interior_walls_doors(bpy, coll, stem, iw_walls, door_h):
+def _build_interior_walls_doors(bpy, coll, stem, iw_walls, door_h,
+                                roof_planes=None):
     """Build interior walls with their door openings cut out.
 
     Each wall is extruded floor→z_top; door openings are subtracted with a
     boolean (a cutter prism per opening, from just below the floor up to the
     door height) so the doorways read as real openings with a header above.
+
+    ``roof_planes`` (list of (a, b, c) for z = a + b*x + c*y) gives sloped roof
+    undersides; when present each wall top follows the lower envelope of those
+    planes per vertex, so walls are trimmed by the roof of the section they sit
+    under (e.g. the split2 east plane) instead of getting a flat top.
     """
     if not iw_walls:
         return
@@ -374,7 +385,13 @@ def _build_interior_walls_doors(bpy, coll, stem, iw_walls, door_h):
         poly = w["poly"]
         if len(poly) < 3:
             continue
-        wmesh = _prism_mesh(bpy, f"{stem}_IW{i}", poly, 0.0, w["z_top"])
+        if roof_planes:
+            def top_fn(x, y, planes=roof_planes):
+                return min(a + b * x + c * y for a, b, c in planes)
+            wmesh = _prism_mesh(bpy, f"{stem}_IW{i}", poly, 0.0, w["z_top"],
+                                top_fn=top_fn)
+        else:
+            wmesh = _prism_mesh(bpy, f"{stem}_IW{i}", poly, 0.0, w["z_top"])
         wobj = bpy.data.objects.new(f"{stem}_InteriorWall{i}", wmesh)
         coll.objects.link(wobj)
 
@@ -663,7 +680,13 @@ def _build_blend_file(stem, meshes, parcel=None, roof_spec=None,
 
     _build_roof_native(bpy, coll, stem, roof_spec)
 
-    _build_interior_walls_doors(bpy, coll, stem, iw_walls, door_h)
+    # For a split (multi-plane) roof, trim interior walls by the underside of
+    # whichever section they sit under (the lower envelope of the planes).
+    roof_planes = None
+    if roof_spec and roof_spec.get("pieces"):
+        roof_planes = [p["bot"] for p in roof_spec["pieces"]]
+    _build_interior_walls_doors(bpy, coll, stem, iw_walls, door_h,
+                                roof_planes=roof_planes)
 
     _build_grass(bpy, coll, stem, parcel, footprint)
 
