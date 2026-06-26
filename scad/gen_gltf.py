@@ -742,6 +742,9 @@ def _generate_variant_scad(var_gd, roof_type):
     if roof_type == 'flat_roof':
         import scad.gen_flat_roof as _gen
         scad_file = 'flat_roof.scad'
+    elif roof_type == 'split2':
+        import scad.gen_split2 as _gen
+        scad_file = 'split2.scad'
     else:
         import scad.gen_2in12 as _gen
         scad_file = '2in12.scad'

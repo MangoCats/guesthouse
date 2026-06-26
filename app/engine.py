@@ -1781,6 +1781,11 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
         gen_2in12(gd)
         return True
 
+    if script_path == "scad/gen_split2.py":
+        from scad.gen_split2 import generate as gen_split2
+        gen_split2(gd)
+        return True
+
     # No in-process handler — caller should fall back to subprocess
     return None
 

@@ -97,7 +97,7 @@ def _build_meshes(scad_text, roof_type):
     win_mesh  = g.MeshBuilder()
 
     s = data["scalars"]
-    if roof_type == "2in12":
+    if roof_type in ("2in12", "split2"):
         half_t = s["half_t"]
         for name, z_base, height in data["walls"]:
             if name == "t_full_upper":
@@ -109,7 +109,10 @@ def _build_meshes(scad_text, roof_type):
             inner = g.shell_pts(path, half_t)
             g.extrude_ring(outer, inner, wall_mesh,
                            z_bot=z_base, z_top=z_base + height)
-        g._build_walls_2in12_upper(data, wall_mesh)
+        if roof_type == "split2":
+            _build_walls_split2_upper(g, data, wall_mesh)
+        else:
+            g._build_walls_2in12_upper(data, wall_mesh)
     else:
         g._build_walls(data, wall_mesh)
 
@@ -164,6 +167,35 @@ def _parse_interior_walls(g, scad_text):
     return walls, door_h
 
 
+def _build_walls_split2_upper(g, data, wall_mesh):
+    """Upper wall for the split2 roof, clipped to the lower envelope of the two
+    planes: z_top per vertex = min(z_max, west_plane(y), east_plane(x, y)),
+    clamped to at least the band base (the east low eave dips below the opening
+    head near the closet south wall)."""
+    s = data["scalars"]
+    half_t = s["half_t"]
+    slope, z_off = s["roof_slope"], s["roof_z_off"]
+    ea, eb, ec = s["east_a"], s["east_b"], s["east_c"]
+
+    upper = next((w for w in data["walls"] if w[0] == "t_full_upper"), None)
+    if upper is None:
+        return
+    _, z_base, height = upper
+    z_max = z_base + height
+
+    def top_fn(x, y):
+        z = min(z_max, slope * y + z_off, ea + eb * x + ec * y)
+        return max(z_base, z)
+
+    path = data["_arrays"].get("t_full_upper")
+    if path is None:
+        return
+    outer = g.shell_pts(path, -half_t)
+    inner = g.shell_pts(path, half_t)
+    g.extrude_ring(outer, inner, wall_mesh,
+                   z_bot=z_base, outer_top_fn=top_fn, inner_top_fn=top_fn)
+
+
 def _roof_spec(g, data, roof_type):
     """Roof outline polygon + bottom/top z-plane coefficients (z = a + b*x + c*y).
 
@@ -183,6 +215,21 @@ def _roof_spec(g, data, roof_type):
         clean.pop()
 
     s = data["scalars"]
+    if roof_type == "split2":
+        # Two 6" slabs split at the seam: west 2:12 plane, east tilted plane.
+        from shared.split_roof import split_polygon_x
+        thick = s["roof_thick"]
+        slope, z_off = s["roof_slope"], s["roof_z_off"]
+        ea, eb, ec = s["east_a"], s["east_b"], s["east_c"]
+        wp, ep = split_polygon_x(clean, s["seam_x"])
+        pieces = []
+        if len(wp) >= 3:
+            pieces.append({"poly": wp, "bot": (z_off, 0.0, slope),
+                           "top": (z_off + thick, 0.0, slope)})
+        if len(ep) >= 3:
+            pieces.append({"poly": ep, "bot": (ea, eb, ec),
+                           "top": (ea + thick, eb, ec)})
+        return {"pieces": pieces}
     if roof_type == "2in12":
         slope = s["roof_slope"]
         z_off = s["roof_z_off"]
@@ -220,8 +267,8 @@ def _run_in_blender():
         for m in manifest["models"]:
             meshes, roof_spec, iw_walls, door_h = _build_meshes(
                 m["scad_text"], m["roof_type"])
-            # The walk-around animation is set up on the 2:12 model only.
-            wp = walk_path if m["roof_type"] == "2in12" else None
+            # Walk-around animation on the sloped (2:12 / split2) models.
+            wp = walk_path if m["roof_type"] in ("2in12", "split2") else None
             _build_blend_file(m["name"], meshes, parcel, roof_spec,
                               iw_walls, door_h, footprint, wp)
         return
@@ -465,28 +512,32 @@ def _build_roof_native(bpy, coll, stem, roof_spec):
     """
     if not roof_spec:
         return
-    poly = roof_spec["poly"]
-    n = len(poly)
-    if n < 3:
-        return
-    ba, bbx, bcy = roof_spec["bot"]
-    ta, tbx, tcy = roof_spec["top"]
-    verts = [(x, y, ba + bbx * x + bcy * y) for x, y in poly]
-    verts += [(x, y, ta + tbx * x + tcy * y) for x, y in poly]
-    faces = [tuple(range(n - 1, -1, -1)),   # bottom n-gon (downward normal)
-             tuple(range(n, 2 * n))]        # top n-gon (upward normal)
-    for i in range(n):
-        j = (i + 1) % n
-        faces.append((i, j, n + j, n + i))  # side quad
-    name = f"{stem}_Roof"
-    mesh = bpy.data.meshes.new(name)
-    mesh.from_pydata(verts, [], faces)
-    mesh.update()
-    mesh.validate()
-    mesh.materials.append(_make_material(bpy, "roof"))
-    for p in mesh.polygons:
-        p.use_smooth = False
-    coll.objects.link(bpy.data.objects.new(name, mesh))
+    # A split roof returns multiple planar pieces (e.g. west 2:12 + east plane).
+    pieces = roof_spec.get("pieces") if "pieces" in roof_spec else [roof_spec]
+    mat = _make_material(bpy, "roof")
+    for pi, piece in enumerate(pieces):
+        poly = piece["poly"]
+        n = len(poly)
+        if n < 3:
+            continue
+        ba, bbx, bcy = piece["bot"]
+        ta, tbx, tcy = piece["top"]
+        verts = [(x, y, ba + bbx * x + bcy * y) for x, y in poly]
+        verts += [(x, y, ta + tbx * x + tcy * y) for x, y in poly]
+        faces = [tuple(range(n - 1, -1, -1)),   # bottom n-gon (downward normal)
+                 tuple(range(n, 2 * n))]        # top n-gon (upward normal)
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append((i, j, n + j, n + i))  # side quad
+        name = f"{stem}_Roof" if len(pieces) == 1 else f"{stem}_Roof{pi}"
+        mesh = bpy.data.meshes.new(name)
+        mesh.from_pydata(verts, [], faces)
+        mesh.update()
+        mesh.validate()
+        mesh.materials.append(mat)
+        for p in mesh.polygons:
+            p.use_smooth = False
+        coll.objects.link(bpy.data.objects.new(name, mesh))
 
 
 def _setup_lighting(bpy, scene, coll):
@@ -806,7 +857,12 @@ def _prepare_from_db():
         con.close()
         config_name = cfg.get("config_name") or "model"
         roof_style = (cfg.get("roof_style") or "flat").lower()
-        roof_type = "flat_roof" if roof_style.startswith("flat") else "2in12"
+        if roof_style.startswith("flat"):
+            roof_type = "flat_roof"
+        elif roof_style.startswith("split"):
+            roof_type = "split2"
+        else:
+            roof_type = "2in12"
 
         # Currently-loaded model (its configured roof).
         models = [{"name": config_name, "roof_type": roof_type,
@@ -815,6 +871,10 @@ def _prepare_from_db():
         if roof_type != "2in12":
             models.append({"name": f"{config_name}_2in12", "roof_type": "2in12",
                            "scad_text": _scad_text_from_gd(ggl, gd, "2in12")})
+        # split2 roof (west 2:12 + tilted east plane) as its own file.
+        if roof_type != "split2":
+            models.append({"name": f"{config_name}_split2", "roof_type": "split2",
+                           "scad_text": _scad_text_from_gd(ggl, gd, "split2")})
 
         parcel = _parcel_from_gd(gd)
         # Building exterior outline (FC feet) — used to cut a hole in the grass

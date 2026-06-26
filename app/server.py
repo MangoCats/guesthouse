@@ -3034,6 +3034,10 @@ def create_app(db_path=None, skip_init=False):
     _ROOF_SCRIPTS = {
         "flat": "scad/gen_flat_roof.py",
         "2in12": "scad/gen_2in12.py",
+        "split2": "scad/gen_split2.py",
+    }
+    _ROOF_SCAD_STEM = {
+        "flat": "flat_roof", "2in12": "2in12", "split2": "split2",
     }
 
     @app.route("/api/generate-3d", methods=["POST"])
@@ -3047,7 +3051,7 @@ def create_app(db_path=None, skip_init=False):
         return jsonify({
             "ok": ok,
             "roof_style": roof_style,
-            "output": f"scad/{'flat_roof' if roof_style == 'flat' else '2in12'}.scad",
+            "output": f"scad/{_ROOF_SCAD_STEM.get(roof_style, '2in12')}.scad",
         })
 
     @app.route("/api/generate-views", methods=["POST"])
