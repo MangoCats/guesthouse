@@ -40,6 +40,10 @@ _OUT = os.path.join(_DIR, "split2.scad")
 # This roof style makes every roof section 6" thick (overrides ROOF_MIN_THICK).
 SPLIT2_ROOF_THICK = 6.0 / 12.0
 
+# Extend the west (2:12) plane this far east of the seam wall centreline,
+# moving the west/east seam east by the same amount.
+SPLIT2_WEST_EXTENSION = 6.0 + 4.0 / 12.0   # 6'4"
+
 WALL_HEIGHT_FT = OPENING_HEIGHT  # for test introspection
 ROOF_SLOPE = SHED_ROOF_SLOPE     # for test introspection
 
@@ -124,8 +128,10 @@ def generate(gd=None):
     roof_z_offset = roof_eave_elev - roof_slope * ref_y
 
     # East plane: solved from the seam + closet south wall (MarkZ point names).
+    # The seam is shifted east by SPLIT2_WEST_EXTENSION (west plane extended east).
     east = compute_east_plane(pts, slope=roof_slope, eave_elev=roof_eave_elev,
-                              ref_y=ref_y, wall_outer=wall_outer)
+                              ref_y=ref_y, wall_outer=wall_outer,
+                              west_extension=SPLIT2_WEST_EXTENSION)
 
     # Upper wall extrudes to the higher of the two planes' max, then is clipped.
     max_roof_z = roof_slope * max_roof_y + roof_z_offset
@@ -279,43 +285,36 @@ def generate(gd=None):
     out.append("// --- Assembly ---")
     out.append("wall_cream = [0.88, 0.82, 0.60];")
     out.append("roof_teal = [0.10, 0.35, 0.33];")
-    out.append("color(wall_cream) union() {")
+    # ALL walls are trimmed by the ceiling: west of the seam by the west (2:12)
+    # plane, east of the seam by the east plane.  Intersecting the whole wall
+    # solid with both shear half-spaces (below west AND below east) yields the
+    # lower envelope, which equals that per-section trim because the two planes
+    # coincide on the seam (west is the lower plane west of it, east the lower
+    # plane east of it).
+    out.append("color(wall_cream) render() intersection() {")
+    out.append("  union() {")
     for bi, (z1, z2, sec_data) in enumerate(bands):
         z1_in = z1 * 12.0
         z2_in = z2 * 12.0
         h = z2 - z1
-        is_upper = all(lbl == "full" for lbl, _ in sec_data)
         active = [lbl for lbl, _ in sec_data if lbl != "full"]
         desc = "full perimeter" if not active else f"openings: {', '.join(active[:3])}"
-        out.append(f"  // Band {bi}: {z1_in:.0f}\" to {z2_in:.0f}\" — {desc}")
-        if is_upper:
-            # Upper wall clipped to the LOWER envelope of both planes:
-            # intersection with both shear half-spaces.
-            out.append("  render() intersection() {")
-            for label, _ in sec_data:
-                scad_label = "full_upper" if label == "full" else label
-                if abs(z1) < 1e-9:
-                    out.append(f"    linear_extrude(height = {h:.6f}, convexity = 10)")
-                else:
-                    out.append(f"    translate([0, 0, {z1:.6f}])")
-                    out.append(f"      linear_extrude(height = {h:.6f}, convexity = 10)")
-                out.append(f"        wall_shell(t_{scad_label}, half_t);")
-            out.append("    multmatrix(west_shear)")
-            out.append(f"      translate([{_cx0:.4f}, {_cy0:.4f}, -{_cz:.1f}])")
-            out.append(f"        cube([{_cx1 - _cx0:.4f}, {_cy1 - _cy0:.4f}, {_cz:.1f}]);")
-            out.append("    multmatrix(east_shear)")
-            out.append(f"      translate([{_cx0:.4f}, {_cy0:.4f}, -{_cz:.1f}])")
-            out.append(f"        cube([{_cx1 - _cx0:.4f}, {_cy1 - _cy0:.4f}, {_cz:.1f}]);")
-            out.append("  }")
-        else:
-            for label, _ in sec_data:
-                scad_label = "full_upper" if label == "full" else label
-                if abs(z1) < 1e-9:
-                    out.append(f"  linear_extrude(height = {h:.6f}, convexity = 10)")
-                else:
-                    out.append(f"  translate([0, 0, {z1:.6f}])")
-                    out.append(f"    linear_extrude(height = {h:.6f}, convexity = 10)")
-                out.append(f"      wall_shell(t_{scad_label}, half_t);")
+        out.append(f"    // Band {bi}: {z1_in:.0f}\" to {z2_in:.0f}\" — {desc}")
+        for label, _ in sec_data:
+            scad_label = "full_upper" if label == "full" else label
+            if abs(z1) < 1e-9:
+                out.append(f"    linear_extrude(height = {h:.6f}, convexity = 10)")
+            else:
+                out.append(f"    translate([0, 0, {z1:.6f}])")
+                out.append(f"      linear_extrude(height = {h:.6f}, convexity = 10)")
+            out.append(f"        wall_shell(t_{scad_label}, half_t);")
+    out.append("  }")
+    out.append("  multmatrix(west_shear)")
+    out.append(f"    translate([{_cx0:.4f}, {_cy0:.4f}, -{_cz:.1f}])")
+    out.append(f"      cube([{_cx1 - _cx0:.4f}, {_cy1 - _cy0:.4f}, {_cz:.1f}]);")
+    out.append("  multmatrix(east_shear)")
+    out.append(f"    translate([{_cx0:.4f}, {_cy0:.4f}, -{_cz:.1f}])")
+    out.append(f"      cube([{_cx1 - _cx0:.4f}, {_cy1 - _cy0:.4f}, {_cz:.1f}]);")
     out.append("}")
 
     out.append(f"// Roof slabs ({roof_min_in:.0f}\" thick): west 2:12 plane, east tilted plane")

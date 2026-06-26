@@ -97,7 +97,9 @@ def _build_meshes(scad_text, roof_type):
     win_mesh  = g.MeshBuilder()
 
     s = data["scalars"]
-    if roof_type in ("2in12", "split2"):
+    if roof_type == "split2":
+        _build_walls_split2(g, data, wall_mesh)
+    elif roof_type == "2in12":
         half_t = s["half_t"]
         for name, z_base, height in data["walls"]:
             if name == "t_full_upper":
@@ -109,10 +111,7 @@ def _build_meshes(scad_text, roof_type):
             inner = g.shell_pts(path, half_t)
             g.extrude_ring(outer, inner, wall_mesh,
                            z_bot=z_base, z_top=z_base + height)
-        if roof_type == "split2":
-            _build_walls_split2_upper(g, data, wall_mesh)
-        else:
-            g._build_walls_2in12_upper(data, wall_mesh)
+        g._build_walls_2in12_upper(data, wall_mesh)
     else:
         g._build_walls(data, wall_mesh)
 
@@ -167,33 +166,31 @@ def _parse_interior_walls(g, scad_text):
     return walls, door_h
 
 
-def _build_walls_split2_upper(g, data, wall_mesh):
-    """Upper wall for the split2 roof, clipped to the lower envelope of the two
-    planes: z_top per vertex = min(z_max, west_plane(y), east_plane(x, y)),
-    clamped to at least the band base (the east low eave dips below the opening
-    head near the closet south wall)."""
+def _build_walls_split2(g, data, wall_mesh):
+    """All outer walls for the split2 roof, each trimmed by the ceiling plane of
+    the section it sits under: west of the seam by the west (2:12) plane, east of
+    the seam by the east plane.  Equivalently every wall vertex is capped at the
+    lower envelope min(west_plane(y), east_plane(x, y)) — and never below its own
+    band base — so walls under the lower east plane are cut down to it."""
     s = data["scalars"]
     half_t = s["half_t"]
     slope, z_off = s["roof_slope"], s["roof_z_off"]
     ea, eb, ec = s["east_a"], s["east_b"], s["east_c"]
 
-    upper = next((w for w in data["walls"] if w[0] == "t_full_upper"), None)
-    if upper is None:
-        return
-    _, z_base, height = upper
-    z_max = z_base + height
+    for name, z_base, height in data["walls"]:
+        path = data["_arrays"].get(name)
+        if path is None:
+            continue
+        z_max = z_base + height
 
-    def top_fn(x, y):
-        z = min(z_max, slope * y + z_off, ea + eb * x + ec * y)
-        return max(z_base, z)
+        def top_fn(x, y, z_max=z_max, z_base=z_base):
+            z = min(z_max, slope * y + z_off, ea + eb * x + ec * y)
+            return max(z_base, z)
 
-    path = data["_arrays"].get("t_full_upper")
-    if path is None:
-        return
-    outer = g.shell_pts(path, -half_t)
-    inner = g.shell_pts(path, half_t)
-    g.extrude_ring(outer, inner, wall_mesh,
-                   z_bot=z_base, outer_top_fn=top_fn, inner_top_fn=top_fn)
+        outer = g.shell_pts(path, -half_t)
+        inner = g.shell_pts(path, half_t)
+        g.extrude_ring(outer, inner, wall_mesh,
+                       z_bot=z_base, outer_top_fn=top_fn, inner_top_fn=top_fn)
 
 
 def _roof_spec(g, data, roof_type):

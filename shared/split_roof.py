@@ -45,7 +45,8 @@ class EastPlane(NamedTuple):
 
 
 def compute_east_plane(pts, *, slope, eave_elev, ref_y, wall_outer,
-                       seam_wall="F23ab", closet_wall=("F17", "F18")):
+                       seam_wall="F23ab", closet_wall=("F17", "F18"),
+                       west_extension=0.0):
     """Solve the east roof plane for the split2 roof style.
 
     Parameters
@@ -57,13 +58,17 @@ def compute_east_plane(pts, *, slope, eave_elev, ref_y, wall_outer,
     wall_outer outer wall thickness (the seam is the wall centreline)
     seam_wall  point name on the outer face of the short N-S seam wall
     closet_wall (start, end) point names of the closet's diagonal south wall face
+    west_extension  feet to extend the west plane further east (shifts the seam
+                    east by this much; the east plane is re-solved to stay
+                    coincident with the west plane along the new seam line)
     """
     z_off = eave_elev - slope * ref_y
 
-    # Seam = centreline of the short N-S wall whose outer face is at seam_wall.
+    # Seam = centreline of the short N-S wall whose outer face is at seam_wall,
+    # then shifted east by west_extension (extending the west plane eastward).
     # The wall's interior (office) is to the west, so the centreline is half a
     # wall-thickness west (more negative E) of the outer face.
-    seam_x = pts[seam_wall][0] - wall_outer / 2.0
+    seam_x = pts[seam_wall][0] - wall_outer / 2.0 + west_extension
 
     pa, pb = pts[closet_wall[0]], pts[closet_wall[1]]
     wx, wy = pb[0] - pa[0], pb[1] - pa[1]
