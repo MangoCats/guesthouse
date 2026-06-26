@@ -216,11 +216,14 @@ def _run_in_blender():
     if manifest and manifest.get("models"):
         parcel = manifest.get("parcel")
         footprint = manifest.get("footprint")
+        walk_path = manifest.get("walk_path")
         for m in manifest["models"]:
             meshes, roof_spec, iw_walls, door_h = _build_meshes(
                 m["scad_text"], m["roof_type"])
+            # The walk-around animation is set up on the 2:12 model only.
+            wp = walk_path if m["roof_type"] == "2in12" else None
             _build_blend_file(m["name"], meshes, parcel, roof_spec,
-                              iw_walls, door_h, footprint)
+                              iw_walls, door_h, footprint, wp)
         return
 
     # Legacy fallback: build both roof types from the committed scad files
@@ -486,8 +489,49 @@ def _build_roof_native(bpy, coll, stem, roof_spec):
     coll.objects.link(bpy.data.objects.new(name, mesh))
 
 
+def _setup_walkaround(bpy, scene, coll, walk_path):
+    """Add a 60-frame walk-around camera animation (1 fps).
+
+    The camera sits 5'6" above ground and is kept pointed at a target at the
+    origin, also 5'6" up, by a Track-To constraint; it steps through the
+    walk-path points one per frame.  Vertical field of view is 90°.
+    """
+    cam_h = 5.5  # 5'6"
+
+    target = bpy.data.objects.new("WalkTarget", None)
+    target.empty_display_type = "PLAIN_AXES"
+    target.location = (0.0, 0.0, cam_h)
+    coll.objects.link(target)
+
+    cam_data = bpy.data.cameras.new("WalkCam")
+    cam_data.sensor_fit = "VERTICAL"
+    cam_data.lens_unit = "FOV"
+    cam_data.angle = math.radians(90.0)  # vertical FOV (±45°)
+    cam = bpy.data.objects.new("WalkCam", cam_data)
+    coll.objects.link(cam)
+
+    con = cam.constraints.new("TRACK_TO")
+    con.target = target
+    con.track_axis = "TRACK_NEGATIVE_Z"
+    con.up_axis = "UP_Y"
+
+    scene.camera = cam
+    scene.frame_start = 1
+    scene.frame_end = len(walk_path)
+    scene.render.fps = 1
+    scene.render.resolution_x = 1280
+    scene.render.resolution_y = 720
+
+    # One keyframe per frame, so every rendered (integer) frame lands exactly on
+    # a walk-path point — interpolation between them is irrelevant.
+    for i, (x, y) in enumerate(walk_path):
+        cam.location = (float(x), float(y), cam_h)
+        cam.keyframe_insert(data_path="location", frame=i + 1)
+
+
 def _build_blend_file(stem, meshes, parcel=None, roof_spec=None,
-                      iw_walls=None, door_h=None, footprint=None):
+                      iw_walls=None, door_h=None, footprint=None,
+                      walk_path=None):
     import bpy
 
     # Start from a clean, empty scene.
@@ -545,6 +589,9 @@ def _build_blend_file(stem, meshes, parcel=None, roof_spec=None,
         _build_fence(bpy, coll, stem, se, sw, "fence_1rail",
                      1, _FENCE1_TOP, "Fence1Rail")
 
+    if walk_path:
+        _setup_walkaround(bpy, scene, coll, walk_path)
+
     out_path = os.path.join(_DIR, f"{stem}.blend")
     bpy.ops.wm.save_as_mainfile(filepath=out_path)
     print(f"  wrote {out_path}  ({len(coll.objects)} object(s))")
@@ -591,6 +638,83 @@ def _parcel_from_gd(gd):
     except Exception as exc:
         print(f"gen_blend: parcel computation failed ({exc}); no grass plane")
         return None
+
+
+def _door_start_angle(gd):
+    """Standard-angle bearing (radians, from +X) of the widest exterior door.
+
+    The walk-around starts on this side (the 42" primary entry).
+    """
+    best, best_w = math.pi / 2.0, -1.0
+    for op in gd.openings:
+        if getattr(op, "opening_type", None) != "door":
+            continue
+        seg = gd.outline_segs[op.seg_idx]
+        a, b = gd.pts[seg.start], gd.pts[seg.end]
+        ln = math.hypot(b[0] - a[0], b[1] - a[1])
+        w = ln * (op.t_end - op.t_start)
+        if w > best_w:
+            tm = (op.t_start + op.t_end) / 2.0
+            mx = a[0] + (b[0] - a[0]) * tm
+            my = a[1] + (b[1] - a[1]) * tm
+            best, best_w = math.atan2(my, mx), w
+    return best
+
+
+def _ray_radius(footprint, ang):
+    """Distance from origin to the farthest crossing of the footprint along ang."""
+    dx, dy = math.cos(ang), math.sin(ang)
+    n = len(footprint)
+    best = 0.0
+    for i in range(n):
+        x1, y1 = footprint[i]
+        x2, y2 = footprint[(i + 1) % n]
+        ex, ey = x2 - x1, y2 - y1
+        det = -dx * ey + ex * dy
+        if abs(det) < 1e-12:
+            continue
+        t = (-x1 * ey + ex * y1) / det
+        s = (dx * y1 - dy * x1) / det
+        if t > 1e-9 and -1e-9 <= s <= 1 + 1e-9 and t > best:
+            best = t
+    return best
+
+
+def _walk_path(footprint, start_angle, n=60, margin=6.0, fine=1440):
+    """60 points, equally spaced by arc length, around the building.
+
+    The path is the footprint's radial silhouette from the origin, pushed out by
+    ``margin`` feet; ordered clockwise (decreasing angle) starting at the door
+    bearing, then resampled at equal arc-length intervals.
+    """
+    step = 2.0 * math.pi / fine
+    fpts = []
+    for k in range(fine):
+        ang = start_angle - k * step  # clockwise
+        r = _ray_radius(footprint, ang) + margin
+        fpts.append((r * math.cos(ang), r * math.sin(ang)))
+
+    seglen = [math.hypot(fpts[(i + 1) % fine][0] - fpts[i][0],
+                         fpts[(i + 1) % fine][1] - fpts[i][1])
+              for i in range(fine)]
+    total = sum(seglen)
+    cum = [0.0]
+    for l in seglen:
+        cum.append(cum[-1] + l)
+
+    out = []
+    for i in range(n):
+        target = total * i / n
+        j = 0
+        while j < fine and cum[j + 1] < target:
+            j += 1
+        if j >= fine:
+            j = fine - 1
+        f = (target - cum[j]) / seglen[j] if seglen[j] > 1e-12 else 0.0
+        x1, y1 = fpts[j]
+        x2, y2 = fpts[(j + 1) % fine]
+        out.append([x1 + (x2 - x1) * f, y1 + (y2 - y1) * f])
+    return out
 
 
 def _scad_text_from_gd(ggl, gd, roof_type):
@@ -653,7 +777,12 @@ def _prepare_from_db():
         # Building exterior outline (FC feet) — used to cut a hole in the grass
         # so the lawn doesn't show under the house.
         footprint = [[float(x), float(y)] for x, y in gd.outline_poly]
-        return {"models": models, "parcel": parcel, "footprint": footprint}
+        # Walk-around camera path: 60 points around the building, clockwise from
+        # the 42" door side (used to animate the 2:12 model).
+        walk_path = _walk_path([(p[0], p[1]) for p in gd.outline_poly],
+                               _door_start_angle(gd))
+        return {"models": models, "parcel": parcel, "footprint": footprint,
+                "walk_path": walk_path}
     except Exception as exc:
         print(f"gen_blend: could not build from DB ({exc}); "
               "falling back to committed scad files")

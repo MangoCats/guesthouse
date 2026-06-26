@@ -79,9 +79,14 @@ blend/               — Blender 3D model generation
                        line), lighter-brown single-rail (4'0") along the south
                        boundary (216.73' line), meeting at the SW corner, with 4"
                        posts every 10'. (Survey plat is N-left/E-top, not N-up —
-                       see site/gen_site_plan.py.) Outputs blend/<config_name>.blend
-                       and blend/<config_name>_2in12.blend (e.g. blend/MarkZ.blend
-                       + blend/MarkZ_2in12.blend). Invoking Blender directly with no
+                       see site/gen_site_plan.py.) The 2:12 model also gets a
+                       60-frame walk-around camera animation (1 fps): the camera
+                       circles the building clockwise from the 42" door side along
+                       an outline-offset path, 5'6" above ground, kept pointed at
+                       the origin (5'6") by a Track-To constraint, vertical FOV 90°.
+                       Outputs blend/<config_name>.blend and
+                       blend/<config_name>_2in12.blend (e.g. blend/MarkZ.blend +
+                       blend/MarkZ_2in12.blend). Invoking Blender directly with no
                        manifest falls back to legacy flat_roof + 2in12 builds.
 
 plumbing/            — Plumbing plan generation
