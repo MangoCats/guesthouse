@@ -71,7 +71,18 @@ def _roof_elems_and_poly(gd, pts, radii):
     return elems, poly
 
 
-def generate(gd=None):
+def generate(gd=None, slope_override=None, low_elev_target=None, out_path=None):
+    """Write the split (2-panel) roof SCAD.
+
+    slope_override    shared N-S slope of both panels; defaults to
+                      SHED_ROOF_SLOPE (2:12).  Pass 1/12 for the split1 variant.
+    low_elev_target   if given, pin the level east (closet) eave to this
+                      underside elevation and derive the west plane height so
+                      the panels still meet at the seam (split1); otherwise the
+                      west plane is anchored by the south eave and the east eave
+                      is derived (split2).
+    out_path          output .scad path; defaults to scad/split2.scad.
+    """
     if gd is None:
         from floorplan.gen_floorplan import build_floorplan_data
         fp = build_floorplan_data()
@@ -95,7 +106,8 @@ def generate(gd=None):
 
     opening_h = _consts.get('OPENING_HEIGHT', OPENING_HEIGHT)
     roof_min_thick = SPLIT2_ROOF_THICK   # 6" — all sections in this style
-    roof_slope = _consts.get('SHED_ROOF_SLOPE', SHED_ROOF_SLOPE)
+    roof_slope = (slope_override if slope_override is not None
+                  else _consts.get('SHED_ROOF_SLOPE', SHED_ROOF_SLOPE))
     roof_eave_elev = _consts.get('SHED_ROOF_EAVE_ELEV', SHED_ROOF_EAVE_ELEV)
     seam_spacing = _consts.get('SEAM_SPACING', SEAM_SPACING)
     seam_w = _consts.get('SEAM_WIDTH', SEAM_WIDTH)
@@ -123,15 +135,15 @@ def generate(gd=None):
     min_roof_x = min(x for x, _ in roof_pts)
     max_roof_x = max(x for x, _ in roof_pts)
 
-    # West plane (2:12) reference, exactly as the existing 2in12 roof.
-    ref_y = min_roof_y
-    roof_z_offset = roof_eave_elev - roof_slope * ref_y
-
     # East plane: solved from the seam + closet south wall (MarkZ point names).
     # The seam is shifted east by SPLIT2_WEST_EXTENSION (west plane extended east).
+    ref_y = min_roof_y
     east = compute_east_plane(pts, slope=roof_slope, eave_elev=roof_eave_elev,
                               ref_y=ref_y, wall_outer=wall_outer,
-                              west_extension=SPLIT2_WEST_EXTENSION)
+                              west_extension=SPLIT2_WEST_EXTENSION,
+                              low_elev_target=low_elev_target)
+    # West plane vertical offset (== east.z_off, so the panels meet at the seam).
+    roof_z_offset = east.z_off
 
     # Upper wall extrudes to the higher of the two planes' max, then is clipped.
     max_roof_z = roof_slope * max_roof_y + roof_z_offset
@@ -165,9 +177,12 @@ def generate(gd=None):
     out = []
     opening_in = opening_h * 12.0
     roof_min_in = roof_min_thick * 12.0
-    out.append("// split2.scad - split single-pitch roof (west 2:12 + tilted east plane)")
-    out.append(f"// Seam (N-S) at E={east.seam_x:.4f}; west of seam = 2:12, east = tilted plane")
+    import math as _math
+    east_steep = _math.hypot(east.b, east.c)
+    out.append(f"// Split single-pitch roof: west {roof_slope * 12:.0f}:12 + tilted east plane")
+    out.append(f"// Seam (N-S) at E={east.seam_x:.4f}; west of seam = {roof_slope * 12:.0f}:12, east = tilted")
     out.append(f"// East plane underside: z = {east.a:.5f} + ({east.b:.5f})*x + ({east.c:.5f})*y")
+    out.append(f"// East panel slope (perp to back wall): {east_steep * 12:.4f}:12")
     out.append(f"// Level east low eave (closet S wall): {east.low_elev:.4f} ft")
     out.append(f"// Roof: {roof_min_in:.0f}\" slab, all sections")
     out.append("// Construction: 2\" outer shell / 4\" air gap / 2\" inner shell")
@@ -355,9 +370,10 @@ def generate(gd=None):
             return min(roof_z_offset + roof_slope * ay, east.z(ax, ay))
         _interior_wall_scad(out, iw_polys, ro_polys, get_wall_top=_iw_top)
 
-    with open(_OUT, "w", encoding="utf-8") as f:
+    _dest = out_path or _OUT
+    with open(_dest, "w", encoding="utf-8") as f:
         f.write("\n".join(out))
-    print(f"wrote {_OUT}")
+    print(f"wrote {_dest}")
 
 
 if __name__ == "__main__":

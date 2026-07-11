@@ -46,24 +46,40 @@ class EastPlane(NamedTuple):
 
 def compute_east_plane(pts, *, slope, eave_elev, ref_y, wall_outer,
                        seam_wall="F23ab", closet_wall=("F17", "F18"),
-                       west_extension=0.0):
-    """Solve the east roof plane for the split2 roof style.
+                       west_extension=0.0, low_elev_target=None):
+    """Solve the east roof plane for a split (2-panel) roof style.
+
+    Both panels share the N-S slope ``slope`` along the seam (so they meet on
+    that N-S line continuously) and the east panel is level along the closet's
+    diagonal south wall.  The east plane is ``z = a + b*E + c*N`` with
+    ``c = slope`` and ``b = -c * wy/wx`` (level along the closet wall).
+
+    Two ways to fix the remaining vertical degree of freedom:
+
+    * ``low_elev_target is None`` (split2 / 2:12): the *west* plane is anchored
+      by ``eave_elev`` at ``ref_y`` (``z_off = eave_elev - slope*ref_y``); the
+      east plane is placed to meet it at the seam and its level closet eave
+      (``low_elev``) comes out derived.
+
+    * ``low_elev_target`` given (split1 / 1:12): the closet eave is pinned to
+      that elevation; the east plane's constant term is set from it, and the
+      *west* plane's ``z_off`` is derived so the two planes still meet along the
+      seam (the west panel's height floats to suit).
 
     Parameters
     ----------
     pts        geometry points dict (must contain seam_wall + closet_wall names)
-    slope      west 2:12 plane N-S slope (e.g. SHED_ROOF_SLOPE)
-    eave_elev  west plane south-eave underside elevation (SHED_ROOF_EAVE_ELEV)
-    ref_y      N coordinate the eave_elev is referenced to (min N of roof outline)
+    slope      shared N-S slope of both panels (e.g. SHED_ROOF_SLOPE, or 1/12)
+    eave_elev  west plane south-eave underside elevation (used only when
+               low_elev_target is None)
+    ref_y      N coordinate eave_elev is referenced to (min N of roof outline;
+               used only when low_elev_target is None)
     wall_outer outer wall thickness (the seam is the wall centreline)
     seam_wall  point name on the outer face of the short N-S seam wall
     closet_wall (start, end) point names of the closet's diagonal south wall face
-    west_extension  feet to extend the west plane further east (shifts the seam
-                    east by this much; the east plane is re-solved to stay
-                    coincident with the west plane along the new seam line)
+    west_extension  feet to extend the west plane further east (shifts the seam)
+    low_elev_target if given, pin the level closet eave to this underside elev
     """
-    z_off = eave_elev - slope * ref_y
-
     # Seam = centreline of the short N-S wall whose outer face is at seam_wall,
     # then shifted east by west_extension (extending the west plane eastward).
     # The wall's interior (office) is to the west, so the centreline is half a
@@ -75,8 +91,16 @@ def compute_east_plane(pts, *, slope, eave_elev, ref_y, wall_outer,
 
     c = slope
     b = -c * wy / wx
-    a = z_off - b * seam_x
-    low_elev = a + b * pa[0] + c * pa[1]   # constant along the closet S wall
+    if low_elev_target is None:
+        # West plane anchored by the south eave; east eave derived.
+        z_off = eave_elev - slope * ref_y
+        a = z_off - b * seam_x
+        low_elev = a + b * pa[0] + c * pa[1]
+    else:
+        # Closet eave pinned; west plane height derived to meet at the seam.
+        low_elev = low_elev_target
+        a = low_elev - b * pa[0] - c * pa[1]
+        z_off = a + b * seam_x
     return EastPlane(a=a, b=b, c=c, seam_x=seam_x, slope=slope,
                      z_off=z_off, low_elev=low_elev)
 

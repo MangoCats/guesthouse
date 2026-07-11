@@ -97,7 +97,7 @@ def _build_meshes(scad_text, roof_type):
     win_mesh  = g.MeshBuilder()
 
     s = data["scalars"]
-    if roof_type == "split2":
+    if roof_type in ("split2", "split1"):
         _build_walls_split2(g, data, wall_mesh)
     elif roof_type in ("2in12", "1in12"):
         half_t = s["half_t"]
@@ -212,8 +212,8 @@ def _roof_spec(g, data, roof_type):
         clean.pop()
 
     s = data["scalars"]
-    if roof_type == "split2":
-        # Two 6" slabs split at the seam: west 2:12 plane, east tilted plane.
+    if roof_type in ("split2", "split1"):
+        # Two 6" slabs split at the seam: west sloped plane, east tilted plane.
         from shared.split_roof import split_polygon_x
         thick = s["roof_thick"]
         slope, z_off = s["roof_slope"], s["roof_z_off"]
@@ -264,8 +264,9 @@ def _run_in_blender():
         for m in manifest["models"]:
             meshes, roof_spec, iw_walls, door_h = _build_meshes(
                 m["scad_text"], m["roof_type"])
-            # Walk-around animation on the sloped (2:12 / 1:12 / split2) models.
-            wp = walk_path if m["roof_type"] in ("2in12", "1in12", "split2") else None
+            # Walk-around animation on the sloped (shed / split) models.
+            wp = walk_path if m["roof_type"] in (
+                "2in12", "1in12", "split2", "split1") else None
             _build_blend_file(m["name"], meshes, parcel, roof_spec,
                               iw_walls, door_h, footprint, wp)
         return
@@ -879,6 +880,8 @@ def _prepare_from_db():
         roof_style = (cfg.get("roof_style") or "flat").lower()
         if roof_style.startswith("flat"):
             roof_type = "flat_roof"
+        elif roof_style in ("split1", "split1in12"):
+            roof_type = "split1"
         elif roof_style.startswith("split"):
             roof_type = "split2"
         elif roof_style in ("1in12", "1:12"):
@@ -901,6 +904,10 @@ def _prepare_from_db():
         if roof_type != "split2":
             models.append({"name": f"{config_name}_split2", "roof_type": "split2",
                            "scad_text": _scad_text_from_gd(ggl, gd, "split2")})
+        # split1 roof (west 1:12 + tilted east plane, 7'6" closet eave).
+        if roof_type != "split1":
+            models.append({"name": f"{config_name}_split1", "roof_type": "split1",
+                           "scad_text": _scad_text_from_gd(ggl, gd, "split1")})
 
         parcel = _parcel_from_gd(gd)
         # Building exterior outline (FC feet) — used to cut a hole in the grass
