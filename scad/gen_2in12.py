@@ -41,12 +41,14 @@ ROOF_SLOPE = SHED_ROOF_SLOPE     # for test introspection
 # ── OpenSCAD output ───────────────────────────────────────────
 
 
-def generate(gd=None, slope_override=None, out_path=None):
+def generate(gd=None, slope_override=None, out_path=None, thick_override=None):
     """Write the sloped shed-roof SCAD.
 
     slope_override  N-ward roof slope in ft/ft; defaults to SHED_ROOF_SLOPE
                     (2:12).  Pass 1/12 for the 1:12 variant.
     out_path        output .scad path; defaults to scad/2in12.scad.
+    thick_override  roof slab thickness in ft; defaults to ROOF_MIN_THICK (18").
+                    Pass 6/12 for a 6" slab.
     """
     if gd is None:
         from floorplan.gen_floorplan import build_floorplan_data
@@ -70,7 +72,8 @@ def generate(gd=None, slope_override=None, out_path=None):
     wall_outer = _consts.get('WALL_OUTER', WALL_OUTER)
 
     opening_h = _consts.get('OPENING_HEIGHT', OPENING_HEIGHT)
-    roof_min_thick = _consts.get('ROOF_MIN_THICK', ROOF_MIN_THICK)
+    roof_min_thick = (thick_override if thick_override is not None
+                      else _consts.get('ROOF_MIN_THICK', ROOF_MIN_THICK))
     roof_slope = (slope_override if slope_override is not None
                   else _consts.get('SHED_ROOF_SLOPE', SHED_ROOF_SLOPE))
     roof_eave_elev = _consts.get('SHED_ROOF_EAVE_ELEV', SHED_ROOF_EAVE_ELEV)

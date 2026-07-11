@@ -14,11 +14,13 @@ from scad.gen_2in12 import generate as _generate_shed
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _OUT = os.path.join(_DIR, "1in12.scad")
 
-ROOF_SLOPE = 1.0 / 12.0  # 1:12 (for test introspection)
+ROOF_SLOPE = 1.0 / 12.0   # 1:12 (for test introspection)
+ROOF_THICK = 6.0 / 12.0   # 6" slab (thinner than the 2:12 variant's 18")
 
 
 def generate(gd=None):
-    _generate_shed(gd, slope_override=ROOF_SLOPE, out_path=_OUT)
+    _generate_shed(gd, slope_override=ROOF_SLOPE, out_path=_OUT,
+                   thick_override=ROOF_THICK)
 
 
 if __name__ == "__main__":
