@@ -667,6 +667,7 @@ _VARIANTS = [
 _ROOF_BUILDERS = {
     "flat_roof": _build_roof_flat,
     "2in12":     _build_roof_2in12,
+    "1in12":     _build_roof_2in12,  # same slab math; slope comes from scalars
 }
 
 
@@ -699,7 +700,7 @@ def _build_model_bytes(data, roof_type):
     win_mesh  = MeshBuilder()
     iw_mesh   = MeshBuilder()
 
-    if roof_type == '2in12':
+    if roof_type in ('2in12', '1in12'):
         # Upper wall (band 2) is clipped by the roof slope
         for name, z_base, height in data['walls']:
             if name == 't_full_upper':
@@ -745,6 +746,9 @@ def _generate_variant_scad(var_gd, roof_type):
     elif roof_type == 'split2':
         import scad.gen_split2 as _gen
         scad_file = 'split2.scad'
+    elif roof_type == '1in12':
+        import scad.gen_1in12 as _gen
+        scad_file = '1in12.scad'
     else:
         import scad.gen_2in12 as _gen
         scad_file = '2in12.scad'

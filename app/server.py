@@ -3034,10 +3034,12 @@ def create_app(db_path=None, skip_init=False):
     _ROOF_SCRIPTS = {
         "flat": "scad/gen_flat_roof.py",
         "2in12": "scad/gen_2in12.py",
+        "1in12": "scad/gen_1in12.py",
         "split2": "scad/gen_split2.py",
     }
     _ROOF_SCAD_STEM = {
-        "flat": "flat_roof", "2in12": "2in12", "split2": "split2",
+        "flat": "flat_roof", "2in12": "2in12", "1in12": "1in12",
+        "split2": "split2",
     }
 
     @app.route("/api/generate-3d", methods=["POST"])

@@ -99,7 +99,7 @@ def _build_meshes(scad_text, roof_type):
     s = data["scalars"]
     if roof_type == "split2":
         _build_walls_split2(g, data, wall_mesh)
-    elif roof_type == "2in12":
+    elif roof_type in ("2in12", "1in12"):
         half_t = s["half_t"]
         for name, z_base, height in data["walls"]:
             if name == "t_full_upper":
@@ -227,7 +227,7 @@ def _roof_spec(g, data, roof_type):
             pieces.append({"poly": ep, "bot": (ea, eb, ec),
                            "top": (ea + thick, eb, ec)})
         return {"pieces": pieces}
-    if roof_type == "2in12":
+    if roof_type in ("2in12", "1in12"):
         slope = s["roof_slope"]
         z_off = s["roof_z_off"]
         thick = s["roof_thick"]
@@ -264,8 +264,8 @@ def _run_in_blender():
         for m in manifest["models"]:
             meshes, roof_spec, iw_walls, door_h = _build_meshes(
                 m["scad_text"], m["roof_type"])
-            # Walk-around animation on the sloped (2:12 / split2) models.
-            wp = walk_path if m["roof_type"] in ("2in12", "split2") else None
+            # Walk-around animation on the sloped (2:12 / 1:12 / split2) models.
+            wp = walk_path if m["roof_type"] in ("2in12", "1in12", "split2") else None
             _build_blend_file(m["name"], meshes, parcel, roof_spec,
                               iw_walls, door_h, footprint, wp)
         return
@@ -881,6 +881,8 @@ def _prepare_from_db():
             roof_type = "flat_roof"
         elif roof_style.startswith("split"):
             roof_type = "split2"
+        elif roof_style in ("1in12", "1:12"):
+            roof_type = "1in12"
         else:
             roof_type = "2in12"
 
@@ -891,6 +893,10 @@ def _prepare_from_db():
         if roof_type != "2in12":
             models.append({"name": f"{config_name}_2in12", "roof_type": "2in12",
                            "scad_text": _scad_text_from_gd(ggl, gd, "2in12")})
+        # 1:12 sloped-roof version (shallower) as its own file.
+        if roof_type != "1in12":
+            models.append({"name": f"{config_name}_1in12", "roof_type": "1in12",
+                           "scad_text": _scad_text_from_gd(ggl, gd, "1in12")})
         # split2 roof (west 2:12 + tilted east plane) as its own file.
         if roof_type != "split2":
             models.append({"name": f"{config_name}_split2", "roof_type": "split2",

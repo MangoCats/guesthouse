@@ -41,7 +41,13 @@ ROOF_SLOPE = SHED_ROOF_SLOPE     # for test introspection
 # ── OpenSCAD output ───────────────────────────────────────────
 
 
-def generate(gd=None):
+def generate(gd=None, slope_override=None, out_path=None):
+    """Write the sloped shed-roof SCAD.
+
+    slope_override  N-ward roof slope in ft/ft; defaults to SHED_ROOF_SLOPE
+                    (2:12).  Pass 1/12 for the 1:12 variant.
+    out_path        output .scad path; defaults to scad/2in12.scad.
+    """
     if gd is None:
         from floorplan.gen_floorplan import build_floorplan_data
         fp = build_floorplan_data()
@@ -65,7 +71,8 @@ def generate(gd=None):
 
     opening_h = _consts.get('OPENING_HEIGHT', OPENING_HEIGHT)
     roof_min_thick = _consts.get('ROOF_MIN_THICK', ROOF_MIN_THICK)
-    roof_slope = _consts.get('SHED_ROOF_SLOPE', SHED_ROOF_SLOPE)
+    roof_slope = (slope_override if slope_override is not None
+                  else _consts.get('SHED_ROOF_SLOPE', SHED_ROOF_SLOPE))
     roof_eave_elev = _consts.get('SHED_ROOF_EAVE_ELEV', SHED_ROOF_EAVE_ELEV)
     seam_spacing = _consts.get('SEAM_SPACING', SEAM_SPACING)
     seam_w = _consts.get('SEAM_WIDTH', SEAM_WIDTH)
@@ -156,7 +163,8 @@ def generate(gd=None):
     out = []
     opening_in = opening_h * 12.0
     roof_min_in = roof_min_thick * 12.0
-    out.append("// 2in12.scad - T-path shell centerline extrusion (2:12 slope)")
+    out.append(f"// Sloped shed roof - T-path shell centerline extrusion "
+               f"({roof_slope * 12:.0f}:12 slope)")
     out.append(f"// {len(bands)} elevation band(s): openings by per-opening bottom/top elevation")
     out.append(f"// Upper wall:   {opening_in:.0f}\" to sloped roof underside (full perimeter)")
     out.append(f"// Roof: {roof_min_in:.0f}\" slab, {roof_slope * 12:.0f}:12 slope N, "
@@ -341,9 +349,10 @@ def generate(gd=None):
             return roof_z_offset + roof_slope * avg_y
         _interior_wall_scad(out, iw_polys, ro_polys, get_wall_top=_iw_top)
 
-    with open(_OUT, "w") as f:
+    _dest = out_path or _OUT
+    with open(_dest, "w") as f:
         f.write("\n".join(out))
-    print(f"wrote {_OUT}")
+    print(f"wrote {_dest}")
 
 
 if __name__ == "__main__":
