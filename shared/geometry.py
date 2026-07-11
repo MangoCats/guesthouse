@@ -371,3 +371,69 @@ def compute_inner_walls(
             inner_segs.append(ArcSeg(w_start, w_end, seg.center,
                                      r_inner, seg.direction, seg.n_pts))
     return inner_segs
+
+
+def offset_outline_outward(
+    outline_segs: list[Segment],
+    pts: dict[str, Point],
+    radii: dict[str, float],
+    delta: float,
+) -> list[Segment]:
+    """Offset the exterior outline outward by ``delta`` feet (in place).
+
+    The outline is traversed CW with the interior on the right, so the exterior
+    is to the *left* of each segment.  Moving the whole outline out by ``delta``
+    grows the outer-wall thickness on the exterior only: the F-series corner
+    points move out, convex (CW) arc radii grow by ``delta`` and concave (CCW)
+    arcs shrink by ``delta``, while arc *centers* stay put (arcs stay concentric).
+
+    Combined with ``compute_inner_walls(offset_outline, wall_t)`` this keeps the
+    interior face fixed when ``wall_t`` grows by the same ``delta`` — since
+    offsetting out by ``delta`` then insetting by ``wall_t`` = insetting the
+    original outline by ``wall_t - delta`` (the design-baseline wall).
+
+    Mutates ``pts`` (F-series coordinates) and ``radii`` (``R_a<center>`` keys)
+    and returns the new outline segment list.  ``delta == 0`` is a no-op.
+    """
+    if abs(delta) < GEOM_EPS:
+        return outline_segs
+
+    def _outer_point(seg_b, seg_a):
+        _wt = delta  # +delta: left of CW traversal is the exterior
+        if isinstance(seg_b, LineSeg) and isinstance(seg_a, LineSeg):
+            S1, E1 = pts[seg_b.start], pts[seg_b.end]
+            S2, E2 = pts[seg_a.start], pts[seg_a.end]
+            D1 = (E1[0]-S1[0], E1[1]-S1[1])
+            D2 = (E2[0]-S2[0], E2[1]-S2[1])
+            LN1 = left_norm(S1, E1); LN2 = left_norm(S2, E2)
+            return line_isect(off_pt(S1, LN1, _wt), D1, off_pt(S2, LN2, _wt), D2)
+        if not isinstance(seg_b, LineSeg) and not isinstance(seg_a, LineSeg):
+            c1 = pts[seg_b.center]; c2 = pts[seg_a.center]
+            r1 = (seg_b.radius + _wt) if seg_b.direction == "CW" else (seg_b.radius - _wt)
+            dx = c2[0]-c1[0]; dy = c2[1]-c1[1]; d = math.hypot(dx, dy)
+            return (c1[0]+r1*dx/d, c1[1]+r1*dy/d)
+        ls = seg_b if isinstance(seg_b, LineSeg) else seg_a
+        arc = seg_a if isinstance(seg_b, LineSeg) else seg_b
+        c = pts[arc.center]; S = pts[ls.start]; E = pts[ls.end]
+        D = (E[0]-S[0], E[1]-S[1]); LN = left_norm(S, E); P = off_pt(S, LN, _wt)
+        t = ((c[0]-P[0])*D[0]+(c[1]-P[1])*D[1])/(D[0]**2+D[1]**2)
+        return (P[0]+t*D[0], P[1]+t*D[1])
+
+    n_segs = len(outline_segs)
+    # Compute all new corner points from the *original* coordinates first.
+    new_corner = {}
+    for i in range(n_segs):
+        new_corner[outline_segs[i].end] = _outer_point(
+            outline_segs[i], outline_segs[(i+1) % n_segs])
+    pts.update(new_corner)
+
+    new_segs = []
+    for seg in outline_segs:
+        if isinstance(seg, LineSeg):
+            new_segs.append(seg)
+        else:
+            r_new = (seg.radius + delta) if seg.direction == "CW" else (seg.radius - delta)
+            radii["R_a" + seg.center[1:]] = r_new
+            new_segs.append(ArcSeg(seg.start, seg.end, seg.center,
+                                   r_new, seg.direction, seg.n_pts))
+    return new_segs

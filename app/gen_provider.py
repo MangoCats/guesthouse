@@ -13,7 +13,7 @@ import math
 
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import (
-    compute_inner_walls, path_polygon, poly_area,
+    compute_inner_walls, offset_outline_outward, path_polygon, poly_area,
     f8f9_corner_polyline, GEOM_EPS,
 )
 from shared.wall_shells import compute_inset_path, enumerate_wall_sections
@@ -842,8 +842,18 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
         outline_segs = geom.outline_segs
         radii = geom.radii
 
-    # 3. Inner walls (W-series)
+    # 2b. Outer-wall airgap parameterization: the chain defines the exterior at
+    #     the 8" design-baseline wall; extra wall thickness (WALL_OUTER > 8")
+    #     grows the wall *outward only*.  Offset the exterior outline out by the
+    #     excess so the interior face (W-series, inset below by WALL_OUTER) and
+    #     everything anchored to it stay fixed, while the exterior + roof move
+    #     out.  A no-op at the default 8" wall.
     wall_t = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
+    wall_baseline = 8.0 / 12.0
+    outline_segs = offset_outline_outward(
+        outline_segs, pts, radii, wall_t - wall_baseline)
+
+    # 3. Inner walls (W-series)
     inner_segs = compute_inner_walls(outline_segs, pts, wall_t, radii)
 
     return pts, outline_segs, inner_segs, radii
