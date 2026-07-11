@@ -2675,12 +2675,13 @@ def create_app(db_path=None, skip_init=False):
         target = os.path.join(_CONFIGS_DIR, f"{name}.db")
         if os.path.exists(target) and not data.get("overwrite"):
             return jsonify({"status": "exists"}), 409
-        # Checkpoint WAL then copy
+        # Rename the live DB to the new name *first*, so both the saved copy and
+        # the ongoing session carry the new name (checkpoint folds the rename
+        # into the main DB file before it is copied).
+        set_config("config_name", name, db)
         with get_db(db) as conn:
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         shutil.copy2(db, target)
-        # Store config name in DB
-        set_config("config_name", name, db)
         return jsonify({"status": "ok", "name": name})
 
     @app.route("/api/configs/load", methods=["POST"])
