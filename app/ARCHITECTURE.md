@@ -52,6 +52,7 @@ app/server.py          Flask routes, SSE broadcast, geometry cache
     │
     ├─ app/engine.py       Geometry computation + in-process generator dispatch
     │      ├─ app/evaluator.py          (FormulaEvaluator — see app/FORMULAS.md)
+    │      │      └─ app/specs.py       (shared point/dir/length spec grammar)
     │      ├─ app/db_render.py          (DB-path floorplan SVG renderer)
     │      ├─ app/gen_provider.py       (shared native geometry computation)
     │      ├─ floorplan/geometry.py     (outline, F-series)
@@ -202,8 +203,10 @@ polygons, bounding boxes, and positions.
   `dining_triangle`, `dining_chair`, `ellipse_rect`, `shape_transform`,
   `area_poly`.
 - **Spec resolvers**: `resolve_point(spec)`, `resolve_dir(spec)`,
-  `resolve_length(spec)` — the shared grammar for points, directions, and
-  length expressions used inside every formula.
+  `resolve_length(spec)` — thin wrappers over **`app/specs.py`**, the
+  single implementation of the point/direction/length grammar.  The
+  evaluator implements the `SpecContext` lookup protocol (all polygon
+  namespaces backed by its evaluated `elements` dict).
 - **Ordering**: `evaluate_all()` topo-sorts formulas by their
   `formula_deps` edges; `CycleError` on circular dependencies.
 - **Locking**: a locked formula returns its frozen `locked_value` instead
@@ -361,7 +364,11 @@ five anchor types:
 | `computed` | Arbitrary point resolved via `_resolve_point_spec` |
 
 **Point spec resolution** — `_resolve_point_spec(spec, geom)` resolves
-a point specification to `[E, N]` coordinates.  Point specs can be:
+a point specification to `[E, N]` coordinates.  The grammar is implemented
+once in `app/specs.py` (shared with the FormulaEvaluator); the engine
+supplies a `_GeomSpecContext` adapter over the geometry result dict
+(`face_*` specs → interior walls, `opening_*` specs → openings).  Common
+point specs:
 
 | Spec form | Resolution |
 |-----------|------------|

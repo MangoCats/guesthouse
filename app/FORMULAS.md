@@ -7,9 +7,11 @@ document is the reference for the formula language: the top-level formula
 types and the three spec grammars (point, direction, length) they are built
 from.
 
-Source of truth for behaviour: `app/evaluator.py` (`_eval_*` methods,
-`resolve_point`, `resolve_dir`, `resolve_length`).  If this document and the
-code disagree, the code wins — update this file.
+Source of truth for behaviour: the point/direction/length spec grammar is
+implemented once in **`app/specs.py`** (shared by the FormulaEvaluator and by
+`app/engine.py`'s dimension-anchor resolution via a `SpecContext` adapter);
+the formula types (`_eval_*` methods) live in `app/evaluator.py`.  If this
+document and the code disagree, the code wins — update this file.
 
 ## Evaluation model
 
@@ -141,7 +143,13 @@ faces.  Real example (`RO11` in wall `IW15`):
 
 ---
 
-## Point specs (`resolve_point`)
+## Point specs (`app/specs.py:resolve_point`)
+
+The three spec grammars below are implemented once in `app/specs.py` and
+used by both formulas and dimension anchors.  Which names resolve depends on
+the caller's context: in formulas, every polygon lookup is against evaluated
+elements; in dimension anchors, `face_*` specs see interior walls and
+`opening_*` specs see outer/rough openings.
 
 | Spec | Meaning |
 |------|---------|

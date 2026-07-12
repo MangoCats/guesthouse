@@ -430,22 +430,19 @@ def _compute_appliance_doors(variant_items, variant="standard"):
     return result
 
 
-_FACE_MAP = {"south": (0, 1), "east": (1, 2), "north": (2, 3), "west": (3, 0)}
+# ---------------------------------------------------------------------------
+# Spec resolution — the point/dir/length grammar is implemented once in
+# app/specs.py (shared with the FormulaEvaluator).  This module supplies a
+# SpecContext over the compute_geometry() result dict and keeps the
+# historical helper names as thin wrappers.
+# ---------------------------------------------------------------------------
 
-
-def _face_midpoint(poly, face):
-    """Midpoint of a named face of a 4-vertex polygon.
-
-    Convention: south=poly[0]→poly[1], east=poly[1]→poly[2],
-    north=poly[2]→poly[3], west=poly[3]→poly[0].
-    poly vertices are [E, N] lists or tuples.
-    """
-    indices = _FACE_MAP.get(face)
-    if not indices or len(poly) < 4:
-        return None
-    i, j = indices
-    a, b = poly[i], poly[j]
-    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+from app.specs import (
+    _FACE_MAP,
+    face_midpoint as _face_midpoint,
+    face_vertices as _face_vertices,
+)
+from app import specs as _specs
 
 
 def _face_point_at(poly, face, dist_in):
@@ -461,15 +458,6 @@ def _face_point_at(poly, face, dist_in):
         return None
     d = dist_in / 12.0
     return [a[0] + d * dx / length, a[1] + d * dy / length]
-
-
-def _face_vertices(poly, face):
-    """Return (vertex_i, vertex_j) for a named face of a 4-vertex polygon."""
-    indices = _FACE_MAP.get(face)
-    if not indices or len(poly) < 4:
-        return None, None
-    i, j = indices
-    return poly[i], poly[j]
 
 
 def _find_wall_poly(geom, name):
@@ -489,182 +477,55 @@ def _find_opening_poly(geom, name):
     return None
 
 
-def _resolve_point_spec(spec, geom):
-    """Resolve a point spec to [E, N] coordinates.
+class _GeomSpecContext(_specs.SpecContext):
+    """SpecContext over a compute_geometry() result dict.
 
-    Point specs:
-      str            → geom["points"][spec]
-      {face_mid: T, face: F}          → midpoint of wall face
-      {opening_face_mid: T, face: F}  → midpoint of opening face
-      {opening_centroid: T}            → centroid of opening poly vertices
-      {midpoint: [A, B]}              → midpoint of two point specs
-      {offset: base, dir: D, dist: N} → base + dist * direction
-      {arc_point: {...}}              → point on arc at reference northing
+    face_mid/face_along/face_perp resolve against interior walls (the
+    historical anchor-spec namespace); opening_face_mid/opening_centroid
+    against outer/rough openings; element/element_centroid search interior
+    walls, then openings, then variant items.
     """
-    if spec is None:
-        return None
-    if isinstance(spec, str):
-        pt = geom.get("points", {}).get(spec)
+
+    def __init__(self, geom):
+        self._g = geom
+
+    def get_point(self, name):
+        pt = self._g.get("points", {}).get(name)
         return list(pt) if pt else None
 
-    if isinstance(spec, dict):
-        # Parametric reference with local-frame offset: {ref, dAlong, dPerp}
-        if "ref" in spec:
-            ref_pt = _resolve_point_spec(spec["ref"], geom)
-            if ref_pt is None:
-                return None
-            d_along = float(spec.get("dAlong", 0.0))
-            d_perp = float(spec.get("dPerp", 0.0))
-            if d_along == 0.0 and d_perp == 0.0:
-                return list(ref_pt)
-            ref_name = spec["ref"] if isinstance(spec["ref"], str) else None
-            tangents = geom.get("point_tangents", {})
-            along = tangents.get(ref_name, [1.0, 0.0]) if ref_name else [1.0, 0.0]
-            perp = [-along[1], along[0]]
-            return [
-                ref_pt[0] + d_along * along[0] + d_perp * perp[0],
-                ref_pt[1] + d_along * along[1] + d_perp * perp[1],
-            ]
+    def get_tangent(self, name):
+        return self._g.get("point_tangents", {}).get(name)
 
-        if "face_mid" in spec:
-            poly = _find_wall_poly(geom, spec["face_mid"])
-            if poly:
-                return _face_midpoint(poly, spec.get("face"))
-            return None
+    def get_face_poly(self, name):
+        return _find_wall_poly(self._g, name)
 
-        if "opening_face_mid" in spec:
-            poly = _find_opening_poly(geom, spec["opening_face_mid"])
-            if poly:
-                return _face_midpoint(poly, spec.get("face"))
-            return None
+    def get_element_poly(self, name):
+        poly = _find_wall_poly(self._g, name)
+        if poly is None:
+            poly = _find_opening_poly(self._g, name)
+        if poly is None:
+            item = self._g.get("variant_items", {}).get(name)
+            poly = item.get("poly") if isinstance(item, dict) else None
+        return poly
 
-        if "opening_centroid" in spec:
-            poly = _find_opening_poly(geom, spec["opening_centroid"])
-            if poly and len(poly) >= 3:
-                n = len(poly)
-                return [sum(p[0] for p in poly) / n, sum(p[1] for p in poly) / n]
-            return None
+    def get_opening_poly(self, name):
+        return _find_opening_poly(self._g, name)
 
-        if "midpoint" in spec:
-            pair = spec["midpoint"]
-            if len(pair) != 2:
-                return None
-            a = _resolve_point_spec(pair[0], geom)
-            b = _resolve_point_spec(pair[1], geom)
-            if a and b:
-                return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-            return None
+    def get_radius(self, key):
+        return self._g.get("radii", {}).get(key)
 
-        if "offset" in spec:
-            base = _resolve_point_spec(spec["offset"], geom)
-            direction = _resolve_dir_spec(spec.get("dir"), geom)
-            dist = spec.get("dist", 0)
-            if base and direction:
-                return [base[0] + dist * direction[0], base[1] + dist * direction[1]]
-            return None
+    def get_boundary_poly(self, name):
+        return self._g.get("inner_poly") if name == "inner_poly" else None
 
-        if "arc_point" in spec:
-            ap = spec["arc_point"]
-            center = _resolve_point_spec(ap.get("center"), geom)
-            radii = geom.get("radii", {})
-            radius = radii.get(ap.get("radius_key"))
-            ref = _resolve_point_spec(ap.get("reference"), geom)
-            side = ap.get("side", "east")
-            if center and radius and ref:
-                # Find point on circle at reference's northing
-                ns_dir = _resolve_dir_spec("north", geom)
-                ew_dir = _resolve_dir_spec("east", geom)
-                dn = (ref[0] - center[0]) * ns_dir[0] + (ref[1] - center[1]) * ns_dir[1]
-                disc = radius**2 - dn**2
-                if disc < 0:
-                    return None
-                de = math.sqrt(disc)
-                if side == "west":
-                    de = -de
-                base = [center[0] + dn * ns_dir[0], center[1] + dn * ns_dir[1]]
-                return [base[0] + de * ew_dir[0], base[1] + de * ew_dir[1]]
-            return None
 
-    return None
+def _resolve_point_spec(spec, geom):
+    """Resolve a point spec to [E, N] (grammar: app/specs.py / app/FORMULAS.md)."""
+    return _specs.resolve_point(spec, _GeomSpecContext(geom))
 
 
 def _resolve_dir_spec(spec, geom):
-    """Resolve a direction spec to [dE, dN] unit vector.
-
-    Direction specs:
-      "east"  → [1, 0]
-      "north" → [0, 1]
-      {face_along: T, face: F}   → along direction of wall face
-      {face_perp: T, face: F}    → perpendicular of wall face (right-hand)
-      {segment: [A, B]}          → unit vector from A to B
-      {segment_perp: [A, B]}     → perpendicular of A→B (right-hand)
-    """
-    if spec is None:
-        return None
-    if isinstance(spec, str):
-        if spec == "east":
-            return [1.0, 0.0]
-        if spec == "north":
-            return [0.0, 1.0]
-        return None
-
-    if isinstance(spec, dict):
-        if "face_along" in spec:
-            poly = _find_wall_poly(geom, spec["face_along"])
-            if not poly:
-                return None
-            a, b = _face_vertices(poly, spec.get("face"))
-            if a is None:
-                return None
-            dx, dy = b[0] - a[0], b[1] - a[1]
-            length = math.sqrt(dx * dx + dy * dy)
-            if length < 1e-12:
-                return None
-            return [dx / length, dy / length]
-
-        if "face_perp" in spec:
-            poly = _find_wall_poly(geom, spec["face_perp"])
-            if not poly:
-                return None
-            a, b = _face_vertices(poly, spec.get("face"))
-            if a is None:
-                return None
-            dx, dy = b[0] - a[0], b[1] - a[1]
-            length = math.sqrt(dx * dx + dy * dy)
-            if length < 1e-12:
-                return None
-            # Right-hand perpendicular: (dy, -dx) / length
-            return [dy / length, -dx / length]
-
-        if "segment" in spec:
-            pair = spec["segment"]
-            if len(pair) != 2:
-                return None
-            a = _resolve_point_spec(pair[0], geom)
-            b = _resolve_point_spec(pair[1], geom)
-            if a and b:
-                dx, dy = b[0] - a[0], b[1] - a[1]
-                length = math.sqrt(dx * dx + dy * dy)
-                if length < 1e-12:
-                    return None
-                return [dx / length, dy / length]
-            return None
-
-        if "segment_perp" in spec:
-            pair = spec["segment_perp"]
-            if len(pair) != 2:
-                return None
-            a = _resolve_point_spec(pair[0], geom)
-            b = _resolve_point_spec(pair[1], geom)
-            if a and b:
-                dx, dy = b[0] - a[0], b[1] - a[1]
-                length = math.sqrt(dx * dx + dy * dy)
-                if length < 1e-12:
-                    return None
-                return [dy / length, -dx / length]
-            return None
-
-    return None
+    """Resolve a direction spec to a [dE, dN] unit vector (grammar: app/specs.py)."""
+    return _specs.resolve_dir(spec, _GeomSpecContext(geom))
 
 
 def _resolve_anchor(anchor, geometry_result):

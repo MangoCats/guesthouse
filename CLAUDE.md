@@ -185,6 +185,8 @@ app/                 — Flask web editor: interactive canvas + full parametric 
                        does NOT patch floorplan.constants)
   evaluator.py       — FormulaEvaluator: topo-sorted evaluation of DB-stored JSON
                        formulas (see app/FORMULAS.md)
+  specs.py           — Point/direction/length spec grammar (single source, shared
+                       by evaluator formulas and engine dimension anchors)
   database.py        — SQLite schema + CRUD (see app/DATABASE.md)
   database_seeds.py  — Seed data (variants, views, shapes, exclusions)
   db_render.py       — DB-path floorplan SVG renderer (all variants incl. plumbing)

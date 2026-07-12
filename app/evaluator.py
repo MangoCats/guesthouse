@@ -33,28 +33,15 @@ class FormulaError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Face / polygon helpers (mirrors engine.py conventions)
+# Face / polygon helpers — shared grammar lives in app/specs.py
 # ---------------------------------------------------------------------------
 
-_FACE_MAP = {"south": (0, 1), "east": (1, 2), "north": (2, 3), "west": (3, 0)}
-
-
-def _face_midpoint(poly, face):
-    """Midpoint of a named face of a 4-vertex polygon."""
-    indices = _FACE_MAP.get(face)
-    if not indices or len(poly) < 4:
-        return None
-    i, j = indices
-    a, b = poly[i], poly[j]
-    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-
-
-def _face_vertices(poly, face):
-    """Return (vertex_i, vertex_j) for a named face."""
-    indices = _FACE_MAP.get(face)
-    if not indices or len(poly) < 4:
-        return None, None
-    return poly[indices[0]], poly[indices[1]]
+from app.specs import (
+    face_midpoint as _face_midpoint,
+    face_vertices as _face_vertices,
+    line_poly_intersections as _line_poly_intersections,
+)
+from app import specs as _specs
 
 
 def _bbox_from_poly(poly):
@@ -62,33 +49,6 @@ def _bbox_from_poly(poly):
     es = [p[0] for p in poly]
     ns = [p[1] for p in poly]
     return {"w": min(es), "s": min(ns), "e": max(es), "n": max(ns)}
-
-
-def _line_poly_intersections(origin, direction, poly):
-    """Find intersections of a ray from origin along direction with polygon edges.
-
-    Returns list of [E, N] intersection points sorted by distance from origin.
-    """
-    results = []
-    n = len(poly)
-    for i in range(n):
-        a = poly[i]
-        b = poly[(i + 1) % n]
-        # Segment direction
-        seg_dx = b[0] - a[0]
-        seg_dy = b[1] - a[1]
-        det = direction[0] * seg_dy - direction[1] * seg_dx
-        if abs(det) < 1e-12:
-            continue
-        da_x = a[0] - origin[0]
-        da_y = a[1] - origin[1]
-        t = (da_x * seg_dy - da_y * seg_dx) / det
-        u = (da_x * direction[1] - da_y * direction[0]) / det
-        if 0 <= u <= 1 and t > 1e-9:
-            pt = [origin[0] + t * direction[0], origin[1] + t * direction[1]]
-            results.append((t, pt))
-    results.sort(key=lambda x: x[0])
-    return [pt for _, pt in results]
 
 
 # ---------------------------------------------------------------------------
@@ -1034,392 +994,50 @@ class FormulaEvaluator:
         }
 
     # -------------------------------------------------------------------
-    # Resolution functions
+    # Spec resolution — grammar implemented once in app/specs.py; the
+    # evaluator supplies lookups by implementing the SpecContext protocol.
     # -------------------------------------------------------------------
 
     def resolve_point(self, spec):
-        """Resolve a point spec to [E, N] coordinates.
-
-        Extends engine.py's _resolve_point_spec with:
-          - {"element": name, "corner": idx_or_face} → element polygon corner
-          - {"line_poly_isect": {...}} → line-polygon intersection
-          - constant-valued dist in offset specs
-        """
-        if spec is None:
-            return None
-
-        # List/tuple passthrough: already [E, N]
-        if isinstance(spec, (list, tuple)) and len(spec) == 2:
-            return [float(spec[0]), float(spec[1])]
-
-        # String: named point
-        if isinstance(spec, str):
-            pt = self.points.get(spec)
-            return list(pt) if pt else None
-
-        if not isinstance(spec, dict):
-            return None
-
-        # Parametric reference with local-frame offset: {ref, dAlong, dPerp}
-        # dAlong is along the chain tangent at the reference point; dPerp is 90° CCW from that.
-        if "ref" in spec:
-            ref_pt = self.resolve_point(spec["ref"])
-            if ref_pt is None:
-                return None
-            d_along = float(spec.get("dAlong", 0.0))
-            d_perp = float(spec.get("dPerp", 0.0))
-            if d_along == 0.0 and d_perp == 0.0:
-                return list(ref_pt)
-            ref_name = spec["ref"] if isinstance(spec["ref"], str) else None
-            along = self._point_tangents.get(ref_name, [1.0, 0.0]) if ref_name else [1.0, 0.0]
-            perp = [-along[1], along[0]]
-            return [
-                ref_pt[0] + d_along * along[0] + d_perp * perp[0],
-                ref_pt[1] + d_along * along[1] + d_perp * perp[1],
-            ]
-
-        # Element corner reference
-        if "element" in spec:
-            elem_name = spec["element"]
-            elem = self.elements.get(elem_name)
-            if not elem or "poly" not in elem:
-                return None
-            corner = spec.get("corner")
-            poly = elem["poly"]
-            if isinstance(corner, int):
-                if 0 <= corner < len(poly):
-                    return list(poly[corner])
-                return None
-            if isinstance(corner, str):
-                # Named corner for 4-vertex polygons
-                corner_map = {"SW": 0, "SE": 1, "NE": 2, "NW": 3,
-                              "sw": 0, "se": 1, "ne": 2, "nw": 3}
-                idx = corner_map.get(corner)
-                if idx is not None and idx < len(poly):
-                    return list(poly[idx])
-                return None
-            return None
-
-        # Element centroid
-        if "element_centroid" in spec:
-            name = spec["element_centroid"]
-            elem = self.elements.get(name)
-            if elem and "poly" in elem:
-                poly = elem["poly"]
-                n = len(poly)
-                if n == 0:
-                    return None
-                cx = sum(p[0] for p in poly) / n
-                cy = sum(p[1] for p in poly) / n
-                return [cx, cy]
-            return None
-
-        # Face midpoint of an element
-        if "face_mid" in spec:
-            name = spec["face_mid"]
-            face = spec.get("face")
-            # Try evaluated elements first, then fall back to base context
-            elem = self.elements.get(name)
-            if elem and "poly" in elem:
-                return _face_midpoint(elem["poly"], face)
-            return None
-
-        # Midpoint of two specs
-        if "midpoint" in spec:
-            pair = spec["midpoint"]
-            if len(pair) != 2:
-                return None
-            a = self.resolve_point(pair[0])
-            b = self.resolve_point(pair[1])
-            if a and b:
-                return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-            return None
-
-        # Offset: base + dist * direction
-        if "offset" in spec:
-            base = self.resolve_point(spec["offset"])
-            direction = self.resolve_dir(spec.get("dir"))
-            dist = self.resolve_length(spec.get("dist", 0))
-            if base and direction and dist is not None:
-                return [base[0] + dist * direction[0],
-                        base[1] + dist * direction[1]]
-            return None
-
-        # Line intersection
-        if spec.get("type") == "line_intersection":
-            p1 = self.resolve_point(spec.get("line1_point"))
-            d1 = self.resolve_dir(spec.get("line1_dir"))
-            p2 = self.resolve_point(spec.get("line2_point"))
-            d2 = self.resolve_dir(spec.get("line2_dir"))
-            if p1 and d1 and p2 and d2:
-                det = d1[0] * d2[1] - d1[1] * d2[0]
-                if abs(det) < 1e-12:
-                    return None
-                t = ((p2[0] - p1[0]) * d2[1] - (p2[1] - p1[1]) * d2[0]) / det
-                return [p1[0] + t * d1[0], p1[1] + t * d1[1]]
-            return None
-
-        # Line-polygon intersection
-        if "line_poly_isect" in spec:
-            lpi = spec["line_poly_isect"]
-            origin = self.resolve_point(lpi.get("origin"))
-            direction = self.resolve_dir(lpi.get("dir"))
-            poly_name = lpi.get("poly", "inner_poly")
-            poly = self.inner_poly if poly_name == "inner_poly" else []
-            select = lpi.get("select", "nearest")
-            if origin and direction and poly:
-                isects = _line_poly_intersections(origin, direction, poly)
-                if isects:
-                    return isects[0] if select == "nearest" else isects[-1]
-            return None
-
-        # Arc point (mirror of engine.py)
-        if "arc_point" in spec:
-            ap = spec["arc_point"]
-            center = self.resolve_point(ap.get("center"))
-            radius = self.radii.get(ap.get("radius_key"))
-            ref = self.resolve_point(ap.get("reference"))
-            side = ap.get("side", "east")
-            if center and radius and ref:
-                dn = ref[1] - center[1]
-                disc = radius**2 - dn**2
-                if disc < 0:
-                    return None
-                de = math.sqrt(disc)
-                if side == "west":
-                    de = -de
-                return [center[0] + de, center[1] + dn]
-            return None
-
-        # Ray-circle intersection: find point on ray at given distance from target
-        # {"ray_circle_isect": {"origin": pt, "dir": dir, "target": pt, "distance": len}}
-        if "ray_circle_isect" in spec:
-            rci = spec["ray_circle_isect"]
-            origin = self.resolve_point(rci.get("origin"))
-            direction = self.resolve_dir(rci.get("dir"))
-            target = self.resolve_point(rci.get("target"))
-            distance = self.resolve_length(rci.get("distance"))
-            if origin and direction and target and distance is not None:
-                # Solve |origin + t*dir - target|² = distance²
-                dx = origin[0] - target[0]
-                dy = origin[1] - target[1]
-                d_al = dx * direction[0] + dy * direction[1]
-                d2 = dx**2 + dy**2
-                disc = distance**2 - d2 + d_al**2
-                if disc < 0:
-                    return None
-                select = rci.get("select", "farthest")
-                if select == "nearest":
-                    t = -d_al - math.sqrt(disc)
-                else:
-                    t = -d_al + math.sqrt(disc)
-                return [origin[0] + t * direction[0],
-                        origin[1] + t * direction[1]]
-            return None
-
-        return None
+        """Resolve a point spec to [E, N] coordinates (see app/specs.py)."""
+        return _specs.resolve_point(spec, self)
 
     def resolve_dir(self, spec):
-        """Resolve a direction spec to [dE, dN] unit vector."""
-        if spec is None:
-            return None
-
-        if isinstance(spec, (list, tuple)) and len(spec) == 2:
-            return [float(spec[0]), float(spec[1])]
-
-        if isinstance(spec, str):
-            if spec == "east":
-                return [1.0, 0.0]
-            if spec == "west":
-                return [-1.0, 0.0]
-            if spec == "north":
-                return [0.0, 1.0]
-            if spec == "south":
-                return [0.0, -1.0]
-            return None
-
-        if not isinstance(spec, dict):
-            return None
-
-        # Reference-tangent direction: {ref_tangent: name, angle_offset_deg: N}
-        # Resolves to the tangent at the named chain point, rotated by angle_offset_deg.
-        if "ref_tangent" in spec:
-            ref_name = spec["ref_tangent"]
-            along = list(self._point_tangents.get(ref_name, [1.0, 0.0]))
-            angle_offset = float(spec.get("angle_offset_deg", 0.0))
-            if abs(angle_offset) > 1e-9:
-                rad = math.radians(angle_offset)
-                cos_a, sin_a = math.cos(rad), math.sin(rad)
-                along = [along[0] * cos_a - along[1] * sin_a,
-                         along[0] * sin_a + along[1] * cos_a]
-            return along
-
-        # Face along direction
-        if "face_along" in spec:
-            name = spec["face_along"]
-            face = spec.get("face")
-            elem = self.elements.get(name)
-            if elem and "poly" in elem:
-                a, b = _face_vertices(elem["poly"], face)
-                if a is not None:
-                    dx, dy = b[0] - a[0], b[1] - a[1]
-                    length = math.sqrt(dx * dx + dy * dy)
-                    if length < 1e-12:
-                        return None
-                    return [dx / length, dy / length]
-            return None
-
-        # Face perpendicular
-        if "face_perp" in spec:
-            name = spec["face_perp"]
-            face = spec.get("face")
-            elem = self.elements.get(name)
-            if elem and "poly" in elem:
-                a, b = _face_vertices(elem["poly"], face)
-                if a is not None:
-                    dx, dy = b[0] - a[0], b[1] - a[1]
-                    length = math.sqrt(dx * dx + dy * dy)
-                    if length < 1e-12:
-                        return None
-                    return [dy / length, -dx / length]
-            return None
-
-        # Segment direction (between two points)
-        if "segment" in spec:
-            pair = spec["segment"]
-            if len(pair) != 2:
-                return None
-            a = self.resolve_point(pair[0])
-            b = self.resolve_point(pair[1])
-            if a and b:
-                dx, dy = b[0] - a[0], b[1] - a[1]
-                length = math.sqrt(dx * dx + dy * dy)
-                if length < 1e-12:
-                    return None
-                return [dx / length, dy / length]
-            return None
-
-        # Segment perpendicular
-        if "segment_perp" in spec:
-            pair = spec["segment_perp"]
-            if len(pair) != 2:
-                return None
-            a = self.resolve_point(pair[0])
-            b = self.resolve_point(pair[1])
-            if a and b:
-                dx, dy = b[0] - a[0], b[1] - a[1]
-                length = math.sqrt(dx * dx + dy * dy)
-                if length < 1e-12:
-                    return None
-                return [dy / length, -dx / length]
-            return None
-
-        # Negate direction
-        if "neg" in spec:
-            d = self.resolve_dir(spec["neg"])
-            if d:
-                return [-d[0], -d[1]]
-            return None
-
-        # Rotate direction by angle (radians)
-        if "rotated" in spec:
-            d = self.resolve_dir(spec["rotated"])
-            angle = spec.get("angle", 0)
-            if d and isinstance(angle, (int, float)):
-                cos_a = math.cos(angle)
-                sin_a = math.sin(angle)
-                return [d[0] * cos_a - d[1] * sin_a,
-                        d[0] * sin_a + d[1] * cos_a]
-            return None
-
-        # Perpendicular of direction (rotate 90° CW: [dy, -dx])
-        if "perp" in spec:
-            d = self.resolve_dir(spec["perp"])
-            if d:
-                return [d[1], -d[0]]
-            return None
-
-        return None
+        """Resolve a direction spec to a [dE, dN] unit vector (see app/specs.py)."""
+        return _specs.resolve_dir(spec, self)
 
     def resolve_length(self, spec):
-        """Resolve a length expression to a float value.
+        """Resolve a length expression to a float value (see app/specs.py)."""
+        return _specs.resolve_length(spec, self)
 
-        Length specs:
-          float/int             → literal value
-          {"const": name}       → constant lookup
-          {"neg": spec}         → negation
-          {"add": [a, b, ...]}  → sum
-          {"sub": [a, b]}       → a - b
-          {"mul": [a, b]}       → product
-          {"div": [a, b]}       → a / b
-          {"dist": [pt1, pt2]}  → distance between two points
-        """
-        if spec is None:
-            return None
-        if isinstance(spec, (int, float)):
-            return float(spec)
-        if isinstance(spec, dict):
-            if "const" in spec:
-                val = self.constants.get(spec["const"])
-                return float(val) if val is not None else None
-            if "radius_key" in spec:
-                val = self.radii.get(spec["radius_key"])
-                return float(val) if val is not None else None
-            if "neg" in spec:
-                val = self.resolve_length(spec["neg"])
-                return -val if val is not None else None
-            if "add" in spec:
-                vals = [self.resolve_length(s) for s in spec["add"]]
-                if any(v is None for v in vals):
-                    return None
-                return sum(vals)
-            if "sub" in spec:
-                pair = spec["sub"]
-                if len(pair) != 2:
-                    return None
-                a = self.resolve_length(pair[0])
-                b = self.resolve_length(pair[1])
-                if a is None or b is None:
-                    return None
-                return a - b
-            if "mul" in spec:
-                vals = [self.resolve_length(s) for s in spec["mul"]]
-                if any(v is None for v in vals):
-                    return None
-                result = 1.0
-                for v in vals:
-                    result *= v
-                return result
-            if "div" in spec:
-                pair = spec["div"]
-                if len(pair) != 2:
-                    return None
-                a = self.resolve_length(pair[0])
-                b = self.resolve_length(pair[1])
-                if a is None or b is None or abs(b) < 1e-15:
-                    return None
-                return a / b
-            if "proj" in spec:
-                # Signed projection of (target - anchor) onto direction
-                proj = spec["proj"]
-                target = self.resolve_point(proj.get("target"))
-                anchor = self.resolve_point(proj.get("anchor"))
-                direction = self.resolve_dir(proj.get("dir"))
-                if target and anchor and direction:
-                    dx = target[0] - anchor[0]
-                    dy = target[1] - anchor[1]
-                    return dx * direction[0] + dy * direction[1]
-                return None
-            if "dist" in spec:
-                pair = spec["dist"]
-                if len(pair) != 2:
-                    return None
-                a = self.resolve_point(pair[0])
-                b = self.resolve_point(pair[1])
-                if a is None or b is None:
-                    return None
-                return math.sqrt((b[0] - a[0])**2 + (b[1] - a[1])**2)
+    # SpecContext protocol (lookups used by app/specs.py resolvers).
+    # Every polygon namespace is backed by the evaluated elements dict.
+
+    def get_point(self, name):
+        pt = self.points.get(name)
+        return list(pt) if pt else None
+
+    def get_tangent(self, name):
+        return self._point_tangents.get(name)
+
+    def _element_poly(self, name):
+        elem = self.elements.get(name)
+        if elem and "poly" in elem:
+            return elem["poly"]
         return None
+
+    get_face_poly = _element_poly
+    get_element_poly = _element_poly
+    get_opening_poly = _element_poly
+
+    def get_radius(self, key):
+        return self.radii.get(key)
+
+    def get_constant(self, name):
+        return self.constants.get(name)
+
+    def get_boundary_poly(self, name):
+        return self.inner_poly if name == "inner_poly" else None
 
     # -------------------------------------------------------------------
     # Dependency queries
