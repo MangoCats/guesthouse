@@ -15,11 +15,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from shared.types import LineSeg, ArcSeg
 from shared.geometry import fmt_dist, left_norm, segment_polyline
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
-from floorplan.constants import WALL_OUTER, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
+from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS, AIR_GAP,
+                                 OPENING_INSIDE_RADIUS, WINDOW_UNIT_DEPTH)
 from floorplan.openings import compute_rough_openings
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges, solid_ranges_bordered,
-    arc_strip_poly, line_strip_poly, partial_line_strip,
+    arc_strip_poly, line_strip_poly, partial_line_strip, window_box_poly,
     uturn_arc_data, uturn_polygon,
     trace_boundary_path, enumerate_wall_sections, build_section_outlines,
     opening_radii_config, opening_corner_radii,
@@ -612,6 +613,11 @@ def _render_wall_segments(out, data):
     shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
     _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
     radii_cfg = opening_radii_config(_c)
+    window_depth = _c.get("WINDOW_UNIT_DEPTH", WINDOW_UNIT_DEPTH)
+    # Inset window-box faces by half the stroke width (0.5 svg) in feet so the
+    # stroked outer edge is flush with the wall-shell outer face.
+    _svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
+    window_edge_inset = (0.5 / 2.0) / _svg_per_ft if _svg_per_ft else 0.0
 
     WALL_FILL = CLR_SHELL_FILL
     OPENING_FILL = CLR_OPENING_FILL
@@ -702,17 +708,26 @@ def _render_wall_segments(out, data):
                     _svg_polygon(out, uturn_end, to_svg, WALL_FILL,
                                  stroke="none")
 
-                # Draw opening regions
+                # Draw opening regions.  Windows show the window-unit box (flush
+                # with the outer face, depth = WINDOW_UNIT_DEPTH); doors keep the
+                # full wall-depth opening.
                 for op in seg_openings:
                     F_A, F_B = pts[seg.start], pts[seg.end]
-                    W_A = pts[inner_seg.start]
-                    W_B = pts[inner_seg.end]
-                    o_poly = [
-                        lerp(F_A, F_B, op.t_start),
-                        lerp(F_A, F_B, op.t_end),
-                        lerp(W_A, W_B, op.t_end),
-                        lerp(W_A, W_B, op.t_start),
-                    ]
+                    if getattr(op, "opening_type", "window") == "door":
+                        W_A = pts[inner_seg.start]
+                        W_B = pts[inner_seg.end]
+                        o_poly = [
+                            lerp(F_A, F_B, op.t_start),
+                            lerp(F_A, F_B, op.t_end),
+                            lerp(W_A, W_B, op.t_end),
+                            lerp(W_A, W_B, op.t_start),
+                        ]
+                    else:
+                        o_poly = window_box_poly(
+                            F_A, F_B, op.t_start, op.t_end, window_depth,
+                            window_edge_inset)
+                    if not o_poly:
+                        continue
                     _svg_polygon(out, o_poly, to_svg, OPENING_FILL,
                                  stroke=CLR_DIM, stroke_width="0.5")
 

@@ -152,6 +152,38 @@ def line_strip_poly(pts, seg_start, seg_end, inner_start, inner_end):
     ]
 
 
+def window_box_poly(f_start, f_end, t_start, t_end, depth, edge_inset=0.0):
+    """Plan-view window-unit box, flush with the exterior (outer shell) face.
+
+    ``f_start``/``f_end`` are the outline (F-face) segment endpoints.  Returns
+    the 4 (E, N) corners of a box whose outer edge lies on the F-face between
+    ``t_start`` and ``t_end`` and whose inner edge is ``depth`` feet toward the
+    building interior — so the box's outside face is flush with the outer wall
+    shell's outer face and its depth is the window unit's frame depth.
+
+    ``edge_inset`` pulls the outer and inner faces inward by that many feet.
+    Set it to half the stroke width (in feet) so that the box's *stroked* outer
+    edge — not its centreline — lands exactly on the F-face, keeping the drawn
+    outer face flush with the (unstroked) wall-shell fill edge while preserving
+    the ``depth`` face-to-face spacing on the SVG.
+    """
+    ax, ay = f_start
+    bx, by = f_end
+    dx, dy = bx - ax, by - ay
+    ln = math.hypot(dx, dy)
+    if ln < GEOM_EPS:
+        return []
+    nx, ny = dy / ln, -dx / ln   # inward normal (interior side, right of CW traversal)
+    d_out = edge_inset
+    d_in = depth - edge_inset
+    p1 = lerp(f_start, f_end, t_start)
+    p2 = lerp(f_start, f_end, t_end)
+    return [(p1[0] + d_out * nx, p1[1] + d_out * ny),
+            (p2[0] + d_out * nx, p2[1] + d_out * ny),
+            (p2[0] + d_in * nx, p2[1] + d_in * ny),
+            (p1[0] + d_in * nx, p1[1] + d_in * ny)]
+
+
 def partial_line_strip(pts, outer_seg, inner_seg, t_start, t_end):
     """Build polygon for a partial line shell strip between t_start and t_end.
 

@@ -175,6 +175,11 @@ OPENING_DOOR_OUTER_R = OPENING_INSIDE_RADIUS    # door, outer shell → connecto
 OPENING_DOOR_INNER_R = OPENING_INSIDE_RADIUS    # door, inner shell → connector
 OPENING_WINDOW_OUTER_R = OPENING_INSIDE_RADIUS  # window, outer shell → connector
 OPENING_WINDOW_INNER_R = OPENING_INSIDE_RADIUS  # window, inner shell → connector (per-model adjustable)
+# Window unit frame depth (front-to-back), drawn in plan flush with the outer
+# shell face.  3-1/4" = typical fiberglass casement frame depth (e.g. Pella
+# Impervia, Milgard Ultra C650), suitable for direct install in a printed-
+# concrete rough opening.
+WINDOW_UNIT_DEPTH = 3.25 / 12.0
 # Door jamb block thickness = wall - 2*(opening_inside_radius + shell_thickness)
 DOOR_FLAT_FACE = WALL_OUTER - 2 * (OPENING_INSIDE_RADIUS + SHELL_THICKNESS)
 # F8-F9 inner wall turn radius (W-face = inner face of inner shell)

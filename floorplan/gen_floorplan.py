@@ -17,7 +17,7 @@ from shared.geometry import (
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.constants import (
     WALL_OUTER, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
-    WH_RADIUS,
+    WINDOW_UNIT_DEPTH, WH_RADIUS,
     SINK_RX, SINK_RY, BATH_SINK_LENGTH, BATH_SINK_DEPTH,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
@@ -47,7 +47,7 @@ from floorplan.openings import (
 )
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges, solid_ranges_bordered,
-    arc_strip_poly, line_strip_poly, partial_line_strip,
+    arc_strip_poly, line_strip_poly, partial_line_strip, window_box_poly,
     uturn_polygon, enumerate_wall_sections, build_section_outlines,
     opening_radii_config, opening_corner_radii,
 )
@@ -890,6 +890,11 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
     shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
     _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
     radii_cfg = opening_radii_config(_c)
+    window_depth = _c.get("WINDOW_UNIT_DEPTH", WINDOW_UNIT_DEPTH)
+    # Inset the box's outer/inner faces by half the stroke width (in feet) so
+    # the stroked outer edge — not its centreline — is flush with the wall face.
+    _svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
+    window_edge_inset = (float(WALL_SW) / 2.0) / _svg_per_ft if _svg_per_ft else 0.0
 
     # --- Per-segment shell strips ---
     for seg_idx in range(len(outline_segs)):
@@ -970,19 +975,16 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                         seg_idx, op.t_end, "end", shell_t, r_oc, r_ic, _wall_outer)
                     _svg_wall_poly(out, uturn_end, to_svg)
 
-                # Opening void polygons (4" wide, centered on wall)
-                # Skip doors — only windows and casements get the blue void fill
+                # Window unit boxes: flush with the outer (F) face, depth =
+                # WINDOW_UNIT_DEPTH.  Only windows/casements — doors are skipped.
                 for op in seg_ops:
                     if getattr(op, "opening_type", "window") == "door":
                         continue
-                    S_A, S_B = pts[s_seg.start], pts[s_seg.end]
-                    G_A, G_B = pts[g_seg.start], pts[g_seg.end]
-                    o_poly = [
-                        lerp(S_A, S_B, op.t_start),
-                        lerp(S_A, S_B, op.t_end),
-                        lerp(G_A, G_B, op.t_end),
-                        lerp(G_A, G_B, op.t_start),
-                    ]
+                    o_poly = window_box_poly(
+                        pts[seg.start], pts[seg.end],
+                        op.t_start, op.t_end, window_depth, window_edge_inset)
+                    if not o_poly:
+                        continue
                     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
                                    for p in o_poly)
                     _poly_el = (f'<polygon points="{svg}" fill="{OPENING_FILL}" '
