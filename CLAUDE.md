@@ -88,7 +88,6 @@ opt_rot/             — C17 sweep-angle analysis (see opt_rot/ABOUT_OPT_ROT.md)
 ani/                 — Floorplan-history animation tooling (see ani/README.md)
 options/, opts/      — Published option-comparison pages and GLB model exports (gen_options.py)
 main/                — Reference site photos
-X/                   — ARCHIVAL: frozen snapshot of generated outputs; not live code
 gen_all.py           — Regenerate all outputs from the DB (see GENERATORS.md)
 gen_3views.py        — 3-view PDF layout. Outputs 3views.pdf
 gen_options.py       — Builds options/ and opts/ comparison pages

@@ -675,12 +675,13 @@ Generic modal dialog system.
 
 ### app/static/js/tools.js — Move Tools
 
-Client-side move tool and shared utilities.
+Client-side move tool and shared utilities.  IW move-axis and
+hosted-opening metadata is **not** mirrored client-side: it is fetched from
+`/api/iw-config` at startup into `App.state.iwConfig` (single source on the
+server).
 
 | Object/Function | Purpose |
 |-----------------|---------|
-| `IW_MOVE_AXIS` | Client-side mirror of `elements.py` axis mapping |
-| `IW_HOSTED_OPENINGS` | Client-side mirror for cascade delete warnings |
 | `MoveTool` | State machine: active, startWorld, ghost, targets, origTransforms |
 | `moveToolMouseDown/Move/Up` | Move tool mouse handlers |
 | `commitMove(targets, dx, dy)` | POST move for each target; auto-create override for furniture |
@@ -689,11 +690,13 @@ Client-side move tool and shared utilities.
 
 ### app/static/js/catalog.js — Catalog & Placement Tool
 
-Hardcoded catalog data and click-to-place element creation.
+Click-to-place element creation.  Catalog data is **not** hardcoded: it is
+fetched from `GET /api/catalog` (backed by the `catalog_items` DB table) and
+cached client-side by `loadCatalog()`.
 
 | Object/Function | Purpose |
 |-----------------|---------|
-| `CATALOG` | Furniture (8), appliance (6), fixture (3) item arrays |
+| `loadCatalog(force)` | Fetch + cache catalog from `/api/catalog` |
 | `PlaceTool` | Placement state: active, itemTemplate, itemType |
 | `showCatalog(type)` | Open catalog grid dialog for item type |
 | `startPlacement(item, type)` | Enter placement mode |
