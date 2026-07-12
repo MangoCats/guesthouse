@@ -167,7 +167,14 @@ RO6_DOOR_WIDTH = 24.0 / 12.0       # 24" door leaf in RO6 (double door, 2×24")
 RO7_DOOR_WIDTH = 24.0 / 12.0       # 24" door leaf in RO7 (double door, 2×24")
 # Shell construction: 2" shell / gap / 2" shell
 AIR_GAP = WALL_OUTER - 2 * SHELL_THICKNESS  # air gap between shells
-OPENING_INSIDE_RADIUS = 10.0 / 304.8  # 10mm inside corner radius at openings
+OPENING_INSIDE_RADIUS = 10.0 / 304.8  # 10mm inside corner radius at openings (legacy default)
+# Per-type shell→connector cap corner inside radii (cavity-side); the outside
+# (shell-face) radius of each cap is this + SHELL_THICKNESS, keeping the shell
+# 2" thick around the corner.  Default to OPENING_INSIDE_RADIUS; adjust per type.
+OPENING_DOOR_OUTER_R = OPENING_INSIDE_RADIUS    # door, outer shell → connector
+OPENING_DOOR_INNER_R = OPENING_INSIDE_RADIUS    # door, inner shell → connector
+OPENING_WINDOW_OUTER_R = OPENING_INSIDE_RADIUS  # window, outer shell → connector
+OPENING_WINDOW_INNER_R = OPENING_INSIDE_RADIUS  # window, inner shell → connector (per-model adjustable)
 # Door jamb block thickness = wall - 2*(opening_inside_radius + shell_thickness)
 DOOR_FLAT_FACE = WALL_OUTER - 2 * (OPENING_INSIDE_RADIUS + SHELL_THICKNESS)
 # F8-F9 inner wall turn radius (W-face = inner face of inner shell)

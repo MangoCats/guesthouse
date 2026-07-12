@@ -46,9 +46,10 @@ from floorplan.openings import (
     compute_outer_openings, compute_rough_openings, outer_to_wall_openings,
 )
 from shared.wall_shells import (
-    lerp, openings_on_seg, solid_ranges,
+    lerp, openings_on_seg, solid_ranges, solid_ranges_bordered,
     arc_strip_poly, line_strip_poly, partial_line_strip,
     uturn_polygon, enumerate_wall_sections, build_section_outlines,
+    opening_radii_config, opening_corner_radii,
 )
 
 # ============================================================
@@ -364,6 +365,7 @@ class FloorplanData(NamedTuple):
     layout: Any             # InteriorLayout
     w_override_polys: dict  # All W override polylines keyed by seg index
     g_override_polys: dict  # All G override polylines keyed by seg index (parallel, 2" toward F)
+    constants: dict         # DB constants dict (drives per-type opening cap radii, etc.)
 
 
 def compute_page_layout(pts, to_svg, outline_poly=None):
@@ -480,6 +482,7 @@ def build_floorplan_data(gd=None):
         layout=gd.layout,
         w_override_polys=gd.w_override_polys,
         g_override_polys=gd.g_override_polys,
+        constants=gd.constants,
         **page,
     )
 
@@ -883,9 +886,10 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
     g_segs = data.g_segs
     openings = data.openings
 
-    shell_t = SHELL_THICKNESS
-    R_in = OPENING_INSIDE_RADIUS
-    R_out = R_in + shell_t
+    _c = getattr(data, "constants", None) or {}
+    shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
+    _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
+    radii_cfg = opening_radii_config(_c)
 
     # --- Per-segment shell strips ---
     for seg_idx in range(len(outline_segs)):
@@ -928,42 +932,42 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                                                   inner_seg.start, inner_seg.end)
                 _svg_wall_poly(out, inner_strip, to_svg)
             else:
-                # Segments with openings: partial strips + U-turns
-                sr = solid_ranges(seg_ops)
-
-                # Trim ranges where U-turn arcs will be
+                # Segments with openings: partial strips + U-turns.  Outer and
+                # inner shell strips trim independently by each bordering
+                # opening's outer-/inner-shell cap radius.
                 F_A, F_B = pts[seg.start], pts[seg.end]
                 seg_len = math.sqrt((F_B[0]-F_A[0])**2 +
                                     (F_B[1]-F_A[1])**2)
-                delta_t = R_out / seg_len
-                adjusted = []
-                for t_s, t_e in sr:
-                    if t_s > 1e-9:
-                        t_s += delta_t
-                    if t_e < 1.0 - 1e-9:
-                        t_e -= delta_t
-                    if t_e > t_s + 1e-9:
-                        adjusted.append((t_s, t_e))
 
-                for t_s, t_e in adjusted:
-                    outer_strip = partial_line_strip(
-                        pts, seg, s_seg, t_s, t_e)
-                    _svg_wall_poly(out, outer_strip, to_svg)
+                def _trim(t_s, t_e, ob, oa, which):
+                    idx = 0 if which == "outer" else 1
+                    if ob is not None:
+                        t_s += (opening_corner_radii(ob, radii_cfg)[idx]
+                                + shell_t) / seg_len
+                    if oa is not None:
+                        t_e -= (opening_corner_radii(oa, radii_cfg)[idx]
+                                + shell_t) / seg_len
+                    return t_s, t_e
 
-                    inner_strip = partial_line_strip(
-                        pts, g_seg, inner_seg, t_s, t_e)
-                    _svg_wall_poly(out, inner_strip, to_svg)
+                for t_s, t_e, ob, oa in solid_ranges_bordered(seg_ops):
+                    ots, ote = _trim(t_s, t_e, ob, oa, "outer")
+                    if ote > ots + 1e-9:
+                        _svg_wall_poly(out, partial_line_strip(pts, seg, s_seg, ots, ote), to_svg)
+                    its, ite = _trim(t_s, t_e, ob, oa, "inner")
+                    if ite > its + 1e-9:
+                        _svg_wall_poly(out, partial_line_strip(pts, g_seg, inner_seg, its, ite), to_svg)
 
-                # U-turns at opening boundaries
+                # U-turns at opening boundaries (radii per opening type)
                 for op in seg_ops:
+                    r_oc, r_ic = opening_corner_radii(op, radii_cfg)
                     uturn_start = uturn_polygon(
                         pts, outline_segs, inner_segs, s_segs, g_segs,
-                        seg_idx, op.t_start, "start", shell_t, R_in, WALL_OUTER)
+                        seg_idx, op.t_start, "start", shell_t, r_oc, r_ic, _wall_outer)
                     _svg_wall_poly(out, uturn_start, to_svg)
 
                     uturn_end = uturn_polygon(
                         pts, outline_segs, inner_segs, s_segs, g_segs,
-                        seg_idx, op.t_end, "end", shell_t, R_in, WALL_OUTER)
+                        seg_idx, op.t_end, "end", shell_t, r_oc, r_ic, _wall_outer)
                     _svg_wall_poly(out, uturn_end, to_svg)
 
                 # Opening void polygons (4" wide, centered on wall)
@@ -999,7 +1003,7 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(
             pts, outline_segs, inner_segs, s_segs, g_segs,
-            start_op, end_op, shell_t, R_in, WALL_OUTER,
+            start_op, end_op, shell_t, radii_cfg, _wall_outer,
             g_seg_overrides=g_overrides, w_seg_overrides=w_overrides)
         for path in [outer_path, cavity_path]:
             svg_pts = " ".join(

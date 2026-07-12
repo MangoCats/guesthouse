@@ -12,6 +12,38 @@ from shared.geometry import compute_inner_walls, segment_polyline, GEOM_EPS
 # Default arc point count for U-turn quarter-circle arcs
 UTURN_ARC_PTS = 12
 
+# Legacy default cap corner inside radius (10mm), used when no per-type radii
+# are configured.
+_DEFAULT_R_IN = 10.0 / 304.8
+
+
+def opening_radii_config(constants) -> dict:
+    """Build the per-type cap corner radii config from a constants dict.
+
+    Returns {door_outer, door_inner, window_outer, window_inner} of cavity-side
+    (inside) radii.  Each falls back to OPENING_INSIDE_RADIUS (legacy single
+    value) then to the 10mm default.
+    """
+    base = (constants or {}).get("OPENING_INSIDE_RADIUS", _DEFAULT_R_IN)
+    g = (constants or {}).get
+    return {
+        "door_outer":   g("OPENING_DOOR_OUTER_R", base),
+        "door_inner":   g("OPENING_DOOR_INNER_R", base),
+        "window_outer": g("OPENING_WINDOW_OUTER_R", base),
+        "window_inner": g("OPENING_WINDOW_INNER_R", base),
+    }
+
+
+def opening_corner_radii(op, cfg) -> tuple[float, float]:
+    """Return (R_in_outer_shell, R_in_inner_shell) for an opening.
+
+    Doors use the door_* radii; every other opening type (window, casement,
+    casement_r) uses the window_* radii.
+    """
+    if getattr(op, "opening_type", "window") == "door":
+        return cfg["door_outer"], cfg["door_inner"]
+    return cfg["window_outer"], cfg["window_inner"]
+
 # ============================================================
 # Shell path computation
 # ============================================================
@@ -68,6 +100,27 @@ def solid_ranges(seg_openings) -> list[tuple[float, float]]:
     return ranges
 
 
+def solid_ranges_bordered(seg_openings) -> list[tuple]:
+    """Like solid_ranges, but records the opening bordering each end.
+
+    Returns list of (t_start, t_end, op_before, op_after) where op_before is the
+    opening whose t_end == t_start (None at the segment start) and op_after is
+    the opening whose t_start == t_end (None at the segment end).  Used to trim
+    each solid shell strip by the correct per-opening cap radius at each end.
+    """
+    ranges = []
+    cursor = 0.0
+    op_before = None
+    for o in seg_openings:
+        if o.t_start > cursor + GEOM_EPS:
+            ranges.append((cursor, o.t_start, op_before, o))
+        cursor = o.t_end
+        op_before = o
+    if cursor < 1.0 - GEOM_EPS:
+        ranges.append((cursor, 1.0, op_before, None))
+    return ranges
+
+
 # ============================================================
 # Polygon builders
 # ============================================================
@@ -120,7 +173,7 @@ def partial_line_strip(pts, outer_seg, inner_seg, t_start, t_end):
 # ============================================================
 
 def uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
-                   shell_t, R_in, wall_total, n_arc=UTURN_ARC_PTS
+                   shell_t, R_in_oc, R_in_ic, wall_total, n_arc=UTURN_ARC_PTS
                    ) -> dict[str, list[tuple[float, float]]]:
     """Compute U-turn arc point arrays at an opening boundary.
 
@@ -130,16 +183,21 @@ def uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
       'ic_W': W-face arc points (inner shell, inner face)
       'ic_G': G-face arc points (inner shell, outer face)
 
+    ``R_in_oc``/``R_in_ic`` are the cavity-side cap radii of the outer-shell and
+    inner-shell corners respectively (independently adjustable per opening type);
+    the corresponding shell-face radii are ``R_in_* + shell_t``.
+
     Each arc goes from the shell face toward the cross-wall face:
-      oc_F[0]/oc_S[0] = on F/S-face, R_out back from opening boundary
+      oc_F[0]/oc_S[0] = on F/S-face, R_out_oc back from opening boundary
       oc_F[-1]/oc_S[-1] = on cross-wall face
       ic_W[0]/ic_G[0] = on cross-wall face
-      ic_W[-1]/ic_G[-1] = on W/G-face, R_out back from opening boundary
+      ic_W[-1]/ic_G[-1] = on W/G-face, R_out_ic back from opening boundary
 
     side: "start" means wall-to-opening transition (wall at t < t_param)
           "end" means opening-to-wall transition (wall at t > t_param)
     """
-    R_out = R_in + shell_t
+    R_out_oc = R_in_oc + shell_t
+    R_out_ic = R_in_ic + shell_t
     seg = outline_segs[seg_idx]
 
     # Points at the boundary parameter on outer and inner faces
@@ -166,12 +224,12 @@ def uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
     wall_dir = (-open_dir[0], -open_dir[1])
 
     # --- Arc centers ---
-    # Outer shell: R_out inward from F-face, R_out back from opening
-    oc = (F_pt[0] - R_out * n_ext[0] + R_out * wall_dir[0],
-          F_pt[1] - R_out * n_ext[1] + R_out * wall_dir[1])
-    # Inner shell: R_out outward from W-face, R_out back from opening
-    ic = (W_pt[0] + R_out * n_ext[0] + R_out * wall_dir[0],
-          W_pt[1] + R_out * n_ext[1] + R_out * wall_dir[1])
+    # Outer shell: R_out_oc inward from F-face, R_out_oc back from opening
+    oc = (F_pt[0] - R_out_oc * n_ext[0] + R_out_oc * wall_dir[0],
+          F_pt[1] - R_out_oc * n_ext[1] + R_out_oc * wall_dir[1])
+    # Inner shell: R_out_ic outward from W-face, R_out_ic back from opening
+    ic = (W_pt[0] + R_out_ic * n_ext[0] + R_out_ic * wall_dir[0],
+          W_pt[1] + R_out_ic * n_ext[1] + R_out_ic * wall_dir[1])
 
     # Quarter-circle arc: center + R*(cos(a)*u0 + sin(a)*u1), a from 0 to pi/2
     def qarc(cx, cy, R, u0, u1):
@@ -184,34 +242,36 @@ def uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param, side,
         return arc_pts
 
     # Outer shell arcs: from shell face (n_ext) to cross-wall (open_dir)
-    oc_F = qarc(oc[0], oc[1], R_out, n_ext, open_dir)  # F-face arc
-    oc_S = qarc(oc[0], oc[1], R_in, n_ext, open_dir)   # S-face arc
+    oc_F = qarc(oc[0], oc[1], R_out_oc, n_ext, open_dir)  # F-face arc
+    oc_S = qarc(oc[0], oc[1], R_in_oc, n_ext, open_dir)   # S-face arc
 
     # Inner shell arcs: from cross-wall (open_dir) to shell face (-n_ext)
     n_int = (-n_ext[0], -n_ext[1])
-    ic_W = qarc(ic[0], ic[1], R_out, open_dir, n_int)   # W-face arc
-    ic_G = qarc(ic[0], ic[1], R_in, open_dir, n_int)    # G-face arc
+    ic_W = qarc(ic[0], ic[1], R_out_ic, open_dir, n_int)   # W-face arc
+    ic_G = qarc(ic[0], ic[1], R_in_ic, open_dir, n_int)    # G-face arc
 
     return {'oc_F': oc_F, 'oc_S': oc_S, 'ic_W': ic_W, 'ic_G': ic_G}
 
 
 def uturn_polygon(pts, outline_segs, inner_segs, s_segs, g_segs,
-                  seg_idx, t_param, side, shell_t, R_in, wall_total,
+                  seg_idx, t_param, side, shell_t, R_in_oc, R_in_ic, wall_total,
                   n_arc=UTURN_ARC_PTS) -> list[tuple[float, float]]:
     """Build the U-turn polygon at an opening boundary.
 
     The turn connects the outer shell to the inner shell via two 90-degree
     arcs and a straight cross-wall section, curving toward building interior.
+    The outer-shell and inner-shell caps have independent cavity-side radii
+    ``R_in_oc``/``R_in_ic`` (shell-face radii ``+ shell_t``).
 
-        F-face --,              R_out = R_in + shell_t
+        F-face --,              R_out_oc = R_in_oc + shell_t
                  |
-        S-face -,|              R_in
+        S-face -,|              R_in_oc
                 ||
-                || straight (wall_total - 2*(shell_t + R_in))
+                || straight (wall_total - R_out_oc - R_out_ic)
                 ||
-        G-face -'|              R_in
+        G-face -'|              R_in_ic
                  |
-        W-face --'              R_out
+        W-face --'              R_out_ic = R_in_ic + shell_t
 
     side: "start" means wall-to-opening transition (wall at t < t_param)
           "end" means opening-to-wall transition (wall at t > t_param)
@@ -219,7 +279,7 @@ def uturn_polygon(pts, outline_segs, inner_segs, s_segs, g_segs,
     Returns a list of (E, N) points forming the U-turn polygon.
     """
     arcs = uturn_arc_data(pts, outline_segs, inner_segs, seg_idx, t_param,
-                          side, shell_t, R_in, wall_total, n_arc)
+                          side, shell_t, R_in_oc, R_in_ic, wall_total, n_arc)
 
     # Assemble: outer profile forward, inner profile reversed
     poly = []
@@ -237,23 +297,27 @@ def uturn_polygon(pts, outline_segs, inner_segs, s_segs, g_segs,
 # ============================================================
 
 def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
-                        end_t, R_out, seg_overrides=None
+                        end_t, R_out_start, R_out_end=None, seg_overrides=None
                         ) -> list[tuple[float, float]]:
     """Trace a boundary path between two opening boundaries across segments.
 
-    Traces CW from (start_seg_idx, start_t + delta_t) to
-    (end_seg_idx, end_t - delta_t), spanning intermediate segments.
+    Traces CW from (start_seg_idx, start_t + delta_start) to
+    (end_seg_idx, end_t - delta_end), spanning intermediate segments.
 
     segs: one of outline_segs/s_segs/g_segs/inner_segs (all 22 segments).
     start_t: parametric position of the starting opening's t_end.
     end_t: parametric position of the ending opening's t_start.
-    R_out: trim distance in feet (R_in + shell_t) — converted to delta_t
-           using each line segment's length.
+    R_out_start / R_out_end: trim distances in feet at the start / end ends
+           (the bordering openings' cap outside radii for this shell face) —
+           converted to delta_t using each line segment's length.  R_out_end
+           defaults to R_out_start when omitted.
     seg_overrides: optional dict mapping seg index to replacement polyline
                    (list of (E, N) points) for non-standard segment paths.
 
     Returns list of (E, N) points along the boundary.
     """
+    if R_out_end is None:
+        R_out_end = R_out_start
     n_segs = len(segs)
     path = []
 
@@ -262,9 +326,8 @@ def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
         seg = segs[start_seg_idx]
         A, B = pts[seg.start], pts[seg.end]
         seg_len = math.hypot(B[0] - A[0], B[1] - A[1])
-        dt = R_out / seg_len
-        path.append(lerp(A, B, start_t + dt))
-        path.append(lerp(A, B, end_t - dt))
+        path.append(lerp(A, B, start_t + R_out_start / seg_len))
+        path.append(lerp(A, B, end_t - R_out_end / seg_len))
         return path
 
     # Multi-segment: partial start + full intermediates + partial end
@@ -273,7 +336,7 @@ def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
     seg = segs[start_seg_idx]
     A, B = pts[seg.start], pts[seg.end]
     seg_len = math.hypot(B[0] - A[0], B[1] - A[1])
-    dt = R_out / seg_len
+    dt = R_out_start / seg_len
     path.append(lerp(A, B, start_t + dt))
     if isinstance(seg, ArcSeg):
         poly = segment_polyline(seg, pts)
@@ -301,7 +364,7 @@ def trace_boundary_path(pts, segs, start_seg_idx, start_t, end_seg_idx,
     seg = segs[end_seg_idx]
     A, B = pts[seg.start], pts[seg.end]
     seg_len = math.hypot(B[0] - A[0], B[1] - A[1])
-    dt = R_out / seg_len
+    dt = R_out_end / seg_len
     path.append(lerp(A, B, end_t - dt))
 
     return path
@@ -332,7 +395,7 @@ def enumerate_wall_sections(openings, outline_segs) -> list[tuple]:
 
 
 def build_section_outlines(pts, outline_segs, inner_segs, s_segs, g_segs,
-                           start_op, end_op, shell_t, R_in, wall_total,
+                           start_op, end_op, shell_t, radii_cfg, wall_total,
                            n_arc=UTURN_ARC_PTS, g_seg_overrides=None,
                            w_seg_overrides=None
                            ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
@@ -340,33 +403,47 @@ def build_section_outlines(pts, outline_segs, inner_segs, s_segs, g_segs,
 
     start_op: opening whose t_end starts this wall section
     end_op: opening whose t_start ends this wall section
+    radii_cfg: per-type cap radii config (see opening_radii_config); each U-turn
+        uses the radii for its own opening's type, and the outer/inner shell
+        boundary paths are trimmed by the matching outer-shell / inner-shell cap
+        outside radius at each end.
 
     Returns (outer_path, cavity_path) as lists of (E, N) points.
     """
-    R_out = R_in + shell_t
+    s_oc, s_ic = opening_corner_radii(start_op, radii_cfg)
+    e_oc, e_ic = opening_corner_radii(end_op, radii_cfg)
+    # Outer-shell cap outside radii (F/S faces); inner-shell cap outside radii (G/W)
+    s_Rout_oc, e_Rout_oc = s_oc + shell_t, e_oc + shell_t
+    s_Rout_ic, e_Rout_ic = s_ic + shell_t, e_ic + shell_t
 
-    # U-turn arc data at each end
+    # U-turn arc data at each end (each end uses its own opening's radii)
     start_arcs = uturn_arc_data(pts, outline_segs, inner_segs,
                                 start_op.seg_idx, start_op.t_end, "end",
-                                shell_t, R_in, wall_total, n_arc)
+                                shell_t, s_oc, s_ic, wall_total, n_arc)
     end_arcs = uturn_arc_data(pts, outline_segs, inner_segs,
                               end_op.seg_idx, end_op.t_start, "start",
-                              shell_t, R_in, wall_total, n_arc)
+                              shell_t, e_oc, e_ic, wall_total, n_arc)
 
-    # Trace boundary paths between the two openings
+    # Trace boundary paths between the two openings.  Outer-shell faces (F, S)
+    # are trimmed by the outer-shell cap radius; inner-shell faces (G, W) by the
+    # inner-shell cap radius — independently at each end.
     f_path = trace_boundary_path(pts, outline_segs,
                                  start_op.seg_idx, start_op.t_end,
-                                 end_op.seg_idx, end_op.t_start, R_out)
+                                 end_op.seg_idx, end_op.t_start,
+                                 s_Rout_oc, e_Rout_oc)
     s_path = trace_boundary_path(pts, s_segs,
                                  start_op.seg_idx, start_op.t_end,
-                                 end_op.seg_idx, end_op.t_start, R_out)
+                                 end_op.seg_idx, end_op.t_start,
+                                 s_Rout_oc, e_Rout_oc)
     g_path = trace_boundary_path(pts, g_segs,
                                  start_op.seg_idx, start_op.t_end,
-                                 end_op.seg_idx, end_op.t_start, R_out,
+                                 end_op.seg_idx, end_op.t_start,
+                                 s_Rout_ic, e_Rout_ic,
                                  seg_overrides=g_seg_overrides)
     w_path = trace_boundary_path(pts, inner_segs,
                                  start_op.seg_idx, start_op.t_end,
-                                 end_op.seg_idx, end_op.t_start, R_out,
+                                 end_op.seg_idx, end_op.t_start,
+                                 s_Rout_ic, e_Rout_ic,
                                  seg_overrides=w_seg_overrides)
 
     # --- Outer outline ---

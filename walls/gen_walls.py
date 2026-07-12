@@ -18,10 +18,11 @@ from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_ang
 from floorplan.constants import WALL_OUTER, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS
 from floorplan.openings import compute_rough_openings
 from shared.wall_shells import (
-    lerp, openings_on_seg, solid_ranges,
+    lerp, openings_on_seg, solid_ranges, solid_ranges_bordered,
     arc_strip_poly, line_strip_poly, partial_line_strip,
     uturn_arc_data, uturn_polygon,
     trace_boundary_path, enumerate_wall_sections, build_section_outlines,
+    opening_radii_config, opening_corner_radii,
 )
 
 
@@ -609,9 +610,8 @@ def _render_wall_segments(out, data):
 
     _c = data.constants
     shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
-    R_in = _c.get("OPENING_INSIDE_RADIUS", OPENING_INSIDE_RADIUS)
-    R_out = R_in + shell_t
     _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
+    radii_cfg = opening_radii_config(_c)
 
     WALL_FILL = CLR_SHELL_FILL
     OPENING_FILL = CLR_OPENING_FILL
@@ -659,47 +659,46 @@ def _render_wall_segments(out, data):
                                                    inner_seg.start, inner_seg.end)
                 _svg_polygon(out, inner_strip, to_svg, WALL_FILL, stroke="none")
             else:
-                # Has openings — draw solid sections and U-turns
-                sr = solid_ranges(seg_openings)
-
-                # Shrink ranges so shells end where U-turn arcs begin
+                # Has openings — draw solid sections and U-turns.  The outer and
+                # inner shell strips are trimmed independently at each end by the
+                # bordering opening's outer-/inner-shell cap radius (which now
+                # differ per opening type).
                 F_A, F_B = pts[seg.start], pts[seg.end]
                 seg_len = math.sqrt((F_B[0]-F_A[0])**2 +
                                     (F_B[1]-F_A[1])**2)
-                delta_t = R_out / seg_len
-                adjusted = []
-                for t_s, t_e in sr:
-                    if t_s > 1e-9:   # borders an opening end
-                        t_s += delta_t
-                    if t_e < 1.0 - 1e-9:  # borders an opening start
-                        t_e -= delta_t
-                    if t_e > t_s + 1e-9:
-                        adjusted.append((t_s, t_e))
 
-                for t_s, t_e in adjusted:
-                    # Outer shell partial strip
-                    outer_strip = partial_line_strip(
-                        pts, seg, s_seg, t_s, t_e)
-                    _svg_polygon(out, outer_strip, to_svg, WALL_FILL, stroke="none")
+                def _trim(t_s, t_e, ob, oa, which):
+                    idx = 0 if which == "outer" else 1
+                    if ob is not None:  # borders an opening end
+                        t_s += (opening_corner_radii(ob, radii_cfg)[idx]
+                                + shell_t) / seg_len
+                    if oa is not None:  # borders an opening start
+                        t_e -= (opening_corner_radii(oa, radii_cfg)[idx]
+                                + shell_t) / seg_len
+                    return t_s, t_e
 
-                    # Inner shell partial strip
-                    inner_strip = partial_line_strip(
-                        pts, g_seg, inner_seg, t_s, t_e)
-                    _svg_polygon(out, inner_strip, to_svg, WALL_FILL, stroke="none")
+                for t_s, t_e, ob, oa in solid_ranges_bordered(seg_openings):
+                    ots, ote = _trim(t_s, t_e, ob, oa, "outer")
+                    if ote > ots + 1e-9:
+                        _svg_polygon(out, partial_line_strip(pts, seg, s_seg, ots, ote),
+                                     to_svg, WALL_FILL, stroke="none")
+                    its, ite = _trim(t_s, t_e, ob, oa, "inner")
+                    if ite > its + 1e-9:
+                        _svg_polygon(out, partial_line_strip(pts, g_seg, inner_seg, its, ite),
+                                     to_svg, WALL_FILL, stroke="none")
 
-                # Draw U-turns at each opening boundary
+                # Draw U-turns at each opening boundary (radii per opening type)
                 for op in seg_openings:
-                    # U-turn at opening start (wall→opening transition)
+                    r_oc, r_ic = opening_corner_radii(op, radii_cfg)
                     uturn_start = uturn_polygon(
                         pts, outline_segs, inner_segs, s_segs, g_segs,
-                        seg_idx, op.t_start, "start", shell_t, R_in, _wall_outer)
+                        seg_idx, op.t_start, "start", shell_t, r_oc, r_ic, _wall_outer)
                     _svg_polygon(out, uturn_start, to_svg, WALL_FILL,
                                  stroke="none")
 
-                    # U-turn at opening end (opening→wall transition)
                     uturn_end = uturn_polygon(
                         pts, outline_segs, inner_segs, s_segs, g_segs,
-                        seg_idx, op.t_end, "end", shell_t, R_in, _wall_outer)
+                        seg_idx, op.t_end, "end", shell_t, r_oc, r_ic, _wall_outer)
                     _svg_polygon(out, uturn_end, to_svg, WALL_FILL,
                                  stroke="none")
 
@@ -724,8 +723,8 @@ def _render_section_outlines(out, data):
     to_svg = data.to_svg
     _c = data.constants
     shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
-    R_in = _c.get("OPENING_INSIDE_RADIUS", OPENING_INSIDE_RADIUS)
     _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
+    radii_cfg = opening_radii_config(_c)
 
     _f8f9_idx = next((i for i, s in enumerate(data.outline_segs)
                       if s.start == "F8" and s.end == "F9"), None)
@@ -737,7 +736,7 @@ def _render_section_outlines(out, data):
     for start_op, end_op in sections:
         outer_path, cavity_path = build_section_outlines(
             pts, data.outline_segs, data.inner_segs, data.s_segs, data.g_segs,
-            start_op, end_op, shell_t, R_in, _wall_outer,
+            start_op, end_op, shell_t, radii_cfg, _wall_outer,
             g_seg_overrides=g_overrides, w_seg_overrides=w_overrides)
         for path in [outer_path, cavity_path]:
             svg_pts = svg_polygon_pts(path, to_svg, prec=2)
@@ -853,18 +852,19 @@ def compute_wall_table_rows(pts, outline_segs, openings, constants=None):
     """
     _c = constants or {}
     shell_t = _c.get("SHELL_THICKNESS", SHELL_THICKNESS)
-    R_in = _c.get("OPENING_INSIDE_RADIUS", OPENING_INSIDE_RADIUS)
     _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
-    R_out = R_in + shell_t
+    radii_cfg = opening_radii_config(_c)
+
+    def _uturn_cl(op):
+        """Centerline length of the U-turn at an opening (per-type radii)."""
+        r_oc, r_ic = opening_corner_radii(op, radii_cfg)
+        straight = _wall_outer - (r_oc + shell_t) - (r_ic + shell_t)
+        return ((math.pi / 2) * (r_oc + shell_t / 2)
+                + (math.pi / 2) * (r_ic + shell_t / 2) + straight)
 
     sections = enumerate_wall_sections(openings, outline_segs)
     # Rotate so O11-O1 (last section) comes first
     sections = sections[-1:] + sections[:-1]
-
-    # U-turn centerline length (same for every section)
-    R_mid = R_in + shell_t / 2          # centerline radius through shell
-    uturn_straight = _wall_outer - 2 * (shell_t + R_in)
-    uturn_cl = 2 * (math.pi / 2) * R_mid + uturn_straight  # feet
 
     rows = []
     for start_op, end_op in sections:
@@ -873,6 +873,8 @@ def compute_wall_table_rows(pts, outline_segs, openings, constants=None):
         s_t = start_op.t_end
         e_seg = end_op.seg_idx
         e_t = end_op.t_start
+        s_oc, s_ic = opening_corner_radii(start_op, radii_cfg)
+        e_oc, e_ic = opening_corner_radii(end_op, radii_cfg)
 
         outer_ft = _path_length_between(
             pts, outline_segs, s_seg, s_t, e_seg, e_t, 0.0)
@@ -883,7 +885,11 @@ def compute_wall_table_rows(pts, outline_segs, openings, constants=None):
         inner_cl_ft = _path_length_between(
             pts, outline_segs, s_seg, s_t, e_seg, e_t,
             _wall_outer - shell_t / 2)
-        shell_ft = (outer_cl_ft - 2 * R_out) + (inner_cl_ft - 2 * R_out) + 2 * uturn_cl
+        # Outer shell trimmed by outer-shell cap radii; inner by inner-shell caps.
+        shell_ft = (
+            (outer_cl_ft - (s_oc + shell_t) - (e_oc + shell_t))
+            + (inner_cl_ft - (s_ic + shell_t) - (e_ic + shell_t))
+            + _uturn_cl(start_op) + _uturn_cl(end_op))
 
         outer_in = outer_ft * 12
         inner_in = inner_ft * 12
