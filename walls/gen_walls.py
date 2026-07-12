@@ -16,12 +16,13 @@ from shared.types import LineSeg, ArcSeg
 from shared.geometry import fmt_dist, left_norm, segment_polyline
 from shared.svg import make_svg_transform, W, H, git_describe, normalize_svg_angle, svg_polygon_pts
 from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS, AIR_GAP,
-                                 OPENING_INSIDE_RADIUS, WINDOW_UNIT_DEPTH)
+                                 OPENING_INSIDE_RADIUS, WINDOW_UNIT_DEPTH,
+                                 CURVE_DETAIL)
 from floorplan.openings import compute_rough_openings
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges, solid_ranges_bordered,
     arc_strip_poly, line_strip_poly, partial_line_strip,
-    window_box_poly, window_edge_inset,
+    window_box_poly, window_edge_inset, scale_arc_detail,
     uturn_arc_data, uturn_polygon,
     trace_boundary_path, enumerate_wall_sections, build_section_outlines,
     opening_radii_config, opening_corner_radii,
@@ -222,10 +223,17 @@ def build_wall_data(gd=None):
     _vb_x = _cb_cx - _vb_w / 2
     _vb_y = _cb_ymin - _margin_top / _fit_scale
 
+    # Outer-wall arcs re-discretized at CURVE_DETAIL × geometry n_pts for
+    # smooth drawn curves (render-time only; see shared.wall_shells).
+    detail = (getattr(gd, "constants", None) or {}).get(
+        "CURVE_DETAIL", CURVE_DETAIL)
+
     return WallData(
         pts=gd.pts, to_svg=to_svg,
-        outline_segs=gd.outline_segs, inner_segs=gd.inner_segs,
-        s_segs=gd.s_segs, g_segs=gd.g_segs,
+        outline_segs=scale_arc_detail(gd.outline_segs, detail),
+        inner_segs=scale_arc_detail(gd.inner_segs, detail),
+        s_segs=scale_arc_detail(gd.s_segs, detail),
+        g_segs=scale_arc_detail(gd.g_segs, detail),
         radii=gd.radii, openings=gd.openings,
         layout=gd.layout, inner_poly=gd.inner_poly,
         outer_area=gd.outer_area,
@@ -253,8 +261,9 @@ def build_wall_data(gd=None):
 # ============================================================
 
 def _svg_polygon(out, poly, to_svg, fill, stroke=CLR_IW_STROKE, stroke_width="0.5"):
-    """Render a polygon as an SVG element."""
-    svg = svg_polygon_pts(poly, to_svg, prec=2)
+    """Render a polygon as an SVG element (prec=3 keeps curve chords above
+    coordinate-rounding noise)."""
+    svg = svg_polygon_pts(poly, to_svg, prec=3)
     out.append(f'<polygon points="{svg}" fill="{fill}" '
                f'stroke="{stroke}" stroke-width="{stroke_width}"/>')
 

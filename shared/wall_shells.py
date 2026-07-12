@@ -152,6 +152,21 @@ def line_strip_poly(pts, seg_start, seg_end, inner_start, inner_end):
     ]
 
 
+def scale_arc_detail(segs, detail):
+    """Multiply arc discretization counts (n_pts) for smoother drawn curves.
+
+    Render-time only: apply to the seg lists handed to an SVG renderer
+    (outline/S/G/W) so all drawn curves share the same finer chords, while
+    upstream geometry (areas, span analysis, canvas, 3D models) is untouched.
+    ``detail`` is the CURVE_DETAIL constant (dimensionless multiplier).
+    """
+    if abs(detail - 1.0) < 1e-9:
+        return segs
+    return [seg._replace(n_pts=max(2, int(round(seg.n_pts * detail))))
+            if isinstance(seg, ArcSeg) else seg
+            for seg in segs]
+
+
 def window_edge_inset(stroke_width_svg, to_svg):
     """Half an SVG stroke width converted to feet, for window_box_poly.
 

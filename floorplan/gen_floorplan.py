@@ -14,7 +14,7 @@ from shared.geometry import (
     segment_polyline, poly_area,
     fmt_dist, seg_vecs, offset_pt, line_isect,
 )
-from shared.svg import make_svg_transform, W, H, git_describe
+from shared.svg import make_svg_transform, W, H, git_describe, svg_polygon_pts
 from floorplan.constants import (
     WALL_OUTER, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
     WINDOW_UNIT_DEPTH, CURVE_DETAIL, WH_RADIUS,
@@ -48,7 +48,7 @@ from floorplan.openings import (
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges, solid_ranges_bordered,
     arc_strip_poly, line_strip_poly, partial_line_strip,
-    window_box_poly, window_edge_inset,
+    window_box_poly, window_edge_inset, scale_arc_detail,
     uturn_polygon, enumerate_wall_sections, build_section_outlines,
     opening_radii_config, opening_corner_radii,
 )
@@ -454,20 +454,6 @@ def _default_constants_dict():
             and isinstance(getattr(fc, name), (int, float))}
 
 
-def _scale_arc_detail(segs, detail):
-    """Multiply arc discretization counts (n_pts) for smoother drawn curves.
-
-    Render-time only: applied to the seg lists handed to the floorplan
-    renderer (outline/S/G/W), so wall bands and room fills share the same
-    finer chords while upstream geometry is untouched.
-    """
-    if abs(detail - 1.0) < 1e-9:
-        return segs
-    return [seg._replace(n_pts=max(2, int(round(seg.n_pts * detail))))
-            if isinstance(seg, ArcSeg) else seg
-            for seg in segs]
-
-
 def build_floorplan_data(gd=None):
     """Compute all geometry needed for the floorplan SVG.
 
@@ -494,14 +480,14 @@ def build_floorplan_data(gd=None):
 
     return FloorplanData(
         pts=gd.pts, to_svg=to_svg,
-        outline_segs=_scale_arc_detail(gd.outline_segs, detail),
-        inner_segs=_scale_arc_detail(gd.inner_segs, detail),
+        outline_segs=scale_arc_detail(gd.outline_segs, detail),
+        inner_segs=scale_arc_detail(gd.inner_segs, detail),
         outer_poly=gd.outline_poly, inner_poly=gd.inner_poly,
         outer_area=gd.outer_area, inner_area=gd.inner_area,
         radii=gd.radii, wall_t=gd.wall_t,
         w_f8f9_poly=gd.w_f8f9_poly,
-        s_segs=_scale_arc_detail(gd.s_segs, detail),
-        g_segs=_scale_arc_detail(gd.g_segs, detail),
+        s_segs=scale_arc_detail(gd.s_segs, detail),
+        g_segs=scale_arc_detail(gd.g_segs, detail),
         openings=gd.openings, g_f8f9_poly=gd.g_f8f9_poly,
         layout=gd.layout,
         w_override_polys=gd.w_override_polys,
@@ -895,8 +881,13 @@ def compute_iw_area(layout):
 
 
 def _svg_wall_poly(out, poly, to_svg):
-    """Render a shell polygon with floorplan wall styling (no stroke, gray fill)."""
-    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in poly)
+    """Render a shell polygon with floorplan wall styling (no stroke, gray fill).
+
+    prec=3: curve smoothness is limited by coordinate rounding, not vertex
+    count — at ~11.7 SVG units/ft, one decimal place snaps vertices to a
+    ~0.1" grid, which visibly quantizes the wall arcs.
+    """
+    svg = svg_polygon_pts(poly, to_svg, prec=3)
     out.append(f'<polygon points="{svg}" fill="{WALL_FILL}" stroke="none"/>')
 
 
@@ -1007,8 +998,7 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                         op.t_start, op.t_end, window_depth, win_edge_inset)
                     if not o_poly:
                         continue
-                    svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"
-                                   for p in o_poly)
+                    svg = svg_polygon_pts(o_poly, to_svg, prec=3)
                     _poly_el = (f'<polygon points="{svg}" fill="{OPENING_FILL}" '
                                 f'stroke="{OPENING_STROKE}" stroke-width="{WALL_SW}"/>')
                     if op.name in _CASEMENT_NAMES:
@@ -1030,8 +1020,7 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
             start_op, end_op, shell_t, radii_cfg, _wall_outer,
             g_seg_overrides=g_overrides, w_seg_overrides=w_overrides)
         for path in [outer_path, cavity_path]:
-            svg_pts = " ".join(
-                f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}" for p in path)
+            svg_pts = svg_polygon_pts(path, to_svg, prec=3)
             out.append(f'<polygon points="{svg_pts}" fill="none" '
                        f'stroke="#999" stroke-width="0.3"/>')
 
