@@ -15,8 +15,10 @@ shared/              — Common types, geometry, survey computation, SVG utiliti
   types.py           — Point, BBox, LineSeg, ArcSeg, Segment
   geometry.py        — Pure geometry functions, path ops, polygon utilities, compute_inner_walls
   wall_shells.py     — Shell inset paths, U-turn arcs/polygons, wall section enumeration
+  roof_outline.py    — Roof outline computation (R-series corners from roof_corners config)
+  split_roof.py      — Split-roof (split1/split2) geometry helpers
   survey.py          — compute_traverse, compute_three_arc, compute_inset
-  svg.py             — make_svg_transform, W/H page constants
+  svg.py             — make_svg_transform, W/H page constants, git_describe
 
 floorplan/           — Reference geometry and seed source (NOT the live source of truth — see DB Authority)
   constants.py       — Seed values for DB constants table (wall thicknesses, room sizes,
@@ -24,22 +26,27 @@ floorplan/           — Reference geometry and seed source (NOT the live source
   geometry.py        — compute_outline_geometry → F-series points, segments, radii (seed for outline_chain)
   layout.py          — compute_interior_layout → InteriorLayout (seed/reference only; app uses DB formulas)
   openings.py        — compute_outer_openings, compute_rough_openings (seed/reference only; app uses DB formulas)
-  gen_floorplan.py   — Detailed floorplan SVG renderer. Outputs floorplan/floorplan.svg
+  roof.py            — R-series roof geometry (used by app/gen_provider.py)
+  gen_floorplan.py   — Floorplan SVG rendering engine. The DB path (app/db_render.py)
+                       renders all variants: floorplan.svg, _minik, _db, _bare, _sf, _plumbing
 
 walls/               — Outer wall construction detail drawing
-  constants.py       — Re-exports SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS from floorplan.constants
   gen_walls.py       — Double-shell wall detail SVG renderer. Outputs walls/walls.svg, walls/all_walls.svg
 
 span/                — N-S span measurement analysis
+  _common.py         — Shared span computation helpers
   gen_span.py        — Interior span graph + plan view. Outputs span/span.svg
   gen_span_minmax.py — Span-vs-rotation analysis (5-175°). Outputs span/span_minmax.svg
   gen_span_min.py    — Minimum-span rotation finder. Outputs span/span_min.svg
 
 survey/              — Survey scripts and data (not a Python package)
   gen_path_svg.py    — Outline + inset path SVG with labels. Outputs survey/path_area.svg
+  gen_path_svg_wo.py — Variant: outline-only path drawing. Outputs survey/path_area_wo.svg
+  gen_path_svg_ks.py — Variant: known-scale path drawing. Outputs survey/path_area_ks.svg
+  gen_points_pdf.py  — Survey points PDF. Outputs survey/points.pdf
   compute_path.py    — Diagnostic/computation script
   rough_survey.txt   — Raw field measurements
-  distances.md       — Theoretical distances
+  distances.md, updated_distances.md — Theoretical distances
   adjust_pentagon.py — Least-squares survey adjustment
 
 roof/                — Roof outline generation
@@ -49,49 +56,49 @@ site/                — Site plan generation
   gen_site_plan.py   — Building on survey parcel PDF. Outputs site/site_plan_df.pdf, site_plan_fs.pdf
 
 scad/                — OpenSCAD 3D model and line drawing generation
+  _common.py         — Shared SCAD generation helpers
   gen_flat_roof.py   — Flat roof SCAD model
   gen_2in12.py       — 2:12 slope roof SCAD model
+  gen_1in12.py       — 1:12 slope roof SCAD model
+  gen_split1.py      — Split roof (1:12) SCAD model
+  gen_split2.py      — Split roof (2:12) SCAD model
+  gen_gltf.py        — GLB (glTF) 3D model export; SCAD parser + mesh builders
+                       reused by blend/gen_blend.py
   gen_views.py       — Multi-view rendered output
   gen_line_drawings.py — Line drawing SVGs from SCAD
 
-blend/               — Blender 3D model generation
-  gen_blend.py       — Native Blender (.blend) model of the currently-loaded
-                       editor model (app/adu.db). The launcher builds gd from the
-                       live DB and generates SCAD fresh (restoring the on-disk
-                       scad file) for two variants — the configured roof_style and
-                       a 2:12 sloped roof — then hands a manifest (list of models +
-                       parcel) to headless Blender. Reuses scad/gen_gltf.py's
-                       parser + mesh builders so geometry matches the .glb models
-                       exactly, except the roof is rebuilt natively as a planar
-                       n-gon prism (gen_gltf's ear-clipping leaves a triangular
-                       gap on the repeated closing vertex), and interior walls are
-                       built per-wall with their door openings boolean-cut to door
-                       height (the GLB build omits them). Window glazing uses a
-                       very transparent material (alpha 0.18, EEVEE Next BLENDED).
-                       Re-launches itself if invoked under plain python
-                       ($BLENDER_EXE overrides the auto-detected blender.exe).
-                       Adds a green grass ground plane covering the survey parcel
-                       (site-plan property extent), computed by inverting
-                       site/gen_site_plan.py's building→PDF transform (needs
-                       PyMuPDF), with the building exterior outline (gd.outline_poly)
-                       cut out so no lawn shows under the house. Adds post-and-rail boundary fences: dark-brown
-                       3-rail (4'8") along the west property boundary (275.08'
-                       line), lighter-brown single-rail (4'0") along the south
-                       boundary (216.73' line), meeting at the SW corner, with 4"
-                       posts every 10'. (Survey plat is N-left/E-top, not N-up —
-                       see site/gen_site_plan.py.) The 2:12 model also gets a
-                       1800-frame walk-around camera animation (30 fps): the camera
-                       circles the building clockwise from the 42" door side along
-                       an outline-offset path, 5'6" above ground, kept pointed at
-                       the origin (5'6") by a Track-To constraint, vertical FOV 105°.
-                       Outputs blend/<config_name>.blend and
-                       blend/<config_name>_2in12.blend (e.g. blend/MarkZ.blend +
-                       blend/MarkZ_2in12.blend). Invoking Blender directly with no
-                       manifest falls back to legacy flat_roof + 2in12 builds.
+blend/               — Blender (.blend) 3D model generation from the live DB.
+                       See blend/README.md for the full pipeline (roof variants,
+                       manifest protocol, ground plane, fences, camera animation).
 
 plumbing/            — Plumbing plan generation
-  gen_plumbing.py    — Water supply/drain plan SVG. Outputs plumbing/plumbing.svg
+  gen_plumbing.py    — Standalone water supply/drain plan SVG. Outputs plumbing/plumbing.svg.
+                       The app also renders plumbing as a floorplan variant
+                       (floorplan/floorplan_plumbing.svg) — see PLUMBING_PLAN.md
 ```
+
+### Additional directories and root scripts
+
+```
+app/                 — Interactive editor (see § App below and app/ARCHITECTURE.md)
+tests/               — Pytest suite (geometry/layout regression + app tests)
+elevations/          — gen_elevations.py: elevation drawings
+sketch/              — gen_sketch_nnw.py: perspective sketch from reference photo
+opt_rot/             — C17 sweep-angle analysis (see opt_rot/ABOUT_OPT_ROT.md)
+ani/                 — Floorplan-history animation tooling (see ani/README.md)
+options/, opts/      — Published option-comparison pages and GLB model exports (gen_options.py)
+main/                — Reference site photos
+X/                   — ARCHIVAL: frozen snapshot of generated outputs; not live code
+gen_all.py           — Regenerate all outputs from the DB (see GENERATORS.md)
+gen_3views.py        — 3-view PDF layout. Outputs 3views.pdf
+gen_options.py       — Builds options/ and opts/ comparison pages
+gen_overlay.py       — Overlay comparison drawing
+run_app.py           — Launch the interactive editor (Flask, port 5000)
+recover_markx*.py    — One-off DB recovery scripts (historical)
+publish.sh           — Publishing helper
+```
+
+See `GENERATORS.md` for the authoritative generator → output → data-source table.
 
 ## Dependency Graph
 
@@ -110,26 +117,28 @@ scad/gen_*.py ──→ floorplan/ ──→ shared/
               └──→ shared/
 plumbing/gen_plumbing.py ──→ floorplan/ ──→ shared/
 survey/compute_path.py ──→ shared/
+blend/gen_blend.py ──→ scad/gen_gltf.py ──→ floorplan/ ──→ shared/
+gen_all.py ──→ app/engine.py (DB-driven in-process generation)
 ```
 
 No circular dependencies. floorplan/ never imports from survey/, walls/, span/, roof/, site/, scad/, or plumbing/.
 
 ## Traversal Conventions
 - **Survey traverse** (POB→P2→P3→P4→P5→POB): **CCW** as viewed from above
-- **Construction outline** (F1→F2→...→F20→F1): **CW** as viewed from above (opposite of survey). Interior is on the **right** side of the traversal direction
+- **Construction outline** (F1→F2→F5→...→F18→F1): **CW** as viewed from above (opposite of survey). Interior is on the **right** side of the traversal direction
 - `left_norm(p1, p2)` returns the left perpendicular of the direction p1→p2. For CW traversal, left = exterior. Code uses `_wt = -wall_t` to negate and offset inward
 - Individual arc `direction` ("CW"/"CCW" in `ArcSeg`) refers to each arc's own sweep direction, not the outline traversal. CW arcs (convex corners) get inner radius `R - wall_t`; CCW arcs (concave corners) get `R + wall_t`
 
 ## Key Patterns
-- Outline points: F-series (`F1`, `F2`, `F5`..`F20`, `F11a`, `F11b` — no F3/F4), primary naming; U-series derived as aliases in survey/gen_path_svg.py
-- Inner wall points: W-series (`W1`, `W2`, `W5`..`W20`, `W11a`, `W11b`), 8" inset from outline, matching F-series numbering
+- Outline points: F-series (`F1`, `F2`, `F5`..`F18`, `F11a`, `F11b` — no F3/F4, no F19/F20), primary naming; U-series derived as aliases in survey/gen_path_svg.py. The live DB chain may add or rename points (e.g. `W01`-style names in some saved configs) — the `outline_chain` table is authoritative
+- Inner wall points: W-series (`W1`, `W2`, `W5`..`W18`, `W11a`, `W11b`), inset from outline by `WALL_OUTER` (8" seed default; live value in DB constants), matching F-series numbering
 - Shell boundary points: S-series / G-series, matching F-series numbering. Computed via `shared/wall_shells.py:compute_inset_path` with custom inset + prefix rename
-- Arc centers: C-series by lower point number (`C1`, `C5`, `C7`, `C8`, `C10`, `C11`, `C11a`, `C13`, `C15`, `C17`, `C19`); radii: R_a-series (`R_a1`, `R_a5`, ..., `R_a19`). `R_a1` = `CORNER_SW_R` (design constant); F20→F1 distance derived from closure
+- Arc centers: C-series by lower point number (`C1`, `C5`, `C7`, `C8`, `C10`, `C11a`, `C11`, `C13`, `C15`, `C17`); radii: R_a-series (`R_a1`, `R_a5`, `R_a7`, `R_a8`, `R_a10`, `R_a11`, `R_a13`, `R_a15`, `R_a17`). `R_a1` = `CORNER_SW_R` (design constant); `d_F2_F5` and `d_F18_F1` derived from closure
 - Traverse arc centers: `TC1`, `TC2`, `TC3` (outer/inset path)
-- `outline_segs`: list of 20 `LineSeg`/`ArcSeg` defining the closed outline path (CW traversal: F1→F2→F5→...→F11→F11a→F11b→F12→...→F20→F1)
+- `outline_segs`: `LineSeg`/`ArcSeg` list defining the closed outline path (18 segments in the seed chain; the live DB chain may differ — CW traversal: F2→F5→F6→...→F11→F11a→F11b→F12→...→F18→F1→F2)
 - All radii in `OutlineGeometry.radii` dict; passed to `compute_inner_walls`
 - Arc tangency: `|center1 - center2| = R1 + R2` (external)
-- Physical constants defined in `floorplan/constants.py` (seed/reference) and in the DB `constants` table (live/authoritative)
+- Physical constants defined in `floorplan/constants.py` (seed/reference) and in the DB `constants` table (live/authoritative). **When docs or code comments cite a physical number, note whether it is the seed default or the live DB value** — e.g. `WALL_OUTER` is 8" in the seed but may be larger in the loaded config
 
 ## F-Series Geometry Principle
 
@@ -139,7 +148,7 @@ The F-series outline is defined purely by:
 3. **Tangency**: automatic — each segment starts at the position and bearing where the previous segment ended
 4. **Closure**: d_F2_F5 and d_F18_F1 are solved so the chain closes back to F2
 
-**That's it.** No other runtime constraints exist in the geometry code. When a change request specifies additional constraints (e.g., "keep F9-F20 fixed", "maintain clear span"), those constraints are used to DERIVE new segment parameter values. Once the values are verified to satisfy the change request plus tangency and closure, the derived values are hardcoded as segment definitions and the change-request constraints are discarded. The solver in `geometry.py` must never accumulate constraints from past change requests.
+**That's it.** No other runtime constraints exist in the geometry code. When a change request specifies additional constraints (e.g., "keep F9-F18 fixed", "maintain clear span"), those constraints are used to DERIVE new segment parameter values. Once the values are verified to satisfy the change request plus tangency and closure, the derived values are hardcoded as segment definitions and the change-request constraints are discarded. The solver in `geometry.py` must never accumulate constraints from past change requests.
 
 ## DB Authority
 
@@ -161,27 +170,39 @@ The only legitimate use of these hardcoded modules outside of seeding is:
 - `gen_all.py` reads the DB (`app/adu.db`) and uses in-process generation for all supported scripts; survey and SCAD scripts without in-process handlers fall back to subprocess (uses `floorplan/constants.py` as reference — acceptable since those scripts derive geometry from survey traversal / 3D model parameters, not DB formulas).
 - Outline geometry lives in `floorplan/geometry.py` (seed/reference); live outline in the DB `outline_chain` table
 - Interior layout (rooms, furniture) lives in `floorplan/layout.py` (seed/reference only; app uses DB formulas)
-- Opening positions (O1-O11, RO1-RO7) live in `floorplan/openings.py` (seed/reference only; app uses DB formulas)
-- Wall construction constants (shell thickness, air gap, opening radius) defined in `floorplan/constants.py`, re-exported by `walls/constants.py`
+- Opening positions (O1-O11 + O8A, RO1-RO7) live in `floorplan/openings.py` (seed/reference only; app uses DB formulas)
+- Wall construction constants (shell thickness, air gap, opening radius) defined in `floorplan/constants.py` (seed) and the DB `constants` table (live)
 - Shell geometry utilities (inset paths, U-turn polygons, wall sections) live in `shared/wall_shells.py`
 - Pure geometry utilities (intersections, polygon ops) live in `shared/geometry.py`
 - After geometry changes, update d² regression tests: `python tests/update_d2.py` (see HOWTO §14)
+- **Doc update protocol (root docs):** when a change renames geometry points, adds/removes a generator script, or adds/changes API endpoints or DB tables, update the affected sections of `CLAUDE.md`, `HOWTO.md`, `COORDINATE_SYSTEMS.md`, `GENERATORS.md`, and `app/DATABASE.md` in the same commit. Avoid hardcoding volatile counts (endpoints, tests, line counts) in prose — reference the source instead.
 
 ## App (Interactive Editor)
 
 ```
-app/                 — Flask web editor: interactive canvas + constants editing
-  server.py          — Flask routes, SSE broadcast, geometry cache
-  engine.py          — Geometry computation orchestrator (patches floorplan.constants)
-  database.py        — SQLite schema, seeding from floorplan/ sources, CRUD
-  variants.py        — Variant registry and item dimension constants
-  apputil.py         — Shared JSON serialisation helpers (point_to_list, bbox_from_poly, seg_to_dict)
+app/                 — Flask web editor: interactive canvas + full parametric editing
+  server.py          — Flask routes (REST + SSE), geometry cache, config save/load
+  engine.py          — Geometry computation orchestrator (formula-only since Phase 12g;
+                       does NOT patch floorplan.constants)
+  evaluator.py       — FormulaEvaluator: topo-sorted evaluation of DB-stored JSON
+                       formulas (see app/FORMULAS.md)
+  database.py        — SQLite schema + CRUD (see app/DATABASE.md)
+  database_seeds.py  — Seed data (variants, views, shapes, exclusions)
+  db_render.py       — DB-path floorplan SVG renderer (all variants incl. plumbing)
+  gen_provider.py    — GeneratorData provider + inner wall override engine
+  outline_solver.py  — DB-chain closure solver (no floorplan/ imports)
+  elements.py, doors.py, labels.py, style.py, plumbing.py, undo.py,
+  variants.py, parse_input.py, apputil.py — supporting modules (see ARCHITECTURE.md)
+  configs/           — Named saved configurations (File → Save As), e.g. Mark10.db
   templates/         — index.html (single-page layout)
-  static/js/app.js   — Client application (~1440 lines, no build step)
+  static/js/         — Client (app.js + tools, catalog, dialogs, shape-editor,
+                       outline-editor; no build step)
   static/css/app.css — Dark theme (Catppuccin palette)
   ARCHITECTURE.md    — Detailed module docs, computation flow, roadmap
-  REQUIREMENTS.md    — 275 testable requirements (275 implemented)
-  CHARTER.md         — Purpose, history, design principles
+  REQUIREMENTS.md    — Testable requirements (see its summary table for counts)
+  DATABASE.md        — Database schema reference
+  FORMULAS.md        — Formula language reference
+  CHARTER.md         — Purpose, history, design principles (historical snapshot)
 ```
 
 ### NF-4: Lifted (Phase 12g Cutover Complete)

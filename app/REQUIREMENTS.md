@@ -20,11 +20,11 @@ The application SHALL create an SQLite database with tables `constants`,
 `outline_chain`, `views`, `shapes`, `variant_exclusions`,
 `room_label_offsets`, `undo_history`, `elements`, `doors`, `config`,
 `element_formulas`, `formula_deps`, `variants`, `plumbing_elements`,
-`survey_legs`, and `survey_config` (16 tables) when launched for the
-first time.
+`survey_legs`, `survey_config`, `inner_wall_overrides`, `catalog_items`,
+and `roof_corners` (19 tables) when launched for the first time.
 
 **Acceptance:** Start with no `app/adu.db` file. Run `python run_app.py
---no-browser`. Verify the file is created and contains all 16 tables.
+--no-browser`. Verify the file is created and contains all 19 tables.
 
 #### DB-2  Constants Seeding
 On first initialisation the database SHALL contain every uppercase numeric
@@ -2865,6 +2865,10 @@ Preview clears when dialog closes.
 
 ## 20  Configuration Files (Save/Load)
 
+**Status:** Implemented (Phase 21) — `app/configs/` directory,
+`/api/configs*` endpoints, File menu Save / Save As / Load.  Verified
+manually; automated test coverage not yet written (see summary note).
+
 ### 20.1  Save Configuration
 
 #### CFG-1  Save Database As Named File
@@ -2936,32 +2940,32 @@ message is shown. The current database is unchanged.
 ### 20.3  API Endpoints
 
 #### CFG-9  Save API
-`POST /api/config/save` with body `{"name": "<config-name>"}` SHALL save
+`POST /api/configs/save` with body `{"name": "<config-name>"}` SHALL save
 the current database to the named configuration file and return
 `{"status": "ok", "path": "<file-path>"}`.
 
-**Acceptance:** `curl -X POST -d '{"name":"test1"}' /api/config/save`
+**Acceptance:** `curl -X POST -d '{"name":"test1"}' /api/configs/save`
 returns 200 with status "ok". File exists on disk.
 
 #### CFG-10  Load API
-`POST /api/config/load` with body `{"name": "<config-name>"}` SHALL
+`POST /api/configs/load` with body `{"name": "<config-name>"}` SHALL
 replace the current database with the named configuration file and return
 `{"status": "ok"}`. The server SHALL broadcast an SSE event to refresh
 all connected clients.
 
-**Acceptance:** `curl -X POST -d '{"name":"test1"}' /api/config/load`
+**Acceptance:** `curl -X POST -d '{"name":"test1"}' /api/configs/load`
 returns 200. Subsequent API calls reflect the loaded configuration.
 Connected browser clients refresh automatically.
 
 #### CFG-11  List API
-`GET /api/config/list` SHALL return a JSON array of available
+`GET /api/configs` SHALL return a JSON array of available
 configuration files: `[{"name": "...", "modified": "...", "size": ...}, ...]`.
 
-**Acceptance:** Save two configurations. `GET /api/config/list` returns
+**Acceptance:** Save two configurations. `GET /api/configs` returns
 both entries with correct names, ISO timestamps, and file sizes.
 
 #### CFG-12  Delete API
-`DELETE /api/config/<name>` SHALL delete the named configuration file
+`DELETE /api/configs/<name>` SHALL delete the named configuration file
 and return `{"status": "ok"}`.
 
 **Acceptance:** Save a configuration, then delete it via API. The file
@@ -3015,7 +3019,9 @@ history) to the requirements that enable each operation through the GUI.
 
 ## Appendix B: Requirements Summary
 
-"Implemented" = working with test coverage (Phases 0–12h).
+"Implemented" = working; all sections except 20 have automated test
+coverage (Section 20 is implemented but verified manually — automated
+tests pending).
 "Planned" = future phases, marked **(NEW)** on the requirement
 line or inherited from a **(NEW)** section/subsection heading.
 
@@ -3040,8 +3046,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 17 Application | 10 | 0 | 10 |
 | 18 Formulas | 19 | 0 | 19 |
 | 19 Inner Wall Overrides | 10 | 0 | 10 |
-| 20 Configuration Files | 0 | 14 | 14 |
-| **Total** | **287** | **14** | **301** |
+| 20 Configuration Files | 14 | 0 | 14 |
+| **Total** | **301** | **0** | **301** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

@@ -14,15 +14,18 @@ DB-driven and editable from the UI; all SVG/PDF generators accept
 `GeneratorData` as an optional parameter, and the app's regeneration
 endpoints pass a DB-built `GeneratorData` in-process.  The plumbing SVG
 is now a floorplan variant produced by `render_floorplan_svg_db()`.
-Standalone execution (via `gen_all.py`) constructs `GeneratorData` from
-the hardcoded procedural modules.
+`gen_all.py` also builds `GeneratorData` from the DB; only individual
+scripts run standalone construct it from the hardcoded procedural modules.
 
 ---
 
-## Current State (Phase 20 + 15½ complete)
+## Current State (Phase 21 complete)
 
-**287 of 287 requirements implemented.**  ~1100 app tests, ~590 pre-existing
-tests (~1670 total).  All implemented requirements have automated test coverage.
+**301 of 301 requirements implemented** (see the summary table at the end of
+`app/REQUIREMENTS.md` for the per-section breakdown).  ~1850 tests total
+(`python -m pytest tests/ --collect-only -q`).  All sections have automated
+test coverage except Section 20 (configuration files), which is verified
+manually — automated tests pending.
 
 | Capability | Status |
 |------------|--------|
@@ -56,6 +59,7 @@ tests (~1670 total).  All implemented requirements have automated test coverage.
 | Inner wall segment overrides: DB, engine, API, editor UI (Phase 15½) | Done |
 | Plumbing SVG as floorplan variant (Phase 19½) | Done |
 | Plumbing as layout variant in variant selector (Phase 20) | Done |
+| Configuration files: Save / Save As / Load / Delete (Phase 21) | Done |
 
 **What's missing:** Electrical layout (Phase 13, aspirational).
 
@@ -163,6 +167,14 @@ seed now points to `floorplan/gen_floorplan.py` producing
 `floorplan/floorplan_plumbing.svg`.  Plumbing tools visible in both
 `plumbing_edit` and `plumbing` views.  1 new requirement (PLUMB-12).
 
+### Phase 21 — Configuration Files (Save/Load)
+Section 20 requirements CFG-1–14.  Named database snapshots in `app/configs/`
+(e.g. `Mark10.db`, `MarkZ.db`).  File menu Save / Save As / Load / Delete with
+`GET /api/configs`, `POST /api/configs/save`, `POST /api/configs/load`,
+`DELETE /api/configs/<name>`.  Save As renames the live DB's `config_name`
+before copying so the saved file carries the new name.  Verified manually;
+automated tests pending.
+
 ### Phase 20 — Plumbing as Layout Variant
 Made "Plumbing" a layout variant in the variant selector (like standard,
 minik, daybed, bare, sf) instead of separate Plumbing Edit / Plumbing
@@ -197,7 +209,7 @@ DB-backed).
 ## Phase Dependency Graph
 
 ```
-Phases 1–20 + 15½ + 19½ (all complete)
+Phases 1–21 + 15½ + 19½ (all complete)
     │
     └── Phase 13 (Electrical) ◄── 10, 18
 ```
@@ -209,7 +221,7 @@ Phases 1–20 + 15½ + 19½ (all complete)
 Each phase is considered complete only after:
 
 1. All phase requirements pass automated tests
-2. All 1695+ tests continue to pass (`python -m pytest tests/ -x -q`)
+2. The full test suite continues to pass (`python -m pytest tests/ -x -q`)
 3. All SVGs regenerate successfully (`python gen_all.py`)
 4. User acknowledgement that all phase goals are met
 

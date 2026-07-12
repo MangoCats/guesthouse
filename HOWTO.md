@@ -2,13 +2,20 @@
 
 Step-by-step instructions for common but complex tasks in the ADU project. Consult this before researching the codebase from scratch.
 
+**Seed vs. live:** The database (`app/adu.db`) is the sole source of truth for
+building geometry (see CLAUDE.md § DB Authority). Sections marked **[SEED]**
+below edit the `floorplan/` seed modules — those changes only take effect after
+File → Reset Database and do **not** alter the currently loaded design. To
+change the live design, use the app (canvas tools, constants table, REST API)
+— see [Section 17](#17-editing-the-live-design-db--app).
+
 ## Table of Contents
 
 1. [Adding a Dimension Line](#1-adding-a-dimension-line)
 2. [Identifying Wall Faces and Coordinates](#2-identifying-wall-faces-and-coordinates)
-3. [Adding an Interior Wall](#3-adding-an-interior-wall)
+3. [Adding an Interior Wall](#3-adding-an-interior-wall) [SEED]
 4. [Adding an Opening](#4-adding-an-opening)
-5. [Adding an Appliance or Furniture Item](#5-adding-an-appliance-or-furniture-item)
+5. [Adding an Appliance or Furniture Item](#5-adding-an-appliance-or-furniture-item) [SEED]
 6. [Wall Construction Detail Drawing](#6-wall-construction-detail-drawing)
 7. [Verifying Changes](#7-verifying-changes)
 8. [Adding Text Captions to site_plan.pdf](#8-adding-text-captions-to-site_planpdf)
@@ -20,57 +27,63 @@ Step-by-step instructions for common but complex tasks in the ADU project. Consu
 14. [Updating d² Regression Tests](#14-updating-d²-regression-tests)
 15. [Adding a New Generator to gen_all.py](#15-adding-a-new-generator-to-gen_allpy)
 16. [Debugging a Failed Test](#16-debugging-a-failed-test)
+17. [Editing the Live Design (DB / App)](#17-editing-the-live-design-db--app)
 
 ---
 
 ## 1. Adding a Dimension Line
 
-**File:** `floorplan/gen_floorplan.py` (dimension lines section, after wall definitions, before openings)
+Dimensions are database elements (type `'dimension'`) whose endpoints are
+**anchors** resolved by `_resolve_anchor()` in `app/engine.py`. There are two
+ways to add one:
 
-### Helper functions
+### A. Live path — user dimension (app)
 
-Two helpers are defined at the top of `gen_floorplan.py`:
+Use the app's dimension tool, or `POST /api/elements` with
+`type='dimension'` and `properties` containing `start_anchor` / `end_anchor`.
+Anchors support five types: `point`, `wall_face`, `opening_face`,
+`line_intersection`, `computed` (see `app/ARCHITECTURE.md` § Anchor resolution
+and `app/FORMULAS.md` § Point specs). User dimensions auto-name `UD1`, `UD2`, …
 
-- `dim_line_h(out, e1, n, e2, label)` — Horizontal (W-E) dimension line at a fixed northing `n`, between eastings `e1` and `e2`. Tick marks are vertical. Label is centered above.
-- `dim_line_v(out, e, n1, n2, label)` — Vertical (S-N) dimension line at a fixed easting `e`, between northings `n1` and `n2`. Tick marks are horizontal. Label is rotated 90° to the left.
+### B. Builtin dimension (seeded set)
 
-### Coordinates
+**File:** `app/labels.py` — `BUILTIN_DIMENSIONS` list. Each entry is a dict
+with `name`, `variant` (None = all variants), `start_anchor`, `end_anchor`,
+and optional `label_prefix`. Missing builtins are seeded on startup, so adding
+an entry takes effect on next server start without a full DB reset.
 
-All dimension helper parameters use **survey coordinates** (Easting/Northing in feet), not SVG pixels. The `to_svg()` conversion is handled internally.
-
-### Label formatting
-
-Use `fmt_dist(distance_in_feet)` from `shared/geometry.py` to format distances as `X' Y"`. The distance argument should be positive.
-
-### Step-by-step
-
-1. **Identify the two endpoints** in survey coordinates:
-   - Perimeter wall outer face: `pts["F<n>"][0]` (easting) or `pts["F<n>"][1]` (northing)
-   - Perimeter wall inner face: `pts["W<n>"][0]` or `pts["W<n>"][1]`
-   - Interior wall faces: use `layout.<field>` (e.g., `layout.iw3.w`, `layout.iw3.e`, `layout.iw4.w`, `layout.iw1.s`)
-
-2. **Determine the offset position** (where the line is placed, perpendicular to the measurement):
-   - For `dim_line_h`: choose a northing `n` (e.g., `layout.ctr.n + layout.iwt3 + 1.0` for "1' north of IW7 north face")
-   - For `dim_line_v`: choose an easting `e` (e.g., `layout.iw3.e + 2.0` for "2' east of IW3 east face")
-
-3. **Add the call** in the dimension lines section (between wall rendering and openings):
-   ```python
-   # Description of what the dimension measures
-   dim_line_h(out, start_e, n, end_e, fmt_dist(end_e - start_e), to_svg)
-   ```
-
-4. **Prefixed labels** — For labeled dimensions (e.g., closets, storage), pass a formatted string:
-   ```python
-   dim_line_h(out, e1, n, e2, f"CLOSET {fmt_dist(e2 - e1)}")
-   ```
-
-### Example (real code)
+### Example (real code, `app/labels.py`)
 
 ```python
-# F2-F3 east face to IW3 west face, 1' north of IW7 north face
-dim_n = layout.ctr.n + layout.iwt3 + 1.0
-dim_line_h(out, pts["W3"][0], dim_n, layout.iw3.w, fmt_dist(layout.iw3.w - pts["W3"][0]), to_svg)
+# dim01: IW1-north → W9 (vertical probe east of F9-F11 midpoint)
+{
+    "name": "dim01", "variant": None,
+    "start_anchor": {
+        "type": "line_intersection",
+        "line1_point": {"face_mid": "IW1", "face": "north"},
+        "line1_dir": {"face_along": "IW1", "face": "north"},
+        "line2_point": _F9F11_MID_OFFSET, "line2_dir": "north",
+    },
+    "end_anchor": {
+        "type": "line_intersection",
+        "line1_point": "W9", "line1_dir": "east",
+        "line2_point": _F9F11_MID_OFFSET, "line2_dir": "north",
+    },
+},
 ```
+
+Labels are formatted feet-inches automatically (`fmt_dist` /
+client `fmtFtIn`); a `label_prefix` such as `"CLOSET "` may be prepended.
+
+### C. Legacy/standalone path [SEED]
+
+The standalone renderer computes endpoints in
+`floorplan/gen_floorplan.py:compute_dimension_endpoints()` (wall-relative
+`seg_vecs`/`offset_pt`/`line_isect` math, two named endpoints per dimension)
+and draws them with the `dim_line_h` / `dim_line_v` helpers. All parameters
+are in survey coordinates (E/N feet); `to_svg()` conversion is internal.
+This path only affects the seed/reference output — keep it in sync with the
+builtin anchor spec if the dimension should appear in both.
 
 ---
 
@@ -80,16 +93,16 @@ Understanding which coordinate to use for "east face of X wall" is the most comm
 
 ### Perimeter walls (WALL_OUTER thick, F-series outer / W-series inner)
 
-The outline traverses CW (as viewed from above): F1 → F2 → ... → F20 → F1. The interior is on the **right** side.
+The outline traverses CW (as viewed from above): F1 → F2 → F5 → ... → F18 → F1. The interior is on the **right** side. (There are no F3/F4 or F19/F20 points.)
 
 | Wall side of building | Outer (exterior) face | Inner (interior) face |
 |-|-|-|
-| **West** (F2-F3, F4-F5) | `pts["F<n>"][0]` (smaller easting) | `pts["W<n>"][0]` (larger easting) |
+| **West** (F2-F5) | `pts["F<n>"][0]` (smaller easting) | `pts["W<n>"][0]` (larger easting) |
 | **East** (F14-F15) | `pts["F<n>"][0]` (larger easting) | `pts["W<n>"][0]` (smaller easting) |
-| **North** (F6-F7) | `pts["F<n>"][1]` (larger northing) | `pts["W<n>"][1]` (smaller northing) |
-| **South** (F18-F19, F20-F1) | `pts["F<n>"][1]` (smaller northing) | `pts["W<n>"][1]` (larger northing) |
+| **North** (F6-F7, F9-F10) | `pts["F<n>"][1]` (larger northing) | `pts["W<n>"][1]` (smaller northing) |
+| **South** (F18-F1) | `pts["F<n>"][1]` (smaller northing) | `pts["W<n>"][1]` (larger northing) |
 
-**Key insight:** For walls on the west side (like F2-F3), the "east face" is the **inner** face at `pts["W<n>"]`, not the F-series point.
+**Key insight:** For walls on the west side (F2-F5), the "east face" is the **inner** face at `pts["W<n>"]`, not the F-series point.
 
 ### Interior walls
 
@@ -109,13 +122,13 @@ Access via `layout.<field>.w`, `.s`, `.e`, `.n` for bounding box, or `layout.<fi
 | **IW2** (vertical) | 6" | `layout.iw2.w` | `layout.iw2.e` | `layout.iw2.s` | `layout.iw2.n` | `layout.iw2.poly` |
 | **IW2O** (oblique, IW2→IW2S) | 6" | `layout.iw2o.w` | `layout.iw2o.e` | `layout.iw2o.s` | `layout.iw2o.n` | `layout.iw2o.poly` |
 | **IW2S** (shower section) | 6" | `layout.iw2s.w` | `layout.iw2s.e` | `layout.iw2s.s` | `layout.iw2s.n` | `layout.iw2s.poly` |
-| **IW3** (perp. to W20-W1) | 4" | `layout.iw3.w` | `layout.iw3.e` | `layout.iw3.s` | `layout.iw3.n` | `layout.iw3.poly` |
+| **IW3** (perp. to W18-W1) | 4" | `layout.iw3.w` | `layout.iw3.e` | `layout.iw3.s` | `layout.iw3.n` | `layout.iw3.poly` |
 | **IW4** (vertical) | 4" | `layout.iw4.w` | `layout.iw4.e` | `layout.iw4.s` | `layout.iw4.n` | `layout.iw4.poly` |
 | **IW5** (horizontal) | 3" | `layout.iw5.w` | `layout.iw5.e` | `layout.iw5.s` | `layout.iw5.n` | `layout.iw5.poly` |
 | **IW6** (horizontal) | 1" | `layout.iw6.w` | `layout.iw6.e` | `layout.iw6.s` | `layout.iw6.n` | `layout.iw6.poly` |
-| **IW7** (par. to W20-W1) | 3" | `layout.iw7.w` | `layout.iw7.e` | `layout.iw7.s` | `layout.iw7.n` | `layout.iw7.poly` |
+| **IW7** (par. to W18-W1) | 3" | `layout.iw7.w` | `layout.iw7.e` | `layout.iw7.s` | `layout.iw7.n` | `layout.iw7.poly` |
 | **IW8** (horizontal) | 6" | `layout.iw8.w` | `layout.iw8.e` | `layout.iw8.s` | `layout.iw8.n` | `layout.iw8.poly` |
-| **IW9** (perp. to W20-W1) | 3" | `layout.iw9.w` | `layout.iw9.e` | `layout.iw9.s` | `layout.iw9.n` | `layout.iw9.poly` |
+| **IW9** (perp. to W18-W1) | 3" | `layout.iw9.w` | `layout.iw9.e` | `layout.iw9.s` | `layout.iw9.n` | `layout.iw9.poly` |
 | **IW11** (N-S) | 4" | `layout.iw11.w` | `layout.iw11.e` | `layout.iw11.s` | `layout.iw11.n` | `layout.iw11.poly` |
 | **IW12** (perp. to IW11) | 4" | `layout.iw12.w` | `layout.iw12.e` | `layout.iw12.s` | `layout.iw12.n` | `layout.iw12.poly` |
 
@@ -136,7 +149,12 @@ Appliances and furniture also use `Wall`: `layout.dryer`, `layout.washer`, `layo
 
 ## 3. Adding an Interior Wall
 
-Interior wall positions are computed in `floorplan/layout.py` and rendered in `floorplan/gen_floorplan.py` (`_render_walls` function).
+**[SEED]** This section covers the seed/reference modules only. In the live
+design, interior walls are DB elements with `wall_rect` formulas — add one via
+the app's Draw Wall tool or `POST /api/interior-walls` (auto-names IW13,
+IW14, …); see [Section 17](#17-editing-the-live-design-db--app).
+
+Seed interior wall positions are computed in `floorplan/layout.py` and rendered in `floorplan/gen_floorplan.py` (`_render_walls` function).
 
 ### Step-by-step
 
@@ -177,34 +195,46 @@ Import from `floorplan/constants.py`:
 
 ## 4. Adding an Opening
 
-**File:** `floorplan/openings.py` — single source of truth for all opening positions.
+**Live path:** openings are DB elements with `wall_opening` formulas
+(see `app/FORMULAS.md`). Create via the app or `POST /api/openings`; door
+configuration (leaf width, hinge, swing, single/double) lives in the `doors`
+table (`POST /api/doors`).
 
 Openings are rendered as light-blue rectangles (`rgb(220,235,255)`) with `#4682B4` stroke. They cut through the wall from outer (F-series) to inner (W-series) face.
 
-### Types
+The current design has **12 outer openings** (O1–O11 plus O8A) and
+**7 rough openings** (RO1–RO7).
 
-- `OuterOpening(name, seg_start, seg_end, poly)` — perimeter wall opening (O1-O11)
-- `RoughOpening(name, bbox, wall_name, orientation)` — interior wall rough opening (RO1-RO5)
+### Types (seed modules)
+
+- `OuterOpening(name, seg_start, seg_end, poly)` — perimeter wall opening
+- `RoughOpening(name, bbox, wall_name, orientation)` — interior wall rough opening
 - `WallOpening(name, seg_idx, t_start, t_end)` — parametric form used by `walls/gen_walls.py`
 
-### Adding a perimeter opening
+### Adding a perimeter opening [SEED]
 
 1. Add the opening definition in `compute_outer_openings()` in `floorplan/openings.py`.
 2. The function returns `OuterOpening` objects with 4-vertex polygons in survey coords.
 3. Both `gen_floorplan.py` and `gen_walls.py` consume openings from this single source — no need to update two places.
 
-### Adding a rough opening (interior wall)
+### Adding a rough opening (interior wall) [SEED]
 
 1. Add the opening in `compute_rough_openings()` in `floorplan/openings.py`.
 2. Update rendering in `_render_walls()` in `gen_floorplan.py` and `_render_interior_walls()` in `walls/gen_walls.py`.
 
 ### Tests
 
-Opening tests are in `tests/test_gen_floorplan.py` and `tests/test_gen_walls.py` (11 outer openings, 5 rough openings, segment index validity, parametric ranges).
+Opening tests are in `tests/test_gen_floorplan.py` and `tests/test_gen_walls.py` (outer opening set, rough opening set, segment index validity, parametric ranges).
 
 ---
 
 ## 5. Adding an Appliance or Furniture Item
+
+**[SEED]** In the live design, items are DB elements with `item_rect` /
+`item_circle` / shape formulas, placed via the app's catalog tool
+(`app/static/js/catalog.js`, backed by the `catalog_items` table) — see
+[Section 17](#17-editing-the-live-design-db--app). This section covers the
+seed renderer.
 
 **File:** `floorplan/gen_floorplan.py` (appliances section)
 
@@ -242,14 +272,14 @@ Compute the SVG rotation angle from a wall direction vector using `_svg_angle()`
 
 ## 6. Wall Construction Detail Drawing
 
-**Files:** `walls/gen_walls.py`, `shared/wall_shells.py`, `floorplan/constants.py`
+**Files:** `walls/gen_walls.py`, `shared/wall_shells.py`, `floorplan/constants.py` (seed) / DB `constants` table (live)
 
 The wall detail drawing (`walls/walls.svg`) shows the double-shell 3D-printed concrete outer wall construction at 1:72 scale.
 
 ### Wall construction model
 
 - **Outer shell**: `SHELL_THICKNESS` (2") concrete (F-series to S-series boundary)
-- **Air gap**: `AIR_GAP` (computed from `WALL_OUTER - 2*SHELL_THICKNESS`)
+- **Air gap**: `AIR_GAP` (seed default `WALL_OUTER - 2*SHELL_THICKNESS`; a live DB constant that can be set independently — e.g. 6" in the Mark10 config)
 - **Inner shell**: `SHELL_THICKNESS` (2") concrete (G-series to W-series boundary)
 - **Total**: `WALL_OUTER` (adjustable 8"–12", see [Section 10](#10-changing-exterior-wall-thickness))
 
@@ -264,11 +294,13 @@ Four concentric boundary paths trace the building perimeter:
 
 ### Construction constants
 
-Defined in `floorplan/constants.py` (re-exported by `walls/constants.py`):
+Defined in `floorplan/constants.py` (seed) and the DB `constants` table (live):
 
 - `SHELL_THICKNESS` = 2/12 ft (2") — constant regardless of wall thickness
-- `AIR_GAP` = `WALL_OUTER - 2*SHELL_THICKNESS` — computed, increases with wall thickness
-- `OPENING_INSIDE_RADIUS` = 10/304.8 ft (10mm)
+- `AIR_GAP` = `WALL_OUTER - 2*SHELL_THICKNESS` (seed formula; live value stored in DB)
+- `OPENING_INSIDE_RADIUS` = 10/304.8 ft (10mm) — legacy default; per-type cap radii
+  (`OPENING_DOOR_OUTER_R`, `OPENING_DOOR_INNER_R`, `OPENING_WINDOW_OUTER_R`,
+  `OPENING_WINDOW_INNER_R`) allow door/window × outer/inner shell adjustment
 
 ### Opening U-turn corners
 
@@ -281,9 +313,8 @@ At each opening boundary, the shells connect via 90-degree corner turns:
 
 ### Modifying wall constants
 
-1. Edit values in `floorplan/constants.py`
-2. Run `python walls/gen_walls.py` to regenerate
-3. Run `python -m pytest tests/test_gen_walls.py` to verify
+1. **Live:** edit the constant in the app's Constants tab (or `PUT /api/constants/<name>`), then regenerate (`python gen_all.py` or the app's Regenerate menu). **Seed:** edit `floorplan/constants.py` (affects Reset Database only).
+2. Run `python -m pytest tests/test_gen_walls.py` to verify
 
 ### Adding/modifying openings
 
@@ -293,44 +324,29 @@ Opening positions are defined in `floorplan/openings.py` (single source of truth
 
 ## 7. Verifying Changes
 
-After any geometry or layout change, regenerate and inspect all SVGs:
+After any geometry or layout change, regenerate and inspect all outputs:
 
 ```bash
 python gen_all.py
 ```
 
-This captures `git describe --always --dirty=-DEV` once into `.git_describe`, runs all 15 generator scripts using that cached value, then deletes the cache. This ensures all title blocks embed the same version string even though writing the first SVG dirties the working tree. After the scripts finish, it renders PDFs to PNGs at 1920px wide.
+`gen_all.py` reads the DB (`app/adu.db`), captures `git describe --always
+--dirty=-DEV` once into `.git_describe`, runs the **in-process** generators
+with DB-built `GeneratorData` (floorplan variants, walls, span, roof, site
+plan, SCAD flat/2:12, survey path), then runs the remaining scripts as
+**subprocesses** (survey variants, points PDF, scad views/line drawings,
+3views, plumbing, glTF, Blender). Finally it renders PDFs (site plans,
+3views) to 1920px PNGs. The single cached describe value keeps all title
+blocks on the same version even though writing the first SVG dirties the
+working tree.
 
-The full generator list:
+**See `GENERATORS.md` for the authoritative script → output → data-source
+table.**
 
-| Subdirectory | Scripts | Outputs |
-|-|-|-|
-| `survey/` | `gen_path_svg.py`, `gen_path_svg_wo.py`, `gen_path_svg_ks.py` | `path_area.svg`, `path_area_wo.svg`, `path_area_ks.svg` |
-| `floorplan/` | `gen_floorplan.py` | `floorplan.svg` |
-| `walls/` | `gen_walls.py` | `walls.svg`, `all_walls.svg` |
-| `span/` | `gen_span.py`, `gen_span_minmax.py`, `gen_span_min.py` | `span.svg`, `span_minmax.svg`, `span_min.svg` |
-| `roof/` | `gen_roof.py` | `roof.svg` |
-| `site/` | `gen_site_plan.py` | `site_plan_df.pdf`, `site_plan_fs.pdf` |
-| `scad/` | `gen_flat_roof.py`, `gen_2in12.py`, `gen_views.py`, `gen_line_drawings.py` | `.scad` and `.svg` files |
-| top-level | `gen_3views.py` | `3views.pdf` |
-
-Individual scripts can also be run standalone — they fall back to a live `git describe` if the cache file is absent:
-
-```bash
-python survey/gen_path_svg.py
-python floorplan/gen_floorplan.py
-python walls/gen_walls.py
-python span/gen_span.py
-python span/gen_span_minmax.py
-python span/gen_span_min.py
-python roof/gen_roof.py
-python site/gen_site_plan.py
-python scad/gen_flat_roof.py
-python scad/gen_2in12.py
-python scad/gen_views.py
-python scad/gen_line_drawings.py
-python gen_3views.py
-```
+Individual scripts can also be run standalone (e.g. `python
+floorplan/gen_floorplan.py`) — they fall back to a live `git describe` if the
+cache file is absent, and use the seed `floorplan/` modules rather than the
+DB, so standalone output may differ from the live design.
 
 The floorplan script prints:
 - Outer/inner/wall areas (sanity check for area subtraction)
@@ -465,49 +481,49 @@ If the cross product of (north, east) = `(0)(0) - (1)(1) = -1` (negative), then 
 
 ## 10. Changing Exterior Wall Thickness
 
-**File:** `floorplan/constants.py` (line 10)
+The exterior wall thickness is the `WALL_OUTER` constant (valid range:
+8"–12"), with the air gap in `AIR_GAP`.
 
-The exterior wall thickness is parameterized. To change it, edit the single constant `WALL_OUTER` (valid range: 8"–12"). All dependent geometry updates automatically.
+### Live path (the normal way)
 
-### What to change
+Edit `WALL_OUTER` (and `AIR_GAP` if desired) in the app's Constants tab or via
+`PUT /api/constants/WALL_OUTER`. The mechanism, implemented in
+`app/gen_provider.py` (see the "Outer-wall airgap parameterization" step in
+`build_generator_data()`):
+
+- The outline chain defines the exterior at the **8" design-baseline** wall.
+- When `WALL_OUTER` exceeds the baseline, the exterior outline is offset
+  **outward** by `WALL_OUTER − 8"`, so the interior (W-series) face stays
+  fixed.
+- Derived values (`WALL_EXTRA`, `CORNER_SW_R`, …) are computed on the fly by
+  `_derive_constant()` in `app/gen_provider.py` / `app/engine.py` — they are
+  not separate editable constants.
+
+### Seed path [SEED]
 
 Edit one line in `floorplan/constants.py`:
 
 ```python
-WALL_OUTER = 10.0 / 12.0          # 10" outer wall (adjustable: 8"-12")
+WALL_OUTER = 8.0 / 12.0           # 8" outer wall (adjustable: 8"-12")
 ```
 
-Change `10.0` to the desired thickness in inches (e.g., `9.0` for 9").
-
-### What happens automatically
-
-The private constant `_WE = WALL_OUTER - 8.0 / 12.0` (wall extra beyond the 8" baseline) drives 11 derived constants:
-
-| Constant | Formula | Why |
-|-|-|-|
-| `AIR_GAP` | `WALL_OUTER - 2*SHELL_THICKNESS` | Shell thickness is fixed; gap absorbs the change |
-| `CORNER_SW_R` | `10"/12 + _WE` | Arc radii grow to keep arc centers (and W-series) fixed |
-| `CORNER_NW_R` | `28"/12 + _WE` | Same |
-| `UPPER_E_R` | `28"/12 + _WE` | Same |
-| `ARC_180_R` | `28"/12 + _WE` | Same |
-| `ARC_F3_R` | `base + _WE` | Same |
-| `ARC_F13_R` | `base + _WE` | Same |
-| `ARC_F19_R` | `base + _WE` | Same |
-| `F6_HEIGHT` | `base + 2*_WE` | F1 moves south and F6 moves north, so height changes by 2x |
-| `SOUTH_WALL_N` | `base - _WE` | South wall face moves south |
-| `F15_OFFSET_E` | `base + _WE` | East wall moves east |
-
-Additionally, anchor offsets (`_WE` applied to Pi2, Pi3, PiX, Pi5) in `gen_floorplan.py`, `gen_path_svg.py`, and `tests/conftest.py` shift the outline outward while keeping W-series (inner wall) coordinates constant.
+`WALL_EXTRA = WALL_OUTER - 8/12` and `AIR_GAP = WALL_OUTER -
+2*SHELL_THICKNESS` follow automatically. This affects only a freshly reset
+database and standalone script runs.
 
 ### Key invariant
 
-**W-series points do not move** when wall thickness changes. The inner wall geometry is fixed by the survey inset path. Changing `WALL_OUTER` only moves F-series points outward (or inward), preserving all interior dimensions.
+**W-series points do not move** when wall thickness changes. Changing
+`WALL_OUTER` only moves F-series points outward (or inward), preserving all
+interior dimensions.
 
 ### After changing
 
 1. Run tests: `python -m pytest tests/ -x`
-2. **Update regression test expectations** in `tests/test_outline.py` (`_EXPECTED_F` coordinates, area) and `tests/test_gen_walls.py` (wall polygon count) to match the new geometry.
-3. Regenerate SVGs: `python gen_all.py`
+2. If seed geometry changed: update regression expectations in
+   `tests/test_outline.py` and `tests/test_gen_walls.py` (wall polygon count),
+   and run `python tests/update_d2.py` (see [Section 14](#14-updating-d²-regression-tests)).
+3. Regenerate outputs: `python gen_all.py`
 
 ### Wall polygon count
 
@@ -518,6 +534,21 @@ from shared.wall_shells import openings_on_seg, solid_ranges
 # For each LineSeg with openings, check if adjusted ranges survive:
 # t_e_adj > t_s_adj + 1e-9 after delta_t = R_out / seg_len trim
 ```
+
+---
+
+## 11. Contributing to This Document
+
+**For future agents:** If you encounter a complex task that required significant codebase research and is not already covered here, please add a new section documenting the procedure. Follow the existing format:
+
+1. Add an entry to the Table of Contents.
+2. Write a section with:
+   - Which file(s) to edit
+   - The relevant helper functions or patterns
+   - Step-by-step instructions
+   - A concrete code example from the codebase
+3. Keep instructions concise and focused on the "how", not the "why" — the architecture is documented in `CLAUDE.md`.
+4. Mark seed-module procedures **[SEED]** and say what the live (DB/app) equivalent is.
 
 ---
 
@@ -615,59 +646,51 @@ Each render function defines local helpers for its reference walls:
 
 ## 13. Modifying F-Series Outline Geometry
 
-**File:** `floorplan/geometry.py`
+**Live path:** the outline lives in the DB `outline_chain` table, edited via
+the app's Outline tab, F-point dragging, or `PUT /api/outline/<seq>` /
+`add-point` / `DELETE`. Closure is re-solved by `app/outline_solver.py` on
+every edit. The live chain may have more segments than the seed (saved
+configs add points).
 
-The F-series outline is a chain of 20 line/arc segments starting at F2, traversing CW, and closing back to F2. All segment parameters are explicit constants. Only two values are computed at runtime: `d_F2_F5` and `d_F20_F1` (the closure solver).
+**Seed file [SEED]:** `floorplan/geometry.py`
+
+The seed F-series outline is a chain of 18 line/arc segments starting at F2, traversing CW, and closing back to F2. All segment parameters are explicit constants. Only two values are computed at runtime: `d_F2_F5` and `d_F18_F1` (the closure solver).
 
 ### Architecture
 
 ```
-Segment definitions (hardcoded)  →  Chain  →  Closure solver (d_F2_F5, d_F20_F1)  →  Walk  →  F-series points
+Segment definitions (hardcoded)  →  Chain  →  Closure solver (d_F2_F5, d_F18_F1)  →  Walk  →  F-series points
 ```
 
 There are no other runtime solvers. Tangency is automatic (each segment starts where the previous ended). Closure is the only runtime computation.
 
 ### Making a change
 
-1. **Identify which segment parameters change.** A change request may specify constraints like "keep F9-F20 fixed" — use these to derive the new parameter values.
+1. **Identify which segment parameters change.** A change request may specify constraints like "keep F9-F18 fixed" — use these to derive the new parameter values.
 
 2. **Derive new values.** Use `_chain_offset()` or algebraic computation to find segment parameters that satisfy the change request. Verify by walking the chain and checking all constraints.
 
 3. **Hardcode the results.** Replace the old segment parameter values with the new ones. Do NOT add runtime solvers to enforce the change-request constraints — the constraints were only needed to derive the values.
 
-4. **Verify closure and tangency.** Run tests. The closure solver automatically adjusts `d_F2_F5` and `d_F20_F1`. All other points follow from the chain walk.
+4. **Verify closure and tangency.** Run tests. The closure solver automatically adjusts `d_F2_F5` and `d_F18_F1`. All other points follow from the chain walk.
 
 5. **Update regression tests.** Points that changed need updated expected values in `test_outline.py`, `test_d2_regression.py`, and `test_gen_site_plan.py`.
 
 ### Example: changing an arc sweep
 
-To change the C5 sweep from `arctan(9)` to `π/2` while keeping F9-F20 fixed:
+To change the C5 sweep from `arctan(9)` to `π/2` while keeping F9-F18 fixed:
 
 1. Compute the old F5→F9 E-displacement (since F9.E must stay the same)
 2. With the new sweep, derive the new F6→F7 line length: `L = old_dE - R_C5 - R_C7 - R_C8`
 3. Replace the old sweep and line length values in the chain
-4. All other segments stay the same → F9-F20 positions are preserved
-5. The closure solver recomputes `d_F2_F5` and `d_F20_F1`
+4. All other segments stay the same → F9-F18 positions are preserved
+5. The closure solver recomputes `d_F2_F5` and `d_F18_F1`
 
 ### What NOT to do
 
 - **Do not add runtime solvers** for constraints from a change request (e.g., "solve for R_C10 and L_F12F13 to maintain F7→F14 displacement"). Derive the values once, hardcode them, discard the solver.
 - **Do not retain a "reference chain"** from a previous geometry state. The current segment definitions ARE the geometry.
 - **Do not couple segment parameters** via runtime constraints (e.g., NS_CLEAR_SPAN adjusting d_F14F15). Each segment parameter is independent after derivation.
-
----
-
-## 11. Contributing to This Document
-
-**For future agents:** If you encounter a complex task that required significant codebase research and is not already covered here, please add a new section documenting the procedure. Follow the existing format:
-
-1. Add an entry to the Table of Contents.
-2. Write a section with:
-   - Which file(s) to edit
-   - The relevant helper functions or patterns
-   - Step-by-step instructions
-   - A concrete code example from the codebase
-3. Keep instructions concise and focused on the "how", not the "why" — the architecture is documented in `CLAUDE.md`.
 
 ---
 
@@ -724,7 +747,8 @@ python -m pytest tests/ -x
 
 ## 15. Adding a New Generator to gen_all.py
 
-When you create a new SVG generator script, register it in `gen_all.py` so that `python gen_all.py` regenerates everything.
+When you create a new generator script, register it so that `python
+gen_all.py` regenerates everything, and update `GENERATORS.md`.
 
 ### Steps
 
@@ -733,31 +757,30 @@ When you create a new SVG generator script, register it in `gen_all.py` so that 
    - Write its output file(s) to a deterministic path (typically alongside the script)
    - Use `from shared.svg import git_describe` for version stamps
 
-2. **Add the script path to `_SCRIPTS`** in `gen_all.py`:
-   ```python
-   _SCRIPTS = [
-       ...
-       os.path.join(_DIR, "mydir", "gen_foo.py"),
-   ]
-   ```
-   Order doesn't matter for correctness, but grouping by subdirectory keeps it readable.
+2. **Register it in `gen_all.py`** — two lists:
+   - `_INPROCESS_SCRIPTS` (relative paths): scripts with an in-process handler
+     in `app/engine.py:_run_generator_inprocess()`. These receive DB-built
+     `GeneratorData` and are the preferred path for anything that depends on
+     building geometry. Add a dispatch branch in `_run_generator_inprocess()`
+     that calls your render function with `gd`.
+   - `_SUBPROCESS_SCRIPTS` (absolute paths): scripts without handlers
+     (survey-traversal or 3D-parameter driven). These run via
+     `subprocess.check_call` and use the seed modules.
 
-3. **If the generator produces a PDF that should be rendered to PNG**, add its path to the `pdf_pngs` list:
-   ```python
-   pdf_pngs = [
-       ...
-       os.path.join(_DIR, "mydir", "foo.pdf"),
-   ]
-   ```
-   This requires `PyMuPDF` (`pip install -e ".[gen]"`).
+3. **If the app should expose it as a view tab**, add a row to the `views`
+   table seed (`app/database_seeds.py`) with name, label, script path, and
+   output path.
 
-4. **Test**: run `python gen_all.py` and verify the new output appears.
+4. **If the generator produces a PDF that should be rendered to PNG**, add its path to the `pdf_pngs` list in `gen_all.py` (requires PyMuPDF).
+
+5. **Test**: run `python gen_all.py` and verify the new output appears. Add a
+   row to the table in `GENERATORS.md`.
 
 ### How gen_all.py works
 
 - Captures `git describe --always --dirty=-DEV` to `.git_describe` *before* any script runs
-- `shared.svg.git_describe()` reads this file so all SVGs get the same version stamp
-- Scripts run sequentially via `subprocess.check_call`
+- `shared.svg.git_describe()` reads this file so all outputs get the same version stamp
+- Builds `GeneratorData` from the DB once, runs in-process handlers, then runs subprocess scripts
 - The `.git_describe` cache file is cleaned up in a `finally` block
 
 
@@ -803,4 +826,35 @@ python gen_all.py
 - `test_d2_regression.py` checks squared-distance invariants between named points
 - `test_outline.py` checks absolute F-series coordinates
 - `test_span.py` tests span computation helpers from `span/_common.py`
-- Tests run in ~3 seconds total; no external services or network access needed
+- `test_zapp_*.py` cover the app layer (DB, engine, API, formulas, undo); shared fixtures in `tests/test_zapp_conftest.py`
+- No external services or network access needed
+
+---
+
+## 17. Editing the Live Design (DB / App)
+
+The database is authoritative (CLAUDE.md § DB Authority). Common live-design
+operations and where they happen:
+
+| Task | App UI | API |
+|------|--------|-----|
+| Change a constant (wall thickness, opening width, …) | Constants tab, inline edit | `PUT /api/constants/<name>` |
+| Edit the outline chain | Outline tab; drag F-points / arc handles | `PUT /api/outline/<seq>`, `POST /api/outline/add-point`, `DELETE /api/outline/<seq>` |
+| Add an interior wall | Draw Wall tool | `POST /api/interior-walls` (creates `wall_rect` formula; auto-names IW13+) |
+| Add/edit an opening | canvas tools / Openings tab | `POST /api/openings`, `PUT /api/openings/<name>` |
+| Configure a door | properties panel | `POST/PUT /api/doors[/<opening>]` |
+| Place furniture/appliances | Add Element → catalog | `POST /api/elements` |
+| Move elements | Move tool (drag, grid snap, offset dialog) | `POST /api/elements/<id>/move` |
+| Add dimensions/labels | Dimension / Label tools | `POST /api/elements` (type `dimension`/`label`) |
+| Edit element formulas / lock/unlock | properties panel formula section | formula REST endpoints; `GET /api/deps/graph` |
+| Inner wall segment overrides | override dialog (live preview) | inner-wall-override endpoints |
+| Survey traverse | Survey view | `PUT /api/survey/legs/<seq>`, `PUT /api/survey/config/<key>` |
+| Save / load named configs | File → Save As / Load | `GET /api/configs`, `POST /api/configs/save`, `POST /api/configs/load`, `DELETE /api/configs/<name>` |
+| Reset to seed defaults | File → Reset Database | `POST /api/reset-database` |
+| Export/import project JSON | File menu | `GET /api/project/export`, `POST /api/project/import` |
+| Regenerate SVG outputs | Regenerate menu | `POST /api/regenerate` (or `python gen_all.py`) |
+
+Every mutation is undoable (Ctrl+Z / Ctrl+Shift+Z, 50 levels). Element
+geometry is defined by JSON formulas — see `app/FORMULAS.md` for the formula
+language and `app/DATABASE.md` for the schema. After significant changes,
+run `python gen_all.py` so the on-disk SVG/PDF outputs match the DB.

@@ -51,6 +51,8 @@ app/server.py          Flask routes, SSE broadcast, geometry cache
     │      └─ app/database.py     (state application via CRUD functions)
     │
     ├─ app/engine.py       Geometry computation + in-process generator dispatch
+    │      ├─ app/evaluator.py          (FormulaEvaluator — see app/FORMULAS.md)
+    │      ├─ app/db_render.py          (DB-path floorplan SVG renderer)
     │      ├─ app/gen_provider.py       (shared native geometry computation)
     │      ├─ floorplan/geometry.py     (outline, F-series)
     │      ├─ floorplan/gen_floorplan.py (dimension endpoints)
@@ -77,27 +79,31 @@ and `shared/` never import from `app/`.
 
 ### app/database.py — Persistence
 
-Seventeen SQLite tables:
+Nineteen SQLite tables (full column reference: `app/DATABASE.md`). Row
+counts below are seed-state approximations — the live config may differ
+(e.g. the Mark10 config has 26 outline segments and 236 constants):
 
-| Table | Rows | Purpose |
+| Table | Seed rows | Purpose |
 |-------|------|---------|
-| `constants` | 143+ | Named numeric constants (value, unit, category) |
-| `outline_chain` | 18 | Closed outline segments (line/arc definitions) |
-| `views` | 11 | Registered SVG generators and output paths |
-| `shapes` | ~15 | Complex item shapes (polygon coordinate lists) |
-| `variants` | 5+ | Variant definitions (name, label, flags, layer_config, is_builtin) |
+| `constants` | 140+ | Named numeric constants (value, unit, category) |
+| `outline_chain` | 18 | Closed outline segments (line/arc definitions); live chain may add points |
+| `views` | 14 | Registered generators and output paths |
+| `shapes` | ~4 | Complex item shapes (polygon coordinate lists) |
+| `variants` | 6 | Variant definitions (name, label, flags, layer_config, is_builtin) + user-created |
 | `variant_exclusions` | 4 | Per-variant element hiding (wall/opening exclusions) |
-| `room_label_offsets` | 0 | User-adjusted room label positions (offset from centroid) |
+| `room_label_offsets` | 0 | Legacy room label offsets (migrated to elements) |
 | `undo_history` | 0–50 | Serialised undo/redo entries (action type, before/after state) |
 | `elements` | ~59+ | All design elements seeded (walls, openings, variant items) + user-added |
 | `doors` | 9+ | Door configurations per opening (width, hinge side, swing direction, type) |
-| `element_formulas` | ~100+ | JSON position/poly formulas per element (locked, variant-scoped) |
+| `element_formulas` | ~100+ | JSON position/poly formulas per element (locked, variant-scoped); see `app/FORMULAS.md` |
 | `formula_deps` | ~200+ | Formula dependency edges (element→element, element→point, element→constant) |
-| `config` | 2+ | Application config key-value pairs (default_variant, etc.) |
+| `config` | 2+ | Application config key-value pairs (default_variant, config_name, etc.) |
 | `plumbing_elements` | 17+ | Supply/drain pipes, fittings, fixture connections |
 | `survey_legs` | 5 | Traverse legs (bearing deg/min/sec, distance ft/inch, label) |
 | `survey_config` | 5 | Survey constants (FC_IN_P3, COORD_ROTATION, corrections) |
 | `inner_wall_overrides` | 3+ | Parametric override chains for W-series inner wall segments (seg_index, span_end, sub_seq, seg_type L/CW/CCW, bearing, distance, radius, sweep, n_pts) |
+| `catalog_items` | ~49 | Placement catalog (furniture/appliance/fixture templates: dimensions, shape, door/clearance JSON, product URLs, variant lists) |
+| `roof_corners` | 8 | Roof perimeter corner config (center_name, radiused, shortcut) |
 
 **Seeding** — On first run, `init_db()` creates the schema and populates
 tables from source:
@@ -108,7 +114,8 @@ tables from source:
   `O*_WIDTH` → opening, etc.)
 - **outline_chain**: copied from `OUTLINE_CHAIN` and `CHAIN_POINT_NAMES`
   in `floorplan/geometry.py`
-- **views**: hardcoded list of 11 generator registrations
+- **views**: hardcoded list of 14 generator registrations (seed data in
+  `app/database_seeds.py`)
 - **shapes**: hardcoded complex item shapes (polygon coordinates)
 - **variant_exclusions**: per-variant wall/opening exclusion rules
   (bare and sf variants exclude IW6 and RO5)
@@ -175,6 +182,46 @@ tables from source:
 
 Connection management uses a context manager with WAL journaling and
 foreign keys enabled.
+
+### app/database_seeds.py — Seed Data
+
+Static seed data separated from `database.py` CRUD: variant definitions
+(`_VARIANT_SEEDS`), view registrations, shape polygons, variant exclusions,
+and catalog item templates.  Used only during `init_db()` and Reset
+Database.
+
+### app/evaluator.py — FormulaEvaluator
+
+The parametric formula engine (see `app/FORMULAS.md` for the complete
+formula-language reference).  Evaluates JSON formula specs from the
+`element_formulas` table in topological dependency order to produce element
+polygons, bounding boxes, and positions.
+
+- **Formula types** (12): `wall_rect`, `item_rect`, `item_circle`,
+  `wall_opening`, `four_corner`, `toilet_shape`, `bath_sink_shape`,
+  `dining_triangle`, `dining_chair`, `ellipse_rect`, `shape_transform`,
+  `area_poly`.
+- **Spec resolvers**: `resolve_point(spec)`, `resolve_dir(spec)`,
+  `resolve_length(spec)` — the shared grammar for points, directions, and
+  length expressions used inside every formula.
+- **Ordering**: `evaluate_all()` topo-sorts formulas by their
+  `formula_deps` edges; `CycleError` on circular dependencies.
+- **Locking**: a locked formula returns its frozen `locked_value` instead
+  of re-evaluating, cutting upstream propagation.
+- **Dependency queries**: `get_dependents()` / `get_dependencies()`
+  (transitive closures) back the canvas dependency highlighting and
+  `GET /api/deps/graph`.
+
+### app/db_render.py — DB-Path Floorplan Renderer
+
+`render_floorplan_svg_db(geom, data, room_title, boundary)` renders the
+floorplan SVG **from `compute_geometry()` output** (DB-driven), reusing
+`floorplan/gen_floorplan.py` drawing helpers for the static parts.  This is
+the renderer used by the in-process generation path for all six floorplan
+variants (`floorplan.svg`, `_minik`, `_db`, `_bare`, `_sf`, `_plumbing` —
+the plumbing variant adds pipes, ghosted furniture, and the supplies
+table).  The legacy renderer in `gen_floorplan.py` remains for standalone
+seed-module runs.
 
 ### app/elements.py — Element Business Logic
 
@@ -372,13 +419,11 @@ Pure-math reimplementation of the outline closure solver from
 Cross-validation tests verify bit-identical results with `floorplan/geometry.py`
 for default chain parameters.
 
-### app/variants.py — Variant Registry (149 lines)
+### app/variants.py — Variant Registry
 
-Contains the `VARIANTS` dict (legacy reference for variant flags),
-`get_variant_flags()` (reads from DB with dict fallback), dimension
-constants used by formula evaluation, and product URL lookup (legacy
-reference).  All procedural positioning math was removed in Phase 12h
-(835 lines deleted).
+Small module containing `get_variant_flags()` (reads from DB) and residual
+variant helpers.  All procedural positioning math was removed in Phase 12h;
+variant seed definitions live in `app/database_seeds.py`.
 
 **Variant registry** — six built-in variants stored in the `variants` DB
 table (Phase 11 + Phase 20).  User-created variants clone from a source
@@ -424,7 +469,8 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 `floorplan_minik.svg`, daybed → `floorplan_db.svg`, bare →
 `floorplan_bare.svg`, sf → `floorplan_sf.svg`).
 
-**API endpoints** (70 total):
+**API endpoints** (~100 routes; the table below lists the principal ones —
+`app/server.py` is authoritative):
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -489,6 +535,10 @@ SVG file suffixes (standard → `floorplan.svg`, minik →
 | PUT | `/api/plumbing/<id>` | Update plumbing element (PLUMB-5) |
 | DELETE | `/api/plumbing/<id>` | Delete plumbing element (PLUMB-5) |
 | GET | `/api/deps/graph` | Full formula dependency DAG (nodes + edges) (FORM-20) |
+| GET | `/api/configs` | List saved configuration files (CFG-11) |
+| POST | `/api/configs/save` | Save current DB as named config (CFG-9) |
+| POST | `/api/configs/load` | Load named config, replacing current DB (CFG-10) |
+| DELETE | `/api/configs/<name>` | Delete a saved config (CFG-12) |
 
 ### app/plumbing.py — Plumbing CRUD Module
 
@@ -662,10 +712,16 @@ Interactive shape editing dialog with SVG canvas and API integration.
 | `parseSvgPolygon(text)` | Extract points from SVG polygon/path markup |
 | `addShapePicker(tbody, rec, props)` | Shape dropdown in properties panel |
 
+### app/static/js/outline-editor.js — Outline Editing
+
+Canvas-side outline chain editing: F-point drag handles, arc radius
+handles, and live closure feedback against the outline API endpoints.
+
 ### app/static/js/app.js — Client
 
-Single-file client application (~2100 lines).  No build step or
-framework.
+Main client application (the largest JS file; supporting tools live in
+`tools.js`, `catalog.js`, `dialogs.js`, `shape-editor.js`,
+`outline-editor.js`).  No build step or framework.
 
 **API helper** — `apiFetch(url, opts)` wraps `fetch()` and throws on
 non-ok responses, extracting error messages from JSON bodies.  All data
@@ -745,27 +801,27 @@ highlights and SF partition lines.  Responsive breakpoint at
 
 ## Sources of Truth
 
-### Current State (Phases 0–1)
+### Current State
 
 | Data | Source of truth | Editable via app? |
 |------|----------------|-------------------|
 | Named constants | `constants` table (seeded from `floorplan/constants.py`) | Yes — inline editing |
-| Outline chain | `outline_chain` table (seeded from `floorplan/geometry.py`) | Editable: PUT, add-point, delete; closure re-solved automatically |
-| Interior walls | Computed by `floorplan/layout.py` from constants | Indirectly (edit constants) |
-| Openings | Computed by `floorplan/openings.py` from constants | Indirectly (edit constants) |
-| Variant items | Computed by `app/variants.py` from layout + constants | Indirectly (edit constants) |
-| Dimension lines | Computed by `floorplan/gen_floorplan.py` from layout | Indirectly (edit constants) |
+| Outline chain | `outline_chain` table (seeded from `floorplan/geometry.py`) | Yes — PUT, add-point, delete; closure re-solved automatically |
+| Interior walls | `elements` + `element_formulas` (FormulaEvaluator) | Yes — full CRUD, move, formulas |
+| Openings & doors | `elements` + `element_formulas`; `doors` table | Yes — full CRUD |
+| Variant items (furniture/appliances/fixtures) | `elements` + `element_formulas`; templates in `catalog_items` | Yes — catalog placement, move, rotate, delete |
+| Dimension lines & labels | `elements` (anchor specs in properties JSON) | Yes — dimension/label tools |
+| Inner wall overrides | `inner_wall_overrides` table | Yes — override dialog |
 | SVG views | Generated by scripts listed in `views` table | Regenerate via menu |
 | Variant exclusions | `variant_exclusions` table (seeded with bare/sf rules) | Read-only |
-| Room label offsets | `room_label_offsets` table | Yes — move operation |
-| Item shapes | `shapes` table (seeded from hardcoded data) | Read-only |
+| Item shapes | `shapes` table | Yes — shape editor |
 | Plumbing elements | `plumbing_elements` table (seeded with reference pipes/fixtures) | Yes — full CRUD via API |
 | Survey legs | `survey_legs` table (5 legs seeded from `shared/survey.py`) | Yes — PUT endpoint |
 | Survey config | `survey_config` table (FC_IN_P3, COORD_ROTATION, corrections) | Yes — PUT endpoint |
+| Named configurations | `app/configs/*.db` snapshot files | Yes — File Save/Save As/Load |
 
-The constants table is the single editable root for building geometry.
-Every other geometric value is deterministically derived from it through
-the computation pipeline.  Plumbing elements are independently editable.
+Element positions trace back through editable formulas to constants and
+geometry points; changing any root value recomputes everything downstream.
 
 ### Evolution Through Phases
 
@@ -910,12 +966,10 @@ the span analysis functions (Phase 14-C refactored them to use
 
 ## Roadmap
 
-The charter describes a full parametric editor; the current
-implementation is a **parametric viewer with constant editing, undo,
-element/door CRUD, move tool, outline chain editing, enhanced canvas
-rendering, element creation/deletion/rotation tools, and label/dimension
-annotations** (Phases 0–8 complete) — 197 of 226 requirements are
-implemented across 629 app tests (1215 total).  Phase 1 established
+The charter's full parametric editor is implemented (Phases 0–20 plus 15½
+and 19½ complete; see `app/ROADMAP.md` for the authoritative status and
+`app/REQUIREMENTS.md` for requirement counts).  The phase history:
+Phase 1 established
 automated test coverage for all implemented server-side requirements.
 Phase 2 added undo/redo infrastructure.  Phase 3 added elements and
 doors as first-class database objects with full CRUD APIs.  Phase 4

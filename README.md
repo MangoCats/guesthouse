@@ -26,15 +26,19 @@ pip install -e ".[adjust]"
 
 ## Usage
 
-Regenerate all SVG files:
+Regenerate all output files (SVG/PDF/PNG/3D):
 
 ```
 python gen_all.py
 ```
 
-This captures `git describe` once before generating, so all title blocks show the same version even though writing the first SVG dirties the working tree.
+This reads the database (`app/adu.db`) — the authoritative source for all
+building geometry — and runs each generator (in-process where a handler
+exists, subprocess otherwise; see `GENERATORS.md`). It captures `git
+describe` once before generating, so all title blocks show the same version
+even though writing the first SVG dirties the working tree.
 
-Individual scripts can also be run standalone (they fall back to a live `git describe`):
+Individual scripts can also be run standalone (they fall back to a live `git describe` and use the seed `floorplan/` modules rather than the DB):
 
 ```
 python survey/gen_path_svg.py        # → survey/path_area.svg
@@ -65,11 +69,19 @@ pytest
 
 ```
 shared/              Common types, geometry, survey computation, SVG utilities
-floorplan/           Building design: geometry, layout, constants, SVG renderer
+floorplan/           Building design: geometry, layout, constants, SVG renderer (seed source)
 walls/               Outer wall construction detail drawing
 span/                N-S span measurement and rotation analysis
 survey/              Survey scripts and data
+roof/                Roof outline generation
+site/                Site plan (building on survey parcel PDF)
+scad/                OpenSCAD 3D models, glTF export, line drawings
+blend/               Blender 3D model generation (see blend/README.md)
+plumbing/            Plumbing plan generation
+app/                 Interactive Flask editor + SQLite database (authoritative)
 tests/               Unit tests
 ```
 
-See `CLAUDE.md` for detailed file descriptions, dependency graph, and naming conventions.
+See `CLAUDE.md` for detailed file descriptions, dependency graph, and naming
+conventions; `GENERATORS.md` for the generator/output inventory; and
+`app/ARCHITECTURE.md` for the editor internals.
