@@ -20,7 +20,8 @@ from floorplan.constants import (WALL_OUTER, SHELL_THICKNESS, AIR_GAP,
 from floorplan.openings import compute_rough_openings
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges, solid_ranges_bordered,
-    arc_strip_poly, line_strip_poly, partial_line_strip, window_box_poly,
+    arc_strip_poly, line_strip_poly, partial_line_strip,
+    window_box_poly, window_edge_inset,
     uturn_arc_data, uturn_polygon,
     trace_boundary_path, enumerate_wall_sections, build_section_outlines,
     opening_radii_config, opening_corner_radii,
@@ -35,6 +36,7 @@ CLR_SHELL_FILL = "rgba(180,180,180,0.5)"
 CLR_OPENING_FILL = "rgb(220,235,255)"
 CLR_LABEL = "#666"
 CLR_TITLE = "#333"
+OPENING_SW = "0.5"   # opening/window-box stroke width (SVG units)
 
 
 # ============================================================
@@ -614,10 +616,8 @@ def _render_wall_segments(out, data):
     _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
     radii_cfg = opening_radii_config(_c)
     window_depth = _c.get("WINDOW_UNIT_DEPTH", WINDOW_UNIT_DEPTH)
-    # Inset window-box faces by half the stroke width (0.5 svg) in feet so the
-    # stroked outer edge is flush with the wall-shell outer face.
-    _svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
-    window_edge_inset = (0.5 / 2.0) / _svg_per_ft if _svg_per_ft else 0.0
+    # Boxes are stroked with OPENING_SW, so inset faces by half of it.
+    win_edge_inset = window_edge_inset(OPENING_SW, to_svg)
 
     WALL_FILL = CLR_SHELL_FILL
     OPENING_FILL = CLR_OPENING_FILL
@@ -725,11 +725,11 @@ def _render_wall_segments(out, data):
                     else:
                         o_poly = window_box_poly(
                             F_A, F_B, op.t_start, op.t_end, window_depth,
-                            window_edge_inset)
+                            win_edge_inset)
                     if not o_poly:
                         continue
                     _svg_polygon(out, o_poly, to_svg, OPENING_FILL,
-                                 stroke=CLR_DIM, stroke_width="0.5")
+                                 stroke=CLR_DIM, stroke_width=OPENING_SW)
 
 
 def _render_section_outlines(out, data):

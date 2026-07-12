@@ -2495,10 +2495,8 @@ def create_app(db_path=None, skip_init=False):
     def api_views():
         return jsonify(get_views(db))
 
-    _FLOORPLAN_VARIANT_SUFFIX = {
-        "standard": "", "minik": "_minik", "daybed": "_db",
-        "bare": "_bare", "sf": "_sf", "plumbing": "_plumbing",
-    }
+    # Single source: app/variants.py VARIANTS registry
+    from app.variants import FLOORPLAN_VARIANT_SUFFIX as _FLOORPLAN_VARIANT_SUFFIX
 
     @app.route("/api/svg/<view_name>")
     def api_svg(view_name):

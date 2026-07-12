@@ -7,16 +7,33 @@ JSON formulas.  This module provides:
 """
 
 # ---------------------------------------------------------------------------
-# Variant registry
+# Variant registry — single source for built-in variant presentation metadata
+# (floorplan SVG filename suffix, floorplan room title).  Consumers:
+# server.py (SVG serving) and engine.py (floorplan variant generation).
 # ---------------------------------------------------------------------------
 VARIANTS = {
-    "standard": {"label": "Standard", "flags": {}},
-    "minik":    {"label": "Small Kitchen", "flags": {"minik": True}},
-    "daybed":   {"label": "Daybed", "flags": {"db": True}},
-    "bare":     {"label": "Room Dimensions", "flags": {"bare": True}},
-    "sf":       {"label": "Square Footage", "flags": {"sf": True}},
-    "plumbing": {"label": "Plumbing", "flags": {"plumbing": True}},
+    "standard": {"label": "Standard", "flags": {},
+                 "svg_suffix": "", "room_title": "Parent Suite"},
+    "minik":    {"label": "Small Kitchen", "flags": {"minik": True},
+                 "svg_suffix": "_minik", "room_title": "Parent Suite w/Small Kitchen"},
+    "daybed":   {"label": "Daybed", "flags": {"db": True},
+                 "svg_suffix": "_db", "room_title": "Parent Suite with Daybed"},
+    "bare":     {"label": "Room Dimensions", "flags": {"bare": True},
+                 "svg_suffix": "_bare", "room_title": "Room Dimensions"},
+    "sf":       {"label": "Square Footage", "flags": {"sf": True},
+                 "svg_suffix": "_sf", "room_title": "Room Dimensions"},
+    "plumbing": {"label": "Plumbing", "flags": {"plumbing": True},
+                 "svg_suffix": "_plumbing", "room_title": "Plumbing Plan"},
 }
+
+# {variant_name: floorplan SVG filename suffix} (e.g. "daybed" → "_db")
+FLOORPLAN_VARIANT_SUFFIX = {name: v["svg_suffix"] for name, v in VARIANTS.items()}
+
+
+def floorplan_variant_configs():
+    """[(svg_suffix, variant_name, room_title)] for the floorplan generator."""
+    return [(v["svg_suffix"], name, v["room_title"])
+            for name, v in VARIANTS.items()]
 
 
 def get_variant_flags(variant, db_path=None):

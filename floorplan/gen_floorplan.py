@@ -47,7 +47,8 @@ from floorplan.openings import (
 )
 from shared.wall_shells import (
     lerp, openings_on_seg, solid_ranges, solid_ranges_bordered,
-    arc_strip_poly, line_strip_poly, partial_line_strip, window_box_poly,
+    arc_strip_poly, line_strip_poly, partial_line_strip,
+    window_box_poly, window_edge_inset,
     uturn_polygon, enumerate_wall_sections, build_section_outlines,
     opening_radii_config, opening_corner_radii,
 )
@@ -891,10 +892,8 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
     _wall_outer = _c.get("WALL_OUTER", WALL_OUTER)
     radii_cfg = opening_radii_config(_c)
     window_depth = _c.get("WINDOW_UNIT_DEPTH", WINDOW_UNIT_DEPTH)
-    # Inset the box's outer/inner faces by half the stroke width (in feet) so
-    # the stroked outer edge — not its centreline — is flush with the wall face.
-    _svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
-    window_edge_inset = (float(WALL_SW) / 2.0) / _svg_per_ft if _svg_per_ft else 0.0
+    # Boxes are stroked with WALL_SW, so inset faces by half of it (helper doc).
+    win_edge_inset = window_edge_inset(WALL_SW, to_svg)
 
     # --- Per-segment shell strips ---
     for seg_idx in range(len(outline_segs)):
@@ -982,7 +981,7 @@ def _render_walls(out, data, layout, bare=False, skip_interior_walls=False):
                         continue
                     o_poly = window_box_poly(
                         pts[seg.start], pts[seg.end],
-                        op.t_start, op.t_end, window_depth, window_edge_inset)
+                        op.t_start, op.t_end, window_depth, win_edge_inset)
                     if not o_poly:
                         continue
                     svg = " ".join(f"{to_svg(*p)[0]:.1f},{to_svg(*p)[1]:.1f}"

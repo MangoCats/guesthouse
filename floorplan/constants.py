@@ -6,10 +6,16 @@ All values in feet unless noted. Inches converted via / 12.0.
 # Shell construction (constant regardless of wall thickness)
 SHELL_THICKNESS = 2.0 / 12.0         # 2" concrete shell
 
+# Design-baseline outer wall thickness.  The outline chain defines the
+# exterior at this thickness; thicker walls offset the exterior outward
+# (app/gen_provider.py) so the interior face stays fixed.  Private (leading
+# underscore) so it is not seeded into the DB constants table.
+_WALL_BASELINE = 8.0 / 12.0
+
 # Wall thicknesses (feet)
 WALL_OUTER = 8.0 / 12.0           # 8" outer wall (adjustable: 8"-12")
 assert 8.0 / 12.0 <= WALL_OUTER <= 12.0 / 12.0, "WALL_OUTER must be 8\"-12\""
-WALL_EXTRA = WALL_OUTER - 8.0 / 12.0     # wall extra beyond 8" baseline
+WALL_EXTRA = WALL_OUTER - _WALL_BASELINE     # wall extra beyond 8" baseline
 WALL_6IN = 6.0 / 12.0             # 6" interior wall (IW1, IW2, IW2s)
 WALL_4IN = 4.0 / 12.0             # 4" interior wall (IW3, IW4)
 WALL_3IN = 3.0 / 12.0             # 3" interior wall (IW5)
@@ -255,3 +261,32 @@ SHED_ROOF_EAVE_ELEV = 7.5           # 7'6" underside elevation at south eave (R1
 SEAM_SPACING = 16.0 / 12.0          # 16" standing seam on-center spacing
 SEAM_WIDTH = 1.0 / 12.0             # 1" seam rib width
 SEAM_HEIGHT = 1.5 / 12.0            # 1.5" seam rib height
+
+
+def derived_constants(c):
+    """Formulas for constants derived from other constants — single source.
+
+    ``c`` is any mapping of base constant values (the DB constants dict, or
+    this module's ``globals()``/``vars(mod)``).  Returns ``{name: value}`` for
+    every derived constant.  Consumers: the seed self-check below,
+    app/engine.py:patch_constants(), and app/gen_provider.py:_derive_constant().
+    Add new derived constants here, not at the call sites.
+    """
+    wall_outer = c.get("WALL_OUTER", WALL_OUTER)
+    shell = c.get("SHELL_THICKNESS", SHELL_THICKNESS)
+    oir = c.get("OPENING_INSIDE_RADIUS", OPENING_INSIDE_RADIUS)
+    return {
+        "WALL_EXTRA": wall_outer - _WALL_BASELINE,
+        "AIR_GAP": wall_outer - 2.0 * shell,
+        "DOOR_FLAT_FACE": wall_outer - 2.0 * (oir + shell),
+        "F8F9_INNER_TURN_R": oir + shell,
+        "CORNER_SW_R": 10.0 / 12.0 + (wall_outer - _WALL_BASELINE),
+    }
+
+
+# Seed self-check: the inline seed values above must match the registry
+# formulas.  Import fails if either side is edited without the other.
+for _name, _value in derived_constants(globals()).items():
+    assert abs(globals()[_name] - _value) < 1e-12, \
+        f"{_name} seed value diverges from derived_constants() formula"
+del _name, _value

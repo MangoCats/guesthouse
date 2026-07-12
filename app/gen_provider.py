@@ -426,17 +426,17 @@ def apply_overrides_to_poly(inner_poly, inner_segs, pts, overrides):
 def _derive_constant(constants_dict, name):
     """Compute a derived constant from the constants dict.
 
-    Handles derived constants that depend on other constant values:
-      WALL_EXTRA = WALL_OUTER - 8/12
-      CORNER_SW_R = 10/12 + WALL_EXTRA
+    Formula source of truth: floorplan.constants.derived_constants().
+    WALL_EXTRA is always recomputed from WALL_OUTER; CORNER_SW_R prefers an
+    explicit value in the dict; all other names pass through unchanged.
     """
-    wall_outer = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
+    from floorplan.constants import derived_constants
     if name == "WALL_EXTRA":
-        return wall_outer - 8.0 / 12.0
+        return derived_constants(constants_dict)["WALL_EXTRA"]
     if name == "CORNER_SW_R":
         if "CORNER_SW_R" in constants_dict:
             return constants_dict["CORNER_SW_R"]
-        return 10.0 / 12.0 + (wall_outer - 8.0 / 12.0)
+        return derived_constants(constants_dict)["CORNER_SW_R"]
     return constants_dict.get(name)
 
 
@@ -848,8 +848,8 @@ def compute_native_geometry(constants_dict, chain_rows=None, db_path=None):
     #     excess so the interior face (W-series, inset below by WALL_OUTER) and
     #     everything anchored to it stay fixed, while the exterior + roof move
     #     out.  A no-op at the default 8" wall.
-    wall_t = constants_dict.get("WALL_OUTER", 8.0 / 12.0)
-    wall_baseline = 8.0 / 12.0
+    from floorplan.constants import _WALL_BASELINE as wall_baseline
+    wall_t = constants_dict.get("WALL_OUTER", wall_baseline)
     outline_segs = offset_outline_outward(
         outline_segs, pts, radii, wall_t - wall_baseline)
 

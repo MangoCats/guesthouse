@@ -24,12 +24,9 @@ def patch_constants(constants_dict: dict):
     for name, value in constants_dict.items():
         if hasattr(mod, name):
             setattr(mod, name, value)
-    # Recompute derived constants that depend on others
-    mod.WALL_EXTRA = mod.WALL_OUTER - 8.0 / 12.0
-    mod.AIR_GAP = mod.WALL_OUTER - 2 * mod.SHELL_THICKNESS
-    mod.DOOR_FLAT_FACE = mod.WALL_OUTER - 2 * (mod.OPENING_INSIDE_RADIUS + mod.SHELL_THICKNESS)
-    mod.F8F9_INNER_TURN_R = mod.OPENING_INSIDE_RADIUS + mod.SHELL_THICKNESS
-    mod.CORNER_SW_R = 10.0 / 12.0 + mod.WALL_EXTRA
+    # Recompute derived constants from the single-source formula registry
+    for name, value in mod.derived_constants(vars(mod)).items():
+        setattr(mod, name, value)
 
 
 def _wall_to_dict(wall):
@@ -1622,15 +1619,10 @@ def _run_generator_inprocess(script_path: str, gd, db_path: str = None) -> bool:
             boundary = None  # F-series points absent (non-standard chain)
         base = os.path.join(_PROJECT, "floorplan")
 
-        # Variant configs: (suffix, variant_name, room_title)
-        _VARIANTS = [
-            ("",          "standard",  "Parent Suite"),
-            ("_minik",    "minik",     "Parent Suite w/Small Kitchen"),
-            ("_db",       "daybed",    "Parent Suite with Daybed"),
-            ("_bare",     "bare",      "Room Dimensions"),
-            ("_sf",       "sf",        "Room Dimensions"),
-            ("_plumbing", "plumbing",  "Plumbing Plan"),
-        ]
+        # Variant configs: (suffix, variant_name, room_title).
+        # Single source: app/variants.py VARIANTS registry.
+        from app.variants import floorplan_variant_configs
+        _VARIANTS = floorplan_variant_configs()
 
         constants_dict = gd.constants
         doors_data = get_all_doors(db_path) if db_path else []

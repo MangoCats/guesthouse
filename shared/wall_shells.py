@@ -152,6 +152,18 @@ def line_strip_poly(pts, seg_start, seg_end, inner_start, inner_end):
     ]
 
 
+def window_edge_inset(stroke_width_svg, to_svg):
+    """Half an SVG stroke width converted to feet, for window_box_poly.
+
+    Insetting the box's outer/inner faces by half the stroke width makes the
+    *stroked* outer edge — not its centreline — land exactly on the wall face,
+    while preserving the face-to-face depth as drawn.  ``to_svg`` is the
+    survey→SVG transform (used to measure SVG units per foot).
+    """
+    svg_per_ft = abs(to_svg(1, 0)[0] - to_svg(0, 0)[0])
+    return (float(stroke_width_svg) / 2.0) / svg_per_ft if svg_per_ft else 0.0
+
+
 def window_box_poly(f_start, f_end, t_start, t_end, depth, edge_inset=0.0):
     """Plan-view window-unit box, flush with the exterior (outer shell) face.
 
