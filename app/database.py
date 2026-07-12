@@ -1180,7 +1180,12 @@ def _seed_constants(conn):
             continue
         expr, desc = name_to_info.get(attr, (str(val), ""))
         cat = _categorize(attr)
-        unit = "cm" if "CM" in attr else "ft"
+        if "CM" in attr:
+            unit = "cm"
+        elif attr == "CURVE_DETAIL":
+            unit = "x"       # dimensionless multiplier
+        else:
+            unit = "ft"
         conn.execute(
             "INSERT OR REPLACE INTO constants (name, value, expr, unit, category, description) "
             "VALUES (?, ?, ?, ?, ?, ?)",

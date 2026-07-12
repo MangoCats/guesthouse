@@ -17,7 +17,7 @@ from shared.geometry import (
 from shared.svg import make_svg_transform, W, H, git_describe
 from floorplan.constants import (
     WALL_OUTER, WALL_3IN, SHELL_THICKNESS, AIR_GAP, OPENING_INSIDE_RADIUS,
-    WINDOW_UNIT_DEPTH, WH_RADIUS,
+    WINDOW_UNIT_DEPTH, CURVE_DETAIL, WH_RADIUS,
     SINK_RX, SINK_RY, BATH_SINK_LENGTH, BATH_SINK_DEPTH,
     KITCHEN_SINK_WIDTH, KITCHEN_SINK_DEPTH,
     DW_WIDTH, DW_DEPTH, STOVE_WIDTH, STOVE_DEPTH,
@@ -454,11 +454,29 @@ def _default_constants_dict():
             and isinstance(getattr(fc, name), (int, float))}
 
 
+def _scale_arc_detail(segs, detail):
+    """Multiply arc discretization counts (n_pts) for smoother drawn curves.
+
+    Render-time only: applied to the seg lists handed to the floorplan
+    renderer (outline/S/G/W), so wall bands and room fills share the same
+    finer chords while upstream geometry is untouched.
+    """
+    if abs(detail - 1.0) < 1e-9:
+        return segs
+    return [seg._replace(n_pts=max(2, int(round(seg.n_pts * detail))))
+            if isinstance(seg, ArcSeg) else seg
+            for seg in segs]
+
+
 def build_floorplan_data(gd=None):
     """Compute all geometry needed for the floorplan SVG.
 
     If gd (GeneratorData) is provided, uses it as the geometry source.
     Otherwise constructs one from the hardcoded procedural modules.
+
+    Outer-wall arcs are re-discretized at CURVE_DETAIL × their geometry
+    n_pts so the drawn curves are smooth (render-time only — computed
+    areas, span analysis, canvas geometry, and 3D models are unaffected).
     """
     from app.gen_provider import GeneratorData, compute_native_geometry
 
@@ -471,14 +489,19 @@ def build_floorplan_data(gd=None):
     to_svg = make_svg_transform()
     page = compute_page_layout(gd.pts, to_svg, outline_poly=gd.outline_poly)
 
+    detail = (getattr(gd, "constants", None) or {}).get(
+        "CURVE_DETAIL", CURVE_DETAIL)
+
     return FloorplanData(
         pts=gd.pts, to_svg=to_svg,
-        outline_segs=gd.outline_segs, inner_segs=gd.inner_segs,
+        outline_segs=_scale_arc_detail(gd.outline_segs, detail),
+        inner_segs=_scale_arc_detail(gd.inner_segs, detail),
         outer_poly=gd.outline_poly, inner_poly=gd.inner_poly,
         outer_area=gd.outer_area, inner_area=gd.inner_area,
         radii=gd.radii, wall_t=gd.wall_t,
         w_f8f9_poly=gd.w_f8f9_poly,
-        s_segs=gd.s_segs, g_segs=gd.g_segs,
+        s_segs=_scale_arc_detail(gd.s_segs, detail),
+        g_segs=_scale_arc_detail(gd.g_segs, detail),
         openings=gd.openings, g_f8f9_poly=gd.g_f8f9_poly,
         layout=gd.layout,
         w_override_polys=gd.w_override_polys,

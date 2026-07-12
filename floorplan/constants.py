@@ -262,6 +262,13 @@ SEAM_SPACING = 16.0 / 12.0          # 16" standing seam on-center spacing
 SEAM_WIDTH = 1.0 / 12.0             # 1" seam rib width
 SEAM_HEIGHT = 1.5 / 12.0            # 1.5" seam rib height
 
+# Rendering: outer-wall curve smoothing (dimensionless multiplier).
+# Arc discretization counts (n_pts) are multiplied by this factor when
+# building floorplan SVG render data (gen_floorplan.build_floorplan_data),
+# smoothing drawn curves without affecting computed geometry, areas, span
+# analysis, the interactive canvas, or 3D models.
+CURVE_DETAIL = 3.0                  # floorplan arc smoothing multiplier
+
 
 def derived_constants(c):
     """Formulas for constants derived from other constants — single source.
