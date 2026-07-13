@@ -61,7 +61,9 @@ manually — automated tests pending.
 | Plumbing as layout variant in variant selector (Phase 20) | Done |
 | Configuration files: Save / Save As / Load / Delete (Phase 21) | Done |
 
-**What's missing:** Electrical layout (Phase 13, aspirational).
+**What's missing:** Electrical layout (Phase 13, aspirational); Account &
+Authentication (Phase 22, collecting requirements — not yet planned for
+implementation).
 
 ---
 
@@ -206,12 +208,45 @@ DB-backed).
 
 ---
 
+## Phase 22 — Account & Authentication (Collecting Requirements)
+
+**Goal:** user accounts for the editor, including an Account page with
+password management.
+
+**Status:** collecting — requirements are being gathered in
+`REQUIREMENTS.md` § 21 and are **not to be implemented yet**.  When the
+user declares the set complete, scope this phase properly (sub-phases,
+tests, cutover) before any code is written.
+
+**Requirements collected so far:**
+
+| ID | Summary | Collected |
+|----|---------|-----------|
+| ACCT-1 | Password visibility toggles on Account page New / Confirm New Password fields (independent, default masked) | 2026-07-13 |
+
+**Implied prerequisite scope (to be specified when planning):** the app is
+currently single-user with no login.  ACCT-1 presupposes: user accounts +
+credential storage (new DB table; note the wipe-and-reseed schema policy),
+login/session handling in Flask, an Account page in the UI, and a
+change-password flow (current / new / confirm fields with validation).
+These prerequisites should become their own numbered requirements when
+collection is complete.
+
+**Open questions to resolve at planning time:** single-account vs
+multi-user; whether auth is meaningful for a localhost-only tool or implies
+network deployment (which would raise HTTPS/security scope); password
+hashing library choice; interaction with config save/load (per-user
+configs?).
+
+---
+
 ## Phase Dependency Graph
 
 ```
 Phases 1–21 + 15½ + 19½ (all complete)
     │
-    └── Phase 13 (Electrical) ◄── 10, 18
+    ├── Phase 13 (Electrical) ◄── 10, 18
+    └── Phase 22 (Account & Auth) ◄── requirements collection complete
 ```
 
 ---

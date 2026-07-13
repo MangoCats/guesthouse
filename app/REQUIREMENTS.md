@@ -2990,6 +2990,32 @@ The UI SHALL display the name of the currently loaded configuration
 
 ---
 
+## 21  Account & Authentication (NEW — Collecting)
+
+**Status: collecting requirements — do not implement yet.**  The editor is
+currently a single-user local application with no login, user accounts, or
+Account page; this section accumulates account/auth requirements as they
+arrive.  Implementation is deferred until the requirement set is declared
+complete (see ROADMAP.md § Phase 22).  Note the implicit prerequisite scope:
+an authentication system and an Account page (with password-change fields)
+must exist before the requirements below are meaningful.
+
+### 21.1  Account Page — Password Fields
+
+#### ACCT-1  Password Visibility Toggle (NEW)
+On the Account page, the "New Password" and "Confirm New Password" entry
+fields SHALL each provide a visibility toggle (e.g. an eye icon inside the
+field) that switches that field between masked (`●●●`) and plain-text
+display.  The two toggles SHALL operate independently, and fields SHALL
+default to masked.
+
+**Acceptance:** On the Account page, type into New Password — text is
+masked.  Click its visibility toggle — the entered text becomes readable;
+click again — masked.  Repeat for Confirm New Password; toggling one field
+does not change the other.
+
+---
+
 ## Appendix A: Requirement Cross-Reference by User Operation
 
 This table maps common user operations (identified from the full commit
@@ -3047,7 +3073,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 18 Formulas | 19 | 0 | 19 |
 | 19 Inner Wall Overrides | 10 | 0 | 10 |
 | 20 Configuration Files | 14 | 0 | 14 |
-| **Total** | **301** | **0** | **301** |
+| 21 Account & Authentication (collecting) | 0 | 1 | 1 |
+| **Total** | **301** | **1** | **302** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted
