@@ -61,9 +61,7 @@ manually — automated tests pending.
 | Plumbing as layout variant in variant selector (Phase 20) | Done |
 | Configuration files: Save / Save As / Load / Delete (Phase 21) | Done |
 
-**What's missing:** Electrical layout (Phase 13, aspirational); Account &
-Authentication (Phase 22, collecting requirements — not yet planned for
-implementation).
+**What's missing:** Electrical layout (Phase 13, aspirational).
 
 ---
 
@@ -208,60 +206,12 @@ DB-backed).
 
 ---
 
-## Phase 22 — Account & Authentication (Collecting Requirements)
-
-**Goal:** user accounts for the editor, including an Account page with
-password management.
-
-**Status:** collecting — requirements are being gathered in
-`REQUIREMENTS.md` § 21 and are **not to be implemented yet**.  When the
-user declares the set complete, scope this phase properly (sub-phases,
-tests, cutover) before any code is written.
-
-**Requirements collected so far:**
-
-| ID | Summary | Collected |
-|----|---------|-----------|
-| ACCT-1 | Password visibility toggles on Account page New / Confirm New Password fields (independent, default masked) | 2026-07-13 |
-| ACCT-2 | Visibility toggle on Create User form Initial (temporary) password field | 2026-07-13 |
-| ACCT-3 | Create User form Time zone selection defaults to the main system time zone setting | 2026-07-13 |
-
-**Implied prerequisite scope (to be specified when planning):** the app is
-currently single-user with no login.  The collected requirements
-presuppose:
-- user accounts + credential storage (new DB table; note the
-  wipe-and-reseed schema policy), login/session handling in Flask
-- an **Account page** with a change-password flow (current / new / confirm
-  fields with validation) — ACCT-1
-- a **Create User form** — i.e. multi-user with administrator-created
-  accounts and temporary initial passwords (implies a forced
-  change-on-first-login flow to specify) — ACCT-2
-- **per-user time zone preference** and a **main system time zone
-  setting** (a system settings page / `config`-table entry) — ACCT-3
-These prerequisites should become their own numbered requirements when
-collection is complete.
-
-**Scope facts established by collected requirements:** multi-user (not
-single-account) with an admin role that creates users; per-user settings
-exist (time zone); a system-level settings area exists.
-
-**Open questions to resolve at planning time:** whether auth implies
-network deployment beyond localhost (raising HTTPS/security scope);
-password hashing library choice; admin role model (single admin vs role
-grants); temporary-password expiry / forced change on first login;
-interaction with config save/load (per-user configs?); where the system
-time zone setting lives (config table vs OS-derived) and what time zone
-affects in the app (timestamps in undo history, config file listings, …).
-
----
-
 ## Phase Dependency Graph
 
 ```
 Phases 1–21 + 15½ + 19½ (all complete)
     │
-    ├── Phase 13 (Electrical) ◄── 10, 18
-    └── Phase 22 (Account & Auth) ◄── requirements collection complete
+    └── Phase 13 (Electrical) ◄── 10, 18
 ```
 
 ---
