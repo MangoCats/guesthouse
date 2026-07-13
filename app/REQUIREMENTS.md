@@ -3014,6 +3014,28 @@ masked.  Click its visibility toggle — the entered text becomes readable;
 click again — masked.  Repeat for Confirm New Password; toggling one field
 does not change the other.
 
+### 21.2  Create User Form
+
+#### ACCT-2  Initial Password Visibility Toggle (NEW)
+On the Create User form, the "Initial (temporary) password" entry field
+SHALL provide a visibility toggle that switches the field between masked
+and plain-text display, defaulting to masked (same behaviour as ACCT-1).
+
+**Acceptance:** On the Create User form, type into the Initial password
+field — text is masked.  Click the visibility toggle — the entered text
+becomes readable; click again — masked.
+
+#### ACCT-3  Time Zone Default From System Setting (NEW)
+On the Create User form, the Time zone selection SHALL default to the time
+zone configured for the main system (the application-level time zone
+setting), rather than a fixed or arbitrary default.  The administrator may
+still change it per user before saving.
+
+**Acceptance:** Set the main system time zone to (e.g.) America/New_York.
+Open the Create User form — the Time zone selector is pre-set to
+America/New_York.  Change the system time zone and reopen the form — the
+new default is reflected.
+
 ---
 
 ## Appendix A: Requirement Cross-Reference by User Operation
@@ -3073,8 +3095,8 @@ line or inherited from a **(NEW)** section/subsection heading.
 | 18 Formulas | 19 | 0 | 19 |
 | 19 Inner Wall Overrides | 10 | 0 | 10 |
 | 20 Configuration Files | 14 | 0 | 14 |
-| 21 Account & Authentication (collecting) | 0 | 1 | 1 |
-| **Total** | **301** | **1** | **302** |
+| 21 Account & Authentication (collecting) | 0 | 3 | 3 |
+| **Total** | **301** | **3** | **304** |
 
 CT-7 (Unit-Aware Value Parsing) is counted as one requirement alongside
 its 10 sub-requirements CT-7a through CT-7j, which are also counted

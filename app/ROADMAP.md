@@ -223,20 +223,35 @@ tests, cutover) before any code is written.
 | ID | Summary | Collected |
 |----|---------|-----------|
 | ACCT-1 | Password visibility toggles on Account page New / Confirm New Password fields (independent, default masked) | 2026-07-13 |
+| ACCT-2 | Visibility toggle on Create User form Initial (temporary) password field | 2026-07-13 |
+| ACCT-3 | Create User form Time zone selection defaults to the main system time zone setting | 2026-07-13 |
 
 **Implied prerequisite scope (to be specified when planning):** the app is
-currently single-user with no login.  ACCT-1 presupposes: user accounts +
-credential storage (new DB table; note the wipe-and-reseed schema policy),
-login/session handling in Flask, an Account page in the UI, and a
-change-password flow (current / new / confirm fields with validation).
+currently single-user with no login.  The collected requirements
+presuppose:
+- user accounts + credential storage (new DB table; note the
+  wipe-and-reseed schema policy), login/session handling in Flask
+- an **Account page** with a change-password flow (current / new / confirm
+  fields with validation) — ACCT-1
+- a **Create User form** — i.e. multi-user with administrator-created
+  accounts and temporary initial passwords (implies a forced
+  change-on-first-login flow to specify) — ACCT-2
+- **per-user time zone preference** and a **main system time zone
+  setting** (a system settings page / `config`-table entry) — ACCT-3
 These prerequisites should become their own numbered requirements when
 collection is complete.
 
-**Open questions to resolve at planning time:** single-account vs
-multi-user; whether auth is meaningful for a localhost-only tool or implies
-network deployment (which would raise HTTPS/security scope); password
-hashing library choice; interaction with config save/load (per-user
-configs?).
+**Scope facts established by collected requirements:** multi-user (not
+single-account) with an admin role that creates users; per-user settings
+exist (time zone); a system-level settings area exists.
+
+**Open questions to resolve at planning time:** whether auth implies
+network deployment beyond localhost (raising HTTPS/security scope);
+password hashing library choice; admin role model (single admin vs role
+grants); temporary-password expiry / forced change on first login;
+interaction with config save/load (per-user configs?); where the system
+time zone setting lives (config table vs OS-derived) and what time zone
+affects in the app (timestamps in undo history, config file listings, …).
 
 ---
 
